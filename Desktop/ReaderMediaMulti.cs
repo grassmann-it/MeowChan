@@ -1,4 +1,7 @@
 using System;
+using System.Collections.Generic;
+using Avalonia;
+using Avalonia.Controls;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan.Desktop;
@@ -23,8 +26,46 @@ internal static class ReaderMediaMultiRules
         && (text ?? string.Empty).AsSpan().Trim().Length <= Math.Clamp(media.GridTextLimit,
             ReaderDisplayPreferences.MediaGridTextLimitMinimum, ReaderDisplayPreferences.MediaGridTextLimitMaximum);
 
+    /// <summary>
+    /// <see cref="UseGrid(ReaderMediaPreferences, int, string?)"/> for a media column of <paramref name="columnWidth"/>: also only when two tiles
+    /// fit into it. A reader block is never narrower than <see cref="MediaSlotGeometry.MinimumBlockWidth"/> (the file line keeps that), so a
+    /// tile below it would not be half the column and the "grid" would silently be one column; the images then keep their ordinary width.
+    /// </summary>
+    internal static bool UseGrid(ReaderMediaPreferences media, int attachmentCount, string? text, int columnWidth) =>
+        UseGrid(media, attachmentCount, text) && TilesFit(columnWidth);
+
+    /// <summary>Whether two tiles and the gap fit into a media column of <paramref name="columnWidth"/> without a tile going below the block minimum.</summary>
+    internal static bool TilesFit(int columnWidth) => TileWidth(columnWidth) >= MediaSlotGeometry.MinimumBlockWidth;
+
     /// <summary>The width of one tile of the grid inside a media column of <paramref name="columnWidth"/> (two tiles and the gap fill it).</summary>
     internal static int TileWidth(int columnWidth) => Math.Max(1, (int)Math.Floor((Math.Max(1, columnWidth) - GridSpacing) / GridColumns));
+
+    /// <summary>
+    /// Where the tiles of a post's media column go (the pure rule of <see cref="ReaderMediaPanel"/>). With the grid they wrap into lines
+    /// (<see cref="GridSpacing"/> between two tiles of a line, a line as high as its highest tile); without it every tile has a line of its own,
+    /// as a vertical stack: a narrow portrait picture never takes the place beside it that the media column has left over.
+    /// </summary>
+    internal static Rect[] Place(IReadOnlyList<Size> tiles, double availableWidth, bool grid)
+    {
+        Rect[] places = new Rect[tiles.Count];
+        double x = 0, y = 0, lineHeight = 0;
+        int lineStart = 0;
+        for (int i = 0; i < tiles.Count; i++)
+        {
+            Size tile = tiles[i];
+            if (i > lineStart && (!grid || x + tile.Width > availableWidth + 0.01))
+            {
+                for (int k = lineStart; k < i; k++) places[k] = places[k].WithHeight(lineHeight);
+                y += lineHeight;
+                x = 0; lineHeight = 0; lineStart = i;
+            }
+            places[i] = new Rect(x, y, tile.Width, tile.Height);
+            x += tile.Width + GridSpacing;
+            lineHeight = Math.Max(lineHeight, tile.Height);
+        }
+        for (int k = lineStart; k < tiles.Count; k++) places[k] = places[k].WithHeight(lineHeight);
+        return places;
+    }
 
     // ---- the sidebar's thumbnail strip ---------------------------------------------------------------------------------------------
 
@@ -79,5 +120,57 @@ internal static class ReaderMediaMultiRules
         if (media.Sidebar || !largeReader) return null;
         if (double.IsFinite(readerWidth) && readerWidth > 0 && readerWidth < media.Clamped().SidebarMinimumReaderWidth) return null;
         return string.IsNullOrWhiteSpace(shortcut) ? Texts.T("reader.sidebar.discoverNoKey") : Texts.T("reader.sidebar.discover", shortcut);
+    }
+}
+
+/// <summary>
+/// The panel of a post's media column (R11): the tiles wrap into a grid of two columns only for a post that is laid out as a grid
+/// (<see cref="ArchivePostRow.MediaGrid"/>, read from the data context of the post), else every tile stands on its own line as before.
+/// A wrap panel for all posts would put narrow portrait images side by side in posts without a grid (long text, grid switched off).
+/// </summary>
+public sealed class ReaderMediaPanel : Panel
+{
+    public static readonly StyledProperty<bool> IsGridProperty = AvaloniaProperty.Register<ReaderMediaPanel, bool>(nameof(IsGrid));
+
+    static ReaderMediaPanel() => AffectsMeasure<ReaderMediaPanel>(IsGridProperty);
+
+    /// <summary>Wrap into lines (the post is a grid) instead of one tile per line.</summary>
+    public bool IsGrid { get => GetValue(IsGridProperty); set => SetValue(IsGridProperty, value); }
+
+    protected override void OnDataContextChanged(EventArgs e)
+    {
+        base.OnDataContextChanged(e);
+        IsGrid = DataContext is ArchivePostRow { MediaGrid: true };
+    }
+
+    private Rect[] PlaceChildren(double width, bool measuring)
+    {
+        List<Size> sizes = new(Children.Count);
+        foreach (Control child in Children)
+        {
+            if (measuring) child.Measure(new Size(width, double.PositiveInfinity));
+            sizes.Add(child.IsVisible ? child.DesiredSize : default);
+        }
+        return ReaderMediaMultiRules.Place(sizes, width, IsGrid);
+    }
+
+    protected override Size MeasureOverride(Size availableSize)
+    {
+        Rect[] places = PlaceChildren(availableSize.Width, measuring: true);
+        double width = 0, height = 0;
+        foreach (Rect place in places) { width = Math.Max(width, place.Right); height = Math.Max(height, place.Bottom); }
+        return new Size(width, height);
+    }
+
+    protected override Size ArrangeOverride(Size finalSize)
+    {
+        Rect[] places = PlaceChildren(finalSize.Width, measuring: false);
+        for (int i = 0; i < places.Length; i++)
+        {
+            Rect place = places[i];
+            // A stacked tile gets the full width like a vertical stack panel gives it; a wrapped one keeps its own.
+            Children[i].Arrange(IsGrid ? place : place.WithWidth(Math.Max(finalSize.Width, place.Width)));
+        }
+        return finalSize;
     }
 }

@@ -43,7 +43,7 @@ internal static class PluginSettingsErrorMatrixChecks
                     double height = mode == "Barebones" ? 480 : 500;
                     window.Width = width; window.Height = height;
                     await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, width, height));
-                    window.FindControl<MenuItem>("RulesMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+                    SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Rules);
                     await SmokeDispatcher.SettleAsync();
                     TextBox field = (TextBox)editor().FindField(key)!;
                     TextBlock? error = ErrorLabel();

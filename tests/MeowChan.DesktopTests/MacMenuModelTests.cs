@@ -39,12 +39,12 @@ public sealed class MacMenuModelTests
     public void TheViewMenuListsTheMainPagesInFooterOrderWithTheirDigits()
     {
         var view = MacMenuModel.Build().Single(menu => menu.Id == "view").Items;
-        // Tagging has no digit and so no gesture on macOS: it stays out of the native menu (footer and ⋯ menu carry it).
-        Assert.Equal(MainPageOrder.NumberedCommandIds, view.Take(MainPageOrder.NumberedCommandIds.Count).Select(node => node.CommandId!));
+        // Every main page has a digit (F1: the visible footer buttons from the left, then the hidden ones), so all eight stand in the menu in base order.
+        Assert.Equal(MainPageOrder.CommandIds, view.Take(MainPageOrder.CommandIds.Count).Select(node => node.CommandId!));
         Assert.Equal("window.fullscreen", view[^1].CommandId);
-        var digits = view.Take(MainPageOrder.NumberedCommandIds.Count).Select(node => MacMenuModel.Shortcut(Mac, node)).ToArray();
-        // Booru takes the former Plugins slot 6 behind Media; Rules/Sources keep 4/5 and Status keeps Primary+7.
-        Assert.Equal(new[] { "⌘1", "⌘2", "⌘3", "⌘6", "⌘4", "⌘5", "⌘7" }, digits);
+        var digits = view.Take(MainPageOrder.CommandIds.Count).Select(node => MacMenuModel.Shortcut(Mac, node)).ToArray();
+        // Default layout: Booru is hidden and takes the digit behind the visible buttons; Rules/Sources take 5/6 behind Tagging; Status keeps Primary+7.
+        Assert.Equal(new[] { "⌘1", "⌘2", "⌘3", "⌘4", "⌘8", "⌘5", "⌘6", "⌘7" }, digits);
         Assert.DoesNotContain(AllEntries(), node => node.Commands.Contains("navigation.plugins"));
     }
 

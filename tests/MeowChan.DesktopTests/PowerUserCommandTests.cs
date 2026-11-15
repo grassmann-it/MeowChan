@@ -9,9 +9,10 @@ public sealed class PowerUserCommandTests
     [InlineData("navigation.downloads", "1")]
     [InlineData("navigation.archive", "2")]
     [InlineData("navigation.media", "3")]
-    [InlineData("navigation.booru", "6")]
-    [InlineData("navigation.rules", "4")]
-    [InlineData("navigation.sources", "5")]
+    [InlineData("navigation.booru", "8")]
+    [InlineData("navigation.rules", "5")]
+    [InlineData("navigation.sources", "6")]
+    [InlineData("navigation.tagging", "4")]
     [InlineData("navigation.plugins", null)]
     [InlineData("navigation.status", "7")]
     [InlineData("session.pause", "Shift+P")]
@@ -32,7 +33,7 @@ public sealed class PowerUserCommandTests
         // macOS shows Apple glyphs in Apple's order without "+": ⌘3, ⇧⌘P.
         Assert.Equal(suffix == "Shift+P" ? "⇧⌘P" : "⌘" + suffix, CommandCatalog.ShortcutDisplay(id, true));
         KeyGesture gesture = CommandBindings.Gesture(id)!;
-        Assert.Equal(suffix switch { "1" => Key.D1, "2" => Key.D2, "3" => Key.D3, "4" => Key.D4, "5" => Key.D5, "6" => Key.D6, "7" => Key.D7, _ => Key.P }, gesture.Key);
+        Assert.Equal(suffix switch { "1" => Key.D1, "2" => Key.D2, "3" => Key.D3, "4" => Key.D4, "5" => Key.D5, "6" => Key.D6, "7" => Key.D7, "8" => Key.D8, _ => Key.P }, gesture.Key);
         Assert.True(CommandBindings.Matches(new KeyEventArgs { Key = gesture.Key, KeyModifiers = gesture.KeyModifiers }, id));
         Assert.False(CommandBindings.Matches(new KeyEventArgs { Key = gesture.Key, KeyModifiers = KeyModifiers.None }, id));
     }
@@ -43,7 +44,7 @@ public sealed class PowerUserCommandTests
     [InlineData(ShortcutPlatform.MacOS)]
     public void ASavedPluginShortcutKeepsItsSlotAndYieldsTheNewBooruDefault(ShortcutPlatform platform)
     {
-        var gesture = ShortcutGesture.Parse("Primary+6");
+        var gesture = ShortcutGesture.Parse(MainPageOrder.DefaultShortcut("navigation.booru")); // slot 6 before F1, now the footer digit
         var defaults = EffectiveShortcutBindings.Build(platform: platform);
         Assert.Empty(defaults.For("navigation.plugins"));
         Assert.Contains(defaults.For("navigation.booru"), candidate =>
@@ -65,8 +66,8 @@ public sealed class PowerUserCommandTests
     [Fact]
     public void ContextGesturesKeepDistinctActionsAndScopes()
     {
-        Assert.Equal("P", CommandCatalog.Get("gallery.context-toggle").Shortcut);
-        // P stays the context toggle (V-06); the jump into the thread has its own key since MEDIA103-NAV (user decision 11.11.2026).
+        Assert.Equal("Shift+P", CommandCatalog.Get("gallery.context-toggle").Shortcut);
+        // Shift+P is the context toggle since the gallery key scheme (revision 13, it was P; V-06); the jump into the thread has its own key since MEDIA103-NAV (user decision 11.11.2026).
         Assert.Equal("T", CommandCatalog.Get("gallery.show-in-thread").Shortcut);
         Assert.True(CommandBindings.Matches(new KeyEventArgs { Key = Key.T }, "gallery.show-in-thread"));
         Assert.False(CommandBindings.Matches(new KeyEventArgs { Key = Key.P }, "gallery.show-in-thread"));

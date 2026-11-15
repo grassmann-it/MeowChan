@@ -174,7 +174,7 @@ public sealed class ViewerTransportTests : IDisposable
 
     [Theory]
     [InlineData("video.ab-loop", "A")]
-    [InlineData("video.frame-step", "OemPeriod")]
+    [InlineData("video.frame-step", "Shift+OemPeriod")]
     public void TheTransportKeysAreSingleKeysOfTheGallery(string id, string shortcut)
     {
         CommandDefinition command = CommandCatalog.Get(id);
@@ -193,13 +193,16 @@ public sealed class ViewerTransportTests : IDisposable
     }
 
     [Fact]
-    public void NextFrameDoesNotTakeTheShiftedSpeedKeyAndCommaStaysFree()
+    public void NextFrameMovedToShiftPeriodAndShiftCommaStaysFreeBecauseTheBackendCannotStepBack()
     {
         EffectiveShortcutBindings bindings = EffectiveShortcutBindings.Build(null, ShortcutPlatform.Linux);
-        Assert.Contains(bindings.For("video.frame-step"), gesture => gesture.Key == "OemPeriod" && gesture.Modifiers.Count == 0);
-        Assert.Contains(bindings.For("video.speed-up"), gesture => gesture.Key == "OemPeriod" && gesture.Modifiers.SequenceEqual(new[] { "Shift" }));
+        Assert.Contains(bindings.For("video.frame-step"), gesture => gesture.Key == "OemPeriod" && gesture.Modifiers.SequenceEqual(new[] { "Shift" }));
+        // The speed commands keep [ and ] only: no "<" / ">" alias, Shift+, and Shift+. are not speed keys any more.
+        Assert.DoesNotContain(bindings.For("video.speed-up"), gesture => gesture.Key == "OemPeriod");
+        Assert.DoesNotContain(bindings.For("video.speed-down"), gesture => gesture.Key == "OemComma");
         Assert.DoesNotContain(CommandCatalog.All, command => bindings.For(command.Id)
-            .Any(gesture => gesture.Key == "OemComma" && gesture.Modifiers.Count == 0));
+            .Any(gesture => gesture.Key == "OemComma" && gesture.Modifiers.SequenceEqual(new[] { "Shift" })));
+        Assert.DoesNotContain(CommandCatalog.All, command => command.Id is "video.frame-back" or "video.previous-frame");
     }
 
     [Theory]

@@ -102,7 +102,7 @@ public sealed class GalleryDockTransportTests
         Assert.True(host > 0 && tools > host);
         Assert.Contains("Spacing = 4", chrome[(chrome.IndexOf("private Control WithDockTransport", StringComparison.Ordinal))..]);
         Assert.Contains("_chrome.Child = WithDockTransport(WithTaggingStrip(toolbar));", viewer);
-        Assert.Contains("Margin = new Thickness(8, 0, 8, 0), HorizontalAlignment = HorizontalAlignment.Stretch }; // GL2", viewer);
+        Assert.Contains("Margin = new Thickness(8, 0, 8, 0), Padding = new Thickness(8, 4), HorizontalAlignment = HorizontalAlignment.Stretch }; // GL2", viewer);
         // The overlay footer keeps its host; the docked placement moves the bar into the dock; the fallback sends it back under the picture.
         Assert.Contains("_video?.SetExternalTransportHost(_overlayTransportHost);", overlay);
         Assert.Contains("if (DockHostsTransport) _video?.SetExternalTransportHost(_dockTransportHost);", overlay);
@@ -120,12 +120,30 @@ public sealed class GalleryDockTransportTests
     public void ADockedBarSharesTheToolsInsetAndErrorsAndTheWayBackStayOutOfThePlan()
     {
         string overlay = Source("Desktop/GalleryViewer.Overlay.cs");
-        Assert.Contains("if (DockHostsTransport) transport.Padding = new Thickness(0); else transport.ClearValue(Border.PaddingProperty);", overlay);
+        // GL5b: the padding comes from the ".in-dock" class of the dock's host (the player sets it on its bar), not from a local value, so the
+        // overlay footer and the Windows fallback keep the bar's own padding and the dock gets 0 at the sides and 4 above and below.
+        Assert.Contains("transport.ClearValue(Border.PaddingProperty);", overlay);
+        Assert.DoesNotContain("transport.Padding =", overlay);
+        Assert.Contains("Classes = { \"in-dock\" }", Source("Desktop/GalleryViewer.Chrome.cs"));
+        Assert.Contains("_transportPanel.Classes.Set(\"in-dock\", host != null && host.Classes.Contains(\"in-dock\"));", Source("Desktop/GalleryVideoPlayer.cs"));
+        Assert.Contains("Border.workspace-media-transport.in-dock\"><Setter Property=\"Padding\" Value=\"0,4\" />", Source("Desktop/WorkspaceStyles.axaml"));
         // The way back (_close) and the safety lines are not blocks of the plan, so no plan state can hide them.
         string chrome = Source("Desktop/GalleryViewer.Chrome.cs");
         Assert.DoesNotContain("_close.IsVisible", chrome);
         Assert.DoesNotContain("_favoriteError.IsVisible", chrome);
         Assert.DoesNotContain("_warnings.IsVisible", chrome);
+    }
+
+    // GL5b (UX spec S1/S3): the dock's rows are 40 / 40 / 20 dip: the video bar 32 + 4 + 4, the tools 32 with the dock's 8/4 inside, the
+    // info one line with 8/2; the play button is 32 like every control of the bar.
+    [Fact]
+    public void TheDockRowsAreFortyFortyAndTwentyDipWithAThirtyTwoPlayButton()
+    {
+        string viewer = Source("Desktop/GalleryViewer.cs"), player = Source("Desktop/GalleryVideoPlayer.cs");
+        Assert.Contains("Padding = new Thickness(8, 4), HorizontalAlignment = HorizontalAlignment.Stretch }; // GL2", viewer);
+        Assert.Contains("Padding = new Thickness(8, 2), HorizontalAlignment = HorizontalAlignment.Stretch }; // GL5b", viewer);
+        Assert.Contains("Name = \"GalleryVideoPlayPause\", Classes = { \"media-control\", \"media-play\" }, Width = 32, Height = 32, CornerRadius = new CornerRadius(16)", player);
+        Assert.Contains("StackPanel dock = new() { Spacing = 4 };", Source("Desktop/GalleryViewer.Chrome.cs")); // the 4 dip between the rows
     }
 
     private static string Source(string relative) => File.ReadAllText(Root(relative));

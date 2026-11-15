@@ -80,14 +80,14 @@ internal static partial class MediaPageChecks
                 + selectionRow.IsEffectivelyVisible + ", selected " + page.SelectedTiles.Count + ", clear " + C<Button>(page, "MediaSelectionClear").IsEffectivelyVisible
                 + ", gallery enabled " + C<Button>(page, "MediaSelectionGallery").IsEnabled);
         Require(page.FocusAnnouncement == Texts.T("media.focus.on"), state + ": the start must be announced: " + page.FocusAnnouncement);
-        // The row: 32 dip, the counter on the left (the page's status behind the label), the exit alone at the right end.
+        // The row: 32 dip, the counter on the left (the page's status behind the label), the exit alone at the far left.
         TextBlock text = C<TextBlock>(page, "MediaFocusText");
         Require(Math.Abs(page.FocusRow.Bounds.Height - 32) < 0.6 && text.Text == MediaFocusMode.Line(C<TextBlock>(page, "MediaStatus").Text)
             && text.Text!.StartsWith(Texts.T("media.focus.label"), StringComparison.Ordinal),
             state + ": the focus row must be 32 dip and show the live counter: " + page.FocusRow.Bounds.Height + " / " + text.Text);
-        Require(exit.IsEffectivelyVisible && exit.Content as string == Texts.T("media.focus.exit") && page.FocusRow.Bounds.Width - (exit.Bounds.X + exit.Bounds.Width) < 1.5
-            && exit.Bounds.X > page.FocusRow.Bounds.Width / 2 && Avalonia.Automation.AutomationProperties.GetName(exit) == Texts.T("media.focus.exit"),
-            state + ": 'Exit focus ×' must sit alone at the right end: " + exit.Bounds + " in " + page.FocusRow.Bounds);
+        Require(exit.IsEffectivelyVisible && page.FocusExitLabel.Text == Texts.T("media.focus.exit") && exit.Bounds.X < 1.5
+            && text.Bounds.X > exit.Bounds.X + exit.Bounds.Width && Avalonia.Automation.AutomationProperties.GetName(exit) == Texts.T("media.focus.exit"),
+            state + ": 'Exit focus' (icon plus text) must sit alone at the far left, before the counter: " + exit.Bounds + " in " + page.FocusRow.Bounds);
         Require(filtersButton.IsEffectivelyVisible && filtersButton.Content as string == Texts.T("media.filters.count", 1)
             && ToolTip.GetTip(filtersButton)?.ToString() == Texts.T("tags.filter.includeChip", "surface"), state + ": the active filter must be counted with its chips as the tooltip.");
         Program.CaptureWindow(window, $"smoke-media-focus-{code}-{theme.ToString().ToLowerInvariant()}.png");
@@ -129,12 +129,13 @@ internal static partial class MediaPageChecks
             window.UpdateLayout();
             await UntilAsync(() => page.ToolbarLevel != MediaToolbarLayout.Level.Wide);
             window.UpdateLayout();
-            Require(!focus.IsVisible && page.HeaderMoreIds.Contains("media.toolbar.focus") && page.HeaderMoreIds[0] == "media.toolbar.focus",
-                state + ": a narrow page must move the tool under More, first: " + string.Join(", ", page.HeaderMoreIds));
+            Require(!focus.IsVisible && page.HeaderMoreIds.Contains("media.toolbar.focus")
+                && page.HeaderMoreIds.First(id => id is not "media.toolbar.tag-list" and not "media.toolbar.layout") == "media.toolbar.focus", // N6/MP5: the tag list switch (order 3) and the Layout menu (4) join at the Compact stage
+                state + ": a narrow page must move the tool under More, first (after the Booru mode switch): " + string.Join(", ", page.HeaderMoreIds));
             page.SetFocusMode(true);
             window.UpdateLayout();
             Require(page.FocusRow.IsEffectivelyVisible && exit.IsEffectivelyVisible && page.FocusRow.Bounds.Height < 33
-                && page.FocusRow.Bounds.Width - (exit.Bounds.X + exit.Bounds.Width) < 1.5, state + ": the focus row must fit the narrow page with the exit at the right.");
+                && exit.Bounds.X < 1.5, state + ": the focus row must fit the narrow page with the exit at the left.");
             Program.CaptureWindow(window, $"smoke-media-focus-narrow-{theme.ToString().ToLowerInvariant()}.png");
             page.SetFocusMode(false);
             window.Width = 1400; window.Height = 900;

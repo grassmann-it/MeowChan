@@ -9,6 +9,7 @@ using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.FolderSources;
 
@@ -69,6 +70,7 @@ internal sealed class FolderSourcesPanel : UserControl
         WrapPanel toolbar = new() { ItemSpacing = 8, LineSpacing = 4, Children = { _add, _pause } };
         toolbar.Classes.Add("workspace-toolbar");
         Content = new StackPanel { Spacing = 8, Children = { _blocked, _status, _rows, _empty, toolbar, _error } };
+        CommandBindings.EnsureIconBeforeText(_add, "folder"); // I1b: the text stays the label; the icon is drawn before it.
         _add.Click += async (_, _) => await AddAsync();
         _pause.Click += (_, _) =>
         {

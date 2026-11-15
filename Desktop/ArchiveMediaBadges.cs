@@ -1,0 +1,89 @@
+using System;
+using System.IO;
+using MeowChan.Desktop.Controls;
+using MeowChan.Desktop.Localization;
+using MeowChan.Storage;
+
+namespace MeowChan.Desktop;
+
+/// <summary>
+/// MB1b (archive): what the archive's thumbnails tell the shared media badges (<see cref="MediaBadgeView"/>): the saved-media tiles
+/// (<see cref="ArchiveMediaTileView"/>) and the thread list's rows and reader posts (<see cref="ArchiveAttachmentView"/>). Pure functions:
+/// the state of a medium from its row, nothing drawn here. The archive knows the favourite, the kind (a still, a GIF, a video, from the saved
+/// name alone, no file is read) and whether the file is gone; it does not record a video's length (<c>duration</c> stays open until a
+/// source for it exists). The tag count, queue, rating and booru marks belong to other surfaces and are not set here.
+/// </summary>
+internal static class ArchiveMediaBadges
+{
+    // The video extensions of SavedMediaTypes.Classify, read without allocating (a test keeps both lists together): a recycled tile asks for
+    // its state on every refresh, and the string work of Classify would allocate each time.
+    private static readonly string[] VideoExtensions = [".webm", ".mp4", ".mov", ".mkv", ".avi"];
+
+    /// <summary>Image, video or animated image (GIF) by the file name alone (nothing is allocated).</summary>
+    internal static MediaBadgeKind KindOf(string? fileName)
+    {
+        ReadOnlySpan<char> extension = Path.GetExtension(fileName.AsSpan());
+        if (MemoryExtensions.Equals(extension, ".gif", StringComparison.OrdinalIgnoreCase)) return MediaBadgeKind.Gif;
+        foreach (string video in VideoExtensions)
+            if (MemoryExtensions.Equals(extension, video, StringComparison.OrdinalIgnoreCase)) return MediaBadgeKind.Video;
+        return MediaBadgeKind.Image;
+    }
+
+    /// <summary>A favourite only when favourites are available at all (a closed page or an unsaved attachment shows none).</summary>
+    internal static bool IsFavorite(Func<bool>? available, Func<bool>? marked) => available?.Invoke() == true && marked?.Invoke() == true;
+
+    /// <summary>The badges of a saved-media tile: favourite, kind, the length when known, and a file that is missing.</summary>
+    internal static MediaBadgeState ForAsset(ArchiveAssetRow row, bool missing = false, TimeSpan? duration = null) =>
+        new(Favorite: IsFavorite(row.FavoriteAvailable, row.IsFavorite), Kind: KindOf(row.Asset.OriginalFileName ?? row.Asset.Path), Duration: duration,
+            Missing: missing || row.Manifest.Status == MediaManifestStatus.Missing);
+
+    /// <summary>
+    /// The badges of a thread-list row or a reader post's attachment. A compact list row never shows the file favourite (its star is not
+    /// wired there; the thread's own star is on the right), so it carries no favourite badge either.
+    /// </summary>
+    internal static MediaBadgeState ForAttachment(ArchiveAttachmentRow row, bool missing = false, TimeSpan? duration = null) =>
+        new(Favorite: !row.Compact && IsFavorite(row.FavoriteAvailable, row.IsFavorite), Kind: KindOf(row.Attachment.OriginalFileName),
+            Duration: duration, Missing: missing);
+
+    /// <summary>A load that failed because the file is not (or no longer) there, as opposed to one that is merely not decodable.</summary>
+    internal static bool IsMissingFile(Exception? error)
+    {
+        for (int depth = 0; error != null && depth < 8; depth++, error = error.InnerException)
+            if (error is FileNotFoundException or DirectoryNotFoundException) return true;
+        return false;
+    }
+
+    /// <summary>
+    /// <paramref name="text"/> and the badge sentence <paramref name="description"/> as one name: the sentence goes behind the text,
+    /// separated by <paramref name="separator"/>; either may be empty.
+    /// </summary>
+    internal static string Append(string? text, string description, string separator) =>
+        string.IsNullOrEmpty(description) ? text ?? string.Empty : string.IsNullOrEmpty(text) ? description : text + separator + description;
+}
+
+/// <summary>
+/// The spoken sentence of one thumbnail's badges (<see cref="MediaBadgeText.Describe(in MediaBadgeState, in MediaBadgeOptions)"/>), kept until
+/// the state or the language changes: a recycled tile whose state did not change builds no new string.
+/// </summary>
+internal struct ArchiveBadgeDescription
+{
+    private MediaBadgeState _state;
+    private MediaBadgeOptions _options;
+    private string? _language;
+    private string _text;
+    private bool _valid;
+
+    /// <summary>The sentence for this state on this surface.</summary>
+    internal string Get(in MediaBadgeState state, in MediaBadgeOptions options)
+    {
+        string language = Texts.Language;
+        if (_valid && state.Equals(_state) && options == _options && string.Equals(language, _language, StringComparison.Ordinal)) return _text;
+        _state = state; _options = options; _language = language;
+        _text = MediaBadgeText.Describe(state, options);
+        _valid = true;
+        return _text;
+    }
+
+    /// <summary>Forgets the sentence (nothing is shown any more).</summary>
+    internal void Reset() { this = default; _text = string.Empty; }
+}

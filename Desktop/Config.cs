@@ -116,6 +116,22 @@ namespace MeowChan
         /// </summary>
         [JsonConverter(typeof(DesktopPreferenceTrueBooleanConverter))]
         public bool ShowBooruTools { get; set; } = true;
+        /// <summary>
+        /// The footer of this profile (Settings › Appearance › Footer): the main pages in footer order, a leading "-" marking a page whose button is
+        /// not shown directly (it stays in More, the ⋯ menu and under its shortcut). Empty is the default footer (today's order, Booru off).
+        /// Read and written through <see cref="Desktop.Commands.FooterLayout"/>: unknown ids and repeats are dropped, a page the list does not know
+        /// takes its default place, Downloads is always shown. <see cref="ShowBooruTools"/> stays the master for Booru: while it is off the Booru
+        /// page is unavailable whatever this list says.
+        /// </summary>
+        [JsonConverter(typeof(DesktopPreferenceNameListConverter))]
+        public string[] FooterPages
+        {
+            get => _footerPages;
+            set => _footerPages = Desktop.Commands.FooterLayout.FromStored(value).ToStored();
+        }
+        private string[] _footerPages = [];
+        /// <summary>The footer layout of <see cref="FooterPages"/>.</summary>
+        [JsonIgnore] internal Desktop.Commands.FooterLayout FooterLayout => Desktop.Commands.FooterLayout.FromStored(_footerPages);
         internal const int WorkViewSwitchNoticeSecondsMinimum = 0;
         internal const int WorkViewSwitchNoticeSecondsMaximum = 60;
         /// <summary>Whether entering Barebones may shrink the window; layout data itself is retained.</summary>
@@ -256,6 +272,10 @@ namespace MeowChan
         internal const int MediaTagListTopDefault = 30;
         internal const int MediaTagListTopMinimum = 5;
         internal const int MediaTagListTopMaximum = 1_000;
+        /// <summary>MP5: the width of the media page's tag list in dip, set by dragging its edge (kept in <see cref="MediaLayout"/>, brought into this range when read).</summary>
+        internal const int MediaTagListWidthDefault = 256;
+        internal const int MediaTagListWidthMinimum = 180;
+        internal const int MediaTagListWidthMaximum = 480;
         /// <summary>Most entries in the list of known profiles (profiles.json, shared by all profiles). Lowering it keeps every entry; only new profiles are not listed.</summary>
         public int ProfileRegistryLimit { get; set; } = ProfileRegistryLimitDefault;
         internal const int ProfileRegistryLimitDefault = Persistence.ProfileRegistry.DefaultLimit;
@@ -610,6 +630,32 @@ namespace MeowChan
             get => _mediaTagListSort;
             set => _mediaTagListSort = Enum.TryParse(value?.Trim(), true, out Desktop.MediaTagListSort sort) && Enum.IsDefined(sort) ? sort.ToString() : nameof(Desktop.MediaTagListSort.Count);
         }
+        // MP5: the rest of the media page's layout (tag list side and width, filter chips, status line, subtitle, tile caption, tile size) as one short
+        // text (Desktop/MediaPageLayout.cs); the tag list switch is MediaBooruMode above (the key predates the name "Tag list"). A damaged text
+        // reads as the standard layout for the damaged parts, so it never makes the settings file invalid.
+        private string _mediaLayout = Desktop.MediaPageLayout.Standard.Format();
+        [JsonConverter(typeof(DesktopPreferenceStringConverter))]
+        public string MediaLayout
+        {
+            get => _mediaLayout;
+            set => _mediaLayout = Desktop.MediaPageLayout.Canonical(value);
+        }
+        // TG1: the tagging page shows its queue as a list or as a grid of thumbnails ("List" or "Grid"); a view preference of the profile.
+        private string _taggingPageView = nameof(TaggingViewMode.List);
+        [JsonConverter(typeof(DesktopPreferenceStringConverter))]
+        public string TaggingPageView
+        {
+            get => _taggingPageView;
+            set => _taggingPageView = TaggingViewModes.Parse(value).ToString();
+        }
+        // TG1: the stamp block of the tagging page: "Auto" (follows the work view: closed in Barebones), "Open" or "Closed" once chosen.
+        private string _taggingStampBlock = nameof(TaggingStampBlockState.Auto);
+        [JsonConverter(typeof(DesktopPreferenceStringConverter))]
+        public string TaggingStampBlock
+        {
+            get => _taggingStampBlock;
+            set => _taggingStampBlock = TaggingStampBlocks.Parse(value).ToString();
+        }
         [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
         public bool GalleryFitUpscaleLimited { get; set; }
 
@@ -720,6 +766,20 @@ namespace MeowChan
         }
 
         /// <summary>
+        /// TH2: the user's colour overrides per base theme, <c>{ "Light": { seed: "#RRGGBB" | "#AARRGGBB" }, "Dark": { … } }</c>.
+        /// Each variant object has the shape of a future theme.json "seeds" object (keep them identical). Unknown or non-seed keys
+        /// and malformed colours are dropped on load with a log warning; see <see cref="Desktop.Theming.ThemeColorOverrides"/>.
+        /// Applied live by the window through ThemeRuntime.ApplyOverrides, which refuses a set below 4.5 : 1 text contrast.
+        /// </summary>
+        [JsonConverter(typeof(Desktop.Theming.ThemeColorOverridesConverter))]
+        public Desktop.Theming.ThemeColorOverrides ThemeOverrides
+        {
+            get => _themeOverrides;
+            set => _themeOverrides = value ?? Desktop.Theming.ThemeColorOverrides.Empty;
+        }
+        private Desktop.Theming.ThemeColorOverrides _themeOverrides = Desktop.Theming.ThemeColorOverrides.Empty;
+
+        /// <summary>
         /// D1: "System" follows the operating system's reduced-motion setting, "On" always animates, "Off" never does.
         /// The environment (MEOWCHAN_MOTION, MEOWCHAN_REDUCED_MOTION) still wins over this setting; see <see cref="Desktop.Motion.MotionPolicy"/>.
         /// </summary>
@@ -803,6 +863,7 @@ namespace MeowChan
             ArchiveTagFilterTagsPerList = Math.Clamp(ArchiveTagFilterTagsPerList, ArchiveTagFilterTagsPerListMinimum, ArchiveTagFilterTagsPerListMaximum);
             UrlTextExportLimitMiB = Math.Clamp(UrlTextExportLimitMiB, UrlTextExportLimitMiBMinimum, UrlTextExportLimitMiBMaximum);
             SlashTagSuggestionCount = Math.Clamp(SlashTagSuggestionCount, SlashTagSuggestionCountMinimum, SlashTagSuggestionCountMaximum);
+            GalleryVideoSeekStepSeconds = Math.Clamp(GalleryVideoSeekStepSeconds, GalleryVideoSeekStepSecondsMinimum, GalleryVideoSeekStepSecondsMaximum);
 
             // The new profiles win even if a hand-edited file places legacy active
             // preference fields after LayoutProfiles.
@@ -852,6 +913,12 @@ namespace MeowChan
         internal int? SettingsBaselineVideoVolume { get; set; }
         [JsonIgnore]
         internal GalleryPlaybackPreferences? SettingsBaselineGalleryPlayback { get; set; }
+        /// <summary>
+        /// Draft only: the settings page's filmstrip box as it was loaded (start, discard, after a save). The gallery changes the layout
+        /// directly (L, the ⋯ row), so an unchanged box of an older draft must not roll the layout of either mode back (H1).
+        /// </summary>
+        [JsonIgnore]
+        internal bool? SettingsBaselineGalleryFilmstrip { get; set; }
 
         [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
         public bool ArchiveMediaTiles { get => ActiveProfile.ArchiveMediaTiles; set => ActiveProfile.ArchiveMediaTiles = value; }
@@ -930,18 +997,42 @@ namespace MeowChan
             set => _gallerySlideshowVideoRepeats = Math.Clamp(value, GallerySlideshowVideoRepeatsMinimum, GallerySlideshowVideoRepeatsMaximum);
         }
         internal const int GallerySlideshowVideoRepeatsDefault = 2, GallerySlideshowVideoRepeatsMinimum = 1, GallerySlideshowVideoRepeatsMaximum = 50;
+        /// <summary>Off (default): a running slideshow goes on while another window has the focus, while MeowChan is minimised or in the tray.
+        /// On: it waits until MeowChan is back and then shows the current medium for a full period.</summary>
+        [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
+        public bool GalleryPauseOnFocusLoss { get; set; }
         /// <summary>Idle time without pointer movement before the gallery's overlay controls and the reader's arrow cross hide.</summary>
         [JsonConverter(typeof(DesktopPreferenceControlsIdleHideMsConverter))]
         public int ControlsIdleHideMs { get; set; } = ControlsIdleHideMsDefault;
         internal const int ControlsIdleHideMsDefault = 2000, ControlsIdleHideMsMinimum = 500, ControlsIdleHideMsMaximum = 30_000;
+        /// <summary>GL5c: how long a transient status of the gallery's info line (the slideshow's "ready", a confirmation) stays before it fades out; a running slideshow and every error stay.</summary>
+        [JsonConverter(typeof(DesktopPreferenceGalleryStatusDwellMsConverter))]
+        public int GalleryStatusDwellMs { get; set; } = GalleryStatusDwellMsDefault;
+        internal const int GalleryStatusDwellMsDefault = 3000, GalleryStatusDwellMsMinimum = 1000, GalleryStatusDwellMsMaximum = 10_000;
         /// <summary>The filmstrip of the gallery (thumbnails of the media before and after the shown one at the top): shown or not.</summary>
         public bool GalleryFilmstrip { get; set; } = true;
         /// <summary>Height of the filmstrip thumbnails in dip (the tiles are square).</summary>
         public int GalleryFilmstripHeight { get; set; } = GalleryFilmstripHeightDefault;
-        internal const int GalleryFilmstripHeightDefault = 72, GalleryFilmstripHeightMinimum = 48, GalleryFilmstripHeightMaximum = 160;
+        internal const int GalleryFilmstripHeightDefault = 64, GalleryFilmstripHeightMinimum = 48, GalleryFilmstripHeightMaximum = 160;
+        /// <summary>GL5e: the gap between two filmstrip tiles in dip.</summary>
+        [JsonConverter(typeof(DesktopPreferenceGalleryFilmstripTileGapConverter))]
+        public int GalleryFilmstripTileGap { get; set; } = GalleryFilmstripTileGapDefault;
+        internal const int GalleryFilmstripTileGapDefault = 8, GalleryFilmstripTileGapMinimum = 4, GalleryFilmstripTileGapMaximum = 16;
         /// <summary>How many thumbnails on each side of the visible ones the filmstrip decodes in advance.</summary>
         public int GalleryFilmstripPreload { get; set; } = GalleryFilmstripPreloadDefault;
         internal const int GalleryFilmstripPreloadDefault = 12, GalleryFilmstripPreloadMinimum = 4, GalleryFilmstripPreloadMaximum = 60;
+        /// <summary>How many seconds the "," and "." keys of a gallery video jump back and forward (the video seek step).</summary>
+        public int GalleryVideoSeekStepSeconds { get; set; } = GalleryVideoSeekStepSecondsDefault;
+        internal const int GalleryVideoSeekStepSecondsDefault = 5, GalleryVideoSeekStepSecondsMinimum = 1, GalleryVideoSeekStepSecondsMaximum = 60;
+        /// <summary>Media badges (MB1): below this shorter picture side (dip) every corner of a thumbnail shows one dot instead of its badges.</summary>
+        public int MediaBadgeCollapseBelow { get; set; } = MediaBadgeCollapseBelowDefault;
+        internal const int MediaBadgeCollapseBelowDefault = 48, MediaBadgeCollapseBelowMinimum = 24, MediaBadgeCollapseBelowMaximum = 96;
+        /// <summary>Media badges (MB1): below this shorter picture side (dip) a thumbnail shows no badges at all (never above the collapse limit).</summary>
+        public int MediaBadgeHideBelow { get; set; } = MediaBadgeHideBelowDefault;
+        internal const int MediaBadgeHideBelowDefault = 32, MediaBadgeHideBelowMinimum = 16, MediaBadgeHideBelowMaximum = 64;
+        /// <summary>Media badges (MB1): how many badges one corner of a thumbnail holds; the ones of lower priority drop out.</summary>
+        public int MediaBadgeMaxPerCorner { get; set; } = MediaBadgeMaxPerCornerDefault;
+        internal const int MediaBadgeMaxPerCornerDefault = 2, MediaBadgeMaxPerCornerMinimum = 1, MediaBadgeMaxPerCornerMaximum = 3;
         /// <summary>
         /// GL4: the person's layout choice of the gallery, one set per mode (the typed value; null = nothing chosen). A profile without it reads
         /// <see cref="GalleryFilmstrip"/> instead (GalleryLayoutPreferences.FromConfig). Saved as "GalleryLayout" (<see cref="GalleryLayoutJson"/>).
@@ -1347,10 +1438,22 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(ClipboardTextLimitKiB), "ClipboardTextLimitKiB is outside its supported range (" + ClipboardTextLimitKiBMinimum + " to " + ClipboardTextLimitKiBMaximum + ").");
             if (ControlsIdleHideMs is < ControlsIdleHideMsMinimum or > ControlsIdleHideMsMaximum)
                 throw new ArgumentOutOfRangeException(nameof(ControlsIdleHideMs), "ControlsIdleHideMs is outside its supported range (" + ControlsIdleHideMsMinimum + " to " + ControlsIdleHideMsMaximum + ").");
+            if (GalleryStatusDwellMs is < GalleryStatusDwellMsMinimum or > GalleryStatusDwellMsMaximum)
+                throw new ArgumentOutOfRangeException(nameof(GalleryStatusDwellMs), "GalleryStatusDwellMs is outside its supported range (" + GalleryStatusDwellMsMinimum + " to " + GalleryStatusDwellMsMaximum + ").");
             if (GalleryFilmstripHeight is < GalleryFilmstripHeightMinimum or > GalleryFilmstripHeightMaximum)
                 throw new ArgumentOutOfRangeException(nameof(GalleryFilmstripHeight), "GalleryFilmstripHeight is outside its supported range (" + GalleryFilmstripHeightMinimum + " to " + GalleryFilmstripHeightMaximum + ").");
+            if (GalleryFilmstripTileGap is < GalleryFilmstripTileGapMinimum or > GalleryFilmstripTileGapMaximum)
+                throw new ArgumentOutOfRangeException(nameof(GalleryFilmstripTileGap), "GalleryFilmstripTileGap is outside its supported range (" + GalleryFilmstripTileGapMinimum + " to " + GalleryFilmstripTileGapMaximum + ").");
             if (GalleryFilmstripPreload is < GalleryFilmstripPreloadMinimum or > GalleryFilmstripPreloadMaximum)
                 throw new ArgumentOutOfRangeException(nameof(GalleryFilmstripPreload), "GalleryFilmstripPreload is outside its supported range (" + GalleryFilmstripPreloadMinimum + " to " + GalleryFilmstripPreloadMaximum + ").");
+            if (GalleryVideoSeekStepSeconds is < GalleryVideoSeekStepSecondsMinimum or > GalleryVideoSeekStepSecondsMaximum)
+                throw new ArgumentOutOfRangeException(nameof(GalleryVideoSeekStepSeconds), "GalleryVideoSeekStepSeconds is outside its supported range (" + GalleryVideoSeekStepSecondsMinimum + " to " + GalleryVideoSeekStepSecondsMaximum + ").");
+            if (MediaBadgeCollapseBelow is < MediaBadgeCollapseBelowMinimum or > MediaBadgeCollapseBelowMaximum)
+                throw new ArgumentOutOfRangeException(nameof(MediaBadgeCollapseBelow), "MediaBadgeCollapseBelow is outside its supported range (" + MediaBadgeCollapseBelowMinimum + " to " + MediaBadgeCollapseBelowMaximum + ").");
+            if (MediaBadgeHideBelow is < MediaBadgeHideBelowMinimum or > MediaBadgeHideBelowMaximum)
+                throw new ArgumentOutOfRangeException(nameof(MediaBadgeHideBelow), "MediaBadgeHideBelow is outside its supported range (" + MediaBadgeHideBelowMinimum + " to " + MediaBadgeHideBelowMaximum + ").");
+            if (MediaBadgeMaxPerCorner is < MediaBadgeMaxPerCornerMinimum or > MediaBadgeMaxPerCornerMaximum)
+                throw new ArgumentOutOfRangeException(nameof(MediaBadgeMaxPerCorner), "MediaBadgeMaxPerCorner is outside its supported range (" + MediaBadgeMaxPerCornerMinimum + " to " + MediaBadgeMaxPerCornerMaximum + ").");
             if (StatsSampleIntervalMs is < StatsSampleIntervalMsMinimum or > StatsSampleIntervalMsMaximum)
                 throw new ArgumentOutOfRangeException(nameof(StatsSampleIntervalMs), "StatsSampleIntervalMs is outside its supported range (" + StatsSampleIntervalMsMinimum + " to " + StatsSampleIntervalMsMaximum + ").");
             if (StatsHistorySamples is < StatsHistorySamplesMinimum or > StatsHistorySamplesMaximum)
@@ -1505,6 +1608,7 @@ namespace MeowChan
                 WorkViewNoticePending = WorkViewNoticePending,
                 WorkViewSwitchNoticeSeconds = WorkViewSwitchNoticeSeconds,
                 ShowBooruTools = ShowBooruTools,
+                FooterPages = (string[])FooterPages.Clone(),
                 RememberReadingPosition = RememberReadingPosition,
                 MonitorClipboardUrls = MonitorClipboardUrls,
                 DownloadsPaused = DownloadsPaused,
@@ -1559,10 +1663,16 @@ namespace MeowChan
                 ClipboardTextLimitKiB = ClipboardTextLimitKiB,
                 StatsSampleIntervalMs = StatsSampleIntervalMs,
                 ControlsIdleHideMs = ControlsIdleHideMs,
+                GalleryStatusDwellMs = GalleryStatusDwellMs,
                 GalleryFilmstrip = GalleryFilmstrip,
                 GalleryLayout = GalleryLayout,
                 GalleryFilmstripHeight = GalleryFilmstripHeight,
+                GalleryFilmstripTileGap = GalleryFilmstripTileGap,
                 GalleryFilmstripPreload = GalleryFilmstripPreload,
+                GalleryVideoSeekStepSeconds = GalleryVideoSeekStepSeconds,
+                MediaBadgeCollapseBelow = MediaBadgeCollapseBelow,
+                MediaBadgeHideBelow = MediaBadgeHideBelow,
+                MediaBadgeMaxPerCorner = MediaBadgeMaxPerCorner,
                 StatsHistorySamples = StatsHistorySamples,
                 StatsBackgroundIntervalMs = StatsBackgroundIntervalMs,
                 StatsTrayTooltip = StatsTrayTooltip,
@@ -1640,6 +1750,9 @@ namespace MeowChan
                 MediaSortDirection = MediaSortDirection,
                 MediaBooruMode = MediaBooruMode,
                 MediaTagListSort = MediaTagListSort,
+                MediaLayout = MediaLayout,
+                TaggingPageView = TaggingPageView,
+                TaggingStampBlock = TaggingStampBlock,
                 GalleryFitUpscaleLimited = GalleryFitUpscaleLimited,
 
                 ShortcutBindings = ShortcutBindings.Clone(),
@@ -1650,6 +1763,7 @@ namespace MeowChan
                 TaggingCards = (string[])TaggingCards.Clone(),
                 TaggingCardCount = TaggingCardCount,
                 Theme = Theme,
+                ThemeOverrides = ThemeOverrides,
                 Animations = Animations,
                 Language = Language,
                 WorkspaceMode = WorkspaceMode,
@@ -1658,6 +1772,7 @@ namespace MeowChan
                 SettingsBaselineReadingFontSize = ReadingFontSize,
                 SettingsBaselineWorkspaceMode = WorkspaceMode,
                 SettingsBaselineVideoVolume = VideoVolume,
+                SettingsBaselineGalleryFilmstrip = GalleryFilmstrip,
                 // A fresh draft captures the current normalized state. Session admission
                 // restores the editor's original baseline after freezing via Clone().
                 SettingsBaselineGalleryPlayback = GalleryPlaybackPreferences.FromConfig(this),
@@ -1676,6 +1791,7 @@ namespace MeowChan
                 GallerySlideshowVideoRule = GallerySlideshowVideoRule,
                 GallerySlideshowVideoSeconds = GallerySlideshowVideoSeconds,
                 GallerySlideshowVideoRepeats = GallerySlideshowVideoRepeats,
+                GalleryPauseOnFocusLoss = GalleryPauseOnFocusLoss,
                 GalleryMediaFocus = GalleryMediaFocus,
                 GalleryOverlayControls = GalleryOverlayControls,
                 GalleryAutoHideControls = GalleryOverlayControls,
@@ -1733,6 +1849,7 @@ namespace MeowChan
             WorkViewNoticePending = source.WorkViewNoticePending;
             WorkViewSwitchNoticeSeconds = source.WorkViewSwitchNoticeSeconds;
             ShowBooruTools = source.ShowBooruTools;
+            FooterPages = (string[])source.FooterPages.Clone();
             RememberReadingPosition = source.RememberReadingPosition;
             MonitorClipboardUrls = source.MonitorClipboardUrls;
             DownloadsPaused = source.DownloadsPaused;
@@ -1787,10 +1904,16 @@ namespace MeowChan
             ClipboardTextLimitKiB = source.ClipboardTextLimitKiB;
             StatsSampleIntervalMs = source.StatsSampleIntervalMs;
             ControlsIdleHideMs = source.ControlsIdleHideMs;
+            GalleryStatusDwellMs = source.GalleryStatusDwellMs;
             GalleryFilmstrip = source.GalleryFilmstrip;
             GalleryLayout = source.GalleryLayoutResetRequested ? null : source.GalleryLayout; // (a draft that asked for the reset: nothing chosen)
             GalleryFilmstripHeight = source.GalleryFilmstripHeight;
+            GalleryFilmstripTileGap = source.GalleryFilmstripTileGap;
             GalleryFilmstripPreload = source.GalleryFilmstripPreload;
+            GalleryVideoSeekStepSeconds = source.GalleryVideoSeekStepSeconds;
+            MediaBadgeCollapseBelow = source.MediaBadgeCollapseBelow;
+            MediaBadgeHideBelow = source.MediaBadgeHideBelow;
+            MediaBadgeMaxPerCorner = source.MediaBadgeMaxPerCorner;
             StatsHistorySamples = source.StatsHistorySamples;
             StatsBackgroundIntervalMs = source.StatsBackgroundIntervalMs;
             StatsTrayTooltip = source.StatsTrayTooltip;
@@ -1868,10 +1991,14 @@ namespace MeowChan
             MediaSortDirection = source.MediaSortDirection;
             MediaBooruMode = source.MediaBooruMode;
             MediaTagListSort = source.MediaTagListSort;
+            MediaLayout = source.MediaLayout;
+            TaggingPageView = source.TaggingPageView;
+            TaggingStampBlock = source.TaggingStampBlock;
             GalleryFitUpscaleLimited = source.GalleryFitUpscaleLimited;
 
             ShortcutBindings = source.ShortcutBindings.Clone();
             Theme = source.Theme;
+            ThemeOverrides = source.ThemeOverrides;
             Animations = source.Animations;
             Language = source.Language;
             WorkspaceMode = source.WorkspaceMode;
@@ -1921,6 +2048,7 @@ namespace MeowChan
             ShowBoardAdmissionWizard = source.ShowBoardAdmissionWizard;
             WorkViewSwitchNoticeSeconds = source.WorkViewSwitchNoticeSeconds;
             ShowBooruTools = source.ShowBooruTools;
+            FooterPages = (string[])source.FooterPages.Clone();
             RememberReadingPosition = source.RememberReadingPosition;
             MonitorClipboardUrls = source.MonitorClipboardUrls;
             MinimizeToTray = source.MinimizeToTray;
@@ -1978,15 +2106,23 @@ namespace MeowChan
             ClipboardTextLimitKiB = source.ClipboardTextLimitKiB;
             StatsSampleIntervalMs = source.StatsSampleIntervalMs;
             ControlsIdleHideMs = source.ControlsIdleHideMs;
+            GalleryStatusDwellMs = source.GalleryStatusDwellMs;
             // GL4: the layout is a direct preference of the gallery and is not taken from a draft, except its reset. The filmstrip box of the
-            // settings page is the old setting: a changed box (against the layout after the reset) sets the filmstrip choice of both modes.
-            bool filmstripShown = GalleryFilmstrip;
-            if (source.GalleryLayoutResetRequested) { GalleryLayoutPreferences.Default.ApplyTo(this); filmstripShown = GalleryFilmstrip; }
-            if (filmstripShown != source.GalleryFilmstrip)
+            // settings page is the old setting: only a box the person changed sets the filmstrip choice of both modes. Changed means against
+            // the layout after the reset when the draft asked for one, otherwise against the box as the draft loaded it (its baseline); the
+            // live value is no measure, the gallery may have changed it since (H1). A draft without a baseline compares with the live value.
+            bool filmstripBaseline = source.SettingsBaselineGalleryFilmstrip ?? GalleryFilmstrip;
+            if (source.GalleryLayoutResetRequested) { GalleryLayoutPreferences.Default.ApplyTo(this); filmstripBaseline = GalleryFilmstrip; }
+            if (filmstripBaseline != source.GalleryFilmstrip)
                 GalleryLayoutPreferences.FromConfig(this).WithFilmstripSetting(source.GalleryFilmstrip).ApplyTo(this);
-            GalleryFilmstrip = source.GalleryFilmstrip;
+            // (GalleryFilmstrip itself follows the View set's filmstrip through ApplyTo; an unchanged box leaves both as they are.)
             GalleryFilmstripHeight = source.GalleryFilmstripHeight;
+            GalleryFilmstripTileGap = source.GalleryFilmstripTileGap;
             GalleryFilmstripPreload = source.GalleryFilmstripPreload;
+            GalleryVideoSeekStepSeconds = source.GalleryVideoSeekStepSeconds;
+            MediaBadgeCollapseBelow = source.MediaBadgeCollapseBelow;
+            MediaBadgeHideBelow = source.MediaBadgeHideBelow;
+            MediaBadgeMaxPerCorner = source.MediaBadgeMaxPerCorner;
             StatsHistorySamples = source.StatsHistorySamples;
             StatsBackgroundIntervalMs = source.StatsBackgroundIntervalMs;
             StatsTrayTooltip = source.StatsTrayTooltip;
@@ -2064,6 +2200,7 @@ namespace MeowChan
 
             ShortcutBindings = source.ShortcutBindings.Clone();
             Theme = source.Theme;
+            ThemeOverrides = source.ThemeOverrides;
             Animations = source.Animations;
             Language = source.Language;
             foreach (string mode in new[] { "Barebones", "Simple", "Advanced" })

@@ -540,7 +540,7 @@ public sealed class GalleryTagPanelTests : IDisposable
         Assert.DoesNotContain("TagPanel", overflow);
         string viewer = ReadSource("Desktop/GalleryViewer.cs");
         int hooks = viewer.Split('\n').Count(line => line.Contains("TagPanel") || line.Contains("ToggleContext") || line.Contains("tagOnly") || line.Contains("PostContextVisible"));
-        Assert.InRange(hooks, 1, 15); // 15 with the tagging mode's panel coupling (PT3)
+        Assert.InRange(hooks, 1, 16); // 15 with the tagging mode's panel coupling (PT3), 16 with the post panel button among the always-icon tools (GL5d)
         // V2: the surface is the Tags segment of the side panel host in that slot.
         Assert.Contains("_sidePanel.TagContent = surface;", ReadSource("Desktop/GalleryViewer.TagPanel.cs"));
         Assert.Contains("NavigationEnabled = true", ReadSource("Desktop/GalleryViewer.TagPanel.cs"));

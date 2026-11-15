@@ -21,8 +21,6 @@ public partial class MainWindow
         CommandBindings.Apply(WorkspaceControl<Button>("SettingsNavigationButton"), "navigation.settings", iconWithLabel: true);
         CommandBindings.Apply(WorkspaceControl<Button>("ToolsNavigationButton"), "navigation.tools-menu", iconWithLabel: true);
 
-        foreach (string id in MainPageOrder.CommandIds)
-            CommandBindings.Apply(WorkspaceControl<MenuItem>(MainPageOrder.ControlStem(id) + "MenuItem"), id);
         CommandBindings.Apply(WorkspaceControl<MenuItem>("SettingsMenuItem"), "navigation.settings");
         CommandBindings.Apply(WorkspaceControl<MenuItem>("AboutMenuItem"), "navigation.about");
 

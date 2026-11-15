@@ -20,6 +20,15 @@ public sealed partial class TaggingPage
         WorkViewElement.SetId(_list, "tagging.list");
         WorkViewElement.SetId(_error, "tagging.error");
         WorkViewElement.SetId(_filterPanel, "tagging.filter");
+        WorkViewElement.SetId(_help, "tagging.help");
+        WorkViewElement.SetId(_viewToggle, "tagging.view-toggle");
+        WorkViewElement.SetId(_selectionBar, "tagging.selection-bar");
+        WorkViewElement.SetId(_selectionText, "tagging.selection.status");
+        WorkViewElement.SetId(_selTag, "tagging.selection.tag");
+        WorkViewElement.SetId(_selStamp, "tagging.selection.stamp");
+        WorkViewElement.SetId(_selState, "tagging.selection.state");
+        WorkViewElement.SetId(_selRemove, "tagging.selection.remove");
+        WorkViewElement.SetId(_selClear, "tagging.selection.clear");
         WorkViewElement.SetId(_keysHint, "tagging.keys-hint");
         WorkViewElement.SetId(_add, "tagging.toolbar.add");
         WorkViewElement.SetId(_clearDone, "tagging.toolbar.clear-done");
@@ -37,14 +46,18 @@ public sealed partial class TaggingPage
     private void RefreshWorkView()
     {
         if (_queueWork.Ended) return;
-        WorkViewPresenter.ApplyToolBar(_actions, _workView);
+        WorkViewPresenter.ApplyToolBar(_actions, _workView, nonDefaultState: item => ReferenceEquals(item, _filterPanel) && Filter != TaggingQueueFilter.All);
+        WorkViewPresenter.ApplyToolBar(_selectionActions, _workView);
+        ApplyToolbarIcons();
+        ShowStampBlock();
+        ApplyDensity();
         _actions.RefreshOverflowLabel();
+        WorkViewGate.Apply(_selectionBar, _workView, stateVisible: SelectedCount > 0);
         WorkViewGate.Apply(_progress, _workView, stateVisible: _queueWork.Queue.Count > 0);
         WorkViewGate.Apply(_lastShown, _workView, stateVisible: TaggingQueueView.LastShownIndex(_queueWork.Queue) != null);
         WorkViewGate.Apply(_error, _workView, stateVisible: !string.IsNullOrEmpty(_errorText.Text));
         WorkViewGate.Apply(_clearConfirm, _workView, stateVisible: _clearConfirm.IsVisible);
         WorkViewGate.Apply(_stampPanel, _workView);
-        WorkViewGate.Apply(_filterPanel, _workView, nonDefaultState: Filter != TaggingQueueFilter.All);
         WorkViewGate.Apply(_keysHint, _workView, stateVisible: _rows.Count > 0);
     }
 }

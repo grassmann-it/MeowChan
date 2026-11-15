@@ -449,7 +449,6 @@ public partial class SettingsEditor
 
     private void AppendHighlighted(TextBlock block, string text, IReadOnlyList<SettingsTextRange> ranges)
     {
-        IBrush? accent = this.TryFindResource("Workspace.Accent", ActualThemeVariant, out object? found) ? found as IBrush : null;
         InlineCollection inlines = block.Inlines ??= new InlineCollection();
         int at = 0;
         foreach (SettingsTextRange range in ranges)
@@ -457,7 +456,7 @@ public partial class SettingsEditor
             if (range.Start < at || range.Start + range.Length > text.Length) continue;
             if (range.Start > at) inlines.Add(new Run(text[at..range.Start]));
             var run = new Run(text.Substring(range.Start, range.Length)) { FontWeight = FontWeight.SemiBold };
-            if (accent != null) run.Foreground = accent;
+            run[!TextElement.ForegroundProperty] = new DynamicResourceExtension("Workspace.Accent"); // follows theme and colour changes
             inlines.Add(run);
             at = range.Start + range.Length;
         }
@@ -528,7 +527,7 @@ public partial class SettingsEditor
         foreach (Control child in panel.Children.ToArray())
         {
             // The media folder list is a live view of the host (names, paths, counts), not a setting: its heading is the entry.
-            if (child.Name == "MediaFoldersHost") continue;
+            if (child.Name is "MediaFoldersHost" or "FooterLayoutHost") continue;
             if (child is TextBlock heading && IsSearchHeading(heading))
             {
                 string text = heading.Text ?? string.Empty;

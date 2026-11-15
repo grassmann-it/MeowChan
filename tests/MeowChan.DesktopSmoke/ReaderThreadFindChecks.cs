@@ -343,7 +343,7 @@ internal static class ReaderThreadFindChecks
                 && shell.FindControl<Button>("AddUrlButton")!.IsEnabled);
             Require(shell.TryGetPlatformHandle()?.Handle is nint handle && handle != 0,
                 "Shell routing fixture has no native handle.");
-            shell.FindControl<MenuItem>("ArchiveMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            SmokeNavigation.GoTo(shell, MainWindow.WorkspacePage.Archive);
             ArchivePage page = shell.ArchivePage;
             await UntilAsync(() => !page.IsBusy);
             ListBox threads = C<ListBox>("ArchiveThreads");

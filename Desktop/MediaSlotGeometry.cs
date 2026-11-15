@@ -80,8 +80,9 @@ internal static class MediaSlotGeometry
 
 /// <summary>
 /// A frame whose size is the drawn picture (<see cref="MediaSlotGeometry.Fit"/>): the picture, the click target and every overlay are
-/// arranged on the same rectangle, so a play button is centred on the picture and a focus ring runs around it. The one exception is the
-/// <see cref="VideoPlayMarkView"/>: it is sized from, and centred on, the picture's letterboxed rectangle inside the frame.
+/// arranged on the same rectangle, so a play button is centred on the picture and a focus ring runs around it. The exceptions are the
+/// <see cref="VideoPlayMarkView"/> and the shared badge view (<see cref="MeowChan.Desktop.Controls.MediaBadgeView"/>): they are sized from,
+/// and placed on, the picture's letterboxed rectangle inside the frame, and the badge view is told that picture's size on every layout.
 /// </summary>
 internal sealed class MediaFramePanel : Panel
 {
@@ -95,6 +96,9 @@ internal sealed class MediaFramePanel : Panel
     internal static double MaximumWidth(bool large) => large ? 360 : 240;
     internal static double MaximumHeight(bool large) => large ? 280 : 180;
 
+    /// <summary>The shown picture's size inside the frame as it is arranged now (the badge view's picture); empty before the first layout.</summary>
+    internal Size PictureSize => MediaSlotGeometry.Letterbox(Bounds.Size, Aspect).Size;
+
     protected override Size MeasureOverride(Size availableSize)
     {
         double maximumWidth = double.IsFinite(MaximumWidthOverride) && MaximumWidthOverride > 0
@@ -107,6 +111,7 @@ internal sealed class MediaFramePanel : Panel
         {
             // The play mark scales with the picture that is shown (not the frame, which a thin strip widens) and stays inside it.
             if (child is VideoPlayMarkView mark) { mark.Diameter = VideoPlayMark.Diameter(picture); mark.Measure(new Size(mark.Diameter, mark.Diameter)); }
+            else if (child is MeowChan.Desktop.Controls.MediaBadgeView badges) { badges.Apply(badges.State, picture); badges.Measure(picture); }
             else child.Measure(frame);
         }
         return frame;
@@ -116,7 +121,11 @@ internal sealed class MediaFramePanel : Panel
     {
         Rect frame = new(default, DesiredSize.Width <= finalSize.Width + 0.01 ? DesiredSize : finalSize);
         Rect picture = MediaSlotGeometry.Letterbox(frame.Size, Aspect);
-        foreach (Control child in Children) child.Arrange(child is VideoPlayMarkView ? VideoPlayMark.Place(picture) : frame);
+        foreach (Control child in Children)
+        {
+            if (child is MeowChan.Desktop.Controls.MediaBadgeView badges) { badges.Apply(badges.State, picture.Size); child.Arrange(picture); }
+            else child.Arrange(child is VideoPlayMarkView ? VideoPlayMark.Place(picture) : frame);
+        }
         return finalSize;
     }
 }
@@ -124,7 +133,8 @@ internal sealed class MediaFramePanel : Panel
 /// <summary>
 /// A uniform grid cell: its <see cref="Image"/> is arranged on the letterboxed picture inside it (<see cref="MediaSlotGeometry.Letterbox"/>),
 /// every other child (corner marks, status text) on <see cref="MediaSlotGeometry.Marks"/>: the cell keeps the tile grid regular, the
-/// marks sit on the picture's corners.
+/// marks sit on the picture's corners. The shared badge view (<see cref="MeowChan.Desktop.Controls.MediaBadgeView"/>) lies exactly on the
+/// picture and is told its size on every layout.
 /// </summary>
 internal sealed class LetterboxPanel : Panel
 {
@@ -139,6 +149,15 @@ internal sealed class LetterboxPanel : Panel
     /// <summary>The picture's rectangle inside this panel at its current size.</summary>
     internal Rect PictureBounds => MediaSlotGeometry.Letterbox(Bounds.Size, _aspect);
 
+    /// <summary>
+    /// True when the corner marks (check mark, star) and the badge view of the slot anchor (<see cref="MeowChan.Desktop.Controls.MediaBadgeAnchor.Slot"/>)
+    /// are arranged on the whole panel, the tile's slot, instead of on the picture's band: a row of tiles then carries them at one height.
+    /// </summary>
+    internal bool MarksOnSlot { get; set; }
+
+    /// <summary>The band the corner marks are arranged on at its current size: the whole slot with <see cref="MarksOnSlot"/>, otherwise the picture, at least <see cref="MediaSlotGeometry.MinimumMarkExtent"/> each way.</summary>
+    internal Rect MarksBounds => MarksOnSlot ? new Rect(default, Bounds.Size) : MediaSlotGeometry.Marks(Bounds.Size, _aspect);
+
     protected override Size MeasureOverride(Size availableSize)
     {
         if (double.IsInfinity(availableSize.Width) || double.IsInfinity(availableSize.Height))
@@ -152,15 +171,33 @@ internal sealed class LetterboxPanel : Panel
             return new Size(double.IsInfinity(availableSize.Width) ? width : availableSize.Width,
                 double.IsInfinity(availableSize.Height) ? height : availableSize.Height);
         }
-        Rect picture = MediaSlotGeometry.Letterbox(availableSize, _aspect), marks = MediaSlotGeometry.Marks(availableSize, _aspect);
-        foreach (Control child in Children) child.Measure(child is Image ? picture.Size : marks.Size);
+        Rect picture = MediaSlotGeometry.Letterbox(availableSize, _aspect), marks = MarksOnSlot ? new Rect(default, availableSize) : MediaSlotGeometry.Marks(availableSize, _aspect);
+        foreach (Control child in Children)
+        {
+            Size size = child is Image ? picture.Size : marks.Size;
+            if (child is MeowChan.Desktop.Controls.MediaBadgeView badges)
+            {
+                badges.Apply(badges.State, picture.Size, availableSize);
+                size = badges.Options.Anchor == MeowChan.Desktop.Controls.MediaBadgeAnchor.Slot ? availableSize : picture.Size;
+            }
+            child.Measure(size);
+        }
         return availableSize;
     }
 
     protected override Size ArrangeOverride(Size finalSize)
     {
-        Rect picture = MediaSlotGeometry.Letterbox(finalSize, _aspect), marks = MediaSlotGeometry.Marks(finalSize, _aspect);
-        foreach (Control child in Children) child.Arrange(child is Image ? picture : marks);
+        Rect picture = MediaSlotGeometry.Letterbox(finalSize, _aspect), marks = MarksOnSlot ? new Rect(default, finalSize) : MediaSlotGeometry.Marks(finalSize, _aspect);
+        foreach (Control child in Children)
+        {
+            Rect place = child is Image ? picture : marks;
+            if (child is MeowChan.Desktop.Controls.MediaBadgeView badges)
+            {
+                badges.Apply(badges.State, picture.Size, finalSize);
+                place = badges.Options.Anchor == MeowChan.Desktop.Controls.MediaBadgeAnchor.Slot ? new Rect(default, finalSize) : picture;
+            }
+            child.Arrange(place);
+        }
         return finalSize;
     }
 }

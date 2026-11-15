@@ -20,6 +20,8 @@ public partial class MainWindow
         _pluginsPage.ApplyWorkView(ConfiguredWorkView, viewChanged: true);
         _sourcesPage.GetSourceMediaIntegrityPolicies = _session.GetSourceMediaIntegrityPolicies;
         _sourcesPage.SetSourceMediaIntegrityPermission = _session.SetSourceMediaIntegrityPermissionAsync;
+        _sourcesPage.GetChanSiteEnabled = _session.GetChanSiteEnabled;
+        _sourcesPage.SetChanSiteEnabled = _session.SetChanSiteEnabledAsync;
         AttachPluginServices();
     }
     private void AttachPluginServices()

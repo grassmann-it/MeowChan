@@ -84,7 +84,7 @@ internal static class FolderSourceChecks
             Program.CaptureWindow(shell, "smoke-folder-source-settings.png");
 
             // The Media page lists the three files as unhashed folder tiles of this source.
-            shell.FindControl<MenuItem>("MediaMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            SmokeNavigation.GoTo(shell, MainWindow.WorkspacePage.Media);
             await UntilAsync(() => shell.SelectedPage == MainWindow.WorkspacePage.Media && shell.MediaPageForTests != null);
             MediaPage page = shell.MediaPageForTests!;
             await UntilAsync(() => page.BuildTask.IsCompleted && page.ShownEntries.Count(entry => entry.FolderItemId != null) == 3);

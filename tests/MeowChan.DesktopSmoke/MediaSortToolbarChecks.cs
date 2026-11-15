@@ -46,6 +46,17 @@ internal static partial class MediaPageChecks
             // Layout: search and filters left, the order and the tools right, in one row.
             double X(Control control) => control.TranslatePoint(default, page.ToolbarRow)!.Value.X;
             double Y(Control control) => control.TranslatePoint(default, page.ToolbarRow)!.Value.Y;
+            // N6: every tool the stage still shows (the last one is More) lies inside the row; nothing is cut off at its right edge.
+            void RequireToolbarFits(string stage)
+            {
+                page.UpdateLayout();
+                foreach (Control tool in new Control[] { search, filters, sort, direction, more })
+                    Require(!tool.IsVisible || X(tool) + tool.Bounds.Width <= page.ToolbarRow.Bounds.Width + 0.5,
+                        "The " + stage + " toolbar must show " + tool.Name + " completely: right edge " + (X(tool) + tool.Bounds.Width) + " of " + page.ToolbarRow.Bounds.Width);
+                foreach (Control tool in new Control[] { C<ToggleButton>(page, "MediaBooruMode"), refresh })
+                    Require(!tool.IsVisible || X(tool) + tool.Bounds.Width <= page.ToolbarRow.Bounds.Width + 0.5,
+                        "The " + stage + " toolbar must show " + tool.Name + " completely.");
+            }
             Require(X(search) < X(filters) && X(filters) + filters.Bounds.Width < X(sort) && X(sort) + sort.Bounds.Width <= X(direction)
                 && X(direction) + direction.Bounds.Width <= X(refresh) && X(refresh) + refresh.Bounds.Width <= X(more),
                 "The toolbar must read search, filters, then (right) order, direction, refresh, more.");
@@ -114,18 +125,25 @@ internal static partial class MediaPageChecks
             window.Width = 640;
             await UntilAsync(() => page.ToolbarLevel == MediaToolbarLayout.Level.Compact);
             Require(sort.IsEffectivelyVisible && direction.IsEffectivelyVisible && search.IsEffectivelyVisible && filters.IsEffectivelyVisible && more.IsEffectivelyVisible
-                && !refresh.IsVisible && page.HeaderMoreIds.SequenceEqual(["media.toolbar.focus", "media.toolbar.refresh", "media.toolbar.export-all", "media.toolbar.manage-ratings"]),
-                "At 640 the order must stay and Refresh must be under More: " + string.Join(",", page.HeaderMoreIds));
+                && !refresh.IsVisible && page.HeaderMoreIds.SequenceEqual(["media.toolbar.tag-list", "media.toolbar.layout", "media.toolbar.focus", "media.toolbar.refresh", "media.toolbar.export-all", "media.toolbar.manage-ratings"]),
+                "At 640 the order must stay and Refresh and the Booru mode switch must be under More: " + string.Join(",", page.HeaderMoreIds));
             Require(sort.MinWidth == MediaToolbarLayout.NarrowSortMinWidth && search is { MinWidth: MediaToolbarLayout.NarrowSearchMinWidth }
                 && X(sort) + sort.Bounds.Width <= page.ToolbarRow.Bounds.Width + 0.5, "The compact row must fit and shrink search and order to their narrow minimum.");
+            Require(!C<TextBlock>(page, "MediaSortLabel").IsVisible && !C<ToggleButton>(page, "MediaBooruMode").IsVisible, "The compact row must drop the Sort label and the Booru mode switch.");
+            RequireToolbarFits("compact (640)");
             sort.SelectedIndex = (int)MediaLibrarySort.Random;
             // The page presents in the background here (BackgroundPresentEntries = 0); the view re-applies the tools after that.
             await Program.WaitUntilAsync(() => page.HeaderMoreIds.SequenceEqual(["media.toolbar.focus", "media.toolbar.refresh", "media.toolbar.shuffle", "media.toolbar.export-all", "media.toolbar.manage-ratings"]),
                 () => "While the order is random the narrow row must also hold Shuffle again under More: " + string.Join(",", page.HeaderMoreIds));
             sort.SelectedIndex = 0;
-            window.Width = 760;
+            window.Width = MediaToolbarLayout.CompactWidth + 80; // inside the Reduced stage whatever the page padding is
             await UntilAsync(() => page.ToolbarLevel == MediaToolbarLayout.Level.Reduced);
-            Require(!refresh.IsVisible && sort.MinWidth == MediaToolbarLayout.SortMinWidth, "At 760 Refresh must stay under More and the order keeps its width.");
+            Require(!refresh.IsVisible && sort.MinWidth == MediaToolbarLayout.SortMinWidth, "In the Reduced stage Refresh must stay under More and the order keeps its width.");
+            Require(C<ToggleButton>(page, "MediaBooruMode").IsVisible && C<TextBlock>(page, "MediaSortLabel").IsVisible, "The Reduced stage keeps the Sort label and the Booru mode switch.");
+            RequireToolbarFits("reduced (" + window.Width + ")");
+            window.Width = MediaToolbarLayout.ReducedWidth + 160;
+            await UntilAsync(() => page.ToolbarLevel == MediaToolbarLayout.Level.Wide);
+            RequireToolbarFits("wide (" + window.Width + ")");
             window.Width = 1100;
             await UntilAsync(() => page.ToolbarLevel == MediaToolbarLayout.Level.Wide);
             Require(refresh.IsVisible && page.HeaderMoreIds.SequenceEqual(["media.toolbar.export-all", "media.toolbar.manage-ratings"]), "A wide page must show Refresh again: " + string.Join(",", page.HeaderMoreIds));

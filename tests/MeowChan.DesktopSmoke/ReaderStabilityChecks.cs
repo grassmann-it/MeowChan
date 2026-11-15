@@ -60,7 +60,7 @@ internal static class ReaderStabilityChecks
     private static async Task RunCoreAsync(MainWindow window)
     {
         window.Width = 1915; window.Height = 1045;
-        Click(window.FindControl<MenuItem>("ArchiveMenuItem")!);
+        SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Archive);
         ArchivePage page = window.ArchivePage;
         await Program.WaitUntilAsync(() => !page.IsBusy);
         page.FindControl<TextBox>("ArchiveSearchText")!.Text = "Reader mixed navigation";

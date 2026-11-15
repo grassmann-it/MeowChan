@@ -29,7 +29,7 @@ internal static class ShowcaseCaptures
         await ResizeAsync(window, 1440, 920);
         await CaptureDownloadsAsync(window);
 
-        window.FindControl<MenuItem>("ArchiveMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Archive);
         ArchivePage page = window.ArchivePage;
         await Program.WaitUntilAsync(() => !page.IsBusy && page.FindControl<ListBox>("ArchiveThreads")!.ItemCount > 0);
         page.FindControl<TextBox>("ArchiveSearchText")!.Text = ShowcaseData.Search;
@@ -482,7 +482,7 @@ internal static class ShowcaseCaptures
         settings.FindControl<ScrollViewer>("SettingsScrollViewer")!.Offset = default;
         await CaptureAsync(window, "v0.9.0-settings.png");
 
-        window.FindControl<MenuItem>("RulesMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Rules);
         RulesPage rules = window.RulesPage;
         await Program.WaitUntilAsync(() => window.SelectedPage == MainWindow.WorkspacePage.Rules && rules.IsEditable);
         rules.EditScope(MediaRuleScope.Global);

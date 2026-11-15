@@ -16,7 +16,7 @@ internal static class ReaderMediaSidebarChecks
     internal static async Task RunAsync(MainWindow window)
     {
         window.Width = 1600; window.Height = 960;
-        Click(window.FindControl<MenuItem>("ArchiveMenuItem")!);
+        SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Archive);
         ArchivePage page = window.ArchivePage;
         await Program.WaitUntilAsync(() => !page.IsBusy && page.FindControl<ListBox>("ArchiveThreads")!.ItemCount > 0);
         page.FindControl<TextBox>("ArchiveSearchText")!.Text = "Reader UX";
@@ -103,9 +103,14 @@ internal static class ReaderMediaSidebarChecks
                     "Choosing the next thumbnail did not move the mark and the counter.");
                 page.SelectMediaSidebarIndex(0);
                 await Program.WaitUntilAsync(() => page.MediaSidebarIndex == 0 && sidebar.StripCurrent == 0);
-                if (ReaderMediaMultiRules.UseGrid(page.ReaderMedia, count, several.Body))
-                    Require(several.MediaWidth > 0 && several.Attachments.All(row => row.ThumbnailWidth == ReaderMediaMultiRules.TileWidth(several.MediaWidth)),
+                // M4/N7: the grid flag of the row is what the panel reads; a row is a grid only with little text AND two tiles that fit the column.
+                if (several.MediaGrid)
+                    Require(ReaderMediaMultiRules.UseGrid(page.ReaderMedia, count, several.Body, several.MediaWidth) && several.MediaWidth > 0
+                        && several.Attachments.All(row => row.ThumbnailWidth == ReaderMediaMultiRules.TileWidth(several.MediaWidth)),
                         "A post with several images and little text is not laid out as a grid.");
+                else
+                    Require(!ReaderMediaMultiRules.UseGrid(page.ReaderMedia, count, several.Body) || several.MediaWidth == 0 || !ReaderMediaMultiRules.TilesFit(several.MediaWidth),
+                        "A post that fits the grid rules must be a grid.");
             }
             ArchivePostRow? single = rows.FirstOrDefault(row => row.ShowsMedia && row.Attachments.Count == 1);
             if (single != null)

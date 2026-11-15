@@ -99,24 +99,14 @@
                     <Menu Grid.Column="3" VerticalAlignment="Center">
                         <!-- The "more" icon is the header, set in code (WorkspaceIcons); the name and tooltip come from the command adapter. -->
                         <MenuItem x:Name="WorkspaceMenuItem">
-                            <!-- Group 1: every main page, in footer order (Downloads, Archive, Media, Tagging, Booru | Rules, Plugins | Status). -->
-                            <MenuItem x:Name="DownloadsMenuItem" Tag="nav.downloads" Classes="localized" Header="Downloads" Click="OnDownloadsNavigationClick" />
-                            <MenuItem x:Name="ArchiveMenuItem" Tag="nav.archive" Classes="localized" Header="Archive" Click="OnArchiveNavigationClick" />
-                            <MenuItem x:Name="MediaMenuItem" Tag="nav.media" Classes="localized" Header="Media" Click="OnMediaNavigationClick" />
-                            <MenuItem x:Name="TaggingMenuItem" Tag="nav.tagging" Classes="localized" Header="Tagging" Click="OnTaggingNavigationClick" />
-                            <MenuItem x:Name="BooruMenuItem" Tag="nav.booru" Classes="localized" Header="Booru" Click="OnBooruNavigationClick" />
-                            <Separator x:Name="PagesGroupSeparatorWork" />
-                            <MenuItem x:Name="RulesMenuItem" Tag="nav.rules" Classes="localized" Header="Rules" Click="OnRulesNavigationClick" />
-                            <MenuItem x:Name="SourcesMenuItem" Tag="nav.sources" Classes="localized" Header="Plugins" Click="OnSourcesNavigationClick" />
-                            <Separator x:Name="PagesGroupSeparatorSetUp" />
-                            <MenuItem x:Name="StatusMenuItem" Tag="nav.status" Classes="localized" Header="Status" Click="OnStatusNavigationClick" />
-                            <Separator x:Name="MenuPagesToolsSeparator" />
-                            <!-- Group 2: tools. Continue reading, post bookmarks and Danbooru insert themselves after this anchor. -->
+                            <!-- F1 (Tom, 14.11.2026): the pages are not in this menu. They are reached through the footer buttons the person chose, the
+                                 footer's More menu (every page the footer or a work view leaves out) and the Ctrl/Cmd+digit shortcuts. -->
+                            <!-- Group 1: tools. Continue reading, post bookmarks and the tagging queue insert themselves in front of Import files (MenuToolsAnchor). -->
                             <MenuItem x:Name="ManualImportMenuItem" Tag="import.menu" Classes="localized" Header="Import files…" Click="OnManualImportMenuClick" />
                             <!-- URSA-12 shared shell hunk: group manager entry in every workspace mode. -->
                             <MenuItem x:Name="ReaderGroupsMenuItem" Header="Reader groups" />
                             <Separator x:Name="MenuToolsAppSeparator" />
-                            <!-- Group 3: the application. The update check inserts itself in front of About. -->
+                            <!-- Group 2: the application. The update check inserts itself in front of About. -->
                             <MenuItem x:Name="PauseMenuItem" Header="Pause downloads" Click="OnPauseClick" />
                             <MenuItem x:Name="SettingsMenuItem" Tag="nav.settings" Classes="localized" Header="Settings" />
                             <MenuItem x:Name="ShortcutHelpMenuItem" Header="Keyboard shortcuts" />
@@ -398,7 +388,7 @@
                             <Button x:Name="CopyAllUrlsButton" wv:WorkViewElement.Id="downloads.toolbar.copy-urls" Tag="action.copyAllUrls" Classes="localized subtle" Content="Copy URLs" ursa:ToolBar.OverflowMode="AsNeeded" FontSize="{StaticResource Workspace.Text.Meta}" />
                             <Button x:Name="DetailsToggleButton" wv:WorkViewElement.Id="downloads.toolbar.details" Classes="subtle" Content="Details" Click="OnDetailsToggleClick" ursa:ToolBar.OverflowMode="Never" FontSize="{StaticResource Workspace.Text.Meta}" />
                         </desktop:ActionToolBar>
-                        <!-- The search row's way out stands alone at its right edge (HeaderBar end slot, Tom's rule 14.11.). -->
+                        <!-- The inline search row keeps its × at the right edge (HeaderBar end slot, Tom's item 35 of 14.11.): no back gap, no separator; only pages and overlays put their way back at the left. -->
                         <controls:HeaderBar x:Name="DownloadSearchBar" Grid.Row="1" Grid.ColumnSpan="2" Margin="8,2,8,8" IsVisible="False">
                             <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.8}">
                                 <controls:SearchBox x:Name="DownloadSearchInput" MinWidth="100" TextChanged="OnDownloadSearchChanged" />
@@ -559,11 +549,6 @@
                 <ComboBoxItem x:Name="SimpleModeItem" Tag="Simple" Content="Simple" />
                 <ComboBoxItem x:Name="AdvancedModeItem" Tag="Advanced" Content="Advanced" />
             </ComboBox>
-            <CheckBox x:Name="ShowBooruToolsToggle" wv:WorkViewElement.Id="shell.footer.booru-toggle" Grid.Column="2" IsVisible="False" VerticalAlignment="Center"
-                      IsCheckedChanged="OnBooruToolsToggleChanged"
-                      ToolTip.Tip="Show or hide Booru pages and actions.">
-                <TextBlock x:Name="ShowBooruToolsLabel" Tag="workview.booru.show" Classes="localized" Text="Show Booru" />
-            </CheckBox>
             </Grid>
         </Border>
         <ContentControl x:Name="ReaderHost" Grid.Row="1" Grid.RowSpan="3" IsVisible="False" Background="{DynamicResource Workspace.Background}" />
@@ -584,12 +569,12 @@
         <Border x:Name="ShellHelpOverlay" Grid.RowSpan="4" IsVisible="False" ZIndex="200"
                 Classes="workspace-overlay" Margin="16" MaxWidth="620"
                 HorizontalAlignment="Stretch" VerticalAlignment="Center">
-            <!-- Modal header bar: the title and, alone at the top right, the close cross (HeaderBar end slot). The footer held
+            <!-- Modal header bar: the close cross at the far left, then the title (HeaderBar back slot). The footer held
                  only this Close, so it is gone; Escape still dismisses the help (OnShellKeyDown). -->
             <Grid RowDefinitions="Auto,*">
                 <controls:HeaderBar x:Name="ShellHelpHeader" Margin="16,16,16,12">
+                    <Button x:Name="ShellHelpClose" Classes="subtle icon-square" controls:HeaderBar.IsBack="True" VerticalAlignment="Top" />
                     <TextBlock x:Name="ShellHelpTitle" Classes="section-title" VerticalAlignment="Center" TextWrapping="Wrap" />
-                    <Button x:Name="ShellHelpClose" Classes="subtle icon-square" controls:HeaderBar.IsEnd="True" VerticalAlignment="Top" />
                 </controls:HeaderBar>
                 <ScrollViewer Grid.Row="1" Margin="16,0,16,16" Classes="InsetContent"
                               HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">

@@ -986,8 +986,11 @@
         <Setter Property="BorderThickness" Value="0" /><Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.None}" />
         <Setter Property="Padding" Value="12,8" />
     </Style>
+    <!-- GL5b: the video bar in the gallery's dock: its row is 40 dip (the 32 dip controls and 4 above and below) and has no side inset (the
+         dock's own padding is the only inset); the overlay footer and the Windows fallback keep the padding above. -->
+    <Style Selector="Border.workspace-media-transport.in-dock"><Setter Property="Padding" Value="0,4" /></Style>
     <!-- S2: an icon-only toolbar button: a square of the input height with the catalog icon centred (IconButtons.Apply). -->
-    <Style Selector="Button.icon-only">
+    <Style Selector="Button.icon-only, ToggleButton.icon-only">
         <Setter Property="Width" Value="{StaticResource Workspace.Size.Input}" /><Setter Property="Height" Value="{StaticResource Workspace.Size.Input}" />
         <Setter Property="MinWidth" Value="0" /><Setter Property="MinHeight" Value="0" /><Setter Property="Padding" Value="0" />
         <Setter Property="HorizontalAlignment" Value="Left" />
@@ -1325,9 +1328,13 @@
     <!-- icon-square (P6): the one icon-only button. Input height in both directions, the icon centred, no text; every use gives it a
          tooltip and an accessible name. Menus ("more"; Plugins list and detail), close buttons in a surface, the remove
          cross of a row and a refresh beside a field use it. -->
-    <!-- HeaderBar (Controls/HeaderBar.cs): the way out of a row sits at its top right edge, also when the start content wraps. -->
+    <!-- HeaderBar (Controls/HeaderBar.cs): the way back of a row sits at its top left edge, also when the content wraps. -->
     <Style Selector="controls|HeaderBar > Button">
         <Setter Property="VerticalAlignment" Value="Top" />
+    </Style>
+    <!-- A narrow row (HeaderBar.CompactWidth, 360 dip) keeps only the icon of its back buttons; tooltip and accessible name still name the target. -->
+    <Style Selector="controls|HeaderBar:compact > Button.header-back TextBlock">
+        <Setter Property="IsVisible" Value="False" />
     </Style>
     <Style Selector="Button.icon-square">
         <Setter Property="Width" Value="{StaticResource Workspace.Size.Input}" /><Setter Property="Height" Value="{StaticResource Workspace.Size.Input}" />
@@ -1338,8 +1345,8 @@
          may carry line breaks (CommandBindings.Tooltip: "Label · shortcut" on the first line, hint or reason on the second). -->
     <Style Selector="ToolTip"><Setter Property="MaxWidth" Value="360" /></Style>
     <Style Selector="ToolTip TextBlock"><Setter Property="TextWrapping" Value="Wrap" /></Style>
-    <!-- HB1 help-round: the one help button (controls:HelpButton) - a 32 dip circle with the help-circle icon centred, the subtle outline
-         and the shared focus ring. Never text, never a glyph; its name is "Help: <section>" and it opens a HelpPopover. -->
+    <!-- HB1 help-round: the one help button (controls:HelpButton) - a 32 dip circle with the plain drawn "?" (WorkspaceIcons.Help, no ring of its own: the
+         button outline is the one circle) centred, the subtle outline and the shared focus ring. Never text, never a font glyph; its name is "Help: <section>" and it opens a HelpPopover. -->
     <Style Selector="Button.help-round">
         <Setter Property="Width" Value="{StaticResource Workspace.Size.Control}" /><Setter Property="Height" Value="{StaticResource Workspace.Size.Control}" />
         <Setter Property="MinWidth" Value="0" /><Setter Property="MinHeight" Value="0" /><Setter Property="Padding" Value="0" />
@@ -1485,6 +1492,12 @@
         <Setter Property="Background" Value="{DynamicResource Workspace.ChipSurface}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ChipBorder}" />
     </Style>
+    <!-- MB1b: where the shared media badges already show the favourite at rest (archive tiles), the toggle is only shown while the tile is
+         hovered or holds keyboard focus, set or not (declared after the rules above, so it wins over ":checked"). -->
+    <Style Selector="ToggleButton.tile-favorite.tile-favorite-quiet:checked"><Setter Property="Opacity" Value="0" /></Style>
+    <Style Selector="ToggleButton.tile-favorite.tile-favorite-quiet:focus-visible"><Setter Property="Opacity" Value="1" /></Style>
+    <Style Selector="ListBoxItem:pointerover ToggleButton.tile-favorite.tile-favorite-quiet"><Setter Property="Opacity" Value="1" /></Style>
+    <Style Selector="ListBoxItem:focus-within ToggleButton.tile-favorite.tile-favorite-quiet"><Setter Property="Opacity" Value="1" /></Style>
     <Style Selector="ListBoxItem.chip-item:selected controls|ChipOutline.chip-source TextBlock.chip-label"><Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" /></Style>
 
     <!-- D4 (E7, A11Y M7): a chosen chip is never the tint alone. The chip-selected class gives the tint and a solid 2-px accent

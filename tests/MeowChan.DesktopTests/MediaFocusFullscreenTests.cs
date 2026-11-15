@@ -93,7 +93,7 @@ public sealed class MediaFocusFullscreenTests : IDisposable
             Assert.False(string.IsNullOrWhiteSpace(Texts.T(key)) || Texts.T(key) == key, language + ": " + key);
         // The hint names the way back, like the exit button's tooltip does.
         Assert.Contains("Esc", Texts.T("settings.mediaFocusHidesHeaderHint").Replace("Échap", "Esc"));
-        Assert.Contains("×", Texts.T("settings.mediaFocusHidesHeaderHint"));
+        Assert.Contains(Texts.T("media.focus.exit"), Texts.T("settings.mediaFocusHidesHeaderHint")); // it quotes the button's label
         // The label is one short word (it sits next to a combo box in the toolbar row).
         Assert.True(Texts.T("media.sort").Length <= 14, language + ": " + Texts.T("media.sort"));
         if (language != "en")
@@ -124,8 +124,9 @@ public sealed class MediaFocusFullscreenTests : IDisposable
         Assert.Contains("Name = \"MediaSortLabel\", Classes = { \"muted\" }", sorting);
         Assert.Contains("_sortLabel.Text = Texts.T(\"media.sort\");", sorting);
         Assert.Contains("AutomationProperties.SetName(_sort, _sortLabel.Text);", sorting);
-        // The label follows the box's visibility and is not read twice by a screen reader.
-        Assert.Contains("_sortLabel.Bind(Visual.IsVisibleProperty, _sort.GetObservable(Visual.IsVisibleProperty));", toolbar);
+        // The label follows the box's visibility (and goes with the Compact stage, N6) and is not read twice by a screen reader.
+        Assert.Contains("_sortLabel.IsVisible = _sort.IsVisible && MediaToolbarLayout.ShowsSortLabel(_toolbarLevel);", toolbar);
+        Assert.Contains("e.Property == Visual.IsVisibleProperty) SyncSortLabel();", toolbar);
         Assert.Contains("AutomationProperties.SetAccessibilityView(_sortLabel, AccessibilityView.Raw);", toolbar);
         // The name is set in one place (on every language change), not twice.
         Assert.DoesNotContain("AutomationProperties.SetName(_sort, Texts.T(\"media.sort\"));", page);
@@ -137,7 +138,8 @@ public sealed class MediaFocusFullscreenTests : IDisposable
     public void TheFocusModeAlsoHidesTheTitleAndSubtitleKeepsTheCountsInTheFocusRowAndTellsTheShell()
     {
         string focus = Source(Focus);
-        Assert.Contains("_title.IsVisible = _subtitle.IsVisible = !on;", focus);
+        Assert.Contains("_title.IsVisible = !on;", focus); // the subtitle follows the layout plan (MP5), which hides it in focus mode
+        Assert.Contains("ApplyLayoutPlan();", focus);
         Assert.Contains("new Control[] { _topRows!, _bottomRows!, _title, _subtitle }", focus);
         // The counts line is the focus row's text and, whole, its tooltip.
         Assert.Contains("ToolTip.SetTip(_focusText, string.IsNullOrWhiteSpace(_status.Text) ? null : _status.Text);", focus);

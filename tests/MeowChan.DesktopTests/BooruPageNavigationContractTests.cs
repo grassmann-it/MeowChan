@@ -23,11 +23,13 @@ public sealed class BooruPageNavigationContractTests
     private static string? Name(XElement element) => (string?)element.Attribute(X + "Name");
 
     [Fact]
-    public void MainPageAndShortcutUseTheFormerlyFreeSixSlot()
+    public void MainPageAndShortcutFollowTheFooterNumbering()
     {
         Assert.Equal("navigation.booru", MainPageOrder.CommandIds[4]); // behind Media and Tagging
-        Assert.Equal(6, MainPageOrder.Digit("navigation.booru"));
-        Assert.Equal("Primary+6", CommandCatalog.Get("navigation.booru").Shortcut);
+        // F1: Booru is hidden in the default footer, so it is numbered behind the visible buttons (Ctrl/Cmd+8); showing it moves the digits.
+        Assert.Equal(8, MainPageOrder.Digit("navigation.booru"));
+        Assert.Equal("Primary+8", MainPageOrder.DefaultShortcut("navigation.booru"));
+        Assert.Null(CommandCatalog.Get("navigation.booru").Shortcut);
         Assert.Equal(MainWindow.WorkspacePage.Booru, MainWindow.PageFor("navigation.booru"));
         Assert.Equal("Booru", CommandCatalog.Get("navigation.booru").LabelEn);
     }
@@ -48,9 +50,9 @@ public sealed class BooruPageNavigationContractTests
 
         Assert.Contains("id != \"navigation.booru\" || CanOpenBooru", navigation, StringComparison.Ordinal);
         Assert.Contains("if (_selectedPage == WorkspacePage.Booru)", host, StringComparison.Ordinal);
-        Assert.Contains("BooruMenuItem.IsVisible = CanOpenBooru", host, StringComparison.Ordinal);
+        Assert.DoesNotContain("BooruMenuItem.IsVisible", host, StringComparison.Ordinal); // the ⋯ menu has no Booru entry any more (F1)
         Assert.Contains("BooruMoreMenuItem.IsVisible = false", host, StringComparison.Ordinal);
-        Assert.Contains("ShowBooruToolsToggle", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("ShowBooruToolsToggle", markup, StringComparison.Ordinal); // F1: the switch moved to Settings
         Assert.Contains("BooruPageHost", markup, StringComparison.Ordinal);
         Assert.Contains("BooruNavigationButton", markup, StringComparison.Ordinal);
     }
@@ -70,17 +72,18 @@ public sealed class BooruPageNavigationContractTests
                 .Select(element => (string?)element.Attribute("Tag")).Take(4).ToArray());
 
         XElement appMenu = Assert.Single(markup.Descendants(), element => Name(element) == "WorkspaceMenuItem");
-        string[] tags = appMenu.Elements().Select(element => (string?)element.Attribute("Tag"))
-            .Where(tag => tag != null).OfType<string>().ToArray();
-        Assert.Equal("nav.booru", tags[4]);
+        // F1: the ⋯ menu holds no page entries; the footer and its More menu are the only routes (and the Ctrl/Cmd+digit shortcuts).
+        Assert.DoesNotContain(appMenu.Elements(), element => ((string?)element.Attribute("Tag"))?.StartsWith("nav.", StringComparison.Ordinal) == true
+            && (string?)element.Attribute("Tag") is not ("nav.settings" or "nav.about"));
+        Assert.DoesNotContain(markup.Descendants(), element => Name(element) == "BooruMenuItem");
     }
 
     [Fact]
-    public void PersistedPluginShortcutSixWinsOverTheNewBooruDefault()
+    public void PersistedPluginShortcutOnTheBooruSlotWinsOverTheBooruDefault()
     {
         foreach (ShortcutPlatform platform in Enum.GetValues<ShortcutPlatform>())
         {
-            ShortcutGesture six = ShortcutGesture.Parse("Primary+6");
+            ShortcutGesture six = ShortcutGesture.Parse(MainPageOrder.DefaultShortcut("navigation.booru")); // slot 6 before F1, now the footer digit
             var defaults = EffectiveShortcutBindings.Build(platform: platform);
             Assert.Contains(defaults.For("navigation.booru"), gesture =>
                 EffectiveShortcutBindings.Equivalent(six, gesture, platform));
@@ -138,7 +141,7 @@ public sealed class BooruPageNavigationContractTests
         Assert.Contains("ReferenceEquals(current.Services, services)", host, StringComparison.Ordinal);
         Assert.Contains("ReferenceEquals(page.Services, services)", host, StringComparison.Ordinal);
         Assert.Contains("Dispatcher.UIThread.Post(OnBooruChanged)", host, StringComparison.Ordinal);
-        Assert.Contains("if (!visible && _selectedPage == WorkspacePage.Booru)", host, StringComparison.Ordinal);
+        Assert.Contains("RequestBooruUnavailableFallback();", host, StringComparison.Ordinal); // turning Booru off in Settings leaves the page this way (F1)
         Assert.Contains("page.Dispose();", host, StringComparison.Ordinal);
         Assert.Contains("ReferenceEquals(_booruPage, page)", Read("Desktop/Booru/MainWindow.Booru.cs"), StringComparison.Ordinal);
     }

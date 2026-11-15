@@ -21,6 +21,8 @@ public partial class App : Application
         LinuxVideoPreflight.Begin();
         using (MeowChan.Diagnostics.PerformanceDiagnostics.Measure("startup.app.harfbuzz")) LinuxHarfBuzzBootstrap.EnsureLoaded();
         using (MeowChan.Diagnostics.PerformanceDiagnostics.Measure("startup.app.xaml")) AvaloniaXamlLoader.Load(this);
+        // TH1: the theme dictionaries come from the runtime palette (no overrides yet, so exactly the XAML colours).
+        using (MeowChan.Diagnostics.PerformanceDiagnostics.Measure("startup.app.theme-palette")) MeowChan.Desktop.Theming.ThemeRuntime.Install(this);
         MeowChan.Desktop.Controls.HeadingLevels.Install(Styles);
         ThemeLogo.FollowAllWindows();
         ApplyControlLanguage();

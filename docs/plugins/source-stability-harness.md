@@ -78,7 +78,7 @@ harness would arm, and exits 1 if the failure reproduces. Runs made before bodie
   "schemaVersion": 1,
   "sources": [
     {
-      "pluginId": "meowchan.source.lainchan",
+      "pluginId": "meowchan.source.vichan",
       "sourceId": "lainchan",
       "approval": "2026-11-11, chat",
       "boards": [{"board": "sec"}, {"board": "lit"}, {"board": "music", "thread": "https://lainchan.org/music/res/1.html"}]
@@ -115,7 +115,8 @@ refuses an uncommitted contract file. Exit codes: 0 all chans pass, 1 a chan fai
 file is written), 2 usage, 3 infrastructure. `--selftest` runs both phases against an in-memory stub
 site in two real OS processes and needs no network and no manifest.
 
-Evidence files go to `plugins/Examples/<Plugin>/Evidence/stability-<YYYYMMDD>.json` (an existing
+Evidence files go to `plugins/Examples/<Plugin>/Evidence/stability-<YYYYMMDD>.json`, for a site of an
+engine-family plugin to `plugins/Examples/<Family>/Sites/<Site>/Evidence/stability-<YYYYMMDD>.json` (an existing
 file is never overwritten). The raw HTTP audits and the phase logs stay in
 `artifacts/stability/<run>/evidence/` outside Git; the evidence file names each with its SHA-256.
 

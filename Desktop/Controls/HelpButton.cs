@@ -2,18 +2,18 @@ using System;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
-using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan.Desktop.Controls;
 
 /// <summary>
-/// HB1: the one help button of the workspace. A 32 dip circle (<c>help-round</c> in WorkspaceStyles.axaml) with the catalog icon
-/// <c>help-circle</c> and no text, never a glyph. It opens a <see cref="HelpPopover"/> with the structured text of <see cref="HelpKey"/>
+/// HB1: the one help button of the workspace. A 32 dip circle (<c>help-round</c> in WorkspaceStyles.axaml) with the drawn plain
+/// question mark (<see cref="WorkspaceIcons.Help"/>) and no text, never a font glyph. The button's own outline is the only circle: a
+/// circled icon (feather <c>help-circle</c>) inside it would draw two rings. It opens a <see cref="HelpPopover"/> with the structured text of <see cref="HelpKey"/>
 /// (<c>&lt;key&gt;.title</c>, <c>.p1..</c>, <c>.li1..</c>; see <see cref="HelpContent.FromKeys"/>) or of <see cref="Source"/>.
 /// The accessible name is "Help: &lt;title&gt;"; the popover text is also the help text of the button, so assistive technology reads it
-/// without opening the popover. Name, tooltip and help text follow the language while the button is shown. The icon is created
-/// when the button is shown, because it needs the platform's asset loader.
+/// without opening the popover. Name, tooltip and help text follow the language while the button is shown. The icon is a drawn path
+/// like the close and more icons of the header; its geometry is built when the button is shown.
 /// </summary>
 public sealed class HelpButton : Button
 {
@@ -22,7 +22,6 @@ public sealed class HelpButton : Button
     public static readonly StyledProperty<string?> HelpKeyProperty = AvaloniaProperty.Register<HelpButton, string?>(nameof(HelpKey));
 
     private readonly HelpPopover _popover = new();
-    private Control? _icon;
     private string? _helpTextOverride;
 
     public HelpButton()
@@ -31,6 +30,7 @@ public sealed class HelpButton : Button
         Classes.Add("subtle");
         _popover.Provider = Resolve;
         Flyout = _popover;
+        Content = WorkspaceIcons.Create(WorkspaceIcons.Help);
         Refresh();
     }
 
@@ -80,10 +80,6 @@ public sealed class HelpButton : Button
         base.OnAttachedToVisualTree(e);
         Texts.Changed += OnLanguageChanged;
         Refresh();
-        if (_icon != null) return;
-        _icon = CommandBindings.NamedIcon("help-circle");
-        AutomationProperties.SetAccessibilityView(_icon, AccessibilityView.Raw);
-        Content = _icon;
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)

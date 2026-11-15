@@ -125,7 +125,7 @@ internal static class SelectionChecks
                 "Removing watches deleted archived posts.");
         Console.WriteLine("SMOKE selection watches: native Ctrl/Shift range+arrow, selected/unselected right-click, EN/DE/modes, narrow logo, input shielding, frozen batch-export return, single-watch Enter, ambiguous multi-watch Enter blocked and non-destructive batch Delete passed.");
 
-        Click(window.FindControl<MenuItem>("ArchiveMenuItem")!);
+        SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Archive);
         await Program.WaitUntilAsync(() => !page.IsBusy && page.FindControl<DataGrid>("ArchiveThreadTable")!.ItemsSource.Cast<object>().Count() == 50);
         Click(page.FindControl<Button>("ArchiveLayoutTable")!);
         DataGrid table = page.FindControl<DataGrid>("ArchiveThreadTable")!;

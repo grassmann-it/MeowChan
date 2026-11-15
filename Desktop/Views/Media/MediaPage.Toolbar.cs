@@ -65,8 +65,8 @@ public sealed partial class MediaPage
         tools.Children.Add(_filters); Avalonia.Controls.Grid.SetColumn(_filters, 1);
         // The tools under More stay in the tree (hidden): their handlers, names and shortcuts keep working, the menu entries forward to them.
         StackPanel right = new() { Name = "MediaToolbarEnd", Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
-        // MP4: the Booru mode switch sits before the focus mode; MP3: the queue walk and the Tagging page are entries under More only.
-        foreach (Control control in new Control[] { _shuffle, _sortLabel, _sort, _sortDirection, _refresh, _booruMode, _focus, _exportAll, _manageRatings, _booruOpen,
+        // MP4: the Booru mode switch (MP5: "Tag list") sits before the focus mode, MP5's "Layout" button after the switch; MP3: the queue walk and the Tagging page are entries under More only.
+        foreach (Control control in new Control[] { _shuffle, _sortLabel, _sort, _sortDirection, _refresh, _booruMode, _layoutButton, _focus, _exportAll, _manageRatings, _booruOpen,
             _queueWalk, _taggingPageOpen, _more })
         {
             control.VerticalAlignment = VerticalAlignment.Center;
@@ -76,7 +76,9 @@ public sealed partial class MediaPage
         }
         _nameFilter.VerticalAlignment = _filters.VerticalAlignment = VerticalAlignment.Center;
         tools.Children.Add(right); Avalonia.Controls.Grid.SetColumn(right, 3);
-        _sortLabel.Bind(Visual.IsVisibleProperty, _sort.GetObservable(Visual.IsVisibleProperty));
+        // The label follows the criterion box, and goes with the Compact stage (N6).
+        _sort.PropertyChanged += (_, e) => { if (e.Property == Visual.IsVisibleProperty) SyncSortLabel(); };
+        SyncSortLabel();
         AutomationProperties.SetAccessibilityView(_sortLabel, AccessibilityView.Raw);
         ApplyToolbarMinWidths();
         tools.SizeChanged += (_, e) => ApplyToolbarWidth(e.NewSize.Width);
@@ -93,17 +95,20 @@ public sealed partial class MediaPage
         RefreshWorkView();
     }
 
+    private void SyncSortLabel() => _sortLabel.IsVisible = _sort.IsVisible && MediaToolbarLayout.ShowsSortLabel(_toolbarLevel);
+
     private void ApplyToolbarMinWidths()
     {
         _nameFilter.MinWidth = MediaToolbarLayout.SearchMin(_toolbarLevel);
         _sort.MinWidth = MediaToolbarLayout.SortMin(_toolbarLevel);
+        SyncSortLabel();
     }
 
     // After the work view decided: what the width moves under More is hidden like what the view moves (its state still wants it, so
     // HeaderOverflow lists it and its shortcut keeps working).
     private void ApplyToolbarLevel()
     {
-        foreach (Control tool in new Control[] { _focus, _refresh, _shuffle })
+        foreach (Control tool in new Control[] { _focus, _refresh, _shuffle, _booruMode })
             if (MediaToolbarLayout.IsMovedUnderMore(_toolbarLevel, Desktop.WorkViews.WorkViewElement.GetId(tool))) tool.IsVisible = false;
     }
 }

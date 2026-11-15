@@ -224,7 +224,7 @@ internal static class ReaderInteractionChecks
     internal static async Task RunMediaActivationInputAsync(MainWindow window)
     {
         const ulong enter = MediaNativeInput.Enter, up = MediaNativeInput.Up, down = MediaNativeInput.Down;
-        Click(window.FindControl<MenuItem>("ArchiveMenuItem")!);
+        SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Archive);
         ArchivePage page = window.ArchivePage;
         await Program.WaitUntilAsync(() => !page.IsBusy);
         page.FindControl<TextBox>("ArchiveSearchText")!.Text = "Reader UX 1000";

@@ -115,7 +115,7 @@ public sealed class EffectiveShortcutBindings
     private static long _nextVersion;
     /// <summary>Revision of the default table. Raise it, and list the command in
     /// <see cref="DefaultChangedInRevision"/>, whenever a default gesture is added to or changed on a command.</summary>
-    public const int DefaultsRevision = 10;
+    public const int DefaultsRevision = 13;
     /// <summary>Commands whose default gesture set was introduced or changed after profiles with saved
     /// bindings may already exist, with the revision that did it. A new default on such a command yields to
     /// a saved binding of another command instead of silencing both; entries are never removed because a
@@ -165,9 +165,8 @@ public sealed class EffectiveShortcutBindings
         ["navigation.booru"] = 8,
         // New in revision 9 (wave3: V1, V3, PT6, R8, M4 and PT3 each raised the table in their own branch; Status took 7, the Booru page 8): the video transport row
         // (A–B loop, next frame).
-        ["video.ab-loop"] = 9, ["video.frame-step"] = 9,
-        // New in revision 9: L shows or hides the gallery filmstrip.
-        ["gallery.filmstrip-toggle"] = 9,
+        ["video.ab-loop"] = 9,
+        // New in revision 9: the gallery filmstrip toggle (L until revision 12 gave L to the video repeat; see below).
         // New in revision 9 (PT6, decision E2): Shift+1 to Shift+5 rate and Shift+0 removes the rating, in the gallery, the large reader's
         // media rows and the rating dialog; R stays the dialog. They yield to a saved binding of another command like every new default.
         ["media.rating.set-1"] = 9, ["media.rating.set-2"] = 9, ["media.rating.set-3"] = 9, ["media.rating.set-4"] = 9,
@@ -194,6 +193,24 @@ public sealed class EffectiveShortcutBindings
         // (T shows the post in the thread, Primary+Shift+T opens the tag panel); it yields to a saved binding like every new default. The
         // wave-5 integration gives it revision 10, the first one after the defaults already in goal.
         ["gallery.mode-toggle"] = 10,
+        // New in revision 11 (F1, footer setting): Ctrl/Cmd+1, 2, 3 ... follow the footer buttons the person chose, from left to right, then the hidden
+        // pages (MainPageOrder.Numbering). Every main page can therefore get another digit than before, so each default yields to a saved binding
+        // of another command (media, booru, rules, sources and status are listed above from earlier revisions).
+        ["navigation.downloads"] = 11, ["navigation.archive"] = 11, ["navigation.tagging"] = 11,
+        // TG1: Alt+Home and Alt+End send the selected entry of the tagging page to the start or the end of the queue (context "tagging").
+        // The wave-6 integration puts them into revision 11 (F1's), the first one after wave 5's 10; they yield like every new default.
+        ["tagging.move-first"] = 11, ["tagging.move-last"] = 11,
+        // Revision 12 (video keys, on top of the footer package's revision 11): "," and "." seek by the step setting, L repeats the video, the next frame moved to Shift+. and the filmstrip
+        // toggle to Shift+L (L is the video repeat). All of them yield to a saved binding of another command like every changed default.
+        ["video.step-back"] = 12, ["video.step-forward"] = 12, ["video.loop"] = 12, ["video.frame-step"] = 12, ["gallery.filmstrip-toggle"] = 12,
+        // Revision 13 (the gallery key scheme, GalleryShortcutScheme): Shift plus a letter shows or hides a block, plain letters act on the playback.
+        // Changed: the post panel P to Shift+P, the slideshow S to D, mute Shift+M to M, the frame snapshot Shift+S to S (video.mute, video.snapshot and
+        // gallery.slideshow-toggle are in the table since revisions 2 and 5; their entries stay). New: Shift+H hides the tools, Shift+O switches the
+        // controls overlay, and Shift+I / Shift+N show the info line and the hint row of the Layout menu (GL3, applied when those commands exist). The card mode of the tagging
+        // mode moved from K to Shift+K (the cards are a block).
+        // "Add favorite" moved from M (now mute) to B; a binding saved for any of them stays untouched.
+        ["gallery.context-toggle"] = 13, ["gallery.tools-toggle"] = 13, ["gallery.overlay-toggle"] = 13,
+        ["gallery.layout.info"] = 13, ["gallery.layout.hints"] = 13,
     };
     public static IReadOnlyCollection<string> YieldingDefaultCommandIds => DefaultChangedInRevision.Keys.ToArray();
     // Commands whose default changed only in the macOS table: on Windows and Linux their gesture is the old stable one
@@ -232,7 +249,9 @@ public sealed class EffectiveShortcutBindings
     {
         if (platform == ShortcutPlatform.MacOS && MacDefaults(command.Id) is { } mac) return mac;
         var list = new List<ShortcutGesture>();
-        if (command.Shortcut is not null && command.Shortcut != "Escape") list.Add(ShortcutGesture.Parse(command.Shortcut));
+        // A main page's digit follows the footer (MainPageOrder.Numbering), not a fixed slot of the catalog.
+        if (MainPageOrder.Contains(command.Id)) { if (MainPageOrder.Digit(command.Id) is int digit) list.Add(ShortcutGesture.Parse("Primary+" + digit)); }
+        else if (command.Shortcut is not null && command.Shortcut != "Escape") list.Add(ShortcutGesture.Parse(command.Shortcut));
         switch (command.Id)
         {
             case "gallery.fit": list.Add(ShortcutGesture.Parse("NumPad0")); break;
@@ -243,10 +262,8 @@ public sealed class EffectiveShortcutBindings
             case "menu.context-open": list.Add(ShortcutGesture.Parse("Apps")); break;
             case "reader.find-next": list.Add(ShortcutGesture.Parse("Primary+G")); break;
             case "reader.find-previous": list.Add(ShortcutGesture.Parse("Primary+Shift+G")); break;
-            // [ and ] sit behind AltGr/Option on many layouts (German, French …): "<"/">" as on US keyboards (Shift with the
-            // comma and period keys, the video players' convention) is the always reachable second gesture.
-            case "video.speed-down": list.Add(ShortcutGesture.Parse("Shift+OemComma")); break;
-            case "video.speed-up": list.Add(ShortcutGesture.Parse("Shift+OemPeriod")); break;
+            // Speed stays on [ and ] alone: Shift+, is free (no previous frame) and Shift+. is the next frame.
+            default: list.AddRange(GalleryShortcutScheme.LayoutDefault(command.Id)); break;
         }
         return list.AsReadOnly();
     }
@@ -282,6 +299,10 @@ public sealed class EffectiveShortcutBindings
             // Fn is never the only way on a Mac: the Diagnostics retry shares the gesture of "Retry missing media"
             // (they never apply on the same page).
             "diagnostics.retry-selection" => Of("Primary+Alt+Shift+R"),
+            // TG1 tagging page: Home/End need Fn on an Apple keyboard, so ⌥⌘↑ / ⌥⌘↓ (the Mac's "to the start / end" arrows next to ⌥↑/⌥↓
+            // of one step) come first and Alt+Home/Alt+End stay extras.
+            "tagging.move-first" => Of("Primary+Alt+Up", "Alt+Home"),
+            "tagging.move-last" => Of("Primary+Alt+Down", "Alt+End"),
             // Quick tagging: an Apple keyboard has no PageUp/PageDown (Fn+arrow), so the ⌘-arrow is the first gesture there.
             "tags.quick.next" => Of("Primary+Down", "PageDown"),
             "tags.quick.previous" => Of("Primary+Up", "PageUp"),

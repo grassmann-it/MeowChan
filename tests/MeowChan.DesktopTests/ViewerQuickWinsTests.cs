@@ -298,8 +298,8 @@ public sealed class ViewerQuickWinsTests : IDisposable
     [InlineData("video.seek-forward", "Primary+Right")]
     [InlineData("video.seek-back-far", "Primary+Shift+Left")]
     [InlineData("video.seek-forward-far", "Primary+Shift+Right")]
-    [InlineData("video.mute", "Shift+M")]
-    [InlineData("video.snapshot", "Shift+S")]
+    [InlineData("video.mute", "M")]
+    [InlineData("video.snapshot", "S")]
     [InlineData("video.speed-down", "OemOpenBrackets")]
     [InlineData("video.speed-up", "OemCloseBrackets")]
     [InlineData("video.speed-reset", "Back")]
@@ -313,13 +313,17 @@ public sealed class ViewerQuickWinsTests : IDisposable
     }
 
     [Fact]
-    public void TheFavoriteKeysOfTheShortcutConceptStayAndSpeedHasALayoutSafeSecondGesture()
+    public void TheFavoriteKeysOfTheShortcutConceptStayAndSpeedKeepsOnlyTheBrackets()
     {
         EffectiveShortcutBindings bindings = EffectiveShortcutBindings.Build(null, ShortcutPlatform.Linux);
-        Assert.Contains(bindings.For("favorites.add"), gesture => gesture.Key == "M" && gesture.Modifiers.Count == 0);
-        Assert.Contains(bindings.For("gallery.slideshow-toggle"), gesture => gesture.Key == "S" && gesture.Modifiers.Count == 0);
-        Assert.Contains(bindings.For("video.speed-down"), gesture => gesture.Key == "OemComma" && gesture.Modifiers.SequenceEqual(new[] { "Shift" }));
-        Assert.Contains(bindings.For("video.speed-up"), gesture => gesture.Key == "OemPeriod" && gesture.Modifiers.SequenceEqual(new[] { "Shift" }));
+        // Revision 13: M mutes ("Add favorite" moved to B), D is the slideshow (S saves the frame).
+        Assert.Contains(bindings.For("favorites.add"), gesture => gesture.Key == "B" && gesture.Modifiers.Count == 0);
+        Assert.Contains(bindings.For("favorites.remove"), gesture => gesture.Key == "U" && gesture.Modifiers.Count == 0);
+        Assert.Contains(bindings.For("favorites.toggle"), gesture => gesture.Key == "F" && gesture.Modifiers.Count == 0);
+        Assert.Contains(bindings.For("gallery.slideshow-toggle"), gesture => gesture.Key == "D" && gesture.Modifiers.Count == 0);
+        // The "<" / ">" alias of the speed keys is gone: Shift+. is the next frame and "," / "." seek by the step setting.
+        Assert.Single(bindings.For("video.speed-down"));
+        Assert.Single(bindings.For("video.speed-up"));
         // Left/Right without a modifier stay previous/next medium.
         Assert.Contains(bindings.For("gallery.previous"), gesture => gesture.Key == "Left" && gesture.Modifiers.Count == 0);
     }
@@ -337,7 +341,7 @@ public sealed class ViewerQuickWinsTests : IDisposable
     }
 
     [Fact]
-    public void SingleKeysOffRemovesTheBareSpeedAndShiftLetterDefaultsButKeepsSeeking()
+    public void SingleKeysOffRemovesTheBareSpeedAndLetterDefaultsButKeepsSeeking()
     {
         EffectiveShortcutBindings off = EffectiveShortcutBindings.Build(new ShortcutBindingsSection().WithSingleKeyShortcuts(false), ShortcutPlatform.Linux);
         Assert.Empty(off.For("video.speed-down"));

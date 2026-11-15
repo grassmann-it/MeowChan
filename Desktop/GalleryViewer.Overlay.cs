@@ -87,7 +87,34 @@ internal sealed partial class GalleryViewer
         }
     }
 
-    private bool CanRunSlideshow => !_viewerInteractionStopped && _interactionAvailable && IsGalleryWindowActive && !HasGalleryDialog && !HasGalleryPopup
+    // The window's part of "may the slideshow run": the surface is usable (main window enabled, gallery shown in it, not put away for the
+    // reader) and, only with "Pause when MeowChan loses focus", the window has the focus. Without the setting, focus loss, minimise and
+    // the tray (the window hidden) do not matter; the media inside the window keep their own chain of visibility (ShownInWindow).
+    private bool SlideshowSurfaceUsable => _slideshowSurface && TopLevel.GetTopLevel(this) is Window { IsEnabled: true }
+        && IsEffectivelyEnabled && ShownInWindow(this);
+    private bool WindowHasFocus => _interactionAvailable && IsGalleryWindowActive;
+    private bool SlideshowWindowAllows => GallerySlideshowWindowGate.Allows(_playbackPreferences.PauseOnFocusLoss, SlideshowSurfaceUsable, WindowHasFocus);
+
+    /// <summary>Visible up to the window, whether the window itself is shown, minimised or hidden in the tray.</summary>
+    private static bool ShownInWindow(Visual visual)
+    {
+        for (Visual? current = visual; current != null; current = current.GetVisualParent())
+        {
+            if (current is Window) return true;
+            if (!current.IsVisible) return false;
+        }
+        return false;
+    }
+
+    // Called before the slideshow's hold is set: when the focus wait ends the shown medium starts a fresh period (like the tagging hold).
+    private void ObserveSlideshowWindow()
+    {
+        if (_slideshow == null) return;
+        if (_windowGate.Observe(_playbackPreferences.PauseOnFocusLoss, SlideshowSurfaceUsable, WindowHasFocus) && _slideshow.IsRunning)
+            _slideshow.RenewAfterHold(_slideshowGeneration);
+    }
+
+    private bool CanRunSlideshow => !_viewerInteractionStopped && SlideshowWindowAllows && !HasGalleryDialog && !HasGalleryPopup
         && !_videoSuspended && !SlideshowBlockedByPanel && !_helpOpen && !IsFavoriteConfirmOpen && !_mediaFailed && !_sessionCancellation.IsCancellationRequested
         && _entry != null && _entry.Kind != SavedMediaKind.Other;
 
@@ -274,6 +301,7 @@ internal sealed partial class GalleryViewer
         _nativeVideoOverlay.Focusable = true;
         KeyboardNavigation.SetTabNavigation(_nativeVideoOverlay, KeyboardNavigationMode.Cycle);
         ActualThemeVariantChanged += (_, _) => ApplyOverlayBackgrounds();
+        MeowChan.Desktop.Theming.ThemeRuntime.FollowApplied(this, ApplyOverlayBackgrounds);
         _overlayFooter.Children.Add(_overlayTransportHost);
         _overlayFooter.SizeChanged += (_, _) =>
         {
@@ -351,9 +379,20 @@ internal sealed partial class GalleryViewer
                 || !_viewerInteractionStopped), restoreFocus, index);
     }
 
-    // The post panel (and the slot a later tag panel shares with it) starts below the top row of the way back and the star. In the
-    // transparency fallback the way back lies in the picture row and the panel in row 1 as well, so the same inset applies.
-    private double PostPanelTopInset => Math.Max(TopRowClearance, 12 + (_close != null && _close.Bounds.Height > 0 ? _close.Bounds.Height : 32) + 8);
+    // The way back and the star stand at the top LEFT (Tom's rule of 14.11.), the panel at the right: it starts at the top and gives its
+    // own head the room (its × stays at its right edge) as long as it does not reach the pair horizontally; a panel that does (a narrow
+    // viewer, where it lies over most of the picture) starts below the top row of the way back and the star. In the transparency
+    // fallback the way back lies in the picture row and the panel in row 1 as well, so the same rule applies.
+    private double TopRowPairWidth => StarLeftMargin + (_favoriteIndicator.IsVisible || _nativeFavoriteIndicator.IsVisible
+        ? (_favoriteIndicator.Bounds.Width > 0 ? _favoriteIndicator.Bounds.Width : 44) : 0) + 12;
+
+    private double PostPanelTopInset(double width, double rightMargin, double top)
+    {
+        double below = Math.Max(TopRowClearance, 12 + (_close != null && _close.Bounds.Height > 0 ? _close.Bounds.Height : 32) + 8);
+        if (Bounds.Width <= 0 || !double.IsFinite(width)) return below;
+        double left = Bounds.Width - rightMargin - width;
+        return left < TopRowPairWidth + StarGap ? below : top;
+    }
 
     private void LayoutContextPlacement()
     {
@@ -374,7 +413,7 @@ internal sealed partial class GalleryViewer
                 ? _video?.TransportBottomInset ?? 0 : 0;
             // The overlay option sits above the floating footer; the narrow placement sits in the picture row,
             // above the docked toolbar, so only the transport strip of a video has to be cleared.
-            _contextPanel.Margin = new Thickness(12, PostPanelTopInset, 12, overlayOption && OverlayControlsEffective && _overlayFooter.IsVisible
+            _contextPanel.Margin = new Thickness(12, PostPanelTopInset(ContextOverlayWidth, 12, 12), 12, overlayOption && OverlayControlsEffective && _overlayFooter.IsVisible
                 ? _overlayFooter.Bounds.Height + 16 : transportInset + 12);
             Grid.SetColumn(_contextPanel, 0); Grid.SetColumnSpan(_contextPanel, 1);
             Grid.SetRow(_contextPanel, _nativeOverlayFallback && !overlayOption ? 1 : 0); Grid.SetRowSpan(_contextPanel, 1);
@@ -388,7 +427,7 @@ internal sealed partial class GalleryViewer
             // The adjacent docked context is not underneath it. Feeding that
             // footer's measured height into this root also creates a cross-root
             // layout dependency (main layout positions the native overlay).
-            _contextPanel.Margin = new Thickness(0, PostPanelTopInset, 0, !_nativeOverlayActive && OverlayControlsEffective
+            _contextPanel.Margin = new Thickness(0, PostPanelTopInset(DockedContextWidth, 0, 0), 0, !_nativeOverlayActive && OverlayControlsEffective
                 && _overlayFooter.IsVisible ? _overlayFooter.Bounds.Height + 8 : 0);
             Grid.SetColumn(_contextPanel, 1); Grid.SetColumnSpan(_contextPanel, 1);
             Grid.SetRow(_contextPanel, 0); Grid.SetRowSpan(_contextPanel, 1);
@@ -412,8 +451,9 @@ internal sealed partial class GalleryViewer
         if (_video?.TransportControl is Border transport)
         {
             SetOverlayBackground(transport, OverlayControlsEffective, background);
-            // GL2: in the dock the bar shares the tools' surface and inset (the dock's padding is its only inset).
-            if (DockHostsTransport) transport.Padding = new Thickness(0); else transport.ClearValue(Border.PaddingProperty);
+            // GL2: in the dock the bar shares the tools' surface and inset (the dock's padding is its only inset); GL5b: the ".in-dock" class
+            // of the dock's host gives the bar that padding (SetExternalTransportHost), so nothing is set here.
+            transport.ClearValue(Border.PaddingProperty);
         }
         // Deliberately never set parent Opacity: text and controls remain fully opaque.
     }
@@ -630,7 +670,8 @@ internal sealed partial class GalleryViewer
             && !(_keyboardInteraction && _contextPanel.IsKeyboardFocusWithin) && !selectedPostText
             && Stopwatch.GetElapsedTime(_lastPostActivity) >= TimeSpan.FromMilliseconds(500))
             SetContextOpen(false, notify: false, hover: true);
-        UpdateSlideshowInteraction(!_interactionAvailable || !active || popup || reading || captured
+        ObserveSlideshowWindow();
+        UpdateSlideshowInteraction(!SlideshowWindowAllows || popup || reading || captured
             || _sessionCancellation.IsCancellationRequested);
         if (_lastRunning != _slideshow.IsRunning || _shownSlideshowStatus != CurrentSlideshowStatus) RefreshPlaybackControls();
         _slideshowToggle.IsEnabled = _slideshow.IsRunning || CanRunSlideshow && !_navigationPending;

@@ -244,7 +244,8 @@ public partial class MainWindow
 }
 
 /// <summary>The single optional button of a toast. The label is already localized when the toast is shown.</summary>
-internal sealed record FeedbackToastAction(string Label, Func<Task> Invoke);
+/// <summary>One action button of a toast. <paramref name="Icon"/> (a catalog icon file name) draws an icon before the label; the label stays the content, tooltip source and accessible name.</summary>
+internal sealed record FeedbackToastAction(string Label, Func<Task> Invoke, string? Icon = null);
 
 /// <summary>Small theme-independent toast content; expiry has no acknowledgement callback.</summary>
 internal sealed class FeedbackToastContent : Grid
@@ -302,6 +303,7 @@ internal sealed class FeedbackToastContent : Grid
                 };
                 button.Classes.Add("subtle");
                 AutomationProperties.SetName(button, _actions[index].Label);
+                if (_actions[index].Icon is { } icon) CommandBindings.ShowIconBeforeText(button, icon);
                 buttons.Add(button);
                 row.Children.Add(button);
             }

@@ -27,8 +27,8 @@ class PublicPackageInventoryTests(unittest.TestCase):
                        for value in node.attrib['Include'].split(';')]
 
     def test_build_allowlist_is_explicit_and_matches_project_identities(self):
-        self.assertEqual(len(package.PLUGINS), 24)
-        self.assertEqual(len(package.SOURCES), 21)
+        self.assertEqual(len(package.PLUGINS), 20)
+        self.assertEqual(len(package.SOURCES), 17)
         self.assertEqual(set(package.PLUGINS), set(self.properties['_ShippedPluginAssemblies'].split(';')))
         self.assertEqual(set(package.SOURCES), set(self.properties['_PluginExampleSourceNames'].split(';')))
         self.assertEqual(len(self.projects), len(package.PLUGINS))

@@ -21,9 +21,11 @@ public static class ShortcutGroups
     /// <summary>The single group of an ungrouped table.</summary>
     public const string All = "all";
 
-    /// <summary>Group keys of the numbered main pages, in footer order ("downloads", "archive", ...). The tagging page is no group of its
-    /// own: its commands run in the "tagging" context, which <see cref="AreaOf"/> files under the application commands.</summary>
-    public static IReadOnlyList<string> Pages { get; } = Array.AsReadOnly(MainPageOrder.NumberedCommandIds.Select(PageKey).ToArray());
+    /// <summary>Group keys of the main pages that are groups of their own, in the base footer order ("downloads", "archive", ...); fixed, whatever
+    /// order or digits the footer setting gives the pages. The tagging page is no group of its own: its commands run in the "tagging"
+    /// context, which <see cref="AreaOf"/> files under the application commands.</summary>
+    public static IReadOnlyList<string> Pages { get; } = Array.AsReadOnly(
+        MainPageOrder.CommandIds.Where(id => id != "navigation.tagging").Select(PageKey).ToArray());
 
     /// <summary>Every group in table order (without a current area).</summary>
     public static IReadOnlyList<string> Order { get; } = Array.AsReadOnly(

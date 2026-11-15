@@ -287,6 +287,7 @@ public static class CommandBindings
     /// </summary>
     internal static void ShowIconBeforeText(Button button, string icon, int size = 16)
     {
+        MeowChan.Desktop.Controls.IconButtons.Record(button, icon);
         button.ContentTemplate = new Avalonia.Controls.Templates.FuncDataTemplate<object>((content, _) =>
         {
             TextBlock text = new() { Text = content?.ToString(), VerticalAlignment = VerticalAlignment.Center };

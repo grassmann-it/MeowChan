@@ -3,7 +3,7 @@ using MeowChan.Desktop.Localization;
 
 namespace MeowChan.DesktopTests;
 
-/// <summary>Slideshow S, details I, rating R, export Ctrl+E and folder Ctrl+O in the gallery and the media page.</summary>
+/// <summary>Slideshow D (revision 13; it was S), details I, rating R, export Ctrl+E and folder Ctrl+O in the gallery and the media page.</summary>
 [Collection("Localization")]
 public sealed class MediaSingleKeyShortcutTests
 {
@@ -11,7 +11,7 @@ public sealed class MediaSingleKeyShortcutTests
     public MediaSingleKeyShortcutTests() => Texts.SetLanguage("en");
 
     [Theory]
-    [InlineData("gallery.slideshow-toggle", "S")]
+    [InlineData("gallery.slideshow-toggle", "D")]
     [InlineData("media.details", "I")]
     [InlineData("media.rating.edit", "R")]
     [InlineData("media.export-original", "Ctrl+E")]

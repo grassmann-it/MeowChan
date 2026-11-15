@@ -432,9 +432,9 @@ public sealed class ShortcutEditorLiveLanguageStateTests : IDisposable
         Assert.Equal(Texts.T("settings.shortcutsEditor.search"), AutomationProperties.GetName(Get<TextBox>(editor, "_search")));
         ListBox actions = Get<ListBox>(editor, "_actions");
         Assert.Equal(Texts.T("settings.shortcutsEditor.actions"), AutomationProperties.GetName(actions));
-        // The sortable column heads of the window's table (the title is the window caption, the hint lives on the Settings card).
+        // The text-only column heads of the window's table (3465a3e3: no sort buttons; the title is the window caption, the hint lives on the Settings card).
         Assert.Equal(new[] { Texts.T("settings.shortcutsEditor.action"), Texts.T("shortcuts.window.shortcut"), Texts.T("shortcuts.window.status") },
-            Get<Button[]>(editor, "_sortButtons").Select(button => Controls(button).OfType<TextBlock>().Single().Text));
+            Get<Grid>(editor, "_header").Children.OfType<TextBlock>().OrderBy(Grid.GetColumn).Select(text => text.Text));
         foreach (string key in new[] { "resetAll", "recordAdditional", "clearBinding", "restoreDefault", "applyRecording", "takeOver", "cancelRecording" })
         {
             Button button = FindButton(editor, key);

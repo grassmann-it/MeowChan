@@ -492,7 +492,7 @@ internal static class ExperimentalActivationChecks
             // field there. Experimental activation hangs off SubmitInputAsync, so the owner-deactivation observation
             // that used to run on the Sources field now runs on the Downloads field that button leads to. Record actual
             // focus separately: native modal restoration and physical keyboard/IME acceptance are not inferred from routed Enter.
-            window.FindControl<MenuItem>("SourcesMenuItem")!.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(MenuItem.ClickEvent));
+            SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Sources);
             SourcesPage sources = (SourcesPage)C<ContentControl>(window, "SourcesPageHost").Content!;
             // SelectSource is a silent no-op until the page has loaded its rows, and the page then falls back to
             // its first row. Wait for the real condition (the source row exists), then require the selection.

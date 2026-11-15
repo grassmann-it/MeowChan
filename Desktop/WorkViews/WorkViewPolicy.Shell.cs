@@ -34,12 +34,10 @@ public static partial class WorkViewPolicy
         Same("shell.appmenu.view-cycle", WorkViewPage.Shell, WorkViewKind.Action, Required, "workspace.view-cycle", safety: true),
         Same("shell.appmenu.theme", WorkViewPage.Shell, WorkViewKind.Action, Required, "appearance.theme"),
         Same("shell.appmenu.fullscreen", WorkViewPage.Shell, WorkViewKind.Action, Required, "window.fullscreen"),
-        Same("shell.appmenu.booru-toggle", WorkViewPage.Shell, WorkViewKind.Element, Required),
         // Footer destinations: Downloads, Settings and Tools ("More") always; the rest direct by view, else in Tools.
         Same("shell.footer.downloads", WorkViewPage.Shell, WorkViewKind.Destination, Required, "navigation.downloads"),
         Same("shell.footer.settings", WorkViewPage.Shell, WorkViewKind.Destination, Required, "navigation.settings"),
         Same("shell.footer.tools-menu", WorkViewPage.Shell, WorkViewKind.Destination, Required, "navigation.tools-menu"),
-        Same("shell.footer.booru-toggle", WorkViewPage.Shell, WorkViewKind.Element, Required),
         Footer("archive", Overflow, Direct, Direct),
         Footer("media", Overflow, Direct, Direct),
         // Tagging follows Media's rule: a reading-side tool, so Barebones keeps it under More and Simple and Advanced show it.

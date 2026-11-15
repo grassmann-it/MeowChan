@@ -9,9 +9,10 @@ namespace MeowChan.DesktopTests;
 public sealed class NavigationMediaShortcutTests : IDisposable
 {
     private static readonly string[] Pages = MainPageOrder.NumberedCommandIds.ToArray();
-    // Pages whose digit changed with the footer-order renumbering (Downloads and Archive kept theirs).
+    // Pages whose default digit can differ from what a profile saved earlier (every main page yields since the footer digits of F1).
     public static IEnumerable<object[]> RenumberedPages() =>
-        new[] { "navigation.media", "navigation.booru", "navigation.rules", "navigation.sources", "navigation.status" }.Select(id => new object[] { id });
+        new[] { "navigation.downloads", "navigation.media", "navigation.tagging", "navigation.booru", "navigation.rules", "navigation.sources", "navigation.status" }
+            .Select(id => new object[] { id });
     public static IEnumerable<object[]> RenumberedPagesAndOwners() =>
         from page in RenumberedPages() from owner in new[] { "navigation.archive", "thread.read", "gallery.fit", "input.focus-search" }
         select new object[] { page[0], owner };
@@ -38,7 +39,8 @@ public sealed class NavigationMediaShortcutTests : IDisposable
         // The n-th main page from the left is Primary+n.
         for (int index = 0; index < Pages.Length; index++)
             Assert.Equal(MainPageOrder.Digit(Pages[index])!.Value.ToString(), bindings.Display(Pages[index])![^1..]);
-        Assert.Equal("5", bindings.Display("navigation.sources")![^1..]);
+        // Default layout: Tagging owns 4 behind Media, so Rules and Sources take 5 and 6 and Status keeps 7 (Booru is hidden and numbered last).
+        Assert.Equal("6", bindings.Display("navigation.sources")![^1..]);
         Assert.Null(bindings.Display("navigation.plugins"));
         Assert.Equal("7", bindings.Display("navigation.status")![^1..]);
     }
@@ -70,7 +72,7 @@ public sealed class NavigationMediaShortcutTests : IDisposable
         Assert.Equal("Ctrl+3 / Ctrl+9", bindings.Display("navigation.rules"));
         Assert.Equal("Ctrl+5", bindings.Display("navigation.diagnostics"));
         Assert.Empty(bindings.For("navigation.media"));   // Ctrl+3 stays with Rules
-        Assert.Empty(bindings.For("navigation.sources")); // Ctrl+5 stays with Diagnostics
+        Assert.Equal("Ctrl+6", bindings.Display("navigation.sources")); // Sources has its own digit now; Ctrl+5 stays with Diagnostics
         Assert.DoesNotContain(bindings.Issues, issue => issue.BlocksSave);
         Assert.Equal(before, section.Raw.GetRawText());
     }

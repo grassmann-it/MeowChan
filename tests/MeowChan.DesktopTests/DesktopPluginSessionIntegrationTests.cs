@@ -55,6 +55,45 @@ public sealed class DesktopPluginSessionIntegrationTests(ITestOutputHelper outpu
         Assert.False(ExperimentalSourceActivationPolicy.IsEligible(pluginId, sourceId.ToUpperInvariant()));
     }
 
+    [Fact]
+    public void EngineFamilyPluginsAreOnByDefaultAndGateOnlyTheirExperimentalSites()
+    {
+        // The family plugin is the master switch (on by default); each experimental site has its own switch.
+        foreach (string family in new[] { ChanSourceFamilies.Vichan, ChanSourceFamilies.Jschan })
+        {
+            Assert.False(ExperimentalSourceActivationPolicy.IsDisabledByDefault(family));
+            Assert.True(ExperimentalSourceActivationPolicy.InitiallyEnabled(family));
+            Assert.True(ChanSourceFamilies.IsFamily(family));
+        }
+        foreach (string site in new[] { "leftypol", "sushichan", "uboachan", "wizchan" })
+        {
+            Assert.True(ExperimentalSourceActivationPolicy.IsEligible(ChanSourceFamilies.Vichan, site));
+            Assert.False(ChanSourceFamilies.DefaultEnabled(ChanSourceFamilies.Vichan, site));
+            Assert.False(ExperimentalSourceActivationPolicy.IsEligible(ChanSourceFamilies.Jschan, site));
+        }
+        Assert.True(ExperimentalSourceActivationPolicy.IsEligible(ChanSourceFamilies.Jschan, "zzzchan"));
+        Assert.False(ChanSourceFamilies.DefaultEnabled(ChanSourceFamilies.Jschan, "zzzchan"));
+        Assert.False(ExperimentalSourceActivationPolicy.IsEligible(ChanSourceFamilies.Vichan, "zzzchan"));
+        // Lainchan was never an opt-in source; it stays on by default as a family site.
+        Assert.False(ExperimentalSourceActivationPolicy.IsEligible(ChanSourceFamilies.Vichan, "lainchan"));
+        Assert.True(ChanSourceFamilies.DefaultEnabled(ChanSourceFamilies.Vichan, "lainchan"));
+        // A site a family build adds beyond the host's table starts off; other plugins have no site switch.
+        Assert.False(ChanSourceFamilies.DefaultEnabled(ChanSourceFamilies.Vichan, "newsite"));
+        Assert.False(ChanSourceFamilies.IsFamily("meowchan.source.kohlchan"));
+        // Strict provider-hash policy is a property of the source and follows it into the family.
+        foreach ((string owner, string source, bool strict) in new[] { (ChanSourceFamilies.Vichan, "uboachan", true),
+            (ChanSourceFamilies.Vichan, "sushichan", true), (ChanSourceFamilies.Jschan, "zzzchan", true),
+            (ChanSourceFamilies.Vichan, "wizchan", false), (ChanSourceFamilies.Vichan, "leftypol", false) })
+        {
+            Assert.Equal(strict, ExperimentalSourceActivationPolicy.IsStrictExperimentalSource(owner, source));
+            Assert.Equal(!strict, ExperimentalSourceActivationPolicy.RequestsMismatchPermission(owner, source));
+        }
+        // Every replaced single-site plugin maps to the family that serves its unchanged source ID.
+        Assert.Equal(6, ChanSourceFamilies.Replaced.Count);
+        Assert.All(ChanSourceFamilies.Replaced, pair => Assert.Equal("meowchan.source." + pair.Value.SourceId, pair.Key));
+        Assert.All(ChanSourceFamilies.Replaced, pair => Assert.Equal(pair.Value.Family, ChanSourceFamilies.Successors[pair.Key]));
+    }
+
     [Theory]
     // Existing exact-provider policies remain strict. The new 1.0.3 adapters
     // are still MeowChan-maintained experimental sources, but that product
@@ -574,7 +613,7 @@ public sealed class DesktopPluginSessionIntegrationTests(ITestOutputHelper outpu
         // Exercise the ordinary strict enable path; fixture acquisition grants no source-integrity exception.
         foreach (string source in DesktopPluginFixtures.Sources)
         {
-            string pluginId = "meowchan.source." + source;
+            string pluginId = source == "lainchan" ? ChanSourceFamilies.Vichan : "meowchan.source." + source;
             if (!state.Plugins.Single(plugin => plugin.PluginId == pluginId).Enabled)
                 state = await host.Plugins!.ProfileStore.SetEnabledAsync(pluginId, true, state.Revision);
         }
@@ -593,8 +632,11 @@ public sealed class DesktopPluginSessionIntegrationTests(ITestOutputHelper outpu
         string[] manifests = Directory.GetFiles(Path.Combine(app, "plugins"), "*.plugin.json");
         // All seven named experimental adapters ship. AnonImageboards and GuroCx are documented technical blocks that register no source route.
         // Danbooru ships as the official post-search source (B8 packaging); it is not a chan board adapter.
-        Assert.Equal(24, manifests.Length);
-        foreach (string name in new[] { "SevenChan", "BbwChan", "AnonImageboards", "EightchanMoe", "GuroCx", "Fchan", "CapybaraChan", "Danbooru" })
+        // The vichan and jschan family bundles replace the six single-site bundles of 1.0.x.
+        Assert.Equal(20, manifests.Length);
+        foreach (string name in new[] { "Lainchan", "Leftypol", "SushiChan", "Uboachan", "Wizchan", "Zzzchan" })
+            Assert.DoesNotContain(manifests, path => Path.GetFileName(path) == "MeowChan.Plugin." + name + ".plugin.json");
+        foreach (string name in new[] { "SevenChan", "BbwChan", "AnonImageboards", "EightchanMoe", "GuroCx", "Fchan", "CapybaraChan", "Danbooru", "VichanFamily", "JschanFamily" })
             Assert.Contains(manifests, path => Path.GetFileName(path) == "MeowChan.Plugin." + name + ".plugin.json");
         string cache = Path.Combine(host.ProfileDirectory, "plugin-cache", "artifacts");
         int priorArtifacts = Directory.Exists(cache) ? Directory.GetDirectories(cache).Length : 0;
@@ -615,8 +657,8 @@ public sealed class DesktopPluginSessionIntegrationTests(ITestOutputHelper outpu
         Assert.Empty(fixture.Requests);
         Assert.Equal(0, fixture.Unexpected);
         PluginProfileSnapshot profile = await host.Plugins.ProfileStore.ReadAsync();
-        // 23 delivered sources plus the official Danbooru post-search plugin.
-        Assert.Equal(24, profile.Plugins.Count);
+        // 19 delivered chan/filter plugins (two of them engine families) plus the official Danbooru post-search plugin.
+        Assert.Equal(20, profile.Plugins.Count);
         foreach (PluginActivationSnapshot plugin in profile.Plugins)
         {
             bool expectedEnabled = ExperimentalSourceActivationPolicy.InitiallyEnabled(plugin.PluginId)
@@ -639,15 +681,11 @@ public sealed class DesktopPluginSessionIntegrationTests(ITestOutputHelper outpu
             {
                 "4chan" => "meowchan.official.4chan",
                 "8kun" => "meowchan.official.8kun",
-                "lainchan" => "meowchan.source.lainchan",
+                "lainchan" or "wizchan" or "leftypol" or "uboachan" or "sushichan" => ChanSourceFamilies.Vichan,
+                "zzzchan" => ChanSourceFamilies.Jschan,
                 "kohlchan" => "meowchan.source.kohlchan",
-                "wizchan" => "meowchan.source.wizchan",
                 "endchan" => "meowchan.source.endchan",
-                "leftypol" => "meowchan.source.leftypol",
                 "2ch" => "meowchan.source.2ch",
-                "uboachan" => "meowchan.source.uboachan",
-                "zzzchan" => "meowchan.source.zzzchan",
-                "sushichan" => "meowchan.source.sushichan",
                 "sevenchan" => "meowchan.source.sevenchan",
                 "bbwchan" => "meowchan.source.bbwchan",
                 "eightchanmoe" => "meowchan.source.eightchanmoe",
@@ -655,7 +693,9 @@ public sealed class DesktopPluginSessionIntegrationTests(ITestOutputHelper outpu
                 "capybarachan" => "meowchan.source.capybarachan",
                 _ => throw new InvalidOperationException("Unexpected delivered source: " + source.Name)
             };
-            Assert.Equal(profile.Plugins.Single(plugin => plugin.PluginId == owner).Enabled, source.Enabled);
+            // A family site is used while its plugin and its own switch are on; Lainchan's switch is on by default.
+            Assert.Equal(profile.Plugins.Single(plugin => plugin.PluginId == owner).Enabled
+                && host.Plugins.SiteSwitches.IsEnabled(owner, source.Name), source.Enabled);
         }
         return profile;
     }

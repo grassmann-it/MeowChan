@@ -15,6 +15,8 @@ with `fill="currentColor"` instead of `fill="none"`, for the marked favorite sta
 `skip-forward` (next frame) and `repeat` (A–B loop) of the video transport were added from the
 same release with the same renderer and size; `rotate-cw` (rotate 90°) likewise.
 `tag` (the tagging page in the footer) likewise.
+`chevrons-up` and `chevrons-down` (move to the start or the end of the tagging queue) are two stacked chevrons in the same stroke
+style, written as SVG and rendered with the same renderer and size; Feather's own chevrons-up/down use the same two polylines.
 
 These are prepared assets, not a record of completed UI integration. The local
 0.9.0 architecture handoff contains the action map, source and derivative SHA-256

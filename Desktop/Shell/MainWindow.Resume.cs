@@ -8,6 +8,7 @@ using Avalonia.Input;
 using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.WorkViews;
 
@@ -130,8 +131,8 @@ public partial class MainWindow
         WorkViewElement.SetId(ContinueReadingButton, "shell.header.continue-reading");
         _resumeReadingMenu = new MenuItem();
         _resumeReadingMenu.Click += async (_, _) => await ResumeLastReadingAsync();
-        // First entry of the tools group, directly behind the page group's separator.
-        WorkspaceMenuItem.Items.Insert(WorkspaceMenuItem.Items.IndexOf(MenuPagesToolsSeparator) + 1, _resumeReadingMenu);
+        // First entry of the menu, in front of Import files (MenuToolsAnchor).
+        WorkspaceMenuItem.Items.Insert(MenuToolsAnchor + 1, _resumeReadingMenu);
         ContinueReadingButton.Click += async (_, _) => await ResumeLastReadingAsync();
         // The header display makes room for the book icon (HeaderMonitorShown).
         ContinueReadingButton.PropertyChanged += (_, change) => { if (change.Property == IsVisibleProperty) ApplyHeaderMonitorVisibility(); };
@@ -164,7 +165,7 @@ public partial class MainWindow
             items => { _readingHistoryMenu.Items.Clear(); foreach (Control item in items) _readingHistoryMenu.Items.Add(item); },
             () => _readingHistoryMenu.IsSubMenuOpen);
         WorkspaceMenuItem.Items.Insert(WorkspaceMenuItem.Items.IndexOf(_resumeReadingMenu!) + 1, _readingHistoryMenu);
-        _readingHistoryContext = new ContextMenu();
+        _readingHistoryContext = ContextMenuBuilder.Empty();
         _readingHistoryContext.Opening += (_, e) =>
         {
             if (!CanResumeReading) { e.Cancel = true; return; }

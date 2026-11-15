@@ -7,15 +7,17 @@ namespace MeowChan.ExamplePlugins.Tests;
 internal sealed class MakabaUboachanHarness
 {
     internal ISourcePlugin Plugin { get; }
-    internal SourceDescription Source => Plugin.Describe().Sources.Single();
+    private readonly string? _sourceId;
+    internal SourceDescription Source => _sourceId is null ? Plugin.Describe().Sources.Single() : Plugin.Describe().Sources.Single(s => s.SourceId == _sourceId);
     internal SourceValidators Validators { get; } = new(EntityTag: "W/\"fixture\"");
     internal ThreadReadRequest ThreadRequest { get; }
     internal CatalogReadRequest CatalogRequest { get; }
     internal StubHttp Http { get; }
     internal PluginCallContext Context { get; }
-    internal MakabaUboachanHarness(ISourcePlugin plugin, string body, int status = 200)
+    internal MakabaUboachanHarness(ISourcePlugin plugin, string body, int status = 200, string? sourceId = null)
     {
         Plugin = plugin;
+        _sourceId = sourceId;
         ThreadRequest = new(new SourceThreadId(Source.SourceId, "demo", "123"));
         CatalogRequest = new(new SourceBoardId(Source.SourceId, "demo"));
         Http = new(Encoding.UTF8.GetBytes(body), status, Validators);

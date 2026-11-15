@@ -12,12 +12,6 @@ control-height-literal	Desktop/Views/Rules/RulesPage.axaml	2	Button MinHeight="2
 control-height-literal	Desktop/Views/Rules/RulesPage.axaml	1	TagInput style MinHeight="32"
 control-height-literal	Desktop/Views/Settings/SettingsEditor.axaml	1	ToggleButton style MinHeight="34"
 glyph-icon	Desktop/GalleryViewer.cs	1	"−(U+2212)"
-glyph-icon	Desktop/Localization/ArchiveCatalog.cs	1	"←(U+2190) Previous thread"
-glyph-icon	Desktop/Localization/ArchiveCatalog.cs	1	"←(U+2190) Previous"
-glyph-icon	Desktop/Localization/ArchiveCatalog.cs	1	"←(U+2190) Voriger Thread"
-glyph-icon	Desktop/Localization/ArchiveCatalog.cs	1	"←(U+2190) Zurü(U+00FC)ck"
-glyph-icon	Desktop/Localization/ArchiveCatalog.cs	1	"↑(U+2191) Previous post"
-glyph-icon	Desktop/Localization/ArchiveCatalog.cs	1	"↑(U+2191) Voriger Post"
 glyph-icon	Desktop/Views/Media/BooruMediaDetailsDialog.cs	1	"×(U+00D7)"
 glyph-icon	Desktop/Views/Statistics/StatisticsPage.axaml.cs	1	"−(U+2212)"
 page-inset	Desktop/Views/Media/MediaPage.cs	1	no reference to Workspace.Inset.Page

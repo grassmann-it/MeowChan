@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
@@ -21,12 +23,18 @@ namespace MeowChan;
 public sealed partial class TaggingPage
 {
     private readonly StackPanel _stampPanel = new() { Name = "TaggingStamp", Spacing = 8 };
-    private readonly TextBlock _stampHeading = new() { Classes = { "section-title" } };
-    private readonly WrapPanel _stampChips = new() { Name = "TaggingStampChips", ItemSpacing = 8, LineSpacing = 8 };
-    private readonly TextBlock _stampEmpty = new() { Name = "TaggingStampEmpty", Classes = { "workspace-help" }, TextWrapping = TextWrapping.Wrap };
+    // The block's head: a toggle (turning arrow, title with the number of stamp tags) and the help; the body holds chips, the field and
+    // the add button in one row.
+    private readonly ToggleButton _stampToggle = new() { Name = "TaggingStampToggle", Classes = { "subtle" }, HorizontalAlignment = HorizontalAlignment.Left };
+    private readonly TextBlock _stampHeading = new() { Name = "TaggingStampHeading", Classes = { "section-title" }, VerticalAlignment = VerticalAlignment.Center };
+    private readonly ContentControl _stampArrow = new() { VerticalAlignment = VerticalAlignment.Center, Focusable = false, RenderTransformOrigin = new RelativePoint(0.5, 0.5, RelativeUnit.Relative) };
+    private readonly HelpButton _stampHelp = new() { Name = "TaggingStampHelp", HelpKey = "help.taggingStamp" };
+    private readonly Grid _stampBody = new() { Name = "TaggingStampBody", ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto"), ColumnSpacing = 8 };
+    private readonly WrapPanel _stampChips = new() { Name = "TaggingStampChips", ItemSpacing = 8, LineSpacing = 8, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _stampEmpty = new() { Name = "TaggingStampEmpty", Classes = { "workspace-help" }, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBox _stampInput = new() { Name = "TaggingStampInput", MinWidth = 200, MaxWidth = 320 };
     private readonly Button _stampAdd = new() { Name = "TaggingStampAdd" };
-    private readonly TextBlock _stampHint = new() { Name = "TaggingStampHint", Classes = { "workspace-help" }, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
+    private TaggingStampBlockState _stampBlock = TaggingStampBlockState.Auto;
     private int _stampCapacity = QuickTagOptions.DefaultStampSize;
 
     /// <summary>The most tags the stamp holds (the stamp size setting); clamped to its range. A lower value never cuts a saved stamp here.</summary>
@@ -59,22 +67,60 @@ public sealed partial class TaggingPage
     private Control BuildStamp()
     {
         WorkViewElement.SetId(_stampPanel, "tagging.stamp");
-        Grid input = new() { ColumnDefinitions = new ColumnDefinitions("Auto,Auto,*"), ColumnSpacing = 8 };
-        input.Children.Add(_stampInput);
-        Grid.SetColumn(_stampAdd, 1);
-        input.Children.Add(_stampAdd);
-        Grid.SetColumn(_stampHint, 2);
-        input.Children.Add(_stampHint);
-        _stampPanel.Children.Add(_stampHeading);
-        _stampPanel.Children.Add(_stampChips);
-        _stampPanel.Children.Add(_stampEmpty);
-        _stampPanel.Children.Add(input);
+        _stampToggle.Content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { _stampArrow, _stampHeading } };
+        Grid head = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 };
+        head.Children.Add(_stampToggle);
+        Grid.SetColumn(_stampHelp, 1);
+        head.Children.Add(_stampHelp);
+        _stampBody.Children.Add(_stampChips);
+        _stampBody.Children.Add(_stampEmpty);
+        Grid.SetColumn(_stampInput, 1);
+        _stampBody.Children.Add(_stampInput);
+        Grid.SetColumn(_stampAdd, 2);
+        _stampBody.Children.Add(_stampAdd);
+        _stampPanel.Children.Add(head);
+        _stampPanel.Children.Add(_stampBody);
         return _stampPanel;
     }
+
+    /// <summary>True while the stamp block is open.</summary>
+    internal bool StampOpen => _stampBody.IsVisible;
+    internal ToggleButton StampToggle => _stampToggle;
+    internal HelpButton StampHelp => _stampHelp;
+    internal TextBlock StampEmptyText => _stampEmpty;
+    internal TaggingStampBlockState StampBlockState => _stampBlock;
+    /// <summary>The person chose the block open or closed: the shell saves it for the profile.</summary>
+    internal Action<TaggingStampBlockState>? SaveStampBlock { get; set; }
+
+    /// <summary>Restores the saved state of the block (the shell, when the page is built).</summary>
+    internal void RestoreStampBlock(TaggingStampBlockState state)
+    {
+        _stampBlock = state;
+        ShowStampBlock();
+    }
+
+    private void ShowStampBlock()
+    {
+        bool open = TaggingStampBlocks.IsOpen(_stampBlock, WorkViewDensity.Compact(_workView));
+        _stampBody.IsVisible = open;
+        _stampToggle.IsChecked = open;
+        _stampArrow.RenderTransform = open ? new RotateTransform(90) : null;
+        if (_stampArrow.Content == null) _stampArrow.Content = CommandBindings.IconFromKey("chevron-right", 14);
+        AutomationProperties.SetName(_stampToggle, StampTitle());
+        ToolTip.SetTip(_stampToggle, Texts.T(open ? "tagging.page.stamp.collapse" : "tagging.page.stamp.expand"));
+    }
+
+    private string StampTitle() => Texts.T("tagging.page.stamp.title", _queueWork.StampNames.Count);
 
     private void InitializeStamp()
     {
         _stampAdd.Click += async (_, _) => await AddStampAsync(_stampInput.Text);
+        _stampToggle.Click += (_, _) =>
+        {
+            _stampBlock = _stampToggle.IsChecked == true ? TaggingStampBlockState.Open : TaggingStampBlockState.Closed;
+            ShowStampBlock();
+            SaveStampBlock?.Invoke(_stampBlock);
+        };
         _stampInput.KeyDown += async (_, e) =>
         {
             if (e.Key != Key.Enter || e.KeyModifiers != KeyModifiers.None) return;
@@ -85,12 +131,11 @@ public sealed partial class TaggingPage
 
     private void LocalizeStamp()
     {
-        _stampHeading.Text = Texts.T("tagging.page.stamp");
         _stampEmpty.Text = Texts.T("tagging.page.stamp.empty");
+        _stampHelp.Refresh();
         _stampInput.PlaceholderText = Texts.T("tagging.page.stamp.input");
         AutomationProperties.SetName(_stampInput, Texts.T("tagging.page.stamp.input"));
         _stampAdd.Content = Texts.T("tagging.page.stamp.add");
-        _stampHint.Text = Texts.T("tagging.page.stamp.hint", Shortcut("tags.quick.stamp-apply"));
     }
 
     private void RenderStamp()
@@ -100,6 +145,8 @@ public sealed partial class TaggingPage
         foreach (string name in names) _stampChips.Children.Add(StampChip(name));
         _stampChips.IsVisible = names.Count > 0;
         _stampEmpty.IsVisible = names.Count == 0;
+        _stampHeading.Text = StampTitle();
+        ShowStampBlock();
         _stampInput.IsEnabled = CanChange;
         _stampAdd.IsEnabled = CanChange;
     }

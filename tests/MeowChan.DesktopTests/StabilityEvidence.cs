@@ -205,7 +205,7 @@ internal static class StabilityEvidence
     }
 
     /// <summary>plugins/Examples/&lt;Dir&gt;/Evidence/stability-&lt;YYYYMMDD&gt;.json, next to the existing research files.</summary>
-    internal static string EvidencePath(string repositoryRoot, string? bundleFile, string pluginId, DateTimeOffset date)
+    internal static string EvidencePath(string repositoryRoot, string? bundleFile, string pluginId, DateTimeOffset date, string? sourceId = null)
     {
         string name = bundleFile != null && bundleFile.StartsWith("MeowChan.Plugin.", StringComparison.Ordinal) && bundleFile.EndsWith(".plugin.json", StringComparison.Ordinal)
             ? bundleFile["MeowChan.Plugin.".Length..^".plugin.json".Length] : "";
@@ -213,7 +213,13 @@ internal static class StabilityEvidence
         {
             string directory = Path.Combine(repositoryRoot, "plugins", group, name);
             if (name.Length > 0 && Directory.Exists(directory))
-                return Path.Combine(directory, "Evidence", "stability-" + date.UtcDateTime.ToString("yyyyMMdd", CultureInfo.InvariantCulture) + ".json");
+            {
+                // An engine-family plugin keeps each site's evidence under Sites/<Site>/ (matched by source ID).
+                string sites = Path.Combine(directory, "Sites");
+                string? site = sourceId is null || !Directory.Exists(sites) ? null : Directory.GetDirectories(sites)
+                    .FirstOrDefault(candidate => string.Equals(Path.GetFileName(candidate), sourceId, StringComparison.OrdinalIgnoreCase));
+                return Path.Combine(site ?? directory, "Evidence", "stability-" + date.UtcDateTime.ToString("yyyyMMdd", CultureInfo.InvariantCulture) + ".json");
+            }
         }
         throw new InvalidOperationException("No plugin directory for " + pluginId + " (" + bundleFile + ") under " + repositoryRoot);
     }

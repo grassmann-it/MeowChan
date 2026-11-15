@@ -1,8 +1,12 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Documents;
+using Avalonia.Controls.Notifications;
 using Avalonia.Interactivity;
 using Avalonia.Input.Platform;
 using Avalonia.Input;
@@ -12,6 +16,7 @@ using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Booru;
 using MeowChan.Desktop.WorkViews;
+using Serilog;
 
 namespace MeowChan;
 
@@ -402,9 +407,121 @@ public partial class MainWindow
     private bool _measuringPageNavigation;
     private bool? _booruNavigationAvailable;
 
+    // The footer's separators: one trailing slot behind every page button (so the order of the children follows the footer layout only), shown
+    // where the next shown button belongs to another group and behind the last one. The three XAML separators are the slots behind Booru,
+    // Plugins and Status, the places they have in the default layout.
+    private Dictionary<string, Border>? _footerSeparatorAfter;
+    private string? _footerArrangement;
+
+    /// <summary>The footer layout of this profile (Settings › Appearance › Footer).</summary>
+    internal FooterLayout FooterLayout => _config.FooterLayout;
+
+    /// <summary>
+    /// Shows or hides one page's footer button and saves the choice (the small API for the hint "You use Booru - show it in the footer?").
+    /// Booru additionally needs <c>Config.ShowBooruTools</c> ("Show Booru actions" in Settings, the master of the Booru page and the Danbooru
+    /// tools): showing Booru here switches that on too, so the button the hint offers really appears. Downloads cannot be hidden.
+    /// </summary>
+    internal async Task SetFooterPageVisibleAsync(string pageId, bool visible)
+    {
+        if (_isClosing) return;
+        string[] stored = FooterLayout.SetPageVisible(_config.FooterPages, pageId, visible);
+        bool enableBooruActions = visible && FooterLayout.CommandId(pageId.Trim()) == "navigation.booru" && !_config.ShowBooruTools;
+        if (stored.SequenceEqual(_config.FooterPages, StringComparer.Ordinal) && !enableBooruActions) return;
+        try
+        {
+            await _session.SaveViewPreferencesAsync(current =>
+            {
+                current.FooterPages = stored;
+                if (enableBooruActions) current.ShowBooruTools = true;
+            });
+            _config.FooterPages = stored;
+            if (enableBooruActions) _config.ShowBooruTools = true;
+            _settingsEditor?.RefreshConfirmedFooter();
+            ApplyFooterLayout();
+        }
+        catch (Exception exception)
+        {
+            Log.Error(exception, "Could not save the footer layout.");
+            ShowNotification(Texts.T("notification.error"), Texts.T("preferences.failed", exception.Message), NotificationType.Error, operation: "preferences.footer");
+        }
+    }
+
+    /// <summary>Follows the profile's footer layout: the digits (Ctrl/Cmd+1, 2, 3 ... follow the buttons from left to right), the button order and visibility.</summary>
+    private void ApplyFooterLayout()
+    {
+        ApplyFooterNumbering(_config.FooterLayout);
+        UpdatePageNavigation();
+    }
+
+    // The digits follow the layout. Publishing the unchanged bindings again rebuilds their snapshot with the new numbering, so tooltips, menus,
+    // the shortcuts window and the router all see it at once.
+    private static void ApplyFooterNumbering(FooterLayout layout)
+    {
+        if (MainPageOrder.SetNumbering(layout.Numbering)) ShortcutService.Publish(ShortcutService.CurrentSection);
+    }
+
+    private Dictionary<string, Border> FooterSeparators()
+    {
+        if (_footerSeparatorAfter != null) return _footerSeparatorAfter;
+        var map = new Dictionary<string, Border>(StringComparer.Ordinal)
+        {
+            ["navigation.booru"] = FooterSeparatorWork, ["navigation.sources"] = FooterSeparatorSetUp, ["navigation.status"] = FooterSeparatorObserve
+        };
+        foreach (string id in MainPageOrder.CommandIds)
+        {
+            if (map.ContainsKey(id)) continue;
+            map[id] = new Border
+            {
+                Name = "FooterSeparatorAfter" + MainPageOrder.ControlStem(id), Width = 1, Height = 18, Margin = new Thickness(4, 0),
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, IsHitTestVisible = false, Focusable = false, IsVisible = false
+            };
+            map[id].Classes.Add("nav-separator");
+            AutomationProperties.SetAccessibilityView(map[id], AccessibilityView.Raw);
+        }
+        return _footerSeparatorAfter = map;
+    }
+
+    // The order of the children is the footer order; it changes only when the layout does (never on a resize or a page change), so the
+    // keyboard focus stays where it is. Every page button is a child, a hidden one is simply not visible.
+    private void ArrangeFooterButtons(FooterLayout layout)
+    {
+        string key = string.Join('|', layout.Order);
+        if (key == _footerArrangement) return;
+        StackPanel panel = WorkspaceNavigationButtons;
+        Dictionary<string, Border> separators = FooterSeparators();
+        List<Control> desired = new();
+        foreach (string id in layout.Order)
+        {
+            desired.Add(WorkspaceControl<Button>(MainPageOrder.ControlStem(id) + "NavigationButton"));
+            desired.Add(separators[id]);
+        }
+        desired.Add(ToolsNavigationButton);
+        desired.Add(SettingsNavigationButton);
+        Control? focused = FocusManager?.GetFocusedElement() as Control;
+        panel.Children.Clear();
+        panel.Children.AddRange(desired);
+        if (focused != null && desired.Contains(focused)) Dispatcher.UIThread.Post(() => { if (focused.IsEffectivelyVisible) focused.Focus(NavigationMethod.Tab); }, DispatcherPriority.Loaded);
+        _footerArrangement = key;
+    }
+
+    /// <summary>
+    /// The place the tool entries of the ⋯ menu (Continue reading, Post bookmarks, Tagging queue) insert themselves behind: the slot in front of
+    /// Import files. The menu holds no page entries since F1 (the pages are reached through the footer and its More menu), so this replaces
+    /// the former separator behind the page group.
+    /// </summary>
+    private void SetMoreMenuItemEnabled(string tag, bool enabled)
+    {
+        if (ToolsNavigationButton.Flyout is MenuFlyout menu)
+            foreach (MenuItem item in menu.Items.OfType<MenuItem>().Where(item => item.Tag as string == tag)) item.IsEnabled = enabled;
+    }
+
+    private int MenuToolsAnchor => WorkspaceMenuItem.Items.IndexOf(ManualImportMenuItem) - 1;
+
     private void UpdatePageNavigation()
     {
         if (_measuringPageNavigation) return;
+        FooterLayout layout = _config.FooterLayout;
+        ApplyFooterNumbering(layout);
         _booruNavigationAvailable = CanOpenBooru; // what this refresh builds the Booru button and More entry from (SyncBooruNavigation compares)
         _measuringPageNavigation = true;
         try
@@ -425,11 +542,14 @@ public partial class MainWindow
             StackPanel panel = WorkspaceNavigationButtons;
             Border footer = WorkspaceNavigation;
             ComboBox modes = WorkspaceModeComboBox;
-            // Footer order, from the single source MainPageOrder (Downloads is always shown).
-            var destinations = MainPageOrder.CommandIds.Where(id => id != "navigation.downloads"
-                    && (id != "navigation.booru" || CanOpenBooru))
+            ArrangeFooterButtons(layout);
+            Dictionary<string, Border> separatorAfter = FooterSeparators();
+            // Footer order, the profile's layout (Downloads is always shown). A page the layout hides, a work view reduces or an unavailable
+            // Booru has no button of its own; the first two are in More, the last is nowhere.
+            var destinations = layout.Order
                 .Select(id => (Id: id, Page: PageFor(id), Button: WorkspaceControl<Button>(MainPageOrder.ControlStem(id) + "NavigationButton"),
-                    Tag: MainPageOrder.Tag(id))).ToArray();
+                    Tag: MainPageOrder.Tag(id), Available: id != "navigation.booru" || CanOpenBooru,
+                    IsDownloads: id == "navigation.downloads")).ToArray();
             // Capture the actual focused menu destination before changing visibility:
             // hiding its presenter can clear FocusManager synchronously.
             Control? focusedBefore = FocusManager?.GetFocusedElement() as Control;
@@ -438,8 +558,9 @@ public partial class MainWindow
                     item.Tag as string == destination.Tag && (ReferenceEquals(item, focusedBefore)
                         || item.IsKeyboardFocusWithin))).Select(destination => destination.Button).FirstOrDefault()
                 : null;
-            // Media sits with Archive: both are ordinary reading pages outside Barebones (WorkViewPolicy.Shell).
-            bool[] direct = destinations.Select(destination => WorkViewPolicy.FooterDirect(destination.Id, view)).ToArray();
+            // The setting can hide a button but never shows one a work view reduces (the policy is the upper bound). Media sits with Archive:
+            // both are ordinary reading pages outside Barebones (WorkViewPolicy.Shell).
+            bool[] direct = destinations.Select(destination => destination.Available && layout.ShowsDirectly(destination.Id, view)).ToArray();
 
             // Measure the localized labels instead of guessing a breakpoint. Hidden
             // destinations move into Tools exactly once, including in compact Advanced.
@@ -469,34 +590,50 @@ public partial class MainWindow
             double downloadsWidth = Measure(downloads);
             double settingsWidth = Measure(settings);
             double toolsWidth = Measure(tools);
-            double[] destinationWidths = destinations.Select(destination => Measure(destination.Button)).ToArray();
-            // Footer groups (Downloads, Archive, Media, Tagging, Booru | Rules, Plugins | Status | More, Settings):
-            // the separator behind a group is shown while that group has a visible button, so no two separators meet and
-            // none dangles. Downloads keeps the first group and Settings the last one non-empty in every work view.
-            Border[] separators = { FooterSeparatorWork, FooterSeparatorSetUp, FooterSeparatorObserve };
+            double[] destinationWidths = destinations.Select(destination => destination.IsDownloads ? 0 : Measure(destination.Button)).ToArray();
+            // Footer groups (Downloads, Archive, Media, Tagging, Booru | Rules, Plugins | Status): a separator stands behind a shown button whose
+            // next shown button belongs to another group, and behind the last shown one (before More and Settings). With the default layout
+            // this is today's footer; with a layout of the person's own it follows the order they chose, so no two separators meet.
             int[] groups = destinations.Select(destination => MainPageOrder.Group(destination.Id)).ToArray();
-            bool GroupHasDirect(int group, bool[] visible) => group == 0 || destinations.Where((_, index) => groups[index] == group && visible[index]).Any();
-            double separatorWidth = separators[0].Width + separators[0].Margin.Left + separators[0].Margin.Right;
+            bool[] SeparatorFlags(bool[] visible)
+            {
+                bool[] flags = new bool[visible.Length];
+                int previous = -1;
+                for (int index = 0; index < visible.Length; index++)
+                {
+                    if (!visible[index]) continue;
+                    if (previous >= 0) flags[previous] = groups[previous] != groups[index];
+                    previous = index;
+                }
+                if (previous >= 0) flags[previous] = true;
+                return flags;
+            }
+            double separatorWidth = separatorAfter["navigation.status"].Width + separatorAfter["navigation.status"].Margin.Left + separatorAfter["navigation.status"].Margin.Right;
             double width = ClientSize.Width > 0 ? ClientSize.Width : Width;
-            Grid layout = (Grid)panel.Parent!;
-            double booruToggleWidth = ShowBooruToolsToggle.IsVisible ? Measure(ShowBooruToolsToggle) : 0;
-            double fixedFooterWidth = modes.Width + booruToggleWidth + 2 * layout.ColumnSpacing;
+            Grid layoutGrid = (Grid)panel.Parent!;
+            // The work view selector is the only fixed item next to the buttons (the former "Show Booru" check box moved to Settings, F1).
+            double fixedFooterWidth = modes.Width + 2 * layoutGrid.ColumnSpacing;
             double available = width - footer.Padding.Left - footer.Padding.Right - fixedFooterWidth;
+            // A page the layout or work view moved to More needs the More button; one that is unavailable does not.
+            bool NeedsMore() => destinations.Where((destination, index) => destination.Available && !direct[index]).Any();
             double RequiredWidth()
             {
-                bool overflow = direct.Any(visible => !visible);
-                int visibleSeparators = Enumerable.Range(0, separators.Length).Count(group => GroupHasDirect(group, direct));
-                int count = 2 + direct.Count(visible => visible) + (overflow ? 1 : 0) + visibleSeparators;
-                return downloadsWidth + settingsWidth
-                    + destinationWidths.Where((_, index) => direct[index]).Sum()
+                bool overflow = NeedsMore();
+                int visibleSeparators = SeparatorFlags(direct).Count(flag => flag);
+                int count = 1 + direct.Count(visible => visible) + (overflow ? 1 : 0) + visibleSeparators;
+                double buttons = 0;
+                for (int index = 0; index < destinations.Length; index++)
+                    if (direct[index]) buttons += destinations[index].IsDownloads ? downloadsWidth : destinationWidths[index];
+                return settingsWidth + buttons
                     + (overflow ? toolsWidth : 0) + visibleSeparators * separatorWidth + Math.Max(0, count - 1) * panel.Spacing;
             }
-            // Preserve Archive longest, then Media; remove the rarer destinations first.
-            foreach (string id in MainPageOrder.OverflowOrder)
+            // The rightmost button leaves first, so the buttons the person put at the front stay longest (with the default layout this is the
+            // order Status, Plugins, Rules, Booru, Tagging, Media, Archive: MainPageOrder.OverflowOrder). Downloads never leaves.
+            foreach (string id in layout.Order.Reverse())
             {
                 if (RequiredWidth() <= available) break;
                 int index = Array.FindIndex(destinations, destination => destination.Id == id);
-                if (index >= 0) direct[index] = false;
+                if (index >= 0 && !destinations[index].IsDownloads) direct[index] = false;
             }
             // A small screen can shrink even below the usual workspace minimum.
             // Compact familiar icons only when the actual localized destinations do not fit.
@@ -513,14 +650,12 @@ public partial class MainWindow
             if (RequiredWidth() > available)
                 CommandBindings.Apply(tools, "navigation.tools-menu", iconOnly: true);
 
-            bool hasOverflow = direct.Any(visible => !visible);
+            bool hasOverflow = NeedsMore();
             tools.IsVisible = hasOverflow;
             // The static More entry has no destination record when Booru is unavailable; clear it before
             // the normal destination loop so stale availability cannot leave a clickable target behind.
             BooruMoreMenuItem.IsVisible = false;
-            BooruNavigationButton.IsVisible = CanOpenBooru;
-            BooruMenuItem.IsVisible = CanOpenBooru;
-            tools.Classes.Set("selected", destinations.Where((_, index) => !direct[index])
+            tools.Classes.Set("selected", destinations.Where((destination, index) => destination.Available && !direct[index])
                 .Any(destination => destination.Page == _selectedPage));
             for (int index = 0; index < destinations.Length; index++)
             {
@@ -529,17 +664,19 @@ public partial class MainWindow
                 destination.Button.Classes.Set("selected", destination.Page == _selectedPage);
                 if (tools.Flyout is MenuFlyout menu)
                     foreach (MenuItem item in menu.Items.OfType<MenuItem>())
-                        if (item.Tag as string == destination.Tag) item.IsVisible = !direct[index];
+                        if (item.Tag as string == destination.Tag) item.IsVisible = destination.Available && !direct[index];
             }
-            for (int group = 0; group < separators.Length; group++) separators[group].IsVisible = GroupHasDirect(group, direct);
+            bool[] separatorFlags = SeparatorFlags(direct);
+            for (int index = 0; index < destinations.Length; index++) separatorAfter[destinations[index].Id].IsVisible = separatorFlags[index];
             if (tools.Flyout is MenuFlyout flyout)
             {
-                // The flyout lists only the pages that left the footer; its separators follow the same rule.
-                bool GroupInFlyout(int group) => destinations.Where((_, index) => groups[index] == group && !direct[index]).Any();
+                // The flyout lists only the pages that left the footer, in the groups of the base order; its separators follow the same rule.
+                bool GroupInFlyout(int group) => destinations.Where((destination, index) => groups[index] == group && destination.Available && !direct[index]).Any();
+                int groupCount = MainPageOrder.Groups.Count;
                 foreach (Separator separator in flyout.Items.OfType<Separator>())
                     if (separator.Tag is string tag && tag.StartsWith("nav.group-separator.", StringComparison.Ordinal)
                         && int.TryParse(tag["nav.group-separator.".Length..], out int boundary))
-                        separator.IsVisible = GroupInFlyout(boundary) && Enumerable.Range(boundary + 1, separators.Length - boundary - 1).Any(GroupInFlyout);
+                        separator.IsVisible = GroupInFlyout(boundary) && Enumerable.Range(boundary + 1, groupCount - boundary - 1).Any(GroupInFlyout);
             }
             if (!hasOverflow) tools.Flyout?.Hide();
             if (returnDestination is { IsVisible: true } target)

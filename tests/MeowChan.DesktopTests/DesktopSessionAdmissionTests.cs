@@ -299,6 +299,35 @@ public sealed class DesktopSessionAdmissionTests
         Assert.Equal(120, saved.RecheckTimer); Assert.True(saved.GalleryContextOpen);
     }
 
+    [Fact]
+    public async Task FrozenSettingsKeepTheFilmstripBaselineSoOnlyAChangedBoxMovesTheGalleryLayout()
+    {
+        // H1 through admission: ApplySettingsAsync freezes the draft with Clone(), which must not replace the page's baseline of the box.
+        using TempDirectory directory = new();
+        await using DesktopSessionHost host = CreateHost(directory.Path);
+        await host.StartAsync().WaitAsync(Deadline);
+        GalleryLayoutChoice tag = new(Filmstrip: true, Hints: false);
+        // The gallery: L switched the View strip off, the Tag mode has its own choice; the settings page still shows the box on.
+        await host.SaveViewPreferencesAsync(config => new GalleryLayoutPreferences(new GalleryLayoutChoice(Filmstrip: false), tag).ApplyTo(config)).WaitAsync(Deadline);
+        Config stale = host.Config.Clone();
+        stale.GalleryFilmstrip = true; stale.SettingsBaselineGalleryFilmstrip = true;
+        stale.RecheckTimer = 120;
+        await host.ApplySettingsAsync(stale).WaitAsync(Deadline);
+        Config saved = Config.LoadConfig(directory.Path);
+        Assert.Equal(120, saved.RecheckTimer);
+        Assert.Equal(new GalleryLayoutPreferences(new GalleryLayoutChoice(Filmstrip: false), tag), GalleryLayoutPreferences.FromConfig(saved));
+
+        // The person switches the box off (baseline on): both modes lose the strip, even though the frozen copy's own value is off.
+        Config unticked = host.Config.Clone();
+        unticked.GalleryFilmstrip = false; unticked.SettingsBaselineGalleryFilmstrip = true;
+        Task apply = host.ApplySettingsAsync(unticked);
+        unticked.SettingsBaselineGalleryFilmstrip = false; // accepted drafts are frozen with their baseline
+        await apply.WaitAsync(Deadline);
+        GalleryLayoutPreferences result = GalleryLayoutPreferences.FromConfig(Config.LoadConfig(directory.Path));
+        Assert.False(result.View.Filmstrip);
+        Assert.Equal(tag with { Filmstrip = false }, result.Tag);
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]

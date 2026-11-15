@@ -116,9 +116,16 @@ internal sealed class TaggingQueueController
     }
 
     /// <summary>Moves one entry past its neighbouring shown entry (<paramref name="direction"/> −1 up, +1 down) under <paramref name="filter"/>.</summary>
-    internal Task<bool> MoveAsync(TagQueueKey key, TaggingQueueFilter filter, int direction)
+    internal Task<bool> MoveAsync(TagQueueKey key, TaggingQueueFilter filter, int direction, Func<TagQueueItem, bool>? scope = null)
     {
-        if (TaggingQueueView.MoveTarget(Queue, filter, key, direction) is not { } target) return Task.FromResult(false);
+        if (TaggingQueueView.MoveTarget(Queue, filter, key, direction, scope) is not { } target) return Task.FromResult(false);
+        return RunAsync(() => _host.MoveInTagQueueAsync(key, target), queue => Texts.T("tagging.page.moved", queue.IndexOf(key) + 1));
+    }
+
+    /// <summary>Moves one entry to the start or to the end of the whole queue (absolute positions, whatever the filter hides).</summary>
+    internal Task<bool> MoveToEdgeAsync(TagQueueKey key, bool toEnd)
+    {
+        if (TaggingQueueView.EdgeTarget(Queue, key, toEnd) is not { } target) return Task.FromResult(false);
         return RunAsync(() => _host.MoveInTagQueueAsync(key, target), queue => Texts.T("tagging.page.moved", queue.IndexOf(key) + 1));
     }
 

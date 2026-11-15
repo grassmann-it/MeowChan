@@ -24,7 +24,7 @@ plugin = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(plugin)
 workflow, desktop = plugin.workflow, plugin.desktop
 PHASES = ('acquire', 'revoke', 'deny', 'recovery')
-OWNER, SOURCE = 'meowchan.source.wizchan', 'wizchan'
+OWNER, SOURCE = 'meowchan.source.vichan', 'wizchan'
 THREAD = 'https://wizchan.org/demo/res/123.json'
 ORIGINAL = 'https://wizchan.org/demo/src/1000-0.png'
 

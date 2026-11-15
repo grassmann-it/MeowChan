@@ -234,6 +234,8 @@ internal sealed class FilenameSearchDialog : Window
         _query.AddHandler(KeyDownEvent, OnQueryKey, Avalonia.Interactivity.RoutingStrategies.Tunnel);
         _search.Click += OnSearch; _cancel.Click += OnCancel;
         _previous.Click += OnPrevious; _next.Click += OnNext; _select.Click += OnSelect; _close.Click += OnClose;
+        // I1b: the tools carry a catalog icon before their text (the primary Close stays text).
+        MeowChan.Desktop.Controls.IconButtons.WithText(_search, "search"); MeowChan.Desktop.Controls.IconButtons.WithText(_cancel, "x"); MeowChan.Desktop.Controls.IconButtons.WithText(_previous, "chevron-left"); MeowChan.Desktop.Controls.IconButtons.WithText(_next, "chevron-right"); MeowChan.Desktop.Controls.IconButtons.WithText(_select, "corner-up-right");
         _results.SelectionChanged += OnSelection;
         Opened += OnOpened; Closed += OnClosed;
         DialogEscape.Attach(this);

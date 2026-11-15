@@ -15,6 +15,7 @@ public sealed class EmptyStateStyleTests
     [InlineData("Desktop/Shell/MainWindow.axaml", "ThreadsEmptyPanel", "ThreadsEmptyState")]
     [InlineData("Desktop/Shell/MainWindow.axaml", "BoardsEmptyPanel", "BoardsEmptyState")]
     [InlineData("Desktop/Views/Archive/ArchivePage.axaml", "ArchiveEmptyState", "ArchiveEmpty")]
+    [InlineData("Desktop/Views/Rules/RulesPage.axaml", "RulesOverviewEmpty", "RulesOverviewEmptyText")]
     public void TheCentredEmptyStatesAreTheSharedControlWithTheSharedSentenceClass(string file, string panel, string sentence)
     {
         XDocument document = XDocument.Load(Root(file));

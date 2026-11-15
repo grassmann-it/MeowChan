@@ -11,8 +11,8 @@ namespace MeowChan.Desktop.Controls;
 /// </summary>
 internal static class GalleryFilmstripPlan
 {
-    /// <summary>Gap between two tiles in dip (a design constant, not a user limit).</summary>
-    internal const double TileGap = 4;
+    /// <summary>The default gap between two tiles in dip (GL5e: 8, the setting <c>GalleryFilmstripTileGap</c> chooses 4 to 16); every function that places tiles takes the chosen gap as its last argument.</summary>
+    internal const double TileGap = Config.GalleryFilmstripTileGapDefault;
     /// <summary>Vertical room above and below the tiles inside the band, in dip.</summary>
     internal const double BandPadding = 4;
 
@@ -69,26 +69,29 @@ internal static class GalleryFilmstripPlan
     internal static int ClampPreload(int preload) =>
         Math.Clamp(preload, Config.GalleryFilmstripPreloadMinimum, Config.GalleryFilmstripPreloadMaximum);
 
+    internal static int ClampGap(int gap) =>
+        Math.Clamp(gap, Config.GalleryFilmstripTileGapMinimum, Config.GalleryFilmstripTileGapMaximum);
+
     /// <summary>The distance between the left edges of two neighbouring tiles.</summary>
-    internal static double Pitch(double tile) => Math.Max(1, tile) + TileGap;
+    internal static double Pitch(double tile, double gap = TileGap) => Math.Max(1, tile) + gap;
 
     /// <summary>Height of the band for tiles of <paramref name="tile"/> dip.</summary>
     internal static double BandHeight(double tile) => Math.Max(1, tile) + 2 * BandPadding;
 
     /// <summary>The width of the whole row of <paramref name="count"/> tiles.</summary>
-    internal static double Extent(int count, double tile) => count <= 0 ? 0 : count * Pitch(tile) - TileGap;
+    internal static double Extent(int count, double tile, double gap = TileGap) => count <= 0 ? 0 : count * Pitch(tile, gap) - gap;
 
     /// <summary>The furthest the row can scroll: its extent less the viewport, never below zero.</summary>
-    internal static double MaximumOffset(int count, double tile, double viewport) => Math.Max(0, Extent(count, tile) - Math.Max(0, viewport));
+    internal static double MaximumOffset(int count, double tile, double viewport, double gap = TileGap) => Math.Max(0, Extent(count, tile, gap) - Math.Max(0, viewport));
 
-    internal static double ClampOffset(double offset, int count, double tile, double viewport) =>
-        double.IsFinite(offset) ? Math.Clamp(offset, 0, MaximumOffset(count, tile, viewport)) : 0;
+    internal static double ClampOffset(double offset, int count, double tile, double viewport, double gap = TileGap) =>
+        double.IsFinite(offset) ? Math.Clamp(offset, 0, MaximumOffset(count, tile, viewport, gap)) : 0;
 
     /// <summary>The tiles that are at least partly inside a viewport of <paramref name="viewport"/> dip scrolled by <paramref name="offset"/>.</summary>
-    internal static TileRange Visible(double offset, double viewport, double tile, int count)
+    internal static TileRange Visible(double offset, double viewport, double tile, int count, double gap = TileGap)
     {
         if (count <= 0 || viewport <= 0 || !double.IsFinite(offset) || !double.IsFinite(viewport)) return TileRange.Empty;
-        double pitch = Pitch(tile);
+        double pitch = Pitch(tile, gap);
         double start = Math.Max(0, offset);
         int first = (int)Math.Floor(start / pitch);
         // A tile ends TileGap before its pitch ends: the gap past the last pixel of a tile is not part of it.
@@ -124,39 +127,39 @@ internal static class GalleryFilmstripPlan
     }
 
     /// <summary>The offset that centres tile <paramref name="index"/> in the viewport, clamped to what the row can scroll.</summary>
-    internal static double CentreOffset(int index, int count, double tile, double viewport)
+    internal static double CentreOffset(int index, int count, double tile, double viewport, double gap = TileGap)
     {
         if (count <= 0) return 0;
         index = Math.Clamp(index, 0, count - 1);
-        double centre = index * Pitch(tile) + tile / 2;
-        return ClampOffset(centre - viewport / 2, count, tile, viewport);
+        double centre = index * Pitch(tile, gap) + tile / 2;
+        return ClampOffset(centre - viewport / 2, count, tile, viewport, gap);
     }
 
     /// <summary>The nearest offset that brings the whole of tile <paramref name="index"/> into view (unchanged when it already is).</summary>
-    internal static double RevealOffset(double offset, int index, int count, double tile, double viewport)
+    internal static double RevealOffset(double offset, int index, int count, double tile, double viewport, double gap = TileGap)
     {
         if (count <= 0) return 0;
         index = Math.Clamp(index, 0, count - 1);
-        double left = index * Pitch(tile), right = left + tile;
+        double left = index * Pitch(tile, gap), right = left + tile;
         if (left < offset) offset = left;
         else if (right > offset + viewport) offset = right - viewport;
-        return ClampOffset(offset, count, tile, viewport);
+        return ClampOffset(offset, count, tile, viewport, gap);
     }
 
     /// <summary>The offset one page further (<paramref name="direction"/> 1) or back (-1): a viewport less one tile, so one tile stays as a landmark.</summary>
-    internal static double PageOffset(double offset, int direction, int count, double tile, double viewport)
+    internal static double PageOffset(double offset, int direction, int count, double tile, double viewport, double gap = TileGap)
     {
-        double page = Math.Max(Pitch(tile), viewport - Pitch(tile));
-        return ClampOffset(offset + Math.Sign(direction) * page, count, tile, viewport);
+        double page = Math.Max(Pitch(tile, gap), viewport - Pitch(tile, gap));
+        return ClampOffset(offset + Math.Sign(direction) * page, count, tile, viewport, gap);
     }
 
     /// <summary>The tile under the x position of the row (in the viewport's coordinates), or -1 over a gap or past the ends.</summary>
-    internal static int TileAt(double x, double offset, double tile, int count)
+    internal static int TileAt(double x, double offset, double tile, int count, double gap = TileGap)
     {
         if (count <= 0 || !double.IsFinite(x)) return -1;
         double position = x + offset;
         if (position < 0) return -1;
-        double pitch = Pitch(tile);
+        double pitch = Pitch(tile, gap);
         int index = (int)Math.Floor(position / pitch);
         return index < count && position - index * pitch < tile ? index : -1;
     }

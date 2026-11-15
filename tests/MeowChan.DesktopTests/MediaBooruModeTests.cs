@@ -86,7 +86,7 @@ public sealed class MediaBooruModeTests : IDisposable
     public void TheWorkViewsPutTheSwitchUnderMoreInBarebonesAndTheWaysToTaggingAlwaysThere()
     {
         Assert.Equal([Presence.Overflow, Presence.Direct, Presence.Direct],
-            new[] { WorkView.Barebones, WorkView.Simple, WorkView.Advanced }.Select(view => WorkViewPolicy.Resolve("media.toolbar.booru-mode", view)));
+            new[] { WorkView.Barebones, WorkView.Simple, WorkView.Advanced }.Select(view => WorkViewPolicy.Resolve("media.toolbar.tag-list", view)));
         foreach (WorkView view in Enum.GetValues<WorkView>())
         {
             Assert.Equal(Presence.Overflow, WorkViewPolicy.Resolve("media.toolbar.queue-walk", view));
@@ -109,13 +109,13 @@ public sealed class MediaBooruModeTests : IDisposable
         bool inQueue = true;
         MediaLibraryTileView tile = new() { InTagQueue = _ => inQueue };
         tile.DataContext = new MediaLibraryTileRow(new MediaLibraryTile(queued, [queued]), 0);
-        Assert.True(tile.QueueMark.IsVisible);
-        Assert.Contains(Texts.T("media.tile.queued"), AutomationProperties.GetName(tile));
+        Assert.True(tile.Badges.State.Queued && tile.Badges.Options.ShowBooru);
+        Assert.Contains(Texts.T("media.badge.queued"), AutomationProperties.GetName(tile));
         inQueue = false;
         tile.RefreshQueueBadge();
-        Assert.False(tile.QueueMark.IsVisible);
-        Assert.DoesNotContain(Texts.T("media.tile.queued"), AutomationProperties.GetName(tile));
-        Assert.False(tile.TagCountBadge.IsVisible); // no own state read: no count
+        Assert.False(tile.Badges.State.Queued);
+        Assert.DoesNotContain(Texts.T("media.badge.queued"), AutomationProperties.GetName(tile));
+        Assert.Null(tile.Badges.State.TagCount); // no own state read: no count
         Assert.Equal("3 own tags", Texts.Count("media.tile.ownTags", 3, "3"));
         Assert.Equal("1 own tag", Texts.Count("media.tile.ownTags", 1, "1"));
         // The page touches only the realized tiles when the queue changes, and re-presents only for the queue term.

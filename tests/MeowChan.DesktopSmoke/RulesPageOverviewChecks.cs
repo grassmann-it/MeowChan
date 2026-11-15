@@ -8,7 +8,7 @@ using MeowChan.Rules;
 namespace MeowChan.DesktopSmoke;
 
 // Overview first (14.11.2026): the page opens on its overview; Create opens the wizard at step 1 with focus on its first field,
-// Edit opens step 2, Close sits at the editor header's right edge and returns focus to the overview, Esc closes too.
+// Edit opens step 2, Back sits at the editor header's left edge and returns focus to the overview, Esc closes too.
 internal static partial class RulesPageChecks
 {
     private static async Task CheckOverviewFirstAsync(MainWindow window, RulesPage page)
@@ -17,13 +17,16 @@ internal static partial class RulesPageChecks
         await FlushAsync();
         Control overview = page.FindControl<Control>("RulesOverviewPanel")!;
         Control wizard = page.FindControl<Control>("RuleWizardPanel")!;
-        Button create = page.FindControl<Button>("CreateRuleButton")!;
+        // One primary "Create rule" at a time: the empty state's while it shows, otherwise the header's.
+        Button create = page.OverviewCreateButton;
         await WaitLayoutAsync(window, () => overview.IsEffectivelyVisible && create.IsEffectivelyVisible);
         Require(page.IsOverviewVisible && !wizard.IsEffectivelyVisible && !page.FindControl<Control>("RulesFooterActions")!.IsEffectivelyVisible
             && page.FindControl<Control>("RulesOverviewDefaults")!.IsEffectivelyVisible,
             "The Rules page did not open on its overview with the built-in defaults and without editor actions.");
         Require(page.CurrentOverview.IsEmpty == page.FindControl<Control>("RulesOverviewEmpty")!.IsVisible,
             "The overview's empty state disagrees with its saved rules and drafts.");
+        RequireOneCreatePrimary(page);
+        if (page.CurrentOverview.IsEmpty) RequireEmptyStatePlacement(window, page);
         Program.CaptureWindow(window, "smoke-rules-overview.png");
 
         Click(create);
@@ -33,9 +36,12 @@ internal static partial class RulesPageChecks
             "Create rule did not open step 1 (scope) with Next and without Save.");
         Control header = page.FindControl<Control>("RuleWizardHeader")!;
         Button close = page.FindControl<Button>("RuleWizardCloseButton")!;
-        double headerRight = header.TranslatePoint(new Point(header.Bounds.Width, 0), window)!.Value.X;
-        double closeRight = close.TranslatePoint(new Point(close.Bounds.Width, 0), window)!.Value.X;
-        Require(Math.Abs(headerRight - closeRight) <= 2, $"Close is not at the editor header's right edge: header ends {headerRight:0.#}, Close ends {closeRight:0.#}.");
+        // Tom's rule (14.11. evening): the way back to the overview stands at the header's far left, before the title.
+        double headerLeft = header.TranslatePoint(new Point(0, 0), window)!.Value.X;
+        double closeLeft = close.TranslatePoint(new Point(0, 0), window)!.Value.X;
+        double titleLeft = page.FindControl<Control>("RulesEditingHeader")!.TranslatePoint(new Point(0, 0), window)!.Value.X;
+        Require(Math.Abs(headerLeft - closeLeft) <= 2, $"Back is not at the editor header's left edge: header starts {headerLeft:0.#}, Back starts {closeLeft:0.#}.");
+        Require(titleLeft - (closeLeft + close.Bounds.Width) >= 24 - 1, $"The editor title is not set apart from Back by the gap: Back ends {closeLeft + close.Bounds.Width:0.#}, title starts {titleLeft:0.#}.");
         Program.CaptureWindow(window, "smoke-rules-wizard-scope.png");
         Click(close);
         await WaitLayoutAsync(window, () => page.IsOverviewVisible && FocusWithin(window, create));
@@ -53,7 +59,7 @@ internal static partial class RulesPageChecks
         page.FindControl<Control>("RuleEnabledInput")!.RaiseEvent(escape);
         await FlushAsync();
         Require(escape.Handled && page.IsOverviewVisible, "Esc did not close the rule wizard.");
-        Console.WriteLine("SMOKE rules overview: opens on the overview, Create opens step 1 with focus, Close at the header's right edge, Edit opens step 2, Esc closes.");
+        Console.WriteLine("SMOKE rules overview: opens on the overview, Create opens step 1 with focus, Back at the header's left edge, Edit opens step 2, Esc closes.");
     }
 
     // Tom's decision 14.11.2026: Save closes the wizard onto the overview, a polite status says "Rule for ... saved", focus lands on the
@@ -70,6 +76,29 @@ internal static partial class RulesPageChecks
             "The overview did not confirm the saved rule in its polite live status: " + page.StatusMessage);
         Require(page.CurrentOverview.Groups.SelectMany(group => group.Rows).Any(row => row.Scope == scope && row.Saved),
             "The saved rule has no row on the overview.");
+    }
+
+    private static void RequireOneCreatePrimary(RulesPage page)
+    {
+        Button header = page.FindControl<Button>("CreateRuleButton")!, first = page.FindControl<Button>("CreateFirstRuleButton")!;
+        Require(header.IsEffectivelyVisible != first.IsEffectivelyVisible && first.IsEffectivelyVisible == page.CurrentOverview.IsEmpty,
+            $"Rules overview shows {(header.IsEffectivelyVisible ? 1 : 0) + (first.IsEffectivelyVisible ? 1 : 0)} primary Create rule buttons; expected exactly one "
+            + "(the empty state's while it shows, else the header's).");
+    }
+
+    /// <summary>The empty state sits in the free height at about a third (top-aligned only when nothing is free), the idle footer is gone.</summary>
+    private static void RequireEmptyStatePlacement(Window window, RulesPage page)
+    {
+        // The overview grid has the viewport's height; its middle row (empty state plus defaults) starts at a third of the free height.
+        Control scroll = page.FindControl<Control>("RulesScroll")!, stack = page.FindControl<Control>("RulesOverviewStack")!;
+        double top = stack.TranslatePoint(new Point(0, 0), window)!.Value.Y - scroll.TranslatePoint(new Point(0, 0), window)!.Value.Y;
+        double free = Math.Max(0, scroll.Bounds.Height - stack.Bounds.Height);
+        Console.WriteLine($"SMOKE rules empty placement: viewport {scroll.Bounds.Height:0.#}, block {stack.Bounds.Height:0.#} at {top:0.#}, free {free:0.#}.");
+        Require(Math.Abs(top - free / 3) <= 4,
+            $"The Rules empty state is not placed at a third of the free height: top {top:0.#}, free {free:0.#}.");
+        Require(!page.FindControl<Control>("RulesFooterBar")!.IsVisible
+            || page.StatusMessage != Texts.Count("rules.changedScopes", page.CurrentOverview.SavedCount),
+            "The idle Rules overview still shows its footer bar with the saved-rules line.");
     }
 
     private static void RequireTemplatedLabel(Button button, string expected) =>

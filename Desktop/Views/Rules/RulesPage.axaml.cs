@@ -63,6 +63,8 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
         InitializeRuleSuggestions();
         _drafts.Add(_draft.Scope, _draft);
         RuleExtensionsInput.Edited += DraftChanged;
+        // The empty state is placed in the scroll viewport's free height; the viewport changes with the window and the footer bar.
+        RulesScroll.PropertyChanged += (_, e) => { if (e.Property == ScrollViewer.ViewportProperty) ApplyOverviewEmptyLayout(); };
         _discardConfirmation = new(DiscardRuleButton);
         KeyDown += (_, e) =>
         {

@@ -231,16 +231,17 @@ internal sealed partial class GalleryViewer
             _slideshowToggle.Tag = null;
             StyleAsOverflowRow(_slideshowToggle, false);
             _slideshowToggle.Content = name;
-            // G2: one split control (the toggle and its menu button), after the tools toggle as the toggle always sat in the group that
-            // survives collapsed tools.
+            // G2: one split control (the toggle and its menu button) in the group that survives collapsed tools (GL5d: the tools toggle
+            // moved to the right side of the bar, so the split control heads its group).
             _slideshowSplit.Children.Insert(0, _slideshowToggle);
-            _focusTools.Children.Insert(Math.Min(1, _focusTools.Children.Count), _slideshowSplit);
+            _focusTools.Children.Insert(0, _slideshowSplit);
         }
         else
         {
             AddOverflowItem(_slideshowToggle, "gallery.slideshow-toggle", host: _slideshowHome);
             ((OverflowItem)_slideshowToggle.Tag!).Label.Text = name;
         }
+        PresentSlideshowIcon(); // GL3: play/pause icon for the new place (bar: icon + text, menu: the row's lead icon)
         if (hadFocus && _slideshowToggle.IsEffectivelyVisible) _slideshowToggle.Focus(NavigationMethod.Tab);
         else if (hadFocus && _overflowButton.IsEffectivelyVisible) _overflowButton.Focus(NavigationMethod.Tab);
     }
@@ -281,6 +282,7 @@ internal sealed partial class GalleryViewer
     {
         // Choosing an action closes the menu; zoom stays open because it is used in steps.
         if (e.Source is Button { Tag: OverflowItem { KeepOpen: true } }) return;
+        if (e.Source is Button { Tag: string } && _layoutSection.IsVisible) return; // a layout row: a switch stays open, "Reset layout" closes it itself
         if (e.Source is Button) _overflowFlyout.Hide();
     }
 
@@ -292,6 +294,9 @@ internal sealed partial class GalleryViewer
         if (compact == _compactToolbar) return;
         _compactToolbar = compact;
         PresentToolbarControls(); // Icon or labelled presentation of the primary controls; no other text changes.
+        PresentLayoutButton();
+        PresentSlideshowIcon();
+        PresentModeSwitch();
     }
 
     private bool ContextOverPicture => PostOverlayEffective || Bounds.Width < CompactPostWidth;

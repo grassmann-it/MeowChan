@@ -81,7 +81,7 @@ internal sealed class MediaTagCountIndex
 
     /// <summary>The index entries this was made for.</summary>
     internal IReadOnlyList<MediaLibraryEntry> All { get; }
-    /// <summary>What the own tags were read from (the page's user data object); a different one means a new index.</summary>
+    /// <summary>What the own tags were read from (the tag snapshot of the page's user data, never its favorites or ratings); a different one means a new index.</summary>
     internal object? OwnSource { get; }
     /// <summary>What the source tags were read from (the catalog's tag index); a different one means a new index.</summary>
     internal object? SourceSource { get; }

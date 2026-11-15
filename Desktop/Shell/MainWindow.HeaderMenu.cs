@@ -22,8 +22,29 @@ public partial class MainWindow
     /// <summary>The menu host of the header display; read by the smokes.</summary>
     internal ContextMenuHost? HeaderIoMenuHost => _headerIoMenu;
 
-    private void InitializeHeaderIoMenu() =>
+    private ContextMenuHost? _headerThemeMenu;
+
+    /// <summary>The menu host of the header theme button ("Follow system"); read by the smokes.</summary>
+    internal ContextMenuHost? HeaderThemeMenuHost => _headerThemeMenu;
+
+    private void InitializeHeaderIoMenu()
+    {
         _headerIoMenu = new ContextMenuHost(TransferSpeed, ComposeHeaderIoMenu, fallbackFocus: () => (TransferSpeed.IsVisible ? TransferSpeed : PauseButton).Focus());
+        _headerThemeMenu = new ContextMenuHost(ThemeToggleButton, ComposeHeaderThemeMenu);
+    }
+
+    private ContextMenuBuilder? ComposeHeaderThemeMenu() =>
+        _isClosing || !_restoreCompleted || WorkspaceCommandBusy ? null
+            : HeaderThemeMenu.Compose(_config.Theme, ActualThemeVariant == Avalonia.Styling.ThemeVariant.Dark, ChooseThemePreference);
+
+    /// <summary>Stores and applies a theme preference from the header menu (same save path as the theme button).</summary>
+    private async void ChooseThemePreference(string preference)
+    {
+        if (_isClosing || !_restoreCompleted || WorkspaceCommandBusy || preference == _config.Theme) return;
+        Config candidate = _config.Clone();
+        candidate.Theme = preference;
+        await SaveAppearanceAsync(candidate);
+    }
 
     private ContextMenuBuilder? ComposeHeaderIoMenu() =>
         _isClosing || !_restoreCompleted ? null : HeaderIoMenu.Compose(_config.StatsHeaderGraph, ChooseHeaderGraph, () => ShowStatistics(), ShowStatisticsSettings);

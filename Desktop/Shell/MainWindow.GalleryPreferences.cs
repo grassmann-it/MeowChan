@@ -39,6 +39,8 @@ public partial class MainWindow
         _gallery?.ConfigureFit(ReaderSettingsPreferences.Gallery(_config));
         _gallery?.ConfigureZoomLimits(_config.GalleryMaxZoomPercent);
         if (_gallery != null) _gallery.ControlsIdleHideMs = _config.ControlsIdleHideMs;
+        if (_gallery != null) _gallery.VideoSeekStepSeconds = _config.GalleryVideoSeekStepSeconds;
+        if (_gallery != null) _gallery.StatusDwellMs = _config.GalleryStatusDwellMs;
         if (_gallery != null) _gallery.PanelWidth = GalleryPanelWidthPreference();
         ConfigureGalleryFilmstrip();
         if (_archivePage != null)
@@ -81,7 +83,9 @@ public partial class MainWindow
     {
         if (_isClosing || _gallery == null) return;
         bool activeSurface = IsActive || OwnedWindows.Any(window => window.IsActive && _gallery.OwnsOverlayWindow(window));
-        _gallery.SetInteractionAvailable(activeSurface && IsEnabled && !_gallerySuspended);
+        // The second value is the part that is not about the focus: with "Pause when MeowChan loses focus" off, a slideshow runs on while
+        // another window has the focus, while minimised or in the tray, but a disabled main window or the reader still stop it.
+        _gallery.SetInteractionAvailable(activeSurface && IsEnabled && !_gallerySuspended, IsEnabled && !_gallerySuspended);
     }
 
     private void QueueGalleryPreference(bool? context, int? volume)
@@ -101,9 +105,11 @@ public partial class MainWindow
         int? volume = _pendingGalleryVolume;
         GalleryPlaybackPreferences? playback = _pendingGalleryPlayback;
         GalleryPlaybackPreferences? baseline = _pendingGalleryPlaybackBaseline;
+        GalleryLayoutChoice? layoutView = _pendingGalleryLayoutView, layoutTag = _pendingGalleryLayoutTag;
         _pendingGalleryContext = null; _pendingGalleryVolume = null;
         _pendingGalleryPlayback = null; _pendingGalleryPlaybackBaseline = null;
-        if (!context.HasValue && !volume.HasValue && playback == null)
+        _pendingGalleryLayoutView = null; _pendingGalleryLayoutTag = null;
+        if (!context.HasValue && !volume.HasValue && playback == null && layoutView == null && layoutTag == null)
         {
             // A later explicit Settings/Close flush may retry a retained failed
             // host draft. Do not permanently chain the earlier faulted observer.
@@ -122,6 +128,7 @@ public partial class MainWindow
                 if (context.HasValue) current.GalleryContextOpen = context.Value;
                 if (volume.HasValue) current.VideoVolume = volume.Value;
                 if (playback != null && baseline != null) playback.ApplyChangesTo(current, baseline);
+                ApplyGalleryLayoutChanges(current, layoutView, layoutTag);
             });
         }
         catch (Exception error)
@@ -130,6 +137,8 @@ public partial class MainWindow
             _pendingGalleryVolume ??= volume;
             _pendingGalleryPlayback ??= playback;
             _pendingGalleryPlaybackBaseline ??= baseline;
+            _pendingGalleryLayoutView ??= layoutView;
+            _pendingGalleryLayoutTag ??= layoutTag;
             write = Task.FromException(error);
         }
         if (!ReferenceEquals(write, _galleryPreferenceWrite))
@@ -151,6 +160,8 @@ public partial class MainWindow
                 _desiredGalleryVolume = null;
             if (ReferenceEquals(write, _galleryPreferenceWrite) && _pendingGalleryPlayback == null)
                 _desiredGalleryPlayback = null;
+            if (ReferenceEquals(write, _galleryPreferenceWrite) && !GalleryLayoutPending)
+                _desiredGalleryLayout = null;
         }
         catch (Exception error)
         {

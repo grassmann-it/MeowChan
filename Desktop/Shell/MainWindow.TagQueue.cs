@@ -31,7 +31,7 @@ public partial class MainWindow
     {
         _tagQueueMenu = CommandBindings.CreateMenuItem("media.queue.open", () => _ = OpenTagQueueGalleryAsync(), () => CanOpenTagQueue);
         int anchor = _postBookmarksMenu is null ? -1 : WorkspaceMenuItem.Items.IndexOf(_postBookmarksMenu);
-        if (anchor < 0) anchor = WorkspaceMenuItem.Items.IndexOf(MenuPagesToolsSeparator);
+        if (anchor < 0) anchor = MenuToolsAnchor;
         WorkspaceMenuItem.Items.Insert(anchor + 1, _tagQueueMenu);
         Closed += (_, _) => _tagQueueRegistration?.Dispose();
     }

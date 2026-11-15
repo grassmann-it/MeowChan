@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Avalonia;
 using Avalonia.Input;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
@@ -125,6 +126,40 @@ public sealed class ReaderMultiMediaTests : IDisposable
     {
         Assert.Equal(tile, ReaderMediaMultiRules.TileWidth(column));
         if (column >= 17) Assert.True(2 * tile + ReaderMediaMultiRules.GridSpacing <= column);
+    }
+
+    // N7: a tile below the block minimum (140) would not be half the column, so the grid needs two full tiles in the column.
+    [Theory]
+    [InlineData(360, true)] // the large reader at the default preview width: tiles of 176
+    [InlineData(288, true)] // exactly two minimum blocks and the gap
+    [InlineData(287, false)]
+    [InlineData(240, false)] // the ordinary reader at the default width: tiles of 116
+    [InlineData(120, false)]
+    [InlineData(0, false)]
+    public void TheGridNeedsTwoTilesAtTheBlockMinimumInTheColumn(int column, bool fits)
+    {
+        Assert.Equal(fits, ReaderMediaMultiRules.TilesFit(column));
+        Assert.Equal(fits, ReaderMediaMultiRules.UseGrid(ReaderMediaPreferences.Default, 3, "short", column));
+        // Everything else still decides as before: the text, the count and the switch.
+        Assert.False(ReaderMediaMultiRules.UseGrid(ReaderMediaPreferences.Default, 3, new string('x', 400), column));
+        Assert.False(ReaderMediaMultiRules.UseGrid(ReaderMediaPreferences.Default, 1, "", column));
+        Assert.False(ReaderMediaMultiRules.UseGrid(ReaderMediaPreferences.Default with { MediaGrid = false }, 3, "", column));
+    }
+
+    // M4: without the grid every tile has a line of its own, however narrow it is; the grid wraps two to a line.
+    [Fact]
+    public void WithoutTheGridNarrowPortraitTilesStackAndNeverStandBesideEachOther()
+    {
+        Size[] portraits = [new Size(140, 280), new Size(140, 200), new Size(140, 280)];
+        Rect[] stacked = ReaderMediaMultiRules.Place(portraits, 376, grid: false);
+        Assert.Equal([new Rect(0, 0, 140, 280), new Rect(0, 280, 140, 200), new Rect(0, 480, 140, 280)], stacked);
+        // The same tiles of a grid post, 176 wide in a 360 column: two to a line, the line as high as its highest tile, the third wraps.
+        Size[] tiles = [new Size(176, 100), new Size(176, 140), new Size(176, 90)];
+        Rect[] wrapped = ReaderMediaMultiRules.Place(tiles, 360, grid: true);
+        Assert.Equal([new Rect(0, 0, 176, 140), new Rect(184, 0, 176, 140), new Rect(0, 140, 176, 90)], wrapped);
+        // A tile wider than the line still gets a line of its own and is never dropped.
+        Assert.Equal([new Rect(0, 0, 500, 10), new Rect(0, 10, 176, 10)], ReaderMediaMultiRules.Place([new Size(500, 10), new Size(176, 10)], 360, grid: true));
+        Assert.Empty(ReaderMediaMultiRules.Place([], 360, grid: true));
     }
 
     // ---- the strip window --------------------------------------------------------------------------------------------------------------

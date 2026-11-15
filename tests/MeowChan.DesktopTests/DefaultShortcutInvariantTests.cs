@@ -17,8 +17,10 @@ public sealed class DefaultShortcutInvariantTests
         "media.details", "media.rating.edit", "viewer.shortcut-help",
         // The media page's focus mode: Shift+F (the F alone is the favourite); a typed capital in a text field is left to the field.
         "media.focus-mode",
-        // Gallery video: Shift+M mute, Shift+S frame snapshot, [ ] and Shift+, / Shift+. speed, A the A–B loop, "." the next frame.
+        // Gallery video (key scheme of revision 13): M mute, S frame snapshot, [ ] speed, A the A–B loop, Shift+. the next frame, "," and "."
+        // seek by the step setting, L repeats the video, D the slideshow.
         "video.mute", "video.snapshot", "video.speed-down", "video.speed-up", "video.ab-loop", "video.frame-step",
+        "video.step-back", "video.step-forward", "video.loop",
         // PT6: Shift+1 to Shift+5 rate, Shift+0 removes the rating (switched off with the other single keys).
         "media.rating.set-1", "media.rating.set-2", "media.rating.set-3", "media.rating.set-4", "media.rating.set-5", "media.rating.clear",
         // PT4: K switches the card mode of the tagging mode, 1 to 5 choose its cards (only inside the mode; the cards stay clickable).
@@ -28,7 +30,11 @@ public sealed class DefaultShortcutInvariantTests
         // PT7: Q puts the open medium in the tag queue (media/gallery contexts, revision 9).
         "media.queue.add",
         // G1: Shift+T switches the gallery between View and Tag (gallery context only).
-        "gallery.mode-toggle"
+        "gallery.mode-toggle",
+        // Revision 13: Shift+H hides the tools, Shift+O switches the controls overlay (Shift+P shows the post, Shift+L the filmstrip).
+        "gallery.tools-toggle", "gallery.overlay-toggle",
+        // Revision 13 with GL3's layout rows registered: Shift+I shows or hides the info line, Shift+N the hint row.
+        "gallery.layout.info", "gallery.layout.hints"
     };
 
     [Theory, MemberData(nameof(Platforms))]
@@ -92,7 +98,8 @@ public sealed class DefaultShortcutInvariantTests
             "media.export-original", "media.show-in-folder", "reader.history-back", "gallery.return", "pagination.previous", "pagination.next",
             "window.minimize", "menu.context-open", "video.mute", "video.seek-back", "video.seek-forward", "video.seek-back-far",
             "video.seek-forward-far", "video.speed-down", "video.speed-up", "video.speed-reset", "video.snapshot",
-            "video.ab-loop", "video.frame-step", "gallery.rotate", "gallery.mode-toggle" })
+            "video.ab-loop", "video.frame-step", "gallery.rotate", "gallery.mode-toggle",
+            "gallery.context-toggle", "gallery.tools-toggle", "gallery.overlay-toggle", "gallery.layout.info", "gallery.layout.hints" })
             Assert.Contains(id, EffectiveShortcutBindings.YieldingDefaultCommandIds);
     }
 }

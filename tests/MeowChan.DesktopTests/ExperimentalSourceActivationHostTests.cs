@@ -25,7 +25,9 @@ public sealed class ExperimentalSourceActivationHostTests
             var projection = await host.ProjectExperimentalSourceActivationAsync(url);
             Assert.Equal(ExperimentalSourceActivationProjectionStatus.ConfirmationRequired, projection.Status);
             Assert.Equal(source, projection.Target!.SourceId);
-            Assert.Equal("meowchan.source." + source, projection.Target.PluginOwnerId);
+            // Wizchan is an experimental site of the (enabled) vichan family: its own switch is off.
+            Assert.Equal(source == "wizchan" ? ChanSourceFamilies.Vichan : "meowchan.source." + source, projection.Target.PluginOwnerId);
+            Assert.Equal(source == "wizchan" ? true : null, projection.Target.OwnerEnabled);
             Assert.False(projection.Target.IsEnabled);
             Assert.False(projection.Target.IsGranted);
             if (source == "endchan") Assert.Equal("https://endchan.net/demo/res/123.html", projection.Target.Url);
@@ -61,9 +63,9 @@ public sealed class ExperimentalSourceActivationHostTests
         Assert.Equal(revoked, Assert.Single(host.GetSourceMediaIntegrityPolicies(), row => row.Snapshot.SourceId == "kohlchan"));
         Assert.Equal(ExperimentalSourceActivationStatus.StaleTarget,
             (await host.ActivateAndAllowExperimentalSourceAsync(original)).Status);
-        // Ordinary plugin enable remains a strict path, with no implicit source grant.
-        var state = await host.Plugins.ProfileStore.ReadAsync();
-        await host.Plugins.ProfileStore.SetEnabledAsync("meowchan.source.wizchan", true, state.Revision);
+        // Ordinary enable (here: the Wizchan site switch of the enabled vichan family) remains a strict path,
+        // with no implicit source grant.
+        Assert.True(await host.SetChanSiteEnabledAsync("wizchan", true));
         Assert.Equal(ExperimentalSourceActivationProjectionStatus.NotRequired,
             (await host.ProjectExperimentalSourceActivationAsync("https://wizchan.org/demo/")).Status);
         Assert.False(Assert.Single(host.GetSourceMediaIntegrityPolicies(), row => row.Snapshot.SourceId == "wizchan").IsGranted);

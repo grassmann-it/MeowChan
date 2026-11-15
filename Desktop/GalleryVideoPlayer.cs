@@ -37,7 +37,7 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
     // Status and time belong to the themed transport below the black media viewport.
     private readonly TextBlock _status = new TextBlock { Name = "GalleryVideoStatus", Margin = new Thickness(0, 4, 0, 0), TextWrapping = Avalonia.Media.TextWrapping.Wrap, [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text") }.MetaText();
     private readonly TextBlock _time = new TextBlock { Name = "GalleryVideoTime", MinWidth = 76, TextAlignment = Avalonia.Media.TextAlignment.Right, VerticalAlignment = VerticalAlignment.Center, [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Muted") }.MetaText();
-    private readonly Button _playPause = new() { Name = "GalleryVideoPlayPause", Classes = { "media-control", "media-play" }, Width = 40, Height = 40, CornerRadius = new CornerRadius(20), Padding = new Thickness(8) };
+    private readonly Button _playPause = new() { Name = "GalleryVideoPlayPause", Classes = { "media-control", "media-play" }, Width = 32, Height = 32, CornerRadius = new CornerRadius(16), Padding = new Thickness(4) }; // GL5b: 32 like every other control of the bar (was 40)
     private readonly ToggleButton _mute = new() { Name = "GalleryVideoMute", Classes = { "media-control" }, Width = 32, Height = 32, Padding = new Thickness(8) };
     private readonly ToggleButton _loop = new() { Name = "GalleryVideoLoop", Classes = { "media-control" }, Width = 32, Height = 32, Padding = new Thickness(8) };
     // Playback speed: one click steps through Rates, [ and ] step down/up, Backspace returns to 1×, a right-click offers
@@ -126,6 +126,8 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
         // Still submit Move below so an outstanding transfer receives the latest target.
         if (!ReferenceEquals(host, _externalTransportHost)) CancelSeekGesture();
         _externalTransportHost = host;
+        // GL5b: a host that marks itself "in-dock" (the docked dock) gives the bar the dock's own 4 dip of height (WorkspaceStyles .in-dock).
+        _transportPanel.Classes.Set("in-dock", host != null && host.Classes.Contains("in-dock"));
         Grid.SetRow(_transportPanel, host == null ? 1 : 0);
         Grid.SetRowSpan(SurfaceControl, host == null ? 1 : 2);
         ApplyVolumePlacement();
@@ -654,8 +656,7 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
         AutomationProperties.SetName(_speed, speed);
         AutomationProperties.SetHelpText(_speed, speedTip);
         ToolTip.SetTip(_speed, speedTip);
-        AutomationProperties.SetName(_seek, Texts.T("viewer.video.position"));
-        ToolTip.SetTip(_seek, Texts.T("viewer.video.position"));
+        RefreshSeekTooltip();
         string volumeLabel = _audioAvailable ? Texts.T("viewer.video.volume") : audioUnavailable;
         AutomationProperties.SetName(_volume, volumeLabel);
         ToolTip.SetTip(_volume, volumeLabel);

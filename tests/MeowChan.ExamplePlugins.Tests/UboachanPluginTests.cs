@@ -1,6 +1,6 @@
 using System.Text.Json.Nodes;
 using MeowChan.PluginSdk;
-using MeowChan.Plugins.Examples.Uboachan;
+using MeowChan.Plugins.Examples.VichanFamily;
 
 namespace MeowChan.ExamplePlugins.Tests;
 
@@ -14,18 +14,18 @@ public sealed class UboachanPluginTests
          {"no":124,"resto":123,"com":""},
          {"no":125,"resto":123,"extra_files":[{"tim":"extra-only","ext":".jpg","md5":"AAAAAAAAAAAAAAAAAAAAAA=="}]}]}
         """;
-    private static MakabaUboachanHarness Harness(string body = Thread, int status = 200) => new(new UboachanPlugin(), body, status);
+    private static MakabaUboachanHarness Harness(string body = Thread, int status = 200) => new(new VichanFamilyPlugin(), body, status, "uboachan");
 
     [Fact]
     public void PassiveDescriptionHasDistinctIdentityAndOnlyItsHost()
     {
-        var description = new UboachanPlugin().Describe(); var source = Assert.Single(description.Sources);
-        Assert.Equal("meowchan.source.uboachan", description.PluginId); Assert.Equal("uboachan", source.SourceId);
+        var description = new VichanFamilyPlugin().Describe(); var source = Assert.Single(description.Sources, s => s.SourceId == "uboachan");
+        Assert.Equal(VichanFamilyPlugin.PluginId, description.PluginId); Assert.Equal("uboachan", source.SourceId);
         Assert.Equal(SourceMaturity.Experimental, source.Maturity);
         Assert.Empty(SdkValidation.ValidateDescription(description)); Assert.Equal(PostOrderKind.DecimalPostId, source.PostOrder);
         Assert.Equal(new HttpHostDeclaration("uboachan.net", HttpHostPurpose.Metadata | HttpHostPurpose.OriginalMedia), Assert.Single(source.HttpHosts));
-        Assert.Single(typeof(UboachanPlugin).Assembly.GetExportedTypes(), t => typeof(IPlugin).IsAssignableFrom(t));
-        Assert.DoesNotContain(typeof(UboachanPlugin).Assembly.GetReferencedAssemblies(), a => a.Name is "libmeowchan" or "MeowChan.PluginHost" or "Avalonia");
+        Assert.Single(typeof(VichanFamilyPlugin).Assembly.GetExportedTypes(), t => typeof(IPlugin).IsAssignableFrom(t));
+        Assert.DoesNotContain(typeof(VichanFamilyPlugin).Assembly.GetReferencedAssemblies(), a => a.Name is "libmeowchan" or "MeowChan.PluginHost" or "Avalonia");
     }
 
     [Fact]

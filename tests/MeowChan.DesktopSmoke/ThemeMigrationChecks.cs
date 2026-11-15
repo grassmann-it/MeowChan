@@ -65,7 +65,7 @@ internal static class ThemeMigrationChecks
                         Console.WriteLine($"SMOKE Semi/Ursa minimum: language={language}; theme={theme}; mode={mode}; client={window.ClientSize}; scale={window.RenderScaling}; locale={semi.Locale}; keyboard focus={add.IsFocused}");
                         Program.CaptureWindow(window, $"smoke-theme-minimum-{language}-{theme.ToLowerInvariant()}-{mode.ToLowerInvariant()}.png");
                     }
-                    window.FindControl<MenuItem>("RulesMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+                    SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Rules);
                     RulesPage rules = window.RulesPage;
                     await Program.WaitUntilAsync(() => rules.IsEditable && rules.IsEffectivelyVisible);
                     // Overview first: the field errors belong to the editor, so open the global rule in the wizard.

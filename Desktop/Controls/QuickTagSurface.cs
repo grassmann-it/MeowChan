@@ -185,14 +185,17 @@ internal static class QuickTagReasons
 /// The shared core of the gallery tag panel (TP2) and the right-click tag popover (TP3): header with the title on the left and the
 /// isolated close button on the right edge, the tag field (own tags, Danbooru source tags, "New tag"), the numbered suggestion
 /// strip with reasons, the assigned chips (tri-state for a selection), the status line and the footer actions on the left
-/// (undo, "Advanced…"). Every change is written at once through <see cref="QuickTagSession"/>; nothing is assigned
+/// (undo, stamp, "Open tag editor"). Every change is written at once through <see cref="QuickTagSession"/>; nothing is assigned
 /// automatically. The host frames it (overlay panel or flyout), handles <see cref="CloseRequested"/>,
 /// <see cref="AdvancedRequested"/> and, in the gallery, <see cref="NavigationRequested"/>, and disposes it.
 /// </summary>
 internal sealed class QuickTagSurface : UserControl, IDisposable
 {
-    /// <summary>Below this width the footer buttons show only their icon (with tooltip and accessible name).</summary>
+    /// <summary>Below this width (the gallery side panel) the footer buttons are stacked, one per line at full width; from it they sit in one row. Both show icon and text.</summary>
     internal const double CompactWidth = 320;
+    /// <summary>Gap between the footer buttons and between a button's icon and its text, on the 8 dip grid.</summary>
+    internal const double FooterGap = 8;
+    private const string UndoIcon = "corner-up-left", StampIcon = "check-square", AdvancedIcon = "external-link";
     private readonly QuickTagSession _session;
     private readonly QuickTagOptions _options;
     private readonly ShortcutPlatform _platform;
@@ -291,11 +294,16 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         };
         ScrollViewer scroll = new() { Content = body, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled, Name = _name + "Body" };
 
-        StackPanel actions = new() { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Left, Name = _name + "Actions" };
+        // The footer: three buttons of icon and text. In a narrow host (the side panel) they are stacked at full width, otherwise in a row.
+        Grid actions = new() { Name = _name + "Actions" };
         actions.Children.Add(_undo);
         actions.Children.Add(_stamp);
         actions.Children.Add(_advanced);
         Footer = actions;
+        BuildFooterButton(_undo, UndoIcon);
+        BuildFooterButton(_stamp, StampIcon);
+        BuildFooterButton(_advanced, AdvancedIcon);
+        ApplyFooterLayout(stacked: false);
 
         Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,Auto,*,Auto,Auto"), RowSpacing = 12 };
         layout.Children.Add(header);
@@ -308,7 +316,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         layout.Children.Add(actions); Grid.SetRow(actions, 4);
         Content = layout;
         Header = header;
-        // Focus order: field, suggestions, "More…", assigned chips, extra section, undo, "Advanced…", and the close button last
+        // Focus order: field, suggestions, "More…", assigned chips, extra section, undo, stamp, "Open tag editor", and the close button last
         // (a popover cycles, so Shift+Tab from the field reaches it directly).
         KeyboardNavigation.SetTabIndex(header, 1);
 
@@ -352,7 +360,15 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     internal TextBlock Status => _status;
     internal TextBlock Title => _title;
     internal Grid Header { get; }
-    internal StackPanel Footer { get; }
+    /// <summary>The footer: undo, stamp and the tag editor, in a row (wide host) or stacked (narrow host).</summary>
+    internal Grid Footer { get; }
+    /// <summary>True while the footer buttons are stacked, one per line at full width.</summary>
+    internal bool FooterStacked { get; private set; }
+    /// <summary>The icon name and the label text a footer button shows (null for any other control).</summary>
+    internal (string Icon, string Text)? FooterLabelOf(Button button) =>
+        button.Content is Grid { Children: [ContentControl { Tag: string icon }, TextBlock text] } ? (icon, text.Text ?? string.Empty) : null;
+    /// <summary>The footer button's label control (to read its trimming), or null.</summary>
+    internal TextBlock? FooterTextOf(Button button) => button.Content is Grid { Children: [_, TextBlock text] } ? text : null;
     /// <summary>The suggestions now shown as chips, in order (chip n = index n − 1).</summary>
     internal IReadOnlyList<QuickTagSuggestion> Shown => _shown;
     /// <summary>The suggestion chip buttons, in order.</summary>
@@ -668,6 +684,11 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         AutomationProperties.SetAcceleratorKey(_stamp, QuickTagKeys.StampGesture(_platform));
         AutomationProperties.SetName(_advanced, Texts.T("tags.quick.advancedName"));
         ToolTip.SetTip(_advanced, Texts.T("tags.quick.advancedName"));
+        AutomationProperties.SetHelpText(_undo, Texts.T("tags.quick.undoHelp", QuickTagKeys.UndoGesture(_platform)));
+        AutomationProperties.SetHelpText(_stamp, Texts.T("tags.quick.stamp.help", QuickTagKeys.StampGesture(_platform)));
+        AutomationProperties.SetHelpText(_advanced, Texts.T("tags.quick.advancedHelp"));
+        // A disabled button still explains itself (the stamp says why it is empty).
+        foreach (Button button in new[] { _undo, _stamp, _advanced }) ToolTip.SetShowOnDisabled(button, true);
         ApplyFooterMode();
     }
 
@@ -678,28 +699,80 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         Refresh();
     });
 
-    // Below the compact width the footer shows icons only; the name and tooltip keep the full text.
-    private void OnSizeChanged(object? sender, SizeChangedEventArgs e)
+    // Below the compact width (the side panel) the footer buttons are stacked at full width; icon and text stay in both layouts.
+    private void OnSizeChanged(object? sender, SizeChangedEventArgs e) => ApplyWidth(e.NewSize.Width);
+
+    /// <summary>Chooses the footer layout for a surface of <paramref name="width"/> dip (0 or less keeps the current one).</summary>
+    internal void ApplyWidth(double width)
     {
-        bool compact = e.NewSize.Width > 0 && e.NewSize.Width < CompactWidth;
-        if (compact == _compact) return;
+        bool compact = width > 0 && width < CompactWidth;
+        if (width <= 0 || compact == _compact) return;
         _compact = compact;
         ApplyFooterMode();
     }
 
-    private void ApplyFooterMode()
+    // One button: a grid of the icon slot (filled once the control is in a window, the icon needs the platform) and a one-line label
+    // that is trimmed with an ellipsis, never wrapped; the full text is in the tooltip and the accessible name.
+    private static void BuildFooterButton(Button button, string icon)
     {
-        if (_compact && _attached)
+        ContentControl slot = new() { Width = 16, Height = 16, Tag = icon, Focusable = false, IsHitTestVisible = false, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, FooterGap, 0) };
+        TextBlock text = new() { TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.NoWrap, MaxLines = 1, VerticalAlignment = VerticalAlignment.Center };
+        Grid.SetColumn(text, 1);
+        button.Content = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*"), Children = { slot, text } };
+        button.HorizontalContentAlignment = HorizontalAlignment.Left;
+    }
+
+    private void ApplyFooterLayout(bool stacked)
+    {
+        FooterStacked = stacked;
+        Button[] buttons = [_undo, _stamp, _advanced];
+        Footer.ColumnDefinitions.Clear();
+        Footer.RowDefinitions.Clear();
+        if (stacked)
         {
-            _undo.Content = CommandBindings.NamedIcon("corner-up-left");
-            _stamp.Content = CommandBindings.NamedIcon("check-square");
-            _advanced.Content = CommandBindings.NamedIcon("external-link");
+            Footer.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
+            for (int index = 0; index < buttons.Length; index++) Footer.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+            Footer.RowSpacing = FooterGap;
+            Footer.ColumnSpacing = 0;
+            Footer.HorizontalAlignment = HorizontalAlignment.Stretch;
         }
         else
         {
-            _undo.Content = Texts.T("tags.quick.undo");
-            _stamp.Content = Texts.T("tags.quick.stamp.button");
-            _advanced.Content = Texts.T("tags.quick.advanced");
+            // Two buttons take their text, the last one the rest of the row and trims when a language needs more.
+            Footer.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+            Footer.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+            Footer.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
+            Footer.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+            Footer.RowSpacing = 0;
+            Footer.ColumnSpacing = FooterGap;
+            Footer.HorizontalAlignment = HorizontalAlignment.Left;
+        }
+        for (int index = 0; index < buttons.Length; index++)
+        {
+            Grid.SetRow(buttons[index], stacked ? index : 0);
+            Grid.SetColumn(buttons[index], stacked ? 0 : index);
+            buttons[index].HorizontalAlignment = stacked ? HorizontalAlignment.Stretch : HorizontalAlignment.Left;
+        }
+    }
+
+    private void ApplyFooterMode()
+    {
+        ApplyFooterLayout(_compact);
+        SetFooterLabel(_undo, Texts.T("tags.quick.undo"));
+        SetFooterLabel(_stamp, Texts.T("tags.quick.stamp.button"));
+        SetFooterLabel(_advanced, Texts.T("tags.quick.advanced"));
+    }
+
+    private void SetFooterLabel(Button button, string label)
+    {
+        if (button.Content is not Grid { Children: [ContentControl slot, TextBlock text] }) return;
+        text.Text = label;
+        // The icon follows the label's foreground (also its disabled look). Only a control in a window can load it.
+        if (_attached && slot.Content == null && slot.Tag is string icon)
+        {
+            Control mark = CommandBindings.IconFromKey(icon, 16);
+            mark.Bind(Border.BackgroundProperty, text.GetObservable(TextBlock.ForegroundProperty));
+            slot.Content = mark;
         }
     }
 

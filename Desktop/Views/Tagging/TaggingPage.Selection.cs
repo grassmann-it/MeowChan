@@ -1,0 +1,157 @@
+using System;
+using System.Linq;
+using Avalonia;
+using Avalonia.Automation;
+using Avalonia.Controls;
+using Avalonia.Layout;
+using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
+using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.WorkViews;
+using Ursa.Controls;
+
+namespace MeowChan;
+
+// The selection bar of the tagging page (TG1): one line above the list or grid while at least one entry is selected, the toolbar above it
+// stands still. The count is a polite live region; the actions are the context menu's commands for the selection (Tag… for one entry,
+// Tag together… for several, Apply tag stamp, State, Remove) and act on the entries selected at the moment of the click. Esc or the
+// cross clears the selection. What the work view reduces moves under the bar's own "More".
+public sealed partial class TaggingPage
+{
+    private readonly Border _selectionBar = new() { Name = "TaggingSelectionBar", Classes = { "workspace-info" }, IsVisible = false, Padding = new Thickness(8, 4),
+        Margin = new Thickness(0, 0, 0, 8) };
+    private readonly TextBlock _selectionText = new() { Name = "TaggingSelectionStatus", Classes = { "tnum" }, VerticalAlignment = VerticalAlignment.Center };
+    private readonly ActionToolBar _selectionActions = new() { Name = "TaggingSelectionActions", HorizontalAlignment = HorizontalAlignment.Stretch };
+    private readonly Button _selTag = new() { Name = "TaggingSelectionTag" };
+    private readonly Button _selStamp = new() { Name = "TaggingSelectionStamp" };
+    private readonly Button _selState = new() { Name = "TaggingSelectionState" };
+    private readonly Button _selRemove = new() { Name = "TaggingSelectionRemove" };
+    private readonly TextBlock _selStateText = new() { VerticalAlignment = VerticalAlignment.Center };
+    private readonly Button _selClear = new() { Name = "TaggingSelectionClear" };
+    private ContextMenuHost? _stateMenuHost;
+
+    internal Border SelectionBar => _selectionBar;
+    internal TextBlock SelectionText => _selectionText;
+    internal ActionToolBar SelectionActions => _selectionActions;
+    internal Button SelectionTagButton => _selTag;
+    internal Button SelectionStampButton => _selStamp;
+    internal Button SelectionStateButton => _selState;
+    internal Button SelectionRemoveButton => _selRemove;
+    internal Button SelectionClearButton => _selClear;
+
+    private Control BuildSelectionBar()
+    {
+        AutomationProperties.SetLiveSetting(_selectionText, AutomationLiveSetting.Polite);
+        foreach (Button button in new[] { _selTag, _selStamp, _selState, _selRemove })
+        {
+            ToolBar.SetOverflowMode(button, OverflowMode.AsNeeded);
+            _selectionActions.Items.Add(button);
+        }
+        _selTag.Click += (_, _) => _ = ExecuteSelectionAsync(Selected.Count > 1 ? TaggingCommands.TagTogether : TaggingCommands.Tag, _selTag);
+        _selStamp.Click += (_, _) => _ = ExecuteRowCommandAsync(TaggingCommands.ApplyStamp);
+        _selRemove.Click += (_, _) => _ = ExecuteRowCommandAsync(TaggingCommands.Remove);
+        _selState.Click += (_, _) => _stateMenuHost?.Show(atPointer: false);
+        _stateMenuHost = new ContextMenuHost(_selState, ComposeStateMenu, fallbackFocus: () => FocusContent());
+        _selState.Content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { _selStateText, CommandBindings.NamedIcon("chevron-down", 12) } };
+        _selClear.Click += (_, _) => ClearSelection();
+        _selClear.HorizontalAlignment = HorizontalAlignment.Right;
+        _selClear.Classes.Add("command-icon");
+
+        Grid bar = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"), ColumnSpacing = 12 };
+        bar.Children.Add(_selectionText);
+        Grid.SetColumn(_selectionActions, 1);
+        bar.Children.Add(_selectionActions);
+        Grid.SetColumn(_selClear, 2);
+        bar.Children.Add(_selClear);
+        _selectionBar.Child = bar;
+        AutomationProperties.SetName(_selectionBar, Texts.T("tagging.page.selection.name"));
+        return _selectionBar;
+    }
+
+    private void LocalizeSelection()
+    {
+        AutomationProperties.SetName(_selectionBar, Texts.T("tagging.page.selection.name"));
+        string clear = Texts.T("media.selection.clear");
+        string tip = clear + " · Esc";
+        _selClear.Content = CommandBindings.NamedIcon("x");
+        AutomationProperties.SetName(_selClear, clear);
+        AutomationProperties.SetHelpText(_selClear, tip);
+        ToolTip.SetTip(_selClear, tip);
+        UpdateSelectionBar();
+    }
+
+    /// <summary>The number of selected entries (the bar's count).</summary>
+    internal int SelectedCount => ActiveList.SelectedItems?.Count ?? 0;
+
+    /// <summary>Clears the selection of the shown list or grid (Esc, the cross).</summary>
+    internal void ClearSelection()
+    {
+        ActiveList.SelectedItems?.Clear();
+        if (ActiveList.IsEffectivelyVisible && !ActiveList.IsKeyboardFocusWithin) ActiveList.Focus();
+    }
+
+    // Tag… / Tag together… anchored under the bar's own button (the popover opens where the person clicked).
+    private System.Threading.Tasks.Task ExecuteSelectionAsync(string id, Control anchor) =>
+        id is TaggingCommands.Tag or TaggingCommands.TagTogether
+            ? CanRowCommand(id) ? TagSelectionAsync(anchor) : System.Threading.Tasks.Task.CompletedTask
+            : ExecuteRowCommandAsync(id);
+
+    private ContextMenuBuilder? ComposeStateMenu()
+    {
+        if (Lead == null) return null;
+        ContextMenuBuilder menu = new ContextMenuBuilder().Named(Texts.T("tagging.page.selection.state"));
+        TaggingCommandContext context = CommandContext();
+        foreach (string id in TaggingCommands.Sections[1])
+        {
+            string commandId = id;
+            TaggingCommandState state = TaggingRowCommands.Evaluate(commandId, context);
+            menu.Command(commandId, () => _ = ExecuteRowCommandAsync(commandId), state.Available, state.Reason);
+        }
+        return menu;
+    }
+
+    /// <summary>The state menu of the bar as plain data (tests and smokes); null without a selection.</summary>
+    internal ContextMenuModel? StateMenuModel() => ComposeStateMenu()?.ToModel();
+    internal void ShowStateMenu() => _stateMenuHost?.Show(atPointer: false);
+    internal ContextMenu? OpenStateMenu => _stateMenuHost?.OpenMenu;
+
+    private void UpdateSelectionBar()
+    {
+        int count = SelectedCount;
+        _selectionText.Text = count == 0 ? string.Empty : Texts.T("media.selection.count", count.ToString("N0", Texts.Culture));
+        TaggingCommandContext context = CommandContext();
+        string tagId = count > 1 ? TaggingCommands.TagTogether : TaggingCommands.Tag;
+        SetSelectionAction(_selTag, tagId, CommandCatalog.Label(tagId), context);
+        SetSelectionAction(_selStamp, TaggingCommands.ApplyStamp, CommandCatalog.Label(TaggingCommands.ApplyStamp), context);
+        SetSelectionAction(_selRemove, TaggingCommands.Remove, Texts.T("tagging.page.selection.remove"), context);
+        // "State": available when any of the three marks applies to the selection.
+        TaggingCommandState[] marks = TaggingCommands.Sections[1].Select(id => TaggingRowCommands.Evaluate(id, context)).ToArray();
+        bool any = marks.Any(state => state.Available);
+        string stateText = Texts.T("tagging.page.selection.state");
+        _selStateText.Text = stateText;
+        _selState.IsEnabled = any;
+        string stateTip = any ? Texts.T("tagging.page.selection.state.hint") : marks[0].Reason ?? string.Empty;
+        ToolTip.SetTip(_selState, stateTip.Length == 0 ? null : stateTip);
+        ToolTip.SetShowOnDisabled(_selState, true);
+        AutomationProperties.SetName(_selState, stateText);
+        AutomationProperties.SetHelpText(_selState, stateTip);
+        WorkViewGate.Apply(_selectionBar, _workView, stateVisible: count > 0);
+        _selClear.IsEnabled = count > 0;
+        _selectionActions.RefreshOverflowLabel();
+    }
+
+    // One bar action: the visible text, a tip with the command's label and key (or the reason it is off) and the help text of the same.
+    private static void SetSelectionAction(Button button, string id, string text, TaggingCommandContext context)
+    {
+        TaggingCommandState state = TaggingRowCommands.Evaluate(id, context);
+        button.Content = text;
+        button.IsEnabled = state.Available;
+        string full = CommandCatalog.Label(id) + (CommandCatalog.ShortcutDisplay(id) is { } key ? " · " + key : string.Empty);
+        string tip = state.Available ? full : state.Reason ?? full;
+        ToolTip.SetTip(button, tip);
+        ToolTip.SetShowOnDisabled(button, true);
+        AutomationProperties.SetName(button, text);
+        AutomationProperties.SetHelpText(button, tip);
+    }
+}

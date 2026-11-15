@@ -23,7 +23,7 @@ internal static class MergedSourcesSmoke
 
     internal static void OpenPlugins(MainWindow window)
     {
-        window.FindControl<MenuItem>("SourcesMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Sources);
         ContentControl host = window.FindControl<ContentControl>("SourcesPageHost")!;
         if (window.SelectedPage != MainWindow.WorkspacePage.Sources || host.Content is not SourcesPage sources)
             throw new InvalidOperationException("The real merged Sources workspace was not reached.");

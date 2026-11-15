@@ -222,10 +222,8 @@ internal static class BooruMediaChecks
         foreach (MediaLibraryTileView view in page.GetVisualDescendants().OfType<MediaLibraryTileView>())
         {
             MediaLibraryTileRow row = (MediaLibraryTileRow)view.DataContext!;
-            Border badge = view.GetVisualDescendants().OfType<Border>().Single(border => border.Name == "MediaTileProvider");
-            Require(badge.IsVisible == row.IsProviderMedium, phase + ": the Danbooru badge must show on provider tiles only.");
-            if (row.IsProviderMedium)
-                Require(badge.GetVisualDescendants().OfType<TextBlock>().Any(text => text.Text == Texts.T("booru.media.badge")), phase + ": badge text.");
+            Require(view.Badges.State.Booru == row.IsProviderMedium, phase + ": the booru source badge must be in the state of provider tiles only.");
+            Require(!row.IsProviderMedium || view.BadgeDescription.Contains(Texts.T("media.badge.booru"), StringComparison.Ordinal), phase + ": the badge sentence must name the booru source.");
         }
         await UntilAsync(() => page.GetVisualDescendants().OfType<MediaLibraryTileView>()
             .Any(view => view.GetVisualDescendants().OfType<Image>().Any(image => image.Source != null)));
@@ -497,28 +495,34 @@ internal static class BooruMediaChecks
     {
         Require(host.State == DesktopSessionState.Ready && shell.FindControl<Button>("AddUrlButton")!.IsEffectivelyEnabled,
             phase + ": the shell must be restored and interactive before changing Booru presentation.");
-        CheckBox toggle = shell.FindControl<CheckBox>("ShowBooruToolsToggle")!;
-        await UntilAsync(() => toggle.IsVisible && toggle.IsEffectivelyEnabled && toggle.IsChecked == !visible);
-        toggle.IsChecked = visible;
-        await UntilAsync(() => host.Config.ShowBooruTools == visible && toggle.IsChecked == visible);
+        // F1: the footer check box is gone; the switch is "Show Booru actions" in Settings > Appearance > Footer. Change it there like a person
+        // does, then return to the page the shell was on (Booru itself goes back to Downloads, as the page is unavailable while the tools are off).
+        MainWindow.WorkspacePage before = shell.SelectedPage == MainWindow.WorkspacePage.Booru || shell.SelectedPage == MainWindow.WorkspacePage.Settings
+            ? MainWindow.WorkspacePage.Downloads : shell.SelectedPage;
+        Require(shell.FindControl<CheckBox>("ShowBooruToolsToggle") == null, phase + ": the footer still has the Show Booru check box.");
+        await SmokeNavigation.GoToAsync(shell, MainWindow.WorkspacePage.Settings);
+        SettingsEditor settings = shell.SettingsEditor;
+        await UntilAsync(() => !settings.IsBusy);
+        settings.RefreshConfirmedFooter(); // the draft shows the confirmed value even if the setting was changed behind the editor (owner-level revocations)
+        Require(settings.ShowBooruActions == !visible, phase + ": the Settings page does not show the opposite of the requested Booru presentation.");
+        settings.ShowBooruActions = visible;
+        settings.FindControl<Button>("SaveSettingsButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        await UntilAsync(() => !settings.IsBusy && host.Config.ShowBooruTools == visible && settings.ShowBooruActions == visible);
+        await SmokeNavigation.GoToAsync(shell, before);
     }
 
     private static async Task<BooruPage> OpenBooruFromShellAsync(MainWindow shell, string phase)
     {
-        MenuItem menu = shell.FindControl<MenuItem>("WorkspaceMenuItem")!;
-        MenuItem entry = shell.FindControl<MenuItem>("BooruMenuItem")!;
-        menu.IsSubMenuOpen = true;
-        await Dispatcher.UIThread.InvokeAsync(shell.UpdateLayout, DispatcherPriority.Background);
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-        Require(entry.IsVisible && entry.IsEnabled, phase + ": the shell menu did not expose the Booru entry.");
-        menu.IsSubMenuOpen = false;
-        entry.Command!.Execute(null);
+        // F1: the pages left the ⋯ menu; Booru is hidden in the footer by default, so the page is reached through the More menu.
+        Require(SmokeNavigation.Route(shell, MainWindow.WorkspacePage.Booru) is "footer" or "more" && SmokeNavigation.IsEnabled(shell, MainWindow.WorkspacePage.Booru),
+            phase + ": the footer and More menu did not expose the Booru entry.");
+        await SmokeNavigation.GoToAsync(shell, MainWindow.WorkspacePage.Booru);
         ContentControl pageHost = shell.FindControl<ContentControl>("BooruPageHost")!;
         await UntilAsync(() => shell.SelectedPage == MainWindow.WorkspacePage.Booru
             && pageHost.IsVisible && shell.BooruPageForTests is not null);
         BooruPage page = shell.BooruPageForTests!;
         Require(ReferenceEquals(pageHost.Content, page) && TopLevel.GetTopLevel(page.View) == shell,
-            phase + ": the shell menu did not open its own hosted Booru page.");
+            phase + ": the footer route did not open its own hosted Booru page.");
         return page;
     }
 
@@ -526,7 +530,9 @@ internal static class BooruMediaChecks
         bool pageHostVisible, bool pageRetained, string phase)
     {
         ContentControl pageHost = shell.FindControl<ContentControl>("BooruPageHost")!;
-        MenuItem appEntry = shell.FindControl<MenuItem>("BooruMenuItem")!;
+        // The Danbooru tools entry of the ⋯ menu (the pages have no entry there since F1), the Booru entry of More and the footer button.
+        MenuItem appEntry = shell.FindControl<MenuItem>("WorkspaceMenuItem")!.Items.OfType<MenuItem>()
+            .Single(item => item.Header as string == MeowChan.Desktop.Commands.CommandCatalog.Label("booru.open"));
         MenuItem overflowEntry = shell.FindControl<MenuItem>("BooruMoreMenuItem")!;
         Button navigationEntry = shell.FindControl<Button>("BooruNavigationButton")!;
         bool entryVisible = appEntry.IsVisible || overflowEntry.IsVisible || navigationEntry.IsVisible;
@@ -539,8 +545,8 @@ internal static class BooruMediaChecks
     }
 
     // Hiding the tools is independent of source availability. The presentation is changed through
-    // the shell's real footer toggle, not by writing the preference behind the shell's back. The
-    // modal details window is closed before the toggle is restored because its owner is not a
+    // Settings > Appearance > Footer "Show Booru actions" (F1; the footer check box is gone), not by writing the preference behind the shell's back. The
+    // modal details window is closed before the setting is restored because its owner is not a
     // user-reachable surface while ShowDialog is active.
     private static async Task SearchToolsOffAsync(MainWindow shell, MediaPage media, MediaLibraryTileRow row,
         DesktopSessionHost host, string phase)

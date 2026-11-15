@@ -132,9 +132,9 @@ public sealed class ShortcutBindingsTests
     }
 
     [Theory]
-    // video.mute has Shift+M since the viewer quick wins (ViewerQuickWinsTests).
-    [InlineData("video.loop")]
-    [InlineData("gallery.tools-toggle")]
+    // The tools switch has Shift+H and the controls overlay Shift+O since the gallery key scheme (GalleryShortcutSchemeTests);
+    // the post overlay has no default (its letter P belongs to the post panel).
+    [InlineData("gallery.post-overlay-toggle")]
     public void OptionalGalleryCommandsHaveNoInventedDefaultsButAcceptGalleryOverrides(string id)
     {
         Assert.Equal(CommandAvailability.Contextual, CommandCatalog.Get(id).Availability);

@@ -12,8 +12,8 @@ using MeowChan.Rules;
 namespace MeowChan.DesktopSmoke;
 
 /// <summary>
-/// Evidence only: the Rules page (a board rule with a selected template) and every Settings category at 1440 x 920 and
-/// 900 x 760, Dark and Light, EN and DE, to compare the action buttons, label/field spacing and left edges with the
+/// Evidence only: the Rules overview (empty and with one rule) at 760, 1380 and 1920 dip, the Rules page (a board rule with a
+/// selected template) and every Settings category at 1440 x 920 and 900 x 760, Dark and Light, EN and DE, to compare the action buttons, label/field spacing and left edges with the
 /// Plugins page. Nothing is saved; the rule and template stores live in a throw-away profile directory.
 /// </summary>
 internal static class RulesSettingsCaptureChecks
@@ -38,12 +38,18 @@ internal static class RulesSettingsCaptureChecks
         ContentControl host = window.FindControl<ContentControl>("RulesPageHost")!; object? retained = host.Content;
         RulesPage page = new(() => rules.Current, (values, revision) => rules.SaveAsync(values, revision));
         page.AttachTemplateServices(() => templates.LoadAsync(), (values, revision) => templates.SaveAsync(values, revision));
+        RulesPage empty = new(() => MediaRuleSet.Default,
+            (_, _) => Task.FromException<MediaRuleSet>(new InvalidOperationException("Rules capture: nothing is saved.")));
         try
         {
             await PresentationChecks.SwitchModeAsync(window, "Advanced");
-            window.FindControl<MenuItem>("RulesMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
-            host.Content = page;
-            page.IsAvailable = true; page.EditScope(board);
+            SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Rules);
+            // The overview (layout pass 15.11.2026): the empty state in the free height and the filled list top-aligned.
+            host.Content = empty; empty.IsAvailable = true;
+            await CaptureOverviewAsync(window, empty, "empty");
+            host.Content = page; page.IsAvailable = true;
+            await CaptureOverviewAsync(window, page, "filled");
+            page.EditScope(board);
             await Program.WaitUntilAsync(() => page.CanExecuteTemplateCommand("rules.template-edit") || page.CanExecuteTemplateCommand("rules.template-create"));
             await Settle();
             ComboBox picker = page.GetVisualDescendants().OfType<ComboBox>().First(box => box.Name == "RuleTemplateList");
@@ -94,10 +100,23 @@ internal static class RulesSettingsCaptureChecks
         }
         finally
         {
-            host.Content = retained; page.EndLifetime();
+            host.Content = retained; page.EndLifetime(); empty.EndLifetime();
             Texts.SetLanguage(language); Application.Current!.RequestedThemeVariant = theme;
             await PresentationChecks.SwitchModeAsync(window, mode);
             window.Width = width; window.Height = height;
+        }
+    }
+
+    /// <summary>The Rules overview at 760, 1380 and 1920 dip in Dark and Light (EN): smoke-rules-overview-{state}-{width}-{theme}.png.</summary>
+    private static async Task CaptureOverviewAsync(MainWindow window, RulesPage page, string state)
+    {
+        foreach ((double w, double h) in new[] { (760d, 640d), (1380d, 860d), (1920d, 1003d) })
+        foreach (ThemeVariant variant in new[] { ThemeVariant.Dark, ThemeVariant.Light })
+        {
+            await Prepare(window, w, h, variant, "en");
+            await Program.WaitUntilAsync(() => page.IsOverviewVisible && page.FindControl<Control>("RulesOverviewDefaults")!.IsEffectivelyVisible);
+            await Settle();
+            Program.CaptureWindow(window, "smoke-rules-overview-" + state + "-" + w + "-" + variant.Key!.ToString()!.ToLowerInvariant() + ".png");
         }
     }
 

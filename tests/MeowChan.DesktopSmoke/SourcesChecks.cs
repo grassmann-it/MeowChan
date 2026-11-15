@@ -38,9 +38,8 @@ internal static class SourcesChecks
         {
             Texts.SetLanguage("en");
             await CheckMergedCommandRoutesAsync(window, livePage);
-            MenuItem sourcesNavigation = window.FindControl<MenuItem>("SourcesMenuItem")!;
-            await Program.WaitUntilAsync(() => sourcesNavigation.IsEnabled && !window.SessionRowsApplying);
-            sourcesNavigation.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            await Program.WaitUntilAsync(() => SmokeNavigation.IsEnabled(window, MainWindow.WorkspacePage.Sources) && !window.SessionRowsApplying);
+            SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Sources);
             // Navigation may defer the page refresh until the current row frame is complete.
             await Program.WaitUntilAsync(() => window.SelectedPage == MainWindow.WorkspacePage.Sources
                 && !window.SessionRowsApplying
@@ -75,7 +74,7 @@ internal static class SourcesChecks
             Require(window.SelectedPage == MainWindow.WorkspacePage.Rules
                 && window.RulesPage.SelectedScopeChoice?.Scope == MeowChan.Rules.MediaRuleScope.ForSource(selectedSource.SourceId),
                 "The productive Sources page did not open the shared canonical source rule editor.");
-            window.FindControl<MenuItem>("SourcesMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Sources);
             // The page no longer admits anything itself: its button goes to Downloads and focuses the URL field there,
             // and the shared admission/reporting path runs from that field exactly as for any pasted link.
             Button handoff = livePage.FindControl<Button>("SourceAddToDownloadsButton")!;
@@ -125,7 +124,7 @@ internal static class SourcesChecks
                 await PresentationChecks.SwitchModeAsync(window, mode);
                 window.Width = mode == "Barebones" ? 640 : 760;
                 window.Height = mode == "Barebones" ? 480 : 560;
-                window.FindControl<MenuItem>("SourcesMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+                SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Sources);
                 await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
                 await Program.WaitUntilAsync(() => page.Bounds.Width > 0 && page.Bounds.Width <= 760
                         && page.FindControl<Grid>("SourcesSplit")!.ColumnDefinitions[0].ActualWidth < 1

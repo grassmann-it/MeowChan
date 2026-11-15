@@ -16,15 +16,11 @@ import sys
 from sdk_free_worker_probe import envelope, send
 
 SOURCE_PLUGIN_IDS = {
-    'Leftypol.cs': 'meowchan.source.leftypol',
     'Dvach.cs': 'meowchan.source.2ch',
-    'Uboachan.cs': 'meowchan.source.uboachan',
-    'Zzzchan.cs': 'meowchan.source.zzzchan',
-    'SushiChan.cs': 'meowchan.source.sushichan',
+    'JschanFamily.cs': 'meowchan.source.jschan',
 
-    'Lainchan.cs': 'meowchan.source.lainchan',
+    'VichanFamily.cs': 'meowchan.source.vichan',
     'Kohlchan.cs': 'meowchan.source.kohlchan',
-    'Wizchan.cs': 'meowchan.source.wizchan',
     'Endchan.cs': 'meowchan.source.endchan',
     'ImageDimensionsFilter.cs': 'meowchan.example.image-dimensions',
     'FileRulesFilter.cs': 'meowchan.filter.file-rules',

@@ -179,7 +179,7 @@ internal static class WorkViewCaptures
 
     // ---- Pages ----
 
-    private static async Task EnterAsync(MainWindow window, string page)
+    internal static async Task EnterAsync(MainWindow window, string page)
     {
         ArchivePage archive = window.ArchivePage;
         ContentControl reader = window.FindControl<ContentControl>("ReaderHost")!;
@@ -232,18 +232,19 @@ internal static class WorkViewCaptures
                 await Program.WaitUntilAsync(() => ExportDialog(archive)?.IsVisible == true && !archive.IsBusy);
                 return;
         }
-        (string item, MainWindow.WorkspacePage target) = page switch
+        // F1: the pages are not in the ⋯ menu. SmokeNavigation takes the footer button of the view, or the More entry where the view moves it.
+        MainWindow.WorkspacePage target = page switch
         {
-            "media" => ("MediaMenuItem", MainWindow.WorkspacePage.Media),
-            "rules" => ("RulesMenuItem", MainWindow.WorkspacePage.Rules),
-            "sources" => ("SourcesMenuItem", MainWindow.WorkspacePage.Sources),
-            "plugins" => ("SourcesMenuItem", MainWindow.WorkspacePage.Sources),
-            // Diagnostics and Statistics are segments of Status: the menu entry opens Status, the segment is chosen below.
-            "diagnostics" or "statistics" => ("StatusMenuItem", MainWindow.WorkspacePage.Status),
-            "settings" => ("SettingsMenuItem", MainWindow.WorkspacePage.Settings),
+            "media" => MainWindow.WorkspacePage.Media,
+            "rules" => MainWindow.WorkspacePage.Rules,
+            "sources" => MainWindow.WorkspacePage.Sources,
+            "plugins" => MainWindow.WorkspacePage.Sources,
+            // Diagnostics and Statistics are segments of Status: the footer entry opens Status, the segment is chosen below.
+            "diagnostics" or "statistics" => MainWindow.WorkspacePage.Status,
+            "settings" => MainWindow.WorkspacePage.Settings,
             _ => throw new ArgumentOutOfRangeException(nameof(page), page, "Not a work-view page.")
         };
-        window.FindControl<MenuItem>(item)!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        SmokeNavigation.GoTo(window, target);
         await Program.WaitUntilAsync(() => window.SelectedPage == target);
         if (page == "plugins" && window.FindControl<ContentControl>("SourcesPageHost")?.Content is SourcesPage sources)
             await sources.ActivateAsync(SourcesPluginsFilter.AllPlugins);
@@ -263,17 +264,17 @@ internal static class WorkViewCaptures
         }
     }
 
-    private static async Task OpenArchiveAsync(MainWindow window)
+    internal static async Task OpenArchiveAsync(MainWindow window)
     {
         ArchivePage archive = window.ArchivePage;
         if (window.SelectedPage != MainWindow.WorkspacePage.Archive)
-            window.FindControl<MenuItem>("ArchiveMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Archive);
         await Program.WaitUntilAsync(() => window.SelectedPage == MainWindow.WorkspacePage.Archive && !archive.IsBusy
             && archive.FindControl<ListBox>("ArchiveThreads")!.ItemCount > 0);
     }
 
     // Closes every overlay this smoke opens: export card, gallery, large reader.
-    private static async Task LeaveAsync(MainWindow window)
+    internal static async Task LeaveAsync(MainWindow window)
     {
         ArchivePage archive = window.ArchivePage;
         if (ExportDialog(archive) is { IsVisible: true } export)
@@ -298,7 +299,7 @@ internal static class WorkViewCaptures
     private static Border? ExportDialog(ArchivePage archive) =>
         archive.GetVisualDescendants().OfType<Border>().FirstOrDefault(border => border.Name == "ArchiveExportDialog");
 
-    private static async Task SettleAsync(MainWindow window, string page)
+    internal static async Task SettleAsync(MainWindow window, string page)
     {
         for (int pass = 0; pass < 3; pass++)
             await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
@@ -447,11 +448,17 @@ internal static class WorkViewCaptures
             if (!window.FindControl<Control>(name)!.IsEffectivelyVisible)
                 throw new InvalidOperationException($"{scene}: the neutral header element {name} is not visible.");
         MenuItem appMenu = window.FindControl<MenuItem>("WorkspaceMenuItem")!;
-        string[] required = ["DownloadsMenuItem", "ArchiveMenuItem", "MediaMenuItem", "RulesMenuItem", "SourcesMenuItem",
-            "StatusMenuItem", "ManualImportMenuItem", "PauseMenuItem", "ThemeMenuItem", "FullscreenMenuItem",
+        // F1: the ⋯ menu lists the tools and the application, no pages (those are the footer buttons, the footer's More menu and the digits).
+        string[] required = ["ManualImportMenuItem", "PauseMenuItem", "ThemeMenuItem", "FullscreenMenuItem",
             "WorkViewMenuItem", "SettingsMenuItem", "ShortcutHelpMenuItem", "AboutMenuItem", "ExitMenuItem"];
         string[] missing = required.Where(name => !appMenu.Items.OfType<MenuItem>().Any(item => item.Name == name)).ToArray();
         if (missing.Length > 0) throw new InvalidOperationException($"{scene}: the app menu lost {string.Join(", ", missing)}.");
+        string[] pageEntries = ["DownloadsMenuItem", "ArchiveMenuItem", "MediaMenuItem", "TaggingMenuItem", "BooruMenuItem", "RulesMenuItem",
+            "SourcesMenuItem", "StatusMenuItem", "BooruToolsMenuItem"];
+        string[] stray = pageEntries.Where(name => appMenu.Items.OfType<MenuItem>().Any(item => item.Name == name)).ToArray();
+        if (stray.Length > 0) throw new InvalidOperationException($"{scene}: the app menu still lists {string.Join(", ", stray)}.");
+        if (window.FindControl<CheckBox>("ShowBooruToolsToggle") != null)
+            throw new InvalidOperationException($"{scene}: the footer still has the Show Booru check box.");
         MenuItem group = window.FindControl<MenuItem>("WorkViewMenuItem")!;
         MenuItem[] radios = group.Items.OfType<MenuItem>().Where(item => item.ToggleType == MenuItemToggleType.Radio).ToArray();
         string checkedViews = string.Join(",", radios.Where(item => item.IsChecked).Select(item => item.Name));
@@ -464,7 +471,7 @@ internal static class WorkViewCaptures
         DataGridColumn missingMedia = window.FindControl<DataGrid>("ThreadsDataGrid")!.Columns.Single(column => column.SortMemberPath == "MissingMedia");
         if (offered != (workView != WorkView.Barebones) || (!offered && missingMedia.IsVisible))
             throw new InvalidOperationException($"{scene}: the technical work columns do not follow the policy.");
-        Console.WriteLine($"SMOKE work-views {scene}: app menu complete, view group checked {checkedViews}, header neutral.");
+        Console.WriteLine($"SMOKE work-views {scene}: app menu complete without page entries, view group checked {checkedViews}, header neutral.");
     }
 
     // ---- One-time notice for existing profiles (plan AP5 question 3) ----
@@ -570,7 +577,7 @@ internal static class WorkViewCaptures
                 throw new InvalidOperationException($"media/{view}: {control.Name ?? id} is {(control.IsVisible ? "shown" : "hidden")} but {id} says {WorkViewPolicy.Resolve(id, workView)} at {page.ToolbarLevel}.");
         }
         // Since S3 the header holds export all and the ratings manager under More in every view; "show missing files" is a filter field.
-        string[] header = ["media.toolbar.focus", "media.toolbar.refresh", "media.toolbar.shuffle", "media.toolbar.export-all", "media.toolbar.manage-ratings"];
+        string[] header = ["media.toolbar.tag-list", "media.toolbar.layout", "media.toolbar.focus", "media.toolbar.refresh", "media.toolbar.shuffle", "media.toolbar.export-all", "media.toolbar.manage-ratings"];
         string[] expectedMore = header.Where(id => (WorkViewPolicy.Resolve(id, workView) == Presence.Overflow || MediaToolbarLayout.IsMovedUnderMore(page.ToolbarLevel, id))
                 && (id != "media.toolbar.shuffle" || page.Sort == MediaLibrarySort.Random))
             .OrderBy(id => WorkViewPolicy.Get(id).OverflowOrder).ToArray();
@@ -799,7 +806,7 @@ internal static class WorkViewCaptures
 
     // ---- Fixture, helpers, index ----
 
-    private static DesktopThreadEntry[] DownloadEntries()
+    internal static DesktopThreadEntry[] DownloadEntries()
     {
         (string Title, int Saved, int Total, ThreadActivity Activity, int Queued, int Active)[] scenes =
         [
@@ -819,7 +826,7 @@ internal static class WorkViewCaptures
         }).ToArray();
     }
 
-    private static async Task SetThemeAsync(MainWindow window, string theme)
+    internal static async Task SetThemeAsync(MainWindow window, string theme)
     {
         if (window.SessionHost.Config.Theme != theme)
             Click(window.FindControl<Button>("ThemeToggleButton")!);
@@ -827,7 +834,7 @@ internal static class WorkViewCaptures
         await Program.WaitUntilAsync(() => window.SessionHost.Config.Theme == theme && Application.Current?.RequestedThemeVariant == variant);
     }
 
-    private static async Task ResizeAsync(MainWindow window, double width, double height)
+    internal static async Task ResizeAsync(MainWindow window, double width, double height)
     {
         if (window.WindowState != WindowState.Normal) window.WindowState = WindowState.Normal;
         window.Width = width;
@@ -836,7 +843,7 @@ internal static class WorkViewCaptures
             () => $"client={window.ClientSize}; requested={width}x{height}; minimum={window.MinWidth}x{window.MinHeight}");
     }
 
-    private static void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+    internal static void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
     private static void WriteIndex(string output, IReadOnlyList<Cell> cells, string? only, string matrix)
     {

@@ -244,6 +244,20 @@ public sealed class MediaLibraryFilterTests
         Assert.False(first.SameSourcesAs(Data()));
     }
 
+    // N1: the identity the Booru mode's tag counts are keyed on follows the tags only; a favorite or a rating must not look like new tag data.
+    [Fact]
+    public void TagSourceKeyFollowsTheTagSnapshotAndNotFavoritesOrRatings()
+    {
+        MediaLibraryEntry entry = Entry("a", "1", 'a');
+        MediaLibraryUserData first = Data();
+        MediaLibraryUserData starred = new(first.TagSnapshot, [new FavoriteEntry(MediaLibraryFilterEngine.AssetKey(entry)!, 1, entry.Name)],
+            [new MediaRatingEntry(MediaLibraryFilterEngine.AssetKey(entry)!, 4)]);
+        Assert.False(first.SameSourcesAs(starred));
+        Assert.Same(first.TagSourceKey, starred.TagSourceKey);
+        Assert.NotSame(first.TagSourceKey, Data().TagSourceKey);
+        Assert.Null(MediaLibraryUserData.Unavailable.TagSourceKey);
+    }
+
     // T1: "without media tags" is the start of tagging. It reads the media tags the tag filter reads, only for files that can carry
     // them, and combines with every other part of the filter. A thread tag does not count: the file still waits for its own tag,
     // while the tag filter keeps finding it through that thread tag.

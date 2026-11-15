@@ -62,7 +62,7 @@ internal sealed partial class GalleryViewer
     };
     // GL2: the dock hosts the video bar above the tools (one surface, 4 dip between the rows) in the docked placement; the overlay footer
     // has its own host (GalleryViewer.Overlay.cs). Empty and collapsed while no video bar lives here.
-    private readonly StackPanel _dockTransportHost = new() { Name = "GalleryDockTransportHost", IsVisible = false };
+    private readonly StackPanel _dockTransportHost = new() { Name = "GalleryDockTransportHost", Classes = { "in-dock" }, IsVisible = false };
     private GalleryChromePlan? _chromePlan;
     // GL0 hook: the person's layout choice per mode (GL4 loads and saves them per profile, GL3's menu changes them).
     private GalleryLayoutChoice _viewChoice = GalleryLayoutChoice.Default, _tagChoice = GalleryLayoutChoice.Default;
@@ -126,6 +126,17 @@ internal sealed partial class GalleryViewer
         OnGalleryModeChanged();
     }
 
+    // M1: the tag panel went without the switch (its ×, Ctrl+Shift+T, the side panel's Post segment or ×, the slot closing): a free Tag
+    // mode ends with it, so the switch shows View again and Tag opens the panel anew. A walk keeps its mode (its decision row stays).
+    private void EndFreeTagModeWithPanel()
+    {
+        if (!_freeTagMode || _tagging != null) return;
+        _freeTagMode = false;
+        if (_terminalRetirement) return; // the viewer stops: nothing left to present
+        RefreshPlaybackControls();
+        OnGalleryModeChanged();
+    }
+
     /// <summary>The window tells whether the shown list is a walk of the tagging queue (open or parked); the switch's Tag half follows.</summary>
     internal void SetTaggingAvailable(bool available)
     {
@@ -152,7 +163,7 @@ internal sealed partial class GalleryViewer
         return mode == GalleryChromeMode.View && choice.Filmstrip == null && !_filmstripSetting ? choice with { Filmstrip = false } : choice;
     }
 
-    /// <summary>Raised when the person changed the layout of a mode (the L key, the layout menu, the reset): the window saves it per profile and mode. Not raised by <see cref="SetLayoutChoice"/>.</summary>
+    /// <summary>Raised when the person changed the layout of a mode (the filmstrip key, the layout menu, the reset): the window saves it per profile and mode. Not raised by <see cref="SetLayoutChoice"/>.</summary>
     internal event Action<GalleryChromeMode, GalleryLayoutChoice>? LayoutChoiceChanged;
 
     /// <summary>Sets the layout choice of one mode without reporting it (the window on load); the chrome follows at once when it is the shown mode.</summary>
@@ -168,7 +179,7 @@ internal sealed partial class GalleryViewer
         RefreshSlideshowStatus();
     }
 
-    /// <summary>The person changes the layout of one mode (GL3's menu rows, the L key): applies it and reports it for saving. An unchanged choice reports nothing.</summary>
+    /// <summary>The person changes the layout of one mode (GL3's menu rows, the filmstrip key): applies it and reports it for saving. An unchanged choice reports nothing.</summary>
     internal void ChangeLayoutChoice(GalleryChromeMode mode, GalleryLayoutChoice choice)
     {
         ArgumentNullException.ThrowIfNull(choice);
@@ -204,8 +215,11 @@ internal sealed partial class GalleryViewer
         if (_modeTools == null) return;
         bool tag = IsTagMode;
         string view = Texts.T("gallery.mode.view"), tagLabel = Texts.T("gallery.mode.tag");
-        _modeView.Content = view;
-        _modeTag.Content = tagLabel;
+        // GL5d (S2 stage 2): words from CompactToolbarWidth on (the plan's ModeIcons says the same), icons (eye | tag) below it; the words stay the name.
+        bool icons = _compactToolbar;
+        _modeView.Content = icons ? CommandBindings.NamedIcon("eye", 16) : view;
+        _modeTag.Content = icons ? CommandBindings.NamedIcon("tag", 16) : tagLabel;
+        foreach (ToggleButton button in new[] { _modeView, _modeTag }) { button.MinWidth = icons ? 32 : 0; if (icons) button.Padding = new Thickness(8, 0); else button.ClearValue(TemplatedControl.PaddingProperty); }
         _modeView.IsChecked = !tag;
         _modeTag.IsChecked = tag;
         foreach ((ToggleButton button, string label) in new[] { (_modeView, view), (_modeTag, tagLabel) })
@@ -278,10 +292,15 @@ internal sealed partial class GalleryViewer
         Show(_modeTools, plan.ModeSwitch);
         Show(_navigationTools, plan.Nav);
         Show(_zoomTools, plan.Zoom);
+        Show(_actual, plan.ActualSize); // S2 stage 4: 1:1 leaves the bar below the tiny width ...
+        _actualRow.IsVisible = plan.Zoom && !plan.ActualSize; // ... and is a row of "More" then (the key 1 stays)
         Show(_contextToggle, plan.PanelToggle);
         Show(_favorite, plan.Favorite);
         Show(_mediaTools, plan.PanelToggle || plan.Favorite);
         Show(_viewTools, plan.More);
+        // GL3: the Layout button on the bar, or its rows as a section of "More" (placement in the plan, UX spec S4 GL3+a).
+        Show(_layoutButton, plan.LayoutOnBar);
+        Show(_layoutSection, plan.More && !plan.LayoutOnBar);
         Show(_workViewTools, _workViewTools.Children.Count > 0);
         Show(_toolsToggle, plan.ToolsToggle);
         Show(_taggingStrip, plan.DecisionRow);
@@ -300,11 +319,12 @@ internal sealed partial class GalleryViewer
         _ratingStatus.IsVisible = plan.InfoRating;
         // Diagnostic notices have no visibility or auto-hide authority. The capability
         // fallback is neutral layout information, not a dismissible technical banner.
-        _infoOverlay.IsVisible = !_mediaFocus || _slideshowStatus.IsVisible;
+        UpdateInfoLine(); // GL5c: the info block shows while a segment of its line or a safety line does (and sets the dock margin when that changes)
         ApplyDockMargin();
         // The video bar is a plan block (Transport); its docked host is visible only while the dock hosts it and the video is shown (the
         // transport left the player, so the player's own visibility no longer hides it).
         _dockTransportHost.IsVisible = GalleryTransportPlacement.DockRowVisible(plan.Transport, TransportHostKind, _video?.IsVisible == true);
+        RefreshLayoutMenu(); // GL3: an open layout menu shows what the plan now says (a width, mode or state change under it)
         if (focusLost) RescueChromeFocus();
     }
 

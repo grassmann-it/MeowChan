@@ -61,6 +61,7 @@ internal sealed class MediaRatingDialog : Window
         _close = new() { Name = "MediaRatingClose", Content = MediaRatingText.Catalog("media.rating.close") };
         _close.Click += (_, _) => Close();
         _retry.Content = MediaRatingText.Catalog("media.rating.retry");
+        MeowChan.Desktop.Controls.IconButtons.WithText(_retry, "refresh-cw"); // I1b: Retry carries a catalog icon; Remove rating (danger) and Close stay text.
         _retry.Click += async (_, _) => await SaveAsync(_attempt);
         _clear.Classes.Add("danger");
         Border actions = DialogFooter.Build(_close, new Control[] { _clear, _retry });

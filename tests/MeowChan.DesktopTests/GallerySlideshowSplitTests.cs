@@ -119,7 +119,7 @@ public sealed class GallerySlideshowSplitTests : IDisposable
         Assert.Contains("_slideshowMenuButton.Flyout = _slideshowFlyout;", menu); // a click, Enter or Space opens it; HasGalleryPopup sees it
         string overflow = ReadSource("Desktop/GalleryViewer.Overflow.cs");
         Assert.Contains("_slideshowSplit.Children.Insert(0, _slideshowToggle);", overflow);
-        Assert.Contains("_focusTools.Children.Insert(Math.Min(1, _focusTools.Children.Count), _slideshowSplit);", overflow);
+        Assert.Contains("_focusTools.Children.Insert(0, _slideshowSplit);", overflow);
         // The toggle leaves the bar: the menu button goes with it, the borrowed rows go back first.
         Assert.Contains("if (!inline) CloseSlideshowMenu();", overflow);
     }

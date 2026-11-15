@@ -115,9 +115,9 @@ public partial class MainWindow
             WorkViewSwitchCatalog.CompactSummary(notice.Diff), notice.Duration,
             [
                 new FeedbackToastAction(WorkViewSwitchCatalog.T("workview.switch.undo"),
-                    () => SetWorkViewAsync(notice.Diff.From, undoNotice: notice)),
+                    () => SetWorkViewAsync(notice.Diff.From, undoNotice: notice), "rotate-ccw"),
                 new FeedbackToastAction(WorkViewSwitchCatalog.T("workview.switch.details"),
-                    () => RequestWorkViewOverviewAsync(notice))
+                    () => RequestWorkViewOverviewAsync(notice), "info")
             ], () =>
             {
                 _workViewSwitchNotices.Dismiss(notice);

@@ -32,7 +32,7 @@ internal static class ReadingPositionChecks
         await CheckHiddenResumeShortcutAsync(window);
         Require(!window.SessionHost.Config.RememberReadingPosition, "New profile opted in automatically.");
         await CheckEmptyResumeAsync(window);
-        Click(window.FindControl<MenuItem>("ArchiveMenuItem")!);
+        SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Archive);
         await Program.WaitUntilAsync(() => !page.IsBusy && page.FindControl<ListBox>("ArchiveThreads")!.ItemCount > 0);
         page.FindControl<ComboBox>("ArchiveSort")!.SelectedIndex = 2;
         await page.ApplySearchAsync();
@@ -47,7 +47,7 @@ internal static class ReadingPositionChecks
         window.SettingsEditor.RememberReadingPosition = true;
         Click(window.SettingsEditor.FindControl<Button>("SaveSettingsButton")!);
         await Program.WaitUntilAsync(() => !window.SettingsEditor.IsBusy && window.SessionHost.Config.RememberReadingPosition);
-        Click(window.FindControl<MenuItem>("ArchiveMenuItem")!);
+        SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Archive);
         await Program.WaitUntilAsync(() => !page.IsBusy);
         await page.LoadThreadAsync(new ResourceId("4chan", "g", "1000"));
         Require(await ReadPositionAsync(window) == null, "Enabling or passive preview created an entry.");
@@ -97,7 +97,7 @@ internal static class ReadingPositionChecks
         await Program.WaitUntilAsync(() => !window.SettingsEditor.IsBusy && window.SettingsEditor.StatusMessage == Texts.T("resume.forgotten"));
         Require(window.SessionHost.Config.RememberReadingPosition, "Forget unexpectedly disabled the option.");
         await CheckEmptyResumeAsync(window);
-        Click(window.FindControl<MenuItem>("ArchiveMenuItem")!);
+        SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Archive);
         await Program.WaitUntilAsync(() => !page.IsBusy);
         await page.LoadThreadAsync(new ResourceId("4chan", "g", "1001"), resetPage: false);
         Require(await ReadPositionAsync(window) == null, "Refresh restored a forgotten position.");
@@ -122,7 +122,7 @@ internal static class ReadingPositionChecks
         try
         {
             Click(window.FindControl<Button>("DownloadsNavigationButton")!);
-            Click(window.FindControl<MenuItem>("ArchiveMenuItem")!);
+            SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Archive);
             await Program.WaitUntilAsync(() => !page.IsBusy);
         }
         finally { commands.Release(); }
@@ -192,7 +192,7 @@ internal static class ReadingPositionChecks
                 await PresentationChecks.SwitchModeAsync(window, mode);
                 window.Width = width; window.Height = height;
                 await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
-                Click(window.FindControl<MenuItem>("ArchiveMenuItem")!);
+                SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Archive);
                 await Program.WaitUntilAsync(() => !window.ArchivePage.IsBusy);
             }, exception => Console.Error.WriteLine("SMOKE cleanup failed in ReadingPositionChecks: " + exception));
         }

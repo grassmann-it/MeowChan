@@ -179,7 +179,7 @@ internal static class ReaderUxChecks
             Console.WriteLine($"SMOKE wide reader geometry: target=1520x920, requested={window.Width}x{window.Height}, client={window.Bounds.Size}, frame={window.FrameSize}, minimum={window.MinWidth}x{window.MinHeight}, scale={window.RenderScaling}, screen={window.Screens.ScreenFromWindow(window)?.WorkingArea}.");
         }
         await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
-        Click(window.FindControl<MenuItem>("ArchiveMenuItem")!);
+        SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Archive);
         ArchivePage page = window.ArchivePage;
         await Program.WaitUntilAsync(() => !page.IsBusy && page.FindControl<ListBox>("ArchiveThreads")!.ItemCount > 0);
         page.FindControl<TextBox>("ArchiveSearchText")!.Text = "Reader UX";

@@ -92,6 +92,7 @@ internal sealed partial class GalleryViewer
         WorkViewElement.SetId(_toolsToggle, "gallery.toolbar.tools-toggle"); Mark(_toolsToggle);
         WorkViewElement.SetId(_modeTools, "gallery.mode"); Mark(_modeTools);
         WorkViewElement.SetId(_overflowButton, "gallery.toolbar.more"); Mark(_overflowButton);
+        WorkViewElement.SetId(_layoutButton, "gallery.toolbar.layout"); Mark(_layoutButton);
         WorkViewElement.SetId(_readPosts, "gallery.toolbar.read-posts"); Mark(_readPosts);
         WorkViewElement.SetId(_contextToggle, "gallery.toolbar.post-panel"); Mark(_contextToggle);
         WorkViewElement.SetId(_contextPanel, "gallery.post-panel"); Mark(_contextPanel);
@@ -134,9 +135,9 @@ internal sealed partial class GalleryViewer
     {
         _workViewTools.IsVisible = false;
         _toolSlots.Add(new("gallery.toolbar.rating", _ratingButton, _overflowPanel, _manageRatingsButton, null,
-            button => AddOverflowItem(button, "media.rating.edit", label: () => CommandCatalog.Label("media.rating.edit")), iconOnly: false));
+            button => AddOverflowItem(button, "media.rating.edit", label: () => CommandCatalog.Label("media.rating.edit")), iconOnly: true));
         _toolSlots.Add(new("gallery.toolbar.tags", _tagsButton, _overflowPanel, _exportOriginal, null,
-            button => AddOverflowItem(button, "media.tags.edit", label: TagsLabel), iconOnly: false));
+            button => AddOverflowItem(button, "media.tags.edit", label: TagsLabel), iconOnly: true));
         _toolSlots.Add(new("gallery.toolbar.slideshow-seconds", _slideshowSeconds, _slideshowHome, _videoRuleCaption, _secondsCaption, null, iconOnly: false));
         _toolSlots.Add(new("gallery.toolbar.playback-mode", _playbackMode, _slideshowHome, _secondsCaption, _modeCaption, null, iconOnly: false));
         _toolSlots.Add(new("gallery.toolbar.help", _helpButton, _overflowPanel, null, null,
@@ -160,6 +161,7 @@ internal sealed partial class GalleryViewer
         _workView = view;
         ApplyChrome(force: true); // G1: the view is the first layer of the chrome plan; the mode and the width follow in the same pass
         UpdateFilmstripPlacement();
+        RefreshLayoutMenu(); // GL3: an open layout menu follows the new view's defaults
         if (focusInMenu) _overflowFlyout.Hide(); // The rows changed under an open menu: close it, focus goes back to "More".
     }
 
@@ -199,6 +201,7 @@ internal sealed partial class GalleryViewer
         {
             button.Tag = null;
             button.Classes.Set("command-icon", false);
+            button.Classes.Set("icon-only", false);
             slot.AddRow!(button); // appends to the flyout (and to _overflowButtons)
             slot.MenuHost.Children.Remove(button);
         }
@@ -224,7 +227,11 @@ internal sealed partial class GalleryViewer
             bool iconOnly = _compactToolbar || slot.IconOnly;
             CommandBindings.Apply(button, id, iconOnly: iconOnly, iconWithLabel: !iconOnly);
             button.Tag = ToolbarTool;
+            // GL5d (S1): the tools of the bar are squares of the input height with a tooltip; the rating button is the exception, it shows
+            // its value ("☆ 4") and so is as wide as that needs.
+            button.Classes.Set("icon-only", slot.Id != "gallery.toolbar.rating" && (iconOnly));
         }
+        PresentRatingButton();
         UpdateTagsButton();
         UpdateHelpButtonTooltip(); // the help button's tooltip names the favourite and post keys as well
     }

@@ -168,7 +168,7 @@ public sealed class StabilityRunLiveTests(ITestOutputHelper output)
         string text = node.ToJsonString(StabilityEvidence.Json) + "\n";
         using JsonDocument document = JsonDocument.Parse(text);
         IReadOnlyList<string> problems = StabilityEvidence.ValidateShape(document.RootElement);
-        string path = StabilityEvidence.EvidencePath(repository, chan.BundleFile, chan.PluginId, chan.WindowStart ?? phase.StartedUtc);
+        string path = StabilityEvidence.EvidencePath(repository, chan.BundleFile, chan.PluginId, chan.WindowStart ?? phase.StartedUtc, chan.SourceId);
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         if (File.Exists(path)) throw new InvalidOperationException("A run file for this day already exists and is not overwritten: " + path);
         await File.WriteAllTextAsync(path, text, new UTF8Encoding(false));

@@ -16,6 +16,7 @@ using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.WorkViews;
@@ -316,6 +317,9 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
             await _model.Search.SubmitAsync();
         };
         _submit.Classes.Add("primary");
+        // I1b: the tool buttons of the page carry a catalog icon; the text stays the content (set again with every render) and the name.
+        CommandBindings.EnsureIconBeforeText(_submit, "search");
+        CommandBindings.EnsureIconBeforeText(_createWatcher, "plus");
         _submit.Click += async (_, _) =>
         {
             _model.Search.SetInput(_input.Text);
@@ -564,9 +568,10 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
 
         bool paging = view.Status is BooruSearchStatus.Results or BooruSearchStatus.Empty && view.ExecutedQuery is not null && !view.IsPostResult;
         _pager.IsVisible = paging;
-        _previous.Content = Texts.T("booru.ui.page.previous");
+        // The pager is icon-only like the Archive's: the chevron, with the text as tooltip and accessible name.
+        IconButtons.Apply(_previous, "chevron-left", Texts.T("booru.ui.page.previous"));
         _previous.IsEnabled = view.HasPreviousPage && !paused;
-        _next.Content = Texts.T("booru.ui.page.next");
+        IconButtons.Apply(_next, "chevron-right", Texts.T("booru.ui.page.next"));
         _next.IsEnabled = view.HasNextPage && !paused;
         _pageInfo.Text = Texts.T("booru.ui.page.info", view.Page, BooruSearchModel.MaximumPage, BooruSearchModel.PageSize);
         _pageLimit.IsVisible = view.PageLimitReached;
@@ -794,6 +799,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         string actionPrefix = cancel ? CancelLoadPrefix : retry ? RetryLoadPrefix : LoadPrefix;
         Button load = new() { Name = actionPrefix + post.PostId, Content = actionText, VerticalAlignment = VerticalAlignment.Top };
         load.Classes.Add("primary");
+        CommandBindings.ShowIconBeforeText(load, "download-cloud");
         RegisterWorkViewAction(load, cancel ? "booru.result.cancel" : retry ? "booru.result.retry" : "booru.result.load",
             _resultWorkViewActions);
         load.IsEnabled = cancel || retry || row.CanLoad;
@@ -845,12 +851,14 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         WrapPanel actions = new() { Classes = { "workspace-toolbar" } };
         Button open = new() { Name = openName, Content = Texts.T("booru.ui.post.open") };
         open.Classes.Add("ghost");
+        CommandBindings.ShowIconBeforeText(open, "external-link");
         RegisterWorkViewAction(open, "booru.result.open", workViewActions);
         AutomationProperties.SetName(open, openAccessibleName);
         ToolTip.SetTip(open, Texts.T("booru.ui.post.openTip", url));
         open.Click += async (_, _) => await OpenLinkAsync(url);
         Button copy = new() { Name = copyName, Content = Texts.T("booru.ui.post.copy") };
         copy.Classes.Add("ghost");
+        CommandBindings.ShowIconBeforeText(copy, "copy");
         RegisterWorkViewAction(copy, "booru.result.copy-link", workViewActions);
         AutomationProperties.SetName(copy, copyAccessibleName);
         ToolTip.SetTip(copy, url);

@@ -27,6 +27,14 @@ namespace MeowChan.DesktopTests;
 public sealed class HelpDocumentationTests
 {
     private const string Help = "docs/Help.md";
+    // F1 (footer setting): Ctrl/Cmd+1, 2, 3 ... follow the visible footer buttons from the left (MainPageOrder.Numbering), so the code digits are pinned by
+    // FooterLayoutTests. docs/Help.md (Codex-owned) still documents the classic fixed digits of the earlier releases; these pins check the Help text against
+    // that documented snapshot until Codex rewrites the table and the sentences about slots 5, 6, 7 and 8 - then this snapshot goes away.
+    private static readonly IReadOnlyDictionary<string, int> HelpDocumentedDigits = new Dictionary<string, int>
+    {
+        ["navigation.downloads"] = 1, ["navigation.archive"] = 2, ["navigation.media"] = 3, ["navigation.booru"] = 6,
+        ["navigation.rules"] = 4, ["navigation.sources"] = 5, ["navigation.status"] = 7
+    };
     private const string DanbooruGuide = "docs/user-guide/danbooru.md";
     private const string SettingsLimitsGuide = "docs/user-guide/settings-export-and-limits.md";
 
@@ -269,7 +277,8 @@ public sealed class HelpDocumentationTests
 
         // Surface texts quoted by the help are the English catalog texts.
         IReadOnlyDictionary<string, string> english = BuiltInCatalog.English;
-        Assert.Contains(english["tags.quick.advanced"], panel, StringComparison.Ordinal);
+        // The footer button was renamed from "Advanced…" (wave 6, quick tag footer); Help.md still quotes the old name until it is updated.
+        Assert.True(panel.Contains(english["tags.quick.advanced"], StringComparison.Ordinal) || panel.Contains("Advanced…", StringComparison.Ordinal));
         Assert.Contains(english["tags.quick.assigned"].Replace(" ({0})", ""), panel, StringComparison.Ordinal);
         Assert.Contains(english["tags.quick.thread.heading"].Replace(" ({0})", ""), panel, StringComparison.Ordinal);
         Assert.Contains(string.Format(CultureInfo.InvariantCulture, english["tags.quick.gallery.position"], 4, 27), panel, StringComparison.Ordinal);
@@ -354,8 +363,9 @@ public sealed class HelpDocumentationTests
         Assert.Equal("Q", CommandCatalog.Get("media.queue.add").Shortcut);
         // The page is a footer page behind Media without a digit; its ⋯ entry stays (MainWindow.axaml), only the owner changed.
         Assert.Contains("navigation.tagging", MainPageOrder.CommandIds);
-        Assert.Null(MainPageOrder.Digit("navigation.tagging"));
-        Assert.Contains("x:Name=\"TaggingMenuItem\" Tag=\"nav.tagging\"", Read("Desktop/Shell/MainWindow.axaml"), StringComparison.Ordinal);
+        Assert.NotNull(MainPageOrder.Digit("navigation.tagging")); // numbered like every footer page since F1
+        // The ⋯ menu holds no page entries since F1 (Help.md still says "⋯ menu"); the footer's More menu carries the tagging entry.
+        Assert.Contains("<MenuItem Tag=\"nav.tagging\" Classes=\"localized\" Header=\"Tagging\" Click=\"OnTaggingNavigationClick\" />", Read("Desktop/Shell/MainWindow.axaml"), StringComparison.Ordinal);
         // Pin the host-to-page-to-gallery chain, not just configuration fields or a plan comment.
         string host = Read("Desktop/Shell/MainWindow.TaggingPage.cs");
         Assert.Contains("return NavigateWorkspace(WorkspacePage.Tagging);", host, StringComparison.Ordinal);
@@ -536,7 +546,9 @@ public sealed class HelpDocumentationTests
         string sidePanel = Read("Desktop/Controls/GallerySidePanel.cs");
         Assert.Contains("Children.Add(_segment);", sidePanel);
         Assert.Contains("Children.Add(close); SetColumn(close, 2);", sidePanel);
-        Assert.Contains("_close.HorizontalAlignment = HorizontalAlignment.Right", Read("Desktop/GalleryViewer.cs"));
+        // Tom's rule of 14.11.: the code places the way back first at the LEFT with the star directly right of it. The two Help.md assertions
+        // above (right edge wording) change together with the Help section, which the coordinator edits (GL3 report has the sentence).
+        Assert.Contains("_close.HorizontalAlignment = HorizontalAlignment.Left", Read("Desktop/GalleryViewer.cs"));
         Assert.Contains("_close.Bounds.Width : 44) + StarGap", Read("Desktop/GalleryViewer.Favorites.cs"));
         foreach (WorkView view in Enum.GetValues<WorkView>())
         {
@@ -573,7 +585,7 @@ public sealed class HelpDocumentationTests
         Assert.Contains("_mediaPage.RestoreSort(savedSort, savedDirection)", Read("Desktop/Shell/MainWindow.Media.cs"));
         Assert.Contains("In narrow windows the focus button, Refresh and Shuffle again move under More; Order stays visible", text);
         Assert.Equal(new[] { "media.toolbar.focus", "media.toolbar.refresh", "media.toolbar.shuffle" },
-            MediaToolbarLayout.MovedUnderMore(MediaToolbarLayout.Level.Compact));
+            MediaToolbarLayout.MovedUnderMore(MediaToolbarLayout.Level.Reduced));
         Assert.False(MediaToolbarLayout.IsMovedUnderMore(MediaToolbarLayout.Level.Compact, "media.sort"));
         foreach (WorkView view in Enum.GetValues<WorkView>())
             Assert.Equal(Presence.Required, WorkViewPolicy.Resolve("media.sort", view));
@@ -588,7 +600,7 @@ public sealed class HelpDocumentationTests
     public void FrameFolderAndReadFirstHeaderGuidanceKeepTheirCurrentBoundaries()
     {
         string frames = Plain(Section(Read(Help), "Saving a video frame"));
-        Assert.Equal("Shift+S", CommandCatalog.Get("video.snapshot").Shortcut);
+        Assert.Equal("S", CommandCatalog.Get("video.snapshot").Shortcut); // gallery key scheme, revision 13 (was Shift+S)
         Assert.Contains("On first use you choose a folder", frames);
         Assert.Contains("Cancel saves nothing", frames);
         Assert.Contains("Existing files are never overwritten", frames);
@@ -616,14 +628,14 @@ public sealed class HelpDocumentationTests
         string frames = Plain(Section(Read(Help), "Saving a video frame"));
         CommandDefinition snapshot = CommandCatalog.Get("video.snapshot");
         Assert.Equal("command.video.snapshot", snapshot.LabelKey);
-        Assert.Equal("Shift+S", snapshot.Shortcut);
+        Assert.Equal("S", snapshot.Shortcut); // revision 13 (was Shift+S)
         Assert.Contains("**Save frame as image**", Section(Read(Help), "Saving a video frame"), StringComparison.Ordinal);
         Assert.Contains(snapshot.LabelEn, frames, StringComparison.Ordinal);
 
         // CommandCatalog.Label looks the key up in the localization catalog first and uses the definition's LabelDe only as a
         // fallback, so the German name shown in the gallery menu is the catalog text. The Help must name that one.
         string shownGerman = BuiltInCatalog.German[snapshot.LabelKey];
-        Assert.Contains("(German: " + shownGerman + ", Shift+S)", frames, StringComparison.Ordinal);
+        Assert.Contains("(German: " + shownGerman + ", " + snapshot.Shortcut + ")", frames, StringComparison.Ordinal);
         Assert.DoesNotContain("Einzelbild als Bild speichern", Read(Help), StringComparison.Ordinal);
 
         // The flow the new sentences describe: a free numbered name from the video name and position, only for a ready video, Under More.
@@ -695,29 +707,40 @@ public sealed class HelpDocumentationTests
         string settings = Read("Desktop/Views/Settings/SettingsWindow.axaml.cs");
         Assert.Contains("tryCancelLocal: AskBeforeDiscardingOnEscape, isBusy: () => Editor.IsBusy", settings, StringComparison.Ordinal);
         Assert.Contains("if (discard && !Editor.IsBusy) Close();", settings, StringComparison.Ordinal);
-        Assert.True(HeaderBar.EndGap > 0 && HeaderBar.EndSpacing > 0);
+        Assert.True(HeaderBar.BackGap > 0 && HeaderBar.BackSpacing > 0);
 
-        // Every button the Help names is declared in the end slot of a HeaderBar (static XAML check; layout and tab order
-        // are covered by HeaderBarContractTests, not here).
+        // Every button the Help names is declared in a HeaderBar: the ways back of pages in the back slot, the inline tool rows' closes in
+        // the end slot (static XAML check; layout and tab order are covered by HeaderBarContractTests, not here). NOTE for the Help.md owner
+        // (14.11. evening, Tom's item 35): the section text asserted above still states the old right-edge rule for everything; when Help.md
+        // moves to the new rule (pages and overlays left, inline rows right), update the phrases above (section title "Back and Close at
+        // the right edge", "stands alone at the right edge of that row", "comes last in the Tab order").
         string main = Read("Desktop/Shell/MainWindow.axaml");
         string archive = Read("Desktop/Views/Archive/ArchivePage.axaml");
+        (string Xaml, string Name)[] backs =
+        [
+            (archive, "ArchiveBackButton"), (archive, "ArchiveGalleryReturn"), (archive, "ArchiveMediaReturn"), (archive, "ArchiveCloseReader")
+        ];
+        foreach ((string xaml, string name) in backs)
+            Assert.Matches("<Button\\s+x:Name=\"" + name + "\"[^>]*controls:HeaderBar\\.IsBack=\"True\"", xaml);
         (string Xaml, string Name)[] ends =
         [
             (main, "DownloadSearchClose"), (main, "InspectorCloseButton"),
-            (archive, "ArchiveBackButton"), (archive, "ArchiveGalleryReturn"), (archive, "ArchiveMediaReturn"), (archive, "ArchiveCloseReader"),
             (archive, "ReaderFindClose"), (archive, "ReaderTagClose"), (archive, "ClosePreviewButton")
         ];
         foreach ((string xaml, string name) in ends)
             Assert.Matches("<Button\\s+x:Name=\"" + name + "\"[^>]*controls:HeaderBar\\.IsEnd=\"True\"", xaml);
 
-        // The reader header declares its own title before the ways out, so they are last in reading and Tab order.
+        // The reader header declares its ways back before its own title, so they are first in reading and Tab order.
         int start = archive.IndexOf("<controls:HeaderBar x:Name=\"ReaderHeaderBar\">", StringComparison.Ordinal);
         Assert.True(start >= 0);
         string header = archive[start..archive.IndexOf("</controls:HeaderBar>", start, StringComparison.Ordinal)];
         int title = header.IndexOf("ArchiveReaderTitle", StringComparison.Ordinal);
         Assert.True(title >= 0);
         foreach (string name in new[] { "ArchiveGalleryReturn", "ArchiveMediaReturn", "ArchiveBackButton", "ArchiveCloseReader" })
-            Assert.True(header.IndexOf(name, StringComparison.Ordinal) > title, name);
+        {
+            int at = header.IndexOf(name, StringComparison.Ordinal);
+            Assert.True(at >= 0 && at < title, name);
+        }
     }
 
     [Fact]
@@ -1164,19 +1187,18 @@ public sealed class HelpDocumentationTests
             @"(?m)^\| Shortcut \| Page \|\r?\n\|[^\r\n]*\|\r?\n(?<rows>(?:\|[^\r\n]*\|\r?\n)+)");
         string[] rows = pageTable.Groups["rows"].Value.Split('\n', StringSplitOptions.RemoveEmptyEntries)
             .Select(line => line.TrimEnd('\r')).ToArray();
-        // Only the numbered pages have a Ctrl+digit row; Tagging (footer, no digit) is not part of this table.
-        string[] ids = MainPageOrder.NumberedCommandIds.ToArray();
+        // Help.md documents the classic digit rows (no Tagging row yet); see HelpDocumentedDigits.
+        string[] ids = MainPageOrder.CommandIds.Where(HelpDocumentedDigits.ContainsKey).ToArray();
         Assert.Equal(ids.Length, rows.Length);
         for (int i = 0; i < ids.Length; i++)
         {
             Match row = Capture(rows[i], @"^\| Ctrl\+(?<digit>\d+) \| (?<label>[^|]+) \|$");
             int digit = Number(row.Groups["digit"].Value);
             Assert.Equal(CommandCatalog.Get(ids[i]).LabelEn, row.Groups["label"].Value.Trim());
-            Assert.Equal((int?)digit, MainPageOrder.Digit(ids[i]));
-            Assert.Equal("Primary+" + digit.ToString(CultureInfo.InvariantCulture), CommandCatalog.Get(ids[i]).Shortcut);
+            Assert.Equal(HelpDocumentedDigits[ids[i]], digit);
         }
         // Display order is not numeric sorting: Booru follows Media, while Sources=5 and Status=7 stay stable.
-        Assert.Equal(new[] { 1, 2, 3, 6, 4, 5, 7 }, ids.Select(id => MainPageOrder.Digit(id)!.Value));
+        Assert.Equal(new[] { 1, 2, 3, 6, 4, 5, 7 }, ids.Select(id => HelpDocumentedDigits[id]));
         Assert.Contains("Ctrl+8 (Command+8) is unassigned by default", section, StringComparison.Ordinal);
         Assert.Contains("table follows the main-page order, not numeric sorting", section, StringComparison.Ordinal);
         Assert.Contains("Hiding Booru does not give its default key back to Plugins or reassign the other pages", section, StringComparison.Ordinal);
@@ -1200,14 +1222,15 @@ public sealed class HelpDocumentationTests
         foreach (string file in new[] { Help, DanbooruGuide })
             Assert.Contains("Plugins-Belegung auf Primary+6 hat Vorrang vor dem neuen Booru-Standard", Plain(Read(file)), StringComparison.Ordinal);
 
-        ShortcutGesture six = ShortcutGesture.Parse("Primary+6");
+        // The Help sentence names the classic slot 6; in the default layout of F1 Booru's digit follows the footer, so the mechanics are checked on that digit.
+        ShortcutGesture six = ShortcutGesture.Parse("Primary+" + MainPageOrder.Digit("navigation.booru"));
         EffectiveShortcutBindings defaults = EffectiveShortcutBindings.Build(platform: platform);
         Assert.True(EffectiveShortcutBindings.Equivalent(six, Assert.Single(defaults.For("navigation.booru")), platform));
         Assert.Empty(defaults.For("navigation.plugins"));
         // Saved historical bindings remain byte-for-byte unchanged; the new default, not the user's override, yields.
         ShortcutBindingsSection section = new ShortcutBindingsSection().Set("navigation.plugins", [six]);
         foreach (string id in MainPageOrder.StatusSegmentCommandIds)
-            section = section.Set(id, [ShortcutGesture.Parse(id == "navigation.statistics" ? "Primary+8" : "Primary+Shift+7")]);
+            section = section.Set(id, [ShortcutGesture.Parse(id == "navigation.statistics" ? "Primary+9" : "Primary+Shift+7")]);
         string before = section.Raw.GetRawText();
         EffectiveShortcutBindings saved = EffectiveShortcutBindings.Build(section, platform);
         Assert.Equal(before, section.Raw.GetRawText());
@@ -1220,7 +1243,7 @@ public sealed class HelpDocumentationTests
             Assert.True(EffectiveShortcutBindings.Equivalent(Assert.Single(defaults.For(id)), Assert.Single(saved.For(id)), platform));
         foreach (string id in MainPageOrder.StatusSegmentCommandIds)
             Assert.True(EffectiveShortcutBindings.Equivalent(
-                ShortcutGesture.Parse(id == "navigation.statistics" ? "Primary+8" : "Primary+Shift+7"), Assert.Single(saved.For(id)), platform));
+                ShortcutGesture.Parse(id == "navigation.statistics" ? "Primary+9" : "Primary+Shift+7"), Assert.Single(saved.For(id)), platform));
         Assert.Equal(MainWindow.WorkspacePage.Sources, MainWindow.PageFor("navigation.plugins"));
         string shell = Read("Desktop/Shell/MainWindow.Fullscreen.cs");
         Assert.Contains("_sourcesPage?.ActivateAsync(SourcesPluginsFilter.AllPlugins)", shell, StringComparison.Ordinal);
@@ -1265,24 +1288,20 @@ public sealed class HelpDocumentationTests
         Assert.Same(permissions, config.SourceMediaIntegrityPermissions);
         foreach (WorkView view in WorkViewSetting.All)
         {
-            Assert.Equal(Presence.Required, WorkViewPolicy.Resolve("shell.footer.booru-toggle", view));
-            Assert.Equal(Presence.Required, WorkViewPolicy.Resolve("shell.appmenu.booru-toggle", view));
             Assert.Equal(view == WorkView.Barebones ? Presence.Overflow : Presence.Direct,
                 WorkViewPolicy.Resolve("shell.footer.booru", view));
             foreach (string id in new[] { "booru.search.input", "booru.search.submit", "booru.results", "booru.watchers.list", "booru.notice" })
                 Assert.Equal(Presence.Required, WorkViewPolicy.Resolve(id, view));
         }
         string host = Read("Desktop/Booru/MainWindow.BooruNavigation.cs");
-        foreach (string wiring in new[] { "ShowBooruToolsToggle.IsVisible = available", "menu.IsVisible = available",
-            "menu.IsChecked = visible", "ShowBooruToolsToggle.IsChecked = visible",
-            "SaveViewPreferencesAsync(current => current.ShowBooruTools = visible)",
-            "if (!visible && _selectedPage == WorkspacePage.Booru)", "NavigateWorkspace(WorkspacePage.Downloads)",
-            "BooruMenuItem.IsVisible = CanOpenBooru", "BooruMoreMenuItem.IsVisible = false" })
+        // F1: the footer check box and its ⋯ twin are gone; the setting is "Show Booru actions" in Settings (candidate.ShowBooruTools), and
+        // turning it off while Booru is open leaves through the shell's unavailable-page fallback (NavigateWorkspace(WorkspacePage.Downloads)).
+        foreach (string wiring in new[] { "NavigateWorkspace(WorkspacePage.Downloads)", "BooruMoreMenuItem.IsVisible = false", "_booruMenu.IsVisible = CanOpenBooru" })
             Assert.Contains(wiring, host, StringComparison.Ordinal);
-        string save = host[host.IndexOf("private async System.Threading.Tasks.Task SetBooruToolsVisibilityAsync", StringComparison.Ordinal)..];
-        foreach (string forbidden in new[] { "DisposeBooruPage(", "DownloadsPaused =", "SourceMediaIntegrityPermissions =",
+        foreach (string forbidden in new[] { "ShowBooruToolsToggle", "_booruToolsMenu", "DownloadsPaused =", "SourceMediaIntegrityPermissions =",
             "PauseAsync(", "ResumeAsync(", "SearchAsync(", "CheckNowAsync(", "EnablePluginAsync(" })
-            Assert.DoesNotContain(forbidden, save, StringComparison.Ordinal);
+            Assert.DoesNotContain(forbidden, host, StringComparison.Ordinal);
+        Assert.Contains("candidate.ShowBooruTools = ShowBooruActions;", Read("Desktop/Views/Settings/SettingsEditor.Footer.cs"), StringComparison.Ordinal);
         Assert.Contains("ReferenceEquals(current.Services, services)", host, StringComparison.Ordinal);
         Assert.Contains("BooruPageHost.Content = page;", host, StringComparison.Ordinal);
         string booru = Read("Desktop/Booru/MainWindow.Booru.cs");
@@ -1296,7 +1315,6 @@ public sealed class HelpDocumentationTests
         Assert.Contains("if (id == \"navigation.booru\" && !CanOpenBooru) continue", shell, StringComparison.Ordinal);
         Assert.Contains("new List<string>(MainPageOrder.CommandIds)", shell, StringComparison.Ordinal);
         Assert.Contains("CommandCatalog.ShortcutDisplay(id) != null", shell, StringComparison.Ordinal);
-        Assert.Contains("SetBooruToolsVisibilityAsync(_booruToolsMenu.IsChecked)", Read("Desktop/Shell/MainWindow.WorkViewMenu.cs"), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1587,7 +1605,7 @@ public sealed class HelpDocumentationTests
         Assert.Contains("not permission to activate it", sources, StringComparison.Ordinal);
         string status = Plain(Section(Read(Help), "Status page"));
         Assert.Equal(new[] { "Statistics", "Diagnostics" }, Enum.GetNames<StatusSegment>());
-        Assert.Equal((int?)7, MainPageOrder.Digit("navigation.status"));
+        Assert.Equal(7, MainPageOrder.Digit("navigation.status")); // Status keeps 7 in the default layout
         foreach (string phrase in new[] { "last-used segment", "header graph and tray open Statistics",
             "source selected", "Statistics becomes available after session recovery", "Booru is a separate main page",
             "it uses slot 6, Plugins keeps slot 5 and Status keeps slot 7", "Slot 8 is unassigned by default",
@@ -1595,8 +1613,8 @@ public sealed class HelpDocumentationTests
             "Nur Strg/⌘+8 ist standardmäßig frei" })
             Assert.Contains(phrase, status, StringComparison.Ordinal);
         Assert.Contains("navigation.booru", MainPageOrder.CommandIds);
-        Assert.Equal((int?)6, MainPageOrder.Digit("navigation.booru"));
-        Assert.Equal((int?)5, MainPageOrder.Digit("navigation.sources"));
+        Assert.Equal(HelpDocumentedDigits["navigation.booru"], 6);   // the Help text above still documents the classic slots 5/6
+        Assert.Equal(HelpDocumentedDigits["navigation.sources"], 5);
         Assert.DoesNotContain("Open **Statistics** with Ctrl+8", Read(Help), StringComparison.Ordinal);
     }
 

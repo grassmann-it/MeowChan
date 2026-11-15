@@ -53,16 +53,23 @@ public static class WorkViewMoreSurface
 
     internal static ContextMenu CreateMenu(IEnumerable<Entry> entries, Button? owner)
     {
-        ContextMenu menu = new();
-        foreach (Entry entry in entries.OrderBy(entry => entry.Order))
+        ContextMenuBuilder builder = new ContextMenuBuilder();
+        Entry[] ordered = entries.OrderBy(entry => entry.Order).ToArray();
+        for (int index = 0; index < ordered.Length; index++)
         {
-            // Also guard custom entries (not backed by ForButtons) when their page goes busy with the menu open.
+            Entry entry = ordered[index];
             bool CanRun() => (owner == null || WorkViewActionStateGuard.CanInvoke(owner)) && entry.CanRun();
-            MenuItem item = entry.CommandId != null
-                ? CommandBindings.CreateMenuItem(entry.CommandId, entry.Run, CanRun, null, entry.Label)
-                : new MenuItem { Header = entry.Label(), Command = new DelegateCommand(entry.Run, CanRun), IsEnabled = CanRun() };
-            AutomationProperties.SetName(item, entry.Label());
-            menu.Items.Add(item);
+            string label = entry.Label();
+            if (entry.CommandId != null)
+                builder.Command(entry.CommandId, entry.Run, CanRun(), label: label, availableWhen: CanRun);
+            else
+                builder.Item("workview.more." + index, label, entry.Run, CanRun(), availableWhen: CanRun);
+        }
+        ContextMenu menu = builder.Build()!;
+        foreach (int index in Enumerable.Range(0, ordered.Length))
+        {
+            if (menu.Items.OfType<MenuItem>().FirstOrDefault(item => Equals(item.Tag, ordered[index].CommandId ?? "workview.more." + index)) is { } item)
+                AutomationProperties.SetName(item, ordered[index].Label());
         }
         return menu;
     }

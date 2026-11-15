@@ -10,9 +10,11 @@ using Avalonia.VisualTree;
 namespace MeowChan.Desktop.Controls;
 
 /// <summary>
-/// The dialog language for in-window scrim overlays (modals plan MD4): a header bar with the title on the left and, alone at the
-/// top right, the close cross (<see cref="HeaderBar"/> end slot, <see cref="HeaderBar.MakeClose"/>), one central Escape policy
-/// and the keyboard trap with focus return. The window dialogs get the same from <see cref="DialogWindow"/> and the caption's ×;
+/// The dialog language for in-window scrim overlays (modals plan MD4): a header bar with the way out at the far left, before the
+/// title (Tom's rule 14.11. evening: the way back stands left, apart from the title by a gap and a thin separator; the close cross
+/// in the <see cref="HeaderBar"/> back slot, <see cref="HeaderBar.MakeClose"/>), one central Escape policy
+/// and the keyboard trap with focus return. The window dialogs get the same from <see cref="DialogWindow"/> and the caption's ×,
+/// which stays at the right by OS convention;
 /// this is the counterpart for what opens inside a window: the reader's link confirmation, the HTML export, the archive filter
 /// surface and the statistics reset question.
 /// </summary>
@@ -42,8 +44,8 @@ internal static class OverlayFrame
     internal static void MakeClose(Button close, string name) => HeaderBar.MakeClose(close, name, CloseTip(name));
 
     /// <summary>
-    /// The header row built in code: <paramref name="title"/> wraps on the left, <paramref name="close"/> stands alone at the right
-    /// edge after the bar's 24 dip gap and is last in the row's tab order.
+    /// The header row built in code: <paramref name="close"/> stands alone at the far left (back slot, first in the row's tab order),
+    /// then the bar's 24 dip gap with its separator, then <paramref name="title"/>, which wraps.
     /// </summary>
     internal static HeaderBar Header(TextBlock title, Button close, string closeName)
     {
@@ -53,7 +55,7 @@ internal static class OverlayFrame
         title.VerticalAlignment = VerticalAlignment.Center;
         if (!title.Classes.Contains("page-title") && !title.Classes.Contains("section-title")) title.Classes.Add("section-title");
         MakeClose(close, closeName);
-        HeaderBar bar = HeaderBar.Create(title, close);
+        HeaderBar bar = HeaderBar.Create(close, title);
         bar.Name = HeaderName;
         return bar;
     }

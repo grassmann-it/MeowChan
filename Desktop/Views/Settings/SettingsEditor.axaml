@@ -116,6 +116,26 @@
                             </ComboBox>
                         </Grid>
                     </Border>
+                    <Border x:Name="ThemeColors" Classes="settings-divider">
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                            <StackPanel VerticalAlignment="Center" Spacing="{StaticResource Workspace.Space.4}">
+                                <TextBlock x:Name="ThemeColorsFieldLabel" Text="{Binding ThemeColorsLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding ThemeColorsHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <Button x:Name="ThemeColorsButton" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Stretch" Content="{Binding ThemeColorsOpenLabel}" AutomationProperties.Name="{Binding ThemeColorsOpenLabel}" AutomationProperties.HelpText="{Binding ThemeColorsHint}" Click="OnThemeColorsClick" IsEnabled="{Binding IsEditable}" />
+                        </Grid>
+                    </Border>
+                    <!-- Footer (F1): heading and explanation are the search entry "FooterLayoutSection"; the list below is built in code (FooterLayoutEditor). -->
+                    <StackPanel x:Name="FooterLayoutSection" Spacing="{StaticResource Workspace.Space.4}" Margin="0,16,0,0">
+                        <TextBlock x:Name="FooterLayoutHeading" Text="{Binding FooterLayoutLabel}" Classes="workspace-field-label" FontWeight="SemiBold" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding FooterLayoutHelp}" Classes="workspace-help" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding FooterLayoutBooruHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <ContentControl x:Name="FooterLayoutHost" HorizontalContentAlignment="Stretch" Margin="0,8,0,8" />
+                    <CheckBox x:Name="ShowBooruActionsInput" IsChecked="{Binding ShowBooruActions, Mode=TwoWay}" AutomationProperties.Name="{Binding ShowBooruActionsLabel}" AutomationProperties.HelpText="{Binding ShowBooruActionsHint}" ToolTip.Tip="{Binding ShowBooruActionsHint}">
+                        <TextBlock Text="{Binding ShowBooruActionsLabel}" TextWrapping="Wrap" />
+                    </CheckBox>
+                    <TextBlock Text="{Binding ShowBooruActionsHint}" Classes="workspace-help" TextWrapping="Wrap" Margin="0,0,0,8" />
                     <Expander x:Name="SettingsInterfaceMoreGroup" wv:WorkViewElement.Id="settings.group.interface-more" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Margin="0,4,0,0">
                         <StackPanel x:Name="SettingsInterfaceMoreBody" Spacing="0" Margin="0,8,0,0">
                     <CheckBox x:Name="ShrinkWindowForBarebonesInput" IsChecked="{Binding ShrinkWindowForBarebones, Mode=TwoWay}" AutomationProperties.Name="{Binding ShrinkWindowForBarebonesLabel}" AutomationProperties.HelpText="{Binding ShrinkWindowForBarebonesHint}">
@@ -514,6 +534,15 @@
                     <TextBlock Text="{Binding GallerySlideshowVideoRepeatsHint}" Classes="workspace-help" TextWrapping="Wrap" IsVisible="{Binding IsGallerySlideshowVideoRepeats}" />
                     <CheckBox x:Name="GalleryVideoRepeatInput" IsChecked="{Binding GalleryVideoRepeat, Mode=TwoWay}" AutomationProperties.Name="{Binding GalleryVideoRepeatLabel}" AutomationProperties.HelpText="{Binding GalleryVideoRepeatHint}"><TextBlock Text="{Binding GalleryVideoRepeatLabel}" TextWrapping="Wrap" /></CheckBox>
                     <TextBlock Text="{Binding GalleryVideoRepeatHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                        <TextBlock x:Name="GalleryVideoSeekStepSecondsFieldLabel" Text="{Binding GalleryVideoSeekStepSecondsLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                            <desktop:SettingsNumberInput x:Name="GalleryVideoSeekStepSecondsInput" Value="{Binding GalleryVideoSeekStepSeconds, Mode=TwoWay}" Minimum="1" Maximum="60" Increment="1"
+                                AutomationProperties.LabeledBy="{Binding ElementName=GalleryVideoSeekStepSecondsFieldLabel}" AutomationProperties.Name="{Binding GalleryVideoSeekStepSecondsLabel}" AutomationProperties.HelpText="{Binding GalleryVideoSeekStepSecondsHelp}" />
+                            <TextBlock x:Name="GalleryVideoSeekStepSecondsInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                        </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding GalleryVideoSeekStepSecondsHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     <CheckBox x:Name="GalleryMediaFocusInput" IsChecked="{Binding GalleryMediaFocus, Mode=TwoWay}" AutomationProperties.Name="{Binding GalleryMediaFocusLabel}"><TextBlock Text="{Binding GalleryMediaFocusLabel}" TextWrapping="Wrap" /></CheckBox>
                     <StackPanel Spacing="{StaticResource Workspace.Space.8}">
                         <CheckBox x:Name="GalleryOverlayControlsInput" IsChecked="{Binding GalleryOverlayControls, Mode=TwoWay}" AutomationProperties.Name="{Binding GalleryOverlayControlsLabel}" AutomationProperties.HelpText="{Binding GalleryOverlayHelp}"><TextBlock Text="{Binding GalleryOverlayControlsLabel}" TextWrapping="Wrap" /></CheckBox>
@@ -553,6 +582,54 @@
                         </StackPanel>
                     </Grid>
                     <TextBlock Text="{Binding GalleryFilmstripPreloadHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                    <!-- Media badges (MB1): the thumbnail sizes below which the small badges shrink to dots or disappear, and how many fit in a corner. -->
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="MediaBadgeCollapseBelowFieldLabel" Text="{Binding MediaBadgeCollapseBelowLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                            <desktop:SettingsNumberInput x:Name="MediaBadgeCollapseBelowInput" Value="{Binding MediaBadgeCollapseBelow, Mode=TwoWay}" Minimum="24" Maximum="96" Increment="4"
+                                AutomationProperties.LabeledBy="{Binding ElementName=MediaBadgeCollapseBelowFieldLabel}" AutomationProperties.Name="{Binding MediaBadgeCollapseBelowLabel}" AutomationProperties.HelpText="{Binding MediaBadgeCollapseBelowHelp}" />
+                            <TextBlock x:Name="MediaBadgeCollapseBelowInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                        </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding MediaBadgeCollapseBelowHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="MediaBadgeHideBelowFieldLabel" Text="{Binding MediaBadgeHideBelowLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                            <desktop:SettingsNumberInput x:Name="MediaBadgeHideBelowInput" Value="{Binding MediaBadgeHideBelow, Mode=TwoWay}" Minimum="16" Maximum="64" Increment="4"
+                                AutomationProperties.LabeledBy="{Binding ElementName=MediaBadgeHideBelowFieldLabel}" AutomationProperties.Name="{Binding MediaBadgeHideBelowLabel}" AutomationProperties.HelpText="{Binding MediaBadgeHideBelowHelp}" />
+                            <TextBlock x:Name="MediaBadgeHideBelowInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                        </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding MediaBadgeHideBelowHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="MediaBadgeMaxPerCornerFieldLabel" Text="{Binding MediaBadgeMaxPerCornerLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                            <desktop:SettingsNumberInput x:Name="MediaBadgeMaxPerCornerInput" Value="{Binding MediaBadgeMaxPerCorner, Mode=TwoWay}" Minimum="1" Maximum="3" Increment="1"
+                                AutomationProperties.LabeledBy="{Binding ElementName=MediaBadgeMaxPerCornerFieldLabel}" AutomationProperties.Name="{Binding MediaBadgeMaxPerCornerLabel}" AutomationProperties.HelpText="{Binding MediaBadgeMaxPerCornerHelp}" />
+                            <TextBlock x:Name="MediaBadgeMaxPerCornerInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                        </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding MediaBadgeMaxPerCornerHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                    <!-- GL5c: how long a transient status of the gallery's info line stays on the screen. -->
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                        <TextBlock x:Name="GalleryStatusDwellMsFieldLabel" Text="{Binding GalleryStatusDwellMsLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                            <desktop:SettingsNumberInput x:Name="GalleryStatusDwellMsInput" Value="{Binding GalleryStatusDwellMs, Mode=TwoWay}" Minimum="1000" Maximum="10000" Increment="500"
+                                AutomationProperties.LabeledBy="{Binding ElementName=GalleryStatusDwellMsFieldLabel}" AutomationProperties.Name="{Binding GalleryStatusDwellMsLabel}" AutomationProperties.HelpText="{Binding GalleryStatusDwellMsHelp}" />
+                            <TextBlock x:Name="GalleryStatusDwellMsInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                        </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding GalleryStatusDwellMsHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                    <!-- GL5e: the gap between two filmstrip tiles. -->
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                        <TextBlock x:Name="GalleryFilmstripTileGapFieldLabel" Text="{Binding GalleryFilmstripTileGapLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                            <desktop:SettingsNumberInput x:Name="GalleryFilmstripTileGapInput" Value="{Binding GalleryFilmstripTileGap, Mode=TwoWay}" Minimum="4" Maximum="16" Increment="4"
+                                AutomationProperties.LabeledBy="{Binding ElementName=GalleryFilmstripTileGapFieldLabel}" AutomationProperties.Name="{Binding GalleryFilmstripTileGapLabel}" AutomationProperties.HelpText="{Binding GalleryFilmstripTileGapHelp}" />
+                            <TextBlock x:Name="GalleryFilmstripTileGapInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                        </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding GalleryFilmstripTileGapHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     <Button x:Name="GalleryLayoutResetButton" Content="{Binding GalleryLayoutResetLabel}" AutomationProperties.Name="{Binding GalleryLayoutResetLabel}" AutomationProperties.HelpText="{Binding GalleryLayoutResetHint}" Click="OnGalleryLayoutResetClick" IsEnabled="{Binding IsEditable}" HorizontalAlignment="Left" />
                     <TextBlock Text="{Binding GalleryLayoutResetHint}" Classes="workspace-help" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
                     <CheckBox Content="{Binding VideoAutoplayLabel}" IsChecked="{Binding VideoAutoplay, Mode=TwoWay}" />
@@ -952,6 +1029,16 @@
                             </StackPanel>
                         </Grid>
                         <TextBlock Text="{Binding MediaTagListTopHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <StackPanel Spacing="{StaticResource Workspace.Space.4}">
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                            <TextBlock x:Name="MediaTagListWidthFieldLabel" Text="{Binding MediaTagListWidthLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                            <StackPanel Grid.Column="1" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="MediaTagListWidthInput" Value="{Binding MediaTagListWidth, Mode=TwoWay}" Minimum="{Binding MediaTagListWidthMinimum}" Maximum="{Binding MediaTagListWidthMaximum}" Increment="10" AutomationProperties.LabeledBy="{Binding ElementName=MediaTagListWidthFieldLabel}" AutomationProperties.Name="{Binding MediaTagListWidthLabel}" AutomationProperties.HelpText="{Binding MediaTagListWidthHelp}" />
+                                <TextBlock x:Name="MediaTagListWidthInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                        </Grid>
+                        <TextBlock Text="{Binding MediaTagListWidthHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     </StackPanel>
                     <TextBlock x:Name="LimitsPreviewsHeading" Text="{Binding PreviewsGroupLabel}" Classes="workspace-field-label" FontWeight="SemiBold" Margin="0,16,0,0" TextWrapping="Wrap" />
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">

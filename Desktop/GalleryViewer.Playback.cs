@@ -21,6 +21,8 @@ internal sealed partial class GalleryViewer
     private readonly DispatcherTimer _interactionTimer = new() { Interval = TimeSpan.FromMilliseconds(250) };
     private bool _updatingPlaybackControls;
     private bool _interactionAvailable = true;
+    private bool _slideshowSurface = true;
+    private readonly GallerySlideshowWindowGate _windowGate = new();
     private bool _viewerInteractionStopped;
     private bool _navigationPending;
     private bool _mediaFailed;
@@ -52,6 +54,8 @@ internal sealed partial class GalleryViewer
     private readonly TextBlock _videoValueCaption = new() { Classes = { "workspace-meta" }, Margin = new Thickness(12, 2, 12, 0), IsVisible = false };
     private readonly TextBlock _reducedMotionNote = new() { Name = "GallerySlideshowReducedMotionNote", Classes = { "workspace-help" },
         Margin = new Thickness(12, 2, 12, 2), TextWrapping = TextWrapping.Wrap, MaxWidth = 300, IsVisible = false };
+    // "Pause when MeowChan loses focus" (off by default): a row of the slideshow settings, shown with the other slideshow choices.
+    private readonly ToggleButton _pauseOnFocusLossToggle = new() { Name = "GallerySlideshowPauseOnFocusLossToggle" };
     private readonly ToggleButton _slideshowToggle = new() { Name = "GallerySlideshowToggle" };
     private readonly ToggleButton _overlayToggle = new() { Name = "GalleryOverlayToggle" };
     private readonly ToggleButton _autoHideToggle = new() { Name = "GalleryAutoHideToggle" };
@@ -83,14 +87,21 @@ internal sealed partial class GalleryViewer
         // Applying a saved mode is not a Start request, including after focus returns.
     }
 
-    internal void SetInteractionAvailable(bool available)
+    /// <param name="available">The window is the active one and usable: the viewer's own input, overlay and presentation follow it.</param>
+    /// <param name="slideshowSurface">The gallery can be worked with at all (main window enabled, gallery not put away for the reader), whatever the focus;
+    /// without it the slideshow stops waiting even when "Pause when MeowChan loses focus" is off. Defaults to <paramref name="available"/>.</param>
+    internal void SetInteractionAvailable(bool available, bool? slideshowSurface = null)
     {
-        if (_interactionAvailable == available) return;
+        bool surface = slideshowSurface ?? available;
+        if (_interactionAvailable == available && _slideshowSurface == surface) return;
+        bool availableChanged = _interactionAvailable != available;
         _interactionAvailable = available;
-        UpdateGifPresentation();
-        if (!available)
+        _slideshowSurface = surface;
+        ObserveSlideshowWindow();
+        if (availableChanged) UpdateGifPresentation();
+        if (!SlideshowWindowAllows) HoldSlideshowAdvance();
+        if (!available && availableChanged)
         {
-            HoldSlideshowAdvance();
             _pressedPointers.Clear();
             RevealOverlayControls();
         }
@@ -101,7 +112,7 @@ internal sealed partial class GalleryViewer
     // separate explicit request to play its selected videos, even when normal autoplay is off.
     private bool EffectiveVideoAutoplay => GalleryPlaybackPolicy.ShouldPlaySelection(_videoAutoplay, _slideshow.IsRunning, _selectionVideoPaused);
 
-    private void InitializePlaybackControls(WrapPanel toolbar, StackPanel focusTools)
+    private void InitializePlaybackControls(Panel toolbar, StackPanel focusTools)
     {
         _slideshow = new GallerySlideshowController(RequestSlideshowNext, requestReplay: RequestSlideshowReplay);
         _slideshow.StateChanged += ApplyEffectiveVideoLoop; // Running or not decides who repeats a video.
@@ -126,6 +137,9 @@ internal sealed partial class GalleryViewer
         _slideshowHome.Children.Add(_videoSeconds);
         _slideshowHome.Children.Add(_videoRepeats);
         _slideshowHome.Children.Add(_reducedMotionNote);
+        AddOverflowItem(_pauseOnFocusLossToggle, "gallery.slideshow-pause-on-focus-loss", check: true, keepOpen: true,
+            label: () => GalleryPlaybackCatalog.Get("viewer.playback.pauseOnFocusLoss"), host: _slideshowHome);
+        _pauseOnFocusLossToggle.Click += (_, _) => ChangePlaybackPreferences(_playbackPreferences with { PauseOnFocusLoss = !_playbackPreferences.PauseOnFocusLoss });
         void Number(AccessibleNumberInput input, Func<int, GalleryPlaybackPreferences> change) => input.ValueChanged += (_, e) =>
         {
             if (!_updatingPlaybackControls && e.NewValue is decimal value && value >= (decimal)input.Minimum && value <= (decimal)input.Maximum)
@@ -202,7 +216,7 @@ internal sealed partial class GalleryViewer
         _entry != null && _entry.Kind != SavedMediaKind.Other, _mediaFailed,
         _navigationPending || _entry != null && (_entry.Kind == SavedMediaKind.Video ? _videoReadyRequest != _request : _imageReadyRequest != _request),
         SlideshowBlockedByPanel, _helpOpen || IsFavoriteConfirmOpen, HasGalleryPopup || HasGalleryDialog,
-        _interactionAvailable && IsGalleryWindowActive && !_videoSuspended, false, Tagging: IsTagMode, TagHold: _taggingHold).Resolve();
+        SlideshowWindowAllows && !_videoSuspended, false, Tagging: IsTagMode, TagHold: _taggingHold).Resolve();
 
     private string SlideshowStatusText(SlideshowStatus state)
     {
@@ -231,7 +245,7 @@ internal sealed partial class GalleryViewer
         // GL0: what the slideshow does is a hint (the layout's Hints, off with hidden tools); why it waits and a failure always show.
         bool shown = _playbackPreferences.Mode == GalleryPlaybackMode.Slideshow
             && (!GalleryChromePlan.IsHint(_shownSlideshowStatus) || _modeTools == null || BuildChromePlan().Hints);
-        string text = shown ? SlideshowStatusText(_shownSlideshowStatus) : string.Empty;
+        string text = ApplyStatusDwell(_shownSlideshowStatus, shown ? SlideshowStatusText(_shownSlideshowStatus) : string.Empty); // GL5c: "ready" fades out after the dwell time
         if (_slideshowStatus.Text != text) _slideshowStatus.Text = text;
         _slideshowStatus.IsVisible = text.Length > 0;
     }
@@ -256,6 +270,7 @@ internal sealed partial class GalleryViewer
             ToolTip.SetTip(_playbackMode, GalleryPlaybackCatalog.Get("viewer.playback.modeHelp"));
             RefreshSlideshowNumbers();
             SetToggleLabel(_slideshowToggle, _slideshow.IsRunning ? GalleryPlaybackCatalog.Get("viewer.playback.pause") : GalleryPlaybackCatalog.Get("viewer.playback.start"));
+            PresentSlideshowIcon();
             _slideshowToggle.IsChecked = _slideshow.IsRunning;
             _slideshowToggle.IsEnabled = _slideshow.IsRunning || CanRunSlideshow && !_navigationPending;
             SetToggleLabel(_overlayToggle, GalleryPlaybackCatalog.Get("viewer.playback.controlsOverlay"));
@@ -303,6 +318,36 @@ internal sealed partial class GalleryViewer
                 _playbackMode.SelectedIndex = (int)_playbackPreferences.Mode;
         }
         finally { _updatingPlaybackControls = wasUpdating; }
+    }
+
+    // GL3: the slideshow control shows a play icon while stopped and a pause icon while running, like the other tools (catalog icons from
+    // the command's state icons). On the bar it is icon + text (icon only in the compact toolbar); in the "⋯" menu the row's lead icon is
+    // swapped, the row keeps its text. The built content is kept while neither state, label nor density changed.
+    private void PresentSlideshowIcon()
+    {
+        if (_slideshow == null) return;
+        string key = CommandCatalog.IconForState("gallery.slideshow-toggle", _slideshow.IsRunning ? "running" : "stopped");
+        if (_slideshowToggle.Tag is OverflowItem item)
+        {
+            if (item.Root.Children.Count == 0 || item.Root.Children[0].Tag as string == key) return;
+            Border lead = (Border)CommandBindings.Icon("gallery.slideshow-toggle", 16, _slideshow.IsRunning ? "running" : "stopped");
+            lead.HorizontalAlignment = HorizontalAlignment.Center;
+            lead.Bind(Border.BackgroundProperty, lead.GetObservable(Avalonia.Controls.Documents.TextElement.ForegroundProperty));
+            lead.Tag = key;
+            item.Root.Children[0] = lead;
+            return;
+        }
+        string label = AutomationProperties.GetName(_slideshowToggle) ?? string.Empty;
+        string signature = key + "|" + _compactToolbar + "|" + label;
+        if (_slideshowToggle.Content is Control { Tag: string shown } && shown == signature) return;
+        Border icon = (Border)CommandBindings.Icon("gallery.slideshow-toggle", _compactToolbar ? 16 : 14, _slideshow.IsRunning ? "running" : "stopped");
+        icon.Bind(Border.BackgroundProperty, icon.GetObservable(Avalonia.Controls.Documents.TextElement.ForegroundProperty));
+        _slideshowToggle.Classes.Set("command-icon", true);
+        if (_compactToolbar) { icon.Tag = signature; _slideshowToggle.Content = icon; return; }
+        StackPanel content = new() { Orientation = Orientation.Horizontal, Spacing = 4, Tag = signature };
+        content.Children.Add(icon);
+        content.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center });
+        _slideshowToggle.Content = content;
     }
 
     private static void SetToggleLabel(ToggleButton button, string label)
@@ -392,6 +437,13 @@ internal sealed partial class GalleryViewer
         _videoValueCaption.Text = seconds ? secondsName : repeats ? repeatsName : string.Empty;
         _reducedMotionNote.Text = GalleryPlaybackCatalog.Get("viewer.playback.reducedMotion");
         _reducedMotionNote.IsVisible = slideshow && Motion.MotionPolicy.IsOff && _playbackPreferences.VideoRule != SlideshowVideoRule.PlayOnce;
+        _pauseOnFocusLossToggle.IsChecked = _playbackPreferences.PauseOnFocusLoss;
+        _pauseOnFocusLossToggle.IsVisible = slideshow;
+        string focusName = GalleryPlaybackCatalog.Get("viewer.playback.pauseOnFocusLoss");
+        string focusTip = focusName + " · " + GalleryPlaybackCatalog.Get("viewer.playback.pauseOnFocusLossHelp");
+        AutomationProperties.SetName(_pauseOnFocusLossToggle, focusName);
+        AutomationProperties.SetHelpText(_pauseOnFocusLossToggle, focusTip);
+        ToolTip.SetTip(_pauseOnFocusLossToggle, focusTip);
         _videoRepeatToggle.IsChecked = _playbackPreferences.VideoRepeat;
         string repeatTip = CommandBindings.Tooltip("video.loop", GalleryPlaybackCatalog.Get("viewer.playback.repeatHelp"),
             GalleryPlaybackCatalog.Get("viewer.playback.repeat"));
@@ -428,7 +480,7 @@ internal sealed partial class GalleryViewer
 
     private void MarkVisibleImageReady()
     {
-        if (_imageReadyRequest == _request || _info == null || _image.Source == null || !_image.IsEffectivelyVisible
+        if (_imageReadyRequest == _request || _info == null || _image.Source == null || !ShownInWindow(_image)
             || _entry?.Kind == SavedMediaKind.Video || _navigationPending || _sessionCancellation.IsCancellationRequested) return;
         _imageReadyRequest = _request;
         _slideshow.ImageReady(_slideshowGeneration);
@@ -451,6 +503,7 @@ internal sealed partial class GalleryViewer
         _videoEndedHandler = () =>
         {
             if (!Current() || _entry?.Kind != SavedMediaKind.Video || _navigationPending) return;
+            ObserveSlideshowWindow();
             _slideshow.SetAdvanceHeld(generation, IsSlideshowAdvanceBlocked);
             _slideshow.VideoEnded(generation);
             RefreshPlaybackControls();

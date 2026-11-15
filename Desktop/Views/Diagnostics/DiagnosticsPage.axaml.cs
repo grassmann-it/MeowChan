@@ -118,7 +118,7 @@ public partial class DiagnosticsPage : UserControl
     private void ClearOtherSelection(DataGrid other)
     {
         _syncingSelection = true;
-        try { other.SelectedItems.Clear(); }
+        try { MeowChan.Desktop.Controls.DataGridSelection.Clear(other); }
         finally { _syncingSelection = false; }
     }
 

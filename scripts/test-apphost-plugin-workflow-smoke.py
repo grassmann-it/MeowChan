@@ -29,25 +29,25 @@ class PluginWorkflowRunnerTests(unittest.TestCase):
                     profile='/profile', workingDirectory='/work', renderScaling=1, unexpectedRequests=0,
                     revisions={plugin_id: str(i) for i, plugin_id in enumerate(sorted(runner.PLUGIN_IDS))}, processId=123,
                     requests=sorted(runner.REQUESTS) if phase == 'download' else [],
-                    sourceCompilation=dict(source='plugins/sources/Lainchan.cs', pluginId='meowchan.source.lainchan',
+                    sourceCompilation=dict(source='plugins/sources/VichanFamily.cs', pluginId='meowchan.source.vichan',
                                            sdkVersion='1.1.0', sourceSha256='a' * 64, executionRevision='b' * 64,
                                            assemblySha256='c' * 64, uncachedBuild=True, describedInWorker=True, cachedBuild=True))
 
     def validate(self, metrics):
         with patch.object(runner, 'validate_assembly_bindings', return_value=['bound']):
             return runner.validate_metrics(metrics, metrics['phase'], Path('/profile'), Path('/work'), 1,
-                                           dict(apphostMember='MeowChan', entries=[dict(path='plugins/sources/Lainchan.cs', sha256='a' * 64)]))
+                                           dict(apphostMember='MeowChan', entries=[dict(path='plugins/sources/VichanFamily.cs', sha256='a' * 64)]))
 
     def test_valid_download_and_restore(self):
         self.assertEqual(['bound'], self.validate(self.metrics()))
         self.assertEqual(['bound'], self.validate(self.metrics('restore')))
 
-    def test_twenty_four_exact_plugin_ids_and_twelve_exact_requests_are_required(self):
-        self.assertEqual(24, len(runner.PLUGIN_IDS))
+    def test_twenty_exact_plugin_ids_and_twelve_exact_requests_are_required(self):
+        self.assertEqual(20, len(runner.PLUGIN_IDS))
         self.assertEqual(12, len(runner.REQUESTS))
         for source in ('wizchan', 'endchan'):
             metrics = self.metrics()
-            metrics['revisions']['foreign'] = metrics['revisions'].pop('meowchan.source.' + source)
+            metrics['revisions']['foreign'] = metrics['revisions'].pop(runner.source_owner(source))
             with self.assertRaises(ValueError): self.validate(metrics)
             metrics = self.metrics()
             metrics['requests'] = [uri for uri in metrics['requests'] if source not in uri]
@@ -58,7 +58,7 @@ class PluginWorkflowRunnerTests(unittest.TestCase):
         probe = ast.parse((repository / 'tests/PluginDeliverySmoke/sdk_free_worker_probe.py').read_text())
         expected = next(ast.literal_eval(node.value) for node in ast.walk(probe)
                         if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == 'expected_ids' for target in node.targets))
-        self.assertEqual(24, len(expected))
+        self.assertEqual(20, len(expected))
         self.assertEqual(set(expected.values()), runner.PLUGIN_IDS)
         smoke = (repository / 'Desktop/Shell/MainWindow.ApphostPluginWorkflowSmoke.cs').read_text()
         def cs_array(name):
@@ -68,17 +68,24 @@ class PluginWorkflowRunnerTests(unittest.TestCase):
             return set(values)
         self.assertEqual(runner.PLUGIN_IDS, cs_array('ApphostBundledPluginIds'))
         policy = (repository / 'Desktop/ExperimentalSourceActivationPolicy.cs').read_text()
-        default_off = set(re.findall(r'\["(meowchan[^"]+)"\] =', policy))
+        default_off = set(re.findall(r'\["(meowchan[^"]+)"\] = "', policy))
         self.assertEqual(15, len(default_off))
-        self.assertEqual(default_off, runner.DEFAULT_OFF_PLUGIN_IDS)
-        self.assertEqual(default_off, cs_array('ApphostDefaultOffPluginIds'))
+        # The policy still gates the replaced single-site identities (a user's own copy of an old file);
+        # the delivered default-off set is the policy without them.
+        families = (repository / 'Desktop/ChanSourceFamilies.cs').read_text()
+        replaced = set(re.findall(r'\["(meowchan[^"]+)"\] = \(', families))
+        self.assertEqual(6, len(replaced))
+        self.assertEqual(default_off - replaced, runner.DEFAULT_OFF_PLUGIN_IDS)
+        self.assertEqual(default_off - replaced, cs_array('ApphostDefaultOffPluginIds'))
         blocked = {'meowchan.source.anonimageboards', 'meowchan.source.gurocx'}
         filters = {value for value in expected.values() if value.startswith('meowchan.filter.')} | {'meowchan.example.image-dimensions'}
         booru = {'meowchan.official.danbooru'}
         chan = runner.PLUGIN_IDS - blocked - filters - booru
         self.assertEqual(5, len(filters))
-        self.assertEqual(16, len(chan))
-        self.assertEqual({value.rsplit('.', 1)[1] for value in chan}, cs_array('ApphostChanSourceIds'))
+        self.assertEqual(12, len(chan))
+        sources = {site for value in chan for site in runner.FAMILY_SITES.get(value, (value.rsplit('.', 1)[1],))}
+        self.assertEqual(16, len(sources))
+        self.assertEqual(sources, cs_array('ApphostChanSourceIds'))
         self.assertEqual(12, len(runner.FIXTURE_ENABLED_PLUGIN_IDS))
         self.assertTrue(blocked.isdisjoint(runner.FIXTURE_ENABLED_PLUGIN_IDS))
         self.assertTrue(booru <= runner.FIXTURE_ENABLED_PLUGIN_IDS)

@@ -26,7 +26,7 @@ namespace MeowChan.Desktop;
 //       (a 24 dip zone like the bottom edge's); it hides with the controls and never while the pointer or the keyboard is on it.
 //     - Docked mode ("Don't hide controls"): a permanent band above the picture; the picture starts below it.
 //   * The work view decides whether it is there by default (Barebones: no, Simple and Advanced: yes); the user's own choice (the
-//     setting, the L key, the ⋯ row) wins in every view, see FilmstripPolicyVisible.
+//     setting, the filmstrip key, the ⋯ row) wins in every view, see FilmstripPolicyVisible.
 //   * The tab order follows the picture: the bottom strip is the first stop of the dock, before the toolbar.
 internal sealed partial class GalleryViewer
 {
@@ -41,7 +41,7 @@ internal sealed partial class GalleryViewer
     private readonly ToggleButton _filmstripToggle = new() { Name = "GalleryFilmstripToggle" };
     // The old profile setting (GalleryFilmstrip): the View set's filmstrip choice where that has none. The layout choice is the owner (GL4).
     private bool _filmstripSetting = true;
-    private int _filmstripHeight = Config.GalleryFilmstripHeightDefault, _filmstripPreload = Config.GalleryFilmstripPreloadDefault;
+    private int _filmstripHeight = Config.GalleryFilmstripHeightDefault, _filmstripPreload = Config.GalleryFilmstripPreloadDefault, _filmstripGap = Config.GalleryFilmstripTileGapDefault;
     private bool _filmstripPeek, _filmstripTopHot, _pointerInFilmstrip, _filmstripOverlayStyled, _filmstripStyleKnown;
     // The band is shown as the first row of the docked dock (GL1 bottom, docked): the dock's top margin is the band's (GL2, ApplyDockMargin).
     private bool _filmstripHeadsDock;
@@ -78,15 +78,17 @@ internal sealed partial class GalleryViewer
         { if (e.Property == TextBlock.TextProperty) RefreshFilmstripPosition(); };
         _contextPanel.SizeChanged += (_, _) => UpdateFilmstripPlacement();
         ActualThemeVariantChanged += (_, _) => { _filmstripStyleKnown = false; UpdateFilmstripPlacement(); };
+        MeowChan.Desktop.Theming.ThemeRuntime.FollowApplied(this, () => { _filmstripStyleKnown = false; UpdateFilmstripPlacement(); });
         RefreshFilmstripToggle();
     }
 
     /// <summary>Applies the profile settings (called with the other gallery preferences): shown, thumbnail height, thumbnails kept ahead.</summary>
-    internal void ConfigureFilmstrip(bool enabled, int height, int preload)
+    internal void ConfigureFilmstrip(bool enabled, int height, int preload, int gap = Config.GalleryFilmstripTileGapDefault)
     {
         _filmstripSetting = enabled;
         _filmstripHeight = GalleryFilmstripPlan.ClampHeight(height);
         _filmstripPreload = GalleryFilmstripPlan.ClampPreload(preload);
+        _filmstripGap = GalleryFilmstripPlan.ClampGap(gap);
         UpdateFilmstripPlacement();
     }
 
@@ -174,7 +176,7 @@ internal sealed partial class GalleryViewer
         bool headsDock = show && place.Host == GalleryFilmstripPlan.Host.Dock;
         if (headsDock != _filmstripHeadsDock) { _filmstripHeadsDock = headsDock; ApplyDockMargin(); }
         _filmstrip.SetDock(plan.FilmstripDock == GalleryFilmstripDock.Bottom);
-        _filmstrip.Configure(tile, _filmstripPreload);
+        _filmstrip.Configure(tile, _filmstripPreload, _filmstripGap);
         ApplyFilmstripBackground(overlay);
         WorkViewGate.Apply(_filmstrip, _workView, stateVisible: show, nonDefaultState: FilmstripForced);
         // The top band, docked, pushes the picture down; the overlay floats over it. The bottom band never touches the picture.
@@ -251,7 +253,7 @@ internal sealed partial class GalleryViewer
         return true;
     }
 
-    /// <summary>Shows or hides the filmstrip (the L key and the ⋯ row); the choice is the shown mode's layout choice, saved per profile and mode (GL4).</summary>
+    /// <summary>Shows or hides the filmstrip (the filmstrip key and the ⋯ row); the choice is the shown mode's layout choice, saved per profile and mode (GL4).</summary>
     internal void ToggleFilmstrip()
     {
         if (_terminalRetirement) return;

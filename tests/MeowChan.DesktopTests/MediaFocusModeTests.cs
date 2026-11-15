@@ -73,7 +73,7 @@ public sealed class MediaFocusModeTests : IDisposable
         Assert.Equal("Fokus · 20 von 32 Medien", MediaFocusMode.Line("20 von 32 Medien"));
         Assert.Equal("Fokusmodus an", MediaFocusMode.Announcement(true));
         Assert.Equal("Fokusmodus aus", MediaFocusMode.Announcement(false));
-        Assert.Equal("Fokus beenden ×", Texts.T("media.focus.exit"));
+        Assert.Equal("Fokus beenden", Texts.T("media.focus.exit"));
     }
 
     [Fact]
@@ -95,7 +95,7 @@ public sealed class MediaFocusModeTests : IDisposable
         foreach (string key in keys)
             Assert.False(string.IsNullOrWhiteSpace(Texts.T(key)) || Texts.T(key) == key, language + ": " + key);
         Assert.NotEqual(Texts.T("media.focus.on"), Texts.T("media.focus.off"));
-        Assert.EndsWith("×", Texts.T("media.focus.exit"));
+        Assert.DoesNotContain("×", Texts.T("media.focus.exit")); // an icon plus a short text, not a cross in the text
         // The exit says which key does it; the label of the command is what the button, the menu and the shortcut list show.
         Assert.Contains("Esc", Texts.T("media.focus.exit.tip").Replace("Échap", "Esc"));
         Assert.Equal(Texts.T("command.media.focus-mode"), CommandCatalog.Label("media.focus-mode"));
@@ -183,14 +183,19 @@ public sealed class MediaFocusModeTests : IDisposable
     }
 
     [Fact]
-    public void TheFocusRowIs32DipWithTheExitAloneAtTheRightAndTheCountOnlyWhileAFilterIsActive()
+    public void TheFocusRowIs32DipWithTheExitAloneAtTheLeftAndTheCountOnlyWhileAFilterIsActive()
     {
         string focus = Source(Focus);
         Assert.Equal(32, MediaFocusMode.FocusRowHeight);
         Assert.Contains("Height = MediaFocusMode.FocusRowHeight", focus);
-        Assert.Contains("new ColumnDefinitions(\"*,Auto\")", focus);
-        Assert.Contains("Avalonia.Controls.Grid.SetColumn(_focusExit, 1);", focus);
-        Assert.Contains("_focusExit.HorizontalAlignment = HorizontalAlignment.Right;", focus);
+        Assert.Contains("new ColumnDefinitions(\"Auto,Auto,*\")", focus);
+        Assert.Contains("Avalonia.Controls.Grid.SetColumn(_focusExit, 0);", focus); // the way out first: far left, first in the tab order
+        Assert.Contains("_focusExit.HorizontalAlignment = HorizontalAlignment.Left;", focus);
+        Assert.Contains("WorkspaceIcons.Create(WorkspaceIcons.ChevronLeft), _focusExitLabel", focus);
+        Assert.Contains("FocusExitGap = 24", focus);
+        Assert.Contains("\"Workspace.Border\"", focus); // the thin separator token of the HeaderBar back slot
+        Assert.Contains("_focusExitLabel.IsVisible = e.NewSize.Width >= FocusExitCompactWidth", focus);
+        Assert.True(focus.IndexOf("_focusRow.Children.Add(_focusExit)", StringComparison.Ordinal) < focus.IndexOf("_focusRow.Children.Add(left)", StringComparison.Ordinal));
         Assert.Contains("_focusSeparator.IsVisible = _focusFilters.IsVisible = count > 0;", focus);
         Assert.Contains("ToolTip.SetTip(_focusFilters, MediaFocusMode.FilterList(_renderedChips));", focus);
         // The counter is the page's status line behind a label, refreshed with it (presentation and progress ticks).
@@ -204,10 +209,10 @@ public sealed class MediaFocusModeTests : IDisposable
     public void TheToolbarButtonSitsBetweenRefreshAndMoreAndWorkViewsKnowIt()
     {
         string toolbar = Source("Desktop/Views/Media/MediaPage.Toolbar.cs"), view = Source("Desktop/Views/Media/MediaPage.WorkView.cs");
-        Assert.Contains("{ _shuffle, _sortLabel, _sort, _sortDirection, _refresh, _booruMode, _focus, _exportAll, _manageRatings, _booruOpen,", toolbar);
+        Assert.Contains("{ _shuffle, _sortLabel, _sort, _sortDirection, _refresh, _booruMode, _layoutButton, _focus, _exportAll, _manageRatings, _booruOpen,", toolbar);
         Assert.Contains("WorkViewElement.SetId(_focus, \"media.toolbar.focus\");", view);
         Assert.Contains("WorkViewGate.Apply(_focus, view);", view);
-        Assert.Contains("Overflowed(_booruMode, _focus, _refresh, _shuffle, _exportAll, _manageRatings, _booruOpen, _queueWalk, _taggingPageOpen)", view);
+        Assert.Contains("Overflowed(_booruMode, _layoutButton, _focus, _refresh, _shuffle, _exportAll, _manageRatings, _booruOpen, _queueWalk, _taggingPageOpen)", view);
         // A narrow page moves it under More first (MediaToolbarLayout.Demotable); the shortcut keeps working.
         Assert.True(MediaToolbarLayout.IsMovedUnderMore(MediaToolbarLayout.Level.Reduced, "media.toolbar.focus"));
         Assert.Equal("media.toolbar.focus", MediaToolbarLayout.MovedUnderMore(MediaToolbarLayout.Level.Compact)[0]);

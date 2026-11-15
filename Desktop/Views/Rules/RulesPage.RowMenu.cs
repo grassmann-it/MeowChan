@@ -13,7 +13,7 @@ public partial class RulesPage
 {
     private ContextMenuHost AttachOverviewRowMenu(Border card, RuleOverviewRow row, bool draftRow, Action removeOrDiscard)
     {
-        return new ContextMenuHost(card, () => ComposeOverviewRowMenu(card, row, draftRow, removeOrDiscard), fallbackFocus: () => CreateRuleButton.Focus());
+        return new ContextMenuHost(card, () => ComposeOverviewRowMenu(card, row, draftRow, removeOrDiscard), fallbackFocus: () => OverviewCreateButton.Focus());
     }
 
     /// <summary>The menu of a row as the page would open it now (tests and smokes).</summary>

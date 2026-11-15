@@ -96,10 +96,40 @@ public sealed class GalleryLayoutPreferencesTests
     }
 
     [Fact]
-    public void AStoredViewFilmstripBeatsTheOldSetting()
+    public void AnOffOldSettingBeatsAStoredViewFilmstrip()
     {
-        Config config = Load("{\"GalleryFilmstrip\":false,\"GalleryLayout\":{\"view\":{\"filmstrip\":true}}}");
-        Assert.True(GalleryLayoutPreferences.FromConfig(config).View.Filmstrip);
+        // N5: an older build switched the strip off after this one had saved "on"; the older build only writes the old setting.
+        Config config = Load("{\"GalleryFilmstrip\":false,\"GalleryLayout\":{\"view\":{\"filmstrip\":true,\"tools\":false},\"tag\":{\"filmstrip\":true}}}");
+        GalleryLayoutPreferences preferences = GalleryLayoutPreferences.FromConfig(config);
+        Assert.Equal(new GalleryLayoutChoice(Filmstrip: false, Tools: false), preferences.View);
+        Assert.Equal(new GalleryLayoutChoice(Filmstrip: true), preferences.Tag); // the tagging mode's own choice is not the old setting's
+    }
+
+    [Fact]
+    public void AnOnOldSettingKeepsAStoredViewChoice()
+    {
+        // The other way round is not mixed-build evidence: a file without the old key reads it as on.
+        Config off = Load("{\"GalleryLayout\":{\"view\":{\"filmstrip\":false,\"hints\":true}}}");
+        Assert.Equal(new GalleryLayoutChoice(Filmstrip: false, Hints: true), GalleryLayoutPreferences.FromConfig(off).View);
+        // A stored "on" stays the person's explicit choice (Barebones has the strip off by default).
+        Assert.True(GalleryLayoutPreferences.FromConfig(Load("{\"GalleryFilmstrip\":true,\"GalleryLayout\":{\"view\":{\"filmstrip\":true}}}")).View.Filmstrip);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void AnOffOldSettingAlwaysAgreesWithTheViewFilmstripAfterReading(bool? stored)
+    {
+        Config config = new() { GalleryFilmstrip = false, GalleryLayout = new GalleryLayoutPreferences(new GalleryLayoutChoice(Filmstrip: stored, Info: false), TagChoice) };
+        GalleryLayoutPreferences preferences = GalleryLayoutPreferences.FromConfig(config);
+        Assert.False(preferences.View.Filmstrip);
+        Assert.Equal(TagChoice, preferences.Tag);
+        Assert.False(preferences.View.Info);
+        // Written back, the file agrees as well.
+        preferences.ApplyTo(config);
+        Assert.False(config.GalleryFilmstrip);
+        Assert.Equal(preferences, GalleryLayoutPreferences.FromConfig(config));
     }
 
     [Theory]
@@ -255,6 +285,25 @@ public sealed class GalleryLayoutPreferencesTests
     }
 
     [Fact]
+    public void TheWindowWritesTheChangedModesOfOneFlushOntoTheLatestSavedState()
+    {
+        // MainWindow.ApplyGalleryLayoutChanges: both modes changed within one flush, the saved state got a newer Tag change meanwhile.
+        Config saved = new();
+        new GalleryLayoutPreferences(ViewChoice, TagChoice).ApplyTo(saved);
+        GalleryLayoutChoice view = ViewChoice with { Filmstrip = false };
+        MainWindow.ApplyGalleryLayoutChanges(saved, view, null);
+        Assert.Equal(new GalleryLayoutPreferences(view, TagChoice), GalleryLayoutPreferences.FromConfig(saved));
+        Assert.False(saved.GalleryFilmstrip);
+        GalleryLayoutChoice tag = new(Hints: false);
+        MainWindow.ApplyGalleryLayoutChanges(saved, ViewChoice, tag);
+        Assert.Equal(new GalleryLayoutPreferences(ViewChoice, tag), GalleryLayoutPreferences.FromConfig(saved));
+        Assert.True(saved.GalleryFilmstrip);
+        GalleryLayoutPreferences before = GalleryLayoutPreferences.FromConfig(saved);
+        MainWindow.ApplyGalleryLayoutChanges(saved, null, null);
+        Assert.Equal(before, GalleryLayoutPreferences.FromConfig(saved));
+    }
+
+    [Fact]
     public void AViewSaveMaterializesTheMigratedFilmstripOffForTheTaggingModeToo()
     {
         // An old profile with the strip off: the first saved change keeps the tagging mode's strip off as well (nothing changes silently).
@@ -305,6 +354,83 @@ public sealed class GalleryLayoutPreferencesTests
         live.CopySettingsFieldsFrom(draft);
         Assert.Equal(newer, GalleryLayoutPreferences.FromConfig(live));
         Assert.Equal(3000, live.ControlsIdleHideMs);
+    }
+
+    [Fact]
+    public void AnUntouchedFilmstripBoxOfAnOlderDraftKeepsTheGalleryLayoutOfBothModes()
+    {
+        // H1: the settings page loaded the box (on), then the gallery switched the strip off with L; saving another field must keep both modes.
+        Config live = new();
+        GalleryLayoutChoice tag = TagChoice with { Filmstrip = true };
+        new GalleryLayoutPreferences(ViewChoice, tag).ApplyTo(live);
+        Config draft = live.Clone();
+        GalleryLayoutPreferences afterL = GalleryLayoutPreferences.FromConfig(live).With(GalleryChromeMode.View, ViewChoice with { Filmstrip = false });
+        afterL.ApplyTo(live);
+        Assert.False(live.GalleryFilmstrip);
+        draft.Theme = "Dark";
+
+        live.CopySettingsFieldsFrom(draft);
+        Assert.Equal(afterL, GalleryLayoutPreferences.FromConfig(live));
+        Assert.False(live.GalleryFilmstrip);
+        Assert.Equal("Dark", live.Theme);
+    }
+
+    [Fact]
+    public void TheSettingsPageCandidateComparesTheBoxWithItsBaselineNotWithTheLiveValue()
+    {
+        // H1 as the settings page builds its candidate: a clone of the live settings (strip already off by L) with the draft's stale box (on).
+        Config live = new();
+        GalleryLayoutChoice tag = TagChoice with { Filmstrip = true };
+        new GalleryLayoutPreferences(ViewChoice with { Filmstrip = false }, tag).ApplyTo(live);
+        GalleryLayoutPreferences before = GalleryLayoutPreferences.FromConfig(live);
+        Config candidate = live.Clone();
+        candidate.GalleryFilmstrip = true;
+        candidate.SettingsBaselineGalleryFilmstrip = true;
+        candidate.ControlsIdleHideMs = 3000;
+
+        live.CopySettingsFieldsFrom(candidate);
+        Assert.Equal(before, GalleryLayoutPreferences.FromConfig(live));
+        Assert.False(live.GalleryFilmstrip);
+        Assert.Equal(3000, live.ControlsIdleHideMs);
+
+        // The person unticks the box afterwards (against its baseline: changed): the strip is off in both modes, also where it was on.
+        Config unticked = live.Clone();
+        unticked.GalleryFilmstrip = false;
+        unticked.SettingsBaselineGalleryFilmstrip = true;
+        live.CopySettingsFieldsFrom(unticked);
+        GalleryLayoutPreferences result = GalleryLayoutPreferences.FromConfig(live);
+        Assert.False(result.View.Filmstrip);
+        Assert.False(result.Tag.Filmstrip);
+        Assert.Equal(tag.Info, result.Tag.Info);
+
+        // A ticked box whose baseline was off turns the strip on in both modes, even where the live value is on already.
+        Config ticked = live.Clone();
+        new GalleryLayoutPreferences(result.View with { Filmstrip = null }, result.Tag).ApplyTo(live); // L in the gallery: on again
+        ticked.GalleryFilmstrip = true;
+        ticked.SettingsBaselineGalleryFilmstrip = false;
+        live.CopySettingsFieldsFrom(ticked);
+        result = GalleryLayoutPreferences.FromConfig(live);
+        Assert.Null(result.View.Filmstrip);
+        Assert.Null(result.Tag.Filmstrip);
+        Assert.True(live.GalleryFilmstrip);
+    }
+
+    [Fact]
+    public void TheFilmstripBaselineIsDraftStateCapturedByCloneAndNeverSaved()
+    {
+        Config live = new() { GalleryFilmstrip = false };
+        Config draft = live.Clone();
+        Assert.False(draft.SettingsBaselineGalleryFilmstrip);
+        Assert.DoesNotContain(nameof(Config.SettingsBaselineGalleryFilmstrip), JsonSerializer.Serialize(draft, ConfigJsonContext.Default.Config));
+        // A draft without a baseline (built by hand) compares with the live value, as before.
+        Config live2 = new();
+        new GalleryLayoutPreferences(ViewChoice, TagChoice).ApplyTo(live2);
+        Config bare = live2.Clone();
+        bare.SettingsBaselineGalleryFilmstrip = null;
+        bare.GalleryFilmstrip = false;
+        live2.CopySettingsFieldsFrom(bare);
+        Assert.False(GalleryLayoutPreferences.FromConfig(live2).View.Filmstrip);
+        Assert.False(live2.GalleryFilmstrip);
     }
 
     [Fact]
@@ -442,8 +568,21 @@ public sealed class GalleryLayoutPreferencesTests
         string window = Source("Desktop/Shell/MainWindow.GalleryFilmstrip.cs");
         Assert.Contains("_gallery.SetLayoutChoice(GalleryChromeMode.View, layout.View);", window);
         Assert.Contains("_gallery.SetLayoutChoice(GalleryChromeMode.Tag, layout.Tag);", window);
-        Assert.Contains("GalleryLayoutPreferences.FromConfig(current).With(mode, choice).ApplyTo(current)", window);
-        Assert.Contains("SaveViewPreferencesAsync", window);
+        Assert.Contains("GalleryLayoutPreferences layout = GalleryLayoutPreferences.FromConfig(current);", window);
+        Assert.Contains("if (view != null) layout = layout.With(GalleryChromeMode.View, view);", window);
+        Assert.Contains("if (tag != null) layout = layout.With(GalleryChromeMode.Tag, tag);", window);
+        // N3: the write goes with the other gallery preferences (debounced, flushed on gallery close, window close and before a settings save).
+        Assert.Contains("QueueGalleryPreference(null, null);", window);
+        Assert.DoesNotContain("SaveViewPreferencesAsync", window);
+        string preferences = Source("Desktop/Shell/MainWindow.GalleryPreferences.cs");
+        Assert.Contains("ApplyGalleryLayoutChanges(current, layoutView, layoutTag);", preferences);
+        Assert.Contains("_pendingGalleryLayoutView ??= layoutView;", preferences);
+        Assert.Contains("_desiredGalleryLayout = null;", preferences);
+        // After a settings save the saved layout counts again (a failed earlier write must not mask a reset or the box for good).
+        string apply = Source("Desktop/Shell/MainWindow.axaml.cs");
+        int at = apply.IndexOf("await _session.ApplySettingsAsync(candidate);", StringComparison.Ordinal);
+        Assert.True(at > 0 && apply.IndexOf("ForgetDesiredGalleryLayout();", at, StringComparison.Ordinal) is > 0 and var forget
+            && forget < apply.IndexOf("ApplyAppearance();", at, StringComparison.Ordinal));
         Assert.Contains("_gallery.LayoutChoiceChanged +=", Source("Desktop/Shell/MainWindow.Gallery.cs"));
         // The preferences are applied with the other gallery preferences, so a profile change loads them too.
         Assert.Contains("ConfigureGalleryFilmstrip();", Source("Desktop/Shell/MainWindow.GalleryPreferences.cs"));

@@ -72,6 +72,7 @@ public partial class ArchivePage
             return item;
         });
         Button view = new() { Name = "FavoritesView", Content = Texts.T("viewer.favorites.view") };
+        MeowChan.Desktop.Controls.IconButtons.WithText(view, "eye");
         Button remove = new() { Name = "FavoritesRemove", Content = Texts.T("viewer.favorite.remove") };
         AutomationProperties.SetName(view, Texts.T("viewer.favorites.view"));
         AutomationProperties.SetName(remove, Texts.T("viewer.favorite.remove"));
@@ -83,6 +84,7 @@ public partial class ArchivePage
         void Fail(string text) { status.Text = string.Empty; error.Text = text; }
         Button export = CommandBindings.CreateButton("favorites.export-originals", () => { });
         export.Name = "FavoritesExportOriginals";
+        MeowChan.Desktop.Controls.IconButtons.WithText(export, "download");
         Button close = new() { Content = Texts.T("action.close") };
         remove.Classes.Add("danger"); summary.Classes.Add("workspace-meta");
         ScrollViewer.SetHorizontalScrollBarVisibility(list, Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled);
@@ -293,9 +295,9 @@ public partial class ArchivePage
         void Fail(string text) { status.Text = string.Empty; error.Text = text; }
         if (assets.Length == 0)
             status.Text = missingCount > 0 ? Texts.Count("viewer.favorites.unavailable", missingCount) : Texts.T("viewer.export.empty");
-        Button browse = CommandBindings.CreateButton("export.browse-parent", () => { });
+        Button browse = CommandBindings.CreateButton("export.browse-parent", () => { }, iconWithLabel: true);
         browse.IsEnabled = assets.Length > 0;
-        Button openFolder = CommandBindings.CreateButton("location.open-folder", () => { });
+        Button openFolder = CommandBindings.CreateButton("location.open-folder", () => { }, iconWithLabel: true);
         Button start = CommandBindings.CreateButton("export.start-originals", () => { });
         start.Name = "OriginalExportStart";
         if (System.IO.Directory.Exists(LastExportDirectoryPreference)) destination.Text = LastExportDirectoryPreference;

@@ -66,11 +66,11 @@
                 <Border x:Name="ArchiveFilterSurface" Grid.Row="1" ZIndex="10" Classes="workspace-overlay" Padding="{StaticResource Workspace.Inset.Overlay}"
                         VerticalAlignment="Top" IsVisible="{Binding #ArchiveFilters.IsChecked}"
                         KeyboardNavigation.TabNavigation="Cycle">
-                    <!-- MD4 overlay header: the surface names itself (like every overlay) and its cross sits alone at the top right (OverlayFrame). -->
+                    <!-- MD4 overlay header: the cross stands at the far left, before the surface's name (HeaderBar back slot, OverlayFrame), apart from it by a gap and a separator. -->
                     <Grid RowDefinitions="Auto,*,Auto" RowSpacing="{StaticResource Workspace.Space.8}">
                         <controls:HeaderBar x:Name="ArchiveFilterSurfaceHeader">
+                            <Button x:Name="ArchiveFilterSurfaceClose" controls:HeaderBar.IsBack="True" Click="OnFilterCloseClick" />
                             <TextBlock x:Name="ArchiveFilterSurfaceTitle" Classes="section-title" VerticalAlignment="Center" TextWrapping="Wrap" />
-                            <Button x:Name="ArchiveFilterSurfaceClose" controls:HeaderBar.IsEnd="True" Click="OnFilterCloseClick" />
                         </controls:HeaderBar>
                         <ScrollViewer x:Name="ArchiveFilterSurfaceScroll" Grid.Row="1" HorizontalScrollBarVisibility="Disabled">
                             <StackPanel x:Name="ArchiveFilterFields" Spacing="{StaticResource Workspace.Space.8}" Margin="0,0,12,0">
@@ -268,16 +268,17 @@
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
                 <StackPanel Spacing="{StaticResource Workspace.Space.4}">
-                    <!-- Tom's rule (14.11.): the ways out of the reader stand alone at the right edge of its header row, after a gap and a
-                         divider (HeaderBar end slot), last in the row's tab order: the state returns, the narrow "Back to thread list" and
-                         the large reader's close. The toolbar below keeps only the reader's own actions. -->
+                    <!-- Tom's rule (14.11. evening): the ways back of the reader stand at the far left of its header row, before the title and
+                         apart from it by a gap and a thin separator (HeaderBar back slot), first in the row's tab order: the state returns,
+                         the narrow "Back to thread list" and the large reader's "Back to {origin}". The toolbar below keeps only the
+                         reader's own actions. -->
                     <controls:HeaderBar x:Name="ReaderHeaderBar">
-                        <TextBlock x:Name="ArchiveReaderTitle" Classes="section-title" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                        <Button x:Name="ArchiveGalleryReturn" controls:HeaderBar.IsEnd="True" wv:WorkViewElement.Id="reader.toolbar.gallery-return" Content="Back to gallery" IsVisible="False" Click="OnGalleryReturnClick" />
+                        <Button x:Name="ArchiveGalleryReturn" controls:HeaderBar.IsBack="True" wv:WorkViewElement.Id="reader.toolbar.gallery-return" Content="Back to gallery" IsVisible="False" Click="OnGalleryReturnClick" />
                         <!-- MEDIA103-NAV: shown instead of the gallery return while a "show in thread" from the Medien page can go back. -->
-                        <Button x:Name="ArchiveMediaReturn" controls:HeaderBar.IsEnd="True" wv:WorkViewElement.Id="reader.toolbar.media-return" Content="Back to media" IsVisible="False" Click="OnMediaReturnClick" />
-                        <Button x:Name="ArchiveBackButton" controls:HeaderBar.IsEnd="True" wv:WorkViewElement.Id="reader.header.back" Tag="archive.back" Classes="localized" Click="OnBackClick" />
-                        <Button x:Name="ArchiveCloseReader" controls:HeaderBar.IsEnd="True" wv:WorkViewElement.Id="reader.toolbar.close" Tag="reader.close" Classes="localized" IsVisible="False" Click="OnCloseReaderClick" />
+                        <Button x:Name="ArchiveMediaReturn" controls:HeaderBar.IsBack="True" wv:WorkViewElement.Id="reader.toolbar.media-return" Content="Back to media" IsVisible="False" Click="OnMediaReturnClick" />
+                        <Button x:Name="ArchiveBackButton" controls:HeaderBar.IsBack="True" wv:WorkViewElement.Id="reader.header.back" Tag="archive.back" Classes="localized" Click="OnBackClick" />
+                        <Button x:Name="ArchiveCloseReader" controls:HeaderBar.IsBack="True" wv:WorkViewElement.Id="reader.toolbar.close" Tag="reader.close" Classes="localized" IsVisible="False" Click="OnCloseReaderClick" />
+                        <TextBlock x:Name="ArchiveReaderTitle" Classes="section-title" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                     </controls:HeaderBar>
                     <!-- WV3: every item has a work-view id. The view decides what sits under More; PrioritizedOverflow makes the
                          policy's ReaderToolbarKeepVisibleOrder (not the visual order below) decide what a narrow window moves first. -->
@@ -305,6 +306,7 @@
                         <!-- AP2: the same scope chip as the archive field; File name and SHA-256 open their result
                              dialogs on Enter or Search, Text finds in the open thread as before. -->
                         <controls:HeaderBar x:Name="ReaderFindRow">
+                        <!-- The inline find bar keeps its × at the right edge (HeaderBar end slot, Tom's item 35), the drawn cross with its name. -->
                         <WrapPanel ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.4}">
                             <controls:SearchBox x:Name="ReaderFindQuery" Width="240" TextChanged="OnThreadFindQueryChanged">
                                 <controls:SearchBox.ScopeChip><controls:SearchScopeChip x:Name="ReaderFindScope" /></controls:SearchBox.ScopeChip>
@@ -316,7 +318,6 @@
                             <Button x:Name="ReaderFindNext" Click="OnNextThreadFind" />
                             <Button x:Name="ReaderFindRetry" Click="OnRetryThreadFind" IsVisible="False" />
                         </WrapPanel>
-                        <!-- The find bar's way out: alone at the right edge (HeaderBar end slot), the drawn cross with its name. -->
                         <Button x:Name="ReaderFindClose" controls:HeaderBar.IsEnd="True" Click="OnCloseThreadFind" />
                         </controls:HeaderBar>
                         <TextBlock x:Name="ReaderFindStatus" TextWrapping="Wrap" />
@@ -532,8 +533,8 @@
                                                         </WrapPanel>
                                                         <desktop:ReaderPostLayout IsVisible="{Binding !IsStub}" MediaWidth="{Binding MediaWidth}">
                                                             <ItemsControl ItemsSource="{Binding Attachments}" IsVisible="{Binding ShowsMedia}" HorizontalAlignment="Left">
-                                                                <!-- R11: a wrap panel; one file per line unless the post's tiles are half the media column (grid of two columns). -->
-                                                                <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel ItemSpacing="8" LineSpacing="0" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                                                                <!-- R11: one file per line, except in a post laid out as a grid (two columns); the panel reads that from the post. -->
+                                                                <ItemsControl.ItemsPanel><ItemsPanelTemplate><desktop:ReaderMediaPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
                                                                 <ItemsControl.ItemTemplate>
                                                                     <DataTemplate x:DataType="desktop:ArchiveAttachmentRow">
                                                                         <desktop:ArchiveAttachmentView Margin="0,2,0,8" />
@@ -620,10 +621,10 @@
                                             <Border Background="{DynamicResource Workspace.Card}" BorderBrush="{DynamicResource Workspace.Accent}" BorderThickness="1"
                                                     CornerRadius="{StaticResource Workspace.Radius.Control}" Padding="16" MaxWidth="520" Margin="16" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                 <StackPanel Spacing="{StaticResource Workspace.Space.12}">
-                                                    <!-- MD4 overlay header: the question on the left, the cross (cancel) alone at the top right (OverlayFrame). -->
+                                                    <!-- MD4 overlay header: the cross (cancel) at the far left, then the question (HeaderBar back slot, OverlayFrame). -->
                                                     <controls:HeaderBar x:Name="ReaderLinkHeader">
+                                                        <Button x:Name="ReaderLinkClose" controls:HeaderBar.IsBack="True" Click="OnReaderLinkCancel" />
                                                         <TextBlock x:Name="ReaderLinkTitle" Classes="section-title" TextWrapping="Wrap" VerticalAlignment="Center" />
-                                                        <Button x:Name="ReaderLinkClose" controls:HeaderBar.IsEnd="True" Click="OnReaderLinkCancel" />
                                                     </controls:HeaderBar>
                                                     <SelectableTextBlock x:Name="ReaderLinkUrl" TextWrapping="Wrap" />
                                                     <TextBlock x:Name="ReaderLinkHint" Classes="workspace-meta" TextWrapping="Wrap" />

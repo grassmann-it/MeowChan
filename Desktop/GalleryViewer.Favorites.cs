@@ -21,9 +21,9 @@ internal sealed partial class GalleryViewer
 
     internal static Border CreateFavoriteIndicator(string name) => new Border
     {
-        Name = name, HorizontalAlignment = HorizontalAlignment.Right,
-        // The top right edge belongs to the way back; the passive persisted-state badge sits directly left of it
-        // (UpdateFavoriteIndicators), so neither is painted over by the post panel, which starts below this row.
+        Name = name, HorizontalAlignment = HorizontalAlignment.Left,
+        // The top left edge belongs to the way back; the passive persisted-state badge sits directly right of it as a pair
+        // (UpdateFavoriteIndicators), so neither is painted over by the post panel, which starts below this row where it reaches it.
         VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(12),
         Padding = new Thickness(8, 4),
         Background = new SolidColorBrush(Color.FromArgb(210, 24, 26, 31)),
@@ -77,9 +77,10 @@ internal sealed partial class GalleryViewer
         bool visible = _entry != null && _favoriteKnown && !_terminalRetirement;
         _favoriteIndicator.IsVisible = visible && !_nativeOverlayActive;
         _nativeFavoriteIndicator.IsVisible = visible && _nativeOverlayActive;
-        // Tom's gallery rule: the way back stands alone at the top right edge and the star sits directly left of it. The post
-        // panel and the help start below this row (TopRowClearance), so nothing covers either of them.
-        Thickness beside = new(12, 12, StarRightMargin, 12);
+        // Tom's rule of 14.11.: the way back stands first at the top left edge and the star sits directly right of it. The post
+        // panel starts below this row where it reaches it (PostPanelTopInset) and the help below it (TopRowClearance), so nothing
+        // covers either of them.
+        Thickness beside = new(StarLeftMargin, 12, 12, 12);
         _favoriteIndicator.Margin = beside;
         _nativeFavoriteIndicator.Margin = beside;
         // Row 0 is deliberately outside the native video in transparency fallback mode.
@@ -90,7 +91,7 @@ internal sealed partial class GalleryViewer
     internal const double StarGap = 8;
 
     // The way back is as wide as its label; before its first layout a typical arrow-and-label button stands in.
-    private double StarRightMargin => 12 + (_close != null && _close.Bounds.Width > 0 ? _close.Bounds.Width : 44) + StarGap;
+    private double StarLeftMargin => 12 + (_close != null && _close.Bounds.Width > 0 ? _close.Bounds.Width : 44) + StarGap;
 
     private bool CanRequestFavorite => _entry != null && !_terminalRetirement
         && !_viewerInteractionStopped && _interactionAvailable && !_navigationPending

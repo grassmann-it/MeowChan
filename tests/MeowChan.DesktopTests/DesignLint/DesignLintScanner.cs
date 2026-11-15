@@ -75,6 +75,13 @@ internal static class DesignLintScanner
         new(DesignRules.ColorCode, "Desktop/GalleryViewer.Overlay.cs", "Color.FromRgb", "Edge hint and fallback tone when the Workspace.Overlay resource is missing."),
         new(DesignRules.ColorCode, "Desktop/GalleryViewer.cs", "Brushes.Black", "Letterbox behind media (palette item 8)."),
         new(DesignRules.ColorCode, "Desktop/ReaderBodyTextBlock.cs", "Colors.Black", "Opacity-mask gradient, not a visible colour."),
+        // TH1 runtime palette: the documented variation rules compute colours from the WorkspaceStyles seeds; no literal colour.
+        new(DesignRules.ColorCode, "Desktop/Theming/ThemePalette.cs", "Color.FromArgb", "Variation rules derived from theme seeds (scale, mix, alpha)."),
+        // TH2 colour overrides: related seeds derived from the user's colour, black/white text on the accent, parsing stored hex.
+        new(DesignRules.ColorCode, "Desktop/Theming/ThemeCustomization.cs", "Color.FromArgb", "Seeds derived from user colours, on-colour black/white, stored hex."),
+        // TH4 accent presets: the hex values of the six presets, tuned per variant (ThemeAccentPresetTests runs each through the gate).
+        new(DesignRules.ColorHex, "Desktop/Theming/ThemeAccentPresets.cs", "", "Accent preset values of Light and Dark, one place, gate-tested."),
+        new(DesignRules.ColorCode, "Desktop/Controls/GalleryFilmstrip.cs", "Colors.Black", "Opacity-mask gradient of the faded strip ends (GL5e), not a visible colour."),
         // Key-cap symbols of shortcut gestures are text of the shortcut label, not icons.
         new(DesignRules.GlyphIcon, "Desktop/Commands/EffectiveShortcutBindings.cs", "", "Modifier and navigation key symbols (⌘ ⌥ ⇧ ← ↑ ...) in shortcut gesture text."),
     };

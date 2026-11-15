@@ -41,6 +41,10 @@ internal sealed partial class DesktopSessionHost
                 async current =>
                 {
                     EnsureReady();
+                    // A family site first gets its own switch; while its plugin is off this changes nothing yet.
+                    if (current.OwnerEnabled is not null && !Plugins!.SetChanSiteEnabled(current.SourceId, true))
+                        throw new InvalidOperationException("The site switch could not be saved.");
+                    if (current.OwnerEnabled == true) return;
                     // The existing lifecycle callback activates the adapter and increments policy revision.
                     // Its exception may occur after SetEnabledAsync has durably saved Enabled=true.
                     await Plugins!.ProfileStore.SetEnabledAsync(current.PluginOwnerId, true, current.ProfileRevision).ConfigureAwait(false);

@@ -241,3 +241,26 @@ MEOWCHAN_DIALOG_GALLERY_OUTPUT=/path/to/fresh/dir python3 scripts/run-desktop-sm
 
 `MEOWCHAN_DIALOG_GALLERY_SCENES=name1,name2` limits the run to named scenes. Never confirms anything: every surface is closed
 with Cancel, Close or Escape; no network and no real profile.
+
+## UI catalog (`ui-catalog`)
+
+`MEOWCHAN_UI_CATALOG_ONLY=1` is the sibling evidence run for everything that is not a dialog: the pages (also narrow), page
+modes (Archive table and filter surface, Reader tabs, find and tag bar, sidebar and view options, Gallery side panels, filmstrip
+and Tag/card mode, Media filter surface, selection bar and focus mode, Booru tabs, Rules wizard, Settings categories, Tagging
+page), the work-view tiers (Barebones and Advanced per page) and the shell and page popups (app menu, footer flyouts, header
+display menu, help popovers, legacy right-click menus). It runs the real main window over the offline showcase archive
+(`ShowcaseSmokeApp`, same fixture as `work-views`), at 1380x850 (pages also 760x500) in Light/Dark x EN/DE. Every scene and
+every capture is isolated: a failure is listed under "Nicht erfasst" and the run goes on.
+
+```bash
+MEOWCHAN_UI_CATALOG_OUTPUT=/path/to/fresh/dir \
+MEOWCHAN_UI_CATALOG_DIALOGS=/path/to/dialog-gallery/output \
+MEOWCHAN_UI_CATALOG_ENTRIES=/path/to/entries.json \
+python3 scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Debug/net10.0/MeowChan.DesktopSmoke.dll \
+  --output <fresh dir> --registry --only ui-catalog
+```
+
+`MEOWCHAN_UI_CATALOG_SCENES=name,prefix*` limits the run. `MEOWCHAN_UI_CATALOG_DIALOGS` merges a finished dialog-gallery run
+into the same `index.html`; `MEOWCHAN_UI_CATALOG_ENTRIES` is the machine-readable twin of the catalog document
+(`.claude/coordination/UI-KATALOG-1.1.0.md`: per entry id, area, name, how to open it and its capture keys, exact or `prefix*`) that
+groups the images by catalog area. Never confirms anything; no network and no real profile.

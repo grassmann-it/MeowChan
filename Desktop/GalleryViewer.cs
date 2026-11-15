@@ -84,6 +84,7 @@ internal sealed partial class GalleryViewer : UserControl
     private readonly Button _next;
     private readonly Button _close;
     private readonly Button _actual;
+    private Button _actualRow = null!;
     private readonly Button _fit;
     private readonly Button _zoomIn;
     private readonly Button _zoomOut;
@@ -100,13 +101,13 @@ internal sealed partial class GalleryViewer : UserControl
     private readonly TextBlock _helpTitle = new();
     private readonly Button _helpClose;
     private readonly Border _chrome = new() { Name = "GalleryOverlayControls", Classes = { "workspace-media-tools" },
-        Margin = new Thickness(8, 0, 8, 0), HorizontalAlignment = HorizontalAlignment.Stretch }; // GL2: no gap above the dock (ApplyChrome)
+        Margin = new Thickness(8, 0, 8, 0), Padding = new Thickness(8, 4), HorizontalAlignment = HorizontalAlignment.Stretch }; // GL2: no gap above the dock (ApplyChrome); GL5b: 8/4 inside, so the two rows are 40 dip each
     // GL1+GL2: the docked dock below the picture, without a gap to it: [filmstrip (when at the bottom)] [_chrome: video bar row
     // (GalleryDockTransportHost, GL2), tools] [info line]. The floating footer (_overlayFooter) has the same order: [filmstrip]
     // [GalleryOverlayTransportHost] [_chrome] [info]. The Windows transparency fallback keeps the video bar under the picture.
     private readonly StackPanel _dockStack = new() { Name = "GalleryDock", HorizontalAlignment = HorizontalAlignment.Stretch };
     private readonly Border _infoOverlay = new() { Name = "GalleryOverlayInfo", Classes = { "workspace-media-caption" },
-        Margin = new Thickness(8, 0, 8, 8), HorizontalAlignment = HorizontalAlignment.Stretch };
+        Margin = new Thickness(8, 0, 8, 8), Padding = new Thickness(8, 2), HorizontalAlignment = HorizontalAlignment.Stretch }; // GL5b: one 20 dip line (it grows with a safety line)
     private readonly Border _statusPlate = new() { Classes = { "workspace-media-caption" },
         HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
         MaxWidth = 650, IsHitTestVisible = false, IsVisible = false };
@@ -206,11 +207,44 @@ internal sealed partial class GalleryViewer : UserControl
         bool changedError = _ratingError != error;
         _ratingValue = value; _ratingError = error; _ratingAvailable = available;
         _ratingStatus.Text = MediaRatingText.Label + ": " + MediaRatingText.Value(value);
+        PresentRatingButton();
         if (changedError) ReportDiagnostic("rating", error);
         _ratingButton.IsEnabled = available && _entry != null;
         ApplyChrome();
         RefreshDecisionRow(); // the panel's row shows the same rating
     }
+    /// <summary>
+    /// GL5d (UX spec S1): the rating button of the bar shows the star and the value ("☆ 4", "☆ –" while unrated): the value is the
+    /// confirmation, so the info line drops its own rating while this button is on the bar (GalleryChromePlan.InfoRating). Tooltip
+    /// "Edit rating… · R" with the keys that set it ("Shift+1–5").
+    /// </summary>
+    internal static string RatingButtonValue(int? value) => value.HasValue ? value.Value.ToString(Texts.Culture) : "–";
+
+    /// <summary>The "Shift+1–5" of the rating keys, from the bindings of the five commands (the plain bindings if they do not share a prefix).</summary>
+    internal static string RatingKeysText()
+    {
+        string? first = CommandCatalog.ShortcutDisplay("media.rating.set-1"), last = CommandCatalog.ShortcutDisplay("media.rating.set-5");
+        if (first == null || last == null) return string.Empty;
+        return first.Length > 1 && last.Length > 1 && first[..^1] == last[..^1] ? first + "–" + last[^1] : first + " … " + last;
+    }
+
+    private void PresentRatingButton()
+    {
+        if (_ratingButton.Tag is OverflowItem) return; // a menu row keeps its own text
+        string name = CommandCatalog.Label("media.rating.edit");
+        TextBlock value = new() { Text = RatingButtonValue(_ratingValue), VerticalAlignment = VerticalAlignment.Center, MinWidth = 8 };
+        _ratingButton.Content = new StackPanel
+        {
+            Orientation = Orientation.Horizontal, Spacing = 4, VerticalAlignment = VerticalAlignment.Center,
+            Children = { CommandBindings.NamedIcon("star", 16), value }
+        };
+        string keys = RatingKeysText();
+        string tip = CommandBindings.Tooltip("media.rating.edit") + (keys.Length > 0 ? " · " + keys : string.Empty);
+        ToolTip.SetTip(_ratingButton, tip);
+        AutomationProperties.SetName(_ratingButton, name + ": " + MediaRatingText.Value(_ratingValue));
+        AutomationProperties.SetHelpText(_ratingButton, tip);
+    }
+
     internal event Action<GalleryEntry>? ExportOriginalRequested;
     internal event Action<GalleryEntry>? ShowInFolderRequested;
     /// <summary>"Add to tagging queue" for the shown medium (menu and shortcut); the owner writes the queue and tells the person what happened.</summary>
@@ -228,7 +262,8 @@ internal sealed partial class GalleryViewer : UserControl
         _nativeOverlayActive && ReferenceEquals(TopLevel.GetTopLevel(_nativeVideoOverlay), window);
     internal IEnumerable<Visual> GetGalleryVisualDescendants() =>
         ((Visual)this).GetVisualDescendants().Concat(_nativeVideoOverlay.GetVisualDescendants())
-            .Concat(_overflowPanel.GetVisualDescendants()).Prepend(_overflowPanel).Distinct();
+            .Concat(_overflowPanel.GetVisualDescendants()).Prepend(_overflowPanel)
+            .Concat(_slideshowHome?.GetVisualDescendants() ?? []).Distinct(); // G2: the slideshow settings also while the flyout borrows them
     internal bool TryDismissOverlay()
     {
         if (IsFavoriteConfirmOpen) { CloseFavoriteConfirm(); return true; }
@@ -317,29 +352,42 @@ internal sealed partial class GalleryViewer : UserControl
         KeyboardNavigation.SetTabNavigation(this, KeyboardNavigationMode.Cycle);
         this[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Background");
         Grid root = _visualRoot;
-        WrapPanel toolbar = new() { Classes = { "workspace-toolbar" }, HorizontalAlignment = HorizontalAlignment.Center };
-        StackPanel ToolGroup(string name)
+        // GL5d (UX spec S1): one row that never wraps, as a grid "left · middle · right": the mode switch and the arrows with the position on
+        // the left, the zoom, the media tools, the view's tools and the slideshow in the middle, "More", the tools toggle and the layout
+        // button on the right. What does not fit leaves in the plan's overflow order (GalleryChromePlan, S2), never by wrapping.
+        Grid toolbar = new() { Name = "GalleryToolbar", ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"), ColumnSpacing = 12, VerticalAlignment = VerticalAlignment.Center };
+        StackPanel Side(string name, int column, HorizontalAlignment align)
+        {
+            StackPanel side = new() { Name = name, Orientation = Orientation.Horizontal, Spacing = 12, HorizontalAlignment = align, VerticalAlignment = VerticalAlignment.Center };
+            toolbar.Children.Add(side);
+            Grid.SetColumn(side, column);
+            return side;
+        }
+        StackPanel leftSide = Side("GalleryToolbarLeft", 0, HorizontalAlignment.Left), middleSide = Side("GalleryToolbarMiddle", 1, HorizontalAlignment.Center),
+            rightSide = Side("GalleryToolbarRight", 2, HorizontalAlignment.Right);
+        StackPanel ToolGroup(string name, StackPanel side)
         {
             StackPanel group = new() { Name = name, Classes = { "workspace-tool-group" } };
-            toolbar.Children.Add(group);
+            side.Children.Add(group);
             return group;
         }
         // G1: the mode switch "View | Tag" comes first; the rest of the bar follows the mode (GalleryViewer.Chrome.cs).
-        InitializeModeSwitch(ToolGroup("GalleryModeTools"));
-        StackPanel navigation = _navigationTools = ToolGroup("GalleryNavigationTools");
-        StackPanel zoom = _zoomTools = ToolGroup("GalleryZoomTools");
-        StackPanel media = _mediaTools = ToolGroup("GalleryMediaTools");
+        InitializeModeSwitch(ToolGroup("GalleryModeTools", leftSide));
+        StackPanel navigation = _navigationTools = ToolGroup("GalleryNavigationTools", leftSide);
+        StackPanel zoom = _zoomTools = ToolGroup("GalleryZoomTools", middleSide);
+        StackPanel media = _mediaTools = ToolGroup("GalleryMediaTools", middleSide);
         // The tools a work view brings onto the bar (rating, tags, slideshow numbers, mode, help): a group of its own, away from
         // the favourite and the way back; empty (hidden) in Barebones.
-        _workViewTools = ToolGroup("GalleryWorkViewTools");
-        StackPanel view = _viewTools = ToolGroup("GalleryViewTools");
+        _workViewTools = ToolGroup("GalleryWorkViewTools", middleSide);
+        StackPanel view = _viewTools = ToolGroup("GalleryViewTools", rightSide);
         // Frequent controls stay on the toolbar; the rare ones are rows of the "⋯" menu (GalleryViewer.Overflow.cs).
-        // The way back is not a toolbar button: it floats alone at the top right edge of the picture (Tom's gallery rule), names
-        // where it returns to and stays reachable, dimmed, while auto-hidden controls are away. The favourite star sits directly
-        // left of it (UpdateFavoriteIndicators); every other action is in the toolbar group below, apart from both.
+        // The way back is not a toolbar button: it floats at the top LEFT edge of the picture, before everything else (Tom's rule of
+        // 14.11.: back and close come first, other buttons stand apart on the right), names where it returns to and stays reachable,
+        // dimmed, while auto-hidden controls are away. The favourite star sits directly right of it as a pair (UpdateFavoriteIndicators);
+        // every other action is in the toolbar group below, apart from both.
         _close = Command(navigation, "GalleryClose", Texts.T("gallery.viewer0"), () => CloseRequested?.Invoke());
         navigation.Children.Remove(_close);
-        _close.HorizontalAlignment = HorizontalAlignment.Right;
+        _close.HorizontalAlignment = HorizontalAlignment.Left;
         _close.VerticalAlignment = VerticalAlignment.Top;
         _close.Margin = new Thickness(12);
         _close.ZIndex = 17; // Above the picture, the edge hints and the favorite badge; below the post panel and the help.
@@ -358,8 +406,12 @@ internal sealed partial class GalleryViewer : UserControl
         _readPosts = Command(view, "GalleryReadPosts", Texts.T("gallery.read"), () => { PauseSlideshow(); ReadPostsRequested?.Invoke(); });
         _readPosts.IsVisible = false;
         view.Children.Add(_overflowButton);
+        view.Children.Add(_layoutButton); // GL3 (Tom's E2): the Layout menu is a button of its own beside "More" (GalleryViewer.LayoutMenu.cs)
         _zoomIn = Command(_overflowPanel, "GalleryPlus", "+", () => Zoom(1.1), overflow: true, keepOpen: true);
         _zoomOut = Command(_overflowPanel, "GalleryMinus", "−", () => Zoom(1 / 1.1), overflow: true, keepOpen: true);
+        // GL5d (S2 stage 4): below GalleryChromePlan.TinyWidth the 1:1 button of the bar is this row of "More" (the key 1 works everywhere).
+        _actualRow = Command(_overflowPanel, "GalleryActualMenu", "1:1", ActualPixels, overflow: true, keepOpen: true);
+        _actualRow.IsVisible = false;
         _rotate = Command(_overflowPanel, "GalleryRotate", CommandCatalog.Label("gallery.rotate"), () => RotateView(), overflow: true, keepOpen: true);
         AddOverflowSeparator();
         CommandBindings.Apply(_ratingButton, "media.rating.edit");
@@ -374,18 +426,22 @@ internal sealed partial class GalleryViewer : UserControl
         _saveFrame = Command(_overflowPanel, "GallerySaveFrame", CommandCatalog.Label("video.snapshot"), RequestSaveFrame, overflow: true);
         _saveFrame.IsEnabled = false; // Only a shown video has a frame to save.
         _secondaryTools.AddRange(new Control[] { zoom, media, view });
-        _focusTools = ToolGroup("GalleryFocusTools");
-        _toolsToggle = (ToggleButton)Command(_focusTools, "GalleryToolsToggle", string.Empty, () => SetMediaFocus(!_mediaFocus));
+        _focusTools = ToolGroup("GalleryFocusTools", middleSide);
+        // The tools toggle is the far right of the bar in a group of its own: the secondary groups (with "More" and the layout button)
+        // go away in focus mode, the toggle must stay.
+        StackPanel toggleGroup = ToolGroup("GalleryToolsToggleGroup", rightSide);
+        _toolsToggle = (ToggleButton)Command(toggleGroup, "GalleryToolsToggle", string.Empty, () => SetMediaFocus(!_mediaFocus));
         InitializePlaybackControls(toolbar, _focusTools);
         InitializeGifControls(_focusTools);
         AddOverflowSeparator();
-        _overflowPanel.Children.Add(_slideshowHome);
+        _slideshowLoan.PlaceAtHome(); // FP1: the one owner of the settings panel is "⋯"; placing it twice is a no-op (the flyout borrows it later)
         AddOverflowSeparator();
         AddOverflowItem(_overlayToggle, "gallery.overlay-toggle", check: true);
         AddOverflowItem(_postOverlayToggle, "gallery.post-overlay-toggle", check: true);
         _fullscreenButton = Command(_overflowPanel, "GalleryFullscreen", Texts.T("viewer.fullscreen"), () => FullscreenRequested?.Invoke(), overflow: true);
         _helpButton = Command(_overflowPanel, "GalleryHelp", Texts.T("viewer.help"), RequestShortcutHelp, overflow: true);
         InitializeOverflowMenu();
+        InitializeLayoutMenu();
         PlaceSlideshowToggle();
         UpdateMediaFocusPresentation();
         // Reserve navigation below the picture; secondary tools collapse only on request.
@@ -393,20 +449,10 @@ internal sealed partial class GalleryViewer : UserControl
         _chrome.Child = WithDockTransport(WithTaggingStrip(toolbar)); // the tagging mode's decision strip sits below the toolbar (PT3); GL2: the video bar above it
         foreach (TextBlock text in new[] { _quality, _position, _compactPosition, _scope, _ratingStatus })
             text.Classes.Add("workspace-meta");
-        StackPanel infoContent = new() { Spacing = 2 };
-        Grid infoHeadline = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 12 };
-        infoHeadline.Children.Add(_quality);
-        infoHeadline.Children.Add(_position); Grid.SetColumn(_position, 1);
-        infoContent.Children.Add(infoHeadline);
-        infoContent.Children.Add(_scope);
-        infoContent.Children.Add(_provenance);
-        infoContent.Children.Add(_warnings);
-        infoContent.Children.Add(_favoriteError);
-        infoContent.Children.Add(_ratingStatus);
-        infoContent.Children.Add(_overlayFallbackNotice);
-        infoContent.Children.Add(_slideshowStatus);
+        // GL5c: one line "size · zoom · source · number" with the integrity note and the rating as segments, the status segment on the
+        // right; the warning and error lines stay below it (GalleryViewer.InfoLine.cs).
         AutomationProperties.SetLiveSetting(_favoriteError, AutomationLiveSetting.Assertive);
-        _infoOverlay.Child = infoContent;
+        _infoOverlay.Child = BuildInfoContent();
         // Close sits at the top right of the surface it closes (× · Esc), outside the scrolling list of shortcuts.
         _helpTitle.Classes.Add("section-title");
         _helpTitle.VerticalAlignment = VerticalAlignment.Center;
@@ -422,7 +468,7 @@ internal sealed partial class GalleryViewer : UserControl
         _helpPanel.Child = helpRoot;
         _helpPanel.HorizontalAlignment = HorizontalAlignment.Right;
         _helpPanel.VerticalAlignment = VerticalAlignment.Top;
-        _helpPanel.Margin = new Thickness(12, TopRowClearance, 12, 12); // below the way back and the star
+        _helpPanel.Margin = new Thickness(12, TopRowClearance, 12, 12); // below the top row of the way back and the star (kept below it: the help is also centred over the picture in narrow viewers)
         _helpPanel.MaxWidth = 390;
         _helpPanel.MaxHeight = 350;
         _viewport.Children.Add(_image);
@@ -531,6 +577,7 @@ internal sealed partial class GalleryViewer : UserControl
         if (IsFavoriteConfirmOpen) UpdateFavoriteConfirmText();
         UpdateTagsButton();
         PresentToolbarControls();
+        PresentLayoutButton();
         RefreshFileOnlyText();
         UpdateHelpButtonTooltip();
         UpdateContext(); UpdateQuality(); UpdateHelp();
@@ -576,7 +623,8 @@ internal sealed partial class GalleryViewer : UserControl
         string tip = CommandBindings.Tooltip("viewer.shortcut-help");
         if (_showShortcutHelp)
             tip = CommandBindings.TooltipHeadline("viewer.shortcut-help") + "\n"
-                + string.Join(" · ", new[] { "favorites.add", "favorites.remove", "gallery.context-toggle" }.Select(id => CommandBindings.TooltipHeadline(id)));
+                + string.Join(" · ", new[] { "favorites.add", "favorites.remove", "gallery.context-toggle" }
+                    .Where(id => CommandCatalog.ShortcutDisplay(id) != null).Select(id => CommandBindings.TooltipHeadline(id)));
         ToolTip.SetTip(_helpButton, tip);
         AutomationProperties.SetHelpText(_helpButton, tip);
     }
@@ -585,7 +633,7 @@ internal sealed partial class GalleryViewer : UserControl
     {
         "GalleryClose" => "gallery.close", "GalleryPrevious" => "gallery.previous",
         "GalleryNext" => "gallery.next", "GalleryFit" => "gallery.fit",
-        "GalleryActual" => "gallery.actual-size", "GalleryMinus" => "gallery.zoom-out",
+        "GalleryActual" or "GalleryActualMenu" => "gallery.actual-size", "GalleryMinus" => "gallery.zoom-out",
         "GalleryPlus" => "gallery.zoom-in", "GalleryRotate" => "gallery.rotate", "GalleryToggleContext" => "gallery.context-toggle",
         "GalleryReadPosts" => "thread.read", "GalleryFullscreen" => "window.fullscreen",
         "GalleryHelp" => "viewer.shortcut-help", "GalleryFavorite" => "favorites.toggle",
@@ -598,12 +646,16 @@ internal sealed partial class GalleryViewer : UserControl
 
     private static bool IsIconOnly(string name) => name is "GalleryPrevious" or "GalleryNext" or "GalleryFit" or
         "GalleryMinus" or "GalleryPlus" or "GalleryHelp" or
-        "GalleryToggleContext" or "GalleryFavorite";
+        "GalleryToggleContext" or "GalleryFavorite" or "GalleryToolsToggle";
+
+    /// <summary>GL5d: the tools that show only their icon at every width (the tooltip, name and shortcut stay on the control).</summary>
+    private static bool AlwaysIconOnly(string name) => name is "GalleryFit" or "GalleryToggleContext" or "GalleryFavorite";
 
     internal static string? CompactLabelFor(string name) => name switch
     {
         "GalleryClose" => Texts.T("command.gallery.close.compact"),
         "GalleryFit" => Texts.T("gallery.fit"),
+        "GalleryActual" => Texts.T("gallery.actual"), // I1b: "1:1" gets its catalog icon like its neighbour "Fit".
         "GalleryToggleContext" => Texts.T("gallery.context"),
         "GalleryFavorite" => Texts.T("command.gallery.favorite.compact"),
         "GalleryExportOriginal" => Texts.T("command.gallery.export-original.compact"),
@@ -684,6 +736,8 @@ internal sealed partial class GalleryViewer : UserControl
         if (_close == null) return;
         bool dimmed = OverlayControlsEffective && _overlayHidden && !_close.IsPointerOver && !_close.IsKeyboardFocusWithin;
         _close.Opacity = dimmed ? 0.3 : 1;
+        // GL5a (UX spec S1): the star beside the way back dims with it (30 %) and comes back with it under the pointer or the focus.
+        _favoriteIndicator.Opacity = _nativeFavoriteIndicator.Opacity = dimmed ? 0.3 : 1;
     }
 
     private void ApplyCompactLabel(Button button, string name, string? visibleLabel = null)
@@ -703,13 +757,16 @@ internal sealed partial class GalleryViewer : UserControl
             plain.Bind(Border.BackgroundProperty, plain.GetObservable(TextElement.ForegroundProperty));
             return plain;
         }
-        if (_compactToolbar)
+        if (_compactToolbar || AlwaysIconOnly(name))
         {
-            // Narrow viewer: the icon alone; the name, tooltip and shortcut stay on the control.
+            // GL5d (S1): Fit, the post panel and the favourite are icons with a tooltip at every width; a narrow viewer (below
+            // CompactToolbarWidth) shows the labelled controls that remain as icons too. The name, tooltip and shortcut stay on the control.
             button.Classes.Set("command-icon", true);
+            button.Classes.Set("icon-only", true); // GL5d: the square of the input height (WorkspaceStyles .icon-only)
             button.Content = Icon(16);
             return;
         }
+        button.Classes.Set("icon-only", false);
         StackPanel content = new() { Orientation = Orientation.Horizontal, Spacing = 4 };
         Border icon = Icon(14);
         content.Children.Add(icon);
@@ -806,7 +863,7 @@ internal sealed partial class GalleryViewer : UserControl
         string bounded = message.Length <= 2048 ? message : message[..2048];
         DiagnosticNotice?.Invoke(new(operation, _entry, AssociationRevision, bounded, mediaUnavailable));
     }
-    private void SetImageCommands(bool enabled) => _fit.IsEnabled = _actual.IsEnabled = _zoomIn.IsEnabled = _zoomOut.IsEnabled = _rotate.IsEnabled = enabled;
+    private void SetImageCommands(bool enabled) => _fit.IsEnabled = _actual.IsEnabled = _actualRow.IsEnabled = _zoomIn.IsEnabled = _zoomOut.IsEnabled = _rotate.IsEnabled = enabled;
 
     private void SetMediaFocus(bool enabled, bool notify = true)
     {
@@ -824,14 +881,16 @@ internal sealed partial class GalleryViewer : UserControl
 
     private void UpdateMediaFocusPresentation()
     {
-        CommandBindings.ApplyLabeled(_toolsToggle, "gallery.tools-toggle",
-            Texts.T(_mediaFocus ? "viewer.tools.show" : "viewer.tools.hide"), 14);
-        if (_compactToolbar)
-        {
-            Border only = (Border)CommandBindings.Icon("gallery.tools-toggle", 16);
-            only.Bind(Border.BackgroundProperty, only.GetObservable(TextElement.ForegroundProperty));
-            _toolsToggle.Content = only; // The label stays as name and tooltip.
-        }
+        // GL5d (S1): icon only at every width; the icon is the action (hidden tools: show = eye, shown tools: hide = eye-off), the state's
+        // label is its name and tooltip.
+        string label = Texts.T(_mediaFocus ? "viewer.tools.show" : "viewer.tools.hide");
+        CommandBindings.Apply(_toolsToggle, "gallery.tools-toggle", iconOnly: true);
+        _toolsToggle.Classes.Set("icon-only", true);
+        _toolsToggle.Content = CommandBindings.NamedIcon(_mediaFocus ? "eye" : "eye-off", 16);
+        string toolsTip = CommandBindings.Tooltip("gallery.tools-toggle", null, label);
+        ToolTip.SetTip(_toolsToggle, toolsTip);
+        AutomationProperties.SetName(_toolsToggle, label);
+        AutomationProperties.SetHelpText(_toolsToggle, toolsTip);
         _toolsToggle.IsChecked = _mediaFocus;
         ApplyChrome();
     }
@@ -918,7 +977,7 @@ internal sealed partial class GalleryViewer : UserControl
         WorkView view = _workView;
         WorkViewPage[] pages = { WorkViewPage.Shell, WorkViewPage.Gallery };
         return new Views.Shortcuts.ShortcutHelpContext(ShortcutGroups.Gallery, preferred, id => WorkViewHelp.UnderMore(id, view, pages),
-            CommandScope.None, new[] { EscapeHelpKey },
+            CommandScope.None, new[] { "viewer.help.scheme", EscapeHelpKey },
             ExpandedAreas: new[] { ShortcutGroups.TagPanel });
     }
 
@@ -1087,6 +1146,7 @@ internal sealed partial class GalleryViewer : UserControl
             {
                 _video = new GalleryVideoPlayer();
                 _video.ConfigureScrubPreview(_scrubPreviewCache);
+                _video.ConfigureSeekStep(_videoSeekStepSeconds);
                 _video.CleanupDiagnostic += message =>
                 {
                     if (!_viewerInteractionStopped && !_sessionCancellation.IsCancellationRequested && _videoDiagnosticEntry != null)
@@ -1338,7 +1398,10 @@ internal sealed partial class GalleryViewer : UserControl
             AddFileFacts(entry);
             // The action at the bottom left: the post in its thread (T).
             StackPanel actions = new() { Name = "GalleryPostActions", Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Left };
-            ContextCommand(actions, "GalleryReadPost", Texts.T("gallery.viewer10"), () => { PauseSlideshow(); ReadPostRequested?.Invoke(entry); });
+            // I1b: the one action of the post card carries its command icon before the text (the label stays the content and the name).
+            CommandBindings.ShowIconBeforeText(
+                ContextCommand(actions, "GalleryReadPost", Texts.T("gallery.viewer10"), () => { PauseSlideshow(); ReadPostRequested?.Invoke(entry); }),
+                CommandCatalog.Get("gallery.show-in-thread").Icon);
             _context.Children.Add(actions);
         }
         finally
@@ -1437,7 +1500,7 @@ internal sealed partial class GalleryViewer : UserControl
             if (_video.MatchesTransportShortcut(e, "video.volume-down")) { AdjustVideoVolume(-1); e.Handled = true; return; }
         }
         if (!IsGalleryShortcutInput(e)) return;
-        if (HandleFilmstripKey(e)) return;
+        if (HandleFilmstripKey(e) || HandleLayoutKey(e)) return;
         if (CommandBindings.Matches(e, "gallery.mode-toggle")) { RequestGalleryMode(!IsTagMode); e.Handled = true; return; }
         foreach (var (_, id) in PlaybackActions())
             if (CommandBindings.Matches(e, id)) { e.Handled = true; _ = ExecutePlaybackActionAsync(id); return; }
@@ -1461,6 +1524,8 @@ internal sealed partial class GalleryViewer : UserControl
             if (CommandBindings.Matches(e, "video.mute")) { _ = _video.ToggleMuteAsync(); e.Handled = true; return; }
             foreach (var (id, seconds) in SeekCommands)
                 if (CommandBindings.Matches(e, id)) { SeekVideo(seconds); e.Handled = true; return; }
+            if (CommandBindings.Matches(e, "video.step-back")) { SeekVideoByStep(forward: false); e.Handled = true; return; }
+            if (CommandBindings.Matches(e, "video.step-forward")) { SeekVideoByStep(forward: true); e.Handled = true; return; }
             if (CommandBindings.Matches(e, "video.speed-down")) { _video.StepRate(-1); e.Handled = true; return; }
             if (CommandBindings.Matches(e, "video.speed-up")) { _video.StepRate(1); e.Handled = true; return; }
             if (CommandBindings.Matches(e, "video.speed-reset")) { _video.StepRate(0); e.Handled = true; return; }
@@ -1469,7 +1534,7 @@ internal sealed partial class GalleryViewer : UserControl
             if (CommandBindings.Matches(e, "video.frame-step")) { _ = _video.StepFrameAsync(); e.Handled = true; return; }
             if (CommandBindings.Matches(e, "video.speed-choose")) { _video.OpenSpeedMenu(); e.Handled = true; return; }
             if (CommandBindings.Matches(e, "video.audio-track")) { _video.CycleAudioTrack(); e.Handled = true; return; }
-            if (CommandBindings.Matches(e, "video.loop")) { _video.ToggleLoop(); e.Handled = true; return; }
+            if (CommandBindings.Matches(e, "video.loop")) { ToggleVideoLoopByKey(); e.Handled = true; return; }
             if (CommandBindings.Matches(e, "video.play")) { _ = _video.PlayAsync(); e.Handled = true; return; }
             if (CommandBindings.Matches(e, "video.pause")) { _ = _video.PauseAsync(); e.Handled = true; return; }
             if (CommandBindings.Matches(e, "video.stop")) { _ = _video.StopPlaybackAsync(); e.Handled = true; return; }
@@ -1660,6 +1725,8 @@ internal sealed partial class GalleryViewer : UserControl
             _contextPanel, _helpPanel, _favoriteConfirmPanel, _controlsEdgeIndicator, _postEdgeIndicator, _close })
             GalleryControlTransfer.Cancel(control);
         RetireFilmstrip();
+        CloseLayoutMenu();
+        _layoutContextHost?.Dispose();
         _video?.RetireTransportPlacement();
         StopViewerInteraction();
         UnbindVideoPlaybackSignals();

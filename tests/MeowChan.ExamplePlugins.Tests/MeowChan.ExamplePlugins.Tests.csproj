@@ -13,17 +13,13 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
     <PackageReference Include="xunit" Version="2.9.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" PrivateAssets="all" />
-    <ProjectReference Include="../../plugins/Examples/Lainchan/MeowChan.Plugin.Lainchan.csproj" />
+    <ProjectReference Include="../../plugins/Examples/VichanFamily/MeowChan.Plugin.VichanFamily.csproj" />
     <ProjectReference Include="../../plugins/Examples/Kohlchan/MeowChan.Plugin.Kohlchan.csproj" />
-    <ProjectReference Include="../../plugins/Examples/Wizchan/MeowChan.Plugin.Wizchan.csproj" />
     <ProjectReference Include="../../plugins/Examples/Endchan/MeowChan.Plugin.Endchan.csproj" />
     <ProjectReference Include="../../plugins/Examples/AnimationFormatFilter/MeowChan.AnimationFormatFilter.csproj" />
     <ProjectReference Include="../../plugins/Examples/PngMetadataFilter/MeowChan.PngMetadataFilter.csproj" />
-    <ProjectReference Include="../../plugins/Examples/Leftypol/MeowChan.Plugin.Leftypol.csproj" />
     <ProjectReference Include="../../plugins/Examples/Dvach/MeowChan.Plugin.Dvach.csproj" />
-    <ProjectReference Include="../../plugins/Examples/Uboachan/MeowChan.Plugin.Uboachan.csproj" />
-    <ProjectReference Include="../../plugins/Examples/Zzzchan/MeowChan.Plugin.Zzzchan.csproj" />
-    <ProjectReference Include="../../plugins/Examples/SushiChan/MeowChan.Plugin.SushiChan.csproj" />
+    <ProjectReference Include="../../plugins/Examples/JschanFamily/MeowChan.Plugin.JschanFamily.csproj" />
     <ProjectReference Include="../../plugins/Examples/SevenChan/MeowChan.Plugin.SevenChan.csproj" />
     <ProjectReference Include="../../plugins/Examples/BbwChan/MeowChan.Plugin.BbwChan.csproj" />
     <ProjectReference Include="../../plugins/Examples/AnonImageboards/MeowChan.Plugin.AnonImageboards.csproj" />

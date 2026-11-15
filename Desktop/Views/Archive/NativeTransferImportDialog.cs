@@ -71,6 +71,8 @@ internal sealed class NativeTransferImportDialog : Window
         _recheck = CreateButton("NativeTransferImportRecheck", "transfer.import.recheck", OnRecheckAsync);
         _conflicts = CreateButton("NativeTransferImportConflicts", "transfer.conflicts.open", OnOpenConflictsAsync);
         _close = CreateButton("NativeTransferImportClose", "action.close", () => Close());
+        // I1b: the secondary tools carry a catalog icon before their text (Apply, Cancel and Close stay text).
+        MeowChan.Desktop.Controls.IconButtons.WithText(_choose, "folder"); MeowChan.Desktop.Controls.IconButtons.WithText(_recheck, "refresh-cw"); MeowChan.Desktop.Controls.IconButtons.WithText(_conflicts, "sliders");
         _cancel.IsEnabled = false;
         _apply.IsEnabled = false;
         _notice.Classes.Add("workspace-help");

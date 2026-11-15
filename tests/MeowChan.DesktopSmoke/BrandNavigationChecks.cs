@@ -10,7 +10,11 @@ internal static class BrandNavigationChecks
 {
     internal static async Task RunAsync(MainWindow window)
     {
-        foreach (string name in new[] { "Downloads", "Archive", "Rules", "Plugins", "Sources", "Diagnostics", "Settings", "Tools" })
+        // Every main page button (also the ones the footer setting hides, Booru by default) plus Settings and More; the page names come from
+        // MainPageOrder (Status and Plugins are merged pages, there is no Diagnostics or separate Plugins button any more).
+        string[] names = MeowChan.Desktop.Commands.MainPageOrder.CommandIds.Select(MeowChan.Desktop.Commands.MainPageOrder.ControlStem)
+            .Concat(new[] { "Settings", "Tools" }).ToArray();
+        foreach (string name in names)
         {
             Button button = window.FindControl<Button>(name + "NavigationButton")!;
             bool labeledIcon = button.Content is StackPanel { Children.Count: 2 } panel
@@ -35,6 +39,6 @@ internal static class BrandNavigationChecks
         AboutWindow about = window.OwnedWindows.OfType<AboutWindow>().Single();
         about.Close();
         await Program.WaitUntilAsync(() => !about.IsVisible);
-        Console.WriteLine("SMOKE brand navigation: eight accessible footer icons, separate accessible header book icon and header-logo About entry passed.");
+        Console.WriteLine("SMOKE brand navigation: " + names.Length + " accessible footer icons, separate accessible header book icon and header-logo About entry passed.");
     }
 }

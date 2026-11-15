@@ -70,6 +70,11 @@ internal static class SourcesCatalog
         ("sources.mediaCounts", "{0} queued · {1} active", "{0} wartend · {1} aktiv"),
         ("sources.watches", "Watched threads and boards", "Beobachtete Threads und Boards"),
         ("sources.showAll", "Show all {0} in Downloads", "Alle {0} unter Downloads zeigen"),
-        ("sources.reachabilityNote", "This view does not check whether a website is reachable.", "Ob eine Website erreichbar ist, wird hier nicht geprüft.")
+        ("sources.reachabilityNote", "This view does not check whether a website is reachable.", "Ob eine Website erreichbar ist, wird hier nicht geprüft."),
+        // A site of an engine-family plugin (one plugin, several sites) has its own switch.
+        ("sources.site.enable", "Turn this site on", "Diese Website einschalten"),
+        ("sources.site.disable", "Turn this site off", "Diese Website ausschalten"),
+        ("sources.familySite", "{0} is one site of the plugin {1}. This button turns only {0} on or off; the plugin's own switch turns all of its sites on or off together.", "{0} ist eine Website des Plugins {1}. Diese Schaltfläche schaltet nur {0} ein oder aus; der Schalter des Plugins schaltet alle seine Websites gemeinsam ein oder aus."),
+        ("sources.site.saveFailed", "The site switch could not be saved. Check that the profile folder is writable and try again.", "Der Schalter der Website konnte nicht gespeichert werden. Prüfe, ob der Profilordner beschreibbar ist, und versuche es erneut.")
     };
 }

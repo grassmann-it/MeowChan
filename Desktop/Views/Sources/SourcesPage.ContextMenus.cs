@@ -9,6 +9,7 @@ using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using Serilog;
 using Ursa.Controls;
@@ -20,7 +21,7 @@ public partial class SourcesPage
     private void InitializeContextMenus()
     {
         ListBox grid = this.FindControl<ListBox>("SourceWatchesList")!;
-        grid.ContextMenu = new ContextMenu();
+        grid.ContextMenu = ContextMenuBuilder.Empty();
         grid.ContextMenu.Opening += (_, args) =>
         {
             BuildWatchContextMenu(grid);
@@ -32,20 +33,20 @@ public partial class SourcesPage
 
     private void AttachSourceContextMenu(SelectionListItem button, string sourceId)
     {
-        button.ContextMenu = new ContextMenu();
+        button.ContextMenu = ContextMenuBuilder.Empty();
         button.ContextMenu.Opening += (_, args) =>
         {
             ContextMenu menu = button.ContextMenu!;
-            menu.Items.Clear();
             SourceListRow? source = _rows.FirstOrDefault(row => row.Id == sourceId);
             if (source == null || _ended) { args.Cancel = true; return; }
             bool Ready() => !_ended && _available && !IsBusy;
             string reason = UnavailableReason();
+            ContextMenuBuilder builder = new ContextMenuBuilder().Named(source.Name);
             void Add(string id, Action action, bool available = true)
             {
-                var item = CommandBindings.CreateMenuItem(id, action, () => Ready() && available,
-                    () => Ready() && available ? null : reason);
-                menu.Items.Add(item);
+                bool CanExecute() => Ready() && available;
+                builder.Command(id, action, CanExecute(), CanExecute() ? null : reason,
+                    availableWhen: CanExecute, reasonWhen: () => CanExecute() ? null : reason);
             }
             Add("sources.select", () =>
             {
@@ -58,8 +59,9 @@ public partial class SourcesPage
             if (source.Plugin is { } plugin)
             {
                 if (!IsBusy) { SetSelectedSource(sourceId); RenderDetails(); }
-                SourcePluginManagement.AppendSourcePluginActions(menu, plugin.Key, button);
+                SourcePluginManagement.AppendSourcePluginActions(builder, plugin.Key, button);
             }
+            builder.Populate(menu);
         };
     }
 
@@ -90,15 +92,18 @@ public partial class SourcesPage
     private void BuildWatchContextMenu(ListBox grid)
     {
         ContextMenu menu = grid.ContextMenu!;
-        menu.Items.Clear();
-        if (grid.SelectedItem is not SourceWatchRow frozen || _ended) { menu.Close(); return; }
+        if (grid.SelectedItem is not SourceWatchRow frozen || _ended) { menu.Items.Clear(); menu.Close(); return; }
         bool Ready() => !_ended && _available && !IsBusy && _openWatch != null;
         string reason = UnavailableReason();
-        menu.Items.Add(CommandBindings.CreateMenuItem("watch.show-in-downloads", () =>
+        ContextMenuBuilder builder = new ContextMenuBuilder().Named(Texts.T("sources.watches"));
+        bool CanExecute() => Ready();
+        builder.Command("watch.show-in-downloads", () =>
         {
             if (_ended || _openWatch?.Invoke(frozen.Target) != false) return;
             this.FindControl<TextBlock>("SourcesActionError")!.Text = Texts.T("diagnostics.removed");
-        }, Ready, () => Ready() ? null : reason));
+        }, CanExecute(), CanExecute() ? null : reason, availableWhen: CanExecute,
+            reasonWhen: () => CanExecute() ? null : reason);
+        builder.Populate(menu);
     }
 
     private static string UnavailableReason() => Texts.T("menu.unavailable.target");

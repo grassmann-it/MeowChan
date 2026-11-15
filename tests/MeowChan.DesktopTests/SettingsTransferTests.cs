@@ -386,6 +386,7 @@ public sealed class SettingsTransferTests
         }
         source.SchemaVersion = 7; // Export preserves the schema marker rather than validating or rewriting it.
         source.Theme = "Light";
+        source.ThemeOverrides = MeowChan.Desktop.Theming.ThemeColorOverrides.Create([new("Workspace.Accent", "#1D5E3A")], [new("Workspace.Panel", "#232A3A")]);
         source.Animations = "Off";
         source.Language = "de";
         source.ReaderDateStyle = "Long";

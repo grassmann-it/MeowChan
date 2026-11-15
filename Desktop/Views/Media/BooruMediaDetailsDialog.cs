@@ -137,6 +137,8 @@ internal sealed class BooruMediaDetailsDialog : Window
         TextBlock where = new() { Name = "BooruPostLine", Text = Texts.T("booru.media.detail.post", details.PostId), TextWrapping = TextWrapping.Wrap };
         Button open = new() { Name = "BooruOpenPost", Content = Texts.T("booru.media.openPost") };
         Button copy = new() { Name = "BooruCopyPost", Content = Texts.T("booru.media.copyPost") };
+        MeowChan.Desktop.Commands.CommandBindings.ShowIconBeforeText(open, "external-link");
+        MeowChan.Desktop.Commands.CommandBindings.ShowIconBeforeText(copy, "copy");
         ToolTip.SetTip(open, details.PostUrl.AbsoluteUri);
         ToolTip.SetTip(copy, details.PostUrl.AbsoluteUri);
         AutomationProperties.SetHelpText(open, details.PostUrl.AbsoluteUri);

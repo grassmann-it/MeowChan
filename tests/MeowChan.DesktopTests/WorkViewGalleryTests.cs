@@ -85,7 +85,7 @@ public sealed class WorkViewGalleryTests
     [Fact]
     public void OnlyTheWhereAmILineTheFilmstripAndTheModeSwitchAreLeftOutAndTheirAlternativesExist()
     {
-        // The filmstrip (V3) is away in Barebones by default; the L key, the menu row and the setting bring it back in every view.
+        // The filmstrip (V3) is away in Barebones by default; the filmstrip key, the menu row and the setting bring it back in every view.
         // G1: Barebones leaves the mode switch away until the list can be walked or the mode runs (states, R6); Shift+T works anyway.
         Assert.Equal(["gallery.mode", "gallery.filmstrip", "gallery.info.scope"], Rows.Where(entry => WorkViewSetting.All.Any(view => entry.For(view) == Presence.Hidden))
             .Select(entry => entry.Id).ToArray());
@@ -161,22 +161,28 @@ public sealed class WorkViewGalleryTests
         Assert.Contains("(_slideshowToggle, \"gallery.slideshow-toggle\")", playback);
     }
 
-    // Tom's rule: the way back alone at the top right edge, the favourite star directly left of it, the other actions apart.
+    // Tom's rule of 14.11. (replaces "back alone at the top right, the star left of it"): back and close come first at the LEFT, the star
+    // directly right of it as a pair, the other actions apart on the right.
     [Fact]
-    public void TheWayBackSitsAtTheTopRightWithTheStarLeftOfItAndPanelsBelow()
+    public void TheWayBackSitsAtTheTopLeftWithTheStarRightOfItAndPanelsBelowWhereTheyReachIt()
     {
         string viewer = ReadSource("Desktop/GalleryViewer.cs");
-        Assert.Contains("_close.HorizontalAlignment = HorizontalAlignment.Right;", viewer);
-        Assert.DoesNotContain("_close.HorizontalAlignment = HorizontalAlignment.Left;", viewer);
+        Assert.Contains("_close.HorizontalAlignment = HorizontalAlignment.Left;", viewer);
+        Assert.DoesNotContain("_close.HorizontalAlignment = HorizontalAlignment.Right;", viewer);
         // A change of its width (a longer label) moves the star and the panel start along.
         Assert.Contains("_close.SizeChanged += (_, _) => { UpdateFavoriteIndicators(); if (_contextOpen) LayoutContextPlacement(); };", viewer);
         string favorites = ReadSource("Desktop/GalleryViewer.Favorites.cs");
-        Assert.Contains("StarRightMargin", favorites);
+        Assert.Contains("StarLeftMargin", favorites);
+        Assert.DoesNotContain("StarRightMargin", favorites);
+        Assert.Contains("HorizontalAlignment = HorizontalAlignment.Left", favorites);
         Assert.Contains("_close.Bounds.Width", favorites);
         Assert.DoesNotContain("_contextPanel.Width", favorites); // the star no longer steps aside for the panel: the panel steps below it
-        // Both placements of the post panel (and with it the slot of a later tag panel) and the help start below the top row.
+        // The way back is the first child of the root (first stop in the tab order); the star is a passive badge, so the toolbar follows it.
+        Assert.Contains("root.Children.Add(_close); // First child", viewer);
+        // Both placements of the post panel (and with it the slot of a later tag panel) start below the top row where the panel reaches the
+        // pair at the left (a narrow viewer) and at the top otherwise; the help starts below the top row.
         string overlay = ReadSource("Desktop/GalleryViewer.Overlay.cs");
-        Assert.Equal(2, Regex.Matches(overlay, @"_contextPanel\.Margin = new Thickness\([^;]*PostPanelTopInset").Count);
+        Assert.Equal(2, Regex.Matches(overlay, @"_contextPanel\.Margin = new Thickness\([^;]*PostPanelTopInset\(").Count);
         Assert.Contains("TopRowClearance, 12, 12", viewer);
         // The clearance holds the way back (12 margin + a 32 dip button + an 8 gap).
         Assert.True(MeowChan.Desktop.GalleryViewer.TopRowClearance >= 12 + 32 + 8);

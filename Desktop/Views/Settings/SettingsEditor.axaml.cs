@@ -217,6 +217,7 @@ namespace MeowChan
         {
             ArgumentNullException.ThrowIfNull(config);
             InitializeComponent();
+            InitializeResetIcons();
             WorkspaceModeHelpButton.Source = HelpSources.WorkViews;
             _config = config;
             ShortcutsEditor.Load(config.ShortcutBindings);
@@ -306,6 +307,7 @@ namespace MeowChan
             LoadQuickTagDraft(config);
             LoadLimitsDraft(config);
             LoadWorkViewSwitchNoticeDraft(config);
+            LoadFooterDraft(config);
             RefreshChoices(config.Theme, config.WorkspaceMode, config.Language);
             DataContext = this;
             ApplyCommandIcons();
@@ -935,6 +937,7 @@ namespace MeowChan
             LoadQuickTagDraft(_config);
             LoadLimitsDraft(_config);
             LoadWorkViewSwitchNoticeDraft(_config);
+            LoadFooterDraft(_config);
             RefreshChoices(_config.Theme, _config.WorkspaceMode, _config.Language);
             ResetNumber(RecheckTimerInput, RecheckTimer!.Value);
             ResetNumber(ParallelDownloadsInput, MaxParallelDownloads!.Value);
@@ -1078,7 +1081,7 @@ namespace MeowChan
                     nameof(BehaviorTitle), nameof(DownloadPathLabel), nameof(BrowseLabel), nameof(PathHint),
                     nameof(RecheckLabel), nameof(BandwidthLabel), nameof(BandwidthHint), nameof(ParallelLabel), nameof(ParallelHint), nameof(ParallelSafetyLabel), nameof(ParallelSafetyHint), nameof(RestoreSessionLabel),
                     nameof(MonitorClipboardLabel), nameof(MonitorClipboardHint),
-                    nameof(BoardAdmissionWizardLabel), nameof(CloseToTrayLabel), nameof(MinimizeToTrayLabel), nameof(ThemeLabel), nameof(AnimationsLabel), nameof(AnimationsHint),
+                    nameof(BoardAdmissionWizardLabel), nameof(CloseToTrayLabel), nameof(MinimizeToTrayLabel), nameof(ThemeLabel), nameof(ThemeColorsLabel), nameof(ThemeColorsHint), nameof(ThemeColorsOpenLabel), nameof(AnimationsLabel), nameof(AnimationsHint),
                     nameof(LanguageLabel), nameof(LanguagePacksLabel), nameof(LanguagePacksHint), nameof(WorkspaceModeLabel),
                     nameof(DensityLabel), nameof(CompactLabel), nameof(ModeHint), nameof(SaveLabel),
                     nameof(CancelLabel), nameof(RememberReadingPositionLabel), nameof(ReadingPositionHint), nameof(ForgetReadingPositionLabel),
@@ -1099,6 +1102,7 @@ namespace MeowChan
                 RaiseQuickTagTextsChanged();
                 RaiseLimitsTextsChanged();
                 RaiseWorkViewNoticeTextsChanged();
+                RaiseFooterTextsChanged();
                 RaiseTransferTextsChanged();
                 RefreshWorkViewOverviewTexts();
                 RaiseResetTextsChanged();
@@ -1404,6 +1408,7 @@ namespace MeowChan
                 ApplyViewerDraft(candidate);
                 ApplyQuickTagDraft(candidate);
                 ApplyLimitsDraft(candidate);
+                ApplyFooterDraft(candidate);
 
                 if (!BandwidthLimiterMB.HasValue || BandwidthLimiterMB.Value <= 0)
                 {
@@ -1530,6 +1535,7 @@ namespace MeowChan
             LoadQuickTagDraft(_config);
             LoadLimitsDraft(_config);
             LoadWorkViewSwitchNoticeDraft(_config);
+            LoadFooterDraft(_config);
             RefreshChoices(_config.Theme, _config.WorkspaceMode, _config.Language);
             ResetNumber(RecheckTimerInput, RecheckTimer!.Value);
             ResetNumber(ParallelDownloadsInput, MaxParallelDownloads!.Value);
@@ -1622,7 +1628,8 @@ namespace MeowChan
             GalleryPlaybackMode mode = SelectedGalleryPlaybackMode?.Value == "Slideshow" ? GalleryPlaybackMode.Slideshow : GalleryPlaybackMode.Manual;
             var video = CaptureGalleryVideoDraft();
             return new(mode, seconds, GalleryMediaFocus, GalleryOverlayControls, GalleryAutoHideControls, GalleryOverlayPostContext,
-                video.Repeat, video.Rule, video.Seconds, video.Repeats);
+                video.Repeat, video.Rule, video.Seconds, video.Repeats,
+                _initialGalleryPlayback.PauseOnFocusLoss); // the choice lives in the gallery's slideshow menu, not on this page
         }
 
         private static int GetInteger(decimal? value, string label, int minimum, int maximum)

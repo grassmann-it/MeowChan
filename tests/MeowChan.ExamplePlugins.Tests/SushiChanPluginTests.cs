@@ -1,8 +1,7 @@
 using System.Text;
 using System.Text.Json.Nodes;
 using MeowChan.PluginSdk;
-using MeowChan.Plugins.Examples.SushiChan;
-using MeowChan.Plugins.Examples.Lainchan;
+using MeowChan.Plugins.Examples.VichanFamily;
 using MeowChan.Plugins.Examples.Kohlchan;
 
 namespace MeowChan.ExamplePlugins.Tests;
@@ -12,11 +11,11 @@ public sealed class SushiChanPluginTests
     [Fact]
     public void DescriptionIsPassiveSdkOnlyAndDeclaresOnlyProvenRoutesAndGrants()
     {
-        PluginDescription description = new SushiChanPlugin().Describe();
-        SourceDescription source = Assert.Single(description.Sources);
-        Assert.Equal("meowchan.source.sushichan", description.PluginId);
+        PluginDescription description = new VichanFamilyPlugin().Describe();
+        SourceDescription source = Assert.Single(description.Sources, s => s.SourceId == "sushichan");
+        Assert.Equal(VichanFamilyPlugin.PluginId, description.PluginId);
         Assert.Equal("sushichan", source.SourceId);
-        Assert.Empty(SdkValidation.ValidateDescriptions([new LainchanPlugin().Describe(), new KohlchanPlugin().Describe(), description]));
+        Assert.Empty(SdkValidation.ValidateDescriptions([new KohlchanPlugin().Describe(), description]));
         Assert.Empty(description.Settings.Fields);
         Assert.Empty(source.Settings.Fields);
         Assert.Equal(SourceCapabilities.ThreadRead | SourceCapabilities.BoardCatalog | SourceCapabilities.PostCapture | SourceCapabilities.OriginalMedia, source.Capabilities);
@@ -28,10 +27,10 @@ public sealed class SushiChanPluginTests
         Assert.Equal(RouteIdentifierKind.Decimal, thread.ThreadIdentifierKind);
         Assert.All(source.Routes, r => { Assert.Equal("sushigirl.cafe", r.Host); Assert.False(r.AllowTitleSegment); Assert.False(r.LowercaseBoardId); });
         Assert.Equal(new HttpHostDeclaration("sushigirl.cafe", HttpHostPurpose.Metadata | HttpHostPurpose.OriginalMedia), Assert.Single(source.HttpHosts));
-        string[] references = typeof(SushiChanPlugin).Assembly.GetReferencedAssemblies().Select(a => a.Name!).ToArray();
+        string[] references = typeof(VichanFamilyPlugin).Assembly.GetReferencedAssemblies().Select(a => a.Name!).ToArray();
         Assert.Contains("MeowChan.PluginSdk", references);
         Assert.DoesNotContain(references, name => name is "libmeowchan" or "MeowChan.PluginHost" or "Avalonia");
-        Assert.Single(typeof(SushiChanPlugin).Assembly.GetExportedTypes(), t => typeof(IPlugin).IsAssignableFrom(t));
+        Assert.Single(typeof(VichanFamilyPlugin).Assembly.GetExportedTypes(), t => typeof(IPlugin).IsAssignableFrom(t));
         SourceDescription collision = source with { SourceId = "other-sushichan" };
         Assert.NotEmpty(SdkValidation.ValidateDescriptions([description, description with { PluginId = "other.sushichan", Sources = [collision] }]));
     }
@@ -275,8 +274,8 @@ public sealed class SushiChanPluginTests
 
     private sealed class Harness
     {
-        internal SushiChanPlugin Plugin { get; } = new();
-        internal SourceDescription Source => Plugin.Describe().Sources[0];
+        internal VichanFamilyPlugin Plugin { get; } = new();
+        internal SourceDescription Source => Plugin.Describe().Sources.Single(s => s.SourceId == "sushichan");
         internal SourceValidators Validators { get; } = new(EntityTag: "\"unaccepted\"");
         internal ThreadReadRequest ThreadRequest { get; } = new(new SourceThreadId("sushichan", "demo", "123"));
         internal CatalogReadRequest CatalogRequest { get; } = new(new SourceBoardId("sushichan", "demo"));

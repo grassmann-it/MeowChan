@@ -115,12 +115,15 @@ internal static partial class SavedArchiveSearchChecks
         if (navigation.IsEffectivelyVisible) await ClickAsync(navigation, log, "Open local archive");
         else
         {
-            var menu = owner.FindControl<MenuItem>("WorkspaceMenuItem")!;
-            log.Action("open workspace menu", "Reveal the actual Archive menu entry", new { control = menu.Name });
-            menu.Focus(NavigationMethod.Tab); menu.IsSubMenuOpen = true;
-            await Program.WaitUntilAsync(() => owner.FindControl<MenuItem>("ArchiveMenuItem")!.IsEffectivelyVisible);
-            await ClickAsync(owner.FindControl<MenuItem>("ArchiveMenuItem")!, log, "Open local archive from workspace menu");
-            menu.IsSubMenuOpen = false;
+            // F1: the pages left the header menu; a footer that does not show Archive reaches it through the More menu.
+            Button tools = owner.FindControl<Button>("ToolsNavigationButton")!;
+            MenuFlyout menu = (MenuFlyout)tools.Flyout!;
+            MenuItem entry = SmokeNavigation.MoreEntry(owner, MainWindow.WorkspacePage.Archive)!;
+            log.Action("open More menu", "Reveal the actual Archive menu entry", new { control = tools.Name });
+            tools.Focus(NavigationMethod.Tab); menu.ShowAt(tools);
+            await Program.WaitUntilAsync(() => menu.IsOpen && entry.IsEffectivelyVisible);
+            await ClickAsync(entry, log, "Open local archive from the More menu");
+            menu.Hide();
         }
         await Program.WaitUntilAsync(() => !page.IsBusy && page.AppliedSearchSpec != null);
         if (Stage == "contracts") await ContractsAsync(owner, page, profile, log);

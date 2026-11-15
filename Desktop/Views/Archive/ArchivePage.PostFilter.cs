@@ -11,6 +11,7 @@ using Avalonia.Threading;
 using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Persistence;
 
@@ -85,26 +86,23 @@ public partial class ArchivePage
     // ---- Post menu and shortcuts --------------------------------------------------------------------------------------
 
     /// <summary>"Hide post" and "Hide post and its replies", or "Show post again" for a post hidden by hand.</summary>
-    private void AddPostFilterMenuItems(ContextMenu menu, ArchivePostRow row)
+    private void AddPostFilterMenuItems(ContextMenuBuilder menu, ArchivePostRow row)
     {
         if (_postFilters is not { Current.CanWrite: true } filters || _thread == null) return;
         ResourceId thread = _thread.Summary.Id;
         string post = row.Id;
-        menu.Items.Add(new Separator());
+        menu.Section();
         if (filters.IsHidden(thread, post))
         {
-            MenuItem unhide = CommandBindings.CreateMenuItem("post.unhide", () => PostFilterTask = UnhidePostAsync(thread, post), () => CanChangePostFilters);
-            unhide.Tag = "post.unhide";
-            menu.Items.Add(unhide);
+            menu.Command("post.unhide", () => PostFilterTask = UnhidePostAsync(thread, post),
+                available: CanChangePostFilters, availableWhen: () => CanChangePostFilters);
             return;
         }
-        MenuItem hide = CommandBindings.CreateMenuItem("post.hide", () => PostFilterTask = HidePostAsync(thread, post, replies: false), () => CanChangePostFilters);
-        hide.Tag = "post.hide";
-        menu.Items.Add(hide);
-        MenuItem withReplies = new() { Header = Texts.T("postFilter.hideWithReplies"), Tag = "post.hide-replies", IsEnabled = CanChangePostFilters };
-        AutomationProperties.SetName(withReplies, Texts.T("postFilter.hideWithReplies"));
-        withReplies.Click += (_, _) => { if (CanChangePostFilters) PostFilterTask = HidePostAsync(thread, post, replies: true); };
-        menu.Items.Add(withReplies);
+        menu.Command("post.hide", () => PostFilterTask = HidePostAsync(thread, post, replies: false),
+            available: CanChangePostFilters, availableWhen: () => CanChangePostFilters);
+        menu.Item("post.hide-replies", Texts.T("postFilter.hideWithReplies"),
+            () => { if (CanChangePostFilters) PostFilterTask = HidePostAsync(thread, post, replies: true); },
+            available: CanChangePostFilters, availableWhen: () => CanChangePostFilters);
     }
 
     private void OnPostFilterKeyDown(object? sender, KeyEventArgs e)

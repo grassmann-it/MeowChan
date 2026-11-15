@@ -263,7 +263,7 @@ internal static partial class PluginManagementChecks
         MediaRuleStore store = new(rulesDirectory, lease); await store.LoadAsync();
         MediaRule baseline = new(MediaRuleScope.Global) { ImageFilter = new(MediaImageFilterMode.Plugin, "fixture.management", "fixture-filter", "2", new Dictionary<string, string> { ["rule-label"] = "allowed" }) };
         await store.SaveAsync(new[] { baseline }, store.Current.Revision);
-        window.FindControl<MenuItem>("RulesMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Rules);
         ContentControl host = window.FindControl<ContentControl>("RulesPageHost")!; object? retained = host.Content;
         RulesPage page = new(() => store.Current, (rules, revision) => store.SaveAsync(rules, revision)); page.AttachPluginServices(management); host.Content = page;
         try
@@ -539,7 +539,7 @@ internal static partial class PluginManagementChecks
         finally
         {
             catalogSources.EndLifetime(); host.Content = retained;
-            window.FindControl<MenuItem>("RulesMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Rules);
         }
     }
     private static async Task AtBarebonesMinimumAsync(MainWindow window, Func<Task> capture)

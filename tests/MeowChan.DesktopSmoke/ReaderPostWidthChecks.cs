@@ -83,7 +83,7 @@ internal static class ReaderPostWidthChecks
     {
         window.Width = 1440; window.Height = 920;
         await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, 1440, 920));
-        Click(window.FindControl<MenuItem>("ArchiveMenuItem")!);
+        SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Archive);
         ArchivePage page = window.ArchivePage;
         await Program.WaitUntilAsync(() => !page.IsBusy);
         page.FindControl<TextBox>("ArchiveSearchText")!.Text = "Post width fixture";

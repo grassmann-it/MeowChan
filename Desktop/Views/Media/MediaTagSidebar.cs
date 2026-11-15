@@ -29,8 +29,8 @@ namespace MeowChan;
 /// </summary>
 internal sealed class MediaTagSidebar : UserControl
 {
-    /// <summary>The width of the column in dip (a layout measure, not a limit of the user's data).</summary>
-    internal const double ColumnWidth = 256;
+    /// <summary>The default width of the column in dip (MP5: the user's width is a setting, <see cref="MeowChan.Config.MediaTagListWidthMinimum"/> to <see cref="MeowChan.Config.MediaTagListWidthMaximum"/>; the page's body row sets it).</summary>
+    internal const double ColumnWidth = MeowChan.Config.MediaTagListWidthDefault;
 
     private readonly TextBlock _title = new() { Name = "MediaTagSidebarTitle", Classes = { "section-title" }, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
     private readonly TwoWayToggle _sort = new() { Name = "MediaTagSidebarSort", VerticalAlignment = VerticalAlignment.Center };
@@ -79,7 +79,6 @@ internal sealed class MediaTagSidebar : UserControl
     internal MediaTagSidebar()
     {
         Name = "MediaTagSidebar";
-        Width = ColumnWidth;
         _search.ShowSearchIcon = true;
         _search.HorizontalAlignment = HorizontalAlignment.Stretch;
         AutomationProperties.SetLiveSetting(_status, AutomationLiveSetting.Polite);

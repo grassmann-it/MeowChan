@@ -361,7 +361,7 @@ internal static partial class GalleryPlaybackFeatureChecks
         Point? contextOrigin = context.TranslatePoint(default, viewer);
         Require(favoriteBadge.IsEffectivelyVisible && favoriteOrigin is { } favoritePoint
             && contextOrigin is { } contextPoint
-            // Tom's gallery rule: the badge sits directly left of the way back at the top right, and the panel starts below that row.
+            // Tom's rule of 14.11.: the badge sits directly right of the way back at the top left; the panel (at the right) never covers it.
             && (favoritePoint.X + favoriteBadge.Bounds.Width <= contextPoint.X + 1 || favoritePoint.Y + favoriteBadge.Bounds.Height <= contextPoint.Y + 1),
             "Opening the right-hand post context covered the visible favorite badge instead of starting below the top row.");
         Click(Find<Button>(viewer, "GalleryToggleContext"));

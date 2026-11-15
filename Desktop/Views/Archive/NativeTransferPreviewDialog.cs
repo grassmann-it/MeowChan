@@ -60,6 +60,7 @@ internal sealed class NativeTransferPreviewDialog : Window
         _choose = CreateButton("NativeTransferPreviewChoose", "transfer.preview.choose", OnChooseAsync);
         _cancel = CreateButton("NativeTransferPreviewCancel", "action.cancel", OnCancel);
         _close = CreateButton("NativeTransferPreviewClose", "action.close", () => Close());
+        MeowChan.Desktop.Controls.IconButtons.WithText(_choose, "folder"); // I1b: the file chooser carries its catalog icon before the text.
         _cancel.IsEnabled = false;
         _notice.Classes.Add("workspace-help");
         _error.Classes.Add("workspace-error");

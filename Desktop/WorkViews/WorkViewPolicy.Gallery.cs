@@ -10,8 +10,8 @@ namespace MeowChan.Desktop.WorkViews;
 // viewer moves the very same instance (commands, enabled state, tooltip and shortcut exist once). Barebones is the reduced
 // layout the gallery always had; Simple and Advanced bring the curating tools onto the bar.
 //
-// Owner design rule (Tom, 14.11.): the way back stands alone at the top right edge, the favourite star sits directly left of
-// it, every other action is its own group away from both. Never reduced: the way back, the favourite mark, the position,
+// Owner design rule (Tom, 14.11., replaced in the evening): the way back stands first at the top LEFT edge, the favourite star sits
+// directly right of it as a pair, every other action is its own group away from both (on the right / in the dock). Never reduced: the way back, the favourite mark, the position,
 // the video transport, errors, integrity warnings, the consent to remove a favourite and the way to the post panel.
 //
 // Deliberately NOT moved (documented deviations from the plan's matrix, see the WV4 report): the post panel toggle stays on
@@ -74,6 +74,11 @@ public static partial class WorkViewPolicy
         // only for an empty gallery (state) and is then the way on.
         Same("gallery.toolbar.tools-toggle", WorkViewPage.Gallery, WorkViewKind.Action, Required, "gallery.tools-toggle"),
         Same("gallery.toolbar.more", WorkViewPage.Gallery, WorkViewKind.Element, Required),
+        // GL3 (Tom's E2, placement per UX spec S4 GL3+a): the "Layout" button beside "More" opens the layout menu (filmstrip and its position,
+        // tools, info line, hints, reset; the same rows on a right click of free dock area). Advanced puts it on the bar, Simple and
+        // Barebones keep the same rows as a section of "More" (the way back to every block a person switched off is never away); below
+        // CompactWidth every view has the section (GalleryChromePlan.LayoutOnBar). Not a movable tool: its section is its own control.
+        new("gallery.toolbar.layout", WorkViewPage.Gallery, WorkViewKind.Action, Overflow, Overflow, Direct, "gallery.layout-menu", OverflowOrder: 210),
         Same("gallery.toolbar.read-posts", WorkViewPage.Gallery, WorkViewKind.Action, Required, "thread.read"),
 
         // ---- G1: the mode switch "View | Tag" (Tom's E3 addition: tagging is a mode of the gallery, independent of the slideshow). ----

@@ -13,7 +13,7 @@ namespace MeowChan.DesktopTests;
 
 /// <summary>
 /// HB1: the structured help popover and its round button, the tooltip style (360 dip, wraps) and the two-line command tooltip.
-/// Controls are built without an application (the icon is created when the button is shown, so it is not part of these tests);
+/// Controls are built without an application (the drawn "?" is a path whose geometry is built when the button is shown, so only its key and path data are tested);
 /// the style rules are read from WorkspaceStyles.axaml.
 /// </summary>
 [Collection("Localization")]
@@ -105,6 +105,38 @@ public sealed class HelpPopoverTests : IDisposable
         button.Refresh();
         Assert.Equal("Hilfe: Was wird gezählt", AutomationProperties.GetName(button));
         Assert.Equal("Hilfe: Was wird gezählt", ToolTip.GetTip(button));
+    }
+
+    [Fact]
+    public void TheHelpButtonShowsAPlainQuestionMarkNotACircledIconInsideItsOwnCircle()
+    {
+        HelpButton button = new() { HelpKey = "help.stats" };
+        // The content is the drawn plain "?" (a path), not a catalog mask: the round button's outline is the one circle.
+        Assert.Equal(WorkspaceIcons.Help, WorkspaceIcons.KeyOf(button.Content));
+        Assert.IsType<Avalonia.Controls.Shapes.Path>(button.Content);
+        string data = WorkspaceIcons.DataOf(WorkspaceIcons.Help);
+        // No ring: no second full circle (a closed path, or two arcs that return to their start) in the icon.
+        Assert.DoesNotContain("Z", data, StringComparison.OrdinalIgnoreCase);
+        Assert.Single(System.Text.RegularExpressions.Regex.Matches(data, "A"));
+        // Still a 32 dip circular button with the accessible name of the section.
+        Assert.Equal("Help: What is counted", AutomationProperties.GetName(button));
+        Assert.Contains("help-round", button.Classes);
+        // The icon stays after the button is shown again (language change, re-attach): the same object, never a recreated catalog icon.
+        object? icon = button.Content;
+        button.Refresh();
+        Assert.Same(icon, button.Content);
+    }
+
+    [Fact]
+    public void TheHelpButtonSourceNamesNoCircledCatalogIcon()
+    {
+        string[] code = File.ReadAllLines(Root("Desktop/Controls/HelpButton.cs"))
+            .Where(line => !line.TrimStart().StartsWith("//", StringComparison.Ordinal) && !line.TrimStart().StartsWith("///", StringComparison.Ordinal)).ToArray();
+        string joined = string.Join("\n", code);
+        Assert.DoesNotContain("-circle", joined, StringComparison.Ordinal);
+        Assert.DoesNotContain("NamedIcon", joined, StringComparison.Ordinal);
+        Assert.DoesNotContain("CommandBindings", joined, StringComparison.Ordinal);
+        Assert.Contains("WorkspaceIcons.Create(WorkspaceIcons.Help)", joined, StringComparison.Ordinal);
     }
 
     [Fact]

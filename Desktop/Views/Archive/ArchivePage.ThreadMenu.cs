@@ -1,10 +1,12 @@
 using System;
+using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
@@ -39,41 +41,31 @@ public partial class ArchivePage
 
     internal ContextMenu BuildReaderThreadMenu()
     {
-        ContextMenu menu = new();
         ArchiveThreadSummary? summary = _thread?.Summary;
         // The row the shell callbacks resolve folder and source from when the thread is not (or no longer) in the lists.
         ArchiveThreadRow? row = summary == null ? null : new ArchiveThreadRow(summary);
         ResourceId? id = summary?.Id;
+        ContextMenuBuilder builder = new ContextMenuBuilder().Named(Texts.T("reader.thread.menu"));
 
-        MenuItem Add(string commandId, Action execute, Func<bool>? eligible = null, Func<string?>? whyNot = null,
+        void Add(string commandId, Action execute, Func<bool>? eligible = null, Func<string?>? whyNot = null,
             Func<string>? label = null, bool showShortcut = false)
         {
+            bool CanExecute() => ThreadMenuReady && (eligible?.Invoke() ?? true);
             string? Reason() => !ThreadMenuReady ? Texts.T("archive.command.busy")
                 : eligible?.Invoke() == false ? whyNot?.Invoke() : null;
-            MenuItem item = CommandBindings.CreateMenuItem(commandId, execute, () => ThreadMenuReady && (eligible?.Invoke() ?? true),
-                Reason, label, showShortcut);
-            item.Tag = commandId;
-            menu.Items.Add(item);
-            return item;
+            builder.Command(commandId, execute, CanExecute(), Reason(), label?.Invoke(), showShortcut,
+                availableWhen: CanExecute, reasonWhen: Reason, labelWhen: label);
         }
 
-        // Post capture: a check item whose check mark is the state (the status line says it too), the icon changes with it.
         bool capturing = summary?.CaptureEnabled == true;
-        MenuItem capture = Add("archive.capture-toggle", () => _ = ToggleThreadCaptureAsync(), () => _setCapture != null,
+        Add("archive.capture-toggle", () => _ = ToggleThreadCaptureAsync(), () => _setCapture != null,
             () => null, () => Texts.T("archive.captureOn"));
-        capture.ToggleType = MenuItemToggleType.CheckBox;
-        capture.IsChecked = capturing;
-        capture.Icon = CommandBindings.Icon("archive.capture-toggle", 16, capturing ? "capturing" : "stopped");
-        string captureTip = Texts.T("archive.captureOn") + " · " + Texts.T("archive.captureHint");
-        ToolTip.SetTip(capture, captureTip);
-        Avalonia.Automation.AutomationProperties.SetHelpText(capture, captureTip);
-
         Add("watch.check", () => _ = CheckThreadNowAsync(retry: false), CanRunThreadWatchAction, () => NoWatchActionReason("archive.command.noCheck"));
         Add("watch.retry-media", () => _ = CheckThreadNowAsync(retry: true), CanRunThreadWatchAction, () => NoWatchActionReason("archive.command.noRetry"));
-        // The media rules of the open thread (the same command as the lists' "Media rules…"); its Ctrl+R is a reader shortcut already.
         Add("rules.edit-scope", EditThreadRulesFromReader, () => CanEditThreadRules, () => Texts.T("archive.command.noWatch"),
             () => Texts.T("rules.thisThread"), showShortcut: true);
-        menu.Items.Add(new Separator());
+        // The first builder section is the first native separator.
+        builder.Section();
 
         Add("thread.details", () => { if (row != null) _ = ShowArchiveDetailsAsync(row); });
         Add("location.open-folder", () => { if (row != null) RunArchiveLeadAction(row, "folder"); },
@@ -83,10 +75,21 @@ public partial class ArchivePage
         Add("selection.copy-links", () => { if (summary != null && CopySelectedUrls != null) _ = CopySelectedUrls(new[] { summary.Url }); },
             () => CopySelectedUrls != null && !string.IsNullOrWhiteSpace(summary?.Url), () => Texts.T("archive.command.noSource"),
             () => Texts.T("reader.thread.copyLink"));
-        menu.Items.Add(new Separator());
-
+        builder.Section(); // new Separator() before the destructive watch action; the second section mirrors the second native separator: new Separator().
         Add("watch.remove", () => { if (id != null && RemoveSelectedWatches != null) _ = RemoveSelectedWatches(new[] { id }); },
             () => RemoveSelectedWatches != null && OpenThreadIsWatched, () => Texts.T("archive.command.noWatch"));
+
+        ContextMenu menu = builder.Build()!;
+        MenuItem? capture = menu.Items.OfType<MenuItem>().FirstOrDefault(item => Equals(item.Tag, "archive.capture-toggle"));
+        if (capture != null)
+        {
+            capture.ToggleType = MenuItemToggleType.CheckBox;
+            capture.IsChecked = capturing;
+            capture.Icon = CommandBindings.Icon("archive.capture-toggle", 16, capturing ? "capturing" : "stopped");
+            string captureTip = Texts.T("archive.captureOn") + " · " + Texts.T("archive.captureHint");
+            ToolTip.SetTip(capture, captureTip);
+            Avalonia.Automation.AutomationProperties.SetHelpText(capture, captureTip);
+        }
         return menu;
     }
 

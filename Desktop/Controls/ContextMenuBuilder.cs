@@ -38,40 +38,45 @@ internal sealed class ContextMenuBuilder
     }
 
     /// <summary>A catalog command. <paramref name="label"/> replaces the catalog label where the surface needs a more specific one.</summary>
-    internal ContextMenuBuilder Command(string commandId, Action invoke, bool available = true, string? reason = null, string? label = null)
+    internal ContextMenuBuilder Command(string commandId, Action invoke, bool available = true, string? reason = null, string? label = null, bool showShortcut = true, Func<bool>? availableWhen = null, Func<string?>? reasonWhen = null, Func<string>? labelWhen = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(commandId);
         ArgumentNullException.ThrowIfNull(invoke);
-        return Add(new(ContextMenuEntryKind.Command, commandId, label ?? CommandCatalog.Label(commandId), commandId, null, false, available, reason, invoke));
+        return Add(new(ContextMenuEntryKind.Command, commandId, label ?? CommandCatalog.Label(commandId), commandId, null, false, available, reason, invoke, showShortcut, availableWhen, reasonWhen, labelWhen));
     }
 
     /// <summary>An action that is not a catalog command.</summary>
-    internal ContextMenuBuilder Item(string id, string label, Action invoke, bool available = true, string? reason = null)
+    internal ContextMenuBuilder Item(string id, string label, Action invoke, bool available = true, string? reason = null,
+        Func<bool>? availableWhen = null, Func<string?>? reasonWhen = null, Func<string>? labelWhen = null)
     {
         ArgumentNullException.ThrowIfNull(invoke);
-        return Add(new(ContextMenuEntryKind.Command, id, label, null, null, false, available, reason, invoke));
+        return Add(new(ContextMenuEntryKind.Command, id, label, null, null, false, available, reason, invoke, true,
+            availableWhen, reasonWhen, labelWhen));
     }
 
-    /// <summary>One value of an exclusive choice; the entries of one <paramref name="group"/> are the choices, one of them checked.</summary>
-    internal ContextMenuBuilder Radio(string group, string id, string label, bool isChecked, Action invoke)
+    /// <summary>
+    /// One value of an exclusive choice; the entries of one <paramref name="group"/> are the choices, one of them checked. An entry that is
+    /// <paramref name="available"/> = false stays visible with its state, disabled, and says <paramref name="reason"/> as its tooltip and help text.
+    /// </summary>
+    internal ContextMenuBuilder Radio(string group, string id, string label, bool isChecked, Action invoke, bool available = true, string? reason = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(group);
         ArgumentNullException.ThrowIfNull(invoke);
         if (isChecked && _sections.SelectMany(section => section).Any(entry => entry.Kind == ContextMenuEntryKind.Radio && entry.Group == group && entry.Checked))
             throw new ArgumentException("Only one entry of the group \"" + group + "\" can be checked.", nameof(isChecked));
-        return Add(new(ContextMenuEntryKind.Radio, id, label, null, group, isChecked, true, null, invoke));
+        return Add(new(ContextMenuEntryKind.Radio, id, label, null, group, isChecked, available, reason, invoke, true));
     }
 
-    /// <summary>A switch.</summary>
-    internal ContextMenuBuilder Check(string id, string label, bool isChecked, Action invoke)
+    /// <summary>A switch; a switch that is not <paramref name="available"/> stays visible with its state, disabled, and says <paramref name="reason"/>.</summary>
+    internal ContextMenuBuilder Check(string id, string label, bool isChecked, Action invoke, bool available = true, string? reason = null)
     {
         ArgumentNullException.ThrowIfNull(invoke);
-        return Add(new(ContextMenuEntryKind.Check, id, label, null, null, isChecked, true, null, invoke));
+        return Add(new(ContextMenuEntryKind.Check, id, label, null, null, isChecked, available, reason, invoke, true));
     }
 
     /// <summary>A disabled explanatory sentence.</summary>
     internal ContextMenuBuilder Note(string text) =>
-        Add(new(ContextMenuEntryKind.Note, "note:" + _sections.Sum(section => section.Count), text, null, null, false, false, null, null));
+        Add(new(ContextMenuEntryKind.Note, "note:" + _sections.Sum(section => section.Count), text, null, null, false, false, null, null, false));
 
     private ContextMenuBuilder Add(ContextMenuEntry entry)
     {
@@ -92,6 +97,24 @@ internal sealed class ContextMenuBuilder
         return menu;
     }
 
+    /// <summary>Replaces the items of an existing popup while retaining its opening/closing handlers.</summary>
+    internal bool Populate(ContextMenu menu)
+    {
+        ArgumentNullException.ThrowIfNull(menu);
+        ContextMenu? built = Build();
+        if (built == null)
+        {
+            menu.Items.Clear();
+            return false;
+        }
+        menu.ItemsSource = built.ItemsSource;
+        if (!string.IsNullOrEmpty(_name)) AutomationProperties.SetName(menu, _name);
+        return menu.ItemCount > 0;
+    }
+
+    /// <summary>Creates the persistent empty popup used by controls whose entries are frozen at opening time.</summary>
+    internal static ContextMenu Empty() => new();
+
     internal static ContextMenu? Build(ContextMenuModel model)
     {
         ArgumentNullException.ThrowIfNull(model);
@@ -109,18 +132,20 @@ internal sealed class ContextMenuBuilder
     {
         if (entry.Kind == ContextMenuEntryKind.Note) return MediaMenuBuilder.Note(entry.Label);
         Action invoke = entry.Invoke ?? (() => { });
-        bool available = entry.Available;
+        bool Available() => entry.Availability?.Invoke() ?? entry.Available;
+        string? Reason() => Available() ? null : entry.ReasonFactory?.Invoke() ?? entry.Reason;
+        string Label() => entry.LabelFactory?.Invoke() ?? entry.Label;
         MenuItem item;
         if (entry.CommandId is { } commandId)
-            item = CommandBindings.CreateMenuItem(commandId, invoke, () => available, () => available ? null : entry.Reason, () => entry.Label);
+            item = CommandBindings.CreateMenuItem(commandId, invoke, Available, Reason, Label, entry.ShowShortcut);
         else
         {
-            item = new MenuItem { Header = entry.Label, Command = new DelegateCommand(invoke, () => available), IsEnabled = available };
-            AutomationProperties.SetName(item, entry.Label);
-            if (!available && entry.Reason != null)
+            item = new MenuItem { Header = Label(), Command = new DelegateCommand(invoke, Available), IsEnabled = Available() };
+            AutomationProperties.SetName(item, Label());
+            if (!Available() && Reason() != null)
             {
-                AutomationProperties.SetHelpText(item, entry.Reason);
-                ToolTip.SetTip(item, entry.Label + " · " + entry.Reason);
+                AutomationProperties.SetHelpText(item, Reason());
+                ToolTip.SetTip(item, Label() + " · " + Reason());
                 ToolTip.SetShowOnDisabled(item, true);
             }
         }

@@ -134,7 +134,7 @@ internal static class ReaderReturnChecks
         // already has a visible anchor before opening the large reader.
         window.Width = 1915; window.Height = 1045;
         window.Activate();
-        Click(window.FindControl<MenuItem>("ArchiveMenuItem")!);
+        SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Archive);
         ArchivePage page = window.ArchivePage;
         await Program.WaitUntilAsync(() => !page.IsBusy);
         await page.LoadThreadAsync(new ResourceId("4chan", "g", "1000"));

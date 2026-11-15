@@ -15,7 +15,7 @@ internal static partial class PluginManagementChecks
 {
     private static async Task CheckTemplateParameterValidationAsync(MainWindow window, PluginManagementServices management)
     {
-        window.FindControl<MenuItem>("RulesMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Rules);
         ContentControl host = window.FindControl<ContentControl>("RulesPageHost")!;
         object? retained = host.Content;
         string language = Texts.Language;

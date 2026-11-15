@@ -96,6 +96,7 @@ internal sealed class TagManagerDialog : Window
 
         _list.SelectionChanged += OnSelection;
         _sort.SelectionChanged += OnSortChanged;
+        MeowChan.Desktop.Controls.IconButtons.WithText(_rename, "edit-2"); // I1b: Rename carries a catalog icon; Delete and its confirmation stay text (no trash icon in the catalog).
         _rename.Click += OnRename; _delete.Click += OnDelete; _confirmDelete.Click += OnConfirmDelete;
         _keep.Click += OnKeep; _close.Click += OnClose;
         _orphanCheck.Click += OnOrphanCheck; _orphanRemove.Click += OnOrphanRemove;

@@ -158,14 +158,78 @@ public sealed class GalleryChromePlanTests
         Assert.Equal(!(tag && panel), plan.Favorite);
         // The movable tools: the view's bar, narrowed by the width (help first, then rating, then everything); none in the mode.
         string[] byView = WorkViewPolicy.GalleryBarToolIds(view).ToArray();
-        int overflow = width >= 1280 ? 0 : width >= 1100 ? 1 : width >= 900 ? 2 : 4;
-        string[] expected = tag ? [] : byView.Where(id => GalleryChromePlan.OverflowOrder.ToList().IndexOf(id) >= overflow).ToArray();
+        int stage = GalleryChromePlan.OverflowStage(width);
+        string[] expected = tag ? [] : byView.Where(id => stage < GalleryChromePlan.LeaveStage(view, id)).ToArray();
         Assert.Equal(expected, plan.BarToolIds);
         // The info line: quality always; the scope only outside the mode and as the view says; the rating yields to the panel's row.
         Assert.True(plan.InfoQuality);
-        Assert.Equal(!tag && view != WorkView.Barebones, plan.InfoScope);
-        Assert.Equal(!panel, plan.InfoRating);
+        Assert.Equal(!tag && view != WorkView.Barebones && width >= GalleryChromePlan.NarrowWidth, plan.InfoScope); // S2: the scope leaves below 900
+        Assert.Equal(!panel && !plan.Rating, plan.InfoRating); // GL5c: and the rating button of the bar shows the value too
         Assert.Equal(walk && width < 1280, plan.StripTwoRows);
+    }
+
+    // ---- GL5d: the overflow table of UX spec S2, one row per stage x view ----------------------------------------------------
+
+    [Theory]
+    [InlineData(1920, 0)] [InlineData(1280, 0)]
+    [InlineData(1279, 1)] [InlineData(1100, 1)]
+    [InlineData(1099, 2)] [InlineData(900, 2)]
+    [InlineData(899, 3)] [InlineData(640, 3)]
+    [InlineData(639, 4)] [InlineData(300, 4)]
+    [InlineData(0, 0)] // not laid out yet: nothing leaves
+    public void TheStagesAreTheBarWidthsOfTheSpec(double width, int stage) => Assert.Equal(stage, GalleryChromePlan.OverflowStage(width));
+
+    // view, width, the movable tools on the bar (policy order), Layout on the bar, mode as icons, 1:1 on the bar, the info scope
+    public static IEnumerable<object[]> OverflowTable()
+    {
+        const string rating = "gallery.toolbar.rating", tags = "gallery.toolbar.tags", slideshow = "gallery.toolbar.slideshow", help = "gallery.toolbar.help";
+        // Advanced: stage 1 help to More, stage 2 the rating button (and Layout, and the words), stage 3 tags and slideshow (and the scope), stage 4 1:1.
+        yield return [WorkView.Advanced, 1920d, new[] { rating, tags, slideshow, help }, true, false, true, true];
+        yield return [WorkView.Advanced, 1279d, new[] { rating, tags, slideshow }, true, false, true, true];
+        yield return [WorkView.Advanced, 1099d, new[] { tags, slideshow }, false, true, true, true];
+        yield return [WorkView.Advanced, 899d, Array.Empty<string>(), false, true, true, false];
+        yield return [WorkView.Advanced, 639d, Array.Empty<string>(), false, true, false, false];
+        // Simple: no help and no Layout on the bar; stage 1 the rating button, stage 2 tags (and the words), stage 3 the slideshow (and the scope).
+        yield return [WorkView.Simple, 1920d, new[] { rating, tags, slideshow }, false, false, true, true];
+        yield return [WorkView.Simple, 1279d, new[] { tags, slideshow }, false, false, true, true];
+        yield return [WorkView.Simple, 1099d, new[] { slideshow }, false, true, true, true];
+        yield return [WorkView.Simple, 899d, Array.Empty<string>(), false, true, true, false];
+        yield return [WorkView.Simple, 639d, Array.Empty<string>(), false, true, false, false];
+        // Barebones: only the core (arrows, zoom, post panel and favourite, More, tools toggle) at every stage; no scope at all.
+        foreach (double width in new[] { 1920d, 1279d, 1099d, 899d, 639d })
+            yield return [WorkView.Barebones, width, Array.Empty<string>(), false, width < 1100, width >= 640, false];
+    }
+
+    [Theory, MemberData(nameof(OverflowTable))]
+    public void TheBarFollowsTheOverflowTableOfTheSpec(WorkView view, double width, string[] barTools, bool layout, bool modeIcons, bool actual, bool scope)
+    {
+        GalleryChromePlan plan = Plan(Input(view: view, width: width));
+        Assert.Equal(barTools, plan.BarToolIds);
+        Assert.Equal(layout, plan.LayoutOnBar);
+        Assert.Equal(modeIcons, plan.ModeIcons);
+        Assert.Equal(actual, plan.ActualSize);
+        Assert.Equal(scope, plan.InfoScope);
+        // Never away, whatever the stage: the arrows with the position, More, the tools toggle, the zoom group, post panel and favourite.
+        Assert.True(plan.Nav && plan.More && plan.ToolsToggle && plan.Zoom && plan.PanelToggle && plan.Favorite);
+        Assert.Equal(plan.Zoom && !plan.ActualSize, GalleryChromePlan.OverflowStage(width) == 4 && plan.Zoom);
+    }
+
+    [Fact]
+    public void AnActiveSlideshowKeepsItsToggleAtEveryStageInEveryView()
+    {
+        foreach (WorkView view in Views)
+            foreach (double width in new[] { 1920d, 1279d, 1099d, 899d, 639d })
+                Assert.True(Plan(Input(view: view, width: width) with { SlideshowActive = true }).Slideshow);
+    }
+
+    [Fact]
+    public void TheModeSwitchIconsFollowTheCompactToolbarWidthOfTheViewer()
+    {
+        // The viewer picks words or icons by its own width constant; the plan says the same.
+        Assert.Equal(GalleryChromePlan.CompactWidth, GalleryViewer.CompactToolbarWidth);
+        Assert.Equal(GalleryChromePlan.TinyWidth, GalleryViewer.CompactBackWidth);
+        Assert.False(Plan(Input(width: GalleryChromePlan.CompactWidth)).ModeIcons);
+        Assert.True(Plan(Input(width: GalleryChromePlan.CompactWidth - 1)).ModeIcons);
     }
 
     [Fact]
@@ -348,6 +412,37 @@ public sealed class GalleryChromePlanTests
         Assert.Equal("gallery.mode-toggle", row.CommandId);
         Assert.Equal(Presence.Hidden, row.Barebones);
         Assert.True(row.Simple == Presence.Direct && row.Advanced == Presence.Direct);
+    }
+
+    [Fact]
+    public void AFreeTagModeEndsWithItsPanelAndAWalkKeepsItsMode()
+    {
+        // M1: every way the tag panel goes (its ×, Ctrl+Shift+T, the side panel's Post segment or ×, the slot closing, the viewer stopping)
+        // runs through ReleaseTagPanel; that is where a Tag mode without a walk ends, so the switch shows View and Tag opens the panel again.
+        string panel = Source("Desktop/GalleryViewer.TagPanel.cs");
+        int release = panel.IndexOf("private bool ReleaseTagPanel()", StringComparison.Ordinal);
+        string releaseBody = panel[release..panel.IndexOf("return true;", release, StringComparison.Ordinal)];
+        Assert.Contains("EndFreeTagModeWithPanel();", releaseBody);
+        Assert.Contains("surface.CloseRequested += CloseTagPanel;", panel);
+        Assert.Contains("if (CommandBindings.Matches(e, \"media.tags.edit\")) { CloseTagPanel();", panel);
+        Assert.Contains("ReleaseTagPanel();", Source("Desktop/GalleryViewer.SidePanel.cs"));
+        Assert.Contains("bool tagOnly = !open && ReleaseTagPanel();", Source("Desktop/GalleryViewer.cs"));
+
+        string chrome = Source("Desktop/GalleryViewer.Chrome.cs");
+        int end = chrome.IndexOf("private void EndFreeTagModeWithPanel()", StringComparison.Ordinal);
+        Assert.True(end > 0);
+        string body = chrome[end..chrome.IndexOf("internal void SetTaggingAvailable", end, StringComparison.Ordinal)];
+        // Only the free mode: a walk of the tagging queue keeps its Tag mode and decision row when the panel closes.
+        Assert.Contains("if (!_freeTagMode || _tagging != null) return;", body);
+        Assert.Contains("_freeTagMode = false;", body);
+        Assert.Contains("OnGalleryModeChanged();", body); // the switch, the chrome plan and the announcement follow
+        Assert.True(body.IndexOf("if (_terminalRetirement) return;", StringComparison.Ordinal) > body.IndexOf("_freeTagMode = false;", StringComparison.Ordinal));
+        // The Tag half compares with IsTagMode; after the panel went it is false again, so "Tag" starts the mode anew.
+        Assert.Contains("internal bool IsTagMode => _tagging != null || _freeTagMode;", chrome);
+        // EndFreeTagMode clears the flag before it closes the panel, so the release does not end the mode a second time.
+        int explicitEnd = chrome.IndexOf("internal void EndFreeTagMode()", StringComparison.Ordinal);
+        string explicitBody = chrome[explicitEnd..chrome.IndexOf("private void EndFreeTagModeWithPanel()", StringComparison.Ordinal)];
+        Assert.True(explicitBody.IndexOf("_freeTagMode = false;", StringComparison.Ordinal) < explicitBody.IndexOf("CloseTagPanel();", StringComparison.Ordinal));
     }
 
     private static string Source(string relative) => File.ReadAllText(Root(relative));

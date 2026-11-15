@@ -255,7 +255,7 @@ public sealed class GalleryFilmstripTests : IDisposable
     {
         Config defaults = new();
         Assert.True(defaults.GalleryFilmstrip);
-        Assert.Equal(72, defaults.GalleryFilmstripHeight);
+        Assert.Equal(64, defaults.GalleryFilmstripHeight); // GL5e: 72 before; 72 stays choosable
         Assert.Equal(12, defaults.GalleryFilmstripPreload);
         Assert.Equal((48, 160), (Config.GalleryFilmstripHeightMinimum, Config.GalleryFilmstripHeightMaximum));
         Assert.Equal((4, 60), (Config.GalleryFilmstripPreloadMinimum, Config.GalleryFilmstripPreloadMaximum));
@@ -315,6 +315,79 @@ public sealed class GalleryFilmstripTests : IDisposable
         Assert.Equal((100, 20), (settings.GalleryFilmstripHeight, settings.GalleryFilmstripPreload));
     }
 
+    // ---- GL5e: the look of the strip ----
+
+    [Fact]
+    public void TheTileGapIsASettingFromFourToSixteenDipWithEightAsTheDefault()
+    {
+        Assert.Equal((8, 4, 16), (Config.GalleryFilmstripTileGapDefault, Config.GalleryFilmstripTileGapMinimum, Config.GalleryFilmstripTileGapMaximum));
+        Assert.Equal(8, GalleryFilmstripPlan.TileGap);
+        Assert.Equal(64, Config.GalleryFilmstripHeightDefault);
+        Assert.Equal((4, 16, 8), (GalleryFilmstripPlan.ClampGap(0), GalleryFilmstripPlan.ClampGap(99), GalleryFilmstripPlan.ClampGap(8)));
+        Config defaults = new();
+        Assert.Equal(8, defaults.GalleryFilmstripTileGap);
+        defaults.Validate();
+        foreach (int valid in new[] { 4, 16 })
+        {
+            Config candidate = defaults.Clone();
+            candidate.GalleryFilmstripTileGap = valid;
+            candidate.Validate();
+            Config target = new();
+            target.CopySettingsFieldsFrom(candidate);
+            Assert.Equal(valid, target.GalleryFilmstripTileGap);
+        }
+        foreach (int invalid in new[] { 3, 17, int.MinValue, int.MaxValue })
+        {
+            Config candidate = defaults.Clone();
+            candidate.GalleryFilmstripTileGap = invalid;
+            Assert.Throws<ArgumentOutOfRangeException>(() => candidate.Validate());
+        }
+        using Profile profile = new();
+        Config config = Config.LoadConfig(profile.Path);
+        config.GalleryFilmstripTileGap = 12;
+        config.SaveConfig(profile.Path);
+        Config loaded = Config.LoadConfig(profile.Path);
+        Assert.Equal(12, loaded.GalleryFilmstripTileGap);
+        Assert.Equal(12, loaded.Clone().GalleryFilmstripTileGap);
+        Config copy = new(); copy.CopyFrom(loaded);
+        Assert.Equal(12, copy.GalleryFilmstripTileGap);
+        Assert.Contains("GalleryFilmstripTileGap = source.GalleryFilmstripTileGap", Source("Desktop/Settings/SettingsTransfer.cs"));
+    }
+
+    [Fact]
+    public void EveryPlacementOfTilesTakesTheChosenGap()
+    {
+        const double Tile = 64;
+        foreach (double gap in new double[] { 4, 8, 16 })
+        {
+            double pitch = Tile + gap;
+            Assert.Equal(pitch, GalleryFilmstripPlan.Pitch(Tile, gap));
+            Assert.Equal(10 * pitch - gap, GalleryFilmstripPlan.Extent(10, Tile, gap));
+            Assert.Equal(2, GalleryFilmstripPlan.TileAt(2 * pitch + 1, 0, Tile, 10, gap));
+            Assert.Equal(-1, GalleryFilmstripPlan.TileAt(2 * pitch - 1, 0, Tile, 10, gap)); // inside the gap before tile 2
+            Assert.Equal(3, GalleryFilmstripPlan.Visible(2 * pitch + Tile, 300, Tile, 100, gap).First);
+            Assert.Equal(100 * pitch + Tile / 2 - 500, GalleryFilmstripPlan.CentreOffset(100, 5000, Tile, 1000, gap), 6);
+            Assert.Equal(1000 - pitch, GalleryFilmstripPlan.PageOffset(0, 1, 5000, Tile, 1000, gap), 6);
+        }
+    }
+
+    [Fact]
+    public void TheStripHasNoRestingFrameArrowsOnlyWhenNeededAndFadedEnds()
+    {
+        string strip = Source("Desktop/Controls/GalleryFilmstrip.cs");
+        // A tile has no border of its own: the frame is an overlay, 2 dip accent when shown, 1 dip when hovered, nothing at rest.
+        Assert.DoesNotContain("BorderThickness = new Thickness(2);", strip);
+        Assert.Contains("_frame.BorderThickness = new Thickness(_current ? 2 : _hover ? 1 : 0);", strip);
+        Assert.Contains("CornerRadius = new CornerRadius(4)", strip);
+        // 32 dip arrows over the strip's ends, shown only where there is somewhere to scroll and the pointer or keyboard is in the band.
+        Assert.Contains("button.Width = 32; button.Height = 32;", strip);
+        Assert.Contains("_back.IsVisible = active && _back.IsEnabled;", strip);
+        Assert.Contains("_forward.IsVisible = active && _forward.IsEnabled;", strip);
+        Assert.Contains("bool active = _pointerOver || _keyboardFocus;", strip);
+        Assert.Equal(24, GalleryFilmstrip.EdgeFadeWidth);
+        Assert.Contains("_strip.OpacityMask = mask;", strip);
+    }
+
     // ---- policy, command, texts ----
 
     [Fact]
@@ -329,14 +402,16 @@ public sealed class GalleryFilmstripTests : IDisposable
     }
 
     [Fact]
-    public void TheToggleIsTheSingleKeyLInTheGalleryAndTurnsOffWithTheSingleKeySwitch()
+    public void TheToggleIsASingleKeyInTheGalleryAndTurnsOffWithTheSingleKeySwitch()
     {
         CommandDefinition command = CommandCatalog.All.Single(item => item.Id == "gallery.filmstrip-toggle");
         Assert.Equal(CommandScope.Gallery, command.Scope);
         foreach (ShortcutPlatform platform in Enum.GetValues<ShortcutPlatform>())
         {
             var on = EffectiveShortcutBindings.Build(platform: platform);
-            Assert.Equal("L", on.For("gallery.filmstrip-toggle").Single().Key);
+            // the key comes from the catalog and may move (Shift+L): the test asserts one effective binding that shows what the catalog says, never a literal
+            Assert.NotNull(command.Shortcut);
+            Assert.Equal(on.Display("gallery.filmstrip-toggle"), on.For("gallery.filmstrip-toggle").Single().Display(platform));
             Assert.Empty(on.Issues);
         }
         Assert.True(EffectiveShortcutBindings.YieldingDefaultCommandIds.Contains("gallery.filmstrip-toggle"));
@@ -367,6 +442,65 @@ public sealed class GalleryFilmstripTests : IDisposable
         Texts.SetLanguage("de");
         Assert.Equal("3 von 40, a.png, Bild", Texts.T("gallery.filmstrip.tile", 3, 40, "a.png", Texts.T("gallery.filmstrip.kind.image")));
         Assert.Contains("72", Texts.T("settings.galleryFilmstripHeightHint", 72, 48, 160));
+    }
+
+    // ---- MB1b: the tiles' badges come from the shared badge component ----
+
+    [Fact]
+    public void ATileCarriesOnlyTheBadgesOfItsKindAndTheLengthWhenKnown()
+    {
+        Assert.Equal(default, GalleryFilmstrip.BadgeStateOf("a.png"));
+        Assert.Equal(new MediaBadgeState(Kind: MediaBadgeKind.Gif), GalleryFilmstrip.BadgeStateOf("a.GIF", TimeSpan.FromSeconds(9))); // a GIF has no length chip
+        Assert.Equal(new MediaBadgeState(Kind: MediaBadgeKind.Video), GalleryFilmstrip.BadgeStateOf("clip.mp4"));
+        Assert.Equal(new MediaBadgeState(Kind: MediaBadgeKind.Video, Duration: TimeSpan.FromSeconds(42)), GalleryFilmstrip.BadgeStateOf("clip.mp4", TimeSpan.FromSeconds(42)));
+    }
+
+    [Fact]
+    public void ADenseTileDrawsTheSmallPlayMarkAndTheLengthChipAndOnlyThat()
+    {
+        var picture = new Avalonia.Size(Config.GalleryFilmstripHeightDefault, Config.GalleryFilmstripHeightDefault);
+        MediaBadgePlan plan = MediaBadgeLayout.Plan(GalleryFilmstrip.BadgeStateOf("clip.mp4", TimeSpan.FromSeconds(42)), picture, MediaBadgeOptions.Filmstrip, MediaBadgeLimits.Default);
+        Assert.Equal(MediaBadgeMode.Full, plan.Mode);
+        Assert.Equal([MediaBadgeId.PlayMark, MediaBadgeId.Video], plan.Badges.Select(placed => placed.Badge.Id).OrderBy(id => id).ToArray());
+        PlacedBadge mark = plan.Badges.Single(placed => placed.Badge.Id == MediaBadgeId.PlayMark);
+        PlacedBadge chip = plan.Badges.Single(placed => placed.Badge.Id == MediaBadgeId.Video);
+        Assert.Equal(VideoPlayMark.Diameter(picture, VideoPlayMark.DenseRatio), mark.Bounds.Width, 6);
+        Assert.True(mark.Bounds.Width < VideoPlayMark.Diameter(picture, VideoPlayMark.Ratio), "the dense mark is smaller than the normal one");
+        Assert.Equal("0:42", chip.Badge.Label);
+        Assert.Null(chip.Badge.Icon);                       // the mark says "video"; the chip only adds the length
+        Assert.False(chip.Bounds.Intersects(mark.Bounds), "the chip stays out of the play mark");
+        Assert.True(chip.Bounds.Left < picture.Width / 2 && chip.Bounds.Top > picture.Height / 2, "bottom left");
+
+        MediaBadgePlan gif = MediaBadgeLayout.Plan(GalleryFilmstrip.BadgeStateOf("a.gif"), picture, MediaBadgeOptions.Filmstrip, MediaBadgeLimits.Default);
+        Assert.Equal("GIF", Assert.Single(gif.Badges).Badge.Label);
+        Assert.Empty(MediaBadgeLayout.Plan(GalleryFilmstrip.BadgeStateOf("a.png"), picture, MediaBadgeOptions.Filmstrip, MediaBadgeLimits.Default).Badges);
+    }
+
+    [Fact]
+    public void TheBadgeSentenceReplacesTheKindWordInTheTileName()
+    {
+        Assert.Equal("3 of 40, a.png, image", GalleryFilmstrip.TileName(3, 40, "a.png", GalleryFilmstrip.BadgeStateOf("a.png")));
+        Assert.Equal("3 of 40, clip.mp4, Video", GalleryFilmstrip.TileName(3, 40, "clip.mp4", GalleryFilmstrip.BadgeStateOf("clip.mp4")));
+        Assert.Equal("3 of 40, clip.mp4, Video 1:05", GalleryFilmstrip.TileName(3, 40, "clip.mp4", GalleryFilmstrip.BadgeStateOf("clip.mp4", TimeSpan.FromSeconds(65))));
+        Assert.Equal("3 of 40, a.gif, Animated image", GalleryFilmstrip.TileName(3, 40, "a.gif", GalleryFilmstrip.BadgeStateOf("a.gif")));
+        Texts.SetLanguage("de");
+        Assert.Equal("3 von 40, clip.mp4, Video 1:05", GalleryFilmstrip.TileName(3, 40, "clip.mp4", GalleryFilmstrip.BadgeStateOf("clip.mp4", TimeSpan.FromSeconds(65))));
+    }
+
+    [Fact]
+    public void TheTileUsesTheBadgeViewWithoutOwnBadgeCodeOrExtraFocusStops()
+    {
+        string source = Source("Desktop/Controls/GalleryFilmstrip.cs");
+        Assert.Contains("MediaBadgeView _badges = new()", source);
+        Assert.Contains("MediaBadgeOptions.Filmstrip", source);
+        Assert.Contains("MediaBadgeText.Describe(badges, MediaBadgeOptions.Filmstrip)", source); // the sentence goes into the tile's AutomationName
+        foreach (string gone in new[] { "CreateCornerBadge", "_playGlyph", "Geometry.Parse", "GalleryFilmstripGif", "_gif" })
+            Assert.DoesNotContain(gone, source);
+        // The badge view takes no hit, no focus and sits outside the accessibility tree; the only focus stop stays the strip itself.
+        var view = new MediaBadgeView();
+        Assert.False(view.IsHitTestVisible);
+        Assert.False(view.Focusable);
+        Assert.Equal(Avalonia.Automation.AccessibilityView.Raw, Avalonia.Automation.AutomationProperties.GetAccessibilityView(view));
     }
 
     // ---- GL1: the place of the band (bottom of the dock by default, top selectable) ----

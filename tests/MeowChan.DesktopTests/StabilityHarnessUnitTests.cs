@@ -731,11 +731,15 @@ public sealed class StabilityHarnessUnitTests
         string root = Path.Combine(AppContext.BaseDirectory, "stability-path-" + Guid.NewGuid().ToString("N")[..8]);
         try
         {
-            Directory.CreateDirectory(Path.Combine(root, "plugins", "Examples", "Lainchan"));
+            Directory.CreateDirectory(Path.Combine(root, "plugins", "Examples", "Kohlchan"));
+            Directory.CreateDirectory(Path.Combine(root, "plugins", "Examples", "VichanFamily", "Sites", "Lainchan"));
             Directory.CreateDirectory(Path.Combine(root, "plugins", "Official", "Dvach"));
             DateTimeOffset day = new(2026, 11, 11, 23, 59, 0, TimeSpan.Zero);
-            Assert.Equal(Path.Combine(root, "plugins", "Examples", "Lainchan", "Evidence", "stability-20261111.json"),
-                StabilityEvidence.EvidencePath(root, "MeowChan.Plugin.Lainchan.plugin.json", "meowchan.source.lainchan", day));
+            Assert.Equal(Path.Combine(root, "plugins", "Examples", "Kohlchan", "Evidence", "stability-20261111.json"),
+                StabilityEvidence.EvidencePath(root, "MeowChan.Plugin.Kohlchan.plugin.json", "meowchan.source.kohlchan", day));
+            // Each site of an engine family has its own evidence directory, so two sites never share a run file.
+            Assert.Equal(Path.Combine(root, "plugins", "Examples", "VichanFamily", "Sites", "Lainchan", "Evidence", "stability-20261111.json"),
+                StabilityEvidence.EvidencePath(root, "MeowChan.Plugin.VichanFamily.plugin.json", "meowchan.source.vichan", day, "lainchan"));
             Assert.Equal(Path.Combine(root, "plugins", "Official", "Dvach", "Evidence", "stability-20261111.json"),
                 StabilityEvidence.EvidencePath(root, "MeowChan.Plugin.Dvach.plugin.json", "meowchan.source.2ch", day));
             Assert.Throws<InvalidOperationException>(() => StabilityEvidence.EvidencePath(root, "MeowChan.Plugin.Missing.plugin.json", "x", day));

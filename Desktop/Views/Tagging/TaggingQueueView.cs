@@ -22,6 +22,15 @@ internal sealed record TaggingQueueRow(TagQueueItem Item, int Index, bool Next)
     internal string SourceText => TaggingQueueView.SourceText(Item);
     internal string StateText => TaggingQueueView.StateText(Item.State);
     internal string AccessibleName => Texts.T(Next ? "tagging.page.row.next" : "tagging.page.row", Number, Name, StateText);
+    /// <summary>True for a video: its tile's badges carry the play mark (TG1).</summary>
+    internal bool IsVideo => Item.Kind == SavedMediaKind.Video;
+    /// <summary>The catalog icon of the state (a drawn mark besides the text, never colour alone): open, finished, skipped.</summary>
+    internal string StateIcon => TaggingQueueView.StateIcon(Item.State);
+    /// <summary>
+    /// The name of a grid tile for a screen reader and its tooltip: the row's own sentence, then the sentence of the tile's badges (video,
+    /// tagging state, number of own tags or none, booru source; <paramref name="tagCount"/> null: not read yet, nothing is said about tags).
+    /// </summary>
+    internal string TileName(int? tagCount) => TaggingQueueView.TileName(this, tagCount);
 }
 
 /// <summary>
@@ -30,15 +39,20 @@ internal sealed record TaggingQueueRow(TagQueueItem Item, int Index, bool Next)
 /// </summary>
 internal static class TaggingQueueView
 {
-    internal static IReadOnlyList<TaggingQueueRow> Rows(TagQueueSnapshot queue, TaggingQueueFilter filter)
+    /// <summary>
+    /// The entries the page shows now: the queue's entries in queue order that pass the state filter and, when given, the
+    /// <paramref name="scope"/> (the one source of "current entries" that a later filter, such as a group, narrows; the walk marker and
+    /// the numbers stay those of the whole queue).
+    /// </summary>
+    internal static IReadOnlyList<TaggingQueueRow> Rows(TagQueueSnapshot queue, TaggingQueueFilter filter, Func<TagQueueItem, bool>? scope = null)
     {
         ArgumentNullException.ThrowIfNull(queue);
         int? next = queue.ResumeIndex();
-        List<TaggingQueueRow> rows = new(filter == TaggingQueueFilter.All ? queue.Count : 0);
+        List<TaggingQueueRow> rows = new(filter == TaggingQueueFilter.All && scope == null ? queue.Count : 0);
         for (int index = 0; index < queue.Items.Count; index++)
         {
             TagQueueItem item = queue.Items[index];
-            if (Shows(filter, item.State)) rows.Add(new TaggingQueueRow(item, index, index == next));
+            if (Shows(filter, item.State) && (scope == null || scope(item))) rows.Add(new TaggingQueueRow(item, index, index == next));
         }
         return rows;
     }
@@ -105,14 +119,42 @@ internal static class TaggingQueueView
     /// Where <paramref name="key"/> lands when it moves one shown row up (<paramref name="direction"/> −1) or down (+1): the queue
     /// position of the neighbouring shown row, so a filtered list moves past the entries it hides. Null at the edge of the list.
     /// </summary>
-    internal static int? MoveTarget(TagQueueSnapshot queue, TaggingQueueFilter filter, TagQueueKey key, int direction)
+    internal static int? MoveTarget(TagQueueSnapshot queue, TaggingQueueFilter filter, TagQueueKey key, int direction, Func<TagQueueItem, bool>? scope = null)
     {
         if (direction is not (-1 or 1)) throw new ArgumentOutOfRangeException(nameof(direction));
         int from = queue.IndexOf(key);
         if (from < 0) return null;
         for (int index = from + direction; index >= 0 && index < queue.Items.Count; index += direction)
-            if (Shows(filter, queue.Items[index].State)) return index;
+            if (Shows(filter, queue.Items[index].State) && (scope == null || scope(queue.Items[index]))) return index;
         return null;
+    }
+
+    /// <summary>
+    /// "To the start" (<paramref name="toEnd"/> false) and "to the end" of the queue: the position the entry moves to, or null when it
+    /// already stands there (or is not in the queue). Absolute queue positions, so a filter does not change where the end is.
+    /// </summary>
+    internal static int? EdgeTarget(TagQueueSnapshot queue, TagQueueKey key, bool toEnd)
+    {
+        int from = queue.IndexOf(key);
+        if (from < 0) return null;
+        int target = toEnd ? queue.Count - 1 : 0;
+        return from == target ? null : target;
+    }
+
+    /// <summary>The catalog icon of a state: a circle (open), a check (finished), a skip arrow (skipped).</summary>
+    internal static string StateIcon(TagQueueState state) => state switch
+    {
+        TagQueueState.Done => "check",
+        TagQueueState.Skipped => "skip-forward",
+        _ => "circle"
+    };
+
+    /// <summary>The name of a grid tile (see <see cref="TaggingQueueRow.TileName"/>).</summary>
+    internal static string TileName(TaggingQueueRow row, int? tagCount)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        string badges = TaggingTileBadges.DescribeOf(row, tagCount);
+        return badges.Length == 0 ? row.AccessibleName : row.AccessibleName + ", " + badges;
     }
 
     internal static string StateText(TagQueueState state) => Texts.T(state switch

@@ -216,12 +216,61 @@ public sealed class RulesOverviewTests
     }
 
     [Fact]
-    public void EditorCloseSitsAtTheRightEdgeOfItsHeaderRowApartFromActions()
+    public void TheEmptyOverviewHasOnePrimaryCreateAndSitsInTheFreeHeightWhileAFilledOneStaysTopAligned()
     {
         string xaml = ReadSource("Desktop/Views/Rules/RulesPage.axaml");
-        string header = Between(xaml, "<Grid x:Name=\"RuleWizardHeader\"", "</Grid>");
-        Assert.Contains("ColumnDefinitions=\"*,Auto,Auto\"", header);
-        Assert.Matches(@"x:Name=""RuleWizardCloseButton""[^>]*Grid\.Column=""2""", header);
+        string overview = ReadSource("Desktop/Views/Rules/RulesPage.Overview.cs");
+        // One primary Create rule at a time: the header's hides while the empty state (with its own primary) shows.
+        Assert.Matches(@"x:Name=""CreateRuleButton""[^>]*IsVisible=""\{Binding IsHeaderCreateVisible\}""", xaml);
+        Assert.Contains("public bool IsHeaderCreateVisible => !_wizard.IsOpen && !_overviewEmpty;", overview);
+        Assert.Matches(@"<controls:WorkspaceEmptyState x:Name=""RulesOverviewEmpty""", xaml);
+        Assert.Matches(@"x:Name=""CreateFirstRuleButton"" Classes=""primary""", xaml);
+        Assert.DoesNotMatch(@"x:Name=""StartFromTemplateButton""[^>]*primary", xaml);
+        // Focus after closing, deleting or discarding goes to whichever Create is visible.
+        Assert.DoesNotContain("() => CreateRuleButton", overview);
+        // The overview grid: spacer rows without height (top-aligned list); only the empty state gets 1:2 and the viewport height.
+        Assert.Matches(@"<Grid x:Name=""RulesOverviewPanel""[^>]*RowDefinitions=""0,Auto,0""", xaml);
+        string layout = Between(overview, "private void ApplyOverviewEmptyLayout()", "private Border OverviewCard(");
+        Assert.Contains("bool centre = _overviewEmpty;", layout);
+        Assert.Contains("new GridLength(1, GridUnitType.Star)", layout);
+        Assert.Contains("new GridLength(2, GridUnitType.Star)", layout);
+        Assert.Contains("Math.Floor(RulesScroll.Viewport.Height)", layout);
+        // The footer bar shows on the overview only with something to report; the editor always has it.
+        Assert.Matches(@"x:Name=""RulesFooterBar""[^>]*IsVisible=""\{Binding HasFooter\}""", xaml);
+        Assert.Contains("public bool HasFooter => _wizard.IsOpen || HasError || _busy || _overviewStatus != null;", overview);
+        // The read-only defaults are one quiet card with a small heading and static chips.
+        Assert.Matches(@"<Border x:Name=""RulesOverviewDefaults""[^>]*Classes=""workspace-card""", xaml);
+        Assert.Matches(@"x:Name=""RulesOverviewDefaultsTitle"" Classes=""workspace-field-label""", xaml);
+    }
+
+    [Fact]
+    public void TheEmptyStateHeadlineAndSentenceAreTranslated()
+    {
+        string original = Texts.Language;
+        try
+        {
+            Texts.SetLanguage("en");
+            string title = Texts.T("rules.overview.emptyTitle"), body = Texts.T("rules.overview.empty");
+            Assert.Equal("No rules yet", title);
+            Assert.Equal("Until you create one, downloads use the built-in defaults below.", body);
+            foreach (string language in new[] { "de", "es", "fr", "ru", "zh-Hans", "ja", "ko", "pt-BR", "cs", "it", "pl" })
+            {
+                Texts.SetLanguage(language);
+                Assert.NotEqual(title, Texts.T("rules.overview.emptyTitle"));
+                Assert.NotEqual(body, Texts.T("rules.overview.empty"));
+                // The sentence no longer repeats the headline.
+                Assert.DoesNotContain(Texts.T("rules.overview.emptyTitle"), Texts.T("rules.overview.empty"), StringComparison.Ordinal);
+            }
+        }
+        finally { Texts.SetLanguage(original); }
+    }
+
+    [Fact]
+    public void EditorBackSitsAtTheFarLeftOfItsHeaderRowApartFromActions()
+    {
+        string xaml = ReadSource("Desktop/Views/Rules/RulesPage.axaml");
+        string header = Between(xaml, "<controls:HeaderBar x:Name=\"RuleWizardHeader\"", "</controls:HeaderBar>");
+        Assert.Matches(@"^[^>]*>\s*<Button x:Name=""RuleWizardCloseButton""[^>]*controls:HeaderBar\.IsBack=""True""", header);
         // Save/Discard stay in the footer, never next to Close.
         Assert.DoesNotContain("SaveRuleButton", header);
         Assert.DoesNotContain("DiscardRuleButton", header);

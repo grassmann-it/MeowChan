@@ -2,8 +2,8 @@
 
 This is the public desktop package contract for the 1.1 line. It is a build-time
 allowlist, not a scan of the repository or of a user's profile. The package
-contains exactly the 24 bundle identities below, their generated manifests and
-assemblies, and the 21 editable example/filter source files listed afterwards.
+contains exactly the 20 bundle identities below, their generated manifests and
+assemblies, and the 17 editable example/filter source files listed afterwards.
 Danbooru is included as an official post-search bundle.
 
 ## Bundled plugin identities
@@ -16,20 +16,16 @@ Every row produces `plugins/<identity>.plugin.json` and
 | Official | `MeowChan.Plugin.FourChan` |
 | Official | `MeowChan.Plugin.EightKun` |
 | Official | `MeowChan.Plugin.Danbooru` |
-| Examples / filters | `MeowChan.Plugin.Lainchan` |
+| Examples / filters | `MeowChan.Plugin.VichanFamily` |
 | Examples / filters | `MeowChan.Plugin.Kohlchan` |
 | Examples / filters | `MeowChan.ImageDimensionsFilter` |
-| Examples / filters | `MeowChan.Plugin.Wizchan` |
 | Examples / filters | `MeowChan.Plugin.Endchan` |
 | Examples / filters | `MeowChan.FileRulesFilter` |
 | Examples / filters | `MeowChan.HashBlocklistFilter` |
 | Examples / filters | `MeowChan.AnimationFormatFilter` |
 | Examples / filters | `MeowChan.PngMetadataFilter` |
-| Examples / filters | `MeowChan.Plugin.Leftypol` |
 | Examples / filters | `MeowChan.Plugin.Dvach` |
-| Examples / filters | `MeowChan.Plugin.Uboachan` |
-| Examples / filters | `MeowChan.Plugin.Zzzchan` |
-| Examples / filters | `MeowChan.Plugin.SushiChan` |
+| Examples / filters | `MeowChan.Plugin.JschanFamily` |
 | Examples / filters | `MeowChan.Plugin.SevenChan` |
 | Examples / filters | `MeowChan.Plugin.BbwChan` |
 | Examples / filters | `MeowChan.Plugin.AnonImageboards` |
@@ -47,12 +43,15 @@ symlinked, special or build-output files.
 
 These files are copied to `plugins/sources/` for the delivered compiler:
 
-`Lainchan.cs`, `Kohlchan.cs`, `ImageDimensionsFilter.cs`, `Wizchan.cs`,
-`Endchan.cs`, `FileRulesFilter.cs`, `HashBlocklistFilter.cs`,
-`AnimationFormatFilter.cs`, `PngMetadataFilter.cs`, `Leftypol.cs`, `Dvach.cs`,
-`Uboachan.cs`, `Zzzchan.cs`, `SushiChan.cs`, `SevenChan.cs`, `BbwChan.cs`,
-`AnonImageboards.cs`, `CapybaraChan.cs`, `EightchanMoe.cs`, `Fchan.cs`,
-`GuroCx.cs`.
+`VichanFamily.cs`, `Kohlchan.cs`, `ImageDimensionsFilter.cs`, `Endchan.cs`,
+`FileRulesFilter.cs`, `HashBlocklistFilter.cs`, `AnimationFormatFilter.cs`,
+`PngMetadataFilter.cs`, `Dvach.cs`, `JschanFamily.cs`, `SevenChan.cs`,
+`BbwChan.cs`, `AnonImageboards.cs`, `CapybaraChan.cs`, `EightchanMoe.cs`,
+`Fchan.cs`, `GuroCx.cs`.
+
+The vichan family bundle replaces the single-site bundles of Lainchan, Leftypol,
+SushiChan, Uboachan and Wizchan, and the jschan family bundle the ZZZchan bundle
+(1.0.x); each site keeps its source ID.
 
 Official source files are not copied into the application package. A user can
 still install a trusted local source file through the unchanged active-profile

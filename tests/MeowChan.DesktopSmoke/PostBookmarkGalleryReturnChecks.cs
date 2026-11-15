@@ -44,7 +44,7 @@ internal static class PostBookmarkGalleryReturnChecks
                 && shell.FindControl<Button>("AddUrlButton")!.IsEnabled);
             await session.SavePostBookmarkAsync(key, "Keep exact reader A", 0, false);
             shell.Width = 1280; shell.Height = 900;
-            Click(shell.FindControl<MenuItem>("ArchiveMenuItem")!);
+            SmokeNavigation.GoTo(shell, MainWindow.WorkspacePage.Archive);
             ArchivePage page = shell.ArchivePage;
             await Program.WaitUntilAsync(() => !page.IsBusy);
             Button manager = page.FindControl<ActionToolBar>("ArchiveResultActions")!.Items

@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Avalonia.Controls;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
@@ -43,11 +44,8 @@ public partial class MainWindow
     private void BuildDownloadMenu(DataGrid grid, ContextMenu menu)
     {
         DownloadMenuTarget? frozen = CaptureDownloadMenu(ReferenceEquals(grid, DownloadList(true)));
-        menu.Items.Clear();
-        if (frozen == null) { menu.Close(); return; }
+        if (frozen == null) { menu.Items.Clear(); menu.Close(); return; }
         bool ready = _restoreCompleted && !RowCommandBusy && !_selectionCommandRunning;
-        // The reason names what is actually known: a running operation, an unfinished restore, or the
-        // action-specific selection condition. Everything else keeps the generic selection reason.
         string Unavailable(string id) => Texts.T(!ready
             ? RowCommandBusy || _selectionCommandRunning ? "menu.unavailable.busy"
               : !_restoreCompleted ? "menu.unavailable.restoring" : "menu.unavailable.selection"
@@ -58,21 +56,19 @@ public partial class MainWindow
                 "watch.retry-media" => "menu.unavailable.nothingToRetry",
                 _ => "menu.unavailable.selection"
             });
-        MenuItem Add(string id, Action action, bool available = true, int? count = null)
+        ContextMenuBuilder builder = new ContextMenuBuilder().Named(Texts.T("nav.downloads"));
+        void Add(string id, Action action, bool available = true, int? count = null)
         {
-            var item = CommandBindings.CreateMenuItem(id, () =>
+            bool CanExecute() => ready && available && !RowCommandBusy && !_selectionCommandRunning;
+            string label = count is { } number && number != 1 ? CommandCatalog.Label(id) + " (" + number + ")" : CommandCatalog.Label(id);
+            string? Reason() => CanExecute() ? null : Unavailable(id);
+            builder.Command(id, () =>
             {
                 DownloadMenuTarget? current = RevalidateDownloadMenu(frozen);
                 if (current == null) return;
                 frozen = current;
                 action();
-            }, () => ready && available && !RowCommandBusy && !_selectionCommandRunning,
-                () => ready && available ? null : Unavailable(id),
-                () => count is { } number && number != 1 ? CommandCatalog.Label(id) + " (" + number + ")" : CommandCatalog.Label(id));
-            item.Tag = id;
-            menu.Items.Add(item);
-            // The reason is the disabled entry's own tooltip and help text (CommandBindings.Apply), not a second menu row.
-            return item;
+            }, CanExecute(), Reason(), label, availableWhen: CanExecute, reasonWhen: Reason);
         }
         if (!frozen.Boards)
         {
@@ -82,20 +78,23 @@ public partial class MainWindow
         }
         Add("thread.details", () => OpenFrozenDetails(frozen));
         if (frozen.Boards) Add("board.filters", async () => { if (frozen.Board != null) await OpenBoardAdmissionAsync(frozen.Board); });
-        menu.Items.Add(new Separator());
+        builder.Section();
         if (!frozen.Boards) Add("export.open-html-dialog", async () => await ExportFrozenThreadsAsync(frozen.Threads, grid), count: frozen.Threads.Length);
         Add("selection.copy-links", async () => await CopyUrlsAsync(frozen.Urls), count: frozen.Urls.Length);
         Add("location.open-folder", () => OpenDirectory(frozen.Folder));
         Add("location.open-source", () => OpenTarget(frozen.Url));
-        menu.Items.Add(new Separator());
+        builder.Section();
         Add("watch.check", async () => await RunCheckTargetsAsync(frozen.Checkable, retry: false, IsCurrentDownloadTarget), frozen.Checkable.Length > 0, frozen.Checkable.Length);
         if (!frozen.Boards)
             Add("watch.retry-media", async () => await RunCheckTargetsAsync(frozen.Retriable, retry: true, IsCurrentDownloadTarget), frozen.Retriable.Length > 0, frozen.Retriable.Length);
-        if (!frozen.Boards) AddUserPriorityMenus(menu, ready);
+        if (!frozen.Boards) AddUserPriorityMenus(builder, ready);
         Add("rules.edit-scope", () => EditFrozenRules(frozen.Lead));
-        menu.Items.Add(new Separator());
+        builder.Section();
         Add("watch.remove", async () => await RemoveWatchesWithUndoAsync(frozen.WatchIds,
             frozen.Boards, id => RemoveVisibleDownloadWatchAsync(id, frozen.Boards)), count: frozen.WatchIds.Length);
+        builder.Populate(menu);
+        foreach (MenuItem item in menu.Items.OfType<MenuItem>().Where(item => item.Tag is "priority.menuHigh" or "priority.menuNormal"))
+            item.Icon = CommandBindings.Icon(Equals(item.Tag, "priority.menuHigh") ? "reader.previous-post" : "reader.next-post");
     }
 
     private DownloadMenuTarget? RevalidateDownloadMenu(DownloadMenuTarget frozen)

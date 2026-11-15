@@ -130,7 +130,7 @@ public sealed class TaggingModeKeyRouteTests : IDisposable
         int panel = viewer.IndexOf("if (_tagPanelOpen && RouteTagPanelKey(e)) return;", StringComparison.Ordinal);
         int playback = viewer.IndexOf("foreach (var (_, id) in PlaybackActions())", StringComparison.Ordinal);
         Assert.True(mode > 0 && mode < panel && panel < playback);
-        Assert.Contains("_chrome.Child = WithTaggingStrip(toolbar);", viewer);
+        Assert.Contains("_chrome.Child = WithDockTransport(WithTaggingStrip(toolbar));", viewer); // GL2: the docked video bar wraps the strip
         Assert.Contains("AddTaggingHelp();", viewer);
         Assert.Contains("|| _tagging != null,", Source("Desktop", "GalleryViewer.Overlay.cs")); // never auto-hidden while the mode runs
         string tags = Source("Desktop", "GalleryViewer.TagPanel.cs");

@@ -56,7 +56,7 @@ internal static class SourceFilterWaveChecks
                 await CheckActivationAsync(window, host, source, url, permission);
 
             RulesPage page = window.RulesPage;
-            SmokeActionClick.Execute(C<MenuItem>(window, "RulesMenuItem"));
+            SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Rules);
             Require(window.SelectedPage == MainWindow.WorkspacePage.Rules, "Rules navigation failed.");
             page.EditScope(MediaRuleScope.Global);
             await page.RefreshPluginFiltersAsync();
@@ -198,7 +198,7 @@ internal static class SourceFilterWaveChecks
             finally { if (modal.IsVisible) modal.Close(); }
         }
         AssertPolicy(host, source, permission);
-        SmokeActionClick.Execute(C<MenuItem>(window, "SourcesMenuItem"));
+        SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Sources);
         Require(window.SelectedPage == MainWindow.WorkspacePage.Sources, "Sources navigation failed.");
         SourcesPage page = (SourcesPage)C<ContentControl>(window, "SourcesPageHost").Content!;
         page.Refresh(host.GetProviderDescriptors(), host.GetView(), true); page.SelectSource(source);

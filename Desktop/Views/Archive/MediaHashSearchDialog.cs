@@ -288,6 +288,8 @@ internal sealed class MediaHashSearchDialog : Window
         KeyboardNavigation.SetTabNavigation(frame, KeyboardNavigationMode.Continue);
         DialogWindow.Frame(this, frame, modal: true, captionName: "MediaHashSearchChrome");
         _search.Click += OnSearch; _previous.Click += OnPrevious; _next.Click += OnNext; _close.Click += OnClose;
+        // I1b: the tools carry a catalog icon before their text (the primary Close stays text).
+        MeowChan.Desktop.Controls.IconButtons.WithText(_search, "search"); MeowChan.Desktop.Controls.IconButtons.WithText(_previous, "chevron-left"); MeowChan.Desktop.Controls.IconButtons.WithText(_next, "chevron-right");
         _input.PropertyChanged += OnInputChanged;
         _operation.Changed += OnOperationChanged;
         Opened += OnOpened; Closed += OnClosed; KeyDown += OnKeyDown;

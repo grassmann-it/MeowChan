@@ -220,8 +220,11 @@ internal static class StartupFirstFrameChecks
 
 internal sealed class StartupFirstFrameMeasurement : IDisposable
 {
-    // MainPageOrder owns workspace order; Settings remains the unnumbered destination.
+    // MainPageOrder owns workspace order; Settings remains the unnumbered destination. Tagging and Booru are left out: StartupTimingPoint has no
+    // slot for either, and Booru is no startup page (it needs the Danbooru plugin, is hidden in the footer by default since F1 and is not offered by
+    // this offline profile). Every other page is reached through its footer button or the More entry, the same gates the probes read.
     private static readonly (string Page, string Button, string Host)[] Pages = MainPageOrder.CommandIds
+        .Where(id => id is not ("navigation.tagging" or "navigation.booru"))
         .Select(id => (Page: MainPageOrder.ControlStem(id), Button: MainPageOrder.ControlStem(id) + "NavigationButton",
             Host: id == "navigation.downloads" ? "WorkspaceBody" : MainPageOrder.ControlStem(id) + "PageHost"))
         .Append(("Settings", "SettingsNavigationButton", "SettingsPageHost")).ToArray();

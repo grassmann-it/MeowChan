@@ -84,6 +84,8 @@ internal sealed record GalleryChromePlan(bool Filmstrip, GalleryFilmstripDock Fi
     internal const double CompactWidth = 1100;
     /// <summary>Below this width every tool with a menu row leaves the bar, apart from an active slideshow's toggle.</summary>
     internal const double NarrowWidth = 900;
+    /// <summary>Below this width the way back shows only its arrow (GalleryViewer.CompactBackWidth) and the 1:1 button leaves the bar (its key stays).</summary>
+    internal const double TinyWidth = 640;
     /// <summary>Below this viewer height the filmstrip stays away (GalleryViewer.FilmstripMinimumHeight).</summary>
     internal const double FilmstripMinimumHeight = 420;
 
@@ -94,10 +96,33 @@ internal sealed record GalleryChromePlan(bool Filmstrip, GalleryFilmstripDock Fi
     /// </summary>
     internal static IReadOnlyList<string> Priority { get; } = Array.AsReadOnly(new[]
     {
-        "gallery.position", "gallery.toolbar.more", "gallery.toolbar.tools-toggle", "gallery.mode", "gallery.toolbar.fit",
+        "gallery.position", "gallery.toolbar.more", "gallery.toolbar.tools-toggle", "gallery.toolbar.layout", "gallery.mode", "gallery.toolbar.fit",
         "gallery.toolbar.post-panel", "gallery.toolbar.tags", "gallery.favorite", "gallery.toolbar.slideshow", "gallery.toolbar.rating",
         "gallery.toolbar.help"
     });
+
+    /// <summary>
+    /// GL5d (UX spec S2): the overflow stage of a bar width: 0 from <see cref="WideWidth"/> (everything the view offers is on the bar), 1 below it,
+    /// 2 below <see cref="CompactWidth"/> (texts go, the layout button becomes a section of "More"), 3 below <see cref="NarrowWidth"/>, 4 below
+    /// <see cref="TinyWidth"/>. An unknown width (not laid out yet, 0 or less) is stage 0.
+    /// </summary>
+    internal static int OverflowStage(double width) =>
+        width <= 0 || width >= WideWidth ? 0 : width >= CompactWidth ? 1 : width >= NarrowWidth ? 2 : width >= TinyWidth ? 3 : 4;
+
+    /// <summary>
+    /// The overflow table of S2 for the movable tools: the first stage at which the tool is under "More" in <paramref name="view"/> (the tool
+    /// is on the bar below this stage). Advanced: help (?) at 1, the rating button at 2, tags and the slideshow at 3. Simple: the rating
+    /// button at 1, tags at 2, the slideshow at 3. Barebones offers none of them on the bar; every other id leaves at 3.
+    /// An active slideshow is not decided here: its toggle never leaves (R6).
+    /// </summary>
+    internal static int LeaveStage(WorkView view, string id) => (view, id) switch
+    {
+        (WorkView.Advanced, "gallery.toolbar.help") => 1,
+        (WorkView.Advanced, "gallery.toolbar.rating") => 2,
+        (WorkView.Simple, "gallery.toolbar.rating") => 1,
+        (WorkView.Simple, "gallery.toolbar.tags") => 2,
+        _ => 3
+    };
 
     /// <summary>The movable tools that leave the bar for "More" when the width is short, first to go first.</summary>
     internal static IReadOnlyList<string> OverflowOrder { get; } =
@@ -110,6 +135,10 @@ internal sealed record GalleryChromePlan(bool Filmstrip, GalleryFilmstripDock Fi
     public bool Nav { get; init; }
     /// <summary>Fit and 1:1.</summary>
     public bool Zoom { get; init; }
+    /// <summary>The 1:1 button on the bar (S2 stage 4 puts it under "More"); needs <see cref="Zoom"/>.</summary>
+    public bool ActualSize { get; init; }
+    /// <summary>The mode switch shows icons instead of words (S2 stage 2: the bar is narrower than <see cref="CompactWidth"/>).</summary>
+    public bool ModeIcons { get; init; }
     public bool PanelToggle { get; init; }
     public bool Favorite { get; init; }
     public bool Rating { get; init; }
@@ -117,6 +146,11 @@ internal sealed record GalleryChromePlan(bool Filmstrip, GalleryFilmstripDock Fi
     public bool Slideshow { get; init; }
     public bool Help { get; init; }
     public bool More { get; init; }
+    /// <summary>
+    /// The "Layout" button on the bar (UX spec S4 GL3+a): the work view puts it there (Advanced) and the bar is wide enough
+    /// (<see cref="CompactWidth"/>); otherwise the same rows are a section of "More".
+    /// </summary>
+    public bool LayoutOnBar { get; init; }
     public bool ModeSwitch { get; init; }
     public bool InfoQuality { get; init; }
     /// <summary>The tagging mode's strip breaks into two rows below <see cref="WideWidth"/>.</summary>
@@ -175,9 +209,8 @@ internal sealed record GalleryChromePlan(bool Filmstrip, GalleryFilmstripDock Fi
         if (tag) tools = false;
         hints &= !input.PanelCoupled;
 
-        int overflow = input.Width <= 0 || input.Width >= WideWidth ? 0 : input.Width >= CompactWidth ? 1
-            : input.Width >= NarrowWidth ? 2 : OverflowOrder.Count;
-        bool Fits(string id) => !(OverflowOrder.ToList().IndexOf(id) is var rank and >= 0 && rank < overflow);
+        int stage = OverflowStage(input.Width);
+        bool Fits(string id) => stage < LeaveStage(input.View, id);
         bool ViewOffers(string id, bool raised = false) => WorkViewPolicy.OnSurface(WorkViewPolicy.Resolve(id, input.View, raised));
         bool Movable(string id) => bar && tools && ViewOffers(id) && Fits(id);
 
@@ -189,9 +222,11 @@ internal sealed record GalleryChromePlan(bool Filmstrip, GalleryFilmstripDock Fi
             Transport: input.Video,
             Tools: tools,
             Info: info,
-            InfoScope: info && !tag && ViewOffers("gallery.info.scope"),
+            // S2: the "where am I" segment goes first when the bar gets narrow (below NarrowWidth).
+            InfoScope: info && !tag && ViewOffers("gallery.info.scope") && (input.Width <= 0 || input.Width >= NarrowWidth),
             // QW5: the info line's rating yields to the tag panel's row, which shows the same value and is the one place to change it.
-            InfoRating: info && InfoRatingVisible(mediaFocus: false, input.PanelDecisions),
+            // GL5c: it also yields to the rating button of the bar (☆ 4), which shows the value too.
+            InfoRating: info && InfoRatingVisible(mediaFocus: false, input.PanelDecisions) && !Movable("gallery.toolbar.rating"),
             Hints: hints,
             // Only a walk of the tagging queue has decisions; Tag in any other gallery is the tag panel alone.
             DecisionRow: tag && input.Walk && bar,
@@ -203,7 +238,12 @@ internal sealed record GalleryChromePlan(bool Filmstrip, GalleryFilmstripDock Fi
             Mode = input.Mode,
             Nav = bar,
             More = bar,
+            LayoutOnBar = bar && ViewOffers("gallery.toolbar.layout") && (input.Width <= 0 || input.Width >= CompactWidth),
             Zoom = bar && tools,
+            // S2 stage 4: below TinyWidth the 1:1 button is a row of "More" (the key 1 stays); Fit stays on the bar.
+            ActualSize = bar && tools && stage < 4,
+            // S2 stage 2: below CompactWidth the mode switch shows its icons (eye | tag) instead of its words.
+            ModeIcons = input.Width > 0 && input.Width < CompactWidth,
             PanelToggle = bar && tools,
             // E1: with the panel's decision row on the screen, the panel is the one favourite surface; without it (panel closed) the
             // button comes back in the tagging mode too, so changing the favourite is never only a key away while the tools show.

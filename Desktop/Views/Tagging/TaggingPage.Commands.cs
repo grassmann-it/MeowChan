@@ -11,6 +11,7 @@ using Avalonia.Media;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.WorkViews;
 using MeowChan.Tags;
@@ -23,12 +24,6 @@ namespace MeowChan;
 // single command of TaggingQueueController; the page then shows the committed queue and the sentence it left.
 public sealed partial class TaggingPage
 {
-    private static readonly string[] RowCommands =
-    {
-        "tagging.continue-here", "tagging.mark-done", "tagging.mark-open", "tagging.mark-skipped",
-        "tagging.move-up", "tagging.move-down", "tagging.remove"
-    };
-
     private readonly Button _add = new() { Name = "TaggingAdd" };
     private readonly Button _clearDone = new() { Name = "TaggingClearDone" };
     private readonly Button _clear = new() { Name = "TaggingClear" };
@@ -36,14 +31,32 @@ public sealed partial class TaggingPage
     private readonly TextBlock _clearQuestion = new() { TextWrapping = TextWrapping.Wrap };
     private readonly Button _clearYes = new() { Name = "TaggingClearYes", Classes = { "danger" } };
     private readonly Button _clearNo = new() { Name = "TaggingClearNo" };
-    private readonly ContextMenu _menu = new() { Name = "TaggingListMenu" };
-    private readonly Dictionary<string, MenuItem> _menuItems = new(StringComparer.Ordinal);
+    private ContextMenuHost? _menuHost;
 
-    internal ContextMenu ListMenu => _menu;
     internal bool ClearQuestionOpen => _clearConfirm.IsVisible;
     internal Button ClearButton => _clear;
     internal Button ClearYesButton => _clearYes;
     internal Button ClearDoneButton => _clearDone;
+    internal Button AddButton => _add;
+    internal HelpButton HelpButton => _help;
+    internal ActionToolBar Actions => _actions;
+
+    // The seams of the commands that leave the page (the shell wires them; a page without it has none and those entries are off).
+    /// <summary>Opens the gallery over these entries (queue order) starting at the given index of the list.</summary>
+    internal Func<IReadOnlyList<TagQueueItem>, int, Task>? OpenGallery { get; set; }
+    /// <summary>Shows the entry's post in its thread (the archive reader).</summary>
+    internal Func<TagQueueItem, Task>? ShowInThread { get; set; }
+    /// <summary>Opens the media page on the entry.</summary>
+    internal Func<TagQueueItem, Task>? ShowInMedia { get; set; }
+    /// <summary>Opens the folder of the entry's file.</summary>
+    internal Func<TagQueueItem, Task>? ShowInFolder { get; set; }
+    /// <summary>Copies the path of the entry's file.</summary>
+    internal Func<TagQueueItem, Task>? CopyPath { get; set; }
+    /// <summary>
+    /// The entries the page works on besides the state filter: the one place a later narrowing (a group) plugs in. Moves, the list
+    /// and every command read it; the numbers and the walk marker stay those of the whole queue.
+    /// </summary>
+    internal Func<TagQueueItem, bool>? Scope { get; set; }
 
     private void InitializeCommands()
     {
@@ -51,33 +64,40 @@ public sealed partial class TaggingPage
         _clearDone.Command = new DelegateCommand(() => _ = ClearFinishedAsync(), () => CanChange && _queueWork.Queue.Done > 0);
         _clear.Command = new DelegateCommand(AskClear, () => !_queueWork.Ended && !_queueWork.Busy && !_queueWork.Loading && _queueWork.Loaded
             && (_queueWork.Queue.Count > 0 && _queueWork.Queue.CanWrite || _queueWork.LoadError != null));
-        foreach (Button button in new[] { _add, _clearDone, _clear })
+        foreach (Control item in new Control[] { _start, _add, _clearDone, _clear, _filterPanel, _viewToggle, _help })
         {
-            ToolBar.SetOverflowMode(button, OverflowMode.AsNeeded);
-            _actions.Items.Add(button);
+            ToolBar.SetOverflowMode(item, OverflowMode.AsNeeded);
+            _actions.Items.Add(item);
         }
         _clearYes.Click += async (_, _) => await ClearAllAsync();
         _clearNo.Click += (_, _) => CloseClearQuestion(focusClear: true);
         _clearConfirm.KeyDown += (_, e) => { if (e.Key == Key.Escape) { e.Handled = true; CloseClearQuestion(focusClear: true); } };
 
-        foreach (string id in RowCommands)
-        {
-            string command = id;
-            MenuItem item = CommandBindings.CreateMenuItem(command, () => _ = ExecuteRowCommandAsync(command), () => CanRowCommand(command));
-            _menuItems[command] = item;
-            _menu.Items.Add(item);
-            if (command is "tagging.continue-here" or "tagging.mark-skipped" or "tagging.move-down") _menu.Items.Add(new Separator());
-        }
-        _menu.Opening += (_, _) => { foreach (MenuItem item in _menuItems.Values) CommandBindings.Refresh(item); };
-        _list.ContextMenu = _menu;
+        _menuHost = new ContextMenuHost(_list, ComposeRowMenu, fallbackFocus: () => FocusContent());
         _list.AddHandler(KeyDownEvent, OnListKeyDown, RoutingStrategies.Tunnel);
         _list.DoubleTapped += (_, e) =>
         {
             if (e.Source is Visual visual && visual.FindAncestorOfType<ListBoxItem>(includeSelf: true) != null && CanRowCommand("tagging.continue-here"))
                 _ = ExecuteRowCommandAsync("tagging.continue-here");
         };
-        _list.SelectionChanged += (_, _) => RefreshCommandStates();
+        _list.SelectionChanged += OnSelectionChanged;
     }
+
+    /// <summary>The context menu of the selected entries (null without a selection); composed fresh at every opening.</summary>
+    private ContextMenuBuilder? ComposeRowMenu() =>
+        Lead == null ? null : TaggingQueueMenu.Compose(CommandContext(), id => () => _ = ExecuteRowCommandAsync(id));
+
+    /// <summary>The menu as plain data (smoke and test seam); null without a selection.</summary>
+    internal ContextMenuModel? ListMenuModel() => ComposeRowMenu()?.ToModel();
+
+    /// <summary>Opens the context menu on the list (the keyboard way: under the list).</summary>
+    internal void ShowListMenu() => ActiveMenuHost?.Show(atPointer: false);
+    internal ContextMenu? OpenListMenu => ActiveMenuHost?.OpenMenu;
+
+    private TaggingCapabilities Capabilities => new(CanChange, StartTagging != null && CanChange, CanTag, _queueWork.StampNames.Count > 0,
+        OpenGallery != null, ShowInThread != null, ShowInMedia != null, ShowInFolder != null, CopyPath != null);
+
+    private TaggingCommandContext CommandContext() => new(_queueWork.Queue, Filter, Selected, Lead, Capabilities, Scope);
 
     private Border BuildClearConfirmation()
     {
@@ -89,9 +109,7 @@ public sealed partial class TaggingPage
 
     private void LocalizeCommands()
     {
-        CommandBindings.Apply(_add, "tagging.add");
-        CommandBindings.Apply(_clearDone, "tagging.clear-done");
-        CommandBindings.Apply(_clear, "tagging.clear");
+        ApplyToolbarIcons();
         _clearYes.Content = Texts.T("tagging.page.clear.yes");
         _clearNo.Content = Texts.T("queue.ask.no");
         if (_clearConfirm.IsVisible) _clearQuestion.Text = Texts.T("tagging.page.clear.ask", _queueWork.Queue.Count);
@@ -100,43 +118,38 @@ public sealed partial class TaggingPage
         _actions.RefreshOverflowLabel();
     }
 
+    // The three plain buttons are icon-only on the bar (label and key in tooltip and accessible name); a work view that moves one under
+    // "More" gives it its icon with the label, so the popup still reads as words.
+    private void ApplyToolbarIcons()
+    {
+        foreach ((Button button, string id) in new[] { (_add, "tagging.add"), (_clearDone, "tagging.clear-done"), (_clear, "tagging.clear") })
+        {
+            bool reduced = ToolBar.GetOverflowMode(button) == OverflowMode.Always;
+            CommandBindings.Apply(button, id, iconOnly: !reduced, iconWithLabel: reduced);
+        }
+    }
+
     private static string Shortcut(string id) => CommandCatalog.ShortcutDisplay(id) ?? CommandCatalog.Label(id);
 
     private void RefreshCommandStates()
     {
         foreach (Button button in new[] { _add, _clearDone, _clear })
             if (button.Command is DelegateCommand command) { button.IsEnabled = command.CanExecute(null); command.RaiseCanExecuteChanged(); }
-        foreach (MenuItem item in _menuItems.Values) CommandBindings.Refresh(item);
     }
 
-    private TaggingQueueRow? Lead => _list.SelectedItem as TaggingQueueRow
-        ?? _list.SelectedItems?.OfType<TaggingQueueRow>().FirstOrDefault();
+    private TaggingQueueRow? Lead => ActiveList.SelectedItem as TaggingQueueRow
+        ?? ActiveList.SelectedItems?.OfType<TaggingQueueRow>().FirstOrDefault();
 
-    private IReadOnlyList<TaggingQueueRow> Selected => _list.SelectedItems?.OfType<TaggingQueueRow>().OrderBy(row => row.Index).ToArray()
+    private IReadOnlyList<TaggingQueueRow> Selected => ActiveList.SelectedItems?.OfType<TaggingQueueRow>().OrderBy(row => row.Index).ToArray()
         ?? (IReadOnlyList<TaggingQueueRow>)Array.Empty<TaggingQueueRow>();
 
-    internal bool CanRowCommand(string id)
-    {
-        if (!CanChange || Lead is not { } lead) return false;
-        TagQueueSnapshot queue = _queueWork.Queue;
-        return id switch
-        {
-            "tagging.continue-here" => StartTagging != null && lead.Item.State == TagQueueState.Open,
-            "tagging.mark-done" => Selected.Any(row => row.Item.State != TagQueueState.Done),
-            "tagging.mark-open" => Selected.Any(row => row.Item.State != TagQueueState.Open),
-            "tagging.mark-skipped" => Selected.Any(row => row.Item.State != TagQueueState.Skipped),
-            "tagging.move-up" => TaggingQueueView.MoveTarget(queue, Filter, lead.Key, -1) != null,
-            "tagging.move-down" => TaggingQueueView.MoveTarget(queue, Filter, lead.Key, 1) != null,
-            "tagging.remove" => true,
-            _ => false
-        };
-    }
+    internal bool CanRowCommand(string id) => TaggingRowCommands.Evaluate(id, CommandContext()).Available;
 
-    /// <summary>Runs a row command on the selection (the lead row for continue and move); refused silently when it does not apply.</summary>
+    /// <summary>Runs a command on the selection (the lead entry for continue and the ones that open something); refused silently when it does not apply.</summary>
     internal Task ExecuteRowCommandAsync(string id)
     {
         // T1: a double-click or Enter on a finished or skipped row says why nothing starts (only open entries can be continued from).
-        if (id == "tagging.continue-here" && StartTagging != null && CanChange && Lead is { Item.State: not TagQueueState.Open })
+        if (id == TaggingCommands.ContinueHere && StartTagging != null && CanChange && Lead is { Item.State: not TagQueueState.Open })
         {
             ShowStatus(Texts.T("tagging.page.continue.notOpen"));
             return Task.CompletedTask;
@@ -146,15 +159,35 @@ public sealed partial class TaggingPage
         TagQueueKey[] keys = selected.Select(row => row.Key).ToArray();
         return id switch
         {
-            "tagging.continue-here" => StartAsync(lead.Index),
-            "tagging.mark-done" => AfterAsync(_queueWork.SetStatesAsync(keys, TagQueueState.Done)),
-            "tagging.mark-open" => AfterAsync(_queueWork.SetStatesAsync(keys, TagQueueState.Open)),
-            "tagging.mark-skipped" => AfterAsync(_queueWork.SetStatesAsync(keys, TagQueueState.Skipped)),
-            "tagging.move-up" => AfterAsync(_queueWork.MoveAsync(lead.Key, Filter, -1), select: lead.Key),
-            "tagging.move-down" => AfterAsync(_queueWork.MoveAsync(lead.Key, Filter, 1), select: lead.Key),
-            "tagging.remove" => AfterAsync(_queueWork.RemoveAsync(keys), select: RowAfter(selected)?.Key),
+            TaggingCommands.ContinueHere => StartAsync(lead.Index),
+            TaggingCommands.Tag or TaggingCommands.TagTogether => TagSelectionAsync(),
+            TaggingCommands.ApplyStamp => ApplyStampToSelectionAsync(),
+            TaggingCommands.MarkDone => AfterAsync(_queueWork.SetStatesAsync(keys, TagQueueState.Done)),
+            TaggingCommands.MarkOpen => AfterAsync(_queueWork.SetStatesAsync(keys, TagQueueState.Open)),
+            TaggingCommands.MarkSkipped => AfterAsync(_queueWork.SetStatesAsync(keys, TagQueueState.Skipped)),
+            TaggingCommands.OpenGallery => OpenGalleryAsync(selected, lead),
+            TaggingCommands.ShowInThread => Leaving(ShowInThread, lead.Item),
+            TaggingCommands.ShowInMedia => Leaving(ShowInMedia, lead.Item),
+            TaggingCommands.ShowInFolder => Leaving(ShowInFolder, lead.Item),
+            TaggingCommands.CopyPath => Leaving(CopyPath, lead.Item),
+            TaggingCommands.MoveUp => AfterAsync(_queueWork.MoveAsync(lead.Key, Filter, -1, Scope), select: lead.Key),
+            TaggingCommands.MoveDown => AfterAsync(_queueWork.MoveAsync(lead.Key, Filter, 1, Scope), select: lead.Key),
+            TaggingCommands.MoveFirst => AfterAsync(_queueWork.MoveToEdgeAsync(lead.Key, toEnd: false), select: lead.Key),
+            TaggingCommands.MoveLast => AfterAsync(_queueWork.MoveToEdgeAsync(lead.Key, toEnd: true), select: lead.Key),
+            TaggingCommands.Remove => AfterAsync(_queueWork.RemoveAsync(keys), select: RowAfter(selected)?.Key),
             _ => Task.CompletedTask
         };
+    }
+
+    private static Task Leaving(Func<TagQueueItem, Task>? action, TagQueueItem item) => action == null ? Task.CompletedTask : action(item);
+
+    // One selected entry opens the gallery over everything shown (the way into a browse), several open it over exactly the selection.
+    private Task OpenGalleryAsync(IReadOnlyList<TaggingQueueRow> selected, TaggingQueueRow lead)
+    {
+        if (OpenGallery is not { } open) return Task.CompletedTask;
+        if (selected.Count > 1) return open(selected.Select(row => row.Item).ToArray(), 0);
+        int start = _rows.ToList().FindIndex(row => row.Key == lead.Key);
+        return start < 0 ? Task.CompletedTask : open(_rows.Select(row => row.Item).ToArray(), start);
     }
 
     // The row after the last removed one (else the one before the first) keeps the keyboard where the user was.
@@ -170,12 +203,20 @@ public sealed partial class TaggingPage
     // type-ahead; a key that matches a command is consumed even when the command does not apply right now.
     private void OnListKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Handled || _queueWork.Ended || ShortcutService.IsCapturing || !MainWindow.IsListCommandSource(e.Source, _list)) return;
-        foreach (string id in RowCommands)
+        if (e.Handled || _queueWork.Ended || ShortcutService.IsCapturing || !MainWindow.IsListCommandSource(e.Source, ActiveList)) return;
+        // Esc (fixed) clears a selection before anything else; without one the key is left to the window.
+        if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None && SelectedCount > 0)
+        {
+            e.Handled = true;
+            ClearSelection();
+            return;
+        }
+        foreach (string id in TaggingCommands.All)
         {
             if (!ShortcutService.Current.Matches(e, id)) continue;
             e.Handled = true;
-            _ = ExecuteRowCommandAsync(id);
+            // The Tag key over several entries is "Tag together…" (the entry of one medium is off for a selection).
+            _ = ExecuteRowCommandAsync(id == TaggingCommands.Tag && Selected.Count > 1 ? TaggingCommands.TagTogether : id);
             return;
         }
     }
@@ -226,14 +267,14 @@ public sealed partial class TaggingPage
     /// <summary>Waits for one controller command, then shows the queue it committed (or kept) and the sentence it left.</summary>
     private async Task AfterAsync(Task<bool> command, TagQueueKey? select = null)
     {
-        bool hadFocus = _list.IsKeyboardFocusWithin;
+        bool hadFocus = ActiveList.IsKeyboardFocusWithin;
         UpdateActions();
         bool done = await command;
         if (_queueWork.Ended) return;
         Show();
         ShowStatus(_queueWork.Status);
         if (done && select is { } key) SelectOnly(key, hadFocus);
-        else if (hadFocus && !_list.IsKeyboardFocusWithin) FocusContent();
+        else if (hadFocus && !ActiveList.IsKeyboardFocusWithin) FocusContent();
     }
 
     // The entry to show selected once the list holds it (the page was built or is still loading when the request comes).
@@ -270,9 +311,9 @@ public sealed partial class TaggingPage
     private void SelectOnly(TagQueueKey key, bool focus)
     {
         if (_rows.FirstOrDefault(row => row.Key == key) is not { } row) return;
-        _list.SelectedItems?.Clear();
-        _list.SelectedItem = row;
-        _list.ScrollIntoView(row);
-        if (focus && _list.ContainerFromItem(row) is Control container) container.Focus();
+        ActiveList.SelectedItems?.Clear();
+        ActiveList.SelectedItem = row;
+        ActiveList.ScrollIntoView(row);
+        if (focus && ActiveList.ContainerFromItem(row) is Control container) container.Focus();
     }
 }

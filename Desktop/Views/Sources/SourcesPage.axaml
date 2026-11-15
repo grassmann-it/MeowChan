@@ -25,10 +25,10 @@
               </StackPanel>
               <Border x:Name="SourceDetailsPanel" Grid.Column="1" Classes="workspace-section">
                 <StackPanel Spacing="{StaticResource Workspace.Space.12}">
-                    <!-- Heading at the start, the way back alone at the right edge (HeaderBar end slot, Tom's rule 14.11.). -->
+                    <!-- The way back at the far left, then the heading (HeaderBar back slot, Tom's rule 14.11.). -->
                     <controls:HeaderBar>
+                        <Button x:Name="SourceBackButton" controls:HeaderBar.IsBack="True" VerticalAlignment="Top" Click="OnBackClick" />
                         <TextBlock x:Name="SourceHeading" Classes="section-title" TextWrapping="Wrap" Focusable="True" />
-                        <Button x:Name="SourceBackButton" controls:HeaderBar.IsEnd="True" VerticalAlignment="Top" Click="OnBackClick" />
                     </controls:HeaderBar>
                     <TextBlock x:Name="SourceMeta" Classes="workspace-meta" TextWrapping="Wrap" />
                     <TextBlock x:Name="SourceExperimental" Classes="workspace-help" TextWrapping="Wrap" IsVisible="False" />
