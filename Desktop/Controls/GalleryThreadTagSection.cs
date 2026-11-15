@@ -24,7 +24,7 @@ internal sealed class GalleryThreadTagSection : StackPanel, IDisposable
     private readonly string _name;
     private readonly TextBlock _heading = new() { Classes = { "workspace-meta" }, TextWrapping = Avalonia.Media.TextWrapping.Wrap };
     private readonly TextBlock _hint = new() { Classes = { "workspace-help" }, TextWrapping = Avalonia.Media.TextWrapping.Wrap };
-    private readonly WrapPanel _chips = new() { ItemSpacing = 8, LineSpacing = 0 };
+    private readonly WrapPanel _chips = new() { ItemSpacing = 8, LineSpacing = 8 };
     private readonly IdentitySuggestionBox _input = new();
     private readonly TextBlock _error = new() { Classes = { "workspace-error" }, TextWrapping = Avalonia.Media.TextWrapping.Wrap, IsVisible = false };
     private readonly List<(Button Chip, TagId Tag)> _built = new();
@@ -88,7 +88,7 @@ internal sealed class GalleryThreadTagSection : StackPanel, IDisposable
         foreach (PrivateTagDefinition tag in tags)
         {
             Button chip = new() { Name = _name + "Chip" + (_built.Count + 1), Content = WorkspaceChips.RemovableContent(tag.Name.Display) };
-            WorkspaceChips.MarkOwn(chip);
+            WorkspaceChips.MarkTagPill(WorkspaceChips.MarkOwn(chip), WorkspaceChips.TagPillAssigned);
             string remove = Texts.T("tags.quick.thread.remove", tag.Name.Display);
             AutomationProperties.SetName(chip, remove);
             ToolTip.SetTip(chip, remove);

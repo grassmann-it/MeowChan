@@ -153,8 +153,8 @@ internal static class QuickTagKeys
 
 /// <summary>
 /// How many suggestion chips fit a slot: the greedy line wrap of a wrap panel (items left to right, a new row when the next does not fit
-/// the width, rows without line spacing) over the chips' measured sizes. The first <c>minimum</c> chips (the numbered ones) are always
-/// taken, even when they overflow; later ones only while their row still fits the height. Pure, so it is tested without a window.
+/// the width, rows without line spacing) over the chips' measured sizes. The first <c>minimum</c> chips (the configured suggestion count)
+/// are always taken, even when they overflow; later ones only while their row still fits the height. Pure, so it is tested without a window.
 /// </summary>
 internal struct QuickTagStripFit(double width, double height, double itemSpacing, int minimum)
 {
@@ -171,6 +171,12 @@ internal struct QuickTagStripFit(double width, double height, double itemSpacing
         else { _x += (_x > 0 ? itemSpacing : 0) + size.Width; _rowHeight = thisRow; }
         return true;
     }
+
+    /// <summary>
+    /// True when the size of a chip has to be measured (again): it never was, or it was measured for another strip width (a chip's
+    /// desired size can follow the width it is offered, so a size kept across a resize is a stale one).
+    /// </summary>
+    internal static bool NeedsMeasure(bool measured, double measuredWidth, double width) => !measured || measuredWidth != width;
 
     /// <summary>The number of chips of <paramref name="sizes"/> (in order) that fit, at least <paramref name="minimum"/> of them (or all, if fewer).</summary>
     internal static int Count(IReadOnlyList<Size> sizes, double width, double height, double itemSpacing, int minimum)
@@ -242,6 +248,8 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     internal const double FooterGap = 8;
     /// <summary>Horizontal gap between suggestion chips (the strip's wrap panel).</summary>
     private const double StripItemSpacing = 8;
+    /// <summary>Gaps between assigned pills: 8 across, and 4 between rows because a pill is 28 high beside its 32 dip remove button (so 8 dip of air).</summary>
+    private const double AssignedItemSpacing = 8, AssignedLineSpacing = 4;
     /// <summary>The most the assigned chips and the extra section take above the suggestions in a popover, in dip.</summary>
     private const double UpperMaxHeight = 160;
     /// <summary>Delay of the re-fit after the panel was resized, in milliseconds (a drag fires many size changes).</summary>
@@ -276,9 +284,9 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     private readonly TextBlock _stripEmpty = new() { Classes = { "workspace-help" }, TextWrapping = TextWrapping.Wrap };
     private readonly Button _more = new() { Classes = { "subtle" }, HorizontalAlignment = HorizontalAlignment.Left };
     private readonly TextBlock _allHeading = new() { Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap };
-    private readonly WrapPanel _allChips = new() { ItemSpacing = 8, LineSpacing = 0 };
+    private readonly WrapPanel _allChips = new() { ItemSpacing = AssignedItemSpacing, LineSpacing = AssignedLineSpacing };
     private readonly TextBlock _someHeading = new() { Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap };
-    private readonly WrapPanel _someChips = new() { ItemSpacing = 8, LineSpacing = 0 };
+    private readonly WrapPanel _someChips = new() { ItemSpacing = AssignedItemSpacing, LineSpacing = AssignedLineSpacing };
     private readonly TextBlock _assignedEmpty = new() { Classes = { "workspace-help" }, TextWrapping = TextWrapping.Wrap };
     private readonly StackPanel _assigned;
     private readonly ContentControl _extra = new() { IsVisible = false };
@@ -295,6 +303,8 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     private DispatcherTimer? _fitTimer;
     private bool _fillSuggestions;
     private bool _stripMeasured;
+    // True while Refresh rebuilds the blocks: the strip is fitted by Refresh itself, against the layout it just took.
+    private bool _refreshing;
     private readonly List<AssignedChip> _assignedChips = new();
     private IQuickTagSuggestionSource _source = FrequentQuickTagSuggestions.Instance;
     // The source the strip asks: the stamp set in front of _source, whatever source the host passes.
@@ -599,11 +609,24 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         PrivateTagStoreSnapshot? snapshot = _session.Snapshot;
         IReadOnlySet<TagId> carried = _session.Carried();
         int cap = SuggestionCap;
-        _candidates = snapshot == null ? Array.Empty<QuickTagSuggestion>() : Normalize(_decorated.Suggest(
-            new QuickTagSuggestionRequest(snapshot, carried, cap)), snapshot, carried, cap);
-        _candidateLetters = QuickTagBadges.Letters(_candidates.Select(item => item.Name.Display).ToArray());
-        BuildSuggestions();
-        BuildAssigned();
+        _refreshing = true;
+        try
+        {
+            // The assigned block comes first: its height decides the height of the strip's slot (the star row below it). In the panel the
+            // layout takes the new height before the strip is fitted, so the strip is final at once and not trimmed 60 ms later. The
+            // candidates and chips of the strip still agree with each other while the layout runs.
+            BuildAssigned();
+            if (_fillSuggestions && _attached)
+            {
+                RefreshTexts();
+                UpdateLayout();
+            }
+            _candidates = snapshot == null ? Array.Empty<QuickTagSuggestion>() : Normalize(_decorated.Suggest(
+                new QuickTagSuggestionRequest(snapshot, carried, cap)), snapshot, carried, cap);
+            _candidateLetters = QuickTagBadges.Letters(_candidates.Select(item => item.Name.Display).ToArray());
+            BuildSuggestions();
+        }
+        finally { _refreshing = false; }
         _input.IsEnabled = snapshot != null;
         if (snapshot == null) _input.Dismiss();
         RefreshTexts();
@@ -664,6 +687,12 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     /// <summary>The assigned block keeps at most this share of a fixed-height surface (and never less than three chip rows).</summary>
     private static double UpperMaxHeightFor(double surfaceHeight) => surfaceHeight > 0 ? Math.Max(96, surfaceHeight * 0.4) : UpperMaxHeight;
 
+    /// <summary>
+    /// The chips the strip always keeps, whatever the height: the configured suggestion count (<see cref="QuickTagOptions.SuggestionCount"/>).
+    /// More show while their rows fit the slot; fewer never do, so a short panel at a high count scrolls, as the setting says.
+    /// </summary>
+    internal int StripMinimum => _options.SuggestionCount;
+
     private void BuildSuggestions()
     {
         ClearStrip();
@@ -688,16 +717,17 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         _stripMeasured = measurable;
         int limit = measurable ? _candidates.Count : Math.Min(_candidates.Count, _options.SuggestionCount);
         int count = 0;
-        QuickTagStripFit fit = new(width, height, StripItemSpacing, QuickTagOptions.NumberedSuggestions);
+        QuickTagStripFit fit = new(width, height, StripItemSpacing, StripMinimum);
         for (int index = 0; index < limit; index++)
         {
             StripItem item = EnsureItem(index);
             if (measurable)
             {
-                if (!item.Measured)
+                if (QuickTagStripFit.NeedsMeasure(item.Measured, item.MeasuredWidth, width))
                 {
                     item.Zone.Measure(new Size(width, double.PositiveInfinity));
                     item.Size = item.Zone.DesiredSize;
+                    item.MeasuredWidth = width;
                     item.Measured = true;
                 }
                 if (!fit.TryAdd(index, item.Size)) break;
@@ -747,6 +777,8 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     private void OnStripHostSizeChanged(object? sender, SizeChangedEventArgs e)
     {
         if (_disposed || !_fillSuggestions) return;
+        // Refresh fits the strip itself right after the layout it asked for: nothing to schedule for this change.
+        if (_refreshing) return;
         if (!_stripMeasured) { RefitStrip(); return; }
         _fitTimer ??= CreateFitTimer();
         _fitTimer.Stop();
@@ -777,6 +809,8 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         internal Control Zone { get; } = zone;
         internal Size Size { get; set; }
         internal bool Measured { get; set; }
+        // The strip width the size was measured for.
+        internal double MeasuredWidth { get; set; }
     }
 
     private void BuildAssigned()
@@ -1334,7 +1368,10 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
 
     // ---- chips --------------------------------------------------------------------------------------------------------
 
-    /// <summary>A 24 dip chip in a transparent 32 dip hit zone: a tap beside the chip still reaches it.</summary>
+    /// <summary>
+    /// A 28 dip tag pill in a transparent 36 dip hit zone: a tap beside the pill still reaches it. The 4 dip above and below also make the
+    /// row gap of the strip 8 dip, the same as the column gap (<see cref="StripItemSpacing"/>); the fit measures the zone, so both flow through it.
+    /// </summary>
     private static Control HitZone(Button chip)
     {
         Border zone = new() { Background = Brushes.Transparent, Padding = new Thickness(0, 4), Child = chip };
@@ -1390,7 +1427,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         internal static SuggestionChip Create(string name, QuickTagSuggestion suggestion, int index, char? letter, ShortcutPlatform platform)
         {
             string display = suggestion.Name.Display;
-            StackPanel content = new() { Orientation = Orientation.Horizontal, Spacing = 4 };
+            StackPanel content = new() { Orientation = Orientation.Horizontal, Classes = { WorkspaceChips.TagPillContent } };
             bool keyed = false;
             if (QuickTagBadges.Number(index) is { } number) { content.Children.Add(KeyBadge(number.ToString(Texts.Culture))); keyed = true; }
             Border? letterBadge = null;
@@ -1407,7 +1444,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
             if (suggestion.CreatesTag)
             {
                 // A provider tag or a new name: the dashed source chip (I8), never mistaken for an own tag.
-                ChipOutline outline = new() { Child = content, Classes = { WorkspaceChips.Chip, WorkspaceChips.Source, WorkspaceChips.CategoryClass(SourceCategory.General) } };
+                ChipOutline outline = new() { Child = content, Classes = { WorkspaceChips.Chip, WorkspaceChips.Source, WorkspaceChips.CategoryClass(SourceCategory.General), WorkspaceChips.TagPill } };
                 if (keyed) outline.Classes.Add("chip-keyed");
                 button.Content = outline;
                 button.Classes.Add(WorkspaceChips.SourceButton);
@@ -1416,6 +1453,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
             {
                 button.Content = content;
                 WorkspaceChips.MarkOffered(button);
+                WorkspaceChips.MarkTagPill(button);
                 if (keyed) button.Classes.Add("chip-keyed");
             }
             Describe(button, suggestion, index, platform);
@@ -1461,12 +1499,13 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         internal static AssignedChip Create(string name, QuickTagAssignment assignment, bool selection)
         {
             string display = assignment.Tag.Name.Display;
-            StackPanel content = new() { Orientation = Orientation.Horizontal, Spacing = 4 };
+            StackPanel content = new() { Orientation = Orientation.Horizontal, Classes = { WorkspaceChips.TagPillContent } };
             content.Children.Add(StateGlyph(assignment.State));
             content.Children.Add(ChipLabel(display));
             Button chip = new() { Name = name, Content = content };
-            if (assignment.State == TagToggleState.All) WorkspaceChips.MarkOwn(chip);
-            else WorkspaceChips.MarkOffered(chip); // "some": outline without fill, the half-square glyph says it too
+            // All: the accent-tinted pill with a check; some: the quiet pill with an accent edge, the half-square glyph says it too.
+            if (assignment.State == TagToggleState.All) WorkspaceChips.MarkTagPill(WorkspaceChips.MarkOwn(chip), WorkspaceChips.TagPillAssigned);
+            else WorkspaceChips.MarkTagPill(WorkspaceChips.MarkOffered(chip), WorkspaceChips.TagPillPartial);
             string accessible = AccessibleName(assignment, selection);
             AutomationProperties.SetName(chip, accessible);
             ToolTip.SetTip(chip, accessible);
@@ -1474,10 +1513,10 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
             string removeName = Texts.T(selection ? "tags.quick.chip.removeAll" : "tags.quick.chip.remove", display);
             remove.Content = WorkspaceIcons.Create(WorkspaceIcons.CloseSmall);
             remove.Classes.Add(WorkspaceIcons.SquareClass);
-            remove.Classes.Add("subtle");
+            remove.Classes.Add("bar-flat"); // flat at rest like the toolbar buttons: the pill beside it is the one outlined shape
             AutomationProperties.SetName(remove, removeName);
             ToolTip.SetTip(remove, removeName);
-            StackPanel host = new() { Orientation = Orientation.Horizontal, Spacing = 0, Children = { chip, remove } };
+            StackPanel host = new() { Orientation = Orientation.Horizontal, Spacing = 2, Children = { chip, remove } };
             return new AssignedChip { Host = host, Button = chip, Remove = remove, Tag = assignment.Tag.Id, State = assignment.State };
         }
 

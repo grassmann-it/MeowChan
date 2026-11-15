@@ -308,8 +308,8 @@
                     </StackPanel>
                     <!-- Own thread tags: inline like reader find, always bound to the open thread. -->
                     <StackPanel x:Name="ReaderTagBar" IsVisible="False" Spacing="{StaticResource Workspace.Space.4}">
-                        <WrapPanel x:Name="ReaderTagChips" ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.4}" />
-                        <WrapPanel x:Name="ReaderTagSuggestions" ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.4}" IsVisible="False" />
+                        <WrapPanel x:Name="ReaderTagChips" ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.8}" />
+                        <WrapPanel x:Name="ReaderTagSuggestions" ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.8}" IsVisible="False" />
                         <controls:HeaderBar x:Name="ReaderTagRow">
                         <WrapPanel ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.4}">
                             <desktop:IdentitySuggestionBox x:Name="ReaderTagInput" Width="240" />
