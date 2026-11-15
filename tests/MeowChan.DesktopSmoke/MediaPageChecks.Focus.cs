@@ -103,12 +103,13 @@ internal static partial class MediaPageChecks
         // Escape on the grid ends the mode first; the selection survives until the next Escape.
         page.Grid.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
         window.UpdateLayout();
-        Require(!page.IsFocusMode && !page.FocusRow.IsVisible && toolbar.IsEffectivelyVisible && chipRow.IsEffectivelyVisible && status.IsEffectivelyVisible
+        // The two selected tiles keep the one context line: the selection actions are on it, the summary line is back with the second Escape.
+        Require(!page.IsFocusMode && !page.FocusRow.IsVisible && toolbar.IsEffectivelyVisible && chipRow.IsEffectivelyVisible && !status.IsEffectivelyVisible && selectionRow.IsEffectivelyVisible
             && page.SelectedTiles.Count == 2 && page.FocusAnnouncement == Texts.T("media.focus.off")
             && pageTitle.IsEffectivelyVisible && pageSubtitle.IsEffectivelyVisible && modeChanges.SequenceEqual([true, false]),
             state + ": the first Escape must end the focus mode, give the title back, tell the shell and keep the selection: " + page.SelectedTiles.Count);
         page.Grid.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
-        Require(page.SelectedTiles.Count == 0 && !page.IsFocusMode, state + ": the second Escape must clear the selection.");
+        Require(page.SelectedTiles.Count == 0 && !page.IsFocusMode && status.IsEffectivelyVisible && !selectionRow.IsEffectivelyVisible, state + ": the second Escape must clear the selection and give the summary line back.");
 
         // The exit button and Escape on the button end the mode as well; the search field's request (Primary+F) shows the header.
         page.ToggleFocusModeByShortcut();

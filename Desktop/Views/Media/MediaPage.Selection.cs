@@ -34,6 +34,7 @@ public sealed partial class MediaPage
     private MediaSelectionTagDialog? _selectionTag;
     private bool _restoring;
     private bool _selectionBusy;
+    private bool _selectionShown;
 
     /// <summary>Own-tag access for the "tag together" dialog; null disables that action.</summary>
     internal MediaSelectionTagServices? TagServices { get; set; }
@@ -54,7 +55,11 @@ public sealed partial class MediaPage
         AutomationProperties.SetLiveSetting(_selectionText, AutomationLiveSetting.Polite);
         AutomationProperties.SetLiveSetting(_selectionNote, AutomationLiveSetting.Polite);
         // The action row exists only while something is selected: the counter and the actions share one line (the how-to is the tag action's tooltip).
+        // It is as high as the summary line it replaces (Workspace.Size.Control, 32), so the grid does not move when the selection starts or ends.
         _selectionRow.IsVisible = false;
+        _selectionRow[!Avalonia.Layout.Layoutable.MinHeightProperty] = new Avalonia.Markup.Xaml.MarkupExtensions.DynamicResourceExtension("Workspace.Size.Control");
+        _selectionText.FontWeight = Avalonia.Media.FontWeight.SemiBold; // the anchor of the line
+        _selClear.Classes.Add("subtle"); // the way out weighs less than the actions (last in the row, as before)
         // MP2: "Add to tagging queue" comes before "Tag together": choosing and queueing is the way into the Tagging page.
         foreach (Control control in new Control[] { _selectionText, _selQueue, _selTag, _selGallery, _selExport, _selMore, _selClear })
         { control.VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center; _selectionRow.Children.Add(control); }
@@ -141,7 +146,14 @@ public sealed partial class MediaPage
         int count = _grid.Selection.Count, notSaved = count == 0 ? 0 : NotSavedSelected();
         bool building = _building != null;
         string? reason = count == 0 ? Texts.T("media.selection.reason.none") : building ? Texts.T("media.selection.reason.building") : null;
-        _selectionRow.IsVisible = count > 0;
+        bool hasSelection = count > 0;
+        _selectionRow.IsVisible = hasSelection;
+        if (hasSelection != _selectionShown)
+        {
+            // The actions take the place of the summary line (or give it back): MediaPage.Layout.cs decides which rows show.
+            _selectionShown = hasSelection;
+            ApplyLayoutPlan();
+        }
         _selectionText.Text = count == 0 ? string.Empty
             : (notSaved > 0 ? Texts.T("media.selection.countNotSaved", count, notSaved) : Texts.T("media.selection.count", count))
               + (building ? " · " + Texts.T("media.selection.reason.building") : string.Empty);

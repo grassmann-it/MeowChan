@@ -279,7 +279,11 @@ public sealed partial class MediaPage
     {
         _untaggedLink.Content = _untaggedText;
         _untaggedLink.Click += (_, _) => ShowUntagged();
+        // One line is as high as a button (Workspace.Size.Control, 32): the selection actions swap with this line in the same place (MediaPage.Selection.cs).
+        // ItemHeight centres the text in that height (a WrapPanel only gives a line the height of its tallest item).
         WrapPanel row = new() { ItemSpacing = 8, LineSpacing = 2 };
+        row[!Layoutable.MinHeightProperty] = new Avalonia.Markup.Xaml.MarkupExtensions.DynamicResourceExtension("Workspace.Size.Control");
+        row[!WrapPanel.ItemHeightProperty] = new Avalonia.Markup.Xaml.MarkupExtensions.DynamicResourceExtension("Workspace.Size.Control");
         status.VerticalAlignment = VerticalAlignment.Center;
         row.Children.Add(status); row.Children.Add(_untaggedLink);
         return row;

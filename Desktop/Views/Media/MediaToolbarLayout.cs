@@ -5,8 +5,9 @@ namespace MeowChan;
 
 /// <summary>
 /// How the media toolbar adapts to the width of its row (pure rules; <see cref="MediaPage"/> applies them). The order of the row is fixed:
-/// the search field on the left, which fills the free width (<see cref="SearchMinWidth"/> to <see cref="SearchMaxWidth"/>); on the right the
-/// filter toggle, then the order (criterion and direction), with the less important tools between and behind them.
+/// the query group on the left (the search field, which fills the free width from <see cref="SearchMinWidth"/> to <see cref="SearchMaxWidth"/>,
+/// then the filter toggle and the order: criterion and direction) and the view tools on the right (refresh, tag list, layout, focus, More); on a
+/// wide row the free width beyond the search maximum is the spacer between the two groups.
 /// The stages: Wide shows everything; Reduced moves the focus mode, "Refresh" and "Shuffle again" under "More" (⋯); Compact moves the
 /// tag list switch and the Layout menu under More as well, drops the "Sort" label in front of the criterion, and lets the criterion shrink to
 /// its narrow minimum. The search keeps its minimum in every stage; the order, the search and the filter toggle never move. The widths are
@@ -22,8 +23,8 @@ internal static class MediaToolbarLayout
     internal const double CompactWidth = 870;
     internal const double SearchMinWidth = 240;
     internal const double SortMinWidth = 160, NarrowSortMinWidth = 120;
-    /// <summary>The longest the search field grows in the row; on a very wide window the free space beyond it stays empty between the search and the right group.</summary>
-    internal const double SearchMaxWidth = 900;
+    /// <summary>The longest the search field grows in the row; on a wide window the free space beyond it stays empty between the query group (search, filters, order) and the view tools.</summary>
+    internal const double SearchMaxWidth = 640;
 
     /// <summary>The narrowest row the page gives the toolbar: the 640 dip window minimum less the 2 x 12 dip page margin. The Compact stage must fit it.</summary>
     internal const double NarrowestRowWidth = 616;

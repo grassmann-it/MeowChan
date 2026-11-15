@@ -224,13 +224,31 @@ public sealed partial class MediaPage
         MediaPageLayoutPlan plan = MediaPageLayoutPlan.Of(_layout, new MediaPageLayoutState(_focusMode, _statusAttention));
         MediaPageLayoutPlan? before = _plan;
         _plan = plan;
+        // The summary and the selection actions are one context line (same height, same place): while tiles are selected the actions take the place
+        // of the summary, unless the summary says something that must stay visible (a read problem, an incomplete index). The chip row has
+        // no height while no filter is active (its "+ Filter" shows with the first chip), so it is hidden then instead of adding an empty gap.
+        bool chips = ChipRowShown(plan), status = plan.StatusLine && (_grid.Selection.Count == 0 || _statusAttention);
         // A row that goes away takes the keyboard focus with it: it continues on the grid.
-        bool focusLost = (!plan.FilterChips && _chipRow!.IsVisible && FocusWithin(_chipRow)) || (!plan.StatusLine && _statusRow!.IsVisible && FocusWithin(_statusRow));
+        bool focusLost = (!chips && _chipRow!.IsVisible && FocusWithin(_chipRow)) || (!status && _statusRow!.IsVisible && FocusWithin(_statusRow));
         _subtitle.IsVisible = plan.Subtitle;
-        _chipRow!.IsVisible = plan.FilterChips;
-        _statusRow!.IsVisible = plan.StatusLine;
+        _chipRow!.IsVisible = chips;
+        _statusRow!.IsVisible = status;
         LayoutBody(plan);
         if (before == null || before.Tiles != plan.Tiles) ApplyTileAppearance(plan.Tiles);
+        if (focusLost) FocusGrid();
+    }
+
+    // The chip row shows when the layout wants it and there is something in it: a chip, or "+ Filter" (which follows the first chip).
+    private bool ChipRowShown(MediaPageLayoutPlan plan) => plan.FilterChips && (ActiveFilterCount > 0 || _filterAdd.IsVisible);
+
+    // The chips were rendered: the row appears with the first chip and goes with the last one (a layout that hides the row keeps it hidden).
+    private void UpdateChipRowVisibility()
+    {
+        if (!_layoutInstalled || _plan is not { } plan || _lifetime.IsCancellationRequested) return;
+        bool shown = ChipRowShown(plan);
+        if (_chipRow!.IsVisible == shown) return;
+        bool focusLost = !shown && FocusWithin(_chipRow);
+        _chipRow.IsVisible = shown;
         if (focusLost) FocusGrid();
     }
 

@@ -43,7 +43,7 @@ internal static partial class MediaPageChecks
             Control search = C<Control>(page, "MediaNameFilter"), filters = C<Control>(page, "MediaFilters");
             string[] Order() => page.ShownEntries.Select(entry => entry.Thread.Thread + ":" + (entry.PostId ?? "-")).ToArray();
 
-            // Layout: search and filters left, the order and the tools right, in one row.
+            // Layout: search, filters and the order in one group on the left, the view tools on the right, in one row.
             double X(Control control) => control.TranslatePoint(default, page.ToolbarRow)!.Value.X;
             double Y(Control control) => control.TranslatePoint(default, page.ToolbarRow)!.Value.Y;
             // N6: every tool the stage still shows (the last one is More) lies inside the row; nothing is cut off at its right edge.
@@ -59,10 +59,10 @@ internal static partial class MediaPageChecks
             }
             Require(X(search) < X(filters) && X(filters) + filters.Bounds.Width < X(sort) && X(sort) + sort.Bounds.Width <= X(direction)
                 && X(direction) + direction.Bounds.Width <= X(refresh) && X(refresh) + refresh.Bounds.Width <= X(more),
-                "The toolbar must read search, filters, then (right) order, direction, refresh, more.");
+                "The toolbar must read search, filters, order, direction, then the view tools: refresh, more.");
             Require(new[] { search, filters, sort, direction, refresh, more }.Select(Y).Max() - new[] { search, filters, sort, direction, refresh, more }.Select(Y).Min() <= 8,
                 "The toolbar must be one row at 1100 wide.");
-            Require(X(sort) > page.ToolbarRow.Bounds.Width / 2, "The order belongs to the right half of the row.");
+            Require(X(sort) >= X(filters) + filters.Bounds.Width && X(sort) - (X(filters) + filters.Bounds.Width) <= 120, "The criterion follows the filter toggle directly (one group on the left).");
             Require(new Control[] { sort, direction, refresh, more }.All(control => Math.Abs(control.Bounds.Height - 32) < 0.6),
                 "The tools of the row are 32 dip high.");
             Require(!C<Button>(page, "MediaExportAll").IsVisible && !C<Button>(page, "MediaManageRatings").IsVisible

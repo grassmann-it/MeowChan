@@ -191,19 +191,22 @@ public sealed class MediaSortToolbarContractTests
         Assert.True(MediaToolbarLayout.SearchMaxWidth >= MediaToolbarLayout.SearchMinWidth);
     }
 
-    // Tom (15.11.2026): the search used to stop at 480 dip and left a hole between "Filters" and the order on a wide window. It now fills the free
-    // width from 240 to 900 dip, and the filter toggle moved into the right group, directly in front of the order.
+    // Tom (15.11.2026): the search used to stop at 480 dip and left a hole between "Filters" and the order on a wide window. It fills the free
+    // width from 240 to 640 dip; the filter toggle and the order follow it as one query group on the left, and a wide row leaves its free width as the
+    // spacer between that group and the view tools (UX review of the media header).
     [Fact]
-    public void TheSearchFillsTheFreeWidthFrom240To900DipAndTheFilterToggleOpensTheRightGroupInFrontOfTheOrder()
+    public void TheSearchFillsTheFreeWidthFrom240To640DipAndTheFilterToggleAndTheOrderFollowItInOneQueryGroup()
     {
         Assert.Equal(240, MediaToolbarLayout.SearchMinWidth);
-        Assert.Equal(900, MediaToolbarLayout.SearchMaxWidth);
+        Assert.Equal(640, MediaToolbarLayout.SearchMaxWidth);
         string toolbar = Source("Desktop/Views/Media/MediaPage.Toolbar.cs");
-        // Search column (star, capped at the maximum) | free space | right group; no fixed width for the search.
-        Assert.Matches("ColumnDefinitions\\(\"\\d+\\*,\\*,Auto\"\\)", toolbar);
+        // Search column (star, capped at the maximum) | query group (filters, order) | free space | view tools; no fixed width for the search.
+        Assert.Matches("ColumnDefinitions\\(\"\\d+\\*,Auto,\\*,Auto\"\\)", toolbar);
+        Assert.Contains("Name = \"MediaToolbarQuery\"", toolbar);
+        Assert.Contains("Name = \"MediaToolbarEnd\"", toolbar);
         Assert.Contains("tools.ColumnDefinitions[0].MaxWidth = MediaToolbarLayout.SearchMaxWidth;", toolbar);
         Assert.Contains("ColumnDefinitions[0].MinWidth = _nameFilter.MinWidth", toolbar);
-        // The right group: the filter toggle first, then the shuffle, the Sort label and the criterion, the direction, and More last.
+        // The tools in visual order: the filter toggle first (the query group takes it and the order), then the shuffle, the Sort label and the criterion, the direction, and More last.
         var group = System.Text.RegularExpressions.Regex.Match(toolbar, "foreach \\(Control control in new Control\\[\\] \\{([^}]*)\\}\\)");
         Assert.True(group.Success, "BuildToolbar changed shape.");
         string[] order = group.Groups[1].Value.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
