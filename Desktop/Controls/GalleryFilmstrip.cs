@@ -15,6 +15,7 @@ using Avalonia.Layout;
 using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
+using Avalonia.VisualTree;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 
@@ -120,6 +121,8 @@ internal sealed class GalleryFilmstrip : Border
         _strip.PointerCaptureLost += (_, _) => { _pressed = _dragging = false; };
         _strip.PointerExited += (_, _) => SetHovered(-1);
         PointerWheelChanged += OnWheel;
+        // A right-click on a tile asks for that tile's menu (Menu key and Shift+F10 carry no position and stay with the viewer: the shown medium's).
+        AddHandler(ContextRequestedEvent, OnContextRequested, Avalonia.Interactivity.RoutingStrategies.Bubble);
         PointerEntered += (_, _) => { _pointerOver = true; UpdateChevrons(); };
         PointerExited += (_, _) => { _pointerOver = false; UpdateChevrons(); };
         GotFocus += (_, e) => { _keyboardFocus = e.NavigationMethod is NavigationMethod.Tab or NavigationMethod.Directional; UpdateFocusVisual(); UpdateChevrons(); };
@@ -150,6 +153,8 @@ internal sealed class GalleryFilmstrip : Border
 
     /// <summary>The user asked for the tile (a click or Enter): the entry's index, or the entry count for the "more" tile.</summary>
     internal event Action<int>? TileActivated;
+    /// <summary>The user right-clicked the tile of an entry (never the "more" tile): the entry's index. The strip opens no menu itself.</summary>
+    internal event Action<int>? TileContextRequested;
     /// <summary>The user left the strip with Escape or Enter and wants the picture to take the keyboard back.</summary>
     internal event Action? ExitRequested;
 
@@ -325,7 +330,20 @@ internal sealed class GalleryFilmstrip : Border
         }
     }
 
+    /// <summary>The entry of a tile (null for the "more" tile or an index outside the list).</summary>
+    internal GalleryEntry? EntryAt(int index) => _entries != null && index >= 0 && index < _count && index < _entries.Count ? _entries[index] : null;
+
     // ---- pointer ----
+
+    private void OnContextRequested(object? sender, ContextRequestedEventArgs e)
+    {
+        if (e.Handled || e.Source is not Visual source || !source.GetSelfAndVisualAncestors().Contains(_strip)
+            || !e.TryGetPosition(_strip, out Point position)) return;
+        // The pointer is on the tile strip: it is this tile's menu or none (the gap between tiles and the "more" tile never open the shown medium's).
+        e.Handled = true;
+        int tile = GalleryFilmstripPlan.TileAt(position.X, _offset, _tile, Slots, _gap);
+        if (tile >= 0 && tile < _count) TileContextRequested?.Invoke(tile);
+    }
 
     private void OnPointerPressed(object? sender, PointerPressedEventArgs e)
     {

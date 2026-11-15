@@ -42,6 +42,14 @@ public partial class DiagnosticsPage
         grid.AddHandler(ContextRequestedEvent, OnDiagnosticContextRequested, RoutingStrategies.Tunnel);
     }
 
+    /// <summary>The menu of the selected row, opened by the context-open command: the selection is captured once, as for the Menu key.</summary>
+    internal void OpenDiagnosticKeyboardMenu(DataGrid grid)
+    {
+        if (_ended || grid.SelectedItem is not DiagnosticEntry || grid.ContextMenu is not { } menu) return;
+        _diagnosticContextPrepared = false;
+        menu.Open(grid);
+    }
+
     private bool _diagnosticPointerContextHandled;
     private bool _diagnosticContextPrepared;
     private void OnDiagnosticContextPointer(object? sender, PointerPressedEventArgs e)

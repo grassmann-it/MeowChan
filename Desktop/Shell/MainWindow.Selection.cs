@@ -147,6 +147,7 @@ public partial class MainWindow
             }
         };
         ArchivePage.ShowThreadInMediaRequested = ShowThreadInMedia; // QW-A #7: the archive list's and the reader's thread menus
+        ArchivePage.ShowThreadsInMediaRequested = ShowThreadsInMedia; // several threads at once: a selection, or all results of the search
         ArchivePage.SelectionDetailsRequested = id =>
         {
             if (_sessionRowsApplying) return;
@@ -260,9 +261,14 @@ public partial class MainWindow
         { e.Handled = true; await RemoveDownloadSelectionAsync(boards); return; }
         if (CommandBindings.Matches(e, "thread.details"))
         { e.Handled = true; OpenWorkspaceDetails(); return; }
-        // Revision 19: "Show in Media" (Alt+M) for the lead thread, like the thread menu entry; boards have no media of their own.
+        // Revision 19: "Show in Media" (Alt+M), like the thread menu entry: every selected thread (as one thread set when there are several);
+        // boards have no media of their own.
         if (!boards && CommandBindings.Matches(e, "thread.show-in-media"))
-        { e.Handled = true; if (LeadThread is ThreadRow row) ShowThreadInMedia(row.Snapshot.Id, row.Title); return; }
+        {
+            e.Handled = true;
+            if (LeadThread is ThreadRow row) ShowSelectedThreadsInMedia(SelectedThreads().Select(selected => selected.Snapshot.Id).ToArray(), row.Snapshot.Id, row.Title);
+            return;
+        }
         if (CommandBindings.Matches(e, "thread.read") || CommandBindings.Matches(e, "gallery.open"))
         {
             e.Handled = true;

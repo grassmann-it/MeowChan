@@ -75,8 +75,9 @@ public partial class MainWindow
             Add("thread.read", () => OpenActions.Start(() => OpenFrozenReaderAsync(frozen, grid), "downloads.menu.read"),
                 frozen.Threads.Length == 1 && grid.SelectedItems.Count == 1);
             Add("gallery.open", () => OpenActions.Start(() => OpenGalleryAsync(frozen.Lead, origin: grid), "downloads.menu.gallery"));
-            Add("thread.show-in-media", () => ShowThreadInMedia(frozen.Lead,
-                _threadRows.TryGetValue(frozen.LeadWatch, out ThreadRow? leadRow) ? leadRow.Title : null));
+            // A selection of several threads shows them all, as one thread set (QW-A #7 follow-up); one thread keeps its thread: chip.
+            Add("thread.show-in-media", () => ShowSelectedThreadsInMedia(frozen.Threads, frozen.Lead,
+                _threadRows.TryGetValue(frozen.LeadWatch, out ThreadRow? leadRow) ? leadRow.Title : null), count: frozen.Threads.Length);
         }
         Add("thread.details", () => OpenFrozenDetails(frozen));
         if (frozen.Boards) Add("board.filters", async () => { if (frozen.Board != null) await OpenBoardAdmissionAsync(frozen.Board); });

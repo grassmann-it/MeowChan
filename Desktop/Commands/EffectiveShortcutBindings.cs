@@ -115,7 +115,7 @@ public sealed class EffectiveShortcutBindings
     private static long _nextVersion;
     /// <summary>Revision of the default table. Raise it, and list the command in
     /// <see cref="DefaultChangedInRevision"/>, whenever a default gesture is added to or changed on a command.</summary>
-    public const int DefaultsRevision = 19;
+    public const int DefaultsRevision = 20;
     /// <summary>Command ids that existed in an earlier build and were removed on purpose (the previous/next media-panel keys).
     /// A saved binding for one is dead data, not a typo: <see cref="Build"/> skips it without an issue and the next save drops it
     /// (<see cref="ShortcutBindingsSection.WithoutRetired"/>). A truly unknown id is still reported and kept. The defaults revision does not change.</summary>
@@ -187,7 +187,7 @@ public sealed class EffectiveShortcutBindings
         ["tags.queue.done-next"] = 9, ["tags.queue.skip"] = 9, ["tags.queue.back"] = 9, ["tags.queue.play-pause"] = 9,
         // New in revision 9 (PT2): the list keys of the tagging page. They act only in its queue list (context "tagging") and
         // yield to a saved binding of another command like every new default.
-        ["tagging.continue-here"] = 9, ["tagging.move-up"] = 9, ["tagging.move-down"] = 9, ["tagging.remove"] = 9,
+        ["tagging.continue-here"] = 9, ["tagging.move-up"] = 9, ["tagging.move-down"] = 9,
         // PT4 (card mode) joins the same revision 9 of the tagging mode (neither is released yet): K and the card keys 1 to 5.
         ["tags.queue.cards"] = 9, ["tags.queue.card-1"] = 9, ["tags.queue.card-2"] = 9, ["tags.queue.card-3"] = 9,
         ["tags.queue.card-4"] = 9, ["tags.queue.card-5"] = 9,
@@ -247,6 +247,10 @@ public sealed class EffectiveShortcutBindings
         // another command, like every new default.
         ["tagging.mark-done"] = 19, ["tagging.mark-skipped"] = 19, ["post.hide"] = 19, ["post.copy-link"] = 19, ["media.copy-path"] = 19,
         ["thread.show-in-media"] = 19, ["tagging.show-in-media"] = 19, ["reader.expand"] = 19, ["media.open-external"] = 19,
+        // Revision 20 (media page Delete, quick-win package "menus, delete, Esc"): Delete (and Primary+Back on macOS) also acts on the media page, where it removes the selected media
+        // that are in the tagging queue from it (the same command as the tagging list's, now also in the context "media"; introduced in revision 9). It never deletes a file. Like
+        // every changed default it yields to a saved binding of another command on the key.
+        ["tagging.remove"] = 20,
     };
     public static IReadOnlyCollection<string> YieldingDefaultCommandIds => DefaultChangedInRevision.Keys.ToArray();
     // Commands whose default changed only in the macOS table: on Windows and Linux their gesture is the old stable one

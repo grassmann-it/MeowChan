@@ -26,9 +26,15 @@ public sealed class MediaFilterQueryTests : IDisposable
     public MediaFilterQueryTests() { Texts.Initialize(); Texts.SetLanguage("en"); }
     public void Dispose() { Texts.Initialize(); Texts.SetLanguage("en"); }
 
+    private static readonly Dictionary<string, MediaTextFields> ScopeWords = new()
+    {
+        ["titel"] = MediaTextFields.Title, ["threadtitel"] = MediaTextFields.Title, ["schlagwort"] = MediaTextFields.Tag, ["datei"] = MediaTextFields.Name
+    };
+
     private static MediaFilterQueryVocabulary Vocab(IReadOnlyDictionary<string, MediaFilterField>? aliases = null) => new()
     {
         Aliases = aliases ?? new Dictionary<string, MediaFilterField>(),
+        ScopeAliases = ScopeWords,
         FindTag = name => Tags.TryGetValue(name, out Guid id) ? id : null,
         TagName = id => Tags.FirstOrDefault(pair => pair.Value == id).Key,
         FindSource = text => Sources.FirstOrDefault(source => string.Equals(source, text, StringComparison.OrdinalIgnoreCase)),
@@ -84,14 +90,58 @@ public sealed class MediaFilterQueryTests : IDisposable
         Assert.Equal([MediaFilterTerm.Board("4chan", "b"), MediaFilterTerm.Tag(Two), Type(MediaLibraryKindFilter.Gif, exclude: true),
             MediaFilterTerm.Flag(MediaFilterField.Favorite), MediaFilterTerm.Rating(3), MediaFilterTerm.InThread(new ResourceId("4chan", "b", "99"))], result.Terms);
         Assert.Empty(result.Problems);
-        Assert.Equal("/kot/ general bar", result.FreeText);
-        // In the live field (before Enter) the quoted run is one word of the text filter.
+        // The phrase keeps its quotes in the text, so it stays one word after Enter (review 15.11.2026, finding 1).
+        Assert.Equal("\"/kot/ general\" bar", result.FreeText);
+        Assert.Equal(new[] { "/kot/ general", "bar" }, new MediaLibraryFilter(nameContains: result.FreeText).TextWords);
+        // In the live field (before Enter) the quoted run is one word of the text filter as well.
         Assert.Equal(new[] { "/kot/ general", "bar" }, new MediaLibraryFilter(nameContains: "\"/kot/ general\" bar").TextWords);
         // The way back: the text is written as free text and reads back as the same terms.
         IReadOnlyList<MediaFilterTerm> terms = [MediaFilterTerm.Board("4chan", "b"), MediaFilterTerm.Name("/kot/ foo")];
         string text = MediaFilterQuery.Serialize(terms, Vocab());
         Assert.Equal("board:b /kot/ foo", text);
         Assert.Equal(terms, Parse(text).AllTerms);
+    }
+
+    // Review 15.11.2026, finding 1: Enter used to rewrite "cat girl" to cat girl, which are two words (cat in the file name, girl in the title).
+    [Fact]
+    public void AQuotedPhraseStaysOneWordThroughFreeTextEnterAndTheWayBackToText()
+    {
+        MediaFilterQueryResult phrase = Parse("\"cat girl\"");
+        Assert.Equal("\"cat girl\"", phrase.FreeText);
+        Assert.Equal(new[] { "cat girl" }, MediaLibraryFilter.WordsOf(phrase.FreeText));
+        Assert.Equal(new[] { "cat girl" }, new MediaLibraryFilter(nameContains: phrase.FreeText).TextWords);
+
+        // Enter leaves the quoted phrase in the field, next to the remainder of the other tokens.
+        MediaFilterQueryApplication applied = MediaFilterQuery.Apply([], Parse("tag:cats \"a b\""), AdmitLikeThePage);
+        Assert.Equal([MediaFilterTerm.Tag(Cats)], applied.Terms);
+        Assert.Equal("\"a b\"", applied.Remainder);
+        Assert.Equal(new[] { "a b" }, MediaLibraryFilter.WordsOf(applied.Remainder));
+
+        // Serialize and parse again: the phrase is the same one word.
+        IReadOnlyList<MediaFilterTerm> terms = [MediaFilterTerm.Tag(Cats), MediaFilterTerm.Name("\"cat girl\" boy")];
+        MediaFilterQueryResult back = Parse(MediaFilterQuery.Serialize(terms, Vocab()));
+        Assert.Equal(terms, back.AllTerms);
+        Assert.Equal(new[] { "cat girl", "boy" }, MediaLibraryFilter.WordsOf(back.FreeText));
+
+        // A quote glued to a word makes one word of the whole run, as WordsOf reads it.
+        MediaFilterQueryResult glued = Parse("foo\"b c\"");
+        Assert.Equal(new[] { "foob c" }, MediaLibraryFilter.WordsOf(glued.FreeText));
+        // Quotes and backslashes inside a phrase are escaped again; a quoted single word loses its quotes.
+        Assert.Equal(new[] { "say \"hi\" now" }, MediaLibraryFilter.WordsOf(Parse("\"say \\\"hi\\\" now\"").FreeText));
+        Assert.Equal("cat", Parse("\"cat\"").FreeText);
+    }
+
+    // Review 15.11.2026, finding 10: an empty phrase is no text: no term, no problem, nothing left in the field.
+    [Fact]
+    public void AnEmptyPhraseIsNoText()
+    {
+        Assert.Equal(string.Empty, Parse("\"\"").FreeText);
+        Assert.Empty(Parse("\"\"").AllTerms);
+        Assert.Equal("cat", Parse("\"\" cat").FreeText);
+        MediaFilterQueryApplication applied = MediaFilterQuery.Apply([], Parse("type:video \"\""), AdmitLikeThePage);
+        Assert.Equal([Type(MediaLibraryKindFilter.Video)], applied.Terms);
+        Assert.Equal(string.Empty, applied.Remainder);
+        Assert.False(MediaLibraryFilter.HasText("\"\""));
     }
 
     [Fact]
@@ -171,8 +221,8 @@ public sealed class MediaFilterQueryTests : IDisposable
         MediaFilterQueryResult result = Parse("holiday  type:video  photos");
         Assert.Equal([Type(MediaLibraryKindFilter.Video)], result.Terms);
         Assert.Equal("holiday photos", result.FreeText);
-        // A bare quoted phrase is free text without its quotes; quoting a token keeps a filter-looking word text.
-        Assert.Equal("two words", Parse("\"two words\"").FreeText);
+        // A bare quoted phrase is free text and stays one word (it keeps its quotes); quoting a token keeps a filter-looking word text.
+        Assert.Equal("\"two words\"", Parse("\"two words\"").FreeText);
         MediaFilterQueryResult escaped = Parse("\"type:video\" \"fav\"");
         Assert.Empty(escaped.Terms);
         Assert.Equal("\"type:video\" \"fav\"", escaped.FreeText);
@@ -282,7 +332,8 @@ public sealed class MediaFilterQueryTests : IDisposable
     {
         Texts.SetLanguage(code);
         Dictionary<string, MediaFilterField> seen = new(StringComparer.Ordinal);
-        foreach (MediaFilterField field in Enum.GetValues<MediaFilterField>())
+        // The thread set (MediaFilterField.Threads) is runtime state with no query text, so it has no aliases either.
+        foreach (MediaFilterField field in Enum.GetValues<MediaFilterField>().Where(MediaFilterTerm.HasQueryText))
         {
             string key = "media.query.alias." + MediaFilterTerm.KeyOf(field);
             string text = Texts.T(key);
@@ -306,6 +357,130 @@ public sealed class MediaFilterQueryTests : IDisposable
         string typeAlias = Texts.T("media.query.alias.type").Split([' ', ',', ';', '、'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)[0];
         Assert.Equal([Type(MediaLibraryKindFilter.Video)], MediaFilterQuery.Parse(typeAlias + ":video", vocabulary).Terms);
         Assert.Equal([Type(MediaLibraryKindFilter.Video)], MediaFilterQuery.Parse("type:video", vocabulary).Terms);
+    }
+
+    // ---- where the text is looked for (in:) ------------------------------------------------------------------------
+
+    private static MediaFilterTerm In(MediaTextFields fields) => MediaFilterTerm.In(fields);
+
+    [Fact]
+    public void InNamesTheFieldsTheTextIsLookedForIn()
+    {
+        MediaFilterQueryResult result = Parse("in:tag,title cat");
+        Assert.Equal([In(MediaTextFields.Tag | MediaTextFields.Title)], result.Terms);
+        Assert.Equal("cat", result.FreeText);
+        Assert.Empty(result.Problems);
+        Assert.Equal("title,tag", Assert.Single(result.Terms).Value); // the value is canonical, not as typed
+        Assert.Equal([In(MediaTextFields.All)], Parse("in:all").Terms);
+        Assert.Equal([In(MediaTextFields.Name)], Parse("IN:Name").Terms);
+        Assert.Equal([In(MediaTextFields.Board | MediaTextFields.Source), Type(MediaLibraryKindFilter.Video)], Parse("in:source,board type:video").Terms);
+        Assert.Equal([In(MediaTextFields.Tag)], Parse("in:\"tag\" cat girl").Terms);
+        // The localized names work beside the English keys.
+        Assert.Equal([In(MediaTextFields.Title | MediaTextFields.Tag | MediaTextFields.Name)], Parse("in:titel,schlagwort,datei").Terms);
+        Assert.Equal([In(MediaTextFields.Title | MediaTextFields.Tag)], Parse("in:titel,tag").Terms);
+        Assert.Equal([In(MediaTextFields.Title)], Parse("in:threadtitel").Terms);
+        // And the aliases of the field itself.
+        Assert.Equal([In(MediaTextFields.Tag)], Parse("wo:tag", new Dictionary<string, MediaFilterField> { ["wo"] = MediaFilterField.In }).Terms);
+    }
+
+    [Fact]
+    public void InWithAnUnknownValueStaysTextWithAProblemAndCannotExclude()
+    {
+        foreach (string text in new[] { "in:bogus", "in:tag,bogus", "in:tags", "in:none", "in:,"})
+        {
+            MediaFilterQueryResult result = Parse(text + " cat");
+            Assert.Empty(result.Terms);
+            Assert.Equal(MediaFilterQueryProblem.UnknownValue, Assert.Single(result.Problems).Problem);
+            Assert.Equal(text + " cat", result.FreeText); // kept as text, as every value that is not understood
+        }
+        Assert.Equal(MediaFilterQueryProblem.NeedsValue, Assert.Single(Parse("in:").Problems).Problem);
+        MediaFilterQueryResult excluded = Parse("-in:tag cat");
+        Assert.Empty(excluded.Terms);
+        Assert.Equal(MediaFilterQueryProblem.CannotExclude, Assert.Single(excluded.Problems).Problem);
+        Assert.Equal("-in:tag cat", excluded.FreeText);
+        // Quoted, the token is plain text.
+        MediaFilterQueryResult quoted = Parse("\"in:tag\" cat");
+        Assert.Empty(quoted.Terms);
+        Assert.Empty(quoted.Problems);
+        Assert.Equal("\"in:tag\" cat", quoted.FreeText);
+    }
+
+    [Fact]
+    public void InCombinesWithAPhraseAndAnEmptyPhraseAndOnlyTheLastOneCounts()
+    {
+        MediaFilterQueryResult phrase = Parse("in:tag \"cat girl\" dog");
+        Assert.Equal([In(MediaTextFields.Tag)], phrase.Terms);
+        Assert.Equal("\"cat girl\" dog", phrase.FreeText);
+        Assert.Equal(new[] { "cat girl", "dog" }, MediaLibraryFilter.WordsOf(phrase.FreeText));
+        MediaFilterQueryResult empty = Parse("in:tag \"\"");
+        Assert.Equal([In(MediaTextFields.Tag)], empty.Terms);
+        Assert.Equal(string.Empty, empty.FreeText);
+        Assert.Equal([In(MediaTextFields.Tag)], empty.AllTerms); // the scope without text stays a term (the page keeps it for the next word)
+        // One scope per filter: Enter keeps the last one.
+        MediaFilterQueryApplication applied = MediaFilterQuery.Apply([], Parse("in:tag cat in:name,title"), AdmitLikeThePage);
+        Assert.Equal([In(MediaTextFields.Name | MediaTextFields.Title)], applied.Terms);
+        Assert.Equal("cat", applied.Remainder);
+        Assert.Equal(2, applied.Added.Count);
+        // Applied to a set that holds a scope, the new one replaces it.
+        Assert.Equal([In(MediaTextFields.Tag)], MediaFilterQuery.Apply([In(MediaTextFields.Name)], Parse("in:tag"), AdmitLikeThePage).Terms);
+    }
+
+    [Fact]
+    public void TheScopeIsWrittenDirectlyBeforeTheTextAndNeverForAll()
+    {
+        MediaFilterTerm cats = MediaFilterTerm.Tag(Cats);
+        Assert.Equal("in:title,tag cat", MediaFilterQuery.Serialize([In(MediaTextFields.Tag | MediaTextFields.Title), MediaFilterTerm.Name("cat")], Vocab()));
+        Assert.Equal("tag:cats type:video in:tag cat girl",
+            MediaFilterQuery.Serialize([In(MediaTextFields.Tag), cats, Type(MediaLibraryKindFilter.Video), MediaFilterTerm.Name("cat girl")], Vocab()));
+        Assert.Equal("tag:cats cat", MediaFilterQuery.Serialize([cats, In(MediaTextFields.All), MediaFilterTerm.Name("cat")], Vocab()));
+        Assert.Equal("in:name", MediaFilterQuery.Serialize([In(MediaTextFields.Name)], Vocab()));
+        Assert.Equal(string.Empty, MediaFilterQuery.Serialize([In(MediaTextFields.All)], Vocab()));
+        // The same in every language: the keys are English.
+        Texts.SetLanguage("de");
+        Assert.Equal("in:title,tag cat", MediaFilterQuery.Serialize([In(MediaTextFields.Tag | MediaTextFields.Title), MediaFilterTerm.Name("cat")], Vocab()));
+        // A text that reads like the token is written as name:"…".
+        Assert.Equal("in:tag name:\"in:board cat\"", MediaFilterQuery.Serialize([In(MediaTextFields.Tag), MediaFilterTerm.Name("in:board cat")], Vocab()));
+    }
+
+    [Fact]
+    public void EveryScopeNameInEveryLanguageIsAWordForOneFieldAndNoClash()
+    {
+        foreach (string code in new[] { "en", "de" }.Concat(Texts.BundledPackCodes()))
+        {
+            Texts.SetLanguage(code);
+            Dictionary<string, MediaTextFields> seen = new(StringComparer.Ordinal);
+            foreach (MediaTextFields field in MediaFilterTerm.TextFieldOrder)
+            {
+                string key = "media.query.scope.alias." + MediaFilterTerm.TextFieldKey(field);
+                string text = Texts.T(key);
+                Assert.False(string.IsNullOrWhiteSpace(text) || text == key, code + " lacks " + key);
+                string[] words = text.Split([' ', ',', ';', '、'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                Assert.NotEmpty(words);
+                foreach (string word in words)
+                {
+                    Assert.True(MediaFilterQuery.IsFieldWord(word), code + " " + key + ": '" + word + "' is not letters only");
+                    Assert.Equal(word.ToLowerInvariant(), word);
+                    Assert.True(!seen.TryGetValue(word, out MediaTextFields other) || other == field, code + ": '" + word + "' names two fields");
+                    seen[word] = field;
+                    Assert.True(MediaFilterTerm.TextFieldsOf(word) is not { } english || english == field, code + ": '" + word + "' is another field's English key or all");
+                }
+            }
+            IReadOnlyDictionary<string, MediaTextFields> aliases = MediaFilterQueryVocabulary.ScopeAliasesFrom(key => Texts.T(key));
+            Assert.All(seen.Where(pair => MediaFilterTerm.TextFieldsOf(pair.Key) == null), pair => Assert.Equal(pair.Value, aliases[pair.Key]));
+            // The field's own name: present, letters only, and no other field's English name.
+            string alias = Texts.T("media.query.alias.in");
+            Assert.False(string.IsNullOrWhiteSpace(alias) || alias == "media.query.alias.in", code + " lacks media.query.alias.in");
+            // Each field's first alias works in a query next to the English key.
+            MediaFilterQueryVocabulary vocabulary = new() { ScopeAliases = aliases, Aliases = MediaFilterQueryVocabulary.AliasesFrom(key => Texts.T(key)) };
+            foreach (MediaTextFields field in MediaFilterTerm.TextFieldOrder)
+            {
+                string first = Texts.T("media.query.scope.alias." + MediaFilterTerm.TextFieldKey(field)).Split([' ', ',', ';', '、'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)[0];
+                Assert.Equal([In(field)], MediaFilterQuery.Parse("in:" + first, vocabulary).Terms);
+                Assert.Equal([In(field)], MediaFilterQuery.Parse("in:" + MediaFilterTerm.TextFieldKey(field), vocabulary).Terms);
+            }
+            string field0 = alias.Split([' ', ',', ';', '、'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).First(word => MediaFilterTerm.FieldOf(word) == null);
+            Assert.Equal([In(MediaTextFields.Tag)], MediaFilterQuery.Parse(field0 + ":tag", vocabulary).Terms);
+        }
     }
 
     // ---- the way back to text ----------------------------------------------------------------------------------------
@@ -342,6 +517,10 @@ public sealed class MediaFilterQueryTests : IDisposable
         yield return [new[] { MediaFilterTerm.Name("-fav") }];
         yield return [new[] { MediaFilterTerm.Name("12:30 notes") }];
         yield return [new[] { MediaFilterTerm.Tag(Cats), MediaFilterTerm.Name("-draft") }];
+        yield return [new[] { MediaFilterTerm.Tag(Cats), MediaFilterTerm.In(MediaTextFields.Title | MediaTextFields.Tag), MediaFilterTerm.Name("cat girl") }];
+        yield return [new[] { MediaFilterTerm.Type(MediaLibraryKindFilter.Video), MediaFilterTerm.In(MediaTextFields.Board), MediaFilterTerm.Name("\"cat girl\" dog") }];
+        yield return [new[] { MediaFilterTerm.In(MediaTextFields.Name) }]; // the scope of a box that is empty for now
+        yield return [new[] { MediaFilterTerm.In(MediaTextFields.Source | MediaTextFields.Board), MediaFilterTerm.Name("in:tag") }];
         yield return [Array.Empty<MediaFilterTerm>()];
     }
 

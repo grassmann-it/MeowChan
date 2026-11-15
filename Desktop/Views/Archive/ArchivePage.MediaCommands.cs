@@ -107,7 +107,7 @@ public partial class ArchivePage
         if (_ended || !_available || IsReaderDialogOpen || e.Source is not Control source || !MediaMenuPresenter.IsContextKey(e)) return;
         Control[] path = source.GetSelfAndVisualAncestors().OfType<Control>().ToArray();
         if (!path.Any(control => control is ArchiveAttachmentView || control.Name is "ArchiveMediaGrid" or "ArchiveMediaTiles")
-            && SidebarMediaContext(path) == null) return;
+            && SidebarMediaContext(path) == null && SidebarStripContext(path) == null) return;
         ContextRequestedEventArgs request = new() { RoutedEvent = ContextRequestedEvent };
         source.RaiseEvent(request);
         e.Handled = request.Handled;
@@ -137,6 +137,11 @@ public partial class ArchivePage
         if (attachment == null && asset == null && SidebarMediaContext(ancestors) is { } shown)
         {
             attachment = shown.Attachment; postId = shown.PostId; origin = shown.Origin; playback = _sidebarVideo;
+        }
+        // A thumbnail of the sidebar's strip: the menu of that file, not of the one shown (right-click, Menu key, Shift+F10).
+        else if (attachment == null && asset == null && SidebarStripContext(ancestors) is { } thumbnail)
+        {
+            attachment = thumbnail.Attachment; postId = thumbnail.PostId; origin = thumbnail.Origin; playback = thumbnail.Shown ? _sidebarVideo : null;
         }
         if (attachment != null) asset = _selectedThread == null || postId == null ? null : FindMatchingAsset(_selectedThread, postId, attachment.Attachment, _assets);
         if (asset == null && attachment == null) return;
@@ -189,6 +194,18 @@ public partial class ArchivePage
                 || ReferenceEquals(control, _mediaSidebar.VideoRow))) return null;
         return ArchivePosts.SelectedItem is ArchivePostRow post && CurrentSidebarAttachment() is { } current
             ? (current, post.Id, _mediaSidebar.FrameArea) : null;
+    }
+
+    // A thumbnail of the sidebar's strip stands for its own file of the focused post: its attachment, post and the thumbnail as menu origin. From the keyboard the
+    // strip itself is the source, and the menu is the focused (the selected, i.e. shown) thumbnail's. Shown tells whether that file is the one the sidebar shows.
+    private (ArchiveAttachmentRow Attachment, string PostId, Control Origin, bool Shown)? SidebarStripContext(Control[] ancestors)
+    {
+        if (_mediaSidebar == null || !_mediaSidebarShown || !ancestors.Any(control => ReferenceEquals(control, _mediaSidebar.Strip))
+            || ArchivePosts.SelectedItem is not ArchivePostRow { ShowsMedia: true } post) return null;
+        ListBoxItem? item = ancestors.OfType<ListBoxItem>().FirstOrDefault(candidate => candidate.Tag is int)
+            ?? _mediaSidebar.Strip.SelectedItem as ListBoxItem;
+        if (item?.Tag is not int index || index < 0 || index >= post.Attachments.Count) return null;
+        return (post.Attachments[index], post.Id, item, index == ReaderMediaSidebarRules.ClampIndex(_sidebarIndex, post.Attachments.Count));
     }
 
     // The playback group of a video that plays in the reader: Play / Pause, Mute / Unmute, Repeat on / off, with the bindings' shortcuts.

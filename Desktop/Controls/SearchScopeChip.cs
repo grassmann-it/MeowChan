@@ -215,9 +215,18 @@ public sealed class SearchScopeChip : Button
 
     private void OnTextsChanged(object? sender, EventArgs e) => Dispatcher.UIThread.Post(Refresh);
 
+    private string? _labelOverride;
+    /// <summary>
+    /// What the chip says instead of the scope's name while it is set (the media page: "All", the one field the text is searched in, or
+    /// "3 fields"); null shows the scope's name. The owner keeps it current when the language or the text scope changes.
+    /// </summary>
+    internal string? LabelOverride { get => _labelOverride; set { if (_labelOverride == value) return; _labelOverride = value; Refresh(); } }
+
+    private string CurrentLabel => string.IsNullOrEmpty(_labelOverride) ? Label(_scope) : _labelOverride;
+
     private void Refresh()
     {
-        string label = Label(_scope);
+        string label = CurrentLabel;
         _label.Text = label;
         // One scope (Media): a plain label without the chevron; the menu then holds only the carry-over entries.
         _chevron.IsVisible = _scopes.Length > 1;
@@ -235,7 +244,7 @@ public sealed class SearchScopeChip : Button
     internal void ApplyOwnerHelp()
     {
         if (Owner is { } owner)
-            AutomationProperties.SetHelpText(owner, Texts.T("search.scope.fieldHelp", Label(_scope), Texts.T("search.scope.tip"), MenuShortcutDisplay())
+            AutomationProperties.SetHelpText(owner, Texts.T("search.scope.fieldHelp", CurrentLabel, Texts.T("search.scope.tip"), MenuShortcutDisplay())
                 + (string.IsNullOrEmpty(FieldHelpNote) ? string.Empty : " " + FieldHelpNote));
     }
 

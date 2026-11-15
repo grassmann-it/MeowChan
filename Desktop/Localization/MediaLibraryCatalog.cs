@@ -94,6 +94,10 @@ internal static class MediaLibraryCatalog
         ("media.filter.reset", "Reset filters", "Filter zurücksetzen"),
         ("media.filter.active", "Active filters", "Aktive Filter"),
         ("media.filter.threadChip", "Thread: {0}", "Thread: {0}"),
+        // A thread set handed over by the Archive (a search's results or a selection); the singular forms are in CountCatalog, the tip lists the titles.
+        ("media.filter.threadsChip.archive", "{0} threads from Archive search", "{0} Threads aus der Archivsuche"),
+        ("media.filter.threadsChip.selection", "{0} selected threads", "{0} ausgewählte Threads"),
+        ("media.filter.threadsMore", "+{0} more", "+{0} weitere"),
         ("media.filter.nameChip", "Search: “{0}”", "Suche: „{0}“"),
         ("media.filter.kindChip", "Type: {0}", "Typ: {0}"),
         ("media.filter.ratingChip", "Rating: at least {0} of 5", "Bewertung: mindestens {0} von 5"),

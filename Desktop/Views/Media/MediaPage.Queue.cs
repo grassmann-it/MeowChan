@@ -30,6 +30,8 @@ public sealed partial class MediaPage
     internal Func<IReadOnlyList<MediaLibraryEntry>, Task<string>>? AddToTagQueue { get; set; }
     /// <summary>Adds media to a named tagging group; the page supplies the frozen target and group id.</summary>
     internal Func<IReadOnlyList<MediaLibraryEntry>, string, Task<string>>? AddToTagQueueInGroup { get; set; }
+    /// <summary>Removes entries from the tagging queue (the host's "Remove from queue") and returns the sentence for the status line; null disables Delete.</summary>
+    internal Func<IReadOnlyList<TagQueueKey>, Task<string>>? RemoveFromTagQueue { get; set; }
     /// <summary>The confirmation limit of the tagging queue (Settings, Storage and limits); read at every add so a change applies at once.</summary>
     internal Func<int>? TagQueueConfirmAboveSource { get; set; }
     private int? _tagQueueConfirmAbove;
@@ -230,6 +232,37 @@ public sealed partial class MediaPage
     internal Task AddEntriesToQueueInGroupAsync(IReadOnlyList<MediaLibraryEntry> entries, string groupId) =>
         AddToTagQueueInGroup == null || _selectionBusy || _lifetime.IsCancellationRequested || entries.Count == 0
             ? Task.CompletedTask : RunQueueAddAsync(entries, groupId);
+
+    /// <summary>
+    /// Delete (the command <c>tagging.remove</c>, "Remove from queue"): the selected media that are in the tagging queue leave it, in one write. It is only that:
+    /// with none of the selected media in the queue, while the queue is unreadable or the page is busy, Delete does nothing. A file is never deleted here.
+    /// </summary>
+    internal Task RemoveSelectionFromQueueAsync()
+    {
+        if (RemoveFromTagQueue == null || _selectionBusy || _building != null || _lifetime.IsCancellationRequested || _queueKeys is not { Count: > 0 }
+            || _grid.Selection.Count == 0) return Task.CompletedTask;
+        IReadOnlyList<TagQueueKey> keys = TagQueueActions.RemovableKeys(SelectedTiles.Select(tile => tile.Entry), _queueKeys);
+        return keys.Count == 0 ? Task.CompletedTask : RunQueueRemoveAsync(keys);
+    }
+
+    private async Task RunQueueRemoveAsync(IReadOnlyList<TagQueueKey> keys)
+    {
+        if (RemoveFromTagQueue is not { } remove) return;
+        _selectionBusy = true;
+        UpdateSelectionBar();
+        string? message = null;
+        try { message = await remove(keys); }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
+        finally
+        {
+            _selectionBusy = false;
+            if (!_lifetime.IsCancellationRequested)
+            {
+                UpdateSelectionBar();
+                ShowSelectionNote(message);
+            }
+        }
+    }
 
     private async Task RunQueueAddAsync(IReadOnlyList<MediaLibraryEntry> entries, string? groupId = null)
     {

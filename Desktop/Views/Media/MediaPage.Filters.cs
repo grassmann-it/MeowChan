@@ -58,6 +58,9 @@ public sealed partial class MediaPage
     // file name lives in the search field (it filters live and debounced) and joins the set when the filter is read, and the tag
     // mode (all / at least one) is a property of the tag terms, not a term.
     private readonly List<MediaFilterTerm> _terms = new();
+    // Where the words of the search text are looked for (the in: token, the row under the field). It belongs to the text, not to the set:
+    // it survives an empty box and goes with "Reset filters", the clear mark of the field and the name chip (MediaPage.Breakdown.cs).
+    private MediaTextFields _textScope = MediaTextFields.All;
     private string? _threadTitle;
     private MediaLibraryUserData _userData = MediaLibraryUserData.Unavailable;
     // T1: which occurrences lack media tags, decided once per index and tag state; the status line counts the tiles among the matches.
@@ -87,7 +90,11 @@ public sealed partial class MediaPage
     private IEnumerable<MediaFilterTerm> AllTerms()
     {
         foreach (MediaFilterTerm term in _terms) yield return term;
-        if (!string.IsNullOrWhiteSpace(_nameFilter.Text)) yield return MediaFilterTerm.Name(_nameFilter.Text);
+        // A text without a word (white space, an empty phrase "") is no filter: no term, no chip, and no scope (the scope survives
+        // an empty box in _textScope; it is a term again as soon as the box holds words).
+        if (!MediaLibraryFilter.HasText(_nameFilter.Text)) yield break;
+        if (_textScope != MediaTextFields.All) yield return MediaFilterTerm.In(_textScope);
+        yield return MediaFilterTerm.Name(_nameFilter.Text!);
     }
 
     private bool HasField(MediaFilterField field) => _terms.Any(term => term.Field == field);
@@ -111,7 +118,10 @@ public sealed partial class MediaPage
     // Whether the set with the file name still makes one filter (ToFilter refuses e.g. every type excluded).
     private bool IsValidFilter(IEnumerable<MediaFilterTerm> terms)
     {
-        try { _ = MediaFilterTerms.ToFilter(terms.Concat(AllTerms().Where(term => term.Field == MediaFilterField.Name))); return true; }
+        // The scope of the text is kept outside the set (_textScope); a set that brings its own (a query being admitted) wins over it.
+        IReadOnlyList<MediaFilterTerm> given = terms as IReadOnlyList<MediaFilterTerm> ?? terms.ToArray();
+        bool scoped = given.Any(term => term.Field == MediaFilterField.In);
+        try { _ = MediaFilterTerms.ToFilter(given.Concat(AllTerms().Where(term => term.Field == MediaFilterField.Name || (term.Field == MediaFilterField.In && !scoped)))); return true; }
         catch (ArgumentException) { return false; }
     }
 
@@ -357,6 +367,7 @@ public sealed partial class MediaPage
         try
         {
             _nameFilter.SetTextSilently(string.Empty);
+            _textScope = MediaTextFields.All;
             _tagMode.SelectedIndex = 0;
             _terms.Clear();
             _threadTitle = null;
@@ -503,6 +514,7 @@ public sealed partial class MediaPage
     {
         if (term.Field == MediaFilterField.Name)
         {
+            _textScope = MediaTextFields.All; // the scope belongs to the text it chose the fields for
             _nameFilter.Text = string.Empty;
             FilterEdited(); // Text changes reach the filter after a dispatcher turn; the chip goes at once.
             return;
@@ -639,6 +651,9 @@ public sealed partial class MediaPage
         _filterRetry.Content = Texts.T("media.filter.retry");
         AutomationProperties.SetName(_filterRetry, Texts.T("media.filter.retry"));
         _queryAliases = null; // the aliases follow the language
+        _queryScopeAliases = null;
+        UpdateScopeChip();
+        RefreshBreakdown();
         _searchScope.FieldHelpNote = Texts.T("media.query.tip").Replace("\n", " "); // the tooltip lists the syntax in lines; the help text reads as one sentence run
         ClearQueryHint();
         _searchCarryOffer.Localize();
@@ -704,6 +719,7 @@ public sealed partial class MediaPage
         return _searchCarryOffer.Carry(source, query, _nameFilter.Text ?? string.Empty, () =>
         {
             if (_lifetime.IsCancellationRequested) return;
+            _textScope = MediaTextFields.All; // a carried search is a new search: it looks everywhere
             _nameFilter.Text = query;
             _nameFilter.FlushQuery();
             FocusSearch();
@@ -717,7 +733,8 @@ public sealed partial class MediaPage
     private void UpdateSearchResult()
     {
         _nameFilter.Debounce = (_snapshot?.Entries.Count ?? 0) > SearchImmediateEntries ? NameFilterDebounce : TimeSpan.Zero;
-        _nameFilter.ResultText = string.IsNullOrEmpty(_nameFilter.Text) || _filterFailed || _snapshot == null ? null : Texts.Count("search.count", _shown.Count);
+        _nameFilter.ResultText = !MediaLibraryFilter.HasText(_nameFilter.Text) || _filterFailed || _snapshot == null ? null : Texts.Count("search.count", _shown.Count);
+        RefreshBreakdown(); // the row where the text was found follows the same text and the same settled result
     }
 
     private static void SetKeys(ComboBox combo, params string[] keys) => SetTexts(combo, keys.Select(key => Texts.T(key)).ToArray());

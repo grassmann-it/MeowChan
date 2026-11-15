@@ -13,6 +13,7 @@ internal static class UnifiedSearchCatalog
         ("search.scope.filename", "File name", "Dateiname"),
         ("search.scope.hash", "SHA-256", "SHA-256"),
         ("search.scope.media", "All", "Alle"),
+        ("search.scope.media.some", "{0} fields", "{0} Felder"), // the Media chip while the text is searched in several, not all, fields
         ("search.scope.filename.placeholder", "Captured file name…", "Erfasster Dateiname…"),
         ("search.scope.hash.placeholder", "SHA-256 (64 hex characters)…", "SHA-256 (64 Hexzeichen)…"),
         ("search.scope.filename.hint", "Searches captured original file names in the whole local archive. Enter shows the matches.", "Durchsucht erfasste Originaldateinamen im ganzen lokalen Archiv. Enter zeigt die Treffer."),

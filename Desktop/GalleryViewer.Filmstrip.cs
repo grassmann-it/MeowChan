@@ -73,6 +73,7 @@ internal sealed partial class GalleryViewer
         CommandBindings.BindExisting(_filmstripToggle, "gallery.filmstrip-toggle");
         _filmstripToggle.Click += (_, _) => ToggleFilmstrip();
         _filmstrip.TileActivated += OnFilmstripTileActivated;
+        _filmstrip.TileContextRequested += OnFilmstripTileContextRequested;
         _filmstrip.ExitRequested += () => { FocusGallerySurface(); _keyboardInteraction = false; };
         _compactPosition.PropertyChanged += (_, e) =>
         { if (e.Property == TextBlock.TextProperty) RefreshFilmstripPosition(); };
@@ -300,6 +301,15 @@ internal sealed partial class GalleryViewer
         if (!(delta < 0 ? _previous.IsEnabled : _next.IsEnabled)) return;
         _navigationPending = true; // No old-media timer while the shell resolves the entry.
         MoveRequested?.Invoke(delta);
+    }
+
+    // A right-click on a tile: the media menu of that tile's medium (the shown one's own menu when it is the shown tile). The menu belongs to the
+    // medium that is shown now; another navigation retires it.
+    private void OnFilmstripTileContextRequested(int index)
+    {
+        if (_terminalRetirement || _viewerInteractionStopped || !_interactionAvailable || _filmstrip.EntryAt(index) is not { } entry) return;
+        if (index == _filmstrip.CurrentIndex) ShowMediaMenu();
+        else ShowMediaMenu(entry);
     }
 
     private void RetireFilmstrip()

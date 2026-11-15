@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -75,16 +76,22 @@ internal sealed partial class GalleryViewer
         };
     }
 
-    private void ShowMediaMenu()
+    /// <summary>
+    /// Opens the media menu. Without <paramref name="tile"/> it is the shown medium's; with one (a right-click on a filmstrip tile) it is that tile's: the
+    /// same composed actions on its entry, without the three that read or change the shown medium's own state (favorite, rating, tags), and without a
+    /// playback group. It stays valid until the next navigation, like the shown medium's.
+    /// </summary>
+    private void ShowMediaMenu(GalleryEntry? tile = null)
     {
         HoldSlideshowAdvance();
         RevealOverlayControls();
-        if (_entry == null) return;
-        GalleryEntry entry = _entry;
+        if ((tile ?? _entry) is not { } entry) return;
+        bool shown = tile == null;
         long navigation = _navigationId;
         MediaMenuModel model = MediaMenuComposition.Compose(MediaMenuFactsFor(entry));
+        if (!shown) model = model with { Items = model.Items.Where(item => item.Action is not (MediaMenuAction.Favorite or MediaMenuAction.Rating or MediaMenuAction.Tags)).ToArray() };
         MediaMenuSession session = new(model.Surface, model.Target, () => !_terminalRetirement && navigation == _navigationId
-            && _entry is { } current && MediaMenuTarget.Of(current) == model.Target);
+            && (!shown || _entry is { } current && MediaMenuTarget.Of(current) == model.Target));
         Dictionary<MediaMenuAction, Func<Task>> handlers = new()
         {
             [MediaMenuAction.Favorite] = Sync(() => FavoriteToggleRequested?.Invoke(entry)),
@@ -100,7 +107,7 @@ internal sealed partial class GalleryViewer
         };
         Func<Func<Task>, Task> run = action => action();
         // The same groups as the reader's menu: the playback group of a shown video on top, the post bookmark entry below the common section.
-        GalleryVideoPlayer? video = _entry?.Kind == SavedMediaKind.Video ? _video : null;
+        GalleryVideoPlayer? video = shown && _entry?.Kind == SavedMediaKind.Video ? _video : null;
         IReadOnlyList<Control>? playback = video == null ? null : MediaMenuBuilder.PlaybackGroup(session,
             ReaderPlaybackMenu.GalleryExtras.Playback(true, CanUseVideoTransport, video.IsPlaybackRequested, video.Muted, video.LoopEnabled,
                 video.HasAudio, video.CanToggleLoopNow),
@@ -112,7 +119,7 @@ internal sealed partial class GalleryViewer
         // The "Rating" submenu rates the frozen entry (the medium the menu opened on), never the marked media of the tag panel.
         ContextMenu menu = MediaMenuBuilder.Build(session, model, handlers, run, context,
             text => MenuExplanationRequested?.Invoke(text), playback, value => Sync(() => RatingSetRequested?.Invoke(entry, value))());
-        Control owner = _nativeOverlayActive ? _nativeVideoOverlay : _viewport;
+        Control owner = !shown ? _filmstrip : _nativeOverlayActive ? _nativeVideoOverlay : _viewport;
         menu.Opened += (_, _) => RefreshPlaybackControls();
         menu.Closed += (_, _) => RefreshPlaybackControls();
         _mediaMenuPresenter.Show(menu, session, owner, attachToOrigin: true, fallbackFocus: FocusGallerySurface);

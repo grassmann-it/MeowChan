@@ -80,6 +80,7 @@ public partial class MainWindow
             ExportOriginals = ExportMediaLibraryOriginalsAsync,
             AddToTagQueue = AddMediaToTagQueueAsync,
             AddToTagQueueInGroup = AddMediaToTagQueueInGroupAsync,
+            RemoveFromTagQueue = keys => TagQueueActions.RemoveAsync(_session, keys),
             TagQueueConfirmAboveSource = () => _session.Config.TagQueueConfirmAbove,
             // MP1/MP3: the queue as the tiles, the status line and the queue term see it, and the two ways to tagging under More.
             ReadTagQueue = _session.GetTagQueue,
