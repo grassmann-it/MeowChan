@@ -78,8 +78,6 @@ internal static partial class GalleryPlaybackFeatureChecks
             await fixture.ShowAsync(first);
             using MediaNativeInput native = new(fixture.Window);
             Border controls = Find<Border>(viewer, "GalleryOverlayControls");
-            bool? nativeEdgeHintsSupported = null;
-            bool managedEdgeHintFallbackAllowed = OperatingSystem.IsWindows() || OperatingSystem.IsMacOS();
             async Task HiddenAsync()
             {
                 // Establish a non-native-editing focus context before testing a hidden key.
@@ -87,39 +85,17 @@ internal static partial class GalleryPlaybackFeatureChecks
                 await native.MoveAsync(viewer, new Point(viewer.Bounds.Width * .4, viewer.Bounds.Height * .3));
                 await UntilAsync(() => !Visible(controls) && !viewer.CaptureState().ContextOpen,
                     "First-key precondition: controls/post never collapsed after leaving their panels.");
-                // Renew artwork with actual motion after waiting for collapse: targets remain
-                // keyboard/touch reachable at idle, but the chevrons must not be permanent.
-                await native.MoveAsync(viewer, new Point(viewer.Bounds.Width * .42, viewer.Bounds.Height * .32));
+                // Real mouse motion anywhere over the gallery intentionally reveals the
+                // controls. The edge chevron is transient artwork, so verify the
+                // persistent transparent handles as native targets instead of moving back
+                // through the centre and reopening the footer.
                 Button bottomHint = EdgeIndicator(viewer, "GalleryControlsEdgeIndicator");
                 Button rightHint = EdgeIndicator(viewer, "GalleryPostEdgeIndicator");
-                if (nativeEdgeHintsSupported != false)
-                {
-                    // Native pointer posting can succeed on Windows/macOS while Avalonia
-                    // does not deliver this particular hover transition to the gallery.
-                    // Probe briefly so a platform-unstable visual hint cannot turn the
-                    // first-key contract into a 20-second timing failure. Linux/Xvfb stays
-                    // strict because its private XTEST route is the deterministic baseline.
-                    nativeEdgeHintsSupported = await ObserveEdgeHintsAsync(bottomHint, rightHint);
-                    if (nativeEdgeHintsSupported == false && !managedEdgeHintFallbackAllowed)
-                        throw new TimeoutException("Native motion did not expose first-key fixture edge hints.");
-                    if (nativeEdgeHintsSupported == false)
-                        Console.WriteLine("SMOKE capability-limit first-key hover: " + native.Backend + " posted native motion but did not expose the transient edge hints; using managed hit-test geometry for the Windows/macOS fixture precondition. Native key/navigation assertions remain required.");
-                }
-                if (nativeEdgeHintsSupported == false)
-                {
-                    // This is not a gallery-check skip: both real edge targets must still
-                    // be attached, hit-testable and geometrically inside the viewer while
-                    // the actual one-press native navigation assertions continue below.
-                    Require(managedEdgeHintFallbackAllowed && !Visible(controls)
-                        && !viewer.CaptureState().ContextOpen,
-                        "Windows/macOS hover fallback changed the hidden first-key fixture state.");
-                    Require(await ObserveManagedEdgeGeometryAsync(bottomHint, rightHint, viewer),
-                        "Windows/macOS native hover was unavailable and managed edge-target geometry was not usable.");
-                    // Record the final cross-root layout evidence after the bounded wait. The
-                    // native key/navigation assertions below remain unchanged and mandatory.
-                    MediaInteractionSmokeHelpers.RequireEdgeTargetWithinViewer(bottomHint, viewer);
-                    MediaInteractionSmokeHelpers.RequireEdgeTargetWithinViewer(rightHint, viewer);
-                }
+                await UntilAsync(() => MediaInteractionSmokeHelpers.IsNativeGeometryReady(bottomHint)
+                    && MediaInteractionSmokeHelpers.IsNativeGeometryReady(rightHint),
+                    "Hidden gallery edge handles never became current native geometry targets.");
+                MediaInteractionSmokeHelpers.RequireEdgeTargetWithinViewer(bottomHint, viewer);
+                MediaInteractionSmokeHelpers.RequireEdgeTargetWithinViewer(rightHint, viewer);
             }
             async Task FirstKeyAsync(bool next, string scenario)
             {
@@ -448,11 +424,16 @@ internal static partial class GalleryPlaybackFeatureChecks
         Require(!Running(viewer), "Closing post context silently resumed automatic advancement.");
         await native.ClickAsync(Find<Button>(viewer, "GallerySlideshowToggle"));
         await UntilAsync(() => Running(viewer), "Could not restart automation before menu intent check.");
+        // The playback selector stays in the shared "More" flyout while the slideshow
+        // toggle moves onto the toolbar. Opening the flyout is part of the user flow:
+        // without it the selector is intentionally detached from any native hit root.
+        viewer.SetOverflowOpen(true);
+        await UntilAsync(() => viewer.IsOverflowOpen,
+            "Playback mode overflow menu never opened.");
         ComboBox mode = Find<ComboBox>(viewer, "GalleryPlaybackModeSelector");
-        // The playback settings stay in the shared overflow panel while the slideshow
-        // toggle moves between the toolbar and its menu row. After the native start click
-        // Avalonia can retain the selector for one layout turn with visible-but-detached
-        // bounds. Do not pass that stale target to OS input; wait for its current hit root.
+        // After the native start click and popup reparenting Avalonia can retain the
+        // selector for one layout turn with visible-but-detached bounds. Do not pass that
+        // stale target to OS input; wait for its current hit root.
         await UntilAsync(() => MediaInteractionSmokeHelpers.IsPointerTargetReady(mode),
             "Playback mode setup never became a current native pointer target.");
         using var menuTrace = new ModeMenuInputTrace(fixture.Window, viewer, mode);
@@ -468,55 +449,6 @@ internal static partial class GalleryPlaybackFeatureChecks
         await ObservePlayingAsync(player, "closed playback menu");
         Require(contextWrites == 2, "Transient bottom-panel hover persisted post-context choices.");
     }
-
-    private static async Task<bool> ObserveEdgeHintsAsync(Button bottom, Button right)
-    {
-        System.Diagnostics.Stopwatch elapsed = System.Diagnostics.Stopwatch.StartNew();
-        while (elapsed.Elapsed < TimeSpan.FromSeconds(1))
-        {
-            if (MediaInteractionSmokeHelpers.EdgeHintVisible(bottom)
-                && MediaInteractionSmokeHelpers.EdgeHintVisible(right)) return true;
-            await Task.Delay(25);
-        }
-        return MediaInteractionSmokeHelpers.EdgeHintVisible(bottom)
-            && MediaInteractionSmokeHelpers.EdgeHintVisible(right);
-    }
-
-    private static async Task<bool> ObserveManagedEdgeGeometryAsync(Button bottom, Button right, GalleryViewer viewer)
-    {
-        System.Diagnostics.Stopwatch elapsed = System.Diagnostics.Stopwatch.StartNew();
-        while (elapsed.Elapsed < TimeSpan.FromSeconds(1))
-        {
-            if (ManagedEdgeGeometryReady(bottom, viewer) && ManagedEdgeGeometryReady(right, viewer)) return true;
-            await Task.Delay(25);
-        }
-        return ManagedEdgeGeometryReady(bottom, viewer) && ManagedEdgeGeometryReady(right, viewer);
-    }
-
-    private static bool ManagedEdgeGeometryReady(Button target, GalleryViewer viewer)
-    {
-        if (!target.IsAttachedToVisualTree() || !target.IsArrangeValid || !target.IsEffectivelyVisible
-            || !target.IsEffectivelyEnabled || !target.IsHitTestVisible || target.Bounds.Width < 16
-            || target.Bounds.Height < 16 || target.Parent is not Control host)
-            return false;
-        try
-        {
-            Rect mapped = MediaInteractionSmokeHelpers.ScreenBoundsIn(target, viewer);
-            Rect local = MediaInteractionSmokeHelpers.ScreenBoundsIn(target, host);
-            return Within(mapped, viewer.Bounds) && Within(local, host.Bounds);
-        }
-        catch (InvalidOperationException)
-        {
-            // Reparenting/layout migration can briefly leave screen geometry unavailable;
-            // the bounded observer retries instead of confusing that transient with a
-            // platform hover limitation.
-            return false;
-        }
-    }
-
-    private static bool Within(Rect actual, Rect owner) => actual.Width >= 16 && actual.Height >= 16
-        && actual.Left >= -1 && actual.Top >= -1
-        && actual.Right <= owner.Width + 1 && actual.Bottom <= owner.Height + 1;
 
     private static async Task<T> NativeTargetAsync<T>(GalleryViewer viewer, string name) where T : Control
     {

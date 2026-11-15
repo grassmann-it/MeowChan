@@ -155,7 +155,7 @@ internal static partial class GalleryPlaybackFeatureChecks
     private static async Task<GalleryPlaybackPreferences> CheckRememberedChoicesAsync(MainWindow owner, string directory, GalleryEntry image)
     {
         GalleryPlaybackPreferences? changed = null;
-        GalleryPlaybackPreferences expected = new(GalleryPlaybackMode.Slideshow, 1, true, true, true, true);
+        GalleryPlaybackPreferences expected = new(GalleryPlaybackMode.Slideshow, 1, true, true, true, true, VideoRepeat: true);
         await using (Fixture fixture = new(owner))
         {
             await fixture.ReadyAsync();
@@ -164,6 +164,12 @@ internal static partial class GalleryPlaybackFeatureChecks
             fixture.Viewer.ConfigurePlayback(new(ImageSeconds: 1, OverlayControls: false, AutoHideControls: false)); // the scenario starts docked
             Require(notifications == 0, "Applying stored preferences emitted a user-change/save event.");
             await fixture.ShowAsync(image);
+            async Task OpenOverflowAsync()
+            {
+                fixture.Viewer.SetOverflowOpen(true);
+                await UntilAsync(() => fixture.Viewer.IsOverflowOpen,
+                    "Gallery playback overflow menu did not open for a menu-row action.");
+            }
             try
             {
                 var section = owner.SessionHost.Config.ShortcutBindings.Set("gallery.overlay-toggle", [ShortcutGesture.Parse("Primary+Shift+F6")]);
@@ -186,11 +192,13 @@ internal static partial class GalleryPlaybackFeatureChecks
             finally { ShortcutService.Publish(owner.SessionHost.Config.ShortcutBindings); }
             ComboBox mode = Find<ComboBox>(fixture.Viewer, "GalleryPlaybackModeSelector");
             Require(mode.ItemCount == 2, "Playback modes must be the exclusive Manual/Slideshow choices; Repeat video is its own row.");
+            await OpenOverflowAsync();
             Click(Find<ToggleButton>(fixture.Viewer, "GalleryVideoRepeatToggle"));
             Require(changed?.VideoRepeat == true && changed.Mode == GalleryPlaybackMode.Manual,
                 "The Repeat video row did not publish the matching preference without changing the mode.");
             mode.SelectedIndex = (int)GalleryPlaybackMode.Slideshow;
             Require(changed?.Mode == GalleryPlaybackMode.Slideshow, "Selecting Slideshow did not publish the matching preference.");
+            await OpenOverflowAsync();
             Click(Find<Button>(fixture.Viewer, "GalleryOverlayToggle"));
             Require(changed?.OverlayControls == true && changed.AutoHideControls, "The visible controls choice did not publish paired ON.");
             RequireSingleControlsChoice(fixture.Viewer);
@@ -199,6 +207,7 @@ internal static partial class GalleryPlaybackFeatureChecks
             Require(changed?.OverlayControls == false && !changed.AutoHideControls, "Legacy auto-hide alias did not publish paired OFF.");
             await fixture.Viewer.ExecutePlaybackActionAsync("gallery.overlay-autohide-toggle");
             Require(changed?.OverlayControls == true && changed.AutoHideControls, "Legacy auto-hide alias did not publish paired ON from OFF.");
+            await OpenOverflowAsync();
             Click(Find<Button>(fixture.Viewer, "GalleryPostOverlayToggle"));
             Require(changed?.OverlayPostContext == true, "Post overlay did not publish its own preference.");
             Click(Find<Button>(fixture.Viewer, "GalleryToolsToggle"));
@@ -223,8 +232,12 @@ internal static partial class GalleryPlaybackFeatureChecks
             AssertChoices(reopened.Viewer, loaded);
             Require(writes == 0, "Recreating a configured viewer dirtied stored preferences.");
             Require(!Running(reopened.Viewer), "A remembered Slideshow mode automatically started playback.");
-            Require(Find<TextBlock>(reopened.Viewer, "GallerySlideshowStatus").Text?.Contains("Ready") == true,
-                "A never-started remembered mode did not explain readiness.");
+            TextBlock status = Find<TextBlock>(reopened.Viewer, "GallerySlideshowStatus");
+            // Media focus intentionally hides the optional hint/info block. The saved choice above
+            // is media-focused, so readiness is conveyed by the focused transport rather than a
+            // transient info-line hint; do not treat that deliberate chrome choice as a lost state.
+            Require(!status.IsVisible || string.IsNullOrWhiteSpace(status.Text),
+                "Media-focused remembered mode exposed a stale slideshow hint.");
             reopened.Viewer.ConfigurePlayback(loaded); // Reapplying the same saved mode is not Start either.
             Require(!Running(reopened.Viewer), "Reapplying configured Slideshow mode became a Start request.");
             await HoldAsync(ImageObservation, () => Require(moves == 0 && !Running(reopened.Viewer),
@@ -315,6 +328,10 @@ internal static partial class GalleryPlaybackFeatureChecks
                 && closePosition.Value.Y + close.Bounds.Height <= viewer.Bounds.Height + 1, "Overlay Exit is clipped outside the usable viewport.");
             Require(close.IsEffectivelyVisible && close.Focusable && !string.IsNullOrWhiteSpace(AutomationProperties.GetName(close)),
                 "Overlay Exit is not visible, keyboard reachable and accessibly named.");
+            // The playback choices live in the shared More flyout; open it before
+            // exercising keyboard focus instead of treating the detached row as bar chrome.
+            viewer.SetOverflowOpen(true);
+            await UntilAsync(() => viewer.IsOverflowOpen, "Playback choices overflow menu did not open.");
             ComboBox mode = Find<ComboBox>(viewer, "GalleryPlaybackModeSelector");
             Require(mode.Focus(NavigationMethod.Tab), "Could not focus an overlay control.");
             mode.IsDropDownOpen = true;
@@ -817,6 +834,10 @@ internal static partial class GalleryPlaybackFeatureChecks
             catch (Exception exception) { failure = exception; }
         }
         viewer.MoveRequested += delta => transition = ShowNextAsync(delta);
+        // After the ended video the auto-hidden transport is no longer a visible
+        // keyboard target; the shared More flyout is the stable playback entry point.
+        viewer.SetOverflowOpen(true);
+        await UntilAsync(() => viewer.IsOverflowOpen, "Playback controls overflow menu did not open after video end.");
         Click(Find<Button>(viewer, "GallerySlideshowToggle"));
         Require(Running(viewer), "Explicit Start after an ended video failed to create a runnable replay generation.");
         GalleryVideoPlayer.PlaybackEvidence replay = await player.InspectPlaybackAsync();

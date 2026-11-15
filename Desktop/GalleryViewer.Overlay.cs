@@ -237,11 +237,13 @@ internal sealed partial class GalleryViewer
         // Otherwise its pending click/tap could land on the media or transport below.
         bool controls = OverlayControlsEffective && (_overlayHidden || _pointerOnControlsIndicator);
         bool post = PostOverlayEffective && (!_contextOpen || _pointerOnPostIndicator) && _entry != null;
-        UpdateEdgeIndicatorArtwork();
         bool controlsHadFocus = _controlsEdgeIndicator.IsKeyboardFocusWithin;
         bool postHadFocus = _postEdgeIndicator.IsKeyboardFocusWithin;
         _controlsEdgeIndicator.IsVisible = controls;
         _postEdgeIndicator.IsVisible = post;
+        // Apply artwork and hit ownership after visibility is assigned: the transparent
+        // handle remains a real target when its chevron has already expired.
+        UpdateEdgeIndicatorArtwork();
         double transportInset = OverlayControlsEffective && _overlayFooter.IsVisible ? _overlayFooter.Bounds.Height + 8
             : !_nativeOverlayActive && _entry?.Kind == SavedMediaKind.Video ? _video?.TransportBottomInset ?? 0 : 0;
         _postEdgeIndicator.Margin = new Thickness(4, 4, 4, transportInset + 4);
@@ -265,9 +267,12 @@ internal sealed partial class GalleryViewer
             bool shown = GalleryEdgeMotion.IsVisible(age, indicator.IsKeyboardFocusWithin);
             if (indicator.GetVisualChildren().OfType<Avalonia.Controls.Shapes.Path>().FirstOrDefault() is { } chevron)
                 chevron.Opacity = shown ? 1 : 0;
-            // A hint that is not drawn does not take clicks either: they reach the media. The handle stays a keyboard stop (focus draws
-            // it) and stays hit-testable under a pointer that rests on it, so a pending click does not fall through while it reveals.
-            indicator.IsHitTestVisible = shown || (ReferenceEquals(indicator, _postEdgeIndicator) ? _pointerOnPostIndicator : _pointerOnControlsIndicator);
+            // Keep the transparent 44-DIP handle hit-testable for touch and native
+            // pointer entry even after its transient chevron has faded. Otherwise an
+            // idle edge has no way to renew the hint or activate it without first
+            // finding a pixel that happens to be drawn.
+            indicator.IsHitTestVisible = indicator.IsVisible || shown
+                || (ReferenceEquals(indicator, _postEdgeIndicator) ? _pointerOnPostIndicator : _pointerOnControlsIndicator);
         }
     }
 
