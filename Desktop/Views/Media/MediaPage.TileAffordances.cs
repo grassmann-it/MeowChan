@@ -23,7 +23,7 @@ public sealed partial class MediaPage
     private async Task RunTileTagEditorAsync(MediaLibraryTileRow row, Control anchor)
     {
         bool Current() => !_lifetime.IsCancellationRequested && _building == null && IsEffectivelyVisible;
-        try { await OpenTagsAsync(row.Entry, row, anchor, Current); }
+        try { await OpenRateAndTagAsync(row.Entry, row, anchor, Current, focusRating: false); }
         catch (Exception error) when (UnhandledErrors.TryRecover(error, "media.tile.tags")) { /* Logged and shown. */ }
     }
 
