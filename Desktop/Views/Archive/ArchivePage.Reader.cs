@@ -264,19 +264,39 @@ public partial class ArchivePage
         // scroll viewer: focusing a card must not scroll the list (FocusPostAsync aligns it), so it is set on the parts themselves.
         posts.TemplateApplied += (_, _) => KeepFocusFromScrolling(posts);
         KeepFocusFromScrolling(posts);
+        // The automatic scroll stays off for jumps and the pointer; a control inside a realized card that the keyboard focuses
+        // (Tab to a link below the view) is brought in explicitly, so keyboard users never lose sight of the focus.
+        posts.AddHandler(GotFocusEvent, OnReaderPostsGotFocus, RoutingStrategies.Bubble);
+    }
+
+    private void OnReaderPostsGotFocus(object? sender, FocusChangedEventArgs e)
+    {
+        if (!_readerScrollOwner.FocusMayScroll(e.NavigationMethod, _readerInteractionRevision)
+            || e.Source is not Control source || source is ListBoxItem) return;
+        // The reader moves the list itself now: a jump or a pending re-fit stands back (they end at a revision change).
+        ++_readerInteractionRevision;
+        source.BringIntoView();
     }
 
     private static void KeepFocusFromScrolling(ListBox posts)
     {
         if (posts.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault() is not { } scroll) return;
         scroll.BringIntoViewOnFocusChange = false;
-        void Presenter()
-        {
-            if (scroll.GetVisualDescendants().OfType<ScrollContentPresenter>().FirstOrDefault() is { } presenter)
-                ScrollViewer.SetBringIntoViewOnFocusChange(presenter, false);
-        }
-        scroll.TemplateApplied += (_, _) => Presenter();
-        Presenter();
+        // A named handler: this runs for every template application of the list, and a lambda would add one more each time.
+        scroll.TemplateApplied -= OnReaderScrollTemplateApplied;
+        scroll.TemplateApplied += OnReaderScrollTemplateApplied;
+        KeepPresenterFromScrolling(scroll);
+    }
+
+    private static void OnReaderScrollTemplateApplied(object? sender, TemplateAppliedEventArgs e)
+    {
+        if (sender is ScrollViewer scroll) KeepPresenterFromScrolling(scroll);
+    }
+
+    private static void KeepPresenterFromScrolling(ScrollViewer scroll)
+    {
+        if (scroll.GetVisualDescendants().OfType<ScrollContentPresenter>().FirstOrDefault() is { } presenter)
+            ScrollViewer.SetBringIntoViewOnFocusChange(presenter, false);
     }
     internal bool ReaderShowsPosts => _showReader && ArchiveContentTabs.SelectedIndex == 0;
     internal Action<Control?>? OpenReaderRequested { get; set; }
@@ -378,8 +398,6 @@ public partial class ArchivePage
         // This jump owns the scroll until it settled (or was superseded): ShowPost only selects, the selection anchor
         // (AnchorFocusedCard) and the frame re-fit (OnFocusedFrameChanged) stand back, and the passes below are the only offset writes.
         using ReaderScrollOwner.Jump jump = _readerScrollOwner.BeginJump(_readerInteractionRevision);
-        ShowPost(postId, null, reveal: false, scroll: false);
-        UpdateReaderNavigation();
         ListBox posts = ArchivePosts;
         // A jump the user did not ask to restore ends as soon as they take over: a wheel turn, a press or a paging key
         // (each bumps the revision) must not be pulled back by the next pass.
@@ -387,7 +405,16 @@ public partial class ArchivePage
         bool IsCurrent() => !_ended && focusRequest == _readerFocusRequest && request == _contentRequest
             && _thread?.Summary.Id == threadId
             && interactionBaseline == _readerInteractionRevision;
-        if (focusIntent != null && BeforePassiveReaderFocusAsync is { } beforeFocus) await beforeFocus();
+        if (focusIntent != null && BeforePassiveReaderFocusAsync is { } beforeFocus)
+        {
+            await beforeFocus();
+            if (!IsCurrent()) return;
+        }
+        // The selection and the first alignment share one dispatcher turn: a layout (and a rendered frame) between them would show
+        // the grown target card with the presenter's scroll anchoring applied (the old card is held, the target jumps out of view),
+        // and the alignment below would then bring it back: a bounce. Here that layout runs inside UpdateLayout, unrendered.
+        ShowPost(postId, null, reveal: false, scroll: false);
+        UpdateReaderNavigation();
         // ScrollIntoView realizes a virtualized target. Its measured height can
         // replace an estimate on the next layout; retry only while the request
         // remains current, and correct offsets only after layout has settled.
@@ -408,13 +435,23 @@ public partial class ArchivePage
         void Finish(Control? container)
         {
             if (container != null) FocusTarget(container);
-            // A later frame change of the aligned card holds it here (HoldFocusedCard) instead of scrolling it anew.
+            // A later frame change of the aligned card holds it here (HoldFocusedCard) instead of scrolling it anew: its top edge, or
+            // its centre while the enlarged focused media makes the jump centre the card. The window of that re-fit starts now: the
+            // decoded pictures of a real thread arrive after the jump, not after the selection.
             RememberFocusedCardTop();
+            _alignedCardItem = FocusedMediaEnlarged && container != null ? posts.SelectedItem : null;
+            if (_alignedCardItem != null)
+                _readerScrollOwner.OpenFitWindow(Environment.TickCount64, _readerInteractionRevision, FocusFitWindowMilliseconds);
             ReaderPositionChanged(deliberate: !interactionRevision.HasValue);
         }
+        int syncPasses = 0;
         for (int pass = 0; pass < 8; pass++)
         {
-            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Loaded);
+            // Pass 0 runs in the turn of the selection (above); the later passes re-measure after the layouts that followed. A pass
+            // that just moved the list continues in the same turn (a few times at most): the virtualizer's estimates around a far
+            // target settle in the layouts of this turn, and no frame is rendered between a wrong estimate and its correction.
+            if (pass > 0 && syncPasses == 0) await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Loaded);
+            else if (syncPasses > 0) --syncPasses;
             if (!IsCurrent()) return;
             ArchivePostRow? row = posts.ItemsSource?.Cast<ArchivePostRow>().FirstOrDefault(post => post.Id == postId);
             if (row == null) return;
@@ -438,14 +475,19 @@ public partial class ArchivePage
             ScrollViewer? scroll = posts.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
             ScrollContentPresenter? viewport = scroll?.GetVisualDescendants().OfType<ScrollContentPresenter>().FirstOrDefault();
             if (viewport == null || container.TranslatePoint(default, viewport) is not Point position) continue;
-            // The post that carries the reading line scrolls to just below the line, which sits above its card.
-            double offset = Math.Clamp(scroll!.Offset.Y + position.Y - ReaderMediaFit.AlignedTop - (row.HasUnreadLine ? ReaderUnreadLineHost.Reach : 0), 0,
-                Math.Max(0, scroll.Extent.Height - scroll.Viewport.Height));
+            // The post that carries the reading line scrolls to just below the line, which sits above its card. With the focused media
+            // enlarged the card is centred in the viewport instead (ReaderMediaFit.JumpOffset), and it stays centred when its size
+            // changes late (HoldFocusedCard).
+            double offset = ReaderMediaFit.JumpOffset(scroll!.Offset.Y, position.Y, container.Bounds.Height, scroll.Viewport.Height,
+                scroll.Extent.Height, row.HasUnreadLine ? ReaderUnreadLineHost.Reach : 0, FocusedMediaEnlarged);
             if (Math.Abs(offset - scroll.Offset.Y) > 1)
             {
                 scroll.Offset = new Vector(scroll.Offset.X, offset);
+                // Laid out in this turn: the anchoring of the layout after the write also stays unrendered.
+                posts.UpdateLayout();
                 requestedOffset = offset;
                 confirmed = false;
+                syncPasses = pass < 3 ? 1 : 0;
                 continue;
             }
             if (!confirmed && pass < 7)

@@ -152,6 +152,9 @@ internal static class ReaderStabilityChecks
         Require(Math.Abs(jumpScroll.Offset.Y - afterWheel) <= 1,
             $"A jump kept scrolling after the user turned the wheel (offset {afterWheel} became {jumpScroll.Offset.Y}).");
 
+        // Review 2026-11-15: a step between posts shows no intermediate frame (the presenter's scroll anchoring), and Tab scrolls.
+        await ReaderScrollFrameChecks.RunAsync(window, page, posts);
+
         // Native scopes must still own their arrows in the detached reader.
         TabControl tabs = page.FindControl<TabControl>("ArchiveContentTabs")!;
         TabItem header = tabs.GetVisualDescendants().OfType<TabItem>().First();
