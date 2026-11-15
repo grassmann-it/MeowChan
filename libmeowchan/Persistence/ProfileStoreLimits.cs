@@ -7,7 +7,7 @@ namespace MeowChan.Persistence;
 /// <summary>What a refused write ran into; the desktop turns it into a localized sentence that names the setting.</summary>
 internal enum PrivateStoreLimitKind
 {
-    FavoriteEntries, FavoriteFile, Bookmarks, SavedSearches, ReaderGroups, PostFilterRules, HiddenPosts, TagQueueEntries, TagQueueFile
+    FavoriteEntries, FavoriteFile, Bookmarks, SavedSearches, ReaderGroups, PostFilterRules, HiddenPosts, TagQueueEntries, TagQueueFile, TagQueueGroups, TagQueueGroupName
 }
 
 /// <summary>
@@ -98,6 +98,13 @@ internal sealed class ProfileStoreLimits
     internal const int DefaultTagQueueHistory = 500;
     internal const int MinimumTagQueueHistory = 0;
     internal const int TagQueueHistoryCeiling = 20_000;
+    /// <summary>Tagging groups. Default 50; the count and name length are configurable, while these are fixed read ceilings.</summary>
+    internal const int DefaultTagQueueGroups = 50;
+    internal const int MinimumTagQueueGroups = 1;
+    internal const int TagQueueGroupCeiling = 500;
+    internal const int DefaultTagQueueGroupNameCharacters = 64;
+    internal const int MinimumTagQueueGroupNameCharacters = 16;
+    internal const int TagQueueGroupNameCeiling = 256;
 
     private int _favoriteEntries = DefaultFavoriteEntries;
     private long _favoriteFileBytes = DefaultFavoriteFileBytes;
@@ -109,6 +116,8 @@ internal sealed class ProfileStoreLimits
     private int _tagQueueEntries = DefaultTagQueueEntries;
     private long _tagQueueFileBytes = DefaultTagQueueFileBytes;
     private int _tagQueueHistory = DefaultTagQueueHistory;
+    private int _tagQueueGroups = DefaultTagQueueGroups;
+    private int _tagQueueGroupNameCharacters = DefaultTagQueueGroupNameCharacters;
 
     /// <summary>Most entries a write may leave in a favorite or rating list; a new entry at or above it is refused.</summary>
     internal int FavoriteEntries
@@ -178,6 +187,20 @@ internal sealed class ProfileStoreLimits
     {
         get => Volatile.Read(ref _tagQueueHistory);
         set => Volatile.Write(ref _tagQueueHistory, Checked(value, MinimumTagQueueHistory, TagQueueHistoryCeiling));
+    }
+
+    /// <summary>Most named groups a write may leave in the tagging queue.</summary>
+    internal int TagQueueGroups
+    {
+        get => Volatile.Read(ref _tagQueueGroups);
+        set => Volatile.Write(ref _tagQueueGroups, Checked(value, MinimumTagQueueGroups, TagQueueGroupCeiling));
+    }
+
+    /// <summary>Maximum configured length of a newly created or renamed group. Existing longer names remain readable.</summary>
+    internal int TagQueueGroupNameCharacters
+    {
+        get => Volatile.Read(ref _tagQueueGroupNameCharacters);
+        set => Volatile.Write(ref _tagQueueGroupNameCharacters, Checked(value, MinimumTagQueueGroupNameCharacters, TagQueueGroupNameCeiling));
     }
 
     /// <summary>Current size of a file, or 0 when it is missing or unreadable; a write that does not grow a file is never refused.</summary>

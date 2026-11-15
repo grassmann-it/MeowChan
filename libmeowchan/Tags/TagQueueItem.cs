@@ -27,11 +27,12 @@ internal readonly record struct TagQueueKey(ResourceId Thread, string Directory,
 /// </summary>
 internal sealed record TagQueueItem(ResourceId Thread, string Directory, string AssetId, string Sha256, long Length, string MediaId,
     string Variant, string? PostId, int? Position, string? ImportItem, string? BooruPost, bool Historical, string? LocalSlot,
-    string Name, SavedMediaKind Kind, TagQueueState State, DateTimeOffset AddedAtUtc, DateTimeOffset? DoneAtUtc = null)
+    string Name, SavedMediaKind Kind, TagQueueState State, DateTimeOffset AddedAtUtc, DateTimeOffset? DoneAtUtc = null, string? GroupId = null)
 {
     internal const int MaximumNameCharacters = 256;
     internal const int MaximumPathCharacters = 1_024;
     internal const int MaximumTokenCharacters = 256;
+    internal const int MaximumGroupIdCharacters = 64;
 
     internal TagQueueKey Key => new(Thread, Directory, AssetId, PostId, Position, ImportItem, BooruPost);
 
@@ -91,6 +92,7 @@ internal sealed record TagQueueItem(ResourceId Thread, string Directory, string 
         if (!Token(BooruPost, MaximumTokenCharacters, true) || ImportItem != null && BooruPost != null) return "provider";
         if (!Token(LocalSlot, MaximumTokenCharacters, true)) return "slot";
         if (Name == null || Name.Length > MaximumNameCharacters || Name.Any(char.IsControl)) return "name";
+        if (GroupId != null && (GroupId.Length == 0 || GroupId.Length > MaximumGroupIdCharacters || GroupId.Any(char.IsControl))) return "group";
         if (!Enum.IsDefined(Kind) || !Enum.IsDefined(State)) return "enum";
         if (AddedAtUtc.Offset != TimeSpan.Zero || DoneAtUtc is { } done && done.Offset != TimeSpan.Zero) return "time";
         if ((State == TagQueueState.Done) != (DoneAtUtc != null)) return "done";
@@ -123,22 +125,40 @@ internal readonly record struct TagQueueCursorTarget(TagQueueKey? Key, int Offse
     internal static TagQueueCursorTarget Relative(TagQueueKey key, int offset) => new(key, offset);
 }
 
+/// <summary>A named part of the tagging queue. The order in <see cref="TagQueueSnapshot.Groups"/> is the user-visible order.</summary>
+internal sealed record TagQueueGroup(string Id, string Name, int Order, IReadOnlyList<string> Stamp)
+{
+    internal TagQueueGroup(string id, string name, IReadOnlyList<string> stamp) : this(id, name, 0, stamp) { }
+
+    internal const int MaximumIdCharacters = 64;
+    internal const int MaximumNameCharacters = 256;
+
+    internal bool IsValid() => !string.IsNullOrEmpty(Id) && Id.Length <= MaximumIdCharacters && !Id.Any(char.IsControl)
+        && Name != null && Name.Length > 0 && Name.Length <= MaximumNameCharacters && !Name.Any(char.IsControl)
+        && Order >= 0 && Stamp != null;
+}
+
 /// <summary>An immutable copy of the queue as read from, or written to, its file.</summary>
 internal sealed class TagQueueSnapshot
 {
     /// <summary>The ceiling of the stamp set; the user limit (<c>TagStampSize</c>) lies below it.</summary>
     internal const int MaximumStamp = 18;
+    internal const int MaximumGroups = Persistence.ProfileStoreLimits.TagQueueGroupCeiling;
 
     internal static TagQueueSnapshot Empty { get; } = new(0, 0, Array.Empty<string>(), Array.Empty<TagQueueItem>(), TagQueueLoadState.Ready);
 
     private Dictionary<TagQueueKey, int>? _index;
 
     internal TagQueueSnapshot(long revision, int cursor, IReadOnlyList<string> stamp, IReadOnlyList<TagQueueItem> items, TagQueueLoadState state)
+        : this(revision, cursor, stamp, items, state, Array.Empty<TagQueueGroup>()) { }
+
+    internal TagQueueSnapshot(long revision, int cursor, IReadOnlyList<string> stamp, IReadOnlyList<TagQueueItem> items, TagQueueLoadState state, IReadOnlyList<TagQueueGroup>? groups)
     {
         Revision = revision;
         Items = items;
         Cursor = Math.Clamp(cursor, 0, items.Count);
         Stamp = stamp;
+        Groups = groups ?? Array.Empty<TagQueueGroup>();
         State = state;
         int open = 0, done = 0, skipped = 0;
         foreach (TagQueueItem item in items)
@@ -150,7 +170,13 @@ internal sealed class TagQueueSnapshot
     /// <summary>The position the walk stands at (0 to <see cref="Count"/>); it is where "continue" starts.</summary>
     internal int Cursor { get; }
     internal IReadOnlyList<string> Stamp { get; }
+    internal IReadOnlyList<TagQueueGroup> Groups { get; }
     internal IReadOnlyList<TagQueueItem> Items { get; }
+    internal TagQueueGroup? Group(string id) => Groups.FirstOrDefault(group => string.Equals(group.Id, id, StringComparison.Ordinal));
+    internal int CountFor(string? groupId) => groupId == null ? Count : Items.Count(item => item.GroupId == groupId);
+    internal int OpenFor(string? groupId) => groupId == null ? Open : Items.Count(item => item.GroupId == groupId && item.State == TagQueueState.Open);
+    internal int DoneFor(string? groupId) => groupId == null ? Done : Items.Count(item => item.GroupId == groupId && item.State == TagQueueState.Done);
+    internal int SkippedFor(string? groupId) => groupId == null ? Skipped : Items.Count(item => item.GroupId == groupId && item.State == TagQueueState.Skipped);
     internal TagQueueLoadState State { get; }
     internal int Count => Items.Count;
     internal int Open { get; }
@@ -178,14 +204,20 @@ internal sealed class TagQueueSnapshot
     /// Where "continue" starts: the cursor when it stands on an open entry, otherwise the next open entry after it, otherwise the first
     /// open entry before it. Null when nothing is open. Skipped and finished entries are never revisited by it.
     /// </summary>
-    internal int? ResumeIndex()
+    internal int? ResumeIndex() => ResumeIndex(groupId: null, includeUngrouped: false);
+
+    /// <summary>Where a group or ungrouped walk starts, using the global cursor but only entries in the selected scope.</summary>
+    internal int? ResumeIndex(string? groupId, bool includeUngrouped = false)
     {
+        bool InScope(TagQueueItem item) => groupId != null ? item.GroupId == groupId : includeUngrouped ? item.GroupId == null : true;
         for (int i = Cursor; i < Items.Count; i++)
-            if (Items[i].State == TagQueueState.Open) return i;
+            if (InScope(Items[i]) && Items[i].State == TagQueueState.Open) return i;
         for (int i = 0; i < Math.Min(Cursor, Items.Count); i++)
-            if (Items[i].State == TagQueueState.Open) return i;
+            if (InScope(Items[i]) && Items[i].State == TagQueueState.Open) return i;
         return null;
     }
+
+
 }
 
 internal enum TagQueueLoadState { Ready, NewerVersion }

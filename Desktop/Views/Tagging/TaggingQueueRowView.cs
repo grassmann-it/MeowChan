@@ -17,8 +17,9 @@ namespace MeowChan.Desktop;
 /// </summary>
 internal sealed class TaggingQueueRowView : Grid
 {
-    /// <summary>The shared column widths of the header and the rows: # · preview · type · file · thread or source · tags · state.</summary>
-    internal const string Columns = "56,56,72,*,220,56,112";
+    /// <summary>The shared column widths of the header and the rows: # · preview · type · file · thread or source · group · tags · state.</summary>
+    internal const string Columns = "56,56,72,*,220,120,56,112";
+    internal static string ColumnsFor(bool showPreview) => showPreview ? Columns : "56,0,72,*,220,120,56,112";
     internal const double RowHeight = WorkspaceMetrics.NormalRowHeight;
     internal const double CompactHeight = WorkspaceMetrics.CompactRowHeight;
     /// <summary>The preview's edge in the normal and in the compact density (inside the row's own padding).</summary>
@@ -32,27 +33,28 @@ internal sealed class TaggingQueueRowView : Grid
     private readonly TextBlock _kind = Cell(TextAlignment.Left, muted: true);
     private readonly TextBlock _name = Cell(TextAlignment.Left);
     private readonly TextBlock _source = Cell(TextAlignment.Left, muted: true);
+    private readonly TextBlock _group = Cell(TextAlignment.Left, muted: true);
     private readonly TextBlock _tags = Cell(TextAlignment.Right, muted: true);
     private readonly ContentControl _stateIcon = new() { VerticalAlignment = VerticalAlignment.Center, Focusable = false };
     private readonly TextBlock _state = Cell(TextAlignment.Left);
     private string? _shownIcon;
 
-    internal TaggingQueueRowView(TaggingThumbnails? thumbnails = null, Func<TagQueueItem, int?>? tagCount = null, bool compact = false)
+    internal TaggingQueueRowView(TaggingThumbnails? thumbnails = null, Func<TagQueueItem, int?>? tagCount = null, bool compact = false, bool showPreview = true)
     {
         _tagCount = tagCount;
-        ColumnDefinitions = new ColumnDefinitions(Columns);
-        ColumnSpacing = 8;
+        ColumnDefinitions = new ColumnDefinitions(ColumnsFor(showPreview));
+        ColumnSpacing = showPreview ? 8 : 0;
         MinHeight = compact ? CompactHeight : RowHeight;
         double size = compact ? CompactPreviewSize : PreviewSize;
-        _preview = new TaggingThumbnail(showText: false) { Source = thumbnails, Width = size, Height = size, HorizontalAlignment = HorizontalAlignment.Left,
+        _preview = new TaggingThumbnail(showText: false) { Source = thumbnails, Width = size, Height = size, IsVisible = showPreview, HorizontalAlignment = HorizontalAlignment.Left,
             VerticalAlignment = VerticalAlignment.Center };
         AutomationProperties.SetAccessibilityView(_preview, AccessibilityView.Raw);
         StackPanel number = new() { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Children = { _next, _number } };
         AutomationProperties.SetAccessibilityView(_next, AccessibilityView.Raw);
         AutomationProperties.SetAccessibilityView(_stateIcon, AccessibilityView.Raw);
         Children.Add(number);
-        Add(_preview, 1); Add(_kind, 2); Add(_name, 3); Add(_source, 4); Add(_tags, 5);
-        Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center, Children = { _stateIcon, _state } }, 6);
+        Add(_preview, 1); Add(_kind, 2); Add(_name, 3); Add(_source, 4); Add(_group, 5); Add(_tags, 6);
+        Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, VerticalAlignment = VerticalAlignment.Center, Children = { _stateIcon, _state } }, 7);
         _number.Classes.Add("tnum");
         _tags.Classes.Add("tnum");
     }
@@ -91,6 +93,7 @@ internal sealed class TaggingQueueRowView : Grid
         _kind.Text = row?.KindText;
         _name.Text = row?.Name;
         _source.Text = row?.SourceText;
+        _group.Text = row?.GroupText;
         _tags.Text = row == null ? null : _tagCount?.Invoke(row.Item) is { } count ? count.ToString("N0", Localization.Texts.Culture) : "–";
         string? icon = row?.StateIcon;
         if (icon != _shownIcon) { _shownIcon = icon; _stateIcon.Content = icon == null ? null : CommandBindings.IconFromKey(icon, 14); }

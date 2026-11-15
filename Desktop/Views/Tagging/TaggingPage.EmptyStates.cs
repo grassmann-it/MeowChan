@@ -26,10 +26,27 @@ public sealed partial class TaggingPage
     private void InitializeEmptyStates()
     {
         _emptyMedia.Click += (_, _) => AddRequested?.Invoke();
-        _emptyHow.Click += (_, _) => _help.Popover.ShowAt(_emptyHow);
+        _emptyHow.Click += (_, _) =>
+        {
+            if (_emptyKind == TaggingEmptyKind.GroupEmpty) _ = DeleteGroupAsync();
+            else _help.Popover.ShowAt(_emptyHow);
+        };
         _emptyClearDone.Click += (_, _) => _ = ClearFinishedAsync();
         _emptyReopen.Click += (_, _) => _ = ReopenSkippedAsync();
-        _emptyShowAll.Click += (_, _) => { Filter = TaggingQueueFilter.All; FocusContent(); };
+        _emptyShowAll.Click += (_, _) =>
+        {
+            if (_emptyKind == TaggingEmptyKind.GroupEmpty)
+            {
+                _groupLocalizing = true;
+                try { _group.SelectedItem = GroupChoices[0]; }
+                finally { _groupLocalizing = false; }
+                _selectedGroupId = null;
+                _ungroupedSelected = false;
+                _queueWork.SelectGroup(null, false);
+                Render();
+            }
+            else { Filter = TaggingQueueFilter.All; FocusContent(); }
+        };
     }
 
     private void LocalizeEmptyStates()
@@ -43,19 +60,24 @@ public sealed partial class TaggingPage
 
     private void RenderEmptyState(TagQueueSnapshot queue)
     {
-        _emptyKind = _queueWork.Loaded ? TaggingEmptyStates.Of(queue, Filter, _rows.Count) : TaggingEmptyKind.None;
+        _emptyKind = _queueWork.Loaded ? TaggingEmptyStates.Of(queue, Filter, _rows.Count, _selectedGroupId, _ungroupedSelected) : TaggingEmptyKind.None;
+        TaggingQueueCounts selectedCounts = TaggingQueueView.Counts(queue, _selectedGroupId, _ungroupedSelected, Scope);
+        string? selectedGroupName = _selectedGroupId == null ? null : queue.Group(_selectedGroupId)?.Name;
         _empty.Text = _emptyKind switch
         {
             TaggingEmptyKind.QueueEmpty => Texts.T("tagging.page.empty.queue"),
-            TaggingEmptyKind.AllDone => Texts.T("tagging.page.empty.allDone", queue.Count.ToString("N0", Texts.Culture)),
+            TaggingEmptyKind.AllDone => Texts.T("tagging.page.empty.allDone", selectedCounts.Count.ToString("N0", Texts.Culture)),
+            TaggingEmptyKind.GroupEmpty => Texts.T("tagging.page.empty.group", selectedGroupName ?? Texts.T("tagging.page.group.ungrouped")),
             TaggingEmptyKind.FilterNoHits => Texts.T("tagging.page.filterEmpty"),
             _ => null
         };
-        _emptyMedia.IsVisible = _emptyKind is TaggingEmptyKind.QueueEmpty or TaggingEmptyKind.AllDone;
-        _emptyHow.IsVisible = _emptyKind == TaggingEmptyKind.QueueEmpty;
-        _emptyClearDone.IsVisible = _emptyKind == TaggingEmptyKind.AllDone && queue.Done > 0;
-        _emptyReopen.IsVisible = _emptyKind == TaggingEmptyKind.AllDone && queue.Skipped > 0;
-        _emptyShowAll.IsVisible = _emptyKind == TaggingEmptyKind.FilterNoHits;
+        _emptyMedia.IsVisible = _emptyKind is TaggingEmptyKind.QueueEmpty or TaggingEmptyKind.AllDone or TaggingEmptyKind.GroupEmpty;
+        _emptyHow.Content = _emptyKind == TaggingEmptyKind.GroupEmpty ? Texts.T("tagging.page.empty.group.delete") : Texts.T("tagging.page.empty.how");
+        _emptyHow.IsVisible = _emptyKind is TaggingEmptyKind.QueueEmpty or TaggingEmptyKind.GroupEmpty;
+        _emptyClearDone.IsVisible = _emptyKind == TaggingEmptyKind.AllDone && selectedCounts.Done > 0;
+        _emptyReopen.IsVisible = _emptyKind == TaggingEmptyKind.AllDone && selectedCounts.Skipped > 0;
+        _emptyShowAll.Content = _emptyKind == TaggingEmptyKind.GroupEmpty ? Texts.T("tagging.page.empty.group.assign") : Texts.T("tagging.page.empty.showAll");
+        _emptyShowAll.IsVisible = _emptyKind is TaggingEmptyKind.FilterNoHits or TaggingEmptyKind.GroupEmpty;
         bool canChange = CanChange;
         _emptyClearDone.IsEnabled = canChange;
         _emptyReopen.IsEnabled = canChange;
@@ -66,7 +88,8 @@ public sealed partial class TaggingPage
     /// <summary>Marks every skipped entry as open again (the "all done" state's way back to work).</summary>
     internal System.Threading.Tasks.Task ReopenSkippedAsync()
     {
-        TagQueueKey[] keys = _queueWork.Queue.Items.Where(item => item.State == TagQueueState.Skipped).Select(item => item.Key).ToArray();
+        TagQueueKey[] keys = _queueWork.Queue.Items.Where(item => TaggingQueueView.InGroup(item, _selectedGroupId, _ungroupedSelected)
+            && (Scope == null || Scope(item)) && item.State == TagQueueState.Skipped).Select(item => item.Key).ToArray();
         return keys.Length == 0 ? System.Threading.Tasks.Task.CompletedTask : AfterAsync(_queueWork.SetStatesAsync(keys, TagQueueState.Open));
     }
 }

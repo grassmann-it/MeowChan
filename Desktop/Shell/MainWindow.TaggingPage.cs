@@ -73,9 +73,14 @@ public partial class MainWindow
             ShowInFolder = ShowTaggingEntryInFolderAsync,
             CopyPath = CopyTaggingEntryPathAsync,
             SaveStampBlock = state => _ = _session.SaveViewPreferencesAsync(config => config.TaggingStampBlock = state.ToString()),
-            SaveViewMode = mode => _ = _session.SaveViewPreferencesAsync(config => config.TaggingPageView = mode.ToString())
+            SaveViewMode = mode => _ = _session.SaveViewPreferencesAsync(config => config.TaggingPageView = mode.ToString()),
+            SavePreviewColumn = visible => _ = _session.SaveViewPreferencesAsync(config => config.TaggingPreviewColumn = visible),
+            ReadMediaTileAppearance = () => MediaTileMetrics.For(
+                MediaPageLayout.Parse(_session.Config.MediaLayout, _session.Config.MediaBooruMode).TileSize,
+                MediaPageLayout.Parse(_session.Config.MediaLayout, _session.Config.MediaBooruMode).Caption)
         };
         _taggingPage.RestoreViewMode(TaggingViewModes.Parse(_session.Config.TaggingPageView));
+        _taggingPage.RestorePreviewColumn(_session.Config.TaggingPreviewColumn);
         _taggingPage.RestoreStampBlock(TaggingStampBlocks.Parse(_session.Config.TaggingStampBlock));
         _taggingPage.ApplyWorkView(_workViews.Current);
         TaggingPageHost.Content = _taggingPage;
@@ -88,7 +93,7 @@ public partial class MainWindow
     /// The seam of the tagging mode: the page has already moved the queue's cursor to where the walk starts. The queue walk opens the
     /// gallery in PT3's tagging mode (decision strip, keys, resume point; MainWindow.TagQueue.cs, StartTaggingMode).
     /// </summary>
-    private Task StartTaggingFromPageAsync() => OpenTagQueueGalleryAsync();
+    private Task StartTaggingFromPageAsync() => OpenTagQueueGalleryAsync(_taggingPage?.SelectedGroupId, _taggingPage?.UngroupedGroupSelected == true);
 
     private void AddToTaggingQueueFromPage()
     {

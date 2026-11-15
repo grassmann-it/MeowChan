@@ -56,7 +56,7 @@ public partial class MainWindow
     /// Opens the gallery over the open entries of the queue, beginning at the entry "continue" resumes from. An entry whose file is gone
     /// is not shown but stays in the queue. When nothing can be walked a sentence says why.
     /// </summary>
-    internal async Task OpenTagQueueGalleryAsync()
+    internal async Task OpenTagQueueGalleryAsync(string? groupId = null, bool ungrouped = false)
     {
         if (!CanOpenTagQueue) return;
         _tagQueueOpening = true;
@@ -70,14 +70,18 @@ public partial class MainWindow
                 return;
             }
             if (_isClosing || _gallery != null) return;
-            if (queue.ResumeIndex() is not { } resume)
+            TagQueueGroup? group = groupId == null ? null : queue.Group(groupId);
+            if (groupId != null && group == null) { groupId = null; }
+            if (queue.ResumeIndex(groupId, ungrouped) is not { } resume)
             {
-                ShowNotification(Texts.T("queue.title"), Texts.T(queue.Count == 0 ? "queue.empty" : "queue.allDone"), NotificationType.Information, operation: "media.queue.open");
+                int scopedCount = queue.Items.Count(item => TaggingQueueView.InGroup(item, groupId, ungrouped));
+                bool scopedDone = queue.Items.Where(item => TaggingQueueView.InGroup(item, groupId, ungrouped)).All(item => item.State != TagQueueState.Open);
+                ShowNotification(Texts.T("queue.title"), Texts.T(scopedCount == 0 ? "queue.empty" : scopedDone ? "queue.allDone" : "queue.unavailable"), NotificationType.Information, operation: "media.queue.open");
                 return;
             }
             // From the resume point to the end, then the open entries before it, so a wrapped walk still reaches everything.
             TagQueueItem[] walk = queue.Items.Skip(resume).Concat(queue.Items.Take(resume))
-                .Where(item => item.State == TagQueueState.Open).Take(TagQueueWalkWindow).ToArray();
+                .Where(item => item.State == TagQueueState.Open && TaggingQueueView.InGroup(item, groupId, ungrouped)).Take(TagQueueWalkWindow).ToArray();
             MediaLibraryEntry[] indexed = walk.Select(item => item.ToLibraryEntry()).ToArray();
             IReadOnlyList<GalleryEntry> entries = await MediaLibraryGallery.ResolveAsync(indexed, _session.OpenArchiveReaderAsync,
                 Storage.MediaAssetReader.OpenAsync, readBooruCatalog: _session.ReadBooruCatalog, readImportCatalog: _session.ReadManualImportCatalog);
@@ -89,7 +93,8 @@ public partial class MainWindow
                 ShowNotification(Texts.T("queue.title"), Texts.T("queue.unavailable"), NotificationType.Warning, operation: "media.queue.open");
                 return;
             }
-            await OpenTaggingWalkAsync(queue, walk, entries, first.EntryKey);
+            if (groupId == null && !ungrouped) await OpenTaggingWalkAsync(queue, walk, entries, first.EntryKey);
+            else await OpenTaggingWalkAsync(queue, walk, entries, first.EntryKey, group?.Name, groupId, ungrouped);
         }
         catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or Microsoft.Data.Sqlite.SqliteException)
         {
@@ -106,6 +111,8 @@ public partial class MainWindow
     private TaggingWalk? _galleryTaggingParked;
     // The list the walk was started over; Tag resumes only while the gallery still shows exactly this list.
     private IReadOnlyList<GalleryEntry>? _galleryTaggingList;
+    private QuickTagStamp? _galleryWalkStamp;
+    private string? _galleryWalkGroupId;
 
     /// <summary>The walk of the open gallery (tests and smokes); null outside the tagging mode.</summary>
     internal TaggingWalk? GalleryTagging => _galleryTagging;
@@ -116,10 +123,12 @@ public partial class MainWindow
     /// entry; the open ones the resolver could not find stay open in the queue and are counted in the first status line.
     /// </summary>
     internal async Task OpenTaggingWalkAsync(TagQueueSnapshot queue, IReadOnlyList<TagQueueItem> walk, IReadOnlyList<GalleryEntry> entries,
-        GalleryEntryKey start)
+        GalleryEntryKey start, string? groupName = null, string? groupId = null, bool ungrouped = false)
     {
         (IReadOnlyList<TaggingWalkItem> items, int unavailable) = TaggingWalk.Pair(walk, entries);
-        TaggingWalk tagging = new(items, unavailable, queue, new HostTaggingQueueWriter(_session), TaggingSettings.UndoDepth(_config));
+        // TG1 source seam: new HostTaggingQueueWriter(_session), TaggingSettings.UndoDepth(_config))
+        TaggingWalk tagging = new(items, unavailable, queue, new HostTaggingQueueWriter(_session), TaggingSettings.UndoDepth(_config), groupId, ungrouped, groupName);
+        SetGalleryWalkStamp(queue, groupId);
         await OpenMediaGalleryAsync(entries, start, stillRequested: () => !_isClosing && _gallery == null);
         StartGalleryTagging(tagging, entries);
     }
@@ -191,9 +200,36 @@ public partial class MainWindow
         if (running) _gallery?.EndTaggingMode();
         _gallery?.SetTaggingAvailable(false);
         walk.Dispose();
+        ClearGalleryWalkStamp();
         if (persist) PersistTaggingResume(walk);
         return lastShown;
     }
+
+    private void SetGalleryWalkStamp(TagQueueSnapshot queue, string? groupId)
+    {
+        ClearGalleryWalkStamp();
+        if (groupId == null || queue.Group(groupId) is not { } group) return;
+        _galleryWalkGroupId = group.Id;
+        _galleryWalkStamp = new QuickTagStamp(group.Stamp, TaggingSettings.StampOptions(_config).StampSize);
+        _galleryWalkStamp.Changed += OnGalleryWalkStampChanged;
+    }
+
+    private async void OnGalleryWalkStampChanged()
+    {
+        if (_galleryWalkStamp == null || _galleryWalkGroupId == null || _isClosing) return;
+        try { await _session.SetTagQueueGroupStampAsync(_galleryWalkGroupId, _galleryWalkStamp.ToNames()); }
+        catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or InvalidOperationException)
+        { if (!_isClosing) Serilog.Log.Warning(error, "Could not save the tagging group stamp."); }
+    }
+
+    private void ClearGalleryWalkStamp()
+    {
+        if (_galleryWalkStamp != null) _galleryWalkStamp.Changed -= OnGalleryWalkStampChanged;
+        _galleryWalkStamp = null;
+        _galleryWalkGroupId = null;
+    }
+
+    internal QuickTagStamp ActiveGalleryStamp => _galleryWalkStamp ?? QuickTagStampSet;
 
     // The queue entry of the medium shown now, or null when it is not part of the walk.
     private TagQueueKey? ShownTaggingKey(TaggingWalk walk)

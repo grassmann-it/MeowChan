@@ -262,6 +262,16 @@ namespace MeowChan
         internal const int TagQueueHistoryDefault = Persistence.ProfileStoreLimits.DefaultTagQueueHistory;
         internal const int TagQueueHistoryMinimum = Persistence.ProfileStoreLimits.MinimumTagQueueHistory;
         internal const int TagQueueHistoryMaximum = Persistence.ProfileStoreLimits.TagQueueHistoryCeiling;
+        /// <summary>Maximum named tagging groups. Lowering it keeps existing groups and only blocks new groups.</summary>
+        public int TagQueueGroupLimit { get; set; } = TagQueueGroupLimitDefault;
+        internal const int TagQueueGroupLimitDefault = Persistence.ProfileStoreLimits.DefaultTagQueueGroups;
+        internal const int TagQueueGroupLimitMinimum = Persistence.ProfileStoreLimits.MinimumTagQueueGroups;
+        internal const int TagQueueGroupLimitMaximum = Persistence.ProfileStoreLimits.TagQueueGroupCeiling;
+        /// <summary>Maximum length of a newly created or renamed tagging group. Existing longer names remain readable.</summary>
+        public int TagQueueGroupNameLimit { get; set; } = TagQueueGroupNameLimitDefault;
+        internal const int TagQueueGroupNameLimitDefault = Persistence.ProfileStoreLimits.DefaultTagQueueGroupNameCharacters;
+        internal const int TagQueueGroupNameLimitMinimum = Persistence.ProfileStoreLimits.MinimumTagQueueGroupNameCharacters;
+        internal const int TagQueueGroupNameLimitMaximum = Persistence.ProfileStoreLimits.TagQueueGroupNameCeiling;
         /// <summary>Adding more media than this to the tagging queue at once asks for confirmation first. Nothing is cut short: after the confirmation every medium is added.</summary>
         public int TagQueueConfirmAbove { get; set; } = TagQueueConfirmAboveDefault;
         internal const int TagQueueConfirmAboveDefault = 200;
@@ -663,6 +673,9 @@ namespace MeowChan
             get => _taggingPageView;
             set => _taggingPageView = TaggingViewModes.Parse(value).ToString();
         }
+        // C16: the list view's preview column can be hidden without changing the queue data.
+        [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
+        public bool TaggingPreviewColumn { get; set; } = true;
         // TG1: the stamp block of the tagging page: "Auto" (follows the work view: closed in Barebones), "Open" or "Closed" once chosen.
         private string _taggingStampBlock = nameof(TaggingStampBlockState.Auto);
         [JsonConverter(typeof(DesktopPreferenceStringConverter))]
@@ -1430,6 +1443,10 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(TagQueueFileLimitMiB), "TagQueueFileLimitMiB is outside its supported range (" + TagQueueFileLimitMiBMinimum + " to " + TagQueueFileLimitMiBMaximum + ").");
             if (TagQueueHistory is < TagQueueHistoryMinimum or > TagQueueHistoryMaximum)
                 throw new ArgumentOutOfRangeException(nameof(TagQueueHistory), "TagQueueHistory is outside its supported range (" + TagQueueHistoryMinimum + " to " + TagQueueHistoryMaximum + ").");
+            if (TagQueueGroupLimit is < TagQueueGroupLimitMinimum or > TagQueueGroupLimitMaximum)
+                throw new ArgumentOutOfRangeException(nameof(TagQueueGroupLimit), "TagQueueGroupLimit is outside its supported range (" + TagQueueGroupLimitMinimum + " to " + TagQueueGroupLimitMaximum + ").");
+            if (TagQueueGroupNameLimit is < TagQueueGroupNameLimitMinimum or > TagQueueGroupNameLimitMaximum)
+                throw new ArgumentOutOfRangeException(nameof(TagQueueGroupNameLimit), "TagQueueGroupNameLimit is outside its supported range (" + TagQueueGroupNameLimitMinimum + " to " + TagQueueGroupNameLimitMaximum + ").");
             if (TagQueueConfirmAbove is < TagQueueConfirmAboveMinimum or > TagQueueConfirmAboveMaximum)
                 throw new ArgumentOutOfRangeException(nameof(TagQueueConfirmAbove), "TagQueueConfirmAbove is outside its supported range (" + TagQueueConfirmAboveMinimum + " to " + TagQueueConfirmAboveMaximum + ").");
             if (MediaTagListTop is < MediaTagListTopMinimum or > MediaTagListTopMaximum)
@@ -1678,6 +1695,8 @@ namespace MeowChan
                 TagQueueLimit = TagQueueLimit,
                 TagQueueFileLimitMiB = TagQueueFileLimitMiB,
                 TagQueueHistory = TagQueueHistory,
+                TagQueueGroupLimit = TagQueueGroupLimit,
+                TagQueueGroupNameLimit = TagQueueGroupNameLimit,
                 TagQueueConfirmAbove = TagQueueConfirmAbove,
                 MediaTagListTop = MediaTagListTop,
                 ProfileRegistryLimit = ProfileRegistryLimit,
@@ -1789,6 +1808,7 @@ namespace MeowChan
                 MediaTagListSort = MediaTagListSort,
                 MediaLayout = MediaLayout,
                 TaggingPageView = TaggingPageView,
+                TaggingPreviewColumn = TaggingPreviewColumn,
                 TaggingStampBlock = TaggingStampBlock,
                 GalleryFitUpscaleLimited = GalleryFitUpscaleLimited,
 
@@ -1923,6 +1943,8 @@ namespace MeowChan
             TagQueueLimit = source.TagQueueLimit;
             TagQueueFileLimitMiB = source.TagQueueFileLimitMiB;
             TagQueueHistory = source.TagQueueHistory;
+            TagQueueGroupLimit = source.TagQueueGroupLimit;
+            TagQueueGroupNameLimit = source.TagQueueGroupNameLimit;
             TagQueueConfirmAbove = source.TagQueueConfirmAbove;
             MediaTagListTop = source.MediaTagListTop;
             ProfileRegistryLimit = source.ProfileRegistryLimit;
@@ -2034,6 +2056,7 @@ namespace MeowChan
             MediaTagListSort = source.MediaTagListSort;
             MediaLayout = source.MediaLayout;
             TaggingPageView = source.TaggingPageView;
+            TaggingPreviewColumn = source.TaggingPreviewColumn;
             TaggingStampBlock = source.TaggingStampBlock;
             GalleryFitUpscaleLimited = source.GalleryFitUpscaleLimited;
 
@@ -2124,6 +2147,8 @@ namespace MeowChan
             TagQueueLimit = source.TagQueueLimit;
             TagQueueFileLimitMiB = source.TagQueueFileLimitMiB;
             TagQueueHistory = source.TagQueueHistory;
+            TagQueueGroupLimit = source.TagQueueGroupLimit;
+            TagQueueGroupNameLimit = source.TagQueueGroupNameLimit;
             TagQueueConfirmAbove = source.TagQueueConfirmAbove;
             MediaTagListTop = source.MediaTagListTop;
             ProfileRegistryLimit = source.ProfileRegistryLimit;

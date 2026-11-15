@@ -12,7 +12,7 @@ using MeowChan.Storage;
 namespace MeowChan.Tags;
 
 /// <summary>
-/// The profile's tagging queue (<c>tag-queue.json</c>, version 1): the media still to be tagged, their state, the position of the
+/// The profile's tagging queue (<c>tag-queue.json</c>, version 2): the media still to be tagged, their state, the position of the
 /// walk and the stamp set. Strict and atomic like the other private lists: an unknown property, a repeated property, a malformed
 /// identity, a damaged file or a link in place of the file is refused, never repaired; a file of a newer version is read as empty
 /// and kept untouched. Every write replaces the file atomically and rotates the last good copy into <c>.bak</c>. Limits (entries,
@@ -21,7 +21,8 @@ namespace MeowChan.Tags;
 /// </summary>
 internal sealed class TagQueueStore
 {
-    internal const int Version = 1;
+    internal const int Version = 2;
+    internal const int LegacyVersion = 1;
     internal const string FileName = "tag-queue.json";
     private static readonly UTF8Encoding StrictUtf8 = new(false, true);
     private readonly ProfileLease _lease;
@@ -61,9 +62,12 @@ internal sealed class TagQueueStore
             List<TagQueueItem> list = current.Items.ToList();
             HashSet<TagQueueKey> known = list.Select(item => item.Key).ToHashSet();
             int limit = _lease.StoreLimits.TagQueueEntries, added = 0, duplicates = 0, over = 0;
+            HashSet<string> groupIds = current.Groups.Select(group => group.Id).ToHashSet(StringComparer.Ordinal);
             foreach (TagQueueItem item in items)
             {
                 if (item.Validate() is { } problem) throw new ArgumentException("The tagging queue entry is invalid: " + problem + ".", nameof(items));
+                if (item.GroupId != null && !groupIds.Contains(item.GroupId))
+                    throw new ArgumentException("The tagging queue entry references a missing group.", nameof(items));
                 if (known.Contains(item.Key)) { duplicates++; continue; }
                 // Only growth is refused: with the limit lowered below the saved count nothing more is added, nothing is removed.
                 if (list.Count >= limit) { over++; continue; }
@@ -180,11 +184,11 @@ internal sealed class TagQueueStore
             // The recovery save never rotates damaged bytes into the backup: WriteAllText without a backup preserves them next to the
             // file (one .corrupt-* copy), then the empty queue replaces them.
             RejectLink(_path);
-            string empty = Serialize(1, 0, Array.Empty<string>(), Array.Empty<TagQueueItem>());
+            string empty = Serialize(Version, 0, Array.Empty<string>(), Array.Empty<TagQueueItem>(), Array.Empty<TagQueueGroup>());
             _primaryBytes = null;
             _primarySnapshot = null;
             AtomicJsonFile.WriteAllText(_path, empty, backupCurrentFile: false, token);
-            return new TagQueueSnapshot(1, 0, Array.Empty<string>(), Array.Empty<TagQueueItem>(), TagQueueLoadState.Ready);
+            return new TagQueueSnapshot(1, 0, Array.Empty<string>(), Array.Empty<TagQueueItem>(), TagQueueLoadState.Ready, Array.Empty<TagQueueGroup>());
         }
         if (current.Count == 0) return current;
         List<TagQueueItem> list = finishedOnly ? current.Items.Where(item => item.State != TagQueueState.Done).ToList() : new();
@@ -193,7 +197,7 @@ internal sealed class TagQueueStore
         return Commit(current, list, cursor, current.Stamp, token);
     });
 
-    /// <summary>Replaces the stamp set: at most <see cref="TagQueueSnapshot.MaximumStamp"/> distinct valid tag names (the user limit is lower).</summary>
+    /// <summary>Replaces the general (all/ungrouped) stamp set.</summary>
     internal TagQueueSnapshot SetStamp(IReadOnlyList<string> names, CancellationToken token = default)
     {
         ArgumentNullException.ThrowIfNull(names);
@@ -205,6 +209,113 @@ internal sealed class TagQueueStore
             return normalized.SequenceEqual(current.Stamp, StringComparer.Ordinal) ? current
                 : Commit(current, current.Items.ToList(), current.Cursor, normalized, token);
         });
+    }
+
+    /// <summary>Creates a group and assigns the supplied entries to it. The group starts with an empty private stamp.</summary>
+    internal TagQueueSnapshot CreateGroup(string name, IReadOnlyCollection<TagQueueKey>? keys = null, CancellationToken token = default)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        IReadOnlyCollection<TagQueueKey> selectedKeys = keys ?? Array.Empty<TagQueueKey>();
+        return _lease.RunExclusive(() =>
+        {
+            token.ThrowIfCancellationRequested();
+            TagQueueSnapshot current = ReadWritable();
+            string normalized = NormalizeGroupName(name, _lease.StoreLimits.TagQueueGroupNameCharacters);
+            if (current.Groups.Count >= _lease.StoreLimits.TagQueueGroups)
+                throw PrivateStoreLimit.Refusal(PrivateStoreLimitKind.TagQueueGroups, _lease.StoreLimits.TagQueueGroups,
+                    "The tagging queue group limit is reached.");
+            if (current.Groups.Any(group => string.Equals(group.Name, normalized, StringComparison.OrdinalIgnoreCase)))
+                throw new ArgumentException("A tagging group with that name already exists.", nameof(name));
+            TagQueueGroup group = new(Guid.NewGuid().ToString("N"), normalized, current.Groups.Count, Array.Empty<string>());
+            HashSet<TagQueueKey> selected = selectedKeys.ToHashSet();
+            List<TagQueueItem> items = current.Items.Select(item => selected.Contains(item.Key) ? item with { GroupId = group.Id } : item).ToList();
+            return Commit(current, items, current.Cursor, current.Stamp, token, current.Groups.Append(group).ToArray());
+        });
+    }
+
+    /// <summary>Renames a group. A lowered name limit never makes an existing group unreadable.</summary>
+    internal TagQueueSnapshot RenameGroup(string groupId, string name, CancellationToken token = default)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(groupId);
+        ArgumentNullException.ThrowIfNull(name);
+        return _lease.RunExclusive(() =>
+        {
+            token.ThrowIfCancellationRequested();
+            TagQueueSnapshot current = ReadWritable();
+            int index = GroupIndex(current, groupId);
+            string normalized = NormalizeGroupName(name, _lease.StoreLimits.TagQueueGroupNameCharacters);
+            if (current.Groups.Where((_, i) => i != index).Any(group => string.Equals(group.Name, normalized, StringComparison.OrdinalIgnoreCase)))
+                throw new ArgumentException("A tagging group with that name already exists.", nameof(name));
+            List<TagQueueGroup> groups = current.Groups.ToList();
+            groups[index] = groups[index] with { Name = normalized };
+            return Commit(current, current.Items.ToList(), current.Cursor, current.Stamp, token, groups);
+        });
+    }
+
+    /// <summary>Deletes a group and leaves its entries in the queue without a group.</summary>
+    internal TagQueueSnapshot DeleteGroup(string groupId, CancellationToken token = default)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(groupId);
+        return _lease.RunExclusive(() =>
+        {
+            token.ThrowIfCancellationRequested();
+            TagQueueSnapshot current = ReadWritable();
+            int index = GroupIndex(current, groupId);
+            List<TagQueueGroup> groups = current.Groups.Where((_, i) => i != index)
+                .Select((group, order) => group with { Order = order }).ToList();
+            List<TagQueueItem> items = current.Items.Select(item => item.GroupId == groupId ? item with { GroupId = null } : item).ToList();
+            return Commit(current, items, current.Cursor, current.Stamp, token, groups);
+        });
+    }
+
+    /// <summary>Assigns entries to one existing group, or null to remove their group.</summary>
+    internal TagQueueSnapshot AssignGroup(IReadOnlyCollection<TagQueueKey> keys, string? groupId, CancellationToken token = default)
+    {
+        ArgumentNullException.ThrowIfNull(keys);
+        return _lease.RunExclusive(() =>
+        {
+            token.ThrowIfCancellationRequested();
+            TagQueueSnapshot current = ReadWritable();
+            if (groupId != null) _ = GroupIndex(current, groupId);
+            HashSet<TagQueueKey> selected = keys.ToHashSet();
+            List<TagQueueItem> items = current.Items.Select(item => selected.Contains(item.Key) ? item with { GroupId = groupId } : item).ToList();
+            if (items.SequenceEqual(current.Items)) return current;
+            return Commit(current, items, current.Cursor, current.Stamp, token, current.Groups);
+        });
+    }
+
+    /// <summary>Replaces a group's private stamp set.</summary>
+    internal TagQueueSnapshot SetGroupStamp(string groupId, IReadOnlyList<string> names, CancellationToken token = default)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(groupId);
+        ArgumentNullException.ThrowIfNull(names);
+        string[] normalized = NormalizeStamp(names);
+        return _lease.RunExclusive(() =>
+        {
+            token.ThrowIfCancellationRequested();
+            TagQueueSnapshot current = ReadWritable();
+            int index = GroupIndex(current, groupId);
+            if (normalized.SequenceEqual(current.Groups[index].Stamp, StringComparer.Ordinal)) return current;
+            List<TagQueueGroup> groups = current.Groups.ToList();
+            groups[index] = groups[index] with { Stamp = normalized };
+            return Commit(current, current.Items.ToList(), current.Cursor, current.Stamp, token, groups);
+        });
+    }
+
+    private static int GroupIndex(TagQueueSnapshot snapshot, string groupId)
+    {
+        int index = snapshot.Groups.ToList().FindIndex(group => string.Equals(group.Id, groupId, StringComparison.Ordinal));
+        return index >= 0 ? index : throw new ArgumentException("The tagging group does not exist.", nameof(groupId));
+    }
+
+    private static string NormalizeGroupName(string name, int configuredLimit)
+    {
+        string normalized = name.Trim();
+        if (normalized.Length == 0 || normalized.Length > TagQueueGroup.MaximumNameCharacters || normalized.Any(char.IsControl))
+            throw new ArgumentException("The tagging group name is invalid.", nameof(name));
+        if (normalized.Length > configuredLimit)
+            throw PrivateStoreLimit.Refusal(PrivateStoreLimitKind.TagQueueGroupName, configuredLimit, "The tagging group name is too long.");
+        return normalized;
     }
 
     private static string[] NormalizeStamp(IReadOnlyList<string> names)
@@ -239,11 +350,13 @@ internal sealed class TagQueueStore
         return kept;
     }
 
-    private TagQueueSnapshot Commit(TagQueueSnapshot current, List<TagQueueItem> items, int cursor, IReadOnlyList<string> stamp, CancellationToken token)
+    private TagQueueSnapshot Commit(TagQueueSnapshot current, List<TagQueueItem> items, int cursor, IReadOnlyList<string> stamp, CancellationToken token,
+        IReadOnlyList<TagQueueGroup>? groups = null)
     {
         long revision = checked(current.Revision + 1);
         cursor = Math.Clamp(cursor, 0, items.Count);
-        string json = Serialize(revision, cursor, stamp, items);
+        IReadOnlyList<TagQueueGroup> savedGroups = groups ?? current.Groups;
+        string json = Serialize(revision, cursor, stamp, items, savedGroups);
         long written = StrictUtf8.GetByteCount(json);
         // Only growth is refused: a smaller or equal file is always written.
         if (written > _lease.StoreLimits.TagQueueFileBytes && written > ProfileStoreLimits.FileLength(_path))
@@ -256,7 +369,7 @@ internal sealed class TagQueueStore
         _primarySnapshot = null;
         _backupBytes = null;
         AtomicJsonFile.WriteAllText(_path, json, backupCurrentFile: true, token);
-        TagQueueSnapshot committed = new(revision, cursor, stamp.ToArray(), Array.AsReadOnly(items.ToArray()), TagQueueLoadState.Ready);
+        TagQueueSnapshot committed = new(revision, cursor, stamp.ToArray(), Array.AsReadOnly(items.ToArray()), TagQueueLoadState.Ready, Array.AsReadOnly(savedGroups.ToArray()));
         // The write rotated the file just read (and validated) into the backup; the file now holds exactly these bytes.
         if (rotates) _backupBytes = previous;
         _primaryBytes = Encoding.UTF8.GetBytes(json);
@@ -368,8 +481,10 @@ internal sealed class TagQueueStore
         if (!root.TryGetProperty("Version", out JsonElement versionValue) || versionValue.ValueKind != JsonValueKind.Number || !versionValue.TryGetInt32(out int version))
             throw new InvalidDataException("The tagging queue has no version.");
         if (version > Version) return new TagQueueSnapshot(0, 0, Array.Empty<string>(), Array.Empty<TagQueueItem>(), TagQueueLoadState.NewerVersion);
-        if (version != Version) throw new InvalidDataException("The tagging queue version is invalid.");
-        ExactProperties(root, "Version", "Revision", "Cursor", "Stamp", "Items");
+        if (version is not (LegacyVersion or Version)) throw new InvalidDataException("The tagging queue version is invalid.");
+        bool groupsInFile = version == Version;
+        ExactProperties(root, groupsInFile ? new[] { "Version", "Revision", "Cursor", "Stamp", "Groups", "Items" }
+            : new[] { "Version", "Revision", "Cursor", "Stamp", "Items" });
         long revision = root.GetProperty("Revision").GetInt64();
         int cursor = root.GetProperty("Cursor").GetInt32();
         if (revision < 0 || cursor < 0) throw new InvalidDataException("The tagging queue position is invalid.");
@@ -384,16 +499,49 @@ internal sealed class TagQueueStore
         try { stamp = NormalizeStamp(names); }
         catch (ArgumentException error) { throw new InvalidDataException("The stamp set is invalid.", error); }
         if (!stamp.SequenceEqual(names, StringComparer.Ordinal)) throw new InvalidDataException("The stamp set is not normalized.");
+        List<TagQueueGroup> groups = groupsInFile ? ParseGroups(root.GetProperty("Groups")) : new();
+        HashSet<string> groupIds = groups.Select(group => group.Id).ToHashSet(StringComparer.Ordinal);
         List<TagQueueItem> items = new(itemArray.GetArrayLength());
         HashSet<TagQueueKey> keys = new();
         foreach (JsonElement element in itemArray.EnumerateArray())
         {
-            TagQueueItem item = ParseItem(element);
+            TagQueueItem item = ParseItem(element, groupsInFile);
+            if (item.GroupId != null && !groupIds.Contains(item.GroupId)) throw new InvalidDataException("The tagging queue references a missing group.");
             if (!keys.Add(item.Key)) throw new InvalidDataException("The tagging queue holds an entry twice.");
             items.Add(item);
         }
         if (cursor > items.Count) throw new InvalidDataException("The tagging queue position is outside the queue.");
-        return new TagQueueSnapshot(revision, cursor, stamp, Array.AsReadOnly(items.ToArray()), TagQueueLoadState.Ready);
+        return new TagQueueSnapshot(revision, cursor, stamp, Array.AsReadOnly(items.ToArray()), TagQueueLoadState.Ready, Array.AsReadOnly(groups.ToArray()));
+    }
+
+    private static List<TagQueueGroup> ParseGroups(JsonElement array)
+    {
+        if (array.ValueKind != JsonValueKind.Array || array.GetArrayLength() > ProfileStoreLimits.TagQueueGroupCeiling)
+            throw new InvalidDataException("The tagging groups list is invalid.");
+        List<TagQueueGroup> groups = new(array.GetArrayLength());
+        HashSet<string> ids = new(StringComparer.Ordinal);
+        HashSet<string> names = new(StringComparer.OrdinalIgnoreCase);
+        foreach (JsonElement element in array.EnumerateArray())
+        {
+            ExactProperties(element, "Id", "Name", "Order", "Stamp");
+            string id = RequiredString(element, "Id"), name = RequiredString(element, "Name");
+            int order = element.GetProperty("Order").GetInt32();
+            if (order != groups.Count || !ids.Add(id) || !names.Add(name)) throw new InvalidDataException("The tagging groups are not normalized.");
+            JsonElement stampArray = element.GetProperty("Stamp");
+            if (stampArray.ValueKind != JsonValueKind.Array || stampArray.GetArrayLength() > TagQueueSnapshot.MaximumStamp)
+                throw new InvalidDataException("The group stamp is invalid.");
+            List<string> namesInStamp = new();
+            foreach (JsonElement stampName in stampArray.EnumerateArray())
+                namesInStamp.Add(stampName.ValueKind == JsonValueKind.String ? stampName.GetString()! : throw new InvalidDataException("The group stamp is invalid."));
+            string[] stamp;
+            try { stamp = NormalizeStamp(namesInStamp); }
+            catch (ArgumentException error) { throw new InvalidDataException("The group stamp is invalid.", error); }
+            if (!stamp.SequenceEqual(namesInStamp, StringComparer.Ordinal)) throw new InvalidDataException("The group stamp is not normalized.");
+            TagQueueGroup group = new(id, name, order, stamp);
+            if (!group.IsValid()) throw new InvalidDataException("The tagging group is invalid.");
+            groups.Add(group);
+        }
+        return groups;
     }
 
     private static void ExactProperties(JsonElement element, params string[] names)
@@ -421,10 +569,11 @@ internal sealed class TagQueueStore
         DateTimeOffset.TryParseExact(text, "O", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.RoundtripKind, out DateTimeOffset value)
         && value.Offset == TimeSpan.Zero ? value : throw new InvalidDataException("A time is invalid.");
 
-    private static TagQueueItem ParseItem(JsonElement element)
+    private static TagQueueItem ParseItem(JsonElement element, bool groupsInFile)
     {
-        ExactProperties(element, "Thread", "Directory", "AssetId", "Sha256", "Length", "MediaId", "Variant", "PostId", "Position", "ImportItem",
-            "BooruPost", "Historical", "LocalSlot", "Name", "Kind", "State", "AddedAtUtc", "DoneAtUtc");
+        ExactProperties(element, groupsInFile ? new[] { "Thread", "Directory", "AssetId", "Sha256", "Length", "MediaId", "Variant", "PostId", "Position", "ImportItem",
+            "BooruPost", "Historical", "LocalSlot", "Name", "Kind", "State", "AddedAtUtc", "DoneAtUtc", "GroupId" } : new[] { "Thread", "Directory", "AssetId", "Sha256", "Length", "MediaId", "Variant", "PostId", "Position", "ImportItem",
+            "BooruPost", "Historical", "LocalSlot", "Name", "Kind", "State", "AddedAtUtc", "DoneAtUtc" });
         JsonElement thread = element.GetProperty("Thread");
         ExactProperties(thread, "Source", "Board", "Thread");
         JsonElement position = element.GetProperty("Position");
@@ -440,7 +589,8 @@ internal sealed class TagQueueStore
             RequiredString(element, "Directory"), RequiredString(element, "AssetId"), RequiredString(element, "Sha256"), length.GetInt64(),
             RequiredString(element, "MediaId"), RequiredString(element, "Variant"), OptionalString(element, "PostId"), positionValue,
             OptionalString(element, "ImportItem"), OptionalString(element, "BooruPost"), historical.GetBoolean(), OptionalString(element, "LocalSlot"),
-            RequiredString(element, "Name"), kind, state, Time(RequiredString(element, "AddedAtUtc")), done == null ? null : Time(done));
+            RequiredString(element, "Name"), kind, state, Time(RequiredString(element, "AddedAtUtc")), done == null ? null : Time(done),
+            groupsInFile ? OptionalString(element, "GroupId") : null);
         return item.Validate() == null ? item : throw new InvalidDataException("The tagging queue holds an invalid entry.");
     }
 
@@ -457,7 +607,7 @@ internal sealed class TagQueueStore
         return false;
     }
 
-    private static string Serialize(long revision, int cursor, IReadOnlyList<string> stamp, IReadOnlyList<TagQueueItem> items)
+    private static string Serialize(long revision, int cursor, IReadOnlyList<string> stamp, IReadOnlyList<TagQueueItem> items, IReadOnlyList<TagQueueGroup> groups)
     {
         using MemoryStream stream = new();
         using (Utf8JsonWriter writer = new(stream, new JsonWriterOptions { Indented = false, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping }))
@@ -468,6 +618,19 @@ internal sealed class TagQueueStore
             writer.WriteNumber("Cursor", cursor);
             writer.WriteStartArray("Stamp");
             foreach (string name in stamp) writer.WriteStringValue(name);
+            writer.WriteEndArray();
+            writer.WriteStartArray("Groups");
+            foreach (TagQueueGroup group in groups)
+            {
+                writer.WriteStartObject();
+                writer.WriteString("Id", group.Id);
+                writer.WriteString("Name", group.Name);
+                writer.WriteNumber("Order", group.Order);
+                writer.WriteStartArray("Stamp");
+                foreach (string name in group.Stamp) writer.WriteStringValue(name);
+                writer.WriteEndArray();
+                writer.WriteEndObject();
+            }
             writer.WriteEndArray();
             writer.WriteStartArray("Items");
             foreach (TagQueueItem item in items)
@@ -495,6 +658,7 @@ internal sealed class TagQueueStore
                 writer.WriteString("State", item.State.ToString());
                 writer.WriteString("AddedAtUtc", item.AddedAtUtc.ToString("O", System.Globalization.CultureInfo.InvariantCulture));
                 writer.WriteString("DoneAtUtc", item.DoneAtUtc?.ToString("O", System.Globalization.CultureInfo.InvariantCulture));
+                writer.WriteString("GroupId", item.GroupId);
                 writer.WriteEndObject();
             }
             writer.WriteEndArray();

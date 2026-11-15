@@ -20,6 +20,7 @@ public sealed partial class TaggingPage
         WorkViewElement.SetId(_list, "tagging.list");
         WorkViewElement.SetId(_error, "tagging.error");
         WorkViewElement.SetId(_filterPanel, "tagging.filter");
+        WorkViewElement.SetId(_groupPanel, "tagging.group");
         WorkViewElement.SetId(_help, "tagging.help");
         WorkViewElement.SetId(_viewToggle, "tagging.view-toggle");
         WorkViewElement.SetId(_selectionBar, "tagging.selection-bar");

@@ -66,10 +66,22 @@ internal static class TagQueueActions
     /// MP2: like <see cref="AddAsync(DesktopSessionHost, IEnumerable{MediaLibraryEntry}, CancellationToken)"/>, and how many entries were really
     /// added (0 when nothing was new, nothing could be queued or the write failed), so the surface can offer "Go through now".
     /// </summary>
-    internal static async Task<(string Message, int Added)> AddCountedAsync(DesktopSessionHost host, IEnumerable<MediaLibraryEntry> entries, CancellationToken token = default)
+    internal static Task<(string Message, int Added)> AddCountedAsync(DesktopSessionHost host, IEnumerable<MediaLibraryEntry> entries,
+        CancellationToken token = default) => AddCountedAsync(host, entries, groupId: null, token);
+
+    internal static Task<(string Message, int Added)> AddCountedAsync(DesktopSessionHost host, IEnumerable<MediaLibraryEntry> entries,
+        string? groupId, CancellationToken token = default)
+    {
+        ArgumentNullException.ThrowIfNull(entries);
+        (IReadOnlyList<TagQueueItem> items, int skipped) = ItemsOf(entries, DateTimeOffset.UtcNow);
+        IReadOnlyList<TagQueueItem> scoped = groupId == null ? items : items.Select(item => item with { GroupId = groupId }).ToArray();
+        return AddCountedItemsAsync(host, scoped, skipped, token);
+    }
+
+    private static async Task<(string Message, int Added)> AddCountedItemsAsync(DesktopSessionHost host, IReadOnlyList<TagQueueItem> items,
+        int skipped, CancellationToken token)
     {
         ArgumentNullException.ThrowIfNull(host);
-        (IReadOnlyList<TagQueueItem> items, int skipped) = ItemsOf(entries, DateTimeOffset.UtcNow);
         if (items.Count == 0) return (Describe(null, skipped), 0);
         try
         {
@@ -77,7 +89,7 @@ internal static class TagQueueActions
             return (Describe(result, skipped), result.Added);
         }
         catch (OperationCanceledException) { throw; }
-        catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or InvalidOperationException)
+        catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or InvalidOperationException or ArgumentException)
         { return (DescribeFailure(error), 0); }
     }
 

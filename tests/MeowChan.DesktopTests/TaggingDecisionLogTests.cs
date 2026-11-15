@@ -309,6 +309,20 @@ public sealed class TaggingDecisionLogTests : IDisposable
         }
     }
 
+    [Fact]
+    public void AGroupWalkUsesTheGroupPositionProgressAndAnnouncement()
+    {
+        TagQueueGroup group = new("group", "Review", 0, new[] { "common" });
+        TagQueueItem[] items = { Item(1) with { State = TagQueueState.Done, DoneAtUtc = T0 }, Item(2) with { GroupId = group.Id }, Item(3) };
+        TagQueueSnapshot queue = new(1, 1, Array.Empty<string>(), items, TagQueueLoadState.Ready, new[] { group });
+        (IReadOnlyList<TaggingWalkItem> paired, int unavailable) = TaggingWalk.Pair(new[] { items[1] }, new[] { Entry(2) });
+        using TaggingWalk walk = new(paired, unavailable, queue, new FakeWriter(), groupId: group.Id, groupName: group.Name);
+        Assert.Equal((0, 0, 1), walk.Progress());
+        Assert.Equal((1, 1), walk.QueuePosition(0));
+        Assert.Equal(0, walk.OpenOutsideWalk());
+        Assert.Contains("Group “Review”.", TaggingModeText.Start(walk));
+    }
+
     // ---- texts --------------------------------------------------------------------------------------------------
 
     [Fact]

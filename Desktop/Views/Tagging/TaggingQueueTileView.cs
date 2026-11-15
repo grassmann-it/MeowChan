@@ -24,23 +24,26 @@ internal sealed class TaggingQueueTileView : Border
     internal const double PreviewHeight = 124;
 
     private readonly Func<TagQueueItem, int?>? _tagCount;
+    private readonly MediaTileAppearance _appearance;
     private readonly TaggingThumbnail _preview;
     private readonly TaggingTileBadges _badges = new();
     private readonly Border _selected = WorkspaceChips.CreateSelectionCheck("TaggingTileSelected");
     private readonly TextBlock _name = new() { MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis };
     // The number is a caption, not a badge (MB1b): "#3", bold with a following mark where "continue" starts.
     private readonly TextBlock _number = new() { MaxLines = 1, Margin = new Thickness(0, 0, 4, 0), Classes = { "tnum" } };
+    private readonly TextBlock _group = new() { MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis, Classes = { "muted" } };
     /// <summary>The space the selection check keeps from the slot's right edge when no badge sits in that corner (dip).</summary>
     internal const double CheckInset = 4, CheckGap = 4;
     private IDisposable? _selection;
 
-    internal TaggingQueueTileView(TaggingThumbnails? thumbnails = null, Func<TagQueueItem, int?>? tagCount = null)
+    internal TaggingQueueTileView(TaggingThumbnails? thumbnails = null, Func<TagQueueItem, int?>? tagCount = null, MediaTileAppearance appearance = default)
     {
         _tagCount = tagCount;
-        MaxWidth = MediaTilePanel.CellWidth;
-        Height = TileHeight;
+        _appearance = appearance.CellWidth > 0 ? appearance : MediaTileMetrics.Standard;
+        MaxWidth = _appearance.CellWidth;
+        Height = _appearance.CellHeight;
         Classes.Add("tagging-tile");
-        _preview = new TaggingThumbnail(showText: true) { Source = thumbnails, Height = PreviewHeight };
+        _preview = new TaggingThumbnail(showText: true) { Source = thumbnails, Height = _appearance.PreviewHeight };
         AutomationProperties.SetAccessibilityView(_preview, AccessibilityView.Raw);
         _selected.HorizontalAlignment = HorizontalAlignment.Right;
         _selected.VerticalAlignment = VerticalAlignment.Top;
@@ -52,7 +55,7 @@ internal sealed class TaggingQueueTileView : Border
         _preview.PictureChanged += PlaceBadges;
         // The slot's size is known only after the first layout and changes with the column width: the badges follow it (they hang on the slot, not on the picture).
         _preview.SizeChanged += (_, _) => PlaceBadges();
-        Grid cell = new() { Margin = new Thickness(8, 8, 8, 4), RowDefinitions = new RowDefinitions(PreviewHeight + ",Auto"), RowSpacing = 4 };
+        Grid cell = new() { Margin = new Thickness(8, 8, 8, 4), RowDefinitions = new RowDefinitions(_appearance.PreviewHeight + ",Auto,Auto"), RowSpacing = 4 };
         cell.Children.Add(picture);
         Grid caption = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*") };
         Grid.SetColumn(_name, 1);
@@ -60,6 +63,8 @@ internal sealed class TaggingQueueTileView : Border
         caption.Children.Add(_name);
         Grid.SetRow(caption, 1);
         cell.Children.Add(caption);
+        Grid.SetRow(_group, 2);
+        cell.Children.Add(_group);
         Child = cell;
         AttachedToVisualTree += (_, _) => { _selection?.Dispose(); _selection = WorkspaceChips.ObserveSelection(this, _selected); };
         DetachedFromVisualTree += (_, _) => { _selection?.Dispose(); _selection = null; };
@@ -92,6 +97,7 @@ internal sealed class TaggingQueueTileView : Border
         _number.Text = row == null ? null : "#" + row.NumberText + (row.Next ? " \u203A" : null);
         _number.FontWeight = row?.Next == true ? FontWeight.Bold : FontWeight.Normal;
         ToolTip.SetTip(_number, row?.Next == true ? Texts.T("tagging.page.next") : null);
+        _group.Text = row?.GroupText;
         // The row's sentence plus the badges' sentence (kept by the badges until the state or the language changes).
         string? name = row == null ? null : _badges.Description.Length == 0 ? row.AccessibleName : row.AccessibleName + ", " + _badges.Description;
         ToolTip.SetTip(this, name);

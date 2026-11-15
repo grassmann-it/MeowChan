@@ -127,6 +127,46 @@ internal static class MediaMenuBuilder
         return item;
     }
 
+    /// <summary>A context-specific item with a dynamic label, used for named queue groups.</summary>
+    internal static MenuItem ContextItem(MediaMenuSession session, string id, string label, Func<Task> action, Func<bool> available,
+        Func<Func<Task>, Task> run, string? reason = null)
+    {
+        void Execute()
+        {
+            if (session.IsCurrent) _ = run(action);
+        }
+        bool CanExecute() => available() && session.IsCurrent;
+        MenuItem item = new() { Header = label, Tag = id, Command = new DelegateCommand(Execute, CanExecute) };
+        item.IsEnabled = CanExecute();
+        item.Click += (_, _) => RetireIfStale(session);
+        AutomationProperties.SetName(item, label);
+        if (!item.IsEnabled && reason != null)
+        {
+            ToolTip.SetTip(item, reason);
+            ToolTip.SetShowOnDisabled(item, true);
+            AutomationProperties.SetHelpText(item, reason);
+        }
+        return item;
+    }
+
+    /// <summary>Builds a context-specific submenu while retaining the media menu's stale-target guard.</summary>
+    internal static MenuItem Submenu(MediaMenuSession session, string id, string label, IReadOnlyList<Control> children,
+        Func<bool>? available = null, string? reason = null)
+    {
+        ArgumentNullException.ThrowIfNull(children);
+        bool enabled = available == null || available();
+        MenuItem item = new() { Header = label, Tag = id, IsEnabled = enabled, ItemsSource = children };
+        AutomationProperties.SetName(item, label);
+        if (!enabled && reason != null)
+        {
+            ToolTip.SetTip(item, reason);
+            ToolTip.SetShowOnDisabled(item, true);
+            AutomationProperties.SetHelpText(item, reason);
+        }
+        session.Invalidated += () => item.IsEnabled = false;
+        return item;
+    }
+
     /// <summary>A context-specific item that is a catalog command (its icon and shortcut show), with its own visible label.</summary>
     internal static MenuItem ContextCommandItem(MediaMenuSession session, string commandId, Func<Task> action, Func<bool> available,
         Func<Func<Task>, Task> run, string? unavailableReason, string label)

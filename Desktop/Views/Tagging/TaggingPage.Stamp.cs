@@ -110,7 +110,9 @@ public sealed partial class TaggingPage
         ToolTip.SetTip(_stampToggle, Texts.T(open ? "tagging.page.stamp.collapse" : "tagging.page.stamp.expand"));
     }
 
-    private string StampTitle() => Texts.T("tagging.page.stamp.title", _queueWork.StampNames.Count);
+    private string StampTitle() => _queueWork.ActiveGroup is { } group
+        ? Texts.T("tagging.page.stamp.groupTitle", group.Name, _queueWork.StampNames.Count)
+        : Texts.T("tagging.page.stamp.title", _queueWork.StampNames.Count);
 
     private void InitializeStamp()
     {

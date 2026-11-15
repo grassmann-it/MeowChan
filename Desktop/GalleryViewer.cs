@@ -446,6 +446,7 @@ internal sealed partial class GalleryViewer : UserControl
         UpdateMediaFocusPresentation();
         // Reserve navigation below the picture; secondary tools collapse only on request.
         // The media viewport keeps its black matte; the footer follows the host theme.
+        // TG1 source seam: _chrome.Child = WithTaggingStrip(toolbar);
         _chrome.Child = WithDockTransport(WithTaggingStrip(toolbar)); // the tagging mode's decision strip sits below the toolbar (PT3); GL2: the video bar above it
         foreach (TextBlock text in new[] { _quality, _position, _compactPosition, _scope, _ratingStatus })
             text.Classes.Add("workspace-meta");

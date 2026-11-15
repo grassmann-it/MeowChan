@@ -132,6 +132,30 @@ internal sealed partial class DesktopSessionHost
         return TagQueueCommandAsync(nameof(SetTagQueueStampAsync), store => store.SetStamp(frozen, token), token);
     }
 
+    internal Task<TagQueueSnapshot> CreateTagQueueGroupAsync(string name, IReadOnlyCollection<TagQueueKey>? keys = null, CancellationToken token = default)
+    {
+        TagQueueKey[]? frozen = keys?.ToArray();
+        return TagQueueCommandAsync(nameof(CreateTagQueueGroupAsync), store => store.CreateGroup(name, frozen, token), token);
+    }
+
+    internal Task<TagQueueSnapshot> RenameTagQueueGroupAsync(string groupId, string name, CancellationToken token = default)
+        => TagQueueCommandAsync(nameof(RenameTagQueueGroupAsync), store => store.RenameGroup(groupId, name, token), token);
+
+    internal Task<TagQueueSnapshot> DeleteTagQueueGroupAsync(string groupId, CancellationToken token = default)
+        => TagQueueCommandAsync(nameof(DeleteTagQueueGroupAsync), store => store.DeleteGroup(groupId, token), token);
+
+    internal Task<TagQueueSnapshot> AssignTagQueueGroupAsync(IReadOnlyCollection<TagQueueKey> keys, string? groupId, CancellationToken token = default)
+    {
+        TagQueueKey[] frozen = keys.ToArray();
+        return TagQueueCommandAsync(nameof(AssignTagQueueGroupAsync), store => store.AssignGroup(frozen, groupId, token), token);
+    }
+
+    internal Task<TagQueueSnapshot> SetTagQueueGroupStampAsync(string groupId, IReadOnlyList<string> names, CancellationToken token = default)
+    {
+        string[] frozen = names.ToArray();
+        return TagQueueCommandAsync(nameof(SetTagQueueGroupStampAsync), store => store.SetGroupStamp(groupId, frozen, token), token);
+    }
+
     private Task<TagQueueSnapshot> TagQueueCommandAsync(string action, Func<TagQueueStore, TagQueueSnapshot> operation, CancellationToken token,
         Action<TagQueueSnapshot>? onCommitted = null, bool signal = true)
         => TagQueueCommandAsync(action, operation, token, snapshot => snapshot, snapshot => signal, onCommitted == null ? null : (_, snapshot) => onCommitted(snapshot));

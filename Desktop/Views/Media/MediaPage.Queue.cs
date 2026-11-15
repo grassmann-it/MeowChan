@@ -28,6 +28,8 @@ public sealed partial class MediaPage
 
     /// <summary>Adds the media index entries to the tagging queue and returns the sentence for the status line; null disables every queue action.</summary>
     internal Func<IReadOnlyList<MediaLibraryEntry>, Task<string>>? AddToTagQueue { get; set; }
+    /// <summary>Adds media to a named tagging group; the page supplies the frozen target and group id.</summary>
+    internal Func<IReadOnlyList<MediaLibraryEntry>, string, Task<string>>? AddToTagQueueInGroup { get; set; }
     /// <summary>The confirmation limit of the tagging queue (Settings, Storage and limits); read at every add so a change applies at once.</summary>
     internal Func<int>? TagQueueConfirmAboveSource { get; set; }
     private int? _tagQueueConfirmAbove;
@@ -213,13 +215,19 @@ public sealed partial class MediaPage
     internal Task AddEntriesToQueueAsync(IReadOnlyList<MediaLibraryEntry> entries) =>
         AddToTagQueue == null || _selectionBusy || _lifetime.IsCancellationRequested || entries.Count == 0 ? Task.CompletedTask : RunQueueAddAsync(entries);
 
-    private async Task RunQueueAddAsync(IReadOnlyList<MediaLibraryEntry> entries)
+    internal Task AddEntriesToQueueInGroupAsync(IReadOnlyList<MediaLibraryEntry> entries, string groupId) =>
+        AddToTagQueueInGroup == null || _selectionBusy || _lifetime.IsCancellationRequested || entries.Count == 0
+            ? Task.CompletedTask : RunQueueAddAsync(entries, groupId);
+
+    private async Task RunQueueAddAsync(IReadOnlyList<MediaLibraryEntry> entries, string? groupId = null)
     {
-        if (AddToTagQueue is not { } add) return;
+        Func<IReadOnlyList<MediaLibraryEntry>, Task<string>>? add = groupId == null ? AddToTagQueue
+            : AddToTagQueueInGroup == null ? null : values => AddToTagQueueInGroup(values, groupId);
+        if (add is not { } addEntries) return;
         _selectionBusy = true;
         UpdateSelectionBar();
         string? message = null;
-        try { message = await add(entries); }
+        try { message = await addEntries(entries); }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
         finally
         {

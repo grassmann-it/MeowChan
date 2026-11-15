@@ -64,7 +64,7 @@ public sealed partial class TaggingPage
         _clearDone.Command = new DelegateCommand(() => _ = ClearFinishedAsync(), () => CanChange && _queueWork.Queue.Done > 0);
         _clear.Command = new DelegateCommand(AskClear, () => !_queueWork.Ended && !_queueWork.Busy && !_queueWork.Loading && _queueWork.Loaded
             && (_queueWork.Queue.Count > 0 && _queueWork.Queue.CanWrite || _queueWork.LoadError != null));
-        foreach (Control item in new Control[] { _start, _add, _clearDone, _clear, _filterPanel, _viewToggle, _help })
+        foreach (Control item in new Control[] { _start, _add, _clearDone, _clear, _groupPanel, _filterPanel, _viewToggle, _help })
         {
             ToolBar.SetOverflowMode(item, OverflowMode.AsNeeded);
             _actions.Items.Add(item);
@@ -97,7 +97,7 @@ public sealed partial class TaggingPage
     private TaggingCapabilities Capabilities => new(CanChange, StartTagging != null && CanChange, CanTag, _queueWork.StampNames.Count > 0,
         OpenGallery != null, ShowInThread != null, ShowInMedia != null, ShowInFolder != null, CopyPath != null);
 
-    private TaggingCommandContext CommandContext() => new(_queueWork.Queue, Filter, Selected, Lead, Capabilities, Scope);
+    private TaggingCommandContext CommandContext() => new(_queueWork.Queue, Filter, Selected, Lead, Capabilities, EffectiveScope);
 
     private Border BuildClearConfirmation()
     {
@@ -154,6 +154,10 @@ public sealed partial class TaggingPage
             ShowStatus(Texts.T("tagging.page.continue.notOpen"));
             return Task.CompletedTask;
         }
+        if (id == TaggingCommands.GroupNew) return CreateGroupDialogAsync();
+        if (id == TaggingCommands.GroupRemove) return AssignSelectionToGroupAsync(null);
+        if (id.StartsWith(TaggingCommands.GroupPrefix, StringComparison.Ordinal))
+            return AssignSelectionToGroupAsync(id[TaggingCommands.GroupPrefix.Length..]);
         if (!CanRowCommand(id) || Lead is not { } lead) return Task.CompletedTask;
         IReadOnlyList<TaggingQueueRow> selected = Selected;
         TagQueueKey[] keys = selected.Select(row => row.Key).ToArray();
@@ -170,8 +174,8 @@ public sealed partial class TaggingPage
             TaggingCommands.ShowInMedia => Leaving(ShowInMedia, lead.Item),
             TaggingCommands.ShowInFolder => Leaving(ShowInFolder, lead.Item),
             TaggingCommands.CopyPath => Leaving(CopyPath, lead.Item),
-            TaggingCommands.MoveUp => AfterAsync(_queueWork.MoveAsync(lead.Key, Filter, -1, Scope), select: lead.Key),
-            TaggingCommands.MoveDown => AfterAsync(_queueWork.MoveAsync(lead.Key, Filter, 1, Scope), select: lead.Key),
+            TaggingCommands.MoveUp => AfterAsync(_queueWork.MoveAsync(lead.Key, Filter, -1, EffectiveScope), select: lead.Key),
+            TaggingCommands.MoveDown => AfterAsync(_queueWork.MoveAsync(lead.Key, Filter, 1, EffectiveScope), select: lead.Key),
             TaggingCommands.MoveFirst => AfterAsync(_queueWork.MoveToEdgeAsync(lead.Key, toEnd: false), select: lead.Key),
             TaggingCommands.MoveLast => AfterAsync(_queueWork.MoveToEdgeAsync(lead.Key, toEnd: true), select: lead.Key),
             TaggingCommands.Remove => AfterAsync(_queueWork.RemoveAsync(keys), select: RowAfter(selected)?.Key),

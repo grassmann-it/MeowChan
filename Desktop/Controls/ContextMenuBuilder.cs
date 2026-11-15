@@ -80,6 +80,14 @@ internal sealed class ContextMenuBuilder
         return Add(new(ContextMenuEntryKind.Check, id, label, null, null, isChecked, available, reason, invoke, true));
     }
 
+    /// <summary>A submenu whose children are composed with the same section and availability rules.</summary>
+    internal ContextMenuBuilder Submenu(string id, string label, ContextMenuModel children, bool available = true, string? reason = null)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(id);
+        ArgumentNullException.ThrowIfNull(children);
+        return Add(new(ContextMenuEntryKind.Submenu, id, label, null, null, false, available, reason, null, Children: children.Sections));
+    }
+
     /// <summary>A disabled explanatory sentence.</summary>
     internal ContextMenuBuilder Note(string text) =>
         Add(new(ContextMenuEntryKind.Note, "note:" + _sections.Sum(section => section.Count), text, null, null, false, false, null, null, false));
@@ -132,8 +140,13 @@ internal sealed class ContextMenuBuilder
     internal static IReadOnlyList<Control> BuildItems(ContextMenuModel model)
     {
         ArgumentNullException.ThrowIfNull(model);
+        return Items(model.Sections);
+    }
+
+    private static List<Control> Items(IReadOnlyList<IReadOnlyList<ContextMenuEntry>> sections)
+    {
         List<Control> items = [];
-        foreach (IReadOnlyList<ContextMenuEntry> section in model.Sections)
+        foreach (IReadOnlyList<ContextMenuEntry> section in sections)
         {
             if (items.Count > 0) items.Add(new Separator());
             items.AddRange(section.Select(Item));
@@ -144,6 +157,13 @@ internal sealed class ContextMenuBuilder
     private static Control Item(ContextMenuEntry entry)
     {
         if (entry.Kind == ContextMenuEntryKind.Note) return MediaMenuBuilder.Note(entry.Label);
+        if (entry.Kind == ContextMenuEntryKind.Submenu)
+        {
+            MenuItem submenu = new() { Header = entry.Label, IsEnabled = entry.Available, ItemsSource = Items(entry.Children ?? Array.Empty<IReadOnlyList<ContextMenuEntry>>()) };
+            AutomationProperties.SetName(submenu, entry.Label);
+            submenu.Tag = entry.Id;
+            return submenu;
+        }
         Action invoke = entry.Invoke ?? (() => { });
         bool Available() => entry.Availability?.Invoke() ?? entry.Available;
         string? Reason() => Available() ? null : entry.ReasonFactory?.Invoke() ?? entry.Reason;

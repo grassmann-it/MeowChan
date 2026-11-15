@@ -31,6 +31,10 @@ internal static class TaggingCommands
     internal const string MoveFirst = "tagging.move-first";
     internal const string MoveLast = "tagging.move-last";
     internal const string Remove = "tagging.remove";
+    internal const string GroupNew = "tagging.group.new";
+    internal const string GroupRemove = "tagging.group.remove";
+    internal const string GroupPrefix = "tagging.group.assign:";
+    internal const string GroupMenu = "tagging.group.menu";
 
     /// <summary>The menu's sections (a separator between two): continue, state, look, order and the destructive one last.</summary>
     internal static readonly IReadOnlyList<IReadOnlyList<string>> Sections =
@@ -174,6 +178,23 @@ internal static class TaggingQueueMenu
             {
                 TaggingCommandState state = TaggingRowCommands.Evaluate(id, context);
                 menu.Command(id, action(id), state.Available, state.Reason);
+            }
+            // The group submenu is a first-class section between state changes and the look/order actions.
+            if (section == 1)
+            {
+                menu.Section();
+                ContextMenuBuilder groups = new ContextMenuBuilder().Named(Texts.T("tagging.page.group.assign"));
+                groups.Item(TaggingCommands.GroupNew, Texts.T("tagging.page.group.new"), action(TaggingCommands.GroupNew), context.Capabilities.CanChange);
+                foreach (TagQueueGroup group in context.Queue.Groups)
+                {
+                    string groupId = TaggingCommands.GroupPrefix + group.Id;
+                    bool checkedValue = context.Selected.All(row => row.Item.GroupId == group.Id);
+                    groups.Radio("tagging-groups", groupId, group.Name, checkedValue, action(groupId));
+                }
+                groups.Item(TaggingCommands.GroupRemove, Texts.T("tagging.page.group.remove"), action(TaggingCommands.GroupRemove),
+                    context.Capabilities.CanChange && context.Selected.Any(row => row.Item.GroupId != null));
+                menu.Submenu(TaggingCommands.GroupMenu, Texts.T("tagging.page.group.assign"), groups.ToModel(), context.Capabilities.CanChange,
+                    Texts.T("tagging.menu.reason.busy"));
             }
         }
         return menu;

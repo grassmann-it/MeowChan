@@ -65,6 +65,7 @@ public sealed partial class TaggingPage
         Control host = Usable(anchor) ? anchor! : ActiveList;
         TagContext context = TagContextFor(taggable.Contains(lead) ? lead : taggable[0], selection: together);
         QuickTagPopoverOptions options = TagPopoverOptions?.Invoke(context) ?? QuickTagPopoverOptions.Defaults(context);
+        options = options with { Stamp = _queueWork.StampForActiveScope() };
         QuickTagSession quick = options.NewSession(QuickTagTarget.For(session));
         string label = together ? Texts.T("media.selection.count", tiles.Count) : taggable[0].Name;
         _tagBusy = true;
@@ -129,6 +130,7 @@ public sealed partial class TaggingPage
         if (NewTagSession(taggable, out _) is not { } session) return;
         TagContext context = TagContextFor(taggable.Contains(lead) ? lead : taggable[0], selection: taggable.Count > 1);
         QuickTagPopoverOptions options = TagPopoverOptions?.Invoke(context) ?? QuickTagPopoverOptions.Defaults(context);
+        options = options with { Stamp = _queueWork.StampForActiveScope() };
         using QuickTagSession quick = options.NewSession(QuickTagTarget.For(session));
         _tagBusy = true;
         UpdateActions();
