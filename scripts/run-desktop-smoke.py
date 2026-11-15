@@ -423,7 +423,17 @@ def registry_entries(assembly: Path) -> list[dict[str, object]]:
 def registry_command(entry: dict[str, object], assembly: Path, output: Path, timeout: float, window_manager: str,
                      repository: Path) -> list[str]:
     """One child runner per entry, with exactly its registry environment, as a CI step would start it."""
-    environment = [str(value).replace("{repo}", str(repository)) for value in entry["environment"]]
+    def expand_repository(value: object) -> str:
+        text = str(value)
+        if "{repo}" not in text:
+            return text
+        prefix, suffix = text.split("{repo}", 1)
+        # Registry fixtures use POSIX-looking source paths in the committed
+        # manifest. Join the suffix through pathlib so Windows does not emit a
+        # mixed ``\\root/tests`` path while POSIX retains its separators.
+        return prefix + str(repository / suffix.lstrip("/\\"))
+
+    environment = [expand_repository(value) for value in entry["environment"]]
     command = ["env", *environment, sys.executable, str(Path(__file__).resolve()), "--assembly", str(assembly),
                "--mode", str(entry["mode"]), "--timeout", str(timeout), "--window-manager", window_manager,
                "--expect-scenario", str(entry["scenario"]), "--output", str(output)]
