@@ -946,7 +946,11 @@ public partial class MainWindow : Window
         // A state-dependent entry (pause) sets its own header; the command binding would reset it.
         if (icon == null) CommandBindings.Apply(item, command);
         // Native menu exporters require actual tinted pixels, rather than an Avalonia mask.
-        (item.Icon as Bitmap)?.Dispose();
+        // The icon cache may share one instance between several native menu items.
+        // Dispose only a temporary bitmap made by CommandBindings.Apply; cached
+        // icons are released together with the tray in DisposeTrayIcon().
+        if (item.Icon is Bitmap previous && !_trayMenuIcons.Values.Any(cached => ReferenceEquals(cached, previous)))
+            previous.Dispose();
         icon ??= CommandCatalog.Get(command).Icon;
         bool dark = OperatingSystem.IsWindows() ? ActualThemeVariant == ThemeVariant.Dark
             : _trayPlatformSettings?.GetColorValues().ThemeVariant == PlatformThemeVariant.Dark;

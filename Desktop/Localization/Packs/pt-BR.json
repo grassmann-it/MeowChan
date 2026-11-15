@@ -2010,6 +2010,8 @@
     "command.gallery.open": "Abrir na galeria",
     "command.media.open": "Abrir mídia selecionada",
     "command.media.select-all": "Selecionar todas as mídias",
+    "command.media.tile-size.larger": "Ladrilhos maiores",
+    "command.media.tile-size.smaller": "Ladrilhos menores",
     "command.gallery.open-results": "Mídias dos tópicos correspondentes",
     "command.thread.details": "Mostrar detalhes",
     "command.inspector.close": "Fechar detalhes",
@@ -4892,6 +4894,19 @@
     "settings.limits.mediaPanelWidth.hint": "Largura da barra lateral de mídia ao lado da grade da página Mídia. Também pode ser alterada arrastando a borda da barra lateral.",
     "settings.limits.mediaPanelMinimumPageWidth": "Ocultar a barra lateral de mídia abaixo desta largura de página (dip)",
     "settings.limits.mediaPanelMinimumPageWidth.hint": "Uma página Mídia mais estreita mostra só a grade; a barra lateral volta assim que a página estiver larga o suficiente de novo. Sua escolha no menu Layout é mantida.",
-    "media.layout.panel.collapsed": "Oculto enquanto a página for mais estreita que {0} dip. Sua escolha é mantida."
+    "media.layout.panel.collapsed": "Oculto enquanto a página for mais estreita que {0} dip. Sua escolha é mantida.",
+    "command.thread.show-in-media": "Mostrar em Mídia",
+    "command.media.link-folder": "Vincular pasta…",
+    "command.media.folders": "Pastas de mídia…",
+    "media.empty.copyOrLink": "Copie arquivos para sua coleção ou vincule uma pasta: os arquivos dela ficam onde estão e só são lidos.",
+    "media.queueAll.hint": "Adiciona à fila de tags todas as mídias que o filtro mostra. Acima do limite de confirmação, você será perguntado antes.",
+    "media.queueAll.reason.none": "Nenhuma miniatura está sendo exibida, então não há nada para adicionar.",
+    "reader.thread.postBookmarks": "Marcadores de postagens…",
+    "resume.tip.jump": "Clique: continuar na última posição de leitura. Clique com o botão direito, tecla de menu ou botão de seta: histórico de leitura.",
+    "resume.tip.history": "Clique: mostrar o histórico de leitura, porque você já está lendo um tópico. Clique com o botão direito, tecla de menu e botão de seta abrem a mesma lista.",
+    "resume.history.open": "Mostrar o histórico de leitura",
+    "menu.group.read": "Leitura",
+    "menu.group.collection": "Coleção",
+    "menu.group.app": "App"
   }
 }

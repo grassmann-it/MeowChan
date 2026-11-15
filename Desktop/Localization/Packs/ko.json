@@ -2221,6 +2221,8 @@
     "command.gallery.open": "갤러리에서 열기",
     "command.media.open": "선택한 미디어 열기",
     "command.media.select-all": "모든 미디어 선택",
+    "command.media.tile-size.larger": "타일 크게",
+    "command.media.tile-size.smaller": "타일 작게",
     "command.gallery.open-results": "일치하는 스레드의 미디어",
     "command.thread.details": "세부 정보 표시",
     "command.inspector.close": "세부 정보 닫기",
@@ -4797,6 +4799,19 @@
     "settings.limits.mediaPanelWidth.hint": "미디어 페이지에서 그리드 옆 미디어 사이드바의 너비입니다. 사이드바의 가장자리를 끌어서도 바꿀 수 있습니다.",
     "settings.limits.mediaPanelMinimumPageWidth": "페이지 너비가 이보다 좁으면 미디어 사이드바 숨기기(dip)",
     "settings.limits.mediaPanelMinimumPageWidth.hint": "미디어 페이지가 좁으면 그리드만 표시하며, 다시 충분히 넓어지면 사이드바가 돌아옵니다. 레이아웃 메뉴에서 고른 설정은 그대로 유지됩니다.",
-    "media.layout.panel.collapsed": "페이지 너비가 {0}dip보다 좁은 동안 숨겨집니다. 선택은 그대로 유지됩니다."
+    "media.layout.panel.collapsed": "페이지 너비가 {0}dip보다 좁은 동안 숨겨집니다. 선택은 그대로 유지됩니다.",
+    "command.thread.show-in-media": "미디어에서 보기",
+    "command.media.link-folder": "폴더 연결…",
+    "command.media.folders": "미디어 폴더…",
+    "media.empty.copyOrLink": "파일을 컬렉션에 복사하거나 폴더를 연결하세요. 연결한 폴더의 파일은 원래 위치에 남아 있고 읽기만 합니다.",
+    "media.queueAll.hint": "필터에 표시된 모든 미디어를 태그 지정 대기열에 추가합니다. 확인 한도를 넘으면 먼저 물어봅니다.",
+    "media.queueAll.reason.none": "표시된 타일이 없어서 추가할 항목이 없습니다.",
+    "reader.thread.postBookmarks": "게시물 책갈피…",
+    "resume.tip.jump": "클릭: 마지막 읽기 위치에서 이어 읽습니다. 마우스 오른쪽 버튼, 메뉴 키 또는 화살표 버튼: 읽기 기록.",
+    "resume.tip.history": "클릭: 이미 스레드를 읽고 있으므로 읽기 기록을 표시합니다. 마우스 오른쪽 버튼, 메뉴 키, 화살표 버튼도 같은 목록을 엽니다.",
+    "resume.history.open": "읽기 기록 표시",
+    "menu.group.read": "읽기",
+    "menu.group.collection": "컬렉션",
+    "menu.group.app": "앱"
   }
 }

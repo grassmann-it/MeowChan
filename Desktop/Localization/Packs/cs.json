@@ -2020,6 +2020,8 @@
     "command.gallery.open": "Otevřít v galerii",
     "command.media.open": "Otevřít vybraná média",
     "command.media.select-all": "Vybrat všechna média",
+    "command.media.tile-size.larger": "Větší dlaždice",
+    "command.media.tile-size.smaller": "Menší dlaždice",
     "command.gallery.open-results": "Média z odpovídajících vláken",
     "command.thread.details": "Zobrazit podrobnosti",
     "command.inspector.close": "Zavřít podrobnosti",
@@ -4932,6 +4934,19 @@
     "settings.limits.mediaPanelWidth.hint": "Šířka panelu médií vedle mřížky na stránce Média. Dá se změnit i tažením okraje panelu.",
     "settings.limits.mediaPanelMinimumPageWidth": "Skrýt panel médií pod touto šířkou stránky (dip)",
     "settings.limits.mediaPanelMinimumPageWidth.hint": "Užší stránka Média zobrazí jen mřížku; panel se vrátí, jakmile bude stránka opět dost široká. Vaše volba v nabídce Rozvržení zůstane zachována.",
-    "media.layout.panel.collapsed": "Skryto, dokud je stránka užší než {0} dip. Vaše volba zůstane zachována."
+    "media.layout.panel.collapsed": "Skryto, dokud je stránka užší než {0} dip. Vaše volba zůstane zachována.",
+    "command.thread.show-in-media": "Zobrazit v Médiích",
+    "command.media.link-folder": "Propojit složku…",
+    "command.media.folders": "Složky médií…",
+    "media.empty.copyOrLink": "Zkopírujte soubory do své sbírky, nebo propojte složku: její soubory zůstanou, kde jsou, a jen se čtou.",
+    "media.queueAll.hint": "Přidá do fronty štítkování všechna média, která filtr zobrazuje. Nad limitem potvrzení se vás nejdřív zeptáme.",
+    "media.queueAll.reason.none": "Nejsou zobrazeny žádné dlaždice, takže není co přidat.",
+    "reader.thread.postBookmarks": "Záložky příspěvků…",
+    "resume.tip.jump": "Kliknutí: pokračovat na poslední pozici čtení. Pravé tlačítko, klávesa nabídky nebo tlačítko se šipkou: historie čtení.",
+    "resume.tip.history": "Kliknutí: zobrazit historii čtení, protože už čtete vlákno. Pravé tlačítko, klávesa nabídky a tlačítko se šipkou otevřou stejný seznam.",
+    "resume.history.open": "Zobrazit historii čtení",
+    "menu.group.read": "Čtení",
+    "menu.group.collection": "Sbírka",
+    "menu.group.app": "Aplikace"
   }
 }

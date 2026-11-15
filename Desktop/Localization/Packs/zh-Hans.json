@@ -2221,6 +2221,8 @@
     "command.gallery.open": "在图库中打开",
     "command.media.open": "打开所选媒体",
     "command.media.select-all": "选择所有媒体",
+    "command.media.tile-size.larger": "更大的磁贴",
+    "command.media.tile-size.smaller": "更小的磁贴",
     "command.gallery.open-results": "来自匹配串的媒体",
     "command.thread.details": "显示详情",
     "command.inspector.close": "关闭详情",
@@ -4797,6 +4799,19 @@
     "settings.limits.mediaPanelWidth.hint": "媒体页面中网格旁媒体侧栏的宽度。也可以拖动侧栏边缘来调整。",
     "settings.limits.mediaPanelMinimumPageWidth": "页面宽度小于此值时隐藏媒体侧栏（dip）",
     "settings.limits.mediaPanelMinimumPageWidth.hint": "媒体页面较窄时只显示网格；页面宽度再次足够时侧栏会恢复。你在“布局”菜单中的选择会保留。",
-    "media.layout.panel.collapsed": "页面宽度小于 {0} dip 时隐藏。你的选择会保留。"
+    "media.layout.panel.collapsed": "页面宽度小于 {0} dip 时隐藏。你的选择会保留。",
+    "command.thread.show-in-media": "在媒体中显示",
+    "command.media.link-folder": "链接文件夹…",
+    "command.media.folders": "媒体文件夹…",
+    "media.empty.copyOrLink": "把文件复制到你的收藏中，或链接一个文件夹：其中的文件留在原处，只会被读取。",
+    "media.queueAll.hint": "把筛选器显示的所有媒体加入标签队列。超过确认上限时会先询问你。",
+    "media.queueAll.reason.none": "当前没有显示任何磁贴，因此没有可添加的内容。",
+    "reader.thread.postBookmarks": "帖子书签…",
+    "resume.tip.jump": "单击：从上次阅读位置继续。右键单击、菜单键或箭头按钮：阅读历史。",
+    "resume.tip.history": "单击：显示阅读历史，因为你已经在阅读一个帖子串。右键单击、菜单键和箭头按钮会打开同一个列表。",
+    "resume.history.open": "显示阅读历史",
+    "menu.group.read": "阅读",
+    "menu.group.collection": "收藏",
+    "menu.group.app": "应用"
   }
 }

@@ -2375,6 +2375,8 @@
     "command.gallery.open": "Abrir en la galería",
     "command.media.open": "Abrir el medio seleccionado",
     "command.media.select-all": "Seleccionar todos los medios",
+    "command.media.tile-size.larger": "Miniaturas más grandes",
+    "command.media.tile-size.smaller": "Miniaturas más pequeñas",
     "command.gallery.open-results": "Medios de los hilos coincidentes",
     "command.thread.details": "Mostrar detalles",
     "command.inspector.close": "Cerrar detalles",
@@ -4886,6 +4888,19 @@
     "settings.limits.mediaPanelWidth.hint": "Ancho de la barra lateral de medios junto a la cuadrícula de la página Medios. También se cambia arrastrando el borde de la barra lateral.",
     "settings.limits.mediaPanelMinimumPageWidth": "Ocultar la barra lateral de medios por debajo de este ancho de página (dip)",
     "settings.limits.mediaPanelMinimumPageWidth.hint": "Una página Medios más estrecha muestra solo la cuadrícula; la barra lateral vuelve en cuanto la página vuelve a ser lo bastante ancha. Su elección en el menú Diseño se conserva.",
-    "media.layout.panel.collapsed": "Oculto mientras la página sea más estrecha que {0} dip. Su elección se conserva."
+    "media.layout.panel.collapsed": "Oculto mientras la página sea más estrecha que {0} dip. Su elección se conserva.",
+    "command.thread.show-in-media": "Mostrar en Medios",
+    "command.media.link-folder": "Vincular carpeta…",
+    "command.media.folders": "Carpetas de medios…",
+    "media.empty.copyOrLink": "Copie archivos a su colección o vincule una carpeta: sus archivos se quedan donde están y solo se leen.",
+    "media.queueAll.hint": "Añade a la cola de etiquetado todos los medios que muestra el filtro. Por encima del límite de confirmación se le preguntará antes.",
+    "media.queueAll.reason.none": "No se muestra ninguna miniatura, así que no hay nada que añadir.",
+    "reader.thread.postBookmarks": "Marcadores de publicaciones…",
+    "resume.tip.jump": "Clic: continuar en la última posición de lectura. Clic derecho, tecla de menú o botón de flecha: historial de lectura.",
+    "resume.tip.history": "Clic: mostrar el historial de lectura, porque ya está leyendo un hilo. El clic derecho, la tecla de menú y el botón de flecha abren la misma lista.",
+    "resume.history.open": "Mostrar el historial de lectura",
+    "menu.group.read": "Lectura",
+    "menu.group.collection": "Colección",
+    "menu.group.app": "Aplicación"
   }
 }

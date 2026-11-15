@@ -2020,6 +2020,8 @@
     "command.gallery.open": "Otwórz w galerii",
     "command.media.open": "Otwórz wybrane media",
     "command.media.select-all": "Zaznacz wszystkie media",
+    "command.media.tile-size.larger": "Większe kafelki",
+    "command.media.tile-size.smaller": "Mniejsze kafelki",
     "command.gallery.open-results": "Media z pasujących wątków",
     "command.thread.details": "Pokaż szczegóły",
     "command.inspector.close": "Zamknij szczegóły",
@@ -4935,6 +4937,19 @@
     "settings.limits.mediaPanelWidth.hint": "Szerokość panelu bocznego mediów obok siatki na stronie Media. Można ją zmienić także przeciągając krawędź panelu.",
     "settings.limits.mediaPanelMinimumPageWidth": "Ukryj panel boczny mediów poniżej tej szerokości strony (dip)",
     "settings.limits.mediaPanelMinimumPageWidth.hint": "Węższa strona Media pokazuje tylko siatkę; panel wraca, gdy strona znów jest wystarczająco szeroka. Twój wybór w menu Układ zostaje zachowany.",
-    "media.layout.panel.collapsed": "Ukryty, dopóki strona jest węższa niż {0} dip. Twój wybór zostaje zachowany."
+    "media.layout.panel.collapsed": "Ukryty, dopóki strona jest węższa niż {0} dip. Twój wybór zostaje zachowany.",
+    "command.thread.show-in-media": "Pokaż w Mediach",
+    "command.media.link-folder": "Połącz folder…",
+    "command.media.folders": "Foldery mediów…",
+    "media.empty.copyOrLink": "Skopiuj pliki do swojej kolekcji albo połącz folder: jego pliki zostają tam, gdzie są, i są tylko odczytywane.",
+    "media.queueAll.hint": "Dodaje do kolejki tagowania wszystkie media pokazane przez filtr. Powyżej limitu potwierdzenia najpierw zostaniesz zapytany.",
+    "media.queueAll.reason.none": "Nie widać żadnych kafelków, więc nie ma czego dodać.",
+    "reader.thread.postBookmarks": "Zakładki postów…",
+    "resume.tip.jump": "Kliknięcie: kontynuuj od ostatniej pozycji czytania. Prawy przycisk, klawisz menu lub przycisk ze strzałką: historia czytania.",
+    "resume.tip.history": "Kliknięcie: pokaż historię czytania, bo już czytasz wątek. Prawy przycisk, klawisz menu i przycisk ze strzałką otwierają tę samą listę.",
+    "resume.history.open": "Pokaż historię czytania",
+    "menu.group.read": "Czytanie",
+    "menu.group.collection": "Kolekcja",
+    "menu.group.app": "Aplikacja"
   }
 }

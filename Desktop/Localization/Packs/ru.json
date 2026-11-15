@@ -2379,6 +2379,8 @@
     "command.gallery.open": "Открыть в галерее",
     "command.media.open": "Открыть выбранный медиафайл",
     "command.media.select-all": "Выбрать все медиафайлы",
+    "command.media.tile-size.larger": "Более крупные плитки",
+    "command.media.tile-size.smaller": "Более мелкие плитки",
     "command.gallery.open-results": "Медиафайлы из подходящих тредов",
     "command.thread.details": "Показать подробности",
     "command.inspector.close": "Закрыть подробности",
@@ -4909,6 +4911,19 @@
     "settings.limits.mediaPanelWidth.hint": "Ширина боковой панели медиа рядом с сеткой на странице «Медиа». Её можно менять и перетаскиванием края панели.",
     "settings.limits.mediaPanelMinimumPageWidth": "Скрывать боковую панель медиа, если ширина страницы меньше (dip)",
     "settings.limits.mediaPanelMinimumPageWidth.hint": "На более узкой странице «Медиа» видна только сетка; панель вернётся, как только ширины снова будет достаточно. Ваш выбор в меню «Раскладка» сохраняется.",
-    "media.layout.panel.collapsed": "Скрыта, пока страница уже {0} dip. Ваш выбор сохраняется."
+    "media.layout.panel.collapsed": "Скрыта, пока страница уже {0} dip. Ваш выбор сохраняется.",
+    "command.thread.show-in-media": "Показать в разделе «Медиа»",
+    "command.media.link-folder": "Привязать папку…",
+    "command.media.folders": "Папки медиа…",
+    "media.empty.copyOrLink": "Скопируйте файлы в свою коллекцию или привяжите папку: её файлы остаются на месте и только читаются.",
+    "media.queueAll.hint": "Добавляет в очередь тегов все медиа, которые показывает фильтр. Если их больше порога подтверждения, вас сначала спросят.",
+    "media.queueAll.reason.none": "Плитки не показаны, поэтому добавлять нечего.",
+    "reader.thread.postBookmarks": "Закладки постов…",
+    "resume.tip.jump": "Щелчок: продолжить с последнего места чтения. Правый щелчок, клавиша меню или кнопка со стрелкой: история чтения.",
+    "resume.tip.history": "Щелчок: показать историю чтения, так как вы уже читаете тред. Правый щелчок, клавиша меню и кнопка со стрелкой открывают тот же список.",
+    "resume.history.open": "Показать историю чтения",
+    "menu.group.read": "Чтение",
+    "menu.group.collection": "Коллекция",
+    "menu.group.app": "Приложение"
   }
 }

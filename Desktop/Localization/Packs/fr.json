@@ -2375,6 +2375,8 @@
     "command.gallery.open": "Ouvrir dans la galerie",
     "command.media.open": "Ouvrir le média sélectionné",
     "command.media.select-all": "Sélectionner tous les médias",
+    "command.media.tile-size.larger": "Vignettes plus grandes",
+    "command.media.tile-size.smaller": "Vignettes plus petites",
     "command.gallery.open-results": "Médias des fils correspondants",
     "command.thread.details": "Afficher les détails",
     "command.inspector.close": "Fermer les détails",
@@ -4886,6 +4888,19 @@
     "settings.limits.mediaPanelWidth.hint": "Largeur du panneau des médias à côté de la grille de la page Médias. Elle se règle aussi en faisant glisser le bord du panneau.",
     "settings.limits.mediaPanelMinimumPageWidth": "Masquer le panneau des médias sous cette largeur de page (dip)",
     "settings.limits.mediaPanelMinimumPageWidth.hint": "Une page Médias plus étroite n’affiche que la grille ; le panneau revient dès que la page est de nouveau assez large. Votre choix dans le menu Disposition est conservé.",
-    "media.layout.panel.collapsed": "Masqué tant que la page est plus étroite que {0} dip. Votre choix est conservé."
+    "media.layout.panel.collapsed": "Masqué tant que la page est plus étroite que {0} dip. Votre choix est conservé.",
+    "command.thread.show-in-media": "Afficher dans Médias",
+    "command.media.link-folder": "Lier un dossier…",
+    "command.media.folders": "Dossiers de médias…",
+    "media.empty.copyOrLink": "Copiez des fichiers dans votre collection ou liez un dossier : ses fichiers restent où ils sont et sont seulement lus.",
+    "media.queueAll.hint": "Ajoute à la file d’étiquetage tous les médias que le filtre affiche. Au-delà de la limite de confirmation, une question vous est posée avant.",
+    "media.queueAll.reason.none": "Aucune vignette n’est affichée, il n’y a donc rien à ajouter.",
+    "reader.thread.postBookmarks": "Signets de messages…",
+    "resume.tip.jump": "Clic : reprendre à la dernière position de lecture. Clic droit, touche Menu ou bouton flèche : historique de lecture.",
+    "resume.tip.history": "Clic : afficher l’historique de lecture, car vous lisez déjà un fil. Le clic droit, la touche Menu et le bouton flèche ouvrent la même liste.",
+    "resume.history.open": "Afficher l’historique de lecture",
+    "menu.group.read": "Lecture",
+    "menu.group.collection": "Collection",
+    "menu.group.app": "Application"
   }
 }

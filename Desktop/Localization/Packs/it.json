@@ -2010,6 +2010,8 @@
     "command.gallery.open": "Apri nella galleria",
     "command.media.open": "Apri media selezionato",
     "command.media.select-all": "Seleziona tutti i media",
+    "command.media.tile-size.larger": "Riquadri più grandi",
+    "command.media.tile-size.smaller": "Riquadri più piccoli",
     "command.gallery.open-results": "Media dei thread corrispondenti",
     "command.thread.details": "Mostra dettagli",
     "command.inspector.close": "Chiudi dettagli",
@@ -4892,6 +4894,19 @@
     "settings.limits.mediaPanelWidth.hint": "Larghezza della barra laterale dei media accanto alla griglia della pagina Media. Si cambia anche trascinando il bordo della barra laterale.",
     "settings.limits.mediaPanelMinimumPageWidth": "Nascondi la barra laterale dei media sotto questa larghezza della pagina (dip)",
     "settings.limits.mediaPanelMinimumPageWidth.hint": "Una pagina Media più stretta mostra solo la griglia; la barra laterale torna appena la pagina è di nuovo abbastanza larga. La tua scelta nel menu Layout resta salvata.",
-    "media.layout.panel.collapsed": "Nascosto finché la pagina è più stretta di {0} dip. La tua scelta resta salvata."
+    "media.layout.panel.collapsed": "Nascosto finché la pagina è più stretta di {0} dip. La tua scelta resta salvata.",
+    "command.thread.show-in-media": "Mostra in Media",
+    "command.media.link-folder": "Collega cartella…",
+    "command.media.folders": "Cartelle dei media…",
+    "media.empty.copyOrLink": "Copia i file nella tua raccolta oppure collega una cartella: i suoi file restano dove sono e vengono solo letti.",
+    "media.queueAll.hint": "Aggiunge alla coda di tagging tutti i media mostrati dal filtro. Oltre il limite di conferma ti viene chiesto prima.",
+    "media.queueAll.reason.none": "Non è mostrata nessuna anteprima, quindi non c’è nulla da aggiungere.",
+    "reader.thread.postBookmarks": "Segnalibri dei post…",
+    "resume.tip.jump": "Clic: continua dall’ultima posizione di lettura. Clic destro, tasto menu o pulsante freccia: cronologia di lettura.",
+    "resume.tip.history": "Clic: mostra la cronologia di lettura, perché stai già leggendo un thread. Clic destro, tasto menu e pulsante freccia aprono lo stesso elenco.",
+    "resume.history.open": "Mostra la cronologia di lettura",
+    "menu.group.read": "Lettura",
+    "menu.group.collection": "Raccolta",
+    "menu.group.app": "App"
   }
 }

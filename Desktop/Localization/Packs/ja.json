@@ -2221,6 +2221,8 @@
     "command.gallery.open": "ギャラリーで開く",
     "command.media.open": "選択したメディアを開く",
     "command.media.select-all": "すべてのメディアを選択",
+    "command.media.tile-size.larger": "タイルを大きく",
+    "command.media.tile-size.smaller": "タイルを小さく",
     "command.gallery.open-results": "一致するスレッドのメディア",
     "command.thread.details": "詳細を表示",
     "command.inspector.close": "詳細を閉じる",
@@ -4797,6 +4799,19 @@
     "settings.limits.mediaPanelWidth.hint": "メディアページでグリッドの横に表示されるメディアサイドバーの幅です。サイドバーの端をドラッグしても変更できます。",
     "settings.limits.mediaPanelMinimumPageWidth": "ページ幅がこの値未満ならメディアサイドバーを隠す（dip）",
     "settings.limits.mediaPanelMinimumPageWidth.hint": "メディアページが狭いときはグリッドだけを表示し、十分な幅に戻るとサイドバーも戻ります。レイアウトメニューでの選択は保持されます。",
-    "media.layout.panel.collapsed": "ページの幅が {0} dip 未満の間は非表示です。選択は保持されます。"
+    "media.layout.panel.collapsed": "ページの幅が {0} dip 未満の間は非表示です。選択は保持されます。",
+    "command.thread.show-in-media": "メディアで表示",
+    "command.media.link-folder": "フォルダーをリンク…",
+    "command.media.folders": "メディアフォルダー…",
+    "media.empty.copyOrLink": "ファイルをコレクションにコピーするか、フォルダーをリンクします。リンクしたフォルダーのファイルはその場所に残り、読み取りだけが行われます。",
+    "media.queueAll.hint": "フィルターで表示中のメディアをすべてタグ付けキューに追加します。確認の上限を超える場合は、先に確認します。",
+    "media.queueAll.reason.none": "タイルが表示されていないため、追加するものがありません。",
+    "reader.thread.postBookmarks": "投稿のブックマーク…",
+    "resume.tip.jump": "クリック：最後の閲覧位置から続きを読みます。右クリック、メニューキー、矢印ボタン：閲覧履歴。",
+    "resume.tip.history": "クリック：すでにスレッドを読んでいるため、閲覧履歴を表示します。右クリック、メニューキー、矢印ボタンでも同じ一覧が開きます。",
+    "resume.history.open": "閲覧履歴を表示",
+    "menu.group.read": "閲覧",
+    "menu.group.collection": "コレクション",
+    "menu.group.app": "アプリ"
   }
 }

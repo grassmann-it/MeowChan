@@ -26,7 +26,7 @@ public static class CommandCatalog
         new("reader-groups.read", "command.reader-groups.read", "Read group", "Gruppe lesen", "book-open", null, CommandScope.Dialog, new[] { "reader-groups-dialog" }),
         new("media.tags.edit", "media.tags.edit", "Tag…", "Tag…", "edit-2", "Primary+Shift+T", CommandScope.Media | CommandScope.Reader | CommandScope.Gallery, new[] { "media-context-menu", "reader-attachment-menu" }, new[] { "media", "gallery" }),
         new("media.queue.add", "command.media.queue.add", "Add to tagging queue", "Zur Tagging-Warteschlange hinzufügen", "plus", "Q", CommandScope.Media | CommandScope.Reader | CommandScope.Gallery | CommandScope.Archive, new[] { "media-context-menu", "reader-attachment-menu", "gallery-menu" }, new[] { "media", "gallery" }),
-        new("media.queue.open", "command.media.queue.open", "Walk through tagging queue", "Tagging-Warteschlange durchgehen", "list", null, CommandScope.Application, new[] { "app-menu" }),
+        new("media.queue.open", "command.media.queue.open", "Walk through tagging queue", "Tagging-Warteschlange durchgehen", "list", null, CommandScope.Application, new[] { "media-page" }),
         // PT2: the tagging page and the commands of its queue list (execution context "tagging"). The page has a footer button behind
         // Media, a More entry and a ⋯ entry like every main page. The main pages carry no fixed digit here: Ctrl/Cmd+1, 2, 3 ... follow the
         // footer buttons the person chose (MainPageOrder.Numbering, EffectiveShortcutBindings.Defaults).
@@ -127,10 +127,16 @@ public static class CommandCatalog
         new("gallery.open", "command.gallery.open", "Open in gallery", "In der Galerie öffnen", "image", "Shift+Enter", CommandScope.Archive | CommandScope.Reader | CommandScope.Media | CommandScope.Downloads, new[] { "downloads-thread-menu", "archive-card-menu", "archive-table-menu", "reader-toolbar", "media-list", "media-tiles", "inline-attachment" }),
         new("media.open", "command.media.open", "Open selected media", "Ausgewähltes Medium öffnen", "image", "Enter", CommandScope.Media, new[] { "media-list", "media-tiles" }),
         // The empty Media page opens the read-only folder-source flow; keep its presentation in the shared command catalog.
+        // QW-A #1: the empty Media page offers "Link folder…"; the page's More menu offers
+        // the settings group that manages all linked folders.
         new("media.link-folder", "command.media.link-folder", "Link folder…", "Ordner verknüpfen…", "folder", null, CommandScope.Media, new[] { "media-empty-state" }),
+        new("media.folders", "command.media.folders", "Media folders…", "Medienordner…", "folder", null, CommandScope.Media, new[] { "media-page" }),
         new("media.focus-mode", "command.media.focus-mode", "Focus mode", "Fokusmodus", "maximize", "Shift+F", CommandScope.Media, new[] { "media-toolbar", "media-tiles" }, new[] { "media" }),
         new("media.select-all", "command.media.select-all", "Select all media", "Alle Medien auswählen", "check-square", "Primary+A", CommandScope.Media, new[] { "media-tiles" }),
+        new("media.tile-size.larger", "command.media.tile-size.larger", "Larger tiles", "Größere Kacheln", "zoom-in", "Primary+Plus", CommandScope.Media, new[] { "media-tiles" }),
+        new("media.tile-size.smaller", "command.media.tile-size.smaller", "Smaller tiles", "Kleinere Kacheln", "zoom-out", "Primary+Minus", CommandScope.Media, new[] { "media-tiles" }),
         new("gallery.open-results", "command.gallery.open-results", "Media from matching threads", "Medien der Treffer", "image", null, CommandScope.Archive, new[] { "archive-results-toolbar" }),
+        new("thread.show-in-media", "command.thread.show-in-media", "Show in Media", "In Medien zeigen", "grid", null, CommandScope.Archive | CommandScope.Reader | CommandScope.Downloads, new[] { "downloads-thread-menu", "archive-card-menu", "archive-table-menu", "reader-thread-menu" }),
         new("thread.details", "command.thread.details", "Show details", "Details anzeigen", "info", "Alt+Enter", CommandScope.Archive | CommandScope.Downloads, new[] { "downloads-thread-menu", "downloads-board-menu", "downloads-toolbar", "archive-card-menu", "archive-table-menu", "reader-thread-menu" }),
         new("inspector.close", "command.inspector.close", "Close details", "Details schließen", "x", null, CommandScope.Downloads, new[] { "downloads-inspector" }),
         new("watch.check", "command.watch.check", "Check now", "Jetzt prüfen", "refresh-cw", "F5", CommandScope.Archive | CommandScope.Diagnostics | CommandScope.Downloads, new[] { "downloads-thread-menu", "downloads-board-menu", "downloads-inspector", "archive-card-menu", "archive-table-menu", "diagnostics", "reader-thread-menu" }),
@@ -166,7 +172,7 @@ public static class CommandCatalog
         new("archive.back-to-list", "command.archive.back-to-list", "Back to thread list", "Zurück zur Threadliste", "arrow-left", null, CommandScope.Reader, new[] { "embedded-reader" }),
         new("archive.capture-toggle", "command.archive.capture-toggle", "Start / stop post capture", "Post-Erfassung starten / stoppen", "circle", null, CommandScope.Reader | CommandScope.Application, new[] { "reader-thread-menu" }),
         new("reader.close", "command.reader.close", "Close reader", "Reader schließen", "arrow-left", "Escape", CommandScope.Reader, new[] { "large-reader-toolbar" }),
-        new("reader.expand", "command.reader.expand", "Expand reader", "Reader vergrößern", "external-link", null, CommandScope.Reader, new[] { "embedded-reader-toolbar" }),
+        new("reader.expand", "command.reader.expand", "Read in large reader", "Im großen Reader lesen", "external-link", null, CommandScope.Reader, new[] { "embedded-reader-toolbar" }),
         new("reader.history-back", "command.reader.history-back", "Back to last read", "Zurück zum Lesestand", "arrow-left", "Alt+Left", CommandScope.Reader, new[] { "reader-toolbar" }, new[] { "reader-history" }),
         new("reader.previous-thread", "command.reader.previous-thread", "Previous thread", "Voriger Thread", "arrow-left", "Left", CommandScope.Reader, new[] { "large-reader-navigation" }),
         new("reader.next-thread", "command.reader.next-thread", "Next thread", "Nächster Thread", "arrow-right", "Right", CommandScope.Reader, new[] { "large-reader-navigation" }),
@@ -203,7 +209,7 @@ public static class CommandCatalog
         new("gallery.layout.hints", "command.gallery.layout.hints", "Layout: show / hide hints", "Layout: Hinweise anzeigen / ausblenden", "help-circle", null, CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
         new("gallery.layout.filmstrip-top", "command.gallery.layout.filmstrip-top", "Layout: filmstrip at the top", "Layout: Filmstreifen oben", "columns", null, CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
         new("gallery.layout.filmstrip-bottom", "command.gallery.layout.filmstrip-bottom", "Layout: filmstrip at the bottom", "Layout: Filmstreifen unten", "columns", null, CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
-        new("gallery.layout.reset", "command.gallery.layout.reset", "Layout: reset to the default of the work view", "Layout: auf den Standard der Arbeitsansicht zurücksetzen", "rotate-ccw", null, CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
+        new("gallery.layout.reset", "command.gallery.layout.reset", "Reset gallery layout", "Galerie-Layout zurücksetzen", "rotate-ccw", null, CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
         new("gallery.context-toggle", "command.gallery.context-toggle", "Show post context", "Post-Kontext anzeigen", "file-text", "Shift+P", CommandScope.Gallery, new[] { "gallery-toolbar" }),
         new("gallery.context-close", "command.gallery.context-close", "Back to image", "Zurück zum Bild", "image", null, CommandScope.Gallery, new[] { "gallery-post-context" }),
         new("gallery.show-in-thread", "command.gallery.show-in-thread", "Show in thread", "Im Thread anzeigen", "file-text", "T", CommandScope.Gallery | CommandScope.Media, new[] { "gallery-post-context", "media-page" }),
@@ -244,7 +250,7 @@ public static class CommandCatalog
         new("export.cancel", "command.export.cancel", "Cancel export", "Export abbrechen", "x-circle", null, CommandScope.Dialog, new[] { "html-export-progress", "original-export-progress:planned" }),
         new("export.start-html", "command.export.start-html", "Export", "Exportieren", "download", null, CommandScope.Dialog, new[] { "html-export-dialog" }),
         new("sources.select", "command.sources.select", "Select source", "Quelle auswählen", "globe", null, CommandScope.Sources, new[] { "sources-card" }),
-        new("sources.back", "command.sources.back", "Back to sources", "Zurück zu Quellen", "arrow-left", null, CommandScope.Sources, new[] { "sources-details-narrow" }),
+        new("sources.back", "command.sources.back", "Back to Plugins", "Zurück zu Plugins", "arrow-left", null, CommandScope.Sources, new[] { "sources-details-narrow" }),
         new("watch.show-in-downloads", "command.watch.show-in-downloads", "Show in downloads", "In Downloads zeigen", "corner-up-right", null, CommandScope.Sources | CommandScope.Diagnostics | CommandScope.Downloads, new[] { "sources-watch-details", "diagnostics-details" }),
         new("diagnostics.retry-selection", "command.diagnostics.retry-selection", "Retry selected targets", "Auswahl wiederholen", "refresh-cw", "Shift+F5", CommandScope.Diagnostics, new[] { "diagnostics" }),
         new("diagnostics.retry-filtered", "command.diagnostics.retry-filtered", "Retry filtered targets", "Gefilterte wiederholen", "refresh-cw", null, CommandScope.Diagnostics, new[] { "diagnostics" }),
@@ -261,7 +267,7 @@ public static class CommandCatalog
         new("input.focus-diagnostics-search", "command.input.focus-diagnostics-search", "Search diagnostics", "Diagnose durchsuchen", "search", "Primary+F", CommandScope.Diagnostics, new[] { "diagnostics" }),
         new("archive.clear-filter", "command.archive.clear-filter", "Remove filter", "Filter entfernen", "x", null, CommandScope.Archive, new[] { "archive-active-filter-chip" }),
         new("table.choose-columns", "command.table.choose-columns", "Choose columns…", "Spalten auswählen…", "columns", null, CommandScope.Archive | CommandScope.Downloads, new[] { "downloads-table", "archive-table" }),
-        new("table.reset-layout", "command.table.reset-layout", "Reset view layout", "Ansicht zurücksetzen", "rotate-ccw", null, CommandScope.Archive | CommandScope.Downloads, new[] { "downloads-table", "archive-table", "split-layout" }),
+        new("table.reset-layout", "command.table.reset-layout", "Reset table layout", "Tabellenlayout zurücksetzen", "rotate-ccw", null, CommandScope.Archive | CommandScope.Downloads, new[] { "downloads-table", "archive-table", "split-layout" }),
         new("reader.font-size", "command.reader.font-size", "Reading font size", "Leseschriftgröße", "type", null, CommandScope.Reader | CommandScope.Media | CommandScope.Settings, new[] { "reader-toolbar", "settings-reading-media" }),
         new("watch.follow-live", "command.watch.follow-live", "Show new posts automatically", "Neue Posts automatisch anzeigen", "arrow-down", "Primary+Shift+L", CommandScope.Reader | CommandScope.Downloads, new[] { "reader-view-menu", "threadwatcher" }),
         new("reader.show-new-posts", "command.reader.show-new-posts", "Show new posts", "Neue Posts anzeigen", "arrow-down", "Primary+Shift+N", CommandScope.Reader, new[] { "reader-new-posts-notice" }),
@@ -287,7 +293,7 @@ public static class CommandCatalog
         new("post.hide", "command.post.hide", "Hide post", "Post ausblenden", "eye-off", null, CommandScope.Reader, new[] { "reader-post-menu" }),
         new("post.unhide", "command.post.unhide", "Show post again", "Post wieder anzeigen", "eye", null, CommandScope.Reader, new[] { "reader-post-menu" }),
         new("thread.favorite-toggle", "command.thread.favorite-toggle", "Favorite / unfavorite thread", "Threadfavorit markieren / entfernen", "star", "Primary+D", CommandScope.Archive | CommandScope.Reader, new[] { "archive-card", "archive-table", "archive-thread-menu", "reader-toolbar" }),
-        new("thread.tags", "command.thread.tags", "Tags…", "Tags…", "edit-2", "Primary+T", CommandScope.Archive | CommandScope.Reader, new[] { "archive-thread-menu" }, new[] { "archive", "reader" }),
+        new("thread.tags", "command.thread.tags", "Thread tags…", "Thread-Tags…", "edit-2", "Primary+T", CommandScope.Archive | CommandScope.Reader, new[] { "archive-thread-menu" }, new[] { "archive", "reader" }),
         // Quick tagging (tag panel in the gallery, tag popover elsewhere). Registered ahead of the handlers: QuickTagCommands.AwaitingHandler keeps them inactive and unlisted until
         // the packages that wire them say so. The panel commands act in the gallery only (Ctrl+T there is the thread tags section; thread.tags stays in the archive and the reader);
         // undo and the suggestion toggles also act in the popover on the media page, the reader attachment and the archive tile.
@@ -298,7 +304,7 @@ public static class CommandCatalog
         new("tags.quick.mark-previous", "command.tags.quick.mark-previous", "Go back and unmark media", "Zurück und Markierung aufheben", "rotate-ccw", "Shift+PageUp", CommandScope.Gallery, new[] { "gallery-tag-panel" }, new[] { "gallery" }),
         new("tags.quick.thread-section", "command.tags.quick.thread-section", "Thread tags section", "Abschnitt Thread-Tags", "edit-2", "Primary+T", CommandScope.Gallery, new[] { "gallery-tag-panel" }, new[] { "gallery" }),
         new("tags.quick.undo", "command.tags.quick.undo", "Undo last tag change", "Letzte Tagänderung rückgängig machen", "rotate-ccw", "Primary+Z", CommandScope.Gallery | CommandScope.Media | CommandScope.Reader | CommandScope.Archive, new[] { "gallery-tag-panel", "quick-tag-popover" }, new[] { "gallery", "media", "reader", "archive" }),
-        new("tags.quick.stamp-apply", "command.tags.quick.stamp-apply", "Apply tag stamp", "Stempel-Tags setzen", "check-square", "Primary+Shift+Enter", CommandScope.Gallery | CommandScope.Media | CommandScope.Reader | CommandScope.Archive, new[] { "gallery-tag-panel", "quick-tag-popover" }, new[] { "gallery", "media", "reader", "archive" }),
+        new("tags.quick.stamp-apply", "command.tags.quick.stamp-apply", "Apply stamp", "Stempel setzen", "check-square", "Primary+Shift+Enter", CommandScope.Gallery | CommandScope.Media | CommandScope.Reader | CommandScope.Archive, new[] { "gallery-tag-panel", "quick-tag-popover" }, new[] { "gallery", "media", "reader", "archive" }),
         new("tags.quick.suggestion-1", "command.tags.quick.suggestion-1", "Toggle tag suggestion 1", "Tagvorschlag 1 umschalten", "check", "Alt+1", CommandScope.Gallery | CommandScope.Media | CommandScope.Reader | CommandScope.Archive, new[] { "gallery-tag-panel", "quick-tag-popover" }, new[] { "gallery", "media", "reader", "archive" }),
         new("tags.quick.suggestion-2", "command.tags.quick.suggestion-2", "Toggle tag suggestion 2", "Tagvorschlag 2 umschalten", "check", "Alt+2", CommandScope.Gallery | CommandScope.Media | CommandScope.Reader | CommandScope.Archive, new[] { "gallery-tag-panel", "quick-tag-popover" }, new[] { "gallery", "media", "reader", "archive" }),
         new("tags.quick.suggestion-3", "command.tags.quick.suggestion-3", "Toggle tag suggestion 3", "Tagvorschlag 3 umschalten", "check", "Alt+3", CommandScope.Gallery | CommandScope.Media | CommandScope.Reader | CommandScope.Archive, new[] { "gallery-tag-panel", "quick-tag-popover" }, new[] { "gallery", "media", "reader", "archive" }),
