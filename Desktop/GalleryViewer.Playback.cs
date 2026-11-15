@@ -611,6 +611,35 @@ internal sealed partial class GalleryViewer
         if (wasRunning) RefreshPlaybackControls();
     }
 
+    private GalleryDialogPlaybackHold? _dialogHold;
+
+    /// <summary>Whether a modal dialog of the shell holds the playback now (tests).</summary>
+    internal bool IsDialogPlaybackHeld => _dialogHold != null;
+
+    /// <summary>
+    /// A modal dialog (the rating dialog) opens over the gallery: the slideshow pauses as for "manage ratings" and a playing video pauses
+    /// silently. <see cref="EndDialogPlaybackHoldAsync"/> gives back only what was running.
+    /// </summary>
+    internal void BeginDialogPlaybackHold()
+    {
+        if (_dialogHold != null || _terminalRetirement || _viewerInteractionStopped) return;
+        bool video = _entry?.Kind == SavedMediaKind.Video && _video?.IsPlayingNow == true;
+        _dialogHold = new GalleryDialogPlaybackHold(_entry?.EntryKey, video, _slideshow?.IsRunning == true);
+        PauseSlideshow();
+        if (video) _ = _video!.PauseForDialogAsync();
+    }
+
+    internal async Task EndDialogPlaybackHoldAsync()
+    {
+        if (_dialogHold is not { } hold) return;
+        _dialogHold = null;
+        (bool video, bool slideshow) = hold.Resume(_entry?.EntryKey, _video?.IsPlayingNow == true, _slideshow?.IsRunning == true,
+            _terminalRetirement || _viewerInteractionStopped || _navigationPending);
+        if (slideshow) StartSlideshowNavigation(); // holds itself while the window is not usable yet
+        if (video && _entry?.Kind == SavedMediaKind.Video && _video != null) await _video.ResumeAfterDialogAsync();
+        RefreshPlaybackControls();
+    }
+
     private void StopSlideshow()
     {
         _slideshow?.Stop();
