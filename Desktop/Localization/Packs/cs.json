@@ -1991,7 +1991,7 @@
     "command.reader-groups.move-down": "Posunout vlákno dolů",
     "command.reader-groups.save": "Uložit skupinu",
     "command.reader-groups.read": "Číst skupinu",
-    "command.media.rating.edit": "Hodnocení",
+    "command.media.rating.edit": "Hodnotit a označit štítkem…",
     "command.media.rating.clear": "Odebrat hodnocení",
     "command.media.rating.manage": "Spravovat uložená hodnocení…",
     "command.media.rating.remove-selected": "Odebrat vybrané hodnocení…",

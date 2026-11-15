@@ -10,8 +10,8 @@ using MeowChan.Gallery;
 
 namespace MeowChan.Desktop;
 
-// The gallery's media menu: the same composed common actions as the archive and the media page (including the media
-// tags), opened on the shown medium for the viewport, the native video overlay and the keyboard's Menu key / Shift+F10.
+// The gallery's media menu: the same composed common actions as the archive and the media page (including "Rate and tag…"),
+// opened on the shown medium for the viewport, the native video overlay and the keyboard's Menu key / Shift+F10.
 // The target is frozen when the menu opens; navigating to another medium invalidates the menu.
 internal sealed partial class GalleryViewer
 {
@@ -58,7 +58,6 @@ internal sealed partial class GalleryViewer
             FavoriteWired = FavoriteToggleRequested != null && !_terminalRetirement,
             RatingWired = RatingSetRequested != null,
             RatingKnown = _ratingAvailable,
-            Rating = _ratingValue,
             TagsWired = TagsRequested != null,
             TagsBlocked = _tagNames == null ? _tagsUnavailableReason ?? MediaMenuReasons.TagsUnknown
                 : CanRequestFavorite ? null : MediaMenuReasons.Unavailable,
@@ -78,8 +77,8 @@ internal sealed partial class GalleryViewer
 
     /// <summary>
     /// Opens the media menu. Without <paramref name="tile"/> it is the shown medium's; with one (a right-click on a filmstrip tile) it is that tile's: the
-    /// same composed actions on its entry, without the three that read or change the shown medium's own state (favorite, rating, tags), and without a
-    /// playback group. It stays valid until the next navigation, like the shown medium's.
+    /// same composed actions on its entry, without the favorite (it reads the shown medium's own state) and without a playback group; its
+    /// "Rate and tag…" opens the popover on the filmstrip for that tile's medium. It stays valid until the next navigation, like the shown medium's.
     /// </summary>
     private void ShowMediaMenu(GalleryEntry? tile = null)
     {
@@ -89,13 +88,15 @@ internal sealed partial class GalleryViewer
         bool shown = tile == null;
         long navigation = _navigationId;
         MediaMenuModel model = MediaMenuComposition.Compose(MediaMenuFactsFor(entry));
-        if (!shown) model = model with { Items = model.Items.Where(item => item.Action is not (MediaMenuAction.Favorite or MediaMenuAction.Rating or MediaMenuAction.Tags)).ToArray() };
+        if (!shown)
+            model = model with { Items = model.Items.Where(item => item.Action != MediaMenuAction.Favorite).Select(item => item.Action != MediaMenuAction.RateAndTag ? item
+                : item with { Available = RateAndTagTileRequested != null, Reason = RateAndTagTileRequested != null ? null : MediaMenuReasons.Unavailable }).ToArray() };
         MediaMenuSession session = new(model.Surface, model.Target, () => !_terminalRetirement && navigation == _navigationId
             && (!shown || _entry is { } current && MediaMenuTarget.Of(current) == model.Target));
         Dictionary<MediaMenuAction, Func<Task>> handlers = new()
         {
             [MediaMenuAction.Favorite] = Sync(() => FavoriteToggleRequested?.Invoke(entry)),
-            [MediaMenuAction.Tags] = Sync(() => { PauseSlideshow(); TagsRequested?.Invoke(entry); }),
+            [MediaMenuAction.RateAndTag] = shown ? Sync(RequestRateAndTag) : Sync(() => RateAndTagTileRequested?.Invoke(entry, _filmstrip)),
             [MediaMenuAction.Queue] = Sync(() => QueueRequested?.Invoke(entry)),
             [MediaMenuAction.Export] = Sync(() => ExportOriginalRequested?.Invoke(entry)),
             [MediaMenuAction.ShowInFolder] = Sync(() => ShowInFolderRequested?.Invoke(entry)),
@@ -116,9 +117,8 @@ internal sealed partial class GalleryViewer
         if (ReaderPlaybackMenu.GalleryExtras.OffersPostBookmark(entry.Post != null))
             context = new() { MediaMenuBuilder.PostBookmarkItem(session, Sync(() => RequestPostBookmark(entry)),
                 () => !_terminalRetirement && PostBookmarkRequested != null, run) };
-        // The "Rating" submenu rates the frozen entry (the medium the menu opened on), never the marked media of the tag panel.
         ContextMenu menu = MediaMenuBuilder.Build(session, model, handlers, run, context,
-            text => MenuExplanationRequested?.Invoke(text), playback, value => Sync(() => RatingSetRequested?.Invoke(entry, value))());
+            text => MenuExplanationRequested?.Invoke(text), playback);
         Control owner = !shown ? _filmstrip : _nativeOverlayActive ? _nativeVideoOverlay : _viewport;
         menu.Opened += (_, _) => RefreshPlaybackControls();
         menu.Closed += (_, _) => RefreshPlaybackControls();

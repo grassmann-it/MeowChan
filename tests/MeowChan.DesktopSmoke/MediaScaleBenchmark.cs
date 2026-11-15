@@ -1,3 +1,4 @@
+using MeowChan.Desktop.Commands;
 using System.Diagnostics;
 using System.Globalization;
 using System.Reflection;
@@ -189,7 +190,7 @@ internal static class MediaScaleBenchmark
         await SelectAsync(page, bound);
         page.Grid.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = Control.ContextRequestedEvent });
         await UntilAsync(() => page.MediaMenu?.IsOpen == true, Short, "menu for tags");
-        MenuItem edit = page.MediaMenu!.Items.OfType<MenuItem>().Single(item => item.Header as string == Texts.T("media.tags.edit"));
+        MenuItem edit = page.MediaMenu!.Items.OfType<MenuItem>().Single(item => item.Header as string == CommandCatalog.Label("media.rating.edit"));
         await UntilAsync(() => edit.IsEffectivelyVisible && TopLevel.GetTopLevel(edit) != null, Short, "tag menu item");
         string tagFile = Path.Combine(session.ProfileDirectory, "private-tags.json");
         MediaTagDialog dialog = null!;

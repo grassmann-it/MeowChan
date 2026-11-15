@@ -176,15 +176,17 @@ internal sealed partial class GalleryViewer : UserControl
     private readonly Button _manageRatingsButton = new() { Name = "GalleryManageRatings" };
     internal Button ManageRatingsButton => _manageRatingsButton;
     internal event Action<GalleryEntry, int?>? RatingSetRequested;
+    /// <summary>"Rate and tag…" of a filmstrip tile's menu: the shell opens the popover for that tile's medium on the filmstrip.</summary>
+    internal event Action<GalleryEntry, Control>? RateAndTagTileRequested;
     private CommandRouter? _ratingRouter;
     private CommandRouter? _nativeRatingRouter;
     private CommandRouter CreateRatingRouter(Control owner)
     {
         CommandRouter router = new(owner);
         bool Ready() => _entry != null && _ratingAvailable;
-        // R (Tom's decision of 15.11.: no dialog) moves the focus to the stars of the panel; only a panel that cannot take it shows the menu.
-        router.Register(new("media.rating.edit", owner, () => owner.IsEffectivelyVisible, Ready,
-            () => { if (!FocusRatingStars()) ShowRatingMenu(); }, Priority: 200));
+        // R "Rate and tag" (Tom's decision of 15.11.: no rating menu, no dialog): the Tags segment opens with its stars focused.
+        router.Register(new("media.rating.edit", owner, () => owner.IsEffectivelyVisible, () => CanRateAndTag,
+            RequestRateAndTag, Priority: 200));
         router.Register(new("media.rating.manage", owner, () => owner.IsEffectivelyVisible, () => ManageRatingsRequested != null,
             () => ManageRatingsRequested?.Invoke(), Priority: 200));
         router.Register(new("media.rating.clear", owner, () => owner.IsEffectivelyVisible, Ready,

@@ -72,46 +72,53 @@ public sealed class GalleryRatingPanelTests : IDisposable
         Assert.Contains("IsGalleryShortcutInput", viewer);
     }
 
-    // ---- the media menu: the Rating submenu --------------------------------------------------------------------------------------
+    // ---- the media menu: "Rate and tag…" (one entry, no submenu) -----------------------------------------------------------------
 
     [Fact]
-    public void TheRatingEntryHasSixChildrenAndChecksTheCurrentStar()
+    public void RateAndTagIsOneEntryWithoutChildrenAndNoRatingStarsAreMenuEntries()
     {
-        MediaMenuItemModel rating = Rating(MediaMenuComposition.Compose(Facts() with { Rating = 3 }));
-        Assert.Equal("media.rating.edit", rating.CommandId);
-        Assert.True(rating.Available);
-        IReadOnlyList<MediaMenuItemModel> children = rating.Children!;
-        Assert.Equal(new[] { "media.rating.set-1", "media.rating.set-2", "media.rating.set-3", "media.rating.set-4", "media.rating.set-5", "media.rating.clear" },
-            children.Select(child => child.CommandId).ToArray());
-        Assert.Equal(new bool?[] { false, false, true, false, false, null }, children.Select(child => child.Checked).ToArray());
-        Assert.All(children, child => Assert.True(child.Available));
-        Assert.Equal(new int?[] { 1, 2, 3, 4, 5, null }, children.Select(child => child.RatingValue).ToArray());
+        MediaMenuModel model = MediaMenuComposition.Compose(Facts());
+        MediaMenuItemModel entry = RateAndTag(model);
+        Assert.Equal("media.rating.edit", entry.CommandId);
+        Assert.True(entry.Available);
+        Assert.Null(entry.Checked);
+        Assert.DoesNotContain(model.Items, item => item.CommandId is { } id && id.StartsWith("media.rating.set-", StringComparison.Ordinal));
+        Assert.DoesNotContain(model.Items, item => item.CommandId is "media.rating.clear" or "media.tags.edit");
     }
 
     [Fact]
-    public void RemoveRatingNeedsARatingAndNamesWhyItIsDisabled()
+    public void ABlockedRatingStillOffersRateAndTagWhileTheTagsCanBeEdited()
     {
-        MediaMenuItemModel clear = Rating(MediaMenuComposition.Compose(Facts())).Children!.Last();
-        Assert.False(clear.Available);
-        Assert.Equal(MediaRatingText.Value(null), clear.Reason);
+        MediaMenuItemModel entry = RateAndTag(MediaMenuComposition.Compose(Facts() with { RatingBlocked = "ratings damaged" }));
+        Assert.True(entry.Available);
+        MediaMenuItemModel neither = RateAndTag(MediaMenuComposition.Compose(Facts() with { RatingBlocked = "ratings damaged", TagsBlocked = "tags damaged" }));
+        Assert.False(neither.Available);
+        Assert.Equal("ratings damaged", neither.Reason);
     }
 
     [Fact]
-    public void ABlockedRatingDisablesTheEntryAndEveryChildWithTheReasonVerbatim()
+    public void RateAndTagKeepsItsIdAndKeyAndIsNamedInBothLanguages()
     {
-        MediaMenuItemModel rating = Rating(MediaMenuComposition.Compose(Facts() with { Rating = 2, RatingBlocked = "ratings damaged" }));
-        Assert.False(rating.Available);
-        Assert.Equal("ratings damaged", rating.Reason);
-        Assert.All(rating.Children!, child => { Assert.False(child.Available); Assert.Equal("ratings damaged", child.Reason); });
-    }
-
-    [Fact]
-    public void RatingStaysAKeyedEntryOfTheMenuWithTheLabelRatingInBothLanguages()
-    {
-        Assert.Equal("Rating", CommandCatalog.Label("media.rating.edit"));
+        Assert.Equal("Rate and tag…", CommandCatalog.Label("media.rating.edit"));
         Texts.SetLanguage("de");
-        Assert.Equal("Bewertung", CommandCatalog.Label("media.rating.edit"));
+        Assert.Equal("Bewerten und taggen…", CommandCatalog.Label("media.rating.edit"));
         Assert.Equal("R", CommandCatalog.Get("media.rating.edit").Shortcut);
+        // The direct-rating keys stay commands (Shift+1 to 5, Shift+0), they are only no menu entries.
+        Assert.Equal("Shift+3", CommandCatalog.Get("media.rating.set-3").Shortcut);
+        Assert.Equal("Shift+0", CommandCatalog.Get("media.rating.clear").Shortcut);
+    }
+
+    [Fact]
+    public void EveryPackNamesTheCombinedCommandAndNoPackKeepsTheOldRatingOnlyLabel()
+    {
+        foreach (string code in Texts.BundledPackCodes())
+        {
+            Texts.SetLanguage(code);
+            Assert.NotEqual("Rate and tag…", CommandCatalog.Label("media.rating.edit"));
+            Assert.NotEqual(CommandCatalog.Label("media.rating.clear"), CommandCatalog.Label("media.rating.edit"));
+            Assert.EndsWith("…", CommandCatalog.Label("media.rating.edit"));
+        }
+        Texts.SetLanguage("en");
     }
 
     // ---- the Post tab ---------------------------------------------------------------------------------------------------------------
@@ -221,25 +228,55 @@ public sealed class GalleryRatingPanelTests : IDisposable
     // ---- R and the deletions ---------------------------------------------------------------------------------------------------
 
     [Fact]
-    public void RMovesTheFocusToTheStarsAndOnlyAPanelThatCannotTakeItOpensTheRatingMenu()
+    public void RMovesToTheTagsSegmentWithItsStarsFocusedAndTheMenusHaveNoRatingMenuAnyMore()
     {
         string viewer = Source("Desktop", "GalleryViewer.cs"), post = Source("Desktop", "GalleryViewer.PostPanel.cs");
-        Assert.Contains("() => { if (!FocusRatingStars()) ShowRatingMenu(); }", viewer);
-        // Route 1: the Tags segment is open: its row's stars take the focus. Route 2: the Post segment (opened first when closed). Route 3: the menu.
+        Assert.Contains("RequestRateAndTag, Priority: 200", viewer);
+        // The Tags segment opens first (when it can), then its row's stars take the focus; a medium without Tags segment gets the Post segment's stars.
+        Assert.Contains("if (!_tagPanelOpen && CanOpenTagPanel) RequestTags();", post);
         Assert.Contains("if (_tagPanelOpen && _decisionRow is { } tagsRow) return _contextOpen && tagsRow.FocusRating();", post);
         Assert.Contains("return _postDecision is { } row && row.FocusRating();", post);
-        Assert.Contains("MediaMenuBuilder.BuildRatingMenu(", post);
+        Assert.DoesNotContain("BuildRatingMenu", post + Source("Desktop", "MediaActions", "MediaMenuBuilder.cs"));
+        Assert.DoesNotContain("ShowRatingMenu", viewer + post);
         Fixture h = new(); // no rating available: R has nothing to focus
         Assert.False(h.Viewer.FocusRatingStars());
+        Assert.False(h.Viewer.CanRateAndTag);
     }
 
     [Fact]
-    public void TheMediaPageAndTheArchiveRouteTheRatingStarCommandsAndOpenTheRatingMenu()
+    public void TheMediaPageAndTheArchiveOpenTheCombinedPopoverForRAndTheButton()
     {
         string page = Source("Desktop", "Views", "Media", "MediaPage.cs");
-        Assert.Contains("OpenRatingMenu(", page);
+        Assert.Contains("OpenRateAndTagAsync(row.Entry, row,", page);
+        Assert.DoesNotContain("OpenRatingMenu", page + Source("Desktop", "Views", "Archive", "ArchivePage.Ratings.cs") + Source("Desktop", "Views", "Archive", "ArchivePage.RatingCommands.cs"));
         Assert.Contains("media.rating.set-", page + Source("Desktop", "Views", "Archive", "ArchivePage.RatingCommands.cs"));
-        Assert.Contains("RatingMenuAnchor", Source("Desktop", "Views", "Archive", "ArchivePage.Ratings.cs") + Source("Desktop", "Views", "Archive", "ArchivePage.RatingCommands.cs"));
+        Assert.Contains("OpenRateAndTagForFocusAsync", Source("Desktop", "Views", "Archive", "ArchivePage.RatingCommands.cs"));
+        Assert.Contains("OpenRateAndTagForFocusAsync", Source("Desktop", "Views", "Archive", "ArchivePage.Ratings.cs"));
+        Assert.Contains("RatingMenuAnchor", Source("Desktop", "Views", "Archive", "ArchivePage.Ratings.cs"));
+    }
+
+    [Fact]
+    public void TheInfoLineRatingAndTheTileRatingCaptionAreKeyboardReachableControlsThatOpenRateAndTag()
+    {
+        // Dead-affordance audit 15.11.: the passive "Rating: n" texts open the same surface as R.
+        TextBlock status = new();
+        int opened = 0;
+        GalleryViewer.MakeRatingStatusInteractive(status, () => opened++);
+        Assert.True(status.Focusable);
+        Assert.True(status.IsTabStop);
+        Assert.Equal(AutomationControlType.Button, AutomationProperties.GetControlTypeOverride(status));
+        status.Text = "Rating: 4 of 5";
+        Assert.Equal("Rating: 4 of 5", AutomationProperties.GetName(status));
+        Assert.Contains("R", (string)ToolTip.GetTip(status)!);
+        Assert.Contains("MakeRatingStatusInteractive(_ratingStatus, RequestRateAndTag)", Source("Desktop", "GalleryViewer.InfoLine.cs"));
+        Assert.Equal(0, opened);
+
+        string tile = Source("Desktop", "ArchiveMediaTileView.cs");
+        Assert.Contains("caption.Focusable = true;", tile);
+        Assert.Contains("caption.IsTabStop = true;", tile);
+        Assert.Contains("AutomationControlType.Button", tile);
+        Assert.Contains("Key.Enter or Avalonia.Input.Key.Space", tile);
+        Assert.Contains("RateAndTagRequestedEvent", Source("Desktop", "Views", "Archive", "ArchivePage.MediaCommands.cs"));
     }
 
     [Fact]
@@ -259,7 +296,7 @@ public sealed class GalleryRatingPanelTests : IDisposable
         Posts = MediaMenuPostScope.Single
     };
 
-    private static MediaMenuItemModel Rating(MediaMenuModel model) => model.Items.Single(item => item.Action == MediaMenuAction.Rating);
+    private static MediaMenuItemModel RateAndTag(MediaMenuModel model) => model.Items.Single(item => item.Action == MediaMenuAction.RateAndTag);
 
     private static void Click(Button button) =>
         typeof(Button).GetMethod("OnClick", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(button, null);

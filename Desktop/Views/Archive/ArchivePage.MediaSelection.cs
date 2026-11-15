@@ -230,7 +230,7 @@ public partial class ArchivePage
     /// Tags the selected files in the quick tag popover on the button that asked (tri-state chips over every occurrence, one write per
     /// change). "Advanced…" opens the dialog that lists the occurrences (<see cref="TagMediaSelectionDialogAsync"/>).
     /// </summary>
-    private async Task TagMediaSelectionAsync(ArchivedThreadView thread, ArchiveAssetRow[] rows, GalleryEntry[] entries, Control origin)
+    private async Task TagMediaSelectionAsync(ArchivedThreadView thread, ArchiveAssetRow[] rows, GalleryEntry[] entries, Control origin, bool focusRating = false)
     {
         if (_mediaSelectionBusy || MediaTagServices is not { } services) return;
         IReadOnlyList<MediaLibraryTile> tiles = ArchiveMediaSelection.Tiles(thread.Summary, rows, entries);
@@ -248,11 +248,15 @@ public partial class ArchivePage
         QuickTagPopoverCloseReason reason = QuickTagPopoverCloseReason.Stale;
         try
         {
+            // Favourite and rating of every selected file ride on top (the shell's decision session over the same entries).
+            HashSet<GalleryAssetKey> selectedKeys = rows.Select(row => new GalleryAssetKey(threadId, row.Manifest.Directory, row.Asset.AssetId)).ToHashSet();
+            GalleryEntry[] decided = entries.Where(entry => selectedKeys.Contains(entry.Key)).DistinctBy(entry => entry.Key).ToArray();
             QuickTagPopover popover = QuickTagPopover.Open(origin, quick, Texts.T("media.selection.count", rows.Length), options with
             {
                 ReadSourceTags = _sourceTagSuggestions.Read,
                 IsCurrent = () => !_ended && _available && ReferenceEquals(_thread, thread) && _selectedThread == threadId,
-                Name = "ArchiveSelectionTagPopover"
+                Name = "ArchiveSelectionTagPopover",
+                Decision = DecisionFor?.Invoke(decided, focusRating)
             });
             _mediaSelectionTagPopover = popover;
             reason = await popover.Result;

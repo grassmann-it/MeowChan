@@ -180,6 +180,98 @@ public sealed class QuickTagPopoverTests : IDisposable
         Assert.Equal(QuickTagPopoverCloseReason.Closed, await second.Result);
     }
 
+    // ---- "Rate and tag…": the favourite and stars row on top ---------------------------------------------------------------------
+
+    private sealed class DecisionHost
+    {
+        internal int? Rating;
+        internal bool Favorite;
+        internal int Released;
+        internal bool Changed;
+        internal QuickTagPopoverDecision Make(bool focusRating = false, bool withFavorite = true) => new()
+        {
+            View = () => new GalleryDecisionView(1, Favorite ? GalleryDecisionCoverage.All : GalleryDecisionCoverage.None, Rating, false, true),
+            SetRating = value => { Rating = value; Changed = true; return Task.CompletedTask; },
+            SetFavorite = withFavorite ? (selected => { Favorite = selected; Changed = true; return Task.CompletedTask; }) : null,
+            FocusRating = focusRating,
+            HasChanged = () => Changed,
+            Release = () => Released++
+        };
+    }
+
+    [Fact]
+    public void ThePopoverCarriesTheFavouriteAndStarsRowAboveTheFieldAndWritesThroughTheHost()
+    {
+        using Fixture fixture = new();
+        DecisionHost host = new() { Rating = 2 };
+        QuickTagPopover popover = QuickTagPopover.Create(new Border(), fixture.Session(), "x",
+            new QuickTagPopoverOptions { RestoreFocus = false, Decision = host.Make() });
+        GalleryDecisionRow row = popover.DecisionRow!;
+        Assert.NotNull(row);
+        Assert.Equal("QuickTagPopoverDecision", row.Name);
+        Assert.True(row.FavoriteVisible);
+        Assert.Equal(2, row.View.Rating);
+        Assert.True(row.StarButtons[1].IsChecked);
+        Assert.Same(row, popover.Surface!.DecisionContent);
+
+        row.StarButtons[3].RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Assert.Equal(4, host.Rating);
+        Assert.Equal(4, row.View.Rating); // the row shows what the host stores now
+        row.ClearButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Assert.Null(host.Rating);
+        row.FavoriteButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Assert.True(host.Favorite);
+        Assert.Equal(GalleryDecisionCoverage.All, row.View.Favorite);
+
+        popover.Close();
+        Assert.Equal(1, host.Released);
+        Assert.True(host.Changed);
+    }
+
+    [Fact]
+    public void AHostWithoutAFavouritesCallHidesTheFavouriteButtonAndRFocusKeepsTheFieldFromTakingTheFocus()
+    {
+        using Fixture fixture = new();
+        DecisionHost host = new();
+        QuickTagPopover popover = QuickTagPopover.Create(new Border(), fixture.Session(), "x",
+            new QuickTagPopoverOptions { RestoreFocus = false, Decision = host.Make(focusRating: true, withFavorite: false) });
+        Assert.False(popover.DecisionRow!.FavoriteVisible);
+        Assert.False(popover.Surface!.FocusOnAttach);
+        popover.Close();
+        QuickTagPopover field = QuickTagPopover.Create(new Border(), fixture.Session(), "x",
+            new QuickTagPopoverOptions { RestoreFocus = false, Decision = new DecisionHost().Make(focusRating: false) });
+        Assert.True(field.Surface!.FocusOnAttach);
+        field.Close();
+    }
+
+    [Fact]
+    public void ABlockedPopoverStillOffersTheStarsAboveItsReason()
+    {
+        DecisionHost host = new() { Rating = 5 };
+        string reason = Texts.T("booru.media.tags.unavailable");
+        QuickTagPopover popover = QuickTagPopover.CreateBlocked(new Border(), "provider.jpg", reason,
+            new QuickTagPopoverOptions { RestoreFocus = false, Decision = host.Make() });
+        StackPanel content = Assert.IsType<StackPanel>(popover.Frame.Child);
+        Assert.Equal(new object[] { content.Children[0], popover.DecisionRow!, content.Children[2] }, content.Children.Cast<object>().ToArray());
+        Assert.Equal(reason, ((TextBlock)content.Children[2]).Text);
+        Assert.True(popover.DecisionRow!.StarButtons[4].IsChecked);
+        popover.Close();
+        Assert.Equal(1, host.Released);
+    }
+
+    [Fact]
+    public void AFocusedStarRovesWithTheArrowKeysInsideThePopover()
+    {
+        using Fixture fixture = new();
+        QuickTagPopover popover = QuickTagPopover.Create(new Border(), fixture.Session(), "x",
+            new QuickTagPopoverOptions { RestoreFocus = false, Decision = new DecisionHost().Make() });
+        // Without a focused star the frame leaves Left and Right alone (the field's caret keeps them).
+        KeyEventArgs right = Key(Avalonia.Input.Key.Right, KeyModifiers.None);
+        popover.Frame.RaiseEvent(right);
+        Assert.False(right.Handled);
+        popover.Close();
+    }
+
     // ---- wired commands ---------------------------------------------------------------------------------------------
 
     private static QuickTagSuggestion Suggestion(PrivateTagStore store, string name)

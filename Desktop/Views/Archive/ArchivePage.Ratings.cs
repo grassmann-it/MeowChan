@@ -66,15 +66,15 @@ public partial class ArchivePage
         try { await ManageMediaRatingsAsync(); }
         catch (Exception error) { if (!_ended) Message(error.Message, true); }
     }
-    // The button opens the rating menu (the stars and "Remove rating") instead of a dialog. A button the toolbar keeps under "More" is no anchor
-    // while that menu is closed: the menu then opens on "More" (A19), and on the media list when "More" is not shown either.
+    // The button is "Rate and tag" (Tom's decision of 15.11.: no rating menu): the popover with the stars on top and the tag field under them, for the
+    // selected file of the list. A button the toolbar keeps under "More" is no anchor while that menu is closed: the popover then opens on "More" (A19),
+    // and on the media list when "More" is not shown either.
     private void OnEditMediaRatingClick(object? sender, RoutedEventArgs e)
     {
-        if (_selectedThread == null || SelectedMediaRow() is not ArchiveAssetRow row) return;
-        GalleryEntry entry = new(new(_selectedThread, row.Manifest.Directory, row.Asset.AssetId), row.Manifest, row.Asset, null, null, !row.Asset.IsCurrent, true);
-        OpenRatingMenu(entry, RatingMenuAnchor(ArchiveEditRatingButton));
+        if (_selectedThread == null || SelectedMediaRow() == null) return;
+        _ = OpenRateAndTagForFocusAsync(focusRating: true, ArchiveEditRatingButton);
     }
-    /// <summary>The control a rating menu opens on for <paramref name="button"/>: the button, "More" when the toolbar reduced it, the media list otherwise.</summary>
+    /// <summary>The control the "Rate and tag" popover opens on for <paramref name="button"/>: the button, "More" when the toolbar reduced it, the media list otherwise.</summary>
     internal Control RatingMenuAnchor(Control button)
     {
         ActionToolBar bar = ReaderMediaActions;
@@ -87,28 +87,12 @@ public partial class ArchivePage
         try { return GetMediaRating?.Invoke(key); }
         catch (Exception) { return null; } // the error is shown by the rating row of the page (_mediaRatingError)
     }
-    /// <summary>R in the reader or the media list: the rating menu for <paramref name="entry"/> on <paramref name="origin"/>.</summary>
-    internal void OpenRatingMenu(GalleryEntry entry, Control origin)
-    {
-        if (_ended || !_available || _thread == null || _selectedThread == null || SetMediaRatingAsync == null || _mediaRatingError != null) return;
-        var thread = _thread;
-        ResourceId threadId = _selectedThread;
-        FavoriteAssetKey key = FavoriteAssetKey.From(entry.Key.Thread, entry.Asset);
-        bool available = !_busy && CanChangeMediaRating?.Invoke(key) == true;
-        Action<string> reportError = CaptureActionErrorReporter();
-        MediaMenuSession session = new(MediaMenuSurface.ArchiveTable, MediaMenuTarget.Of(entry), () => !_ended && _available && !IsFilenameSearchOpen
-            && ReferenceEquals(_thread, thread) && _selectedThread == threadId);
-        Task Run(Func<Task> action) => RunArchiveMenuActionAsync(action, session, reportError);
-        ContextMenu menu = MediaMenuBuilder.BuildRatingMenu(session, CurrentMediaRating(key), available, MediaMenuReasons.Unavailable,
-            value => SetMediaRatingAsync(key, value), Run);
-        _mediaMenuPresenter.Show(menu, session, origin, attachToOrigin: true, fallbackFocus: () => (_mediaTiles ? (Control)ArchiveMediaTiles : ArchiveMediaGrid).Focus());
-    }
     private void UpdateMediaRatingAction()
     {
         if (this.FindControl<Button>("ArchiveEditRatingButton") is Button edit)
-            edit.IsEnabled = !_ended && _available && !_busy && _mediaRatingError == null && _selectedThread != null
-                && SelectedMediaRow() is ArchiveAssetRow row && SetMediaRatingAsync != null
-                && CanChangeMediaRating?.Invoke(FavoriteAssetKey.From(_selectedThread, row.Asset)) == true;
+            edit.IsEnabled = !_ended && _available && !_busy && _selectedThread != null && SelectedMediaRow() is ArchiveAssetRow row
+                && (_mediaRatingError == null && SetMediaRatingAsync != null && CanChangeMediaRating?.Invoke(FavoriteAssetKey.From(_selectedThread, row.Asset)) == true
+                    || TagPopoverAsync != null || EditArchiveMediaTagsAsync != null);
     }
     private void LocalizeMediaRatings()
     {

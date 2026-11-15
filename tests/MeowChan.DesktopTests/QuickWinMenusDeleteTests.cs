@@ -129,7 +129,9 @@ public sealed class QuickWinMenusDeleteTests : IDisposable
         string viewer = Read("Desktop/GalleryViewer.Filmstrip.cs");
         Assert.Contains("OnFilmstripTileContextRequested", viewer);
         string menu = Read("Desktop/GalleryViewer.MediaMenu.cs");
-        // A tile that is not the shown medium gets the menu without the three actions that read or change the shown medium's own state.
-        Assert.Contains("MediaMenuAction.Favorite or MediaMenuAction.Rating or MediaMenuAction.Tags", menu);
+        // A tile that is not the shown medium gets the menu without the favourite (it reads the shown medium's own state); its "Rate and tag…" opens
+        // the popover on the filmstrip for that tile's medium.
+        Assert.Contains("item.Action != MediaMenuAction.Favorite", menu);
+        Assert.Contains("RateAndTagTileRequested?.Invoke(entry, _filmstrip)", menu);
     }
 }

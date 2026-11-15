@@ -1981,7 +1981,7 @@
     "command.reader-groups.move-down": "Mover tópico para baixo",
     "command.reader-groups.save": "Salvar grupo",
     "command.reader-groups.read": "Ler grupo",
-    "command.media.rating.edit": "Avaliação",
+    "command.media.rating.edit": "Avaliar e marcar com tags…",
     "command.media.rating.clear": "Remover avaliação",
     "command.media.rating.manage": "Gerenciar avaliações salvas…",
     "command.media.rating.remove-selected": "Remover avaliação selecionada…",

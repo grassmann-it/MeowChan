@@ -56,6 +56,15 @@ public sealed class ArchiveMediaTileView : UserControl
     internal const int PosterWidth = 340, PosterHeight = 250;
     /// <summary>The style class of a favourite toggle that is only shown while its tile is hovered or focused (the badge shows the state at rest).</summary>
     internal const string QuietFavoriteClass = "tile-favorite-quiet";
+    /// <summary>
+    /// Raised (bubbling) when the rating caption is clicked or activated with Enter or Space: the page opens "Rate and tag" for this tile's file
+    /// (dead-affordance audit 15.11.). The tile is the event's source.
+    /// </summary>
+    internal static readonly Avalonia.Interactivity.RoutedEvent<Avalonia.Interactivity.RoutedEventArgs> RateAndTagRequestedEvent =
+        Avalonia.Interactivity.RoutedEvent.Register<ArchiveMediaTileView, Avalonia.Interactivity.RoutedEventArgs>("RateAndTagRequested",
+            Avalonia.Interactivity.RoutingStrategies.Bubble);
+    /// <summary>The rating caption under the title (tests and smokes): a tab stop that opens "Rate and tag".</summary>
+    internal TextBlock RatingCaption => _rating;
     /// <summary>The space the check mark keeps from the tile's top-right edge (dip).</summary>
     internal const double CornerInset = 2, CornerGap = 2;
     /// <summary>
@@ -108,6 +117,7 @@ public sealed class ArchiveMediaTileView : UserControl
         Grid grid = _cell;
         grid.Children.Add(preview); grid.Children.Add(_title); Grid.SetRow(_title, 1);
         grid.Children.Add(_rating); Grid.SetRow(_rating, 2);
+        WireRatingCaption();
         grid.Children.Add(_status); Grid.SetRow(_status, 3); Content = grid;
         ApplyAppearance(ArchiveTileMetrics.Standard);
         DataContextChanged += (_, _) =>
@@ -220,9 +230,38 @@ public sealed class ArchiveMediaTileView : UserControl
         return reach > 0 ? reach + CornerGap : 0;
     }
 
+    // The caption is no passive text: pressing it (the press is consumed, so the tile is not selected by it) or Enter / Space on it asks the page for
+    // "Rate and tag". It is a tab stop named by the rating it shows, with the command's gesture as its tooltip.
+    private void WireRatingCaption()
+    {
+        TextBlock caption = _rating;
+        caption.Focusable = true;
+        caption.IsTabStop = true;
+        // The hand cursor needs the platform's cursor factory: without a platform (a headless host) the control keeps the arrow.
+        try { caption.Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand); }
+        catch (InvalidOperationException) { }
+        AutomationProperties.SetControlTypeOverride(caption, Avalonia.Automation.Peers.AutomationControlType.Button);
+        void Raise() { if (DataContext is ArchiveAssetRow) RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(RateAndTagRequestedEvent) { Source = this }); }
+        caption.PointerPressed += (_, e) =>
+        {
+            if (!e.GetCurrentPoint(caption).Properties.IsLeftButtonPressed || DataContext is not ArchiveAssetRow) return;
+            e.Handled = true;
+            Raise();
+        };
+        caption.KeyDown += (_, e) =>
+        {
+            if (e.KeyModifiers != Avalonia.Input.KeyModifiers.None || e.Key is not (Avalonia.Input.Key.Enter or Avalonia.Input.Key.Space)) return;
+            e.Handled = true;
+            Raise();
+        };
+    }
+
     internal void RefreshRating()
     {
         _rating.Text = DataContext is ArchiveAssetRow row ? MediaRatingText.AccessibleValue(row.RatingLabel) : string.Empty;
+        AutomationProperties.SetName(_rating, _rating.Text);
+        string label = MeowChan.Desktop.Commands.CommandCatalog.Label("media.rating.edit");
+        ToolTip.SetTip(_rating, MeowChan.Desktop.Commands.CommandCatalog.ShortcutDisplay("media.rating.edit") is { } gesture ? label + " · " + gesture : label);
         UpdateDescription();
     }
 

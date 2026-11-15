@@ -260,11 +260,11 @@ internal static class GalleryMediaTagChecks
                 origin.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = Control.ContextRequestedEvent });
                 await UntilAsync(() => page.ArchiveMediaMenu?.IsOpen == true);
                 MenuItem edit = page.ArchiveMediaMenu!.Items.OfType<MenuItem>()
-                    .Single(item => item.Tag as string == "media.tags.edit");
+                    .Single(item => item.Tag as string == "media.rating.edit");
                 Require(edit.IsEnabled && edit.Command!.CanExecute(null), "Bound archive image has no enabled media-tag action.");
-                Require(Equals(edit.Header, Texts.T("media.tags.edit")), "Media-tag action is not localized.");
+                Require(Equals(edit.Header, CommandCatalog.Label("media.rating.edit")), "The Rate and tag action is not localized.");
                 Require(!page.ArchiveMediaMenu.Items.OfType<MenuItem>().Any(item => item.Tag as string == "media.tags.dialog"),
-                    "The menu must offer one tag entry, not a second one for the dialog.");
+                    "The menu must offer one Rate and tag entry, not a second one for the dialog or a rating submenu.");
                 // Execute the actual menu command, then retire its popup as a native click does.
                 edit.Command!.Execute(null);
                 page.ArchiveMediaMenu.Close();
@@ -341,7 +341,7 @@ internal static class GalleryMediaTagChecks
             await UntilAsync(() => page.ArchiveMediaMenu?.IsOpen == true);
             // AP-01b replaces "unbound file disabled": the loose file is tagged as its own local occurrence.
             MenuItem looseEdit = page.ArchiveMediaMenu!.Items.OfType<MenuItem>()
-                .Single(item => item.Tag as string == "media.tags.edit");
+                .Single(item => item.Tag as string == "media.rating.edit");
             Require(looseEdit.IsEnabled && looseEdit.Command!.CanExecute(null), "A loose archive file must offer media tags as a local file.");
             looseEdit.Command!.Execute(null);
             page.ArchiveMediaMenu.Close();

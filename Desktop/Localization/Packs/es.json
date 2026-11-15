@@ -2346,7 +2346,7 @@
     "command.reader-groups.move-down": "Mover hilo abajo",
     "command.reader-groups.save": "Guardar grupo",
     "command.reader-groups.read": "Leer grupo",
-    "command.media.rating.edit": "Valoración",
+    "command.media.rating.edit": "Valorar y etiquetar…",
     "command.media.rating.clear": "Quitar valoración",
     "command.media.rating.manage": "Gestionar valoraciones guardadas…",
     "command.media.rating.remove-selected": "Quitar valoración seleccionada…",

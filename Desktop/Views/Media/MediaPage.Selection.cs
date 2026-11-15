@@ -257,7 +257,7 @@ public sealed partial class MediaPage
     /// It opens on <paramref name="anchor"/> (the tile of the menu), by default on the selection bar's button. "Advanced…" opens the
     /// full dialog (<see cref="TagSelectionDialogAsync"/>) to pick occurrences.
     /// </summary>
-    internal async Task TagSelectionAsync(Control? anchor = null)
+    internal async Task TagSelectionAsync(Control? anchor = null, bool focusRating = false)
     {
         if (!_selTag.IsEnabled || TagServices is not { } services) return;
         IReadOnlyList<MediaLibraryTile> tiles = SelectedTiles;
@@ -280,7 +280,9 @@ public sealed partial class MediaPage
             {
                 ReadSourceTags = ReadBooruCatalog,
                 IsCurrent = () => !_lifetime.IsCancellationRequested && IsEffectivelyVisible,
-                RestoreFocus = false
+                RestoreFocus = false,
+                // The rating (and favourite where the shell offers it) of every selected tile rides on top of the tag field.
+                Decision = DecisionForEntries?.Invoke(tiles.Select(tile => tile.Entry).ToArray(), focusRating)
             });
             origin = popover.Origin;
             _selectionTagPopover = popover;

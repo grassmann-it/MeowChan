@@ -2346,7 +2346,7 @@
     "command.reader-groups.move-down": "Déplacer le fil vers le bas",
     "command.reader-groups.save": "Enregistrer le groupe",
     "command.reader-groups.read": "Lire le groupe",
-    "command.media.rating.edit": "Évaluation",
+    "command.media.rating.edit": "Évaluer et étiqueter…",
     "command.media.rating.clear": "Supprimer l’évaluation",
     "command.media.rating.manage": "Gérer les évaluations enregistrées…",
     "command.media.rating.remove-selected": "Supprimer l’évaluation sélectionnée…",

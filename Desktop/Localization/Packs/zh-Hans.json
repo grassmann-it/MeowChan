@@ -2200,7 +2200,7 @@
     "command.reader-groups.move-down": "下移串",
     "command.reader-groups.save": "保存组",
     "command.reader-groups.read": "阅读组",
-    "command.media.rating.edit": "评分",
+    "command.media.rating.edit": "评分并打标签…",
     "command.media.rating.clear": "移除评分",
     "command.media.rating.manage": "管理已保存的评分…",
     "command.media.rating.remove-selected": "移除所选评分…",

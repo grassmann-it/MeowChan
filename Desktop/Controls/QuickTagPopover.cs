@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia;
@@ -34,6 +35,32 @@ internal enum QuickTagPopoverCloseReason
     Detached
 }
 
+/// <summary>
+/// What the favourite and rating row of a popover reads and writes. The host owns the stores and reports a failed write itself; the popover
+/// shows <see cref="View"/> again after every request, so a refused write leaves the row on the real state.
+/// </summary>
+internal sealed record QuickTagPopoverDecision
+{
+    /// <summary>What the targets carry now (read again after every request).</summary>
+    internal required Func<GalleryDecisionView> View { get; init; }
+    /// <summary>A star (1 to 5) or the remove button (null): writes the rating of every target.</summary>
+    internal required Func<int?, Task> SetRating { get; init; }
+    /// <summary>The flag the favourite button asks for; null hides the button (a host without a favourites call for its targets).</summary>
+    internal Func<bool, Task>? SetFavorite { get; init; }
+    /// <summary>R: the stars take the focus when the popover opens (the checked star, star 1 while unrated); otherwise the tag field does.</summary>
+    internal bool FocusRating { get; init; }
+    /// <summary>True once a request wrote something (read by the host after the popover closed: the page then refreshes its tiles and captions).</summary>
+    internal Func<bool>? HasChanged { get; init; }
+    /// <summary>Called once when the popover closed (a decision session the host created for it is disposed here).</summary>
+    internal Action? Release { get; init; }
+}
+
+/// <summary>How a page asked the shell for the "Rate and tag" popover of one medium.</summary>
+/// <param name="FocusRating">The stars take the focus (R, the menu entry, the rating caption); false: the tag field does (Ctrl+Shift+T).</param>
+/// <param name="TagsBlocked">The localized reason the medium cannot be tagged (a Danbooru medium, a file shared by several posts), or null; the popover then
+/// still offers the stars and says the reason as text.</param>
+internal sealed record RateAndTagRequest(bool FocusRating = true, string? TagsBlocked = null);
+
 /// <summary>What a host passes besides the target: the suggestion source, the guard and the tag dialog hand-over.</summary>
 internal sealed record QuickTagPopoverOptions
 {
@@ -59,6 +86,12 @@ internal sealed record QuickTagPopoverOptions
     internal bool RestoreFocus { get; init; } = true;
     /// <summary>Base name of the controls (<c>QuickTagPopoverInput</c>, …).</summary>
     internal string Name { get; init; } = "QuickTagPopover";
+    /// <summary>
+    /// The favourite and rating row on top of the popover ("Rate and tag…", review 15.11.): the same <see cref="GalleryDecisionRow"/> as the
+    /// gallery's Tags segment, bound to what the host reads and writes for the popover's medium or selection. Null: no row (a host that cannot
+    /// rate).
+    /// </summary>
+    internal QuickTagPopoverDecision? Decision { get; init; }
 
     /// <summary>A host without the profile settings (tests, a page not bound by the shell): the built-in limits and the panel's ranking over <paramref name="context"/>.</summary>
     internal static QuickTagPopoverOptions Defaults(TagContext context) => new()
@@ -91,15 +124,18 @@ internal sealed class QuickTagPopover
     private readonly Border _frame = new() { Padding = new Thickness(8), Width = Width, MaxHeight = MaximumHeight };
     private readonly Action? _unsubscribe;
     private readonly QuickTagSession? _session;
+    private readonly GalleryDecisionRow? _decisionRow;
     private DispatcherTimer? _guard;
+    private bool _decisionRunning;
     private Control? _origin;
     private bool _shown;
     private bool _closed;
 
     private QuickTagPopover(Control anchor, QuickTagPopoverOptions options, QuickTagSurface? surface, QuickTagSession? session,
-        Control content, Action? unsubscribe)
+        Control content, Action? unsubscribe, GalleryDecisionRow? decisionRow = null)
     {
         _anchor = anchor;
+        _decisionRow = decisionRow;
         _options = options;
         Surface = surface;
         _session = session;
@@ -127,6 +163,8 @@ internal sealed class QuickTagPopover
     internal Control Anchor => _anchor;
     /// <summary>The control that had the keyboard focus when the popover opened; the focus returns to it.</summary>
     internal Control? Origin => _origin;
+    /// <summary>The favourite and rating row on top; null when the host offered no decision.</summary>
+    internal GalleryDecisionRow? DecisionRow => _decisionRow;
     internal bool IsOpen => _shown && !_closed;
     internal bool IsClosed => _closed;
     /// <summary>How it closed; null while open.</summary>
@@ -167,7 +205,18 @@ internal sealed class QuickTagPopover
         if (options.Recent is { } recent)
             session.Applied += change => { if (change.Assigned) recent.Touch(change.Tag); };
         surface.AdvancedButton.IsVisible = options.AdvancedAvailable;
-        QuickTagPopover popover = new(anchor, options, surface, session, surface, unsubscribe);
+        GalleryDecisionRow? decisionRow = null;
+        if (options.Decision is { } decision)
+        {
+            decisionRow = NewDecisionRow(options, decision);
+            decisionRow.FieldFocused = () => surface.Input.IsKeyboardFocusWithin;
+            decisionRow.ReturnFocus = () => surface.FocusField();
+            surface.DecisionContent = decisionRow;
+            // R puts the focus on the stars instead (OnOpened); the field then does not take it when the surface attaches.
+            if (decision.FocusRating) surface.FocusOnAttach = false;
+        }
+        QuickTagPopover popover = new(anchor, options, surface, session, surface, unsubscribe, decisionRow);
+        popover.WireDecision(decisionRow);
         surface.CloseRequested += () => popover.Close(QuickTagPopoverCloseReason.Closed);
         surface.AdvancedRequested += () => popover.Close(QuickTagPopoverCloseReason.Advanced);
         return popover;
@@ -194,14 +243,56 @@ internal sealed class QuickTagPopover
         Grid.SetColumn(close, 2);
         TextBlock text = new() { Text = reason, TextWrapping = TextWrapping.Wrap, Classes = { "workspace-help" }, Name = options.Name + "Reason" };
         AutomationProperties.SetLiveSetting(text, AutomationLiveSetting.Polite);
-        StackPanel content = new() { Spacing = 12, Children = { header, text } };
+        StackPanel content = new() { Spacing = 12, Children = { header } };
+        // A medium that cannot be tagged can still be rated: the row stays on top, the reason below it.
+        GalleryDecisionRow? decisionRow = options.Decision is { } decision ? NewDecisionRow(options, decision) : null;
+        if (decisionRow != null) content.Children.Add(decisionRow);
+        content.Children.Add(text);
         AutomationProperties.SetName(content, Texts.T("tags.quick.name", string.IsNullOrWhiteSpace(label) ? Texts.T("tags.quick.heading") : label.Trim()));
         AutomationProperties.SetHelpText(content, reason);
-        QuickTagPopover popover = new(anchor, options, null, null, content, null);
+        QuickTagPopover popover = new(anchor, options, null, null, content, null, decisionRow);
+        popover.WireDecision(decisionRow);
         close.Click += (_, _) => popover.Close(QuickTagPopoverCloseReason.Closed);
         popover.BlockedClose = close;
         popover.BlockedReason = reason;
         return popover;
+    }
+
+    private static GalleryDecisionRow NewDecisionRow(QuickTagPopoverOptions options, QuickTagPopoverDecision decision)
+    {
+        GalleryDecisionRow row = new(options.Name + "Decision") { FavoriteVisible = decision.SetFavorite != null };
+        row.Show(SafeView(decision));
+        return row;
+    }
+
+    private static GalleryDecisionView SafeView(QuickTagPopoverDecision decision)
+    {
+        try { return decision.View(); }
+        catch (Exception error) when (error is InvalidOperationException or IOException or InvalidDataException or ObjectDisposedException)
+        { return GalleryDecisionView.Unavailable; }
+    }
+
+    // A request runs one at a time (a second click while a write is under way is ignored: the row shows the real state again); the host reports
+    // a failure itself. Afterwards the row shows what the stores carry, unless the popover is gone.
+    private void WireDecision(GalleryDecisionRow? row)
+    {
+        if (row == null || _options.Decision is not { } decision) return;
+        row.RatingRequested += value => _ = RunDecisionAsync(row, decision, () => decision.SetRating(value));
+        if (decision.SetFavorite is { } setFavorite) row.FavoriteRequested += selected => _ = RunDecisionAsync(row, decision, () => setFavorite(selected));
+    }
+
+    private async Task RunDecisionAsync(GalleryDecisionRow row, QuickTagPopoverDecision decision, Func<Task> write)
+    {
+        if (_closed) return;
+        if (_decisionRunning) { row.Show(SafeView(decision)); return; }
+        _decisionRunning = true;
+        try { await write(); }
+        catch (Exception error) when (error is not OutOfMemoryException) { /* the host reports it; the row shows the real state below */ }
+        finally
+        {
+            _decisionRunning = false;
+            if (!_closed) row.Show(SafeView(decision));
+        }
     }
 
     /// <summary>The × of a blocked popover (the first and only tab stop); null for a popover with a surface.</summary>
@@ -236,7 +327,17 @@ internal sealed class QuickTagPopover
     {
         _flyout.Opened -= OnOpened;
         if (_closed) return;
-        BlockedClose?.Focus(NavigationMethod.Tab);
+        if (_options.Decision is { FocusRating: true } && _decisionRow != null)
+        {
+            // R: the stars take the focus (posted: the flyout has laid its content out by then); the field or × when the row cannot take it.
+            GalleryDecisionRow row = _decisionRow;
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (_closed || row.FocusRating()) return;
+                if (Surface != null) Surface.FocusField(); else BlockedClose?.Focus(NavigationMethod.Tab);
+            }, DispatcherPriority.Input);
+        }
+        else BlockedClose?.Focus(NavigationMethod.Tab);
         if (_options.IsCurrent != null)
         {
             _guard = new DispatcherTimer(GuardInterval, DispatcherPriority.Background, (_, _) => CheckCurrent());
@@ -286,6 +387,8 @@ internal sealed class QuickTagPopover
         _unsubscribe?.Invoke();
         Surface?.Dispose();
         _session?.Dispose();
+        try { _options.Decision?.Release?.Invoke(); }
+        catch (Exception error) when (error is InvalidOperationException or ObjectDisposedException) { }
         if (reason is QuickTagPopoverCloseReason.Dismissed or QuickTagPopoverCloseReason.Closed && _options.RestoreFocus) RestoreFocus();
         Closed?.Invoke(reason);
         _result.TrySetResult(reason);
@@ -300,6 +403,9 @@ internal sealed class QuickTagPopover
         {
             static bool Usable(Control? control) => control != null && control.IsAttachedToVisualTree() && control.IsEffectivelyVisible && control.IsEffectivelyEnabled;
             if (Current != null) return;
+            // A host that moved the focus on its own while closing (the archive's rating filter after a rating dropped the medium out of it) keeps it.
+            if (TopLevel.GetTopLevel(anchor)?.FocusManager?.GetFocusedElement() is Control focused && Usable(focused)
+                && !focused.GetSelfAndVisualAncestors().Any(control => ReferenceEquals(control, _frame))) return;
             if (Usable(origin)) origin!.Focus();
             else if (Usable(anchor)) anchor.Focus();
         }, DispatcherPriority.Background);
@@ -310,6 +416,8 @@ internal sealed class QuickTagPopover
     private void OnFrameKey(object? sender, KeyEventArgs e)
     {
         if (e.Handled) return;
+        // Left, Right, Home and End rove along a focused star group (never read as moving the caret or the list).
+        if (_decisionRow is { IsRatingFocused: true } stars && stars.RouteStarKey(e)) { e.Handled = true; return; }
         if (Surface == null)
         {
             // A blocked popover has no list to close first: Esc closes it.

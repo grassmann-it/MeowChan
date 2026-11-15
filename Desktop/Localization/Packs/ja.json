@@ -2200,7 +2200,7 @@
     "command.reader-groups.move-down": "スレッドを下へ",
     "command.reader-groups.save": "グループを保存",
     "command.reader-groups.read": "グループを読む",
-    "command.media.rating.edit": "評価",
+    "command.media.rating.edit": "評価とタグ付け…",
     "command.media.rating.clear": "評価を削除",
     "command.media.rating.manage": "保存した評価を管理…",
     "command.media.rating.remove-selected": "選択した評価を削除…",

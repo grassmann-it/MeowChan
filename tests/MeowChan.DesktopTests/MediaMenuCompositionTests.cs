@@ -33,7 +33,7 @@ public sealed class MediaMenuCompositionTests : IDisposable
     [Fact]
     public void EverySurfaceListsTheSameCommonActionsInTheSameOrder()
     {
-        string[] expected = { "gallery.open", "favorites.toggle", "media.rating.edit", "media.tags.edit", "media.queue.add", "media.export-original",
+        string[] expected = { "gallery.open", "favorites.toggle", "media.rating.edit", "media.queue.add", "media.export-original",
             "media.show-in-folder", "media.copy-path", "media.details", "gallery.show-in-thread" };
         foreach (MediaMenuSurface surface in All.Where(item => item is not (MediaMenuSurface.MediaPage or MediaMenuSurface.Gallery or MediaMenuSurface.NativeVideoOverlay)))
             Assert.Equal(expected, Ids(MediaMenuComposition.Compose(Full(surface))));
@@ -62,13 +62,17 @@ public sealed class MediaMenuCompositionTests : IDisposable
     }
 
     [Fact]
-    public void TheGalleryMenuOffersTheMediaTagAction()
+    public void EverySurfaceOffersOneRateAndTagEntryInsteadOfARatingSubmenuAndATagEntry()
     {
-        MediaMenuItemModel tags = MediaMenuComposition.Compose(Full(MediaMenuSurface.Gallery)).Items
-            .Single(item => item.Action == MediaMenuAction.Tags);
-        Assert.Equal("media.tags.edit", tags.CommandId);
-        Assert.True(tags.Available);
-        Assert.Equal(CommandCatalog.Label("media.tags.edit"), tags.Label);
+        foreach (MediaMenuSurface surface in All)
+        {
+            MediaMenuModel model = MediaMenuComposition.Compose(Full(surface));
+            MediaMenuItemModel entry = model.Items.Single(item => item.Action == MediaMenuAction.RateAndTag);
+            Assert.Equal(("media.rating.edit", 0, true), (entry.CommandId, entry.Group, entry.Available));
+            Assert.Equal(CommandCatalog.Label("media.rating.edit"), entry.Label);
+            Assert.DoesNotContain(model.Items, item => item.CommandId is "media.tags.edit" or "media.rating.clear"
+                || item.CommandId != null && item.CommandId.StartsWith("media.rating.set-", StringComparison.Ordinal));
+        }
     }
 
     [Fact]
@@ -135,15 +139,18 @@ public sealed class MediaMenuCompositionTests : IDisposable
         Assert.Equal(Texts.T("tags.media.unsupported"), MediaMenuReasons.Tags(GalleryMediaTagUnavailable.Mismatch));
         Assert.Equal(Texts.T("tags.media.ambiguous"), MediaMenuReasons.Tags(GalleryMediaTagUnavailable.NoPostVersion, ambiguous: true));
         Assert.Equal(Texts.T("booru.media.tags.unavailable"), MediaMenuReasons.Tags(GalleryMediaTagUnavailable.NoPostVersion, providerMedia: true, ambiguous: true));
+        // The one entry runs while either half can: a blocked tag target alone does not disable it on a surface that cannot explain it... but it
+        // does when the stars cannot be used either, and then the tag reason is the one said.
         foreach (MediaMenuSurface surface in All)
         {
-            MediaMenuItemModel tags = MediaMenuComposition.Compose(Full(surface) with { TagsBlocked = boundElsewhere })
-                .Items.Single(item => item.Action == MediaMenuAction.Tags);
-            Assert.False(tags.Available);
-            Assert.Equal(boundElsewhere, tags.Reason);
+            MediaMenuItemModel both = MediaMenuComposition.Compose(Full(surface) with { TagsBlocked = boundElsewhere, RatingKnown = false })
+                .Items.Single(item => item.Action == MediaMenuAction.RateAndTag);
+            Assert.False(both.Available);
+            Assert.Equal(boundElsewhere, both.Reason);
+            MediaMenuItemModel starsOnly = MediaMenuComposition.Compose(Full(surface) with { TagsBlocked = boundElsewhere })
+                .Items.Single(item => item.Action == MediaMenuAction.RateAndTag);
+            Assert.True(starsOnly.Available);
         }
-        Assert.True(MediaMenuComposition.Compose(Full(MediaMenuSurface.ArchiveTable) with { TagsBlocked = null })
-            .Items.Single(item => item.Action == MediaMenuAction.Tags).Available);
     }
 
     [Fact]
@@ -152,15 +159,18 @@ public sealed class MediaMenuCompositionTests : IDisposable
         string reason = Texts.T("booru.media.tags.unavailable");
         foreach (MediaMenuSurface surface in All)
         {
-            MediaMenuItemModel explained = MediaMenuComposition.Compose(Full(surface) with { TagsBlocked = reason, TagsBlockedExplained = true })
-                .Items.Single(item => item.Action == MediaMenuAction.Tags);
+            // Rating unknown: the tags carry the entry, and a blocked tag target is then said as text by the popover (explained) or disables it.
+            MediaMenuFacts noStars = Full(surface) with { RatingKnown = false, TagsBlocked = reason };
+            Assert.False(MediaMenuComposition.Compose(noStars).Items.Single(item => item.Action == MediaMenuAction.RateAndTag).Available, surface.ToString());
+            MediaMenuItemModel explained = MediaMenuComposition.Compose(noStars with { TagsBlockedExplained = true })
+                .Items.Single(item => item.Action == MediaMenuAction.RateAndTag);
             Assert.True(explained.Available, surface.ToString());
-            Assert.Equal(CommandCatalog.Label("media.tags.edit"), explained.Label);
+            Assert.Equal(CommandCatalog.Label("media.rating.edit"), explained.Label);
             MediaMenuItemModel gone = MediaMenuComposition.Compose(Full(surface) with { Present = false, TagsBlocked = reason, TagsBlockedExplained = true })
-                .Items.Single(item => item.Action == MediaMenuAction.Tags);
+                .Items.Single(item => item.Action == MediaMenuAction.RateAndTag);
             Assert.False(gone.Available, surface.ToString());
-            MediaMenuItemModel unwired = MediaMenuComposition.Compose(Full(surface) with { TagsWired = false, TagsBlockedExplained = true })
-                .Items.Single(item => item.Action == MediaMenuAction.Tags);
+            MediaMenuItemModel unwired = MediaMenuComposition.Compose(Full(surface) with { TagsWired = false, RatingWired = false, TagsBlockedExplained = true })
+                .Items.Single(item => item.Action == MediaMenuAction.RateAndTag);
             Assert.False(unwired.Available, surface.ToString());
         }
     }
@@ -232,10 +242,10 @@ public sealed class MediaMenuCompositionTests : IDisposable
     }
 
     [Fact]
-    public void ARatingErrorOfTheArchiveIsTheReasonVerbatim()
+    public void ARatingErrorOfTheArchiveIsTheReasonVerbatimWhenTheTagsAreBlockedToo()
     {
-        MediaMenuItemModel rating = MediaMenuComposition.Compose(Full(MediaMenuSurface.ArchiveTable) with { RatingBlocked = "ratings damaged" })
-            .Items.Single(item => item.Action == MediaMenuAction.Rating);
+        MediaMenuItemModel rating = MediaMenuComposition.Compose(Full(MediaMenuSurface.ArchiveTable) with { RatingBlocked = "ratings damaged", TagsBlocked = "tags damaged" })
+            .Items.Single(item => item.Action == MediaMenuAction.RateAndTag);
         Assert.False(rating.Available);
         Assert.Equal("ratings damaged", rating.Reason);
     }
@@ -244,7 +254,7 @@ public sealed class MediaMenuCompositionTests : IDisposable
     public void TheCommonActionsAreGroupedIntoThreeSectionsByTheirDeclaredGroup()
     {
         MediaMenuModel model = MediaMenuComposition.Compose(Full(MediaMenuSurface.MediaPage) with { ProviderMedia = true, ProviderPostKnown = true });
-        Assert.Equal(new[] { 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2 }, model.Items.Select(item => item.Group));
+        Assert.Equal(new[] { 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2 }, model.Items.Select(item => item.Group));
     }
 
     [Fact]
