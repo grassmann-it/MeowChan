@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using MeowChan.Desktop.WorkViews;
 
 namespace MeowChan;
 
@@ -51,6 +52,16 @@ internal static class MediaToolbarLayout
     /// <summary>The ids that move under More at this level.</summary>
     internal static IReadOnlyList<string> MovedUnderMore(Level level) =>
         level == Level.Wide ? Array.Empty<string>() : level == Level.Compact ? DemotableCompact : DemotableReduced;
+
+    /// <summary>
+    /// Whether one tool of the row sits under More at this width and view: the view puts it there (<see cref="Presence.Overflow"/>; a tool the
+    /// view leaves out entirely, <see cref="Presence.Hidden"/>, is in no menu) or the width moves it there (<see cref="IsMovedUnderMore"/>).
+    /// The More button (Tom, 15.11.2026) is shown exactly while at least one tool that the page's own state still wants is under it, and its menu lists
+    /// those tools, so it never opens an empty menu. Export all and the saved-ratings manager are under More in every view: on the standard page the
+    /// button is there at every width.
+    /// </summary>
+    internal static bool IsUnderMore(Level level, string? id, Presence inView) =>
+        inView == Presence.Overflow || (inView != Presence.Hidden && IsMovedUnderMore(level, id));
 
     /// <summary>Whether the "Sort" label in front of the criterion is shown (it goes with the Compact stage; the criterion keeps its own name).</summary>
     internal static bool ShowsSortLabel(Level level) => level != Level.Compact;
