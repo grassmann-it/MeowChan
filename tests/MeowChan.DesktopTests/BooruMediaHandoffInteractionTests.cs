@@ -183,7 +183,8 @@ public sealed class BooruMediaHandoffInteractionTests
         Assert.Contains("_tagMode.SelectedIndex = 0", chips);
         Assert.Contains("ResetFilters();", chips);
         string query = Source("Desktop/Views/Media/MediaPage.Query.cs");
-        Assert.Contains("if (termsChanged) EditTerms(_ => applied.Terms);", query);
+        // The text scope (in:) leaves the set before it is applied (media search breakdown): "kept" is applied.Terms without the scope term.
+        Assert.Contains("if (termsChanged) EditTerms(_ => kept);", query);
         Assert.Contains("else FilterEdited();", query);
         string navigation = Source("Desktop/Views/Media/MediaPage.BooruCrossLinks.cs");
         Assert.Contains("PresentEditedFilters();", navigation);

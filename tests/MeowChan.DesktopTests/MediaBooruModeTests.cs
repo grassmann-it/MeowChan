@@ -79,7 +79,9 @@ public sealed class MediaBooruModeTests : IDisposable
         Assert.Contains("RefreshTagSidebar(); // MP4: the tag list counts the tiles now shown", page);
         Assert.Contains("_tagCounting?.Cancel();", mode);
         Assert.Contains("await Task.Run(() =>", mode);
-        Assert.Contains("if (input.PageTerms is { } pageTerms) passing = pageTerms.Apply(passing, input.Queue, input.SourceTags?.Invoke());", page);
+        // The page-side terms narrow the passing media and, since the media search breakdown, the per-field tally too.
+        Assert.Contains("if (input.PageTerms is { } pageTerms)", page);
+        Assert.Contains("passing = pageTerms.Apply(passing, input.Queue, sourceTags);", page);
     }
 
     [Fact]

@@ -304,6 +304,9 @@ public sealed class BooruCrossLinkExactFilterTests
             foreach (string field in new[] { "_favoritesOnly", "_withoutMediaTags", "_missing" }) Set(Page, field, new CheckBox());
             // M2: the term set is the filter (constructor bypassed, so the readonly list is set here).
             Set(Page, "_terms", new List<MediaFilterTerm>());
+            // The text scope (in:) and the breakdown row of the media search (constructor bypassed, so the defaults are set here).
+            Set(Page, "_textScope", MediaTextFields.All);
+            Set(Page, "_breakdown", new MediaTextBreakdownRow { IsVisible = false });
         }
         internal T Get<T>(string field) => (T)typeof(MediaPage).GetField(field, Private)!.GetValue(Page)!;
         internal void IncompatibleFilters()
