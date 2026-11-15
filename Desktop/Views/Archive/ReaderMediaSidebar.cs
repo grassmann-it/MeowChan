@@ -86,7 +86,7 @@ internal static class ReaderMediaSidebarRules
     /// <summary>The shown medium of a post with <paramref name="count"/> attachments: the index kept within them, 0 without any.</summary>
     internal static int ClampIndex(int index, int count) => count <= 0 ? 0 : Math.Clamp(index, 0, count - 1);
 
-    /// <summary>One step through the post's media; no wrap-around (the ends are disabled buttons).</summary>
+    /// <summary>One step through the post's media; no wrap-around (the keys do nothing at the ends).</summary>
     internal static int Step(int index, int count, int delta) => ClampIndex(ClampIndex(index, count) + Math.Sign(delta), count);
 
     internal static bool CanStep(int index, int count, int delta) => count > 1 && Step(index, count, delta) != ClampIndex(index, count);
@@ -97,12 +97,6 @@ internal static class ReaderMediaSidebarRules
     /// </summary>
     internal static string HeaderText(string postLine, string fileName, string detail) =>
         string.Join(" · ", new[] { postLine, fileName, detail }.Where(part => !string.IsNullOrWhiteSpace(part)));
-
-    /// <summary>The counter over a post's media ("2 / 3"); empty for a post with one medium or none, which has no counter and no arrows.</summary>
-    internal static string CounterText(int index, int count) => count > 1 ? ClampIndex(index, count) + 1 + " / " + count : string.Empty;
-
-    /// <summary>The overlay arrows and the counter exist only for a post with more than one medium.</summary>
-    internal static bool ShowsNavigation(int count) => count > 1;
 
     /// <summary>"cat.jpg, 1.2 MiB": the file name and, when the capture knows it, the size (binary units).</summary>
     internal static string FileText(CapturedAttachmentText attachment)
@@ -202,8 +196,8 @@ internal sealed class ReaderMediaFollowThrottle
 }
 
 /// <summary>
-/// The reader's media sidebar (R8): the focused post's media large and at full height beside the posts, with its file line, ◀ ▶ for
-/// a post with several media, the favourite star and "Open in gallery". A passive view: <c>ArchivePage</c> tells it what to show and
+/// The reader's media sidebar (R8): the focused post's media large and at full height beside the posts, with its file line, the
+/// thumbnail strip for a post with several media, the favourite star and "Open in gallery". A passive view: <c>ArchivePage</c> tells it what to show and
 /// owns the decode, the lease and the timers. It holds at most one bitmap and gives it back through the release it was handed with it.
 /// Theme tokens only; the picture frame has the accent edge of <see cref="ReaderFocusedMedia.CreateFrameEdge"/>, as the enlarged card.
 /// </summary>
@@ -212,11 +206,6 @@ internal sealed class ReaderMediaSidebar : Border
     // The header line: "No. 75 · file name · 880 KiB", trimmed with an ellipsis (the full text is its tip).
     private readonly TextBlock _title = new() { Name = "ReaderMediaSidebarHeader", TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.NoWrap, VerticalAlignment = VerticalAlignment.Center };
     private string _postLine = string.Empty, _fileName = string.Empty, _detail = string.Empty;
-    // Over the medium, only for a post with several media: the counter ("2 / 3"), dark and theme-independent like the play mark.
-    private readonly TextBlock _counterText = new() { Name = "ReaderMediaSidebarCounterText", Classes = { "overlay-counter-text" }, VerticalAlignment = VerticalAlignment.Center };
-    private readonly Border _counter = new() { Name = "ReaderMediaSidebarCounter", IsVisible = false, IsHitTestVisible = false,
-        HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 8),
-        Padding = new Thickness(8, 2), CornerRadius = new CornerRadius(12), Classes = { "overlay-counter" } }; // dark in both themes (WorkspaceStyles)
     private readonly Grid _frame = new() { ClipToBounds = true, Background = Brushes.Transparent, Cursor = new Cursor(StandardCursorType.Hand) };
     private readonly Image _image = new() { Stretch = Stretch.Uniform, IsVisible = false, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
     private readonly Border _placeholder = new() { IsHitTestVisible = false };
@@ -275,11 +264,6 @@ internal sealed class ReaderMediaSidebar : Border
         internal required Border Placeholder;
     }
 
-    // The arrows over the medium (a post with several media only): round, dark, theme-independent (the overlay rule of the play mark).
-    internal Button Previous { get; } = new() { Name = "ReaderMediaSidebarPrevious", Classes = { "overlay-nav" }, IsVisible = false,
-        HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) };
-    internal Button Next { get; } = new() { Name = "ReaderMediaSidebarNext", Classes = { "overlay-nav" }, IsVisible = false,
-        HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
     // In the header row, icon only: the words are its tooltip and name.
     internal Button Open { get; } = new() { Name = "ReaderMediaSidebarOpen", Classes = { "icon-square", "ghost" } };
     internal Button Close { get; } = new() { Name = "ReaderMediaSidebarClose", Classes = { "icon-square", "ghost" } };
@@ -347,9 +331,6 @@ internal sealed class ReaderMediaSidebar : Border
             GalleryRequested?.Invoke(this, EventArgs.Empty);
         };
 
-        // The catalog applies the labels, icons and shortcuts of the two steps itself and follows language and binding changes.
-        CommandBindings.Apply(Previous, "reader.sidebar.previous-media", iconOnly: true);
-        CommandBindings.Apply(Next, "reader.sidebar.next-media", iconOnly: true);
         // Icon only: the command's label is the name and the tooltip (with its shortcut); the catalog follows language and bindings.
         CommandBindings.Apply(Open, "gallery.open", iconOnly: true);
         Close.Content = CommandBindings.NamedIcon("x");
@@ -360,10 +341,6 @@ internal sealed class ReaderMediaSidebar : Border
         Grid.SetColumn(_favorite, 1); header.Children.Add(_favorite);
         Grid.SetColumn(Open, 2); header.Children.Add(Open);
         Grid.SetColumn(Close, 3); header.Children.Add(Close);
-        _counter.Child = _counterText;
-        _frame.Children.Add(Previous);
-        _frame.Children.Add(Next);
-        _frame.Children.Add(_counter);
 
         ScrollViewer.SetHorizontalScrollBarVisibility(_strip, Avalonia.Controls.Primitives.ScrollBarVisibility.Auto);
         ScrollViewer.SetVerticalScrollBarVisibility(_strip, Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled);
@@ -379,7 +356,7 @@ internal sealed class ReaderMediaSidebar : Border
         };
         _stripRow.Children.Add(_strip);
         Grid.SetColumn(_stripCounter, 1);
-        // The counter over the medium says it ("2 / 3"); the strip keeps its text for readers (name and tooltip) without a second visible one.
+        // The strip's position text ("2 of 4") stays for readers (name and tooltip) without a visible counter.
         _stripCounter.IsVisible = false;
         _stripRow.Children.Add(_stripCounter);
 
@@ -426,19 +403,12 @@ internal sealed class ReaderMediaSidebar : Border
     private void UpdateClose() => Close.Opacity = _hover || IsKeyboardFocusWithin ? 1 : 0;
 
     /// <summary>
-    /// The header line and the controls of the medium in its post; shown at once, before the picture is ready. <paramref name="count"/> and
-    /// <paramref name="index"/> are the post's media and the shown one: with more than one the arrows and the counter appear over the medium.
+    /// The header line and the controls of the medium in its post; shown at once, before the picture is ready.
     /// </summary>
-    internal void Describe(string postLine, string fileLine, string detailLine, bool canPrevious, bool canNext, bool canOpen, int count = 1, int index = 0)
+    internal void Describe(string postLine, string fileLine, string detailLine, bool canOpen)
     {
         _postLine = postLine; _fileName = fileLine; _detail = detailLine;
         RefreshHeader();
-        bool navigation = ReaderMediaSidebarRules.ShowsNavigation(count);
-        Previous.IsVisible = Next.IsVisible = navigation;
-        Previous.IsEnabled = canPrevious;
-        Next.IsEnabled = canNext;
-        _counter.IsVisible = navigation;
-        _counterText.Text = ReaderMediaSidebarRules.CounterText(index, count);
         Open.IsEnabled = canOpen;
         Open.IsVisible = true;
         AutomationProperties.SetName(_image, fileLine);
@@ -446,10 +416,6 @@ internal sealed class ReaderMediaSidebar : Border
 
     /// <summary>The text of the header line now (smokes and tests read it); the plain title while nothing is known.</summary>
     internal string HeaderLine => _title.Text ?? string.Empty;
-    /// <summary>The counter over the medium; empty without one.</summary>
-    internal string CounterLine => _counter.IsVisible ? _counterText.Text ?? string.Empty : string.Empty;
-    /// <summary>Whether the arrows over the medium are shown (a post with several media).</summary>
-    internal bool NavigationVisible => Previous.IsVisible && Next.IsVisible;
 
     private void RefreshHeader()
     {
@@ -549,7 +515,7 @@ internal sealed class ReaderMediaSidebar : Border
     {
         ShowPlaceholder(Texts.T(EmptyKey));
         ClearStrip();
-        Describe(string.Empty, string.Empty, string.Empty, false, false, false);
+        Describe(string.Empty, string.Empty, string.Empty, false);
         ConfigureFavorite(null);
     }
 

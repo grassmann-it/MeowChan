@@ -27,18 +27,11 @@ internal static class MediaPanelFollow
         if (shown != null && isSelected(shown)) return shown;
         return firstSelected() ?? shown;
     }
-
-    /// <summary>
-    /// The position the panel's arrows lead to from <paramref name="index"/> in a list of <paramref name="count"/> tiles; -1 at either end and for a
-    /// position outside the list (no wrap: the arrows are disabled there). The step itself is the reader sidebar's (ReaderMediaSidebarRules).
-    /// </summary>
-    internal static int Step(int index, int count, int delta) =>
-        index >= 0 && index < count && ReaderMediaSidebarRules.CanStep(index, count, delta) ? ReaderMediaSidebarRules.Step(index, count, delta) : -1;
 }
 
 /// <summary>What a key does for the media panel. ReturnToGrid is no longer a decision of <see cref="MediaPanelKeys.Route"/> (Escape is a level of
 /// the page, MediaFocusMode.Escape); it stays until the panel's own switch no longer names it.</summary>
-internal enum MediaPanelKeyKind { None, Video, Previous, Next, ReturnToGrid }
+internal enum MediaPanelKeyKind { None, Video, ReturnToGrid }
 
 /// <summary>The decision of <see cref="MediaPanelKeys.Route"/>.</summary>
 internal readonly record struct MediaPanelKeyRoute(MediaPanelKeyKind Kind, ReaderVideoAction Action = ReaderVideoAction.None)
@@ -47,9 +40,9 @@ internal readonly record struct MediaPanelKeyRoute(MediaPanelKeyKind Kind, Reade
 }
 
 /// <summary>
-/// The keys of the media panel (pure). They are the gallery's own video commands (Space, M, L, "," ".", X, C and what the person rebound them to) and the
-/// panel's two arrow commands, always read from the bindings through <c>matches</c>; they act on the video the panel shows while the grid or the panel has the
-/// focus. Nothing is taken while a text field has the focus (or while the panel is hidden, or has no video for the video keys): Space then stays the
+/// The keys of the media panel (pure). They are the gallery's own video commands (Space, M, L, "," ".", X, C and what the person rebound them to), always read from
+/// the bindings through <c>matches</c>; they act on the video the panel shows while the grid or the panel has the focus. Nothing is taken while a text
+/// field has the focus (or while the panel is hidden, or has no video for the video keys): Space then stays the
 /// grid's selection key and the letters stay letters. A video key that one of the Media page's own commands also has (a binding the person saved for
 /// it) is left to that command: on the Media page the video keys give way instead of conflicting (EffectiveShortcutBindings.ConflictContexts), so the
 /// gallery and the reader keep them. Enter is not here: it keeps opening the gallery. Escape is not here either: it is a level of the page
@@ -61,18 +54,16 @@ internal static class MediaPanelKeys
     internal const string ToggleCommandId = "media.panel.toggle";
 
     internal static MediaPanelKeyRoute Route(Key key, KeyModifiers modifiers, Func<string, bool> matches, bool panelShown, bool videoOffered,
-        bool nativeInput, bool fromPanel, bool canPrevious, bool canNext)
+        bool nativeInput, bool fromPanel)
     {
         ArgumentNullException.ThrowIfNull(matches);
         if (!panelShown || nativeInput) return MediaPanelKeyRoute.None;
-        if (matches("media.panel.previous") && canPrevious) return new(MediaPanelKeyKind.Previous);
-        if (matches("media.panel.next") && canNext) return new(MediaPanelKeyKind.Next);
         if (videoOffered && ReaderVideoKeys.Classify(matches) is var action && action != ReaderVideoAction.None && !PageClaims(matches))
             return new(MediaPanelKeyKind.Video, action);
         return MediaPanelKeyRoute.None;
     }
 
-    /// <summary>Whether one of the Media page's own commands has the key (the panel's arrows aside, which <see cref="Route"/> asks first).</summary>
+    /// <summary>Whether one of the Media page's own commands has the key.</summary>
     internal static bool PageClaims(Func<string, bool> matches)
     {
         ArgumentNullException.ThrowIfNull(matches);
@@ -81,10 +72,9 @@ internal static class MediaPanelKeys
         return false;
     }
 
-    // Every command that runs on the Media page and competes there for its gestures: not the video keys themselves (they give way), not the arrows.
+    // Every command that runs on the Media page and competes there for its gestures: not the video keys themselves (they give way).
     private static readonly Lazy<string[]> PageCommands = new(() => CommandCatalog.All
         .Where(command => command.IsImplemented && !ReaderVideoKeys.IsVideoCommand(command.Id)
-            && command.Id is not ("media.panel.previous" or "media.panel.next")
             && EffectiveShortcutBindings.ConflictContexts(command.Id).Contains("media", StringComparer.Ordinal))
         .Select(command => command.Id).ToArray());
 

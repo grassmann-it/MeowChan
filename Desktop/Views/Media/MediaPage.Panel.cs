@@ -23,7 +23,7 @@ namespace MeowChan;
 
 // The media panel of the Media page: the selected medium large beside the grid, the reader's media sidebar (ReaderMediaSidebar) in the Media page.
 // The view is the reader's own passive control (header row with the post number, name and size, the star, "open in gallery" and the cross; the
-// overlay arrows with the "n / total" counter; the minimal video control below a video); this file is the page's half of what ArchivePage does for it.
+// minimal video control below a video; no arrows and no counter: the panel shows the one selected medium); this file is the page's half of what ArchivePage does for it.
 // The panel follows the grid's selection (the first change after a quiet moment at once, a held arrow key at most every 120 ms), decodes only the
 // shown medium through the gallery's decode API and cache (GalleryImageCache: no second decoder, no memory outside its budget; a video's poster
 // through the thumbnail cache) and preloads nothing. A single click or an arrow key in the grid only selects; double click and Enter still open the
@@ -92,8 +92,6 @@ public sealed partial class MediaPage
         };
         // The sidebar's border faces the grid (set once; the side comes with the layout).
         panel[!Border.BorderBrushProperty] = new Avalonia.Markup.Xaml.MarkupExtensions.DynamicResourceExtension("Workspace.CardEdge");
-        CommandBindings.Apply(panel.Previous, "media.panel.previous", iconOnly: true);
-        CommandBindings.Apply(panel.Next, "media.panel.next", iconOnly: true);
         panel.Localize();
         panel.ShowEmpty();
         // The drag handle's name and tip exist from the start, not only after the first language change.
@@ -101,8 +99,6 @@ public sealed partial class MediaPage
         Avalonia.Automation.AutomationProperties.SetName(_panelHandle, resize);
         ToolTip.SetTip(_panelHandle, resize);
         panel.Frame.SizeChanged += (_, _) => OnPanelFrameResized();
-        panel.Previous.Click += (_, e) => { e.Handled = true; StepPanel(-1); };
-        panel.Next.Click += (_, e) => { e.Handled = true; StepPanel(1); };
         panel.Open.Click += (_, e) => { e.Handled = true; _ = OpenPanelMediaAsync(); };
         panel.GalleryRequested += (_, _) => _ = OpenPanelMediaAsync();
         panel.PictureActivated += (_, _) => OnPanelPictureActivated();
@@ -136,7 +132,7 @@ public sealed partial class MediaPage
         if (e.Property == Window.WindowStateProperty && e.NewValue is WindowState.Minimized) _ = PausePanelVideo();
     }
 
-    private bool _panelObscured, _panelDirty, _panelPinned;
+    private bool _panelObscured, _panelDirty;
 
     /// <summary>The gallery covers the page (or uncovers it): the panel's video pauses and nothing new is decoded under it; a change made meanwhile shows when it is uncovered.</summary>
     internal void SetObscuredByGallery(bool covers)
@@ -194,26 +190,23 @@ public sealed partial class MediaPage
         MediaLibraryTileRow? lastAdded = e.AddedItems.Count > 0 ? e.AddedItems[e.AddedItems.Count - 1] as MediaLibraryTileRow : null;
         MediaLibraryTileRow? pick = MediaPanelFollow.Pick(e.AddedItems.Count, lastAdded, _panelWanted ?? _panelRow,
             row => _grid.Selection.IsSelected(row.Index), () => SelectedRow);
-        // The arrows moved the panel alone (several tiles selected): a change that adds nothing leaves it where the arrows put it.
-        if (_panelPinned && e.AddedItems.Count == 0 && _grid.Selection.Count > 1) return;
-        _panelPinned = false;
         if (pick == null || ReferenceEquals(pick, _panelRow) && ReferenceEquals(pick, _panelWanted)) return;
         RequestPanel(pick);
     }
 
     // The rows were replaced (a new presentation: filter, order, new own state) or the selection restored (coming back from the gallery): the panel keeps
-    // its medium when its tile is still among the results (found by its key), else follows the selection; its counter, arrows and star are made anew.
+    // its medium when its tile is still among the results (found by its key), else follows the selection; its star and header are made anew.
     private void SyncPanelToRows()
     {
         if (_lifetime.IsCancellationRequested) return;
         if (!_panelShown || _panel == null) { _panelRow = _panelWanted = null; return; }
         MediaLibraryTileRow? previous = _panelRow ?? _panelWanted;
         MediaLibraryTileRow? rebound = previous == null ? null : RowOfTile(MediaLibraryTileKey.Of(previous.Tile));
-        MediaLibraryTileRow? pick = rebound != null && (_panelPinned || _grid.Selection.IsSelected(rebound.Index)) ? rebound : SelectedRow ?? rebound;
+        MediaLibraryTileRow? pick = rebound != null && _grid.Selection.IsSelected(rebound.Index) ? rebound : SelectedRow ?? rebound;
         bool sameMedium = pick != null && _panelRow != null && MediaLibraryTileKey.Of(pick.Tile) == MediaLibraryTileKey.Of(_panelRow.Tile);
         if (sameMedium)
         {
-            // Same tile in a new list: no new decode, only the header, the counter, the arrows and the star.
+            // Same tile in a new list: no new decode, only the header and the star.
             _panelRow = _panelWanted = pick;
             DescribePanel(_panel, pick!);
             return;
@@ -309,14 +302,13 @@ public sealed partial class MediaPage
     private string PanelDetail() => _panelDimensions.Length == 0 ? _panelSizeText
         : _panelSizeText.Length == 0 ? _panelDimensions : _panelSizeText + " · " + _panelDimensions;
 
-    // The header (post number, name, size and pixels), the counter and arrows over the grid's results, "open in gallery" and the star.
+    // The header (post number, name, size and pixels), "open in gallery" and the star.
     private void DescribePanel(ReaderMediaSidebar panel, MediaLibraryTileRow row)
     {
         MediaLibraryEntry entry = row.Entry;
         string postLine = entry.PostId != null ? Texts.T("reader.postNumber", entry.PostId)
             : row.IsProviderMedium ? Texts.T("booru.media.tile.post", entry.BooruPostId!) : string.Empty;
-        panel.Describe(postLine, row.Name, PanelDetail(), CanStepPanel(-1), CanStepPanel(1),
-            OpenGallery != null && entry.Presence == MediaLibraryPresence.Present, _tiles.Count, row.Index);
+        panel.Describe(postLine, row.Name, PanelDetail(), OpenGallery != null && entry.Presence == MediaLibraryPresence.Present);
         // The star reads the panel's row when it is asked, so a new presentation (own state changed) needs no new wiring.
         panel.ConfigureFavorite(PanelFavoriteAvailable, () => _panelRow?.State?.Favorite == MediaLibraryFlag.Yes,
             () => _panelRow is { } current ? ToggleTileFavoriteAsync(current.Entry) : Task.CompletedTask);
@@ -445,29 +437,7 @@ public sealed partial class MediaPage
         _ = OpenPanelMediaAsync();
     }
 
-    // ---- stepping, opening, closing --------------------------------------------------------------------------------------------
-
-    internal bool CanStepPanel(int delta) => !_lifetime.IsCancellationRequested && _panelShown && _panelRow != null
-        && MediaPanelFollow.Step(_panelRow.Index, _tiles.Count, delta) >= 0;
-
-    /// <summary>The overlay arrows: the previous or next tile of the grid's current results is selected (and shown), the grid scrolls to it.</summary>
-    internal void StepPanel(int delta)
-    {
-        if (!CanStepPanel(delta) || _panelRow is not { } row) return;
-        int target = MediaPanelFollow.Step(row.Index, _tiles.Count, delta);
-        if (target < 0) return;
-        // Several tiles selected (to tag or export together): the arrows only move the panel, the selection is the person's work and stays.
-        if (_grid.Selection.Count > 1 && _grid.ItemsSource is IReadOnlyList<MediaLibraryTileRow> rows && target < rows.Count)
-        {
-            _panelPinned = true;
-            RequestPanel(rows[target]);
-            _grid.ScrollIntoView(target);
-            return;
-        }
-        _panelPinned = false;
-        _grid.SelectedIndex = target;
-        _grid.ScrollIntoView(target);
-    }
+    // ---- opening, closing ------------------------------------------------------------------------------------------------------
 
     /// <summary>"Open in gallery" (and a click on an image in the panel): the gallery at the panel's medium, the same path as Enter on the tile.</summary>
     internal Task OpenPanelMediaAsync() => _panelRow is { } row ? OpenRowAsync(row) : Task.CompletedTask;
@@ -490,20 +460,12 @@ public sealed partial class MediaPage
     {
         if (e.Handled || !_panelShown || _lifetime.IsCancellationRequested) return false;
         MediaPanelKeyRoute route = MediaPanelKeys.Route(e.Key, e.KeyModifiers, id => CommandBindings.Matches(e, id), _panelShown,
-            _panelVideo is { IsOffered: true }, CommandRouter.IsNativeInput(e.Source, e.Key), fromPanel, CanStepPanel(-1), CanStepPanel(1));
+            _panelVideo is { IsOffered: true }, CommandRouter.IsNativeInput(e.Source, e.Key), fromPanel);
         switch (route.Kind)
         {
             case MediaPanelKeyKind.Video:
                 e.Handled = true;
                 _ = _panelVideo!.ExecuteAsync(route.Action);
-                return true;
-            case MediaPanelKeyKind.Previous:
-                e.Handled = true;
-                StepPanel(-1);
-                return true;
-            case MediaPanelKeyKind.Next:
-                e.Handled = true;
-                StepPanel(1);
                 return true;
             default:
                 return false;

@@ -121,8 +121,6 @@ public partial class ArchivePage
         frame.Children.Add(splitter);
         frame.SizeChanged += (_, _) => LayoutMediaSidebar();
         sidebar.Frame.SizeChanged += (_, _) => OnMediaSidebarFrameResized();
-        sidebar.Previous.Click += (_, e) => { e.Handled = true; StepMediaSidebar(-1); };
-        sidebar.Next.Click += (_, e) => { e.Handled = true; StepMediaSidebar(1); };
         sidebar.Open.Click += (_, e) => { e.Handled = true; OpenMediaSidebarMedia(); };
         sidebar.StripSelected += (_, index) => SelectMediaSidebarIndex(index);
         sidebar.StripActivated += (_, index) => { SelectMediaSidebarIndex(index); OpenMediaSidebarMedia(); };
@@ -276,7 +274,7 @@ public partial class ArchivePage
         && ArchivePosts.SelectedItem is ArchivePostRow { ShowsMedia: true } post
         && ReaderMediaSidebarRules.CanStep(_sidebarIndex, post.Attachments.Count, delta);
 
-    /// <summary>◀ ▶ and Alt+Shift+←/→: the previous or next medium of the focused post.</summary>
+    /// <summary>Alt+Shift+←/→: the previous or next medium of the focused post.</summary>
     internal void StepMediaSidebar(int delta)
     {
         if (!CanStepMediaSidebar(delta) || ArchivePosts.SelectedItem is not ArchivePostRow post) return;
@@ -402,7 +400,7 @@ public partial class ArchivePage
             sidebar.ClearStrip();
             OfferSidebarVideo(null, null);
             string reason = Texts.T(post.HasMediaHiddenLine ? "reader.sidebar.hidden" : "reader.sidebar.noMedia", post.Id);
-            sidebar.Describe(post.NumberLabel, string.Empty, string.Empty, false, false, false);
+            sidebar.Describe(post.NumberLabel, string.Empty, string.Empty, false);
             sidebar.ConfigureFavorite(null);
             sidebar.Dim(reason);
             ScheduleSidebarAnnouncement(reason);
@@ -412,11 +410,10 @@ public partial class ArchivePage
         _sidebarIndex = ReaderMediaSidebarRules.ClampIndex(_sidebarIndex, count);
         ArchiveAttachmentRow row = post.Attachments[_sidebarIndex];
         CapturedAttachmentText file = CapturedAttachmentText.Of(row);
-        // The position of the medium in its post is the counter over the medium; the header line names the post, the file and its size.
+        // The position of the medium in its post is the strip's and the announcement's; the header line names the post, the file and its size.
         string postLine = post.NumberLabel;
         string size = file.Size is > 0 and long bytes ? SizeText.Format(bytes) : string.Empty;
-        sidebar.Describe(postLine, file.Name, size, ReaderMediaSidebarRules.CanStep(_sidebarIndex, count, -1),
-            ReaderMediaSidebarRules.CanStep(_sidebarIndex, count, 1), row.OpenPreview != null, count, _sidebarIndex);
+        sidebar.Describe(postLine, file.Name, size, row.OpenPreview != null);
         sidebar.ConfigureFavorite(row);
         UpdateSidebarStrip(sidebar, post, samePost);
         OfferSidebarVideo(post, row);

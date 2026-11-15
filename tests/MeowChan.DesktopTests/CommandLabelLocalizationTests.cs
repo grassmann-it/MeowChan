@@ -105,10 +105,7 @@ public sealed class CommandLabelLocalizationTests : IDisposable
             ("sections.go-to", "Go to selected section", "Ausgewählten Abschnitt öffnen", "Ir a la sección seleccionada", "Accéder à la section sélectionnée", "Перейти к выбранному разделу"),
             ("appearance.theme", "Change theme", "Farbschema wechseln", "Cambiar tema", "Changer de thème", "Изменить тему"),
             ("export.open-html-dialog", "Export", "Exportieren", "Exportar", "Exporter", "Экспортировать"),
-            ("gallery.actual-size", "1:1", "1:1", "1:1", "1:1", "1:1"),
-            // The Media page's panel arrows (revision 18).
-            ("media.panel.previous", "Previous medium", "Voriges Medium", "Medio anterior", "Média précédent", "Предыдущее медиа"),
-            ("media.panel.next", "Next medium", "Nächstes Medium", "Medio siguiente", "Média suivant", "Следующее медиа")
+            ("gallery.actual-size", "1:1", "1:1", "1:1", "1:1", "1:1")
         };
         foreach (var label in labels)
         {

@@ -4887,8 +4887,6 @@
     "settings.reader.mediaClick.post": "Abrir na postagem",
     "settings.reader.mediaClick.gallery": "Abrir na galeria",
     "reader.media.collapseHint": "Outro clique devolve a imagem ao tamanho pequeno.",
-    "command.media.panel.previous": "Mídia anterior",
-    "command.media.panel.next": "Próxima mídia",
     "command.media.panel.toggle": "Barra lateral de mídia",
     "media.layout.panel": "Barra lateral de mídia",
     "media.layout.panelSide.left": "Barra lateral de mídia à esquerda",

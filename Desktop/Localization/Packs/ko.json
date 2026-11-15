@@ -4792,8 +4792,6 @@
     "settings.reader.mediaClick.post": "게시물에서 열기",
     "settings.reader.mediaClick.gallery": "갤러리에서 열기",
     "reader.media.collapseHint": "다시 클릭하면 이미지가 원래의 작은 크기로 돌아갑니다.",
-    "command.media.panel.previous": "이전 미디어",
-    "command.media.panel.next": "다음 미디어",
     "command.media.panel.toggle": "미디어 사이드바",
     "media.layout.panel": "미디어 사이드바",
     "media.layout.panelSide.left": "미디어 사이드바를 왼쪽에",
