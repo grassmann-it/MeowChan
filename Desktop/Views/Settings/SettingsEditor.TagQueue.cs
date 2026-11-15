@@ -26,6 +26,10 @@ public partial class SettingsEditor
     public int MediaTagListTopMaximum => Config.MediaTagListTopMaximum;
     public int MediaTagListWidthMinimum => Config.MediaTagListWidthMinimum;
     public int MediaTagListWidthMaximum => Config.MediaTagListWidthMaximum;
+    public int MediaPanelWidthMinimum => Config.MediaPanelWidthMinimum;
+    public int MediaPanelWidthMaximum => Config.MediaPanelWidthMaximum;
+    public int MediaPanelMinimumPageWidthMinimum => Config.MediaPanelMinimumPageWidthMinimum;
+    public int MediaPanelMinimumPageWidthMaximum => Config.MediaPanelMinimumPageWidthMaximum;
 
     private decimal? _tagQueueLimit;
     public decimal? TagQueueLimit { get => _tagQueueLimit; set => SetField(ref _tagQueueLimit, value, nameof(TagQueueLimit)); }
@@ -79,6 +83,21 @@ public partial class SettingsEditor
     public string MediaTagListWidthHint => Texts.T("settings.limits.mediaTagListWidth.hint") + " " + Texts.T("settings.reader.range", Config.MediaTagListWidthMinimum, Config.MediaTagListWidthMaximum);
     public string MediaTagListWidthHelp => FieldHelp(nameof(MediaTagListWidthInput), MediaTagListWidthHint);
 
+    // The media panel beside the grid: its width lives in the saved media layout like the tag list's (the drag handle on its edge sets the same
+    // value); the page width below which it hides is a plain setting.
+    private decimal? _mediaPanelWidth;
+    private int _initialMediaPanelWidth = Config.MediaPanelWidthDefault;
+    public decimal? MediaPanelWidth { get => _mediaPanelWidth; set => SetField(ref _mediaPanelWidth, value, nameof(MediaPanelWidth)); }
+    public string MediaPanelWidthLabel => Texts.T("settings.limits.mediaPanelWidth");
+    public string MediaPanelWidthHint => Texts.T("settings.limits.mediaPanelWidth.hint") + " " + Texts.T("settings.reader.range", Config.MediaPanelWidthMinimum, Config.MediaPanelWidthMaximum);
+    public string MediaPanelWidthHelp => FieldHelp(nameof(MediaPanelWidthInput), MediaPanelWidthHint);
+
+    private decimal? _mediaPanelMinimumPageWidth;
+    public decimal? MediaPanelMinimumPageWidth { get => _mediaPanelMinimumPageWidth; set => SetField(ref _mediaPanelMinimumPageWidth, value, nameof(MediaPanelMinimumPageWidth)); }
+    public string MediaPanelMinimumPageWidthLabel => Texts.T("settings.limits.mediaPanelMinimumPageWidth");
+    public string MediaPanelMinimumPageWidthHint => Texts.T("settings.limits.mediaPanelMinimumPageWidth.hint") + " " + Texts.T("settings.reader.range", Config.MediaPanelMinimumPageWidthMinimum, Config.MediaPanelMinimumPageWidthMaximum);
+    public string MediaPanelMinimumPageWidthHelp => FieldHelp(nameof(MediaPanelMinimumPageWidthInput), MediaPanelMinimumPageWidthHint);
+
     private void LoadTagQueueDraft(Config config)
     {
         TagQueueLimit = config.TagQueueLimit;
@@ -97,6 +116,10 @@ public partial class SettingsEditor
         ResetNumber(MediaTagListTopInput, MediaTagListTop.Value);
         MediaTagListWidth = _initialMediaTagListWidth = MediaPageLayout.Parse(config.MediaLayout, config.MediaBooruMode).TagListWidth;
         ResetNumber(MediaTagListWidthInput, MediaTagListWidth.Value);
+        MediaPanelWidth = _initialMediaPanelWidth = MediaPageLayout.Parse(config.MediaLayout, config.MediaBooruMode).PanelWidth;
+        ResetNumber(MediaPanelWidthInput, MediaPanelWidth.Value);
+        MediaPanelMinimumPageWidth = config.MediaPanelMinimumPageWidth;
+        ResetNumber(MediaPanelMinimumPageWidthInput, MediaPanelMinimumPageWidth.Value);
         LoadTaggingDraft(config);
     }
 
@@ -110,8 +133,11 @@ public partial class SettingsEditor
         candidate.TagQueueConfirmAbove = GetInteger(TagQueueConfirmAbove, TagQueueConfirmAboveLabel, Config.TagQueueConfirmAboveMinimum, Config.TagQueueConfirmAboveMaximum);
         candidate.MediaTagListTop = GetInteger(MediaTagListTop, MediaTagListTopLabel, Config.MediaTagListTopMinimum, Config.MediaTagListTopMaximum);
         int tagListWidth = GetInteger(MediaTagListWidth, MediaTagListWidthLabel, Config.MediaTagListWidthMinimum, Config.MediaTagListWidthMaximum);
-        candidate.MediaLayout = (MediaPageLayout.Parse(candidate.MediaLayout, candidate.MediaBooruMode) with { TagListWidth = tagListWidth }).Format();
+        int panelWidth = GetInteger(MediaPanelWidth, MediaPanelWidthLabel, Config.MediaPanelWidthMinimum, Config.MediaPanelWidthMaximum);
+        candidate.MediaPanelMinimumPageWidth = GetInteger(MediaPanelMinimumPageWidth, MediaPanelMinimumPageWidthLabel, Config.MediaPanelMinimumPageWidthMinimum, Config.MediaPanelMinimumPageWidthMaximum);
+        candidate.MediaLayout = (MediaPageLayout.Parse(candidate.MediaLayout, candidate.MediaBooruMode) with { TagListWidth = tagListWidth, PanelWidth = panelWidth }).Format();
         candidate.SettingsBaselineMediaTagListWidth = _initialMediaTagListWidth;
+        candidate.SettingsBaselineMediaPanelWidth = _initialMediaPanelWidth;
         ApplyTaggingDraft(candidate);
     }
 
@@ -125,6 +151,8 @@ public partial class SettingsEditor
         yield return (TagQueueConfirmAboveInput, TagQueueConfirmAbove, TagQueueConfirmAboveLabel, string.Empty, Config.TagQueueConfirmAboveMinimum, Config.TagQueueConfirmAboveMaximum, true);
         yield return (MediaTagListTopInput, MediaTagListTop, MediaTagListTopLabel, string.Empty, Config.MediaTagListTopMinimum, Config.MediaTagListTopMaximum, true);
         yield return (MediaTagListWidthInput, MediaTagListWidth, MediaTagListWidthLabel, string.Empty, Config.MediaTagListWidthMinimum, Config.MediaTagListWidthMaximum, true);
+        yield return (MediaPanelWidthInput, MediaPanelWidth, MediaPanelWidthLabel, string.Empty, Config.MediaPanelWidthMinimum, Config.MediaPanelWidthMaximum, true);
+        yield return (MediaPanelMinimumPageWidthInput, MediaPanelMinimumPageWidth, MediaPanelMinimumPageWidthLabel, string.Empty, Config.MediaPanelMinimumPageWidthMinimum, Config.MediaPanelMinimumPageWidthMaximum, true);
         foreach (var field in TaggingNumericFields()) yield return field;
     }
 
@@ -141,6 +169,8 @@ public partial class SettingsEditor
         nameof(TagQueueConfirmAboveLabel), nameof(TagQueueConfirmAboveHint), nameof(TagQueueConfirmAboveHelp),
         nameof(MediaTagListTopLabel), nameof(MediaTagListTopHint), nameof(MediaTagListTopHelp),
         nameof(MediaTagListWidthLabel), nameof(MediaTagListWidthHint), nameof(MediaTagListWidthHelp),
+        nameof(MediaPanelWidthLabel), nameof(MediaPanelWidthHint), nameof(MediaPanelWidthHelp),
+        nameof(MediaPanelMinimumPageWidthLabel), nameof(MediaPanelMinimumPageWidthHint), nameof(MediaPanelMinimumPageWidthHelp),
     };
     private static readonly string[] TagQueueHelpProperties =
     {
