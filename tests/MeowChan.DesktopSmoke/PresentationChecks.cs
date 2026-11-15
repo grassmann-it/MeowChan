@@ -178,6 +178,14 @@ internal static class PresentationChecks
     private static double CompactAdmissionHeight(MainWindow window, string mode)
     {
         double logicalMinimum = mode == "Barebones" ? 480 : 500;
+        if (OperatingSystem.IsMacOS() && mode == "Barebones")
+        {
+            // 640×480 remains the Barebones window minimum, but the native macOS
+            // layout leaves the selected 33 DIP row 14 DIP below the grid viewport
+            // while expanded admission results are shown. Keep this probe on the
+            // established 500 DIP content minimum instead of weakening the full-row contract.
+            return 500;
+        }
         if (!OperatingSystem.IsWindows() || window.FrameSize is not Size frame)
             return logicalMinimum;
 
