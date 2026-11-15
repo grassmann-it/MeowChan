@@ -122,12 +122,12 @@ public partial class DiagnosticsPage : UserControl
         finally { _syncingSelection = false; }
     }
 
-    // The table row takes the free height (Height *): the content root is at least as tall as the viewport, and the table
-    // may grow to it. Below the shell minimum the page scrolls instead of squeezing the table to nothing.
+    // The action row is a fixed sibling below the scroll viewer. Do not give the scroll content a minimum equal to
+    // the entire viewport: that would reserve the viewport once for the content and again for the actions, pushing the
+    // actions below the shell footer at the compact window sizes used by the smoke matrix.
     private void OnDiagnosticScrollSizeChanged(object? sender, SizeChangedEventArgs e)
     {
         double viewport = e.NewSize.Height;
-        this.FindControl<Grid>("DiagnosticsContentRoot")!.MinHeight = viewport;
         this.FindControl<DataGrid>("DiagnosticsGrid")!.MaxHeight = Math.Max(viewport, 480);
     }
 
