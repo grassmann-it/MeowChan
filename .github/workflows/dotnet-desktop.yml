@@ -485,35 +485,6 @@ jobs:
                   summary.write("All recorded validation steps completed successfully.\n")
           print(json.dumps(payload, indent=2, sort_keys=True))
           PY
-      - name: Upload regression and graphical evidence
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: validation-${{ matrix.os }}-${{ runner.arch }}
-          path: |
-            test-results/**
-            artifacts/desktop-smoke/**
-            artifacts/gallery-features/**
-            artifacts/closure-plugin-reselection/**
-            artifacts/upgrade-results/**
-            artifacts/upgrade-1.0.*/receipt.json
-            artifacts/upgrade-1.0.*/source-binding.json
-            artifacts/upgrade-1.0.*/generator.log
-            artifacts/upgrade-1.0.*/current-result.json
-            artifacts/closure-first-run-setup/**
-            artifacts/closure-preference-startup/**
-            artifacts/closure-scoped-diagnostics/**
-            artifacts/closure-gif-playback/**
-            artifacts/closure-gallery-errors/**
-            artifacts/closure-reader-media-input/**
-            artifacts/media-native-input/**
-            artifacts/private-audio/**
-            artifacts/desktop-tray-host/**
-            artifacts/desktop-tray-stress/**
-            artifacts/build-evidence/**
-            artifacts/macos-test-diagnosis/**
-          if-no-files-found: warn
-          retention-days: ${{ github.event_name == 'workflow_dispatch' && inputs.scenario == 'selection' && 2 || 14 }}
       - name: Fail validation after collecting all evidence
         if: always()
         shell: bash
@@ -542,6 +513,38 @@ jobs:
             --json-env VALIDATION_STEPS \
             --required "$required_csv" \
             --report artifacts/build-evidence/release-validation-gate.json
+      - name: Upload regression and graphical evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: validation-${{ matrix.os }}-${{ runner.arch }}
+          # The gate runs immediately before this upload, so its complete
+          # required-step decision is retained alongside outcomes.
+          path: |
+            test-results/**
+            artifacts/desktop-smoke/**
+            artifacts/gallery-features/**
+            artifacts/closure-plugin-reselection/**
+            artifacts/upgrade-results/**
+            artifacts/upgrade-1.0.*/receipt.json
+            artifacts/upgrade-1.0.*/source-binding.json
+            artifacts/upgrade-1.0.*/generator.log
+            artifacts/upgrade-1.0.*/current-result.json
+            artifacts/closure-first-run-setup/**
+            artifacts/closure-preference-startup/**
+            artifacts/closure-scoped-diagnostics/**
+            artifacts/closure-gif-playback/**
+            artifacts/closure-gallery-errors/**
+            artifacts/closure-reader-media-input/**
+            artifacts/media-native-input/**
+            artifacts/private-audio/**
+            artifacts/desktop-tray-host/**
+            artifacts/desktop-tray-stress/**
+            artifacts/build-evidence/**
+            artifacts/build-evidence/release-validation-gate.json
+            artifacts/macos-test-diagnosis/**
+          if-no-files-found: warn
+          retention-days: ${{ github.event_name == 'workflow_dispatch' && inputs.scenario == 'selection' && 2 || 14 }}
 
   library-package:
     if: ${{ always() && (github.event_name != 'workflow_dispatch' || ((inputs.mode == 'validate' || (inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate')) && inputs.scenario == 'all')) }}

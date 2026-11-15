@@ -80,6 +80,10 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("python3 scripts/aggregate-release-gates.py steps", self.workflow)
         self.assertIn("required+=(linux_setup tray_host core_tests smoke_plugins)", self.workflow)
         self.assertIn("required+=(prepare_desktop mac_tests)", self.workflow)
+        gate = self.workflow.index("      - name: Fail validation after collecting all evidence")
+        upload = self.workflow.index("      - name: Upload regression and graphical evidence")
+        self.assertLess(gate, upload)
+        self.assertIn("artifacts/build-evidence/release-validation-gate.json", self.workflow[upload:])
 
     def test_candidate_gate_waits_for_every_release_input_and_is_always_evaluated(self):
         section = self.workflow.split("  release-candidate-gate:\n", 1)[1].split(
