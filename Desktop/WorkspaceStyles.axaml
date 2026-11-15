@@ -1737,6 +1737,29 @@
     <Style Selector="Button.video-activator:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" /></Style>
     <Style Selector="Button.video-activator:pressed /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" /></Style>
     <Style Selector="Button.video-activator:disabled /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="Transparent" /></Style>
+    <!-- The favourite star of a medium (ArchiveFavoriteButton: a post's file line, the reader sidebar's header; the tiles add tile-favorite below,
+         which wins for their fill). The star drawing is no hit target (FavoriteStar), so the button's own surface must be one: a transparent fill
+         at rest, the Hover fill with the ControlBorder edge under the pointer and while pressed. Without a fill the pointer went through to the
+         card and the star did nothing (review 15.11.2026). Unavailable (no saved file): no fill, no edge, the muted foreground and a lighter star,
+         so it reads as off; the tooltip says why (ToolTip.ShowOnDisabled). -->
+    <Style Selector="ToggleButton.favorite-star">
+        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+        <Setter Property="MinWidth" Value="0" /><Setter Property="MinHeight" Value="0" />
+        <Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Control}" />
+    </Style>
+    <Style Selector="ToggleButton.favorite-star /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.favorite-star:checked /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+    </Style>
+    <Style Selector="ToggleButton.favorite-star:pointerover /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.favorite-star:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.favorite-star:pressed /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.favorite-star:checked:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Hover}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+    </Style>
+    <Style Selector="ToggleButton.favorite-star:disabled /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.favorite-star:checked:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" /><Setter Property="Opacity" Value="0.6" />
+    </Style>
     <!-- I7 tile corners: static chip badges and marks; the favourite star appears by opacity only (set, hover, keyboard focus),
          so nothing moves and the tile keeps its height. -->
     <Style Selector="Border.tile-mark"><Setter Property="Padding" Value="3" /></Style>

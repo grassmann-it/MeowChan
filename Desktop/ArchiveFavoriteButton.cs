@@ -15,6 +15,19 @@ namespace MeowChan.Desktop;
 
 internal sealed class ArchiveFavoriteButton : ToggleButton
 {
+    /// <summary>
+    /// The style class that gives the button its own hit surface (WorkspaceStyles: a transparent fill at rest, Hover under the pointer, muted and
+    /// without a fill while unavailable). The star drawing is no hit target (<see cref="MeowChan.Desktop.Controls.FavoriteStar"/>), and the
+    /// toggle theme leaves the fill unset: without the class a real pointer went through the star to the post card, so the star of a post's
+    /// file line and of the sidebar's header did nothing (review 15.11.2026); only a routed Click (the old smokes) reached it.
+    /// </summary>
+    internal const string StarClass = "favorite-star";
+
+    /// <summary>
+    /// Styled as a ToggleButton: a style selector names the exact style key, so without this neither "ToggleButton.favorite-star" nor the tiles'
+    /// "ToggleButton.tile-favorite" ever matched this subclass, and its fill stayed unset (no hit surface, see <see cref="StarClass"/>).
+    /// </summary>
+    protected override Type StyleKeyOverride => typeof(ToggleButton);
     private Func<bool>? _available;
     private Func<bool>? _marked;
     private Func<Task>? _toggle;
@@ -29,6 +42,7 @@ internal sealed class ArchiveFavoriteButton : ToggleButton
         Name = "ArchiveMediaFavorite";
         Padding = new Avalonia.Thickness(8);
         CommandBindings.Apply(this, "favorites.toggle", iconOnly: true);
+        Classes.Add(StarClass);
         AutomationProperties.SetLiveSetting(this, AutomationLiveSetting.Assertive);
         Click += async (_, e) =>
         {

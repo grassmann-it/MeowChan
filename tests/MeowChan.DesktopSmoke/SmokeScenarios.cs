@@ -108,6 +108,7 @@ internal static partial class SmokeScenarios
         Root("startup-preview", "MEOWCHAN_STARTUP_PREVIEW_ONLY"),
         Root("interrupted-startup", "MEOWCHAN_INTERRUPTED_STARTUP_ONLY"),
         Root("diagnostic-evidence", "MEOWCHAN_DIAGNOSTIC_EVIDENCE_ONLY", "diagnostic evidence: native controls with synthetic snapshots, passive facts/waiting/language refresh; managed input and copy delegate, no live network or OS clipboard/Windows/macOS acceptance"),
+        Root("reader-post-star", "MEOWCHAN_READER_POST_STAR_ONLY", "reader post star: real main window, seeded saved pictures; the post file-line star, an archive tile star and the sidebar header star clicked with XTest (embedded reader, large reader opened the Downloads way, scrolled, next page, sidebar), F on the selected post, an unsaved file's star off with its reason; private Xvfb only, no live provider, no Windows/macOS acceptance"),
         Root("filename-search-large-reader", "MEOWCHAN_FILENAME_SEARCH_LARGE_READER_ONLY", "filename large reader: seven synthetic native host journeys, complete-reader/off-page results, selection and lifetime joins; managed input only"),
         Root("local-search-language", "MEOWCHAN_LOCAL_SEARCH_LANGUAGE_ONLY", "local search language: EN/DE/ES/FR/RU retained drafts/results, actual native controls and 360-DIP action glyph layout; no OS typing, current-byte or cross-platform acceptance"),
         Root("media-page", "MEOWCHAN_MEDIA_PAGE_ONLY", "media page: real host, catalog, bound manifests, verified thumbnails and navigation; managed input only"),
