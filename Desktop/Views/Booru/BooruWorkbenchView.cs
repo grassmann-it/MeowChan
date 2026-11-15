@@ -170,6 +170,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         Texts.Changed += OnTextsChanged;
         _clock.Tick += OnClockTick;
         RegisterWorkViewIds();
+        InitializeHitList();
         Render(force: true);
     }
 
@@ -583,7 +584,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         {
             _resultsKey = key;
             _resultWorkViewActions.Clear();
-            RebuildPanel(_results, () => view.Rows.Select(CreateResultCard).ToList(), fallback: () => null);
+            RebuildPanel(_results, () => NumberHits(view.Rows.Select(CreateResultCard).ToList()), fallback: () => null);
             PruneBitmaps(view.Rows);
         }
     }
@@ -742,7 +743,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     private Control CreateResultCard(BooruResultRowView row)
     {
         BooruPostView post = row.Post;
-        // The title line names the card; the border itself carries no name, so "Post #n" is read once.
+        // The card is a keyboard stop with its own accessible name (ConfigureHitCard); its title line is the visible form of the same post.
         Border card = new() { Name = "BooruResult:" + post.PostId };
         card.Classes.Add("workspace-card");
 
@@ -815,17 +816,9 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         Grid.SetColumn(load, 2);
         grid.Children.Add(load);
         card.Child = grid;
-        // Interaction audit 1.1.0: a double click on the card (not on a button, a tag or selectable text) is its primary action: "Show in
-        // Media" once the original is saved locally, else "Load original" while that button is enabled. Nothing else is opened or loaded.
+        // Keyboard, menu and double click of the hit (interaction audit V11): see BooruWorkbenchView.Hits.cs.
         Button? showInMedia = info.Children.OfType<Button>().FirstOrDefault(button => button.Name == ShowInMediaPrefix + post.PostId);
-        card.DoubleTapped += (_, e) =>
-        {
-            if (_closed || !MeowChan.Desktop.Controls.ItemActivation.IsCardDoubleClick(e, card)) return;
-            Button? primary = showInMedia is { IsEffectivelyEnabled: true } ? showInMedia : load.IsEffectivelyEnabled ? load : null;
-            if (primary == null) return;
-            e.Handled = true;
-            primary.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
-        };
+        ConfigureHitCard(card, row, load, showInMedia);
         return card;
     }
 
@@ -1300,6 +1293,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
             panel.Children.Add(confirm);
         }
         card.Child = panel;
+        ConfigureWatcherCard(card, watcher.Query);
         return card;
     }
 

@@ -234,9 +234,11 @@ public sealed class InteractionAuditTests
         Assert.Contains("ItemActivation.IsCardDoubleClick(e, card) || !IsEditable || _wizard.IsOpen", rules);
         // The card's Edit/Continue button and its double click open the same scope.
         Assert.True(Count(rules, "OpenRuleFromOverview(scope)") >= 3);
-        string booru = Read("Desktop/Views/Booru/BooruWorkbenchView.cs");
+        // Booru hits (decision 95): the double click and Enter run "Show in Media" for a saved hit and nothing else (no download).
+        string booru = Read("Desktop/Views/Booru/BooruWorkbenchView.Hits.cs");
         Assert.Contains("ItemActivation.IsCardDoubleClick(e, card)", booru);
-        Assert.Contains("showInMedia is { IsEffectivelyEnabled: true } ? showInMedia : load.IsEffectivelyEnabled ? load : null", booru);
+        Assert.Contains("showInMedia is { IsEffectivelyEnabled: true } ? showInMedia : null", booru);
+        Assert.Contains("ItemActivation.IsCardDoubleClick(e, card)", booru.Substring(booru.IndexOf("ConfigureWatcherCard", StringComparison.Ordinal)));
         string sidebar = Read("Desktop/Views/Archive/ReaderMediaSidebar.cs");
         Assert.Contains("StripActivated?.Invoke(this, index);", sidebar);
         Assert.Contains("sidebar.StripActivated += (_, index) => { SelectMediaSidebarIndex(index); OpenMediaSidebarMedia(); };",
