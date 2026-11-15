@@ -398,6 +398,9 @@ public partial class MainWindow
         if (page == WorkspacePage.Status) ActivateStatusSegment();
         if (page == WorkspacePage.Settings)
         {
+            // The gallery may have changed its live View layout before the deferred Settings page was built.
+            // Read the live layout wish here instead of the config snapshot used to construct the editor.
+            _settingsEditor?.RefreshConfirmedGalleryFilmstrip(GalleryLayoutNow().View.Filmstrip != false);
             _settingsEditor?.RevealCurrentError();
             _settingsEditor?.FindControl<ComboBox>("WorkspaceModeInput")?.Focus();
         }

@@ -574,6 +574,19 @@ public sealed class GalleryLayoutPreferencesTests
     }
 
     [Fact]
+    public void OpeningSettingsRefreshesTheFilmstripFromTheLiveViewLayout()
+    {
+        string navigation = Source("Desktop/Shell/MainWindow.Navigation.cs");
+        int settings = navigation.IndexOf("if (page == WorkspacePage.Settings)", StringComparison.Ordinal);
+        Assert.True(settings >= 0);
+        int nextPage = navigation.IndexOf("if (page == WorkspacePage.Rules)", settings, StringComparison.Ordinal);
+        Assert.True(nextPage > settings);
+
+        string settingsOpen = navigation[settings..nextPage];
+        Assert.Contains("_settingsEditor?.RefreshConfirmedGalleryFilmstrip(GalleryLayoutNow().View.Filmstrip != false);", settingsOpen);
+    }
+
+    [Fact]
     public void TheWindowLoadsBothModesAndSavesOnlyTheChangedOne()
     {
         string window = Source("Desktop/Shell/MainWindow.GalleryFilmstrip.cs");
