@@ -59,8 +59,10 @@ internal static partial class DialogFrameChecks
                     await VerifyFrameAsync(modal, label, label);
                     Control strip = Part<Control>(modal, DialogFrame.ErrorStripName, label);
                     Require(!strip.IsVisible, label + ": empty error slot is visible.");
-                    // The modal sets no MinWidth/MinHeight; 320 is its own floor for both sides.
-                    modal.Width = 320; modal.Height = 320;
+                    // PluginReselection uses the DialogSize.L contract from DialogWindow.
+                    Require(Math.Abs(modal.MinWidth - WorkspaceMetrics.DialogMinimumSize(DialogSize.L).Width) <= 1,
+                        label + ": PluginReselection minimum width drifted from DialogSize.L.");
+                    modal.Width = modal.MinWidth; modal.Height = modal.MinHeight;
                     await VerifyFrameAsync(modal, label + "-minimum", label + "-minimum");
                     Button cancel = modal.GetLogicalDescendants().OfType<Button>().Single(b => Equals(b.Content, Texts.T("plugins.repair.cancel")));
                     Require(ReferenceEquals(modal.FocusManager?.GetFocusedElement(), cancel), label + ": Cancel lost initial focus.");
