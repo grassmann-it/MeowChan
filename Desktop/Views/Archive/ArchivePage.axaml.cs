@@ -1074,15 +1074,16 @@ public partial class ArchivePage : UserControl
         if (anchor != null) await RestoreReaderAnchorAsync(anchor, focusIntent: focusIntent);
     }
     // The Reader toolbar rule (P6): every labelled action carries an icon before its text, none is text alone. The ones that set their
-    // text in code (tags, find, view, the two conditional returns) keep a string as content; the icon comes from
+    // text in code (tags, find, thread, settings, the two conditional returns) keep a string as content; the icon comes from
     // their content template, so what sets or reads the label is unchanged. Close, gallery, read, full screen, history and export
     // get theirs from CommandBindings in Localize.
     private void InitializeReaderToolbarIcons()
     {
         CommandBindings.ShowIconBeforeText(ReaderTagsOpen, CommandCatalog.Get("thread.tags").Icon);
         CommandBindings.ShowIconBeforeText(ReaderFindOpen, CommandCatalog.Get("reader.find").Icon);
-        CommandBindings.ShowIconBeforeText(ReaderViewOpen, "eye");
-        CommandBindings.ShowIconBeforeText(ReaderThreadOpen, "sliders");
+        // RL1: "Thread" is file-text (it is "in the thread" everywhere), the gear has the accent dot for an active view filter; the eye is Read's.
+        CommandBindings.ShowIconBeforeText(ReaderThreadOpen, "file-text");
+        InitializeReaderSettingsButton();
         CommandBindings.ShowIconBeforeText(ReaderUnreadReturn, CommandCatalog.Get("reader.history-back").Icon);
         CommandBindings.ShowIconBeforeText(ReaderSkipUnavailableGroupMember, CommandCatalog.Get("reader.skip-unavailable-group-member").Icon);
         InitializeToolButtonIcons();
