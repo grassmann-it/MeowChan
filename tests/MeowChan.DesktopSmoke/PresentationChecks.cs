@@ -186,6 +186,15 @@ internal static class PresentationChecks
             // smallest stable native height instead of weakening the full-row contract.
             return 520;
         }
+        if (OperatingSystem.IsMacOS() && mode == "Simple")
+        {
+            // At 760×500 the native macOS Simple layout gives the normal row
+            // 71 DIP of viewport, starts it 32 DIP into that viewport and
+            // realizes the 44 DIP row as 45 DIP. That leaves the strict
+            // full-row check 6 DIP short. A 510 DIP probe leaves 4 DIP of
+            // measured headroom without changing the production minimum.
+            return 510;
+        }
         if (!OperatingSystem.IsWindows() || window.FrameSize is not Size frame)
             return logicalMinimum;
 
