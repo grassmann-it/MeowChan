@@ -115,7 +115,7 @@ public sealed class EffectiveShortcutBindings
     private static long _nextVersion;
     /// <summary>Revision of the default table. Raise it, and list the command in
     /// <see cref="DefaultChangedInRevision"/>, whenever a default gesture is added to or changed on a command.</summary>
-    public const int DefaultsRevision = 19;
+    public const int DefaultsRevision = 20;
     /// <summary>Commands whose default gesture set was introduced or changed after profiles with saved
     /// bindings may already exist, with the revision that did it. A new default on such a command yields to
     /// a saved binding of another command instead of silencing both; entries are never removed because a
@@ -240,6 +240,10 @@ public sealed class EffectiveShortcutBindings
         // another command, like every new default.
         ["tagging.mark-done"] = 19, ["tagging.mark-skipped"] = 19, ["post.hide"] = 19, ["post.copy-link"] = 19, ["media.copy-path"] = 19,
         ["thread.show-in-media"] = 19, ["tagging.show-in-media"] = 19, ["reader.expand"] = 19, ["media.open-external"] = 19,
+        // Revision 20, tile sizes (feature/qw-tile-sizes): Ctrl/Cmd+0 sets the medium tile size where Ctrl/Cmd+Plus and Minus step it (media page and the
+        // tagging grid, one setting: media.tile-size.reset is new), and the archive's media tiles get the same three keys for a size of their own
+        // (archive.media-tile-size.*, context "archive"). All of them yield to a saved binding of another command, like every new default.
+        ["media.tile-size.reset"] = 20, ["archive.media-tile-size.larger"] = 20, ["archive.media-tile-size.smaller"] = 20, ["archive.media-tile-size.reset"] = 20,
     };
     public static IReadOnlyCollection<string> YieldingDefaultCommandIds => DefaultChangedInRevision.Keys.ToArray();
     // Commands whose default changed only in the macOS table: on Windows and Linux their gesture is the old stable one
@@ -294,6 +298,10 @@ public sealed class EffectiveShortcutBindings
             case "gallery.zoom-out": list.Add(ShortcutGesture.Parse("Subtract")); break;
             case "media.tile-size.larger": list.Add(ShortcutGesture.Parse("Primary+Add")); break;
             case "media.tile-size.smaller": list.Add(ShortcutGesture.Parse("Primary+Subtract")); break;
+            case "archive.media-tile-size.larger": list.Add(ShortcutGesture.Parse("Primary+Add")); break;
+            case "archive.media-tile-size.smaller": list.Add(ShortcutGesture.Parse("Primary+Subtract")); break;
+            case "media.tile-size.reset":
+            case "archive.media-tile-size.reset": list.Add(ShortcutGesture.Parse("Primary+NumPad0")); break;
             case "viewer.shortcut-help": list.Add(new("OemQuestion", new[] { "Shift" }, "?")); break;
             case "menu.context-open": list.Add(ShortcutGesture.Parse("Apps")); break;
             case "reader.find-next": list.Add(ShortcutGesture.Parse("Primary+G")); break;

@@ -711,6 +711,16 @@ namespace MeowChan
             get => _mediaLayout;
             set => _mediaLayout = Desktop.MediaPageLayout.Canonical(value);
         }
+        // The tile size (Small, Medium, Large) of the archive's saved-media tiles (the reader's Media tab, tile view); a view preference of the profile.
+        // The media page and the tagging grid share the size inside MediaLayout; the archive tiles are another surface with their own measures. An
+        // unknown or empty text reads as Medium, so a damaged entry never makes the settings file invalid.
+        private string _archiveMediaTileSize = nameof(Desktop.MediaTileSize.Medium);
+        [JsonConverter(typeof(DesktopPreferenceStringConverter))]
+        public string ArchiveMediaTileSize
+        {
+            get => _archiveMediaTileSize;
+            set => _archiveMediaTileSize = Desktop.Controls.MediaTileSizes.Parse(value).ToString();
+        }
         // TG1: the tagging page shows its queue as a list or as a grid of thumbnails ("List" or "Grid"); a view preference of the profile.
         private string _taggingPageView = nameof(TaggingViewMode.List);
         [JsonConverter(typeof(DesktopPreferenceStringConverter))]
@@ -1904,6 +1914,7 @@ namespace MeowChan
                 MediaBooruMode = MediaBooruMode,
                 MediaTagListSort = MediaTagListSort,
                 MediaLayout = MediaLayout,
+                ArchiveMediaTileSize = ArchiveMediaTileSize,
                 TaggingPageView = TaggingPageView,
                 TaggingPreviewColumn = TaggingPreviewColumn,
                 TaggingStampBlock = TaggingStampBlock,
@@ -2159,6 +2170,7 @@ namespace MeowChan
             MediaBooruMode = source.MediaBooruMode;
             MediaTagListSort = source.MediaTagListSort;
             MediaLayout = source.MediaLayout;
+            ArchiveMediaTileSize = source.ArchiveMediaTileSize;
             TaggingPageView = source.TaggingPageView;
             TaggingPreviewColumn = source.TaggingPreviewColumn;
             TaggingStampBlock = source.TaggingStampBlock;

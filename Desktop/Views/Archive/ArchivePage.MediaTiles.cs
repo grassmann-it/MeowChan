@@ -51,6 +51,7 @@ public partial class ArchivePage
                 if (e.GetCurrentPoint(control).Properties.IsLeftButtonPressed) ++_mediaPositionRequest;
             }, RoutingStrategies.Tunnel, handledEventsToo: true);
         }
+        InitializeMediaTileSize(); // the tile list's own size input and panel (ArchivePage.TileSize.cs), set up with the list's other input
     }
 
     private void OnMediaPositionInput(object? sender, RoutedEventArgs e)
@@ -141,7 +142,7 @@ public partial class ArchivePage
             _applyingMediaRestore = true;
             try
             {
-                if (_mediaTiles) TilePanel()?.RestoreAnchor(target, -Math.Min(retainedOffset, MediaTilePanel.CellHeight - 1));
+                if (_mediaTiles) TilePanel()?.RestoreAnchor(target, -Math.Min(retainedOffset, (TilePanel()?.ItemHeight ?? MediaTilePanel.CellHeight) - 1));
                 else
                 {
                     DataGrid grid = ArchiveMediaGrid;
