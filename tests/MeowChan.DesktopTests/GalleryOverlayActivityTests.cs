@@ -345,7 +345,8 @@ public sealed class GalleryOverlayActivityTests
         foreach (Button indicator in new[] { controls, post })
         {
             Assert.Equal(0, Assert.Single(indicator.GetVisualChildren().OfType<Avalonia.Controls.Shapes.Path>()).Opacity);
-            Assert.True(indicator.IsHitTestVisible);
+            Assert.False(indicator.IsHitTestVisible); // an undrawn hint takes no clicks (they reach the media); the keyboard stop stays
+            Assert.True(indicator.Focusable);
             Assert.Equal(44, indicator.Width);
             Assert.Equal(44, indicator.Height);
         }

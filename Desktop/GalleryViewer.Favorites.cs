@@ -75,11 +75,11 @@ internal sealed partial class GalleryViewer
         {
             ToggleButton clicked = badge;
             badge.Click += (_, _) => OnFavoriteBadgeClick(clicked);
-            // The badge dims with the way back and returns with it under the pointer or the focus (UpdateBackButtonOpacity).
-            badge.PointerEntered += (_, _) => UpdateBackButtonOpacity();
-            badge.PointerExited += (_, _) => UpdateBackButtonOpacity();
-            badge.GotFocus += (_, _) => UpdateBackButtonOpacity();
-            badge.LostFocus += (_, _) => UpdateBackButtonOpacity();
+            // The badge hides with the way back and returns with it under the pointer or the focus, or alone after a change (UpdateCornerChrome).
+            badge.PointerEntered += (_, _) => UpdateCornerChrome();
+            badge.PointerExited += (_, _) => UpdateCornerChrome();
+            badge.GotFocus += (_, _) => UpdateCornerChrome();
+            badge.LostFocus += (_, _) => UpdateCornerChrome();
         }
         UpdateFavoriteIndicators();
     }
@@ -142,6 +142,8 @@ internal sealed partial class GalleryViewer
 
     private void RequestFavorite(bool selected)
     {
-        if (CanRequestFavorite && _entry is { } entry) FavoriteSetRequested?.Invoke(entry, selected);
+        if (!CanRequestFavorite || _entry is not { } entry) return;
+        FlashFavoriteBadge(); // M and U show the badge at once, also when the key changes nothing
+        FavoriteSetRequested?.Invoke(entry, selected);
     }
 }

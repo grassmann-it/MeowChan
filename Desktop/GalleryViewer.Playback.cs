@@ -630,7 +630,7 @@ internal sealed partial class GalleryViewer
             && _entry.Kind != SavedMediaKind.Other && _imageReadyRequest != _request;
         bool hiding = OverlayControlsEffective && _playbackPreferences.AutoHideControls
             && !_overlayHidden && _interactionAvailable && IsGalleryWindowActive;
-        bool needed = !_viewerInteractionStopped && _scaleOwner != null && _slideshow != null && (hiding || _slideshow.IsRunning || waitingForImage || _hoverContextOpen || _filmstripPeek);
+        bool needed = !_viewerInteractionStopped && _scaleOwner != null && _slideshow != null && (hiding || CornerRevealTimed || _slideshow.IsRunning || waitingForImage || _hoverContextOpen || _filmstripPeek);
         if (needed && !_interactionTimer.IsEnabled) _interactionTimer.Start();
         else if (!needed && _interactionTimer.IsEnabled) _interactionTimer.Stop();
     }

@@ -155,8 +155,12 @@ internal static class GalleryFavoriteChecks
         {
             ToggleButton badge = Badge();
             // Review 15.11.: the badge is a real toggle (pointer, Tab, Space/Enter); the checked state is the saved state.
-            Require(badge.IsEffectivelyVisible && badge.IsHitTestVisible && badge.Focusable && badge.IsEnabled,
-                "Favorite badge is hidden or not operable.");
+            // With the controls auto-hidden the badge is gone completely (opacity 0, no hit test, no focus) unless a change just flashed it;
+            // either way it is laid out and enabled, and its state is the persisted truth.
+            bool shown = badge.Opacity == 1 && badge.IsHitTestVisible && badge.Focusable;
+            bool clean = badge.Opacity == 0 && !badge.IsHitTestVisible && !badge.Focusable;
+            Require(badge.IsEffectivelyVisible && badge.IsEnabled && (shown || clean),
+                "Favorite badge is neither operable nor completely hidden.");
             string label = Texts.T("gallery.decision.favorite");
             Require(GalleryViewer.FavoriteBadgeState(badge) == (saved, pending) && badge.IsChecked == saved
                 && AutomationProperties.GetName(badge)!.StartsWith(label, StringComparison.Ordinal),

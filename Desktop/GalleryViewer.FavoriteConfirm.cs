@@ -171,4 +171,10 @@ internal sealed partial class GalleryViewer
     {
         if (e.Key == _favoriteGestureKey) _favoriteGestureKey = null;
     }
+
+    // A window that lost the activation never sees the key-up: the next F is a new press.
+    private void OnHostWindowDeactivated(object? sender, EventArgs e) => _favoriteGestureKey = null;
+
+    /// <summary>Whether the held-key latch of the favourite keys is set (tests).</summary>
+    internal bool FavoriteGestureLatched => _favoriteGestureKey != null;
 }

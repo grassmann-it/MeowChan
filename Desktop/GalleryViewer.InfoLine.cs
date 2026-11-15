@@ -79,6 +79,7 @@ internal sealed partial class GalleryViewer
         if (_terminalRetirement || _viewerInteractionStopped || _entry == null) return;
         _ratingSavedTimer.Stop();
         if (_modeTools != null && !BuildChromePlan().Hints) { ClearRatingSaved(); return; }
+        RevealForRatingFeedback(); // the saved rating is read in the info line: a fresh idle delay from now
         _ratingSaved.Text = Texts.T("gallery.rating.saved");
         _ratingSaved.IsVisible = true;
         _ratingSavedTimer.Interval = TimeSpan.FromMilliseconds(_statusDwellMs);

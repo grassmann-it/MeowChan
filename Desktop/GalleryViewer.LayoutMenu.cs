@@ -250,6 +250,7 @@ internal sealed partial class GalleryViewer
         if (CommandBindings.Matches(e, GalleryLayoutMenu.OpenCommandId))
         {
             e.Handled = true;
+            RevealControlsForCommand(); // the button lives in the footer: shown first, never a dead key while auto-hidden
             // Without the button on the bar the rows are the section of "More": the command opens that menu.
             if (_layoutFlyout.IsOpen) _layoutFlyout.Hide();
             else if (!_layoutButton.IsEffectivelyVisible && _layoutSection.IsVisible) SetOverflowOpen(!_overflowFlyout.IsOpen);
