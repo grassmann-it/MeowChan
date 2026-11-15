@@ -42,4 +42,26 @@ public sealed class ReaderScrollOwnerTests
         default(ReaderScrollOwner.Jump).Dispose();
         Assert.False(owner.JumpOwns(2));
     }
+
+    // A7: the re-fit after a late frame change of the focused card respects the reader taking over and its time window.
+    [Fact]
+    public void ReFitOnlyInsideItsWindowAndWhileTheReaderDidNotTakeOver()
+    {
+        ReaderScrollOwner owner = new();
+        Assert.False(owner.MayRefit(0, 0)); // no selection yet
+        owner.OpenFitWindow(1000, 4, 1500);
+        Assert.True(owner.MayRefit(1000, 4));
+        Assert.True(owner.MayRefit(2500, 4));
+        Assert.False(owner.MayRefit(2501, 4)); // the window is over
+        Assert.False(owner.MayRefit(1200, 5)); // a wheel turn right after the selection cancels the pending re-fit
+    }
+
+    [Fact]
+    public void ReFitStandsBackWhileAJumpAlignsTheCard()
+    {
+        ReaderScrollOwner owner = new();
+        owner.OpenFitWindow(0, 2, 1500);
+        using (owner.BeginJump(2)) Assert.False(owner.MayRefit(10, 2));
+        Assert.True(owner.MayRefit(10, 2));
+    }
 }

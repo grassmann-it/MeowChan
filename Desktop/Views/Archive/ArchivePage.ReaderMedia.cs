@@ -115,19 +115,24 @@ public partial class ArchivePage
     }
 
     // After a selection the focused picture may still change its height (the decoded aspect replaces the reserved one); within this
-    // window that re-fits the view once more. Later size changes never move the list under a reader who scrolled on.
+    // window that re-fits the view once more. Later size changes never move the list under a reader who scrolled on, and neither does
+    // one after the reader took over (a wheel turn, a press, a paging key) or while a jump still aligns the card (it measures again).
     private const int FocusFitWindowMilliseconds = 1500;
-    private long _focusFitUntil;
     private bool _focusFitScheduled;
+
+    private bool MayRefitFocusedCard => _readerScrollOwner.MayRefit(Environment.TickCount64, _readerInteractionRevision);
 
     private void OnFocusedFrameChanged(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        // A jump that is still aligning measures the card again on its next pass.
-        if (ReaderJumpOwnsScroll || Environment.TickCount64 > _focusFitUntil || _focusFitScheduled || e.Source is not Visual source
+        if (!MayRefitFocusedCard || _focusFitScheduled || e.Source is not Visual source
             || ArchivePosts.SelectedItem is not { } item || ArchivePosts.ContainerFromItem(item) is not Visual container
             || !container.IsVisualAncestorOf(source)) return;
         _focusFitScheduled = true;
-        Dispatcher.UIThread.Post(() => { _focusFitScheduled = false; EnsureFocusedMediaVisible(); }, DispatcherPriority.Loaded);
+        Dispatcher.UIThread.Post(() =>
+        {
+            _focusFitScheduled = false;
+            if (MayRefitFocusedCard) EnsureFocusedMediaVisible();
+        }, DispatcherPriority.Loaded);
     }
 
     // The whole enlarged medium of the focused post is scrolled into view; one taller than the viewport (it should not be after the
@@ -154,12 +159,12 @@ public partial class ArchivePage
     {
         if (ArchivePosts.GetValue(ReaderPostLayout.FocusScalePercentProperty) <= 100 || ArchivePosts.SelectedItem is not { } item) return;
         ListBox list = ArchivePosts;
-        _focusFitUntil = Environment.TickCount64 + FocusFitWindowMilliseconds;
+        _readerScrollOwner.OpenFitWindow(Environment.TickCount64, _readerInteractionRevision, FocusFitWindowMilliseconds);
         if (ReaderJumpOwnsScroll) return;
         Point? before = list.ContainerFromItem(item) is Control container ? container.TranslatePoint(default, list) : null;
         Dispatcher.UIThread.Post(() =>
         {
-            if (_ended || !ReferenceEquals(list.SelectedItem, item)) return;
+            if (_ended || !ReferenceEquals(list.SelectedItem, item) || !MayRefitFocusedCard) return;
             list.UpdateLayout();
             ScrollViewer? scroll = list.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
             if (before is { } start && scroll != null && list.ContainerFromItem(item) is Control current && current.TranslatePoint(default, list) is Point after)
@@ -169,7 +174,7 @@ public partial class ArchivePage
                     scroll.Offset = new Vector(scroll.Offset.X, Math.Max(0, scroll.Offset.Y + shift));
             }
             EnsureFocusedMediaVisible();
-            Dispatcher.UIThread.Post(EnsureFocusedMediaVisible, DispatcherPriority.Background);
+            Dispatcher.UIThread.Post(() => { if (MayRefitFocusedCard) EnsureFocusedMediaVisible(); }, DispatcherPriority.Background);
         }, DispatcherPriority.Loaded);
     }
 }

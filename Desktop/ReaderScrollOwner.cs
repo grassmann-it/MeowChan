@@ -12,6 +12,8 @@ internal sealed class ReaderScrollOwner
 {
     private int _jumps;
     private int _jumpInteraction;
+    private long _fitUntil = long.MinValue;
+    private int _fitInteraction;
 
     /// <summary>Starts a jump at the reader's current interaction revision; disposing the result ends it (also when it was superseded).</summary>
     internal Jump BeginJump(int interaction)
@@ -23,6 +25,20 @@ internal sealed class ReaderScrollOwner
 
     /// <summary>True while a jump runs and the reader has not taken over since the latest one began.</summary>
     internal bool JumpOwns(int interaction) => _jumps > 0 && _jumpInteraction == interaction;
+
+    /// <summary>
+    /// Opens the window in which a size change of the focused card's frame (the decoded aspect replacing the reserved one) may still
+    /// re-fit the view: until <paramref name="now"/> plus <paramref name="windowMilliseconds"/>, and only as long as the reader does not
+    /// take over (<paramref name="interaction"/> is the revision the selection was made at).
+    /// </summary>
+    internal void OpenFitWindow(long now, int interaction, int windowMilliseconds)
+    {
+        _fitUntil = now + Math.Max(0, windowMilliseconds);
+        _fitInteraction = interaction;
+    }
+
+    /// <summary>Whether a pending re-fit may still move the list: inside the window, no jump owns the offset, the reader did not take over.</summary>
+    internal bool MayRefit(long now, int interaction) => now <= _fitUntil && interaction == _fitInteraction && !JumpOwns(interaction);
 
     internal readonly struct Jump : IDisposable
     {
