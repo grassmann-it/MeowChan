@@ -62,6 +62,16 @@ public sealed class NativeTransferCatalogSerializerTests
     }
 
     [Fact]
+    public void OptionalImageDimensionsSurviveThePublicCatalogManifestRoundTrip()
+    {
+        TransferAttachment input = new(new CapturedAttachment(0, "111") { Width = 640, Height = 480 },
+            TransferMediaRole.Preview, TransferContentStatus.Unknown, null, null);
+        TransferAttachment output = Assert.Single(RoundTrip(Catalog(Post(input))).Threads.Single().Posts.Single().Attachments);
+        Assert.Equal(640, output.Metadata.Width);
+        Assert.Equal(480, output.Metadata.Height);
+    }
+
+    [Fact]
     public void PrecancelledTokenPropagatesBeforeValidationOrWriting()
     {
         using CancellationTokenSource cancellation = new();

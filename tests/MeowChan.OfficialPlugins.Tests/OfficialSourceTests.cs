@@ -182,6 +182,8 @@ public sealed class OfficialSourceTests
         Assert.Equal(eightKun ? 3 : 1, result.Snapshot.Posts[0].Attachments!.Count);
         Assert.Equal("777", result.Snapshot.Posts[0].Attachments![0].MediaId);
         Assert.Equal(".png", result.Snapshot.Posts[0].Attachments![0].Extension);
+        Assert.Equal(640, result.Snapshot.Posts[0].Attachments![0].Width);
+        Assert.Equal(480, result.Snapshot.Posts[0].Attachments![0].Height);
         Assert.Null(result.Snapshot.Posts[1].Attachments);
         Assert.Equal(SourceFieldPresence.Text, result.Snapshot.Posts[1].Fields);
         Assert.True(result.Snapshot.Posts[2].Fields.HasFlag(SourceFieldPresence.Subject));
@@ -232,6 +234,8 @@ public sealed class OfficialSourceTests
                     Assert.Equal(file.OriginalFileName, stored.OriginalFileName);
                     Assert.Equal(file.ExpectedSize, stored.ExpectedSize);
                     Assert.Equal(file.ExpectedMd5, stored.ExpectedMd5);
+                    Assert.Equal(file.Width, stored.Width);
+                    Assert.Equal(file.Height, stored.Height);
                     Assert.Equal(file.IsDeleted, stored.IsDeleted);
                 }
             }

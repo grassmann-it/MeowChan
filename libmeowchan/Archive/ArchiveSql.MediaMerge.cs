@@ -681,8 +681,8 @@ internal static partial class ArchiveSql
         ResourceId id, string postId, CapturedAttachment attachment)
     {
         using SqliteCommand command = Command(connection, transaction, """
-            INSERT INTO archive_attachments(source,board,thread,post,position,media_id,variant,url,original_name,planned_path,expected_size,expected_md5,is_deleted,expected_sha256,attachment_revision_key,expected_sha1,provider_size_hint_json)
-            VALUES($source,$board,$thread,$post,$position,$media,$variant,$url,$name,NULL,$size,$md5,$deleted,$sha,$attachmentRevision,$sha1,$sizeHint)
+            INSERT INTO archive_attachments(source,board,thread,post,position,media_id,variant,url,original_name,planned_path,expected_size,expected_md5,width,height,is_deleted,expected_sha256,attachment_revision_key,expected_sha1,provider_size_hint_json)
+            VALUES($source,$board,$thread,$post,$position,$media,$variant,$url,$name,NULL,$size,$md5,$width,$height,$deleted,$sha,$attachmentRevision,$sha1,$sizeHint)
             """);
         AddId(command, id);
         command.Parameters.AddWithValue("$post", postId);
@@ -693,6 +693,8 @@ internal static partial class ArchiveSql
         command.Parameters.AddWithValue("$name", (object?)attachment.OriginalFileName ?? DBNull.Value);
         command.Parameters.AddWithValue("$size", (object?)attachment.ExpectedSize ?? DBNull.Value);
         command.Parameters.AddWithValue("$md5", (object?)attachment.ExpectedMd5 ?? DBNull.Value);
+        command.Parameters.AddWithValue("$width", (object?)attachment.Width ?? DBNull.Value);
+        command.Parameters.AddWithValue("$height", (object?)attachment.Height ?? DBNull.Value);
         command.Parameters.AddWithValue("$deleted", attachment.IsDeleted ? 1 : 0);
         command.Parameters.AddWithValue("$sha", (object?)attachment.ExpectedSha256 ?? DBNull.Value);
         command.Parameters.AddWithValue("$attachmentRevision", (object?)attachment.AttachmentRevisionKey ?? DBNull.Value);

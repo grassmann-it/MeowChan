@@ -132,7 +132,7 @@ public sealed class MediaConflictLedgerTests
         }
         using SqliteConnection check = new($"Data Source={db};Mode=ReadOnly;Pooling=False");
         check.Open();
-        Assert.Equal(12, ArchiveSql.GetPragma(check, "user_version"));
+        Assert.Equal(13, ArchiveSql.GetPragma(check, "user_version"));
         ArchiveSql.ValidateSchema(check);
     }
 

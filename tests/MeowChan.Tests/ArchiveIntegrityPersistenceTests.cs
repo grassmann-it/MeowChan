@@ -18,7 +18,7 @@ public sealed class ArchiveIntegrityPersistenceTests
     {
         using TempDirectory temp = new();
         CapturedAttachment raw = new(0, "media", Url: "https://source.test/media", ExpectedSize: 999, ExpectedMd5: Md5)
-            { ExpectedSha256 = new string('a', 64), ExpectedSha1 = Convert.ToBase64String(SHA1.HashData([1, 2, 3])),
+            { Width = 1920, Height = 1080, ExpectedSha256 = new string('a', 64), ExpectedSha1 = Convert.ToBase64String(SHA1.HashData([1, 2, 3])),
                 ProviderSizeHint = new("24.50", "Кб") };
         string expected = Key("post", raw);
         using (ProfileLease lease = ProfileLease.Acquire(temp.Path))
@@ -160,6 +160,7 @@ public sealed class ArchiveIntegrityPersistenceTests
         {
             CapturedAttachment old = Attachment(await reader.ReadThreadAsync(Id));
             Assert.Null(old.AttachmentRevisionKey); Assert.Null(old.ExpectedSha256); Assert.Equal(3L, old.ExpectedSize);
+            Assert.Null(old.Width); Assert.Null(old.Height);
         }
         Assert.Equal(before, await File.ReadAllBytesAsync(Path.Combine(temp.Path, "archive.db")));
         for (int attempt = 0; attempt < 2; attempt++)
@@ -169,7 +170,7 @@ public sealed class ArchiveIntegrityPersistenceTests
             await using ArchiveReader reader = await ArchiveReader.OpenAsync(temp.Path);
             Assert.Null(Attachment(await reader.ReadThreadAsync(Id)).AttachmentRevisionKey);
         }
-        Assert.Equal(12L, Scalar(temp.Path, "PRAGMA user_version"));
+        Assert.Equal(13L, Scalar(temp.Path, "PRAGMA user_version"));
         Assert.False(Directory.Exists(Path.Combine(temp.Path, "disconnected")));
     }
 

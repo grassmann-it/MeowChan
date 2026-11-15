@@ -171,6 +171,7 @@ internal sealed class PluginSourceThread(PluginSourceBoard board, string threadI
                     attachment.Url?.AbsoluteUri, attachment.OriginalFileName, destination, attachment.ExpectedSize,
                     attachment.ExpectedMd5, attachment.IsDeleted)
                 {
+                    Width = attachment.Width, Height = attachment.Height,
                     ExpectedSha256 = attachment.ExpectedSha256, ExpectedSha1 = attachment.ExpectedSha1, ProviderSizeHint = Hint(attachment.ProviderSizeHint),
                     AttachmentRevisionKey = attachmentRevisionKey
                 });

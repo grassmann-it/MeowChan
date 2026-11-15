@@ -921,6 +921,8 @@ public static class SdkValidation
             Text(attachment.OriginalFileName, path + ".originalFileName", 4096);
             Text(attachment.MimeType, path + ".mimeType", 256);
             if (attachment.ExpectedSize < 0) Add(path + ".expectedSize", "invalid_size", "Expected size must be nonnegative.");
+            if (attachment.Width is <= 0) Add(path + ".width", "invalid_dimension", "Width must be positive when supplied.");
+            if (attachment.Height is <= 0) Add(path + ".height", "invalid_dimension", "Height must be positive when supplied.");
             Extension(attachment.Extension, path + ".extension");
             Md5(attachment.ExpectedMd5, path + ".expectedMd5");
             Sha256(attachment.ExpectedSha256, path + ".expectedSha256");

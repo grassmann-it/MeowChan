@@ -11,7 +11,7 @@ public sealed class SourceValidationTests
     public void Sha1AndRawSizeHintRoundTripAndValidate(string raw)
     {
         SourceAttachment attachment = new(0, "m", Url: new Uri("https://source.test/m.png")) {
-            ExpectedSha1 = Convert.ToBase64String(new byte[20]), ProviderSizeHint = new(raw, "Кб") };
+            ExpectedSha1 = Convert.ToBase64String(new byte[20]), Width = 640, Height = 480, ProviderSizeHint = new(raw, "Кб") };
         SourceAttachment copy = SdkJson.Deserialize<SourceAttachment>(SdkJson.Serialize(attachment));
         Assert.Equal(attachment, copy); Assert.Null(copy.ExpectedSize);
         IReadOnlyList<ValidationIssue> Validate(SourceAttachment value) => SdkValidation.ValidateThreadResult(
@@ -21,6 +21,8 @@ public sealed class SourceValidationTests
         Assert.Contains(Validate(copy with { ExpectedSha1 = Convert.ToBase64String(new byte[16]) }), issue => issue.Path.EndsWith("expectedSha1"));
         Assert.Contains(Validate(copy with { ProviderSizeHint = new("-1", "Кб") }), issue => issue.Code == "invalid_size_hint");
         Assert.Contains(Validate(copy with { ProviderSizeHint = new(raw, "Кб", (SourceSizePrecision)99) }), issue => issue.Path.EndsWith("precision"));
+        Assert.Contains(Validate(copy with { Width = 0 }), issue => issue.Path.EndsWith("width"));
+        Assert.Contains(Validate(copy with { Height = -1 }), issue => issue.Path.EndsWith("height"));
     }
 
     [Fact]

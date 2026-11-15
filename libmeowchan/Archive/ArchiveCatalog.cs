@@ -107,6 +107,13 @@ public sealed partial class ArchiveCatalog : IAsyncDisposable
                     using SqliteCommand stamp = ArchiveSql.Command(connection, transaction, "PRAGMA user_version=12");
                     stamp.ExecuteNonQuery();
                 }
+                if (fresh || version < 13)
+                {
+                    ArchiveSql.MigrateAttachmentDimensionsSchema13(connection, transaction, cancellationToken);
+                    ArchiveSql.ValidateTargetSchema(connection, transaction, 13);
+                    using SqliteCommand stamp = ArchiveSql.Command(connection, transaction, "PRAGMA user_version=13");
+                    stamp.ExecuteNonQuery();
+                }
                 cancellationToken.ThrowIfCancellationRequested();
                 transaction.Commit();
             }
@@ -412,8 +419,8 @@ public sealed partial class ArchiveCatalog : IAsyncDisposable
         foreach (CapturedAttachment attachment in post.Attachments ?? Array.Empty<CapturedAttachment>())
         {
             using SqliteCommand insert = ArchiveSql.Command(connection, transaction, """
-                INSERT INTO archive_attachments(source,board,thread,post,position,media_id,variant,url,original_name,planned_path,expected_size,expected_md5,is_deleted,expected_sha256,attachment_revision_key,expected_sha1,provider_size_hint_json)
-                VALUES($source,$board,$thread,$post,$position,$media,$variant,$url,$name,$path,$size,$md5,$deleted,$sha,$attachmentRevision,$sha1,$sizeHint)
+                INSERT INTO archive_attachments(source,board,thread,post,position,media_id,variant,url,original_name,planned_path,expected_size,expected_md5,width,height,is_deleted,expected_sha256,attachment_revision_key,expected_sha1,provider_size_hint_json)
+                VALUES($source,$board,$thread,$post,$position,$media,$variant,$url,$name,$path,$size,$md5,$width,$height,$deleted,$sha,$attachmentRevision,$sha1,$sizeHint)
                 """);
             ArchiveSql.AddId(insert, id);
             insert.Parameters.AddWithValue("$post", post.PostId);
@@ -425,6 +432,8 @@ public sealed partial class ArchiveCatalog : IAsyncDisposable
             insert.Parameters.AddWithValue("$path", (object?)attachment.PlannedPath ?? DBNull.Value);
             insert.Parameters.AddWithValue("$size", (object?)attachment.ExpectedSize ?? DBNull.Value);
             insert.Parameters.AddWithValue("$md5", (object?)attachment.ExpectedMd5 ?? DBNull.Value);
+            insert.Parameters.AddWithValue("$width", (object?)attachment.Width ?? DBNull.Value);
+            insert.Parameters.AddWithValue("$height", (object?)attachment.Height ?? DBNull.Value);
             insert.Parameters.AddWithValue("$sha", (object?)attachment.ExpectedSha256 ?? DBNull.Value);
             insert.Parameters.AddWithValue("$sha1", (object?)attachment.ExpectedSha1 ?? DBNull.Value);
             insert.Parameters.AddWithValue("$sizeHint", (object?)ArchiveSql.WriteSizeHint(attachment.ProviderSizeHint) ?? DBNull.Value);

@@ -10,7 +10,7 @@ namespace MeowChan.Archive;
 
 internal static partial class ArchiveSql
 {
-    internal const int SchemaVersion = 12;
+    internal const int SchemaVersion = 13;
     internal const int ApplicationId = 0x4F43484E;
 
     internal static SqliteConnection OpenConnection(string path, SqliteOpenMode mode)
@@ -51,7 +51,7 @@ internal static partial class ArchiveSql
             return;
         }
         int version = GetPragma(connection, "user_version", transaction);
-        if (version is not (1 or 2 or 3 or 4 or 5 or 6 or 7 or 8 or 9 or 10 or 11 or 12)
+        if (version is not (1 or 2 or 3 or 4 or 5 or 6 or 7 or 8 or 9 or 10 or 11 or 12 or 13)
             || GetPragma(connection, "application_id", transaction) != ApplicationId)
             throw new InvalidDataException("The archive database has an unsupported schema or belongs to another application.");
         ValidateTargetSchema(connection, transaction, version);
@@ -60,17 +60,19 @@ internal static partial class ArchiveSql
     // Target version is explicit: migration validates its un-stamped target in its own transaction.
     internal static void ValidateTargetSchema(SqliteConnection connection, SqliteTransaction? transaction, int version)
     {
-        if (version is not (1 or 2 or 3 or 4 or 5 or 6 or 7 or 8 or 9 or 10 or 11 or 12))
+        if (version is not (1 or 2 or 3 or 4 or 5 or 6 or 7 or 8 or 9 or 10 or 11 or 12 or 13))
             throw new InvalidDataException("Unsupported archive target schema.");
         using SqliteCommand journal = Command(connection, transaction, "");
         journal.CommandText = "PRAGMA journal_mode";
         if (!string.Equals(Convert.ToString(journal.ExecuteScalar(), CultureInfo.InvariantCulture), "delete", StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException("The archive database must use its supported local rollback-journal mode.");
+        string attachmentColumns = version >= 13 ? ",width,height,is_deleted" : ",is_deleted";
         using SqliteCommand columns = Command(connection, transaction, "");
-        columns.CommandText = """
+        columns.CommandText = $"""
             SELECT source,board,thread,url,title,media_directory,source_state,capture_enabled,first_seen_at,last_captured_at,revision FROM archive_threads LIMIT 0;
             SELECT source,board,thread,post,ordinal,fields,posted_at,subject,author,html,is_deleted FROM archive_posts LIMIT 0;
-            SELECT source,board,thread,post,position,media_id,variant,url,original_name,planned_path,expected_size,expected_md5,is_deleted FROM archive_attachments LIMIT 0;
+            SELECT source,board,thread,post,position,media_id,variant,url,original_name,planned_path,expected_size,expected_md5
+                {attachmentColumns} FROM archive_attachments LIMIT 0;
             SELECT source,board,thread,directory FROM archive_media_directories LIMIT 0;
             SELECT source_id,board_id,thread_id,media_id,variant,download_uri,destination_path,expected_size,expected_md5,original_filename,legacy_path,extension,selection_json,decided_at_utc FROM media_decisions LIMIT 0;
             """;
@@ -88,6 +90,7 @@ internal static partial class ArchiveSql
         }
         if (version >= 11) ValidatePostAttachmentPresenceSchema11(connection, transaction);
         if (version >= 12) ValidateMediaConflictSchema12(connection, transaction);
+        if (version >= 13) ValidateAttachmentDimensionsSchema13(connection, transaction);
         if (version >= 2)
         {
             using SqliteCommand indexed = Command(connection, transaction, "");
@@ -149,7 +152,9 @@ internal static partial class ArchiveSql
                 source TEXT NOT NULL, board TEXT NOT NULL, thread TEXT NOT NULL, post TEXT NOT NULL,
                 position INTEGER NOT NULL CHECK(position>=0), media_id TEXT, variant TEXT NOT NULL,
                 url TEXT, original_name TEXT, planned_path TEXT, expected_size INTEGER CHECK(expected_size>=0),
-                expected_md5 TEXT, is_deleted INTEGER NOT NULL CHECK(is_deleted IN (0,1)),
+                expected_md5 TEXT, width INTEGER CHECK(width IS NULL OR width > 0),
+                height INTEGER CHECK(height IS NULL OR height > 0),
+                is_deleted INTEGER NOT NULL CHECK(is_deleted IN (0,1)),
                 PRIMARY KEY(source,board,thread,post,position),
                 FOREIGN KEY(source,board,thread,post) REFERENCES archive_posts(source,board,thread,post));
             CREATE INDEX archive_thread_order ON archive_threads(last_captured_at DESC,source,board,thread);
@@ -224,8 +229,9 @@ internal static partial class ArchiveSql
         if (summary == null) return null;
         Dictionary<string, List<CapturedAttachment>> attachments = new Dictionary<string, List<CapturedAttachment>>(StringComparer.Ordinal);
         using (SqliteCommand command = Command(connection, transaction, """
-            SELECT post,position,media_id,variant,url,original_name,planned_path,expected_size,expected_md5,is_deleted
-            """ + AttachmentIntegrityColumns(connection, transaction) + "\n" + """
+            SELECT post,position,media_id,variant,url,original_name,planned_path,expected_size,expected_md5
+            """ + AttachmentDimensionsColumns(connection, transaction) + ",is_deleted"
+            + AttachmentIntegrityColumns(connection, transaction) + "\n" + """
             FROM archive_attachments WHERE source=$source AND board=$board AND thread=$thread ORDER BY post,position
             """))
         {
@@ -238,9 +244,11 @@ internal static partial class ArchiveSql
                     attachments.Add(post, list = new List<CapturedAttachment>());
                 list.Add(new CapturedAttachment(reader.GetInt32(1), NullableString(reader, 2), reader.GetString(3),
                     NullableString(reader, 4), NullableString(reader, 5), NullableString(reader, 6),
-                    reader.IsDBNull(7) ? null : reader.GetInt64(7), NullableString(reader, 8), reader.GetInt32(9) == 1)
-                    { ExpectedSha256 = NullableString(reader, 10), AttachmentRevisionKey = NullableString(reader, 11),
-                        ExpectedSha1 = NullableString(reader, 12), ProviderSizeHint = ReadSizeHint(NullableString(reader, 13)) });
+                    reader.IsDBNull(7) ? null : reader.GetInt64(7), NullableString(reader, 8), reader.GetInt32(11) == 1)
+                    { Width = reader.IsDBNull(9) ? null : reader.GetInt32(9),
+                        Height = reader.IsDBNull(10) ? null : reader.GetInt32(10),
+                        ExpectedSha256 = NullableString(reader, 12), AttachmentRevisionKey = NullableString(reader, 13),
+                        ExpectedSha1 = NullableString(reader, 14), ProviderSizeHint = ReadSizeHint(NullableString(reader, 15)) });
             }
         }
         using SqliteCommand postsCommand = Command(connection, transaction, $"""

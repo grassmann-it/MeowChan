@@ -20,6 +20,10 @@ public sealed record CapturedAttachment(int Position, string? MediaId, string Va
     string? Url = null, string? OriginalFileName = null, string? PlannedPath = null,
     long? ExpectedSize = null, string? ExpectedMd5 = null, bool IsDeleted = false)
 {
+    /// <summary>Provider-reported pixel width. Null is retained for legacy or non-image captures.</summary>
+    public int? Width { get; init; }
+    /// <summary>Provider-reported pixel height. Null is retained for legacy or non-image captures.</summary>
+    public int? Height { get; init; }
     public string? ExpectedSha256 { get; init; }
     public string? ExpectedSha1 { get; init; }
     public MeowChan.Storage.MediaProviderSizeHint? ProviderSizeHint { get; init; }

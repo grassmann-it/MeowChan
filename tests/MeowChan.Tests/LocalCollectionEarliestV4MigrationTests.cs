@@ -31,7 +31,7 @@ public sealed class LocalCollectionEarliestV4MigrationTests
         using (var connection = ArchiveSql.OpenConnection(files.Database, SqliteOpenMode.ReadOnly))
         using (var tx = connection.BeginTransaction(deferred: true))
         {
-            Assert.Equal(12, ArchiveSql.GetPragma(connection, "user_version", tx));
+            Assert.Equal(13, ArchiveSql.GetPragma(connection, "user_version", tx));
             ArchiveSql.ValidateSchema(connection, tx);
             Assert.Equal(new[] { "local_collections", "local_import_operations", "local_import_receipts",
                     "local_items", "local_media_revisions" },

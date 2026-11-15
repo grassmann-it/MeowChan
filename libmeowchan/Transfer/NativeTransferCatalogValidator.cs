@@ -105,7 +105,7 @@ internal static class NativeTransferCatalogValidator
             void CountAttachment(JsonElement attachment, bool retained)
             {
                 ct.ThrowIfCancellationRequested();
-                Fields(attachment, retained ? V4RetainedAttachmentFields : V4CurrentAttachmentFields);
+                FieldsAllowing(attachment, retained ? V4RetainedAttachmentFields : V4CurrentAttachmentFields, "width", "height");
                 Charge(ref references, 1 + Array(attachment, "derivedRepresentations", 2).GetArrayLength());
             }
             static void Charge(ref int count, int add)
@@ -208,8 +208,8 @@ internal static class NativeTransferCatalogValidator
     private static TransferAttachment Attachment(JsonElement node, ResourceId resource, string post, NativeTransferEnvelope envelope, HashSet<string> referenced, Budget budget, CancellationToken ct, bool retained = false)
     {
         bool v4 = envelope.ContentSchema == "chan-v4";
-        Fields(node, v4 ? (retained ? V4RetainedAttachmentFields : V4CurrentAttachmentFields)
-            : (retained ? RetainedAttachmentFields : CurrentAttachmentFields));
+        FieldsAllowing(node, v4 ? (retained ? V4RetainedAttachmentFields : V4CurrentAttachmentFields)
+            : (retained ? RetainedAttachmentFields : CurrentAttachmentFields), "width", "height");
         JsonElement derivedNodes = default;
         if (v4)
         {
@@ -229,6 +229,9 @@ internal static class NativeTransferCatalogValidator
         string? name = Text(node, "originalFileName", true);
         if (name != null && !SafeFileName(name)) throw Bad(TransferCatalogError.InvalidField);
         long? expectedSize = Number(node, "expectedSize", true);
+        long? widthValue = OptionalNumber(node, "width"), heightValue = OptionalNumber(node, "height");
+        if (widthValue is <= 0 or > int.MaxValue || heightValue is <= 0 or > int.MaxValue) throw Bad(TransferCatalogError.InvalidField);
+        int? width = widthValue is { } w ? (int)w : null, height = heightValue is { } h ? (int)h : null;
         string? md5 = Digest(node, "expectedMd5", 16), sha1 = Digest(node, "expectedSha1", 20), sha256 = Text(node, "expectedSha256", true);
         if (sha256 != null && !MediaIntegrityValidation.IsSha256(sha256)) throw Bad(TransferCatalogError.InvalidField);
         MediaProviderSizeHint? hint = Hint(node.GetProperty("sizeHint"));
@@ -236,7 +239,7 @@ internal static class NativeTransferCatalogValidator
         if (retained && (mediaId == null || url == null || revision == null || variant != "original"))
             throw Bad(TransferCatalogError.InvalidField);
         CapturedAttachment metadata = new(position, mediaId, variant, url, name, null, expectedSize, md5, deleted)
-            { ExpectedSha1 = sha1, ExpectedSha256 = sha256, ProviderSizeHint = hint, AttachmentRevisionKey = revision };
+            { Width = width, Height = height, ExpectedSha1 = sha1, ExpectedSha256 = sha256, ProviderSizeHint = hint, AttachmentRevisionKey = revision };
         MediaProviderMetadata? provider = mediaId != null && url != null ? new(mediaId, variant, url, name, expectedSize, md5, sha256)
             { ExpectedSha1 = sha1, ProviderSizeHint = hint } : null;
         if (revision != null && (provider == null || revision != MediaRevisionKeys.CreateAttachmentKey(resource, post, position, provider)))
@@ -473,6 +476,23 @@ internal static class NativeTransferCatalogValidator
         if (value.GetArrayLength() > max) throw Bad(TransferCatalogError.BudgetExceeded);
         return value;
     }
+    private static long? OptionalNumber(JsonElement node, string name)
+    {
+        if (!node.TryGetProperty(name, out JsonElement value) || value.ValueKind == JsonValueKind.Null) return null;
+        if (value.ValueKind != JsonValueKind.Number || !value.TryGetInt64(out long result)) throw Bad(TransferCatalogError.InvalidField);
+        return result;
+    }
+
+    private static void FieldsAllowing(JsonElement node, string[] fields, params string[] optional)
+    {
+        if (node.ValueKind != JsonValueKind.Object) throw Bad(TransferCatalogError.InvalidField);
+        HashSet<string> remaining = new(fields, StringComparer.Ordinal);
+        HashSet<string> allowedOptional = new(optional, StringComparer.Ordinal);
+        foreach (JsonProperty field in node.EnumerateObject())
+            if (!remaining.Remove(field.Name) && !allowedOptional.Contains(field.Name)) throw Bad(TransferCatalogError.InvalidField);
+        if (remaining.Count != 0) throw Bad(TransferCatalogError.InvalidField);
+    }
+
     private static void Fields(JsonElement node, params string[] fields)
     {
         if (node.ValueKind != JsonValueKind.Object) throw Bad(TransferCatalogError.InvalidField);
