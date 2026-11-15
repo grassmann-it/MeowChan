@@ -27,6 +27,9 @@ internal sealed partial class BooruWorkbenchView
     internal const string MenuResume = "booru.menu.resume";
     internal const string MenuRestart = "booru.menu.restart";
     internal const string MenuRemove = "booru.menu.remove";
+    // The menu of a source-tag chip (the "copy name" entry is the catalog command tags.copy-name).
+    internal const string MenuTagAdd = "booru.menu.tag-add";
+    internal const string MenuTagExclude = "booru.menu.tag-exclude";
 
     // The icons of entries that are no catalog commands: the same masks as the command or the button that does the same thing.
     private const string LoadIcon = "download-cloud", CancelIcon = "x", RetryIcon = "refresh-cw", PauseIcon = "pause", ResumeIcon = "play", RestartIcon = "rotate-ccw";

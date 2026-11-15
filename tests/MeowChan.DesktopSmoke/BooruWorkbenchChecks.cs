@@ -546,7 +546,9 @@ internal static partial class BooruWorkbenchChecks
         // Rebuilt card lines never announce (their peers are new); the persistent notice lines do it once instead.
         foreach (Control card in Cards(root, prefix))
         {
-            Require(string.IsNullOrEmpty(AutomationProperties.GetName(card)), "Card " + card.Name + " repeats its title as a name.");
+            // A card that is a keyboard stop (hit and watcher cards) carries the short name the focus reads; the others stay unnamed.
+            Require(card.Focusable != string.IsNullOrEmpty(AutomationProperties.GetName(card)),
+                "Card " + card.Name + (card.Focusable ? " has no name for its keyboard stop." : " repeats its title as a name."));
             Require(card.GetVisualDescendants().OfType<Control>().All(control => AutomationProperties.GetLiveSetting(control) == AutomationLiveSetting.Off),
                 "Card " + card.Name + " carries its own live region.");
         }

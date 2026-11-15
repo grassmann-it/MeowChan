@@ -75,6 +75,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
 
     private const int PreviewSize = 112;
     private const int MaximumTagsShown = 24;
+    private readonly HashSet<string> _expandedTagPosts = new(StringComparer.Ordinal);
     private const int MaximumHiddenTagsNamed = 60;
     private const int MaximumPreviewBytes = 8 * 1024 * 1024;
 
@@ -579,7 +580,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         _pageLimit.Text = Texts.T("booru.ui.page.limit", BooruSearchModel.MaximumPage, BooruSearchModel.PageSize);
 
         string key = string.Join('\n', Texts.Language, view.Status, view.Page, view.ExecutedPostId, string.Join('|',
-            view.Rows.Select(row => $"{row.Post.PostId}:{row.Load}:{row.LoadCode}:{row.Preview}:{row.PreviewBytes?.Length}")));
+            view.Rows.Select(row => $"{row.Post.PostId}:{row.Load}:{row.LoadCode}:{row.Preview}:{row.PreviewBytes?.Length}:{_expandedTagPosts.Contains(row.Post.PostId)}")));
         if (force || key != _resultsKey)
         {
             _resultsKey = key;
@@ -655,7 +656,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         {
             _watchersKey = key;
             _watcherWorkViewActions.Clear();
-            RebuildPanel(_watchers, () => view.Rows.Select(CreateWatcherCard).ToList(), moveTo, () => _watchersTab, waitWhileDisabled: true);
+            RebuildPanel(_watchers, () => NumberHits(view.Rows.Select(CreateWatcherCard).ToList()), moveTo, () => _watchersTab, waitWhileDisabled: true);
         }
     }
 
@@ -1063,13 +1064,15 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
             return panel;
         }
         int shown = 0;
+        // "+N more" lifts the limit for this card only (a click on it; the cards are rebuilt with the flag in the results key).
+        int limit = _expandedTagPosts.Contains(post.PostId) ? int.MaxValue : MaximumTagsShown;
         HashSet<string> shownNames = new(StringComparer.Ordinal);
         foreach (BooruTagCategory category in new[] { BooruTagCategory.Artist, BooruTagCategory.Copyright, BooruTagCategory.Character,
             BooruTagCategory.General, BooruTagCategory.Meta, BooruTagCategory.Unknown })
         {
             string[] names = post.Tags.Where(tag => tag.Category == category).Select(tag => tag.Name).ToArray();
-            if (names.Length == 0 || shown >= MaximumTagsShown) continue;
-            string[] take = names.Take(MaximumTagsShown - shown).ToArray();
+            if (names.Length == 0 || shown >= limit) continue;
+            string[] take = names.Take(limit - shown).ToArray();
             shown += take.Length;
             shownNames.UnionWith(take);
             // C1: source tags as compact dashed chips with their category mark; the category is named in front, so the mark is
@@ -1089,6 +1092,8 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
                 AutomationProperties.SetName(chip, accessible);
                 ToolTip.SetTip(chip, accessible);
                 chip.Click += (_, _) => AddTagToSearch(name);
+                // A right click, the Menu key and Shift+F10 on the chip: add, exclude, copy the name (the chip's own menu, not the card's).
+                _ = new ContextMenuHost(chip, () => ComposeTagMenu(name), () => chip.Focus(NavigationMethod.Tab));
                 line.Children.Add(chip);
             }
             AutomationProperties.SetName(line, label + ": " + string.Join(", ", take));
@@ -1099,9 +1104,15 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
             // The tags that do not fit are named for the mouse and for assistive technology; the details dialog of the saved medium lists all.
             string[] hidden = post.Tags.Select(tag => tag.Name).Where(name => !shownNames.Contains(name)).ToArray();
             string rest = string.Join(", ", hidden.Take(MaximumHiddenTagsNamed)) + (hidden.Length > MaximumHiddenTagsNamed ? "…" : string.Empty);
-            TextBlock more = new() { Name = MoreTagsPrefix + post.PostId, Text = Texts.T("booru.ui.tags.more", post.Tags.Length - shown), Classes = { "workspace-meta" } };
-            ToolTip.SetTip(more, rest);
-            AutomationProperties.SetHelpText(more, rest);
+            string postId = post.PostId;
+            string moreText = Texts.T("booru.ui.tags.more", post.Tags.Length - shown);
+            Button more = new() { Name = MoreTagsPrefix + postId, Content = moreText, HorizontalAlignment = HorizontalAlignment.Left };
+            more.Classes.Add("link");
+            string showAll = Texts.T("booru.ui.tags.showAll", rest);
+            ToolTip.SetTip(more, showAll);
+            AutomationProperties.SetName(more, moreText);
+            AutomationProperties.SetHelpText(more, showAll);
+            more.Click += (_, _) => ExpandTags(postId);
             panel.Children.Add(more);
         }
         return panel;
@@ -1111,23 +1122,53 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     /// I8: a source tag chip of a result adds its tag to the search field (tag search) up to the parser's limit. Only the field
     /// changes; nothing is requested until Search. The outcome is said in the polite link note line.
     /// </summary>
-    internal void AddTagToSearch(string tag)
+    internal void AddTagToSearch(string tag, bool exclude = false)
     {
         if (_closed) return;
         string current = _model.Search.View.Mode == BooruInputMode.Tags ? _input.Text ?? string.Empty : string.Empty;
         string[] terms = current.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (terms.Contains(tag, StringComparer.Ordinal)) { SetLinkNote(("booru.ui.tags.alreadyInSearch", tag, false)); return; }
+        // An exclusion is the provider's "-tag" term. It replaces the same tag's inclusion (and the other way round): both would never match anything.
+        string term = exclude ? "-" + tag : tag, opposite = exclude ? tag : "-" + tag;
+        if (terms.Contains(term, StringComparer.Ordinal)) { SetLinkNote(("booru.ui.tags.alreadyInSearch", term, false)); return; }
         if (!BooruSourceTagSearch.Plan(new[] { tag }).IsValid) { SetLinkNote(("booru.ui.tags.unusable", tag, true)); return; }
-        if (terms.Length >= BooruSourceTagSearch.MaximumTags)
+        bool replaces = terms.Contains(opposite, StringComparer.Ordinal);
+        if (!replaces && terms.Length >= BooruSourceTagSearch.MaximumTags)
         {
             SetLinkNote(("booru.ui.tags.searchFull", BooruSourceTagSearch.MaximumTags.ToString(Texts.Culture), true));
             return;
         }
-        string query = string.Join(' ', terms.Append(tag));
+        string query = string.Join(' ', replaces ? terms.Select(existing => existing == opposite ? term : existing) : terms.Append(term));
+        // The parser has the last word (an exclusion alone is not a search of its own on every provider).
+        if (exclude && BooruInput.Parse(BooruInputMode.Tags, query).Kind != BooruInputKind.Tags) { SetLinkNote(("booru.ui.tags.unusable", term, true)); return; }
         _model.Search.SetMode(BooruInputMode.Tags);
         _input.Text = query;
         _model.Search.SetInput(query);
-        SetLinkNote(("booru.ui.tags.addedToSearch", tag, false));
+        SetLinkNote(("booru.ui.tags.addedToSearch", term, false));
+    }
+
+    /// <summary>The menu of a source-tag chip: add it to the search, exclude it from the search, copy its name.</summary>
+    internal ContextMenuBuilder? ComposeTagMenu(string tag)
+    {
+        if (_closed) return null;
+        return new ContextMenuBuilder().Named(tag)
+            .Item(MenuTagAdd, Texts.T("booru.ui.tags.menuAdd"), () => AddTagToSearch(tag), icon: "plus")
+            .Item(MenuTagExclude, Texts.T("booru.ui.tags.menuExclude"), () => AddTagToSearch(tag, exclude: true), icon: "minus")
+            .Section()
+            .Command("tags.copy-name", () => _ = CopyTagNameAsync(tag));
+    }
+
+    private async Task CopyTagNameAsync(string tag)
+    {
+        if (!TryBeginLinkAction(out long revision)) return;
+        if (await MenuClipboard.CopyAsync(this, tag, _ => SetLinkNote(("booru.ui.link.copyFailed", string.Empty, true), revision)))
+            SetLinkNote(("booru.ui.tags.copied", tag, false), revision);
+    }
+
+    /// <summary>"+N more" on a card: the card lists every source tag from now on (until the page is searched again).</summary>
+    private void ExpandTags(string postId)
+    {
+        if (_closed || !_expandedTagPosts.Add(postId)) return;
+        Render(force: true);
     }
 
     private Bitmap? PreviewBitmap(BooruResultRowView row)

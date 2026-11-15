@@ -63,7 +63,11 @@ internal static class BooruHitKeys
 /// <summary>Keyboard, focus and menu of the result cards, and the double click of the watcher cards.</summary>
 internal sealed partial class BooruWorkbenchView
 {
-    private void InitializeHitList() => AutomationProperties.SetControlTypeOverride(_results, AutomationControlType.List);
+    private void InitializeHitList()
+    {
+        AutomationProperties.SetControlTypeOverride(_results, AutomationControlType.List);
+        AutomationProperties.SetControlTypeOverride(_watchers, AutomationControlType.List);
+    }
 
     /// <summary>Numbers the hits for assistive technology ("3 of 20") once the whole page of cards exists.</summary>
     private static List<Control> NumberHits(List<Control> cards)
@@ -100,6 +104,7 @@ internal sealed partial class BooruWorkbenchView
             e.Handled = true;
             Click(primary);
         };
+        ConfigureMiddleClick(card, postId);
         card.KeyDown += (_, e) =>
         {
             if (_closed) return;
@@ -115,20 +120,42 @@ internal sealed partial class BooruWorkbenchView
                     break;
                 default:
                     e.Handled = true;
-                    MoveHitFocus(card, key);
+                    MoveHitFocus(_results, card, key);
                     break;
             }
         };
     }
 
+    /// <summary>
+    /// Dead-affordance review 15.11.: a middle click on a hit card (not on a button, a tag or selectable text; press and release on the same card)
+    /// opens the post page in the browser, like the middle click on a thread row opens its source: the card's "Open post" button, with its rules.
+    /// Nothing is loaded or downloaded.
+    /// </summary>
+    private void ConfigureMiddleClick(Border card, string postId)
+    {
+        MiddleClickTracker tracker = new();
+        card.AddHandler(InputElement.PointerPressedEvent, (object? _, PointerPressedEventArgs e) =>
+        {
+            if (!MiddleClickTracker.IsPress(e, card)) { tracker.Cancel(); return; }
+            tracker.Pressed(ItemActivation.IsOwnedByInteractivePart(e.Source, card) ? null : card);
+        }, RoutingStrategies.Tunnel, handledEventsToo: true);
+        card.AddHandler(InputElement.PointerReleasedEvent, (object? _, PointerReleasedEventArgs e) =>
+        {
+            if (_closed || e.Handled || !MiddleClickTracker.IsRelease(e)) return;
+            if (!tracker.Released(ItemActivation.IsOwnedByInteractivePart(e.Source, card) ? null : card)) return;
+            e.Handled = true;
+            if (ButtonOf(card, OpenPostPrefix + postId) is { IsEffectivelyEnabled: true } open) Click(open);
+        }, RoutingStrategies.Tunnel);
+    }
+
     private static void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
-    private void MoveHitFocus(Border card, BooruHitKey key)
+    private static void MoveHitFocus(Panel list, Border card, BooruHitKey key)
     {
-        int index = _results.Children.IndexOf(card);
-        int target = BooruHitKeys.Target(key, index, _results.Children.Count);
+        int index = list.Children.IndexOf(card);
+        int target = BooruHitKeys.Target(key, index, list.Children.Count);
         if (target < 0 || target == index) return;
-        Control next = _results.Children[target];
+        Control next = list.Children[target];
         next.Focus(NavigationMethod.Directional);
         next.BringIntoView();
     }
@@ -146,13 +173,42 @@ internal sealed partial class BooruWorkbenchView
     /// <summary>
     /// Interaction audit V12: a double click on a watcher card (not on a button or selectable text) shows its query in the search box.
     /// Nothing is submitted and nothing is checked; the search field has the focus with the caret behind the query.
+    /// Dead-affordance review 15.11.: the card is a keyboard stop like a hit card (the shared focus ring, a name, Up/Down/Home/End between
+    /// cards), Enter on it does what the double click does, and its menu (the card's ContextMenuHost) opens from the focused card on the Menu
+    /// key and Shift+F10 as well.
     /// </summary>
-    private void ConfigureWatcherCard(Border card, string query) => card.DoubleTapped += (_, e) =>
+    private void ConfigureWatcherCard(Border card, string query)
     {
-        if (_closed || !ItemActivation.IsCardDoubleClick(e, card)) return;
-        e.Handled = true;
-        ShowWatcherQuery(query);
-    };
+        card.Classes.Add("workspace-card-focusable");
+        card.Focusable = true;
+        card.IsTabStop = true;
+        AutomationProperties.SetControlTypeOverride(card, AutomationControlType.ListItem);
+        AutomationProperties.SetName(card, query);
+        card.DoubleTapped += (_, e) =>
+        {
+            if (_closed || !ItemActivation.IsCardDoubleClick(e, card)) return;
+            e.Handled = true;
+            ShowWatcherQuery(query);
+        };
+        card.KeyDown += (_, e) =>
+        {
+            if (_closed) return;
+            BooruHitKey key = BooruHitKeys.Route(e, card, ShortcutServiceCapturing());
+            switch (key)
+            {
+                case BooruHitKey.None:
+                    break;
+                case BooruHitKey.Activate:
+                    e.Handled = true;
+                    ShowWatcherQuery(query);
+                    break;
+                default:
+                    e.Handled = true;
+                    MoveHitFocus(_watchers, card, key);
+                    break;
+            }
+        };
+    }
 
     internal void ShowWatcherQuery(string query)
     {
