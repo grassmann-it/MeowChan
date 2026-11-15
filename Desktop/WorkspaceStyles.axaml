@@ -1100,6 +1100,40 @@
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
     </Style>
+    <!-- Split button (the gallery slideshow: toggle + menu button): both halves are exactly Workspace.Size.Control high and share one 1-px edge
+         (the menu half overlaps it by 1) and the control radius on the outer corners only; the menu half is a square of that size. A half in
+         hover, focus or press lifts above its neighbour so its edge is not cut. States follow the segment buttons. -->
+    <Style Selector="Button.split-main, ToggleButton.split-main, Button.split-menu">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Raised}" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Height" Value="{StaticResource Workspace.Size.Control}" /><Setter Property="MinHeight" Value="0" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" /><Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Body}" /><Setter Property="FontWeight" Value="Normal" />
+    </Style>
+    <Style Selector="Button.split-main, ToggleButton.split-main"><Setter Property="Padding" Value="10,0" /><Setter Property="CornerRadius" Value="5,0,0,5" /></Style>
+    <Style Selector="Button.split-menu">
+        <Setter Property="Width" Value="{StaticResource Workspace.Size.Control}" /><Setter Property="MinWidth" Value="0" /><Setter Property="Padding" Value="0" />
+        <Setter Property="CornerRadius" Value="0,5,5,0" /><Setter Property="Margin" Value="-1,0,0,0" />
+    </Style>
+    <Style Selector="Button.split-main:pointerover, ToggleButton.split-main:pointerover, ToggleButton.split-main:checked, Button.split-menu:pointerover, Button.split-menu:focus-visible, Button.split-menu:pressed">
+        <Setter Property="ZIndex" Value="1" />
+    </Style>
+    <Style Selector="Button.split-main:pointerover /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.split-main:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.split-menu:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Hover}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+    </Style>
+    <Style Selector="ToggleButton.split-main:checked /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.split-main:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.split-main:pressed /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.split-main:pressed /template/ ContentPresenter#PART_ContentPresenter, Button.split-menu:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+    </Style>
+    <Style Selector="Button.split-main:disabled /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.split-main:disabled /template/ ContentPresenter#PART_ContentPresenter, Button.split-menu:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Raised}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
+    </Style>
     <!-- Media controls and gallery overflow rows reserve a 1-px edge (transparent at rest, the padding gives it back): ControlBorder on hover,
          the accent when pressed or checked (UX review 2026-11-13; the fill alone was 1.37:1 / 1.38:1). -->
     <Style Selector="Button.media-control, ToggleButton.media-control">

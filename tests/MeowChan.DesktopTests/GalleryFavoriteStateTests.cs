@@ -300,6 +300,10 @@ public sealed class GalleryFavoriteStateTests
         Assert.Equal(VerticalAlignment.Top, badge.VerticalAlignment);
         Assert.Equal(new Thickness(12), badge.Margin);
         Assert.Equal(new Thickness(8, 4), badge.Padding);
+        // As high as the way back beside it and at least a square of that size: the Workspace.Size.Control token, bound dynamically.
+        Assert.NotNull(badge.GetBindingObservable(Layoutable.HeightProperty));
+        Assert.NotNull(badge.GetBindingObservable(Layoutable.MinWidthProperty));
+        Assert.NotNull(badge.GetBindingObservable(Border.CornerRadiusProperty));
         Assert.Equal(16, badge.ZIndex);
         StackPanel glyph = Assert.IsType<StackPanel>(badge.Child);
         Assert.False(glyph.IsHitTestVisible);

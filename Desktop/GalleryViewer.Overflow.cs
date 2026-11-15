@@ -248,6 +248,7 @@ internal sealed partial class GalleryViewer
             _overflowButtons.Remove(_slideshowToggle);
             _slideshowToggle.Tag = null;
             StyleAsOverflowRow(_slideshowToggle, false);
+            _slideshowToggle.Classes.Set("split-main", true); // the main half of the split button: same height and joined edge as the menu button
             _slideshowToggle.Content = name;
             // G2: one split control (the toggle and its menu button) in the group that survives collapsed tools (GL5d: the tools toggle
             // moved to the right side of the bar, so the split control heads its group).
@@ -256,6 +257,7 @@ internal sealed partial class GalleryViewer
         }
         else
         {
+            _slideshowToggle.Classes.Set("split-main", false); // a menu row, not a half of the split button
             AddOverflowItem(_slideshowToggle, "gallery.slideshow-toggle", host: _slideshowHome);
             ((OverflowItem)_slideshowToggle.Tag!).Label.Text = name;
         }

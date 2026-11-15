@@ -56,7 +56,7 @@ internal sealed partial class GalleryViewer
         Margin = OverflowNoteMargin, TextWrapping = TextWrapping.Wrap, MaxWidth = 300, IsVisible = false };
     // "Pause when MeowChan loses focus" (off by default): a row of the slideshow settings, shown with the other slideshow choices.
     private readonly ToggleButton _pauseOnFocusLossToggle = new() { Name = "GallerySlideshowPauseOnFocusLossToggle" };
-    private readonly ToggleButton _slideshowToggle = new() { Name = "GallerySlideshowToggle" };
+    private readonly ToggleButton _slideshowToggle = new() { Name = "GallerySlideshowToggle" }; // on the bar it is the main half of the split button (class split-main, set by PlaceSlideshowToggle)
     private readonly ToggleButton _overlayToggle = new() { Name = "GalleryOverlayToggle" };
     private readonly ToggleButton _autoHideToggle = new() { Name = "GalleryAutoHideToggle" };
     private readonly ToggleButton _postOverlayToggle = new() { Name = "GalleryPostOverlayToggle" };
