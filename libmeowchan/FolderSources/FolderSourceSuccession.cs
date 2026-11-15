@@ -11,6 +11,7 @@ namespace MeowChan.FolderSources;
 /// belong to the exact, hashed version of a file, so they did not move) and the old item stayed behind as a missing version
 /// that still carries the tags. Pure facts from the shadow catalog and the tag snapshot; nothing is read from the user's folder.
 /// </summary>
+/// <param name="Root">The folder source containing the file.</param>
 /// <param name="Current">The file as it is now.</param>
 /// <param name="Previous">The most recent earlier version of the same path that carries tags.</param>
 /// <param name="PreviousTags">The tags of <paramref name="Previous"/>.</param>
