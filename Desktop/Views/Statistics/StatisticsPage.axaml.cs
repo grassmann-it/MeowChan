@@ -108,7 +108,6 @@ public partial class StatisticsPage : UserControl
     {
         StatisticsTitle.Text = Texts.T("nav.statistics");
         StatisticsSubtitle.Text = Texts.T("stats.subtitle");
-        ApplyHeaderMonitorLanguage();
         foreach (TextBlock end in new[] { HistoryEnd, WriteHistoryEnd, ReadHistoryEnd }) end.Text = Texts.T("stats.now");
         HistoryEmpty.Text = Texts.T("stats.sources.empty");
         if (ResetStatusPanel.IsVisible) StatisticsStatus.Text = Texts.T("stats.reset.done");

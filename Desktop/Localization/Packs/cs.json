@@ -3656,7 +3656,7 @@
     "stats.graph.nameDisk": "Mediální soubory na disku: zapsáno {0}, přečteno {1}; aktivní stahování: {2}. Otevře statistiky.",
     "stats.graph.page.name": "{0}: historie posledních {1} s, měřítko do {2}",
     "stats.headerGraph.auto": "Automaticky",
-    "stats.headerGraph.hint": "Určuje, co zobrazuje horní lišta. Automaticky: síť a disk, každý s vlastním grafem, ve všech zobrazeních. Rozložení vedle sebe vyžaduje široké okno; v úzkých oknech grafy zmizí a hodnoty zůstanou. Každý graf má vlastní měřítko. Na horní liště jsou stahování a čtení vykresleny plnou čarou s vyplněnou plochou, odesílání a zápis přerušovanou čarou. Vypnuto indikátor skryje a zastaví jeho měření; vrátí ho stránka statistik a nabídka v oznamovací oblasti.",
+    "stats.headerGraph.hint": "Určuje, co zobrazuje horní lišta. Automaticky: síť a disk, každý s vlastním grafem, ve všech zobrazeních. Rozložení vedle sebe vyžaduje široké okno; v úzkých oknech grafy zmizí a hodnoty zůstanou. Každý graf má vlastní měřítko. Na horní liště jsou stahování a čtení vykresleny plnou čarou s vyplněnou plochou, odesílání a zápis přerušovanou čarou. Vypnuto indikátor skryje a zastaví jeho měření; vrátí ho Nastavení › Vzhled a nabídka v oznamovací oblasti.",
     "stats.headerGraph.label": "Graf v záhlaví",
     "stats.headerGraph.network": "Jen síť",
     "stats.headerGraph.networkAndDisk": "Síť a disk, pod sebou",

@@ -62,7 +62,6 @@ public partial class MainWindow
         SetHeaderMarkerMode(TransferReadMark, TransferReadMarker, _headerIcons);
         SetHeaderMarkerMode(TransferWriteMark, TransferWriteMarker, _headerIcons);
         if (!layout.Hidden) _lastShownHeaderGraph = _config.StatsHeaderGraph;
-        _statisticsPage?.SetHeaderMonitorShown(!layout.Hidden);
         ApplyHeaderMonitorVisibility();
         bool blocks = layout.Arrangement == IoStatsDisplay.HeaderArrangement.GraphBlocks;
         bool twoLine = layout.TwoLineLabels;
@@ -125,7 +124,7 @@ public partial class MainWindow
         marker.IsVisible = icons;
     }
 
-    /// <summary>The arrangement shown before "Off", for the statistics page's checkbox that shows the display again (Auto when none).</summary>
+    /// <summary>The arrangement shown before "Off", for the Settings › Appearance checkbox that shows the display again (Auto when none).</summary>
     private string? _lastShownHeaderGraph;
 
     /// <summary>The narrowest window (DIPs) that has room for the header display beside the fixed header icons.</summary>

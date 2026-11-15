@@ -16,9 +16,6 @@
                 <TextBlock x:Name="StatisticsTitle" Classes="page-title" Text="Statistics" />
                 <TextBlock x:Name="StatisticsSubtitle" Classes="muted" TextWrapping="Wrap" />
             </StackPanel>
-            <!-- The way back for the header display after "Off": the same setting as the settings row and the header's menu.
-                 Outside the page header, so it stays in the Status page's statistics segment, which hides that header. -->
-            <CheckBox x:Name="HeaderMonitorCheck" wv:WorkViewElement.Id="statistics.header-monitor" Click="OnHeaderMonitorClick" />
             <Border x:Name="LoadNoticePanel" wv:WorkViewElement.Id="statistics.load-notice" Classes="workspace-warning" IsVisible="False">
                 <TextBlock x:Name="LoadNoticeText" TextWrapping="Wrap" />
             </Border>

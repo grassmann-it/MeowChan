@@ -3612,7 +3612,7 @@
     "stats.graph.nameDisk": "File multimediali su disco: scritti {0}, letti {1}; download attivi: {2}. Apre le statistiche.",
     "stats.graph.page.name": "{0}: cronologia degli ultimi {1} s, scala fino a {2}",
     "stats.headerGraph.auto": "Automatico",
-    "stats.headerGraph.hint": "Sceglie cosa mostra la barra superiore. Automatico: rete e disco, ciascuno con il proprio grafico, in ogni vista. La disposizione affiancata richiede una finestra larga; nelle finestre strette i grafici spariscono e restano i valori. Ogni grafico ha la propria scala. Nella barra superiore download e lettura sono tracciati con linea continua e area piena, upload e scrittura con linea tratteggiata. Disattivato nasconde l’indicatore e ne interrompe la misura; la pagina delle statistiche e il menu dell’area di notifica lo ripristinano.",
+    "stats.headerGraph.hint": "Sceglie cosa mostra la barra superiore. Automatico: rete e disco, ciascuno con il proprio grafico, in ogni vista. La disposizione affiancata richiede una finestra larga; nelle finestre strette i grafici spariscono e restano i valori. Ogni grafico ha la propria scala. Nella barra superiore download e lettura sono tracciati con linea continua e area piena, upload e scrittura con linea tratteggiata. Disattivato nasconde l’indicatore e ne interrompe la misura; Impostazioni › Aspetto e il menu dell’area di notifica lo ripristinano.",
     "stats.headerGraph.label": "Grafico della barra superiore",
     "stats.headerGraph.network": "Solo rete",
     "stats.headerGraph.networkAndDisk": "Rete e disco, in colonna",

@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
 using Avalonia.Threading;
 using MeowChan.Desktop.Localization;
@@ -19,6 +20,29 @@ public partial class SettingsEditor
 {
     private SettingsChoice? _selectedStatsHeaderGraph;
     private bool _statsHeaderIcons;
+    private bool _statsHeaderMonitorShown;
+
+    public event Action<bool>? HeaderMonitorToggled;
+
+    public string StatsHeaderMonitorLabel => Texts.T("stats.headerMonitor.show");
+    public bool StatsHeaderMonitorShown
+    {
+        get => _statsHeaderMonitorShown;
+        set
+        {
+            SetField(ref _statsHeaderMonitorShown, value, nameof(StatsHeaderMonitorShown));
+            if (_refreshingLanguageLabels || StatsHeaderGraphChoices.Count == 0) return;
+            string target = value
+                ? IoStatsDisplay.HeaderGraphShownAgain(_selectedStatsHeaderGraph?.Value)
+                : IoStatsDisplay.HeaderGraphOff;
+            SettingsChoice? choice = StatsHeaderGraphChoices.FirstOrDefault(item => item.Value == target);
+            if (choice != null && !Equals(SelectedStatsHeaderGraph, choice)) SelectedStatsHeaderGraph = choice;
+        }
+    }
+
+    internal void SetHeaderMonitorShown(bool shown) => SetField(ref _statsHeaderMonitorShown, shown, nameof(StatsHeaderMonitorShown));
+
+    private void OnHeaderMonitorClick(object? sender, RoutedEventArgs e) => HeaderMonitorToggled?.Invoke(StatsHeaderMonitorShown);
 
     public string StatsHeaderIconsLabel => Texts.T("stats.headerIcons.label");
     public string StatsHeaderIconsHint => Texts.T("stats.headerIcons.hint");
@@ -35,7 +59,12 @@ public partial class SettingsEditor
     public SettingsChoice? SelectedStatsHeaderGraph
     {
         get => _selectedStatsHeaderGraph;
-        set => SetField(ref _selectedStatsHeaderGraph, value, nameof(SelectedStatsHeaderGraph));
+        set
+        {
+            SetField(ref _selectedStatsHeaderGraph, value, nameof(SelectedStatsHeaderGraph));
+            if (!_refreshingLanguageLabels && value != null)
+                SetField(ref _statsHeaderMonitorShown, value.Value != IoStatsDisplay.HeaderGraphOff, nameof(StatsHeaderMonitorShown));
+        }
     }
 
     /// <summary>Rebuilds the choices in the current language and selects <paramref name="value"/>; also refreshes the block's labels.</summary>
@@ -51,7 +80,7 @@ public partial class SettingsEditor
             new(IoStatsDisplay.HeaderGraphText, Texts.T("stats.headerGraph.text")),
             new(IoStatsDisplay.HeaderGraphOff, Texts.T("stats.headerGraph.off"))
         };
-        foreach (string property in new[] { nameof(StatsHeaderGraphLabel), nameof(StatsHeaderGraphHint), nameof(StatsHeaderGraphChoices), nameof(StatsHeaderIconsLabel), nameof(StatsHeaderIconsHint) })
+        foreach (string property in new[] { nameof(StatsHeaderMonitorLabel), nameof(StatsHeaderGraphLabel), nameof(StatsHeaderGraphHint), nameof(StatsHeaderGraphChoices), nameof(StatsHeaderIconsLabel), nameof(StatsHeaderIconsHint) })
             RaiseStatsHeaderGraphChanged(property);
         string normalized = IoStatsDisplay.NormalizeHeaderGraph(value);
         SelectedStatsHeaderGraph = StatsHeaderGraphChoices.First(item => item.Value == normalized);
@@ -65,6 +94,7 @@ public partial class SettingsEditor
         if (_isClosed) return;
         string value = IoStatsDisplay.NormalizeHeaderGraph(_config.StatsHeaderGraph);
         SelectedStatsHeaderGraph = StatsHeaderGraphChoices.FirstOrDefault(item => item.Value == value) ?? SelectedStatsHeaderGraph;
+        SetHeaderMonitorShown(value != IoStatsDisplay.HeaderGraphOff);
     }
 
     /// <summary>Opens the page that holds the "Header graph" row, unfolds its groups and puts the focus on the row (the header menu's "Settings: Statistics…").</summary>

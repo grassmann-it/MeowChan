@@ -17,9 +17,6 @@ public partial class MainWindow
         _statisticsPage.Attach(_session.IoStats, SourceDisplayName);
         _statisticsPage.DiagnosticsRequested += OnStatisticsDiagnosticsRequested;
         _statusPage?.AttachStatistics(_statisticsPage); // the statistics segment of the Status page
-        _statisticsPage.SetHeaderMonitorShown(!IoStatsDisplay.HeaderIsOff(_config.StatsHeaderGraph));
-        _statisticsPage.HeaderMonitorToggled += show =>
-            ChooseHeaderGraph(show ? IoStatsDisplay.HeaderGraphShownAgain(_lastShownHeaderGraph) : IoStatsDisplay.HeaderGraphOff);
         InitializeHeaderIoMenu(); // right-click / Menu key on the header display (MainWindow.HeaderMenu.cs)
     }
 

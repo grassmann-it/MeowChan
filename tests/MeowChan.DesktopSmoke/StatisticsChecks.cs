@@ -206,7 +206,7 @@ internal static class StatisticsChecks
         Require(settings.StatsHeaderGraphChoices.Select(choice => choice.Value).SequenceEqual(["Auto", "Network", "Disk", "NetworkAndDisk", "SideBySide", "Text", "Off"]),
             "The header graph setting does not offer Auto, Network, Disk, NetworkAndDisk, SideBySide, Text and Off.");
         Require(settings.SelectedStatsHeaderGraph?.Value == "Auto" && settings.StatsHeaderGraphLabel == Texts.T("stats.headerGraph.label")
-            && settings.StatsHeaderGraphHint == "Chooses what the header shows. Automatic: network and disk, each with its own graph, in every view. Side by side needs a wide window; narrow windows drop the graphs and keep the values. Each graph has its own scale. In the header, download and read are drawn solid with a filled area, upload and write dashed. Off hides the display and stops its measuring; the statistics page and the tray menu bring it back.",
+            && settings.StatsHeaderGraphHint == "Chooses what the header shows. Automatic: network and disk, each with its own graph, in every view. Side by side needs a wide window; narrow windows drop the graphs and keep the values. Each graph has its own scale. In the header, download and read are drawn solid with a filled area, upload and write dashed. Off hides the display and stops its measuring; Settings › Appearance and the tray menu bring it back.",
             "The header graph setting lost its default, label or hint.");
         Require(AutomationProperties.GetName(input) == settings.StatsHeaderGraphLabel && AutomationProperties.GetHelpText(input) == settings.StatsHeaderGraphHint,
             "The header graph setting has no accessible name or help text.");

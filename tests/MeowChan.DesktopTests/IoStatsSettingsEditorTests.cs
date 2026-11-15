@@ -90,6 +90,24 @@ public sealed class IoStatsSettingsEditorTests : IDisposable
     }
 
     [Fact]
+    public void HeaderMonitorToggleLivesInAppearanceAndUsesTheHeaderGraphDraft()
+    {
+        XDocument markup = Markup();
+        XElement option = Named(markup, "StatsHeaderMonitorInput");
+        Assert.Equal("CheckBox", option.Name.LocalName);
+        Assert.Equal("{Binding StatsHeaderMonitorShown, Mode=TwoWay}", (string?)option.Attribute("IsChecked"));
+        Assert.Equal("{Binding StatsHeaderMonitorLabel}", (string?)option.Attribute("AutomationProperties.Name"));
+        Assert.Contains(option.Ancestors(), e => (string?)e.Attribute(X + "Name") == "SettingsInterfacePage");
+        Assert.DoesNotContain(option.Ancestors(), e => (string?)e.Attribute(X + "Name") == "SettingsBehaviorPage");
+        Assert.DoesNotContain(markup.Descendants(), e => (string?)e.Attribute(X + "Name") == "HeaderMonitorCheck");
+
+        string graph = File.ReadAllText(Path.Combine(RepositoryRoot(), "Desktop/Views/Settings/SettingsEditor.StatsHeaderGraph.cs"));
+        Assert.Contains("StatsHeaderMonitorShown", graph);
+        Assert.Contains("HeaderMonitorToggled", graph);
+        Assert.Contains("IoStatsDisplay.HeaderGraphOff", graph);
+    }
+
+    [Fact]
     public void EverySwitchHasALabelAndAHintAndTheSwitchesComeBeforeTheirDependentRows()
     {
         XDocument markup = Markup();

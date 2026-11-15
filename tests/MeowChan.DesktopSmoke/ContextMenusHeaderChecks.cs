@@ -84,10 +84,10 @@ internal static class ContextMenusHeaderChecks
         await Program.WaitUntilAsync(() => window.SelectedPage == MainWindow.WorkspacePage.Status, () => "page " + window.SelectedPage);
 
         await CheckOffAsync(window);
-        Console.WriteLine("SMOKE context menus header: menu key and context request open it, seven arrangements (the last one, Off, hides the display and stops its measuring; the statistics page's checkbox brings it back) with the stored one checked, a choice applies at once and persists, settings and statistics entries work, Escape closes, focus returns.");
+        Console.WriteLine("SMOKE context menus header: menu key and context request open it, seven arrangements (the last one, Off, hides the display and stops its measuring; Settings › Appearance brings it back) with the stored one checked, a choice applies at once and persists, settings and statistics entries work, Escape closes, focus returns.");
     }
 
-    /// <summary>"Off" hides the display and its sampling claim; the statistics page still claims while open and its checkbox shows the display again.</summary>
+    /// <summary>"Off" hides the display and its sampling claim; the Settings › Appearance checkbox shows the display again.</summary>
     private static async Task CheckOffAsync(MainWindow window)
     {
         Button speed = window.FindControl<Button>("TransferSpeed")!;
@@ -105,8 +105,8 @@ internal static class ContextMenusHeaderChecks
         window.ShowStatistics();
         await Program.WaitUntilAsync(() => window.IoStatsClaim == IoStatsVisibility.Window, () => "the open statistics page does not claim samples: " + window.IoStatsClaim);
         Program.CaptureWindow(window, "smoke-context-menu-header-off.png");
-        CheckBox box = ((StatisticsPage)window.StatisticsPageHost.Content!).HeaderMonitorBox;
-        Require(box.IsChecked == false, "The statistics page's header checkbox is not cleared while the display is off.");
+        CheckBox box = window.SettingsEditor.FindControl<CheckBox>("StatsHeaderMonitorInput")!;
+        Require(box.IsChecked == false, "The Settings › Appearance header checkbox is not cleared while the display is off.");
         box.IsChecked = true;
         box.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
         await Program.WaitUntilAsync(() => Config.LoadConfig().StatsHeaderGraph == "Auto" && speed.IsVisible,

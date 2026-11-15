@@ -215,6 +215,9 @@
                             </ComboBox>
                         </Grid>
                     </Border>
+                    <CheckBox x:Name="StatsHeaderMonitorInput" IsChecked="{Binding StatsHeaderMonitorShown, Mode=TwoWay}" AutomationProperties.Name="{Binding StatsHeaderMonitorLabel}" Click="OnHeaderMonitorClick">
+                        <TextBlock Text="{Binding StatsHeaderMonitorLabel}" TextWrapping="Wrap" />
+                    </CheckBox>
                         </StackPanel>
                     </Expander>
                     <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Header="{Binding LanguagePacksLabel}" Margin="0,4,0,0">

@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Linq;
 using Avalonia.Controls;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.Stats;
 
 namespace MeowChan;
 
@@ -124,6 +125,7 @@ public partial class SettingsEditor
         StatsTrayTooltip = config.StatsTrayTooltip;
         StatsTrayMenu = config.StatsTrayMenu;
         StatsHeaderIcons = config.StatsHeaderIcons;
+        StatsHeaderMonitorShown = !IoStatsDisplay.HeaderIsOff(config.StatsHeaderGraph);
         StatsPersist = config.StatsPersist;
         StatsRetentionDays = config.StatsRetentionDays;
         StatsPersistIntervalMinutes = config.StatsPersistIntervalMinutes;

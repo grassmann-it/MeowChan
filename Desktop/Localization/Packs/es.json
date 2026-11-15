@@ -1553,7 +1553,7 @@
     "stats.graph.nameNet": "Red (datos de la aplicación): descarga {0}, subida {1}; descargas activas: {2}. Abre las estadísticas.",
     "stats.graph.nameDisk": "Archivos multimedia en disco: escritos {0}, leídos {1}; descargas activas: {2}. Abre las estadísticas.",
     "stats.headerGraph.label": "Gráfico de la cabecera",
-    "stats.headerGraph.hint": "Define qué muestra la cabecera. Automático: red y disco, cada uno con su propio gráfico, en todas las vistas. La disposición en paralelo necesita una ventana ancha; las ventanas estrechas quitan los gráficos y conservan los valores. Cada gráfico tiene su propia escala. En la cabecera, la bajada y la lectura se dibujan con trazo continuo y área rellena, la subida y la escritura con trazo discontinuo. Desactivado oculta el indicador y detiene su medición; la página de estadísticas y el menú de la bandeja lo devuelven.",
+    "stats.headerGraph.hint": "Define qué muestra la cabecera. Automático: red y disco, cada uno con su propio gráfico, en todas las vistas. La disposición en paralelo necesita una ventana ancha; las ventanas estrechas quitan los gráficos y conservan los valores. Cada gráfico tiene su propia escala. En la cabecera, la bajada y la lectura se dibujan con trazo continuo y área rellena, la subida y la escritura con trazo discontinuo. Desactivado oculta el indicador y detiene su medición; Ajustes › Apariencia y el menú de la bandeja lo devuelven.",
     "stats.headerGraph.auto": "Automático",
     "stats.headerGraph.network": "Solo red",
     "stats.headerGraph.networkAndDisk": "Red y disco, apilados",
