@@ -42,17 +42,36 @@ public sealed class ReaderPostLayout : Panel
     /// <summary>How much larger the media of a card is drawn: only the focused card, only while the option is on.</summary>
     internal static double FocusFactor(bool focused, int scalePercent) => focused && scalePercent > 100 ? scalePercent / 100d : 1;
 
+    /// <summary>
+    /// The enlargement the focused card's media really gets in a card <paramref name="width"/> wide: the configured
+    /// <paramref name="factor"/>, but only as far as the body keeps its room beside the media (the arrangement is decided with the
+    /// ordinary thumbnail, so the enlargement never moves the text under the picture). Never below 1; a card too narrow for the text
+    /// beside even the ordinary thumbnail keeps the factor (its text is under the media anyway, the column bounds the picture).
+    /// </summary>
+    internal static double BoundedFocusFactor(double factor, double thumbnailWidth, double width, bool largeReader)
+    {
+        if (!(factor > 1) || !(thumbnailWidth > 0) || !double.IsFinite(width) || !Beside(width, thumbnailWidth, largeReader)) return factor;
+        double room = width - BodyRoom(largeReader) - MediaPadding(largeReader);
+        return Math.Clamp(room / thumbnailWidth, 1, factor);
+    }
+
     private bool _beside;
+    private double _width = double.PositiveInfinity;
 
     private bool IsLargeReader => GetValue(LargeReaderProperty);
-    private double ThumbnailWidth =>
-        (MediaWidth > 0 ? MediaWidth : ReaderDisplayPreferences.EffectiveThumbnailWidth(GetValue(ThumbnailWidthProperty), IsLargeReader))
-        * FocusFactor(GetValue(FocusedProperty), GetValue(FocusScalePercentProperty));
+    private double OrdinaryThumbnailWidth =>
+        MediaWidth > 0 ? MediaWidth : ReaderDisplayPreferences.EffectiveThumbnailWidth(GetValue(ThumbnailWidthProperty), IsLargeReader);
+    private double ThumbnailWidth => OrdinaryThumbnailWidth
+        * BoundedFocusFactor(FocusFactor(GetValue(FocusedProperty), GetValue(FocusScalePercentProperty)), OrdinaryThumbnailWidth, _width, IsLargeReader);
 
     // The threshold includes the media column and the body breathing room. Defaults remain 600/760 DIP, while a
-    // wider configured thumbnail grows the threshold instead of making the body overlap the media.
-    private bool Beside(double width) => width >= ThumbnailMediaWidth + (IsLargeReader ? 384 : 332);
-    private double ThumbnailMediaWidth => ThumbnailWidth + (IsLargeReader ? 16 : 28);
+    // wider configured thumbnail grows the threshold instead of making the body overlap the media. It is decided with the
+    // ordinary (unenlarged) thumbnail: the focused card keeps the arrangement of its neighbours.
+    private static bool Beside(double width, double thumbnailWidth, bool largeReader) =>
+        width >= thumbnailWidth + MediaPadding(largeReader) + BodyRoom(largeReader);
+    private static double BodyRoom(bool largeReader) => largeReader ? 384 : 332;
+    private static double MediaPadding(bool largeReader) => largeReader ? 16 : 28;
+    private double ThumbnailMediaWidth => ThumbnailWidth + MediaPadding(IsLargeReader);
 
     // Smoke seam: how many times the post layouts were measured (scroll cost of the card width modes).
     internal static long MeasurePasses;
@@ -62,9 +81,9 @@ public sealed class ReaderPostLayout : Panel
         MeasurePasses++;
         if (Children.Count != 2) return default;
         Control media = Children[0], body = Children[1];
-        double width = availableSize.Width;
+        double width = _width = availableSize.Width;
         media.Measure(new Size(Math.Min(width, ThumbnailMediaWidth), availableSize.Height));
-        bool beside = _beside = Beside(width);
+        bool beside = _beside = Beside(width, OrdinaryThumbnailWidth, IsLargeReader);
         double gap = media.IsVisible ? (beside ? 12 : 8) : 0;
         body.Measure(new Size(beside ? Math.Max(0, width - media.DesiredSize.Width - gap) : width,
             availableSize.Height));
