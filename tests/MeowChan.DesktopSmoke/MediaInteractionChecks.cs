@@ -363,6 +363,15 @@ internal static class MediaInteractionChecks
             await ReadyAsync();
         }
         Point TrackPoint(double fraction) => MediaInteractionSmokeHelpers.TrackPoint(Seek(), fraction);
+        async Task<Point> VolumeTrackPointAsync(Slider volume, double fraction)
+        {
+            // GalleryVideoVolume is a popup-hosted slider on software-video backends.
+            // Move natively first so its template/Track exists before discovering the
+            // coordinate; evaluating TrackPoint before ClickAsync would inspect the
+            // intentionally hidden visual tree.
+            await native!.MoveAsync(volume);
+            return MediaInteractionSmokeHelpers.TrackPoint(volume, fraction);
+        }
         async Task SeekClickAsync(double fraction)
         {
             Record("inject", new { action = "native-track-click", fraction });
@@ -466,7 +475,7 @@ internal static class MediaInteractionChecks
                     "Disabled-volume branch lacks native unavailable-output evidence or disabled controls.");
                 string? post = viewer!.CaptureState().PostId;
                 Require(post == "2000", "Disabled-volume check started on unexpected media.");
-                await native!.MoveAsync(volume, MediaInteractionSmokeHelpers.TrackPoint(volume, .60));
+                await native!.MoveAsync(volume, await VolumeTrackPointAsync(volume, .60));
                 await native.ButtonAsync(true);
                 await native.ButtonAsync(false);
                 await MediaInteractionSmokeHelpers.HoldStateAsync(Player(), expected, "Disabled volume pointer click");
@@ -488,7 +497,7 @@ internal static class MediaInteractionChecks
             }
             else
             {
-                await native!.ClickAsync(volume, MediaInteractionSmokeHelpers.TrackPoint(volume, .60));
+                await native!.ClickAsync(volume, await VolumeTrackPointAsync(volume, .60));
                 Require(volume.IsKeyboardFocusWithin, "Native volume click did not focus the actual slider.");
                 await native.KeyAsync(MediaNativeInput.Home);
                 Require(volume.Value == volume.Minimum && viewer!.CaptureState().PostId == "2000",
@@ -546,7 +555,7 @@ internal static class MediaInteractionChecks
             else
             {
                 // Actual volume pointer focus must yield media navigation on exactly one key.
-                await native.ClickAsync(volume, MediaInteractionSmokeHelpers.TrackPoint(volume, .60));
+                await native.ClickAsync(volume, await VolumeTrackPointAsync(volume, .60));
             }
             await native.KeyAsync(MediaNativeInput.Right);
             await Program.WaitUntilAsync(() => viewer!.CaptureState().PostId == "2001");

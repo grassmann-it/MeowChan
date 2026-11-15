@@ -70,7 +70,11 @@ internal static class MediaInteractionSmokeHelpers
     internal static Point TrackPoint(Slider slider, double fraction)
     {
         if (fraction is < 0 or > 1) throw new ArgumentOutOfRangeException(nameof(fraction));
-        Track track = slider.GetVisualDescendants().OfType<Track>().Single();
+        slider.ApplyTemplate();
+        Track[] tracks = slider.GetVisualDescendants().OfType<Track>().ToArray();
+        if (tracks.Length != 1)
+            throw new InvalidOperationException($"Expected exactly one native slider track; found {tracks.Length} for {slider.Name}.");
+        Track track = tracks[0];
         double thumb = track.Thumb?.Bounds.Width ?? 12;
         return track.TranslatePoint(new Point(thumb / 2 + fraction * (track.Bounds.Width - thumb), track.Bounds.Height / 2), slider)
             ?? throw new InvalidOperationException("Native slider track has no transform.");
