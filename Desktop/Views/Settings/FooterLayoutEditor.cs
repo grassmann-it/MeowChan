@@ -8,6 +8,7 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
@@ -43,6 +44,8 @@ internal sealed class FooterLayoutEditor : UserControl
         _reset.Classes.Add("subtle");
         _reset.HorizontalAlignment = HorizontalAlignment.Left;
         _reset.Click += (_, _) => Change(FooterLayout.Default, null, null, announce: false);
+        // Audit V15: Alt+Up / Alt+Down on any control of a row move that row, like its up and down buttons.
+        _rows.AddHandler(KeyDownEvent, OnRowsKeyDown, Avalonia.Interactivity.RoutingStrategies.Tunnel);
         Content = new StackPanel { Spacing = 8, Children = { _rows, _reset, _status } };
         Texts.Changed += OnLanguageChanged;
         DetachedFromVisualTree += (_, _) => Texts.Changed -= OnLanguageChanged;
@@ -88,6 +91,35 @@ internal sealed class FooterLayoutEditor : UserControl
         ?.Children.OfType<Button>().FirstOrDefault(button => button.Name == (up ? "FooterMoveUp" : "FooterMoveDown"));
 
     private void OnLanguageChanged(object? sender, EventArgs e) => Dispatcher.UIThread.Post(() => Render(null, null));
+
+    /// <summary>The way Alt+Up (-1) or Alt+Down (+1) moves a row; 0 for any other key, and for Alt with another modifier.</summary>
+    internal static int MoveDirection(Key key, KeyModifiers modifiers) =>
+        modifiers != KeyModifiers.Alt ? 0 : key == Key.Up ? -1 : key == Key.Down ? 1 : 0;
+
+    private void OnRowsKeyDown(object? sender, KeyEventArgs e)
+    {
+        int direction = MoveDirection(e.Key, e.KeyModifiers);
+        if (e.Handled || direction == 0) return;
+        if (TryMoveRowOf(e.Source as Control, direction)) e.Handled = true;
+    }
+
+    /// <summary>
+    /// Moves the row that <paramref name="source"/> (the focused control) belongs to one place up (<paramref name="direction"/> -1) or down (+1), exactly as the row's
+    /// up or down button does, and says so. At the first or last place nothing moves. False when the control belongs to no row.
+    /// </summary>
+    internal bool TryMoveRowOf(Control? source, int direction)
+    {
+        if (source == null || direction == 0) return false;
+        Grid? row = null;
+        foreach (Avalonia.Visual node in source.GetSelfAndVisualAncestors())
+            if (node is Grid { Tag: string } grid && ReferenceEquals(grid.Parent, _rows)) { row = grid; break; }
+        if (row?.Tag is not string id) return false;
+        // The focus stays on the kind of control that had it: the same button, or (the switch, or the row itself) the switch.
+        Button? button = source.GetSelfAndVisualAncestors().OfType<Button>().FirstOrDefault(candidate => candidate.Name is "FooterMoveUp" or "FooterMoveDown");
+        bool? focusUp = button == null ? null : button.Name == "FooterMoveUp";
+        Change(_layout.Move(id, direction), id, focusUp, movedPage: id);
+        return true;
+    }
 
     private static double Space(int token) =>
         Application.Current?.TryGetResource("Workspace.Space." + token, null, out object? value) == true && value is double size ? size : token;
@@ -188,6 +220,8 @@ internal sealed class FooterLayoutEditor : UserControl
     {
         var button = new Button { Name = name, IsEnabled = enabled };
         IconButtons.Apply(button, icon, label);
+        // The row's keys (audit V15): the tip names Alt+Up / Alt+Down; the accessible name stays the plain label.
+        ToolTip.SetTip(button, label + " · " + ShortcutGesture.Parse(name == "FooterMoveUp" ? "Alt+Up" : "Alt+Down").Display(EffectiveShortcutBindings.CurrentPlatform));
         return button;
     }
 

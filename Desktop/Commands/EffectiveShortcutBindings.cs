@@ -247,10 +247,14 @@ public sealed class EffectiveShortcutBindings
         // another command, like every new default.
         ["tagging.mark-done"] = 19, ["tagging.mark-skipped"] = 19, ["post.hide"] = 19, ["post.copy-link"] = 19, ["media.copy-path"] = 19,
         ["thread.show-in-media"] = 19, ["tagging.show-in-media"] = 19, ["reader.expand"] = 19, ["media.open-external"] = 19,
-        // Revision 20 (media page Delete, quick-win package "menus, delete, Esc"): Delete (and Primary+Back on macOS) also acts on the media page, where it removes the selected media
-        // that are in the tagging queue from it (the same command as the tagging list's, now also in the context "media"; introduced in revision 9). It never deletes a file. Like
-        // every changed default it yields to a saved binding of another command on the key.
+        // Revision 20 (one revision for the quick-win packages of 15.11.2026; each entry yields to a saved binding of another command like every new default):
+        // - "menus, delete, Esc": Delete (and Primary+Back on macOS) also acts on the media page, where it removes the selected media that are in the
+        //   tagging queue from it (the same command as the tagging list's, now also in the context "media"; introduced in revision 9). It never deletes a file.
         ["tagging.remove"] = 20,
+        // - "mouse and keyboard" (audit V4, V13): Ctrl/Cmd+Plus and Ctrl/Cmd+Minus step the reader's font size, Ctrl/Cmd+0 sets it back to Normal
+        //   (Ctrl+wheel does the first two); F5 refreshes the Plugins page on every platform (no Cmd+R on macOS: Primary+R is rules.edit-scope, also on the
+        //   Plugins page).
+        ["reader.font-size.larger"] = 20, ["reader.font-size.smaller"] = 20, ["reader.font-size.reset"] = 20, ["plugins.refresh"] = 20,
     };
     public static IReadOnlyCollection<string> YieldingDefaultCommandIds => DefaultChangedInRevision.Keys.ToArray();
     // Commands whose default changed only in the macOS table: on Windows and Linux their gesture is the old stable one
@@ -305,6 +309,11 @@ public sealed class EffectiveShortcutBindings
             case "gallery.zoom-out": list.Add(ShortcutGesture.Parse("Subtract")); break;
             case "media.tile-size.larger": list.Add(ShortcutGesture.Parse("Primary+Add")); break;
             case "media.tile-size.smaller": list.Add(ShortcutGesture.Parse("Primary+Subtract")); break;
+            // The reader's font size (revision 20): the main keyboard's Plus and Minus (the catalog's gesture) and the number pad's, and the
+            // number pad's 0 next to Primary+0.
+            case "reader.font-size.larger": list.Add(ShortcutGesture.Parse("Primary+Add")); break;
+            case "reader.font-size.smaller": list.Add(ShortcutGesture.Parse("Primary+Subtract")); break;
+            case "reader.font-size.reset": list.Add(ShortcutGesture.Parse("Primary+NumPad0")); break;
             case "viewer.shortcut-help": list.Add(new("OemQuestion", new[] { "Shift" }, "?")); break;
             case "menu.context-open": list.Add(ShortcutGesture.Parse("Apps")); break;
             case "reader.find-next": list.Add(ShortcutGesture.Parse("Primary+G")); break;

@@ -34,7 +34,6 @@ internal enum FilmstripTileKind { Image, Gif, Video }
 /// </summary>
 internal sealed class GalleryFilmstrip : Border
 {
-    private const double ScrollNotchTiles = 2;
     private const double DragThreshold = 4;
 
     // ---- parts ----
@@ -379,10 +378,9 @@ internal sealed class GalleryFilmstrip : Border
 
     private void OnWheel(object? sender, PointerWheelEventArgs e)
     {
-        double notches = e.Delta.Y != 0 ? e.Delta.Y : e.Delta.X;
-        if (notches == 0) return;
-        // Wheel up (and a pad swipe to the right) look back along the strip, wheel down forward.
-        ScrollByUser(_offset - notches * ScrollNotchTiles * GalleryFilmstripPlan.Pitch(_tile, _gap));
+        if (StripWheel.Notches(e.Delta) == 0) return;
+        // Wheel up (and a pad swipe to the right) look back along the strip, wheel down forward (the notch is the one every strip shares, StripWheel).
+        ScrollByUser(StripWheel.NextOffset(_offset, e.Delta, GalleryFilmstripPlan.Pitch(_tile, _gap)));
         e.Handled = true;
     }
 

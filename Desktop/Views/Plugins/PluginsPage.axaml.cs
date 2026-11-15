@@ -102,6 +102,7 @@ public partial class PluginsPage : UserControl
             else if (_narrow && _showDetails) { OnBackClick(this, new RoutedEventArgs()); args.Handled = true; }
         };
         C<SelectionList>("PluginCards").AddHandler(KeyDownEvent, OnPluginListKeyDown, RoutingStrategies.Tunnel);
+        AttachTypeAhead();
         Texts.Changed += OnLanguageChanged;
         // Layout only: an empty status row (no text, no spinner) takes no height and no gap; it is never hidden, so the live
         // region stays in the tree and announces the next status as before.

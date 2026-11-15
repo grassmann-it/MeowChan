@@ -125,6 +125,8 @@ public partial class MainWindow
                 if (grid.CollectionView?.CurrentItem is BoardRow board) _boardLeadId = board.WatchId;
             };
         }
+        InitializeDownloadTypeAhead(); // audit V7 (MainWindow.MouseKeyboard.cs)
+        InitializeDownloadMiddleClick(); // audit V5 (MainWindow.MouseKeyboard.cs)
         InitializeDownloadHeaderMenus(); // right-click on a column header (MainWindow.Columns.cs)
         ArchivePage.RemoveSelectedWatches = RemoveArchiveWatchesAsync;
         ArchivePage.DeletePermanentlyRequested = DeleteArchivePermanentlyAsync;
