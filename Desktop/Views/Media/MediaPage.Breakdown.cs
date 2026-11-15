@@ -54,8 +54,28 @@ public sealed partial class MediaPage
         };
         _breakdown.EscapeRequested += (_, _) => _nameFilter.Focus(NavigationMethod.Tab);
         // The clear mark of the field ends the search: the scope goes with the text it chose the fields for. (Emptying the box by hand keeps it.)
-        _nameFilter.ClearButton.Click += (_, _) => { if (_textScope != MediaTextFields.All) { _textScope = MediaTextFields.All; RenderFilterChips(); RefreshBreakdown(); } };
+        _nameFilter.ClearButton.Click += (_, _) => ResetTextScope();
+        // Escape in the field ends the search the same way: the text goes (the field's own Escape) and so does the scope, while the other filter chips stay.
+        _nameFilter.AddHandler(InputElement.KeyDownEvent, OnNameFilterEscape, Avalonia.Interactivity.RoutingStrategies.Tunnel);
         return _breakdown;
+    }
+
+    /// <summary>Back to searching every field, shown at once. The scope chip, the name chip and the row follow; nothing is filtered again here (the text, or its going, does that).</summary>
+    private bool ResetTextScope()
+    {
+        if (_textScope == MediaTextFields.All) return false;
+        _textScope = MediaTextFields.All;
+        RenderFilterChips();
+        RefreshBreakdown();
+        return true;
+    }
+
+    // Tunnel: before the field takes Escape to clear its text. With text, the field clears it next; without text the narrowed scope is what this Escape ends,
+    // so it stops here and the following Escape leaves the field as before. A field that searches everywhere is left to its own Escape.
+    private void OnNameFilterEscape(object? sender, KeyEventArgs e)
+    {
+        if (e.Handled || e.Key != Key.Escape || e.KeyModifiers != KeyModifiers.None || _lifetime.IsCancellationRequested || !ResetTextScope()) return;
+        if (!_nameFilter.HasText) e.Handled = true;
     }
 
     /// <summary>Narrows (or widens) where the text is searched, shows it at once and filters again. The counts of the row do not depend on it.</summary>

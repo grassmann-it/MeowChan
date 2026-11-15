@@ -46,6 +46,37 @@ internal static class TagQueueActions
         return (items, skipped);
     }
 
+    /// <summary>
+    /// Delete on the media page: the keys of the selected media that are in the tagging queue (any state), once each, in selection order. Media that
+    /// are not queued, have no saved asset or come while the queue is unreadable (<paramref name="queue"/> is null) give none, so the key does nothing then.
+    /// It only ever names queue entries: no file, index entry, tag, favorite or rating is part of it.
+    /// </summary>
+    internal static IReadOnlyList<TagQueueKey> RemovableKeys(IEnumerable<MediaLibraryEntry> selected, IReadOnlySet<TagQueueKey>? queue)
+    {
+        ArgumentNullException.ThrowIfNull(selected);
+        if (queue is not { Count: > 0 }) return Array.Empty<TagQueueKey>();
+        HashSet<TagQueueKey> seen = new();
+        List<TagQueueKey> keys = new();
+        foreach (MediaLibraryEntry entry in selected)
+            if (TagQueueKeys.Of(entry) is { } key && queue.Contains(key) && seen.Add(key)) keys.Add(key);
+        return keys;
+    }
+
+    /// <summary>Removes queue entries ("Remove from queue", <c>tagging.remove</c>) and returns the sentence for the surface's status line; a failure is a sentence too.</summary>
+    internal static async Task<string> RemoveAsync(DesktopSessionHost host, IReadOnlyList<TagQueueKey> keys, CancellationToken token = default)
+    {
+        ArgumentNullException.ThrowIfNull(host);
+        ArgumentNullException.ThrowIfNull(keys);
+        if (keys.Count == 0) return string.Empty;
+        try
+        {
+            await host.RemoveFromTagQueueAsync(keys, token).ConfigureAwait(true);
+            return Texts.T("tagging.page.removed", keys.Count);
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception error) when (TaggingQueueController.IsQueueError(error)) { return DescribeFailure(error); }
+    }
+
     /// <summary>The reason an entry cannot be queued (shown in the menu), or null when it can. A provider medium has no tag target.</summary>
     internal static string? BlockedReason(bool saved, bool providerMedia) =>
         !saved ? Texts.T("media.menu.reason.notSaved") : providerMedia ? Texts.T("booru.media.tags.unavailable") : null;

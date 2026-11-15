@@ -815,6 +815,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         Grid.SetColumn(load, 2);
         grid.Children.Add(load);
         card.Child = grid;
+        AttachCardMenu(card, () => ComposeResultMenu(card, post.PostId));
         // Interaction audit 1.1.0: a double click on the card (not on a button, a tag or selectable text) is its primary action: "Show in
         // Media" once the original is saved locally, else "Load original" while that button is enabled. Nothing else is opened or loaded.
         Button? showInMedia = info.Children.OfType<Button>().FirstOrDefault(button => button.Name == ShowInMediaPrefix + post.PostId);
@@ -1300,6 +1301,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
             panel.Children.Add(confirm);
         }
         card.Child = panel;
+        AttachCardMenu(card, () => ComposeWatcherMenu(card, watcher.WatcherId, watcher.Query));
         return card;
     }
 

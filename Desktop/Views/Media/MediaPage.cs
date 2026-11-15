@@ -860,6 +860,13 @@ public sealed partial class MediaPage : UserControl
                 if (_grid.Selection.Count > 0 && _building == null) await AddSelectionToQueueAsync();
                 return;
             }
+            // tagging.remove (Delete): the selected media that are in the tagging queue leave it; otherwise the key does nothing. It never deletes a file.
+            if (CommandBindings.Matches(e, "tagging.remove"))
+            {
+                e.Handled = true;
+                await RemoveSelectionFromQueueAsync();
+                return;
+            }
             // Rating, details, export, folder and file path of the medium (menu commands): the same actions and gates as the tile menu.
             foreach (string id in MediaShortcutCommands)
                 if (CommandBindings.Matches(e, id))

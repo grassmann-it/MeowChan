@@ -188,6 +188,54 @@ public sealed class MediaTextBreakdownPageTests
         Assert.Equal(string.Empty, f.Page.NameFilter.Text);
     });
 
+    private static Avalonia.Input.KeyEventArgs EscapeKey(Avalonia.Input.KeyModifiers modifiers = Avalonia.Input.KeyModifiers.None) =>
+        new() { RoutedEvent = Avalonia.Input.InputElement.KeyDownEvent, Key = Avalonia.Input.Key.Escape, KeyModifiers = modifiers };
+
+    [Fact]
+    public void EscapeInTheSearchFieldResetsTheTextAndTheScopeTogetherAndKeepsTheOtherChips() => OnDispatcher(() =>
+    {
+        using Fixture f = new();
+        f.Type("cat");
+        f.Click(MediaTextFields.Tag);
+        Assert.Null(f.Page.AddFilterTerm(MediaFilterTerm.Source("4chan")));
+        Assert.Equal(["3"], f.Shown());
+        Avalonia.Input.KeyEventArgs escape = EscapeKey();
+        f.Page.NameFilter.RaiseEvent(escape);
+        Assert.True(escape.Handled); // the first Escape stays in the field: the surface around it stays open
+        Assert.Equal(string.Empty, f.Page.NameFilter.Text ?? string.Empty);
+        Assert.Equal(MediaTextFields.All, f.Page.TextScope);
+        Assert.Null(f.Page.NameFilter.ScopeChip!.LabelOverride);
+        Assert.Contains(MediaFilterTerm.Source("4chan"), f.Page.FilterTerms); // other chips stay
+        Assert.DoesNotContain(f.Page.FilterTerms, term => term.Field is MediaFilterField.Name or MediaFilterField.In);
+        // Typing again starts from "All", not from the old scope.
+        f.Type("cat");
+        Assert.Equal(MediaTextFields.All, f.Page.TextScope);
+        Assert.Equal(["1", "2", "3"], f.Shown());
+    });
+
+    [Fact]
+    public void EscapeInAnEmptyFieldWithAScopeResetsTheScopeThenLeavesAndAModifiedEscapeIsLeftAlone() => OnDispatcher(() =>
+    {
+        using Fixture f = new();
+        f.Type("cat");
+        f.Click(MediaTextFields.Title);
+        f.Page.NameFilter.Text = string.Empty;
+        f.Page.NameFilter.FlushQuery();
+        Dispatcher.UIThread.RunJobs();
+        f.FilterEdited();
+        Assert.Equal(MediaTextFields.Title, f.Page.TextScope); // the scope waits for words
+        Avalonia.Input.KeyEventArgs modified = EscapeKey(Avalonia.Input.KeyModifiers.Shift);
+        f.Page.NameFilter.RaiseEvent(modified);
+        Assert.Equal(MediaTextFields.Title, f.Page.TextScope);
+        Avalonia.Input.KeyEventArgs escape = EscapeKey();
+        f.Page.NameFilter.RaiseEvent(escape);
+        Assert.Equal(MediaTextFields.All, f.Page.TextScope);
+        Assert.True(escape.Handled); // resetting the scope was the Escape's work: the field is not left by it
+        Avalonia.Input.KeyEventArgs second = EscapeKey();
+        f.Page.NameFilter.RaiseEvent(second);
+        Assert.False(second.Handled); // nothing left to reset: the empty field's Escape goes on to leave it
+    });
+
     [Fact]
     public void ANarrowedScopeThatFindsNothingOffersToSearchEverywhere() => OnDispatcher(() =>
     {

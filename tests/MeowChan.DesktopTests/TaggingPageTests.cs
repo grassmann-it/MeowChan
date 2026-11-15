@@ -166,7 +166,8 @@ public sealed class TaggingPageTests : IDisposable
         EffectiveShortcutBindings bindings = EffectiveShortcutBindings.Build(platform: platform);
         Assert.Empty(bindings.Issues);
         Assert.Equal(display, bindings.Display(id));
-        Assert.Equal(new[] { "tagging" }, CommandCatalog.Get(id).ExecutionContexts);
+        // Delete also acts on the media page (revision 20): there it removes selected media that are queued from the queue, never files.
+        Assert.Equal(id == "tagging.remove" ? new[] { "tagging", "media" } : new[] { "tagging" }, CommandCatalog.Get(id).ExecutionContexts);
         Assert.Contains(id, EffectiveShortcutBindings.YieldingDefaultCommandIds);
     }
 
