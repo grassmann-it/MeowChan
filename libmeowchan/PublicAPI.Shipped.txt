@@ -560,6 +560,8 @@ MeowChan.Archive.CapturedAttachment.ExpectedSha256.get -> string?
 MeowChan.Archive.CapturedAttachment.ExpectedSha256.init -> void
 MeowChan.Archive.CapturedAttachment.ExpectedSize.get -> long?
 MeowChan.Archive.CapturedAttachment.ExpectedSize.init -> void
+MeowChan.Archive.CapturedAttachment.Height.get -> int?
+MeowChan.Archive.CapturedAttachment.Height.init -> void
 MeowChan.Archive.CapturedAttachment.IsDeleted.get -> bool
 MeowChan.Archive.CapturedAttachment.IsDeleted.init -> void
 MeowChan.Archive.CapturedAttachment.MediaId.get -> string?
@@ -576,6 +578,8 @@ MeowChan.Archive.CapturedAttachment.Url.get -> string?
 MeowChan.Archive.CapturedAttachment.Url.init -> void
 MeowChan.Archive.CapturedAttachment.Variant.get -> string!
 MeowChan.Archive.CapturedAttachment.Variant.init -> void
+MeowChan.Archive.CapturedAttachment.Width.get -> int?
+MeowChan.Archive.CapturedAttachment.Width.init -> void
 MeowChan.Archive.CapturedPost
 MeowChan.Archive.CapturedPost.Attachments.get -> System.Collections.Generic.IReadOnlyList<MeowChan.Archive.CapturedAttachment!>?
 MeowChan.Archive.CapturedPost.Attachments.init -> void

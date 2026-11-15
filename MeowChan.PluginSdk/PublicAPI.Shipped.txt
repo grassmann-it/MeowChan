@@ -542,6 +542,8 @@ MeowChan.PluginSdk.SourceAttachment.ExpectedSize.get -> long?
 MeowChan.PluginSdk.SourceAttachment.ExpectedSize.init -> void
 MeowChan.PluginSdk.SourceAttachment.Extension.get -> string?
 MeowChan.PluginSdk.SourceAttachment.Extension.init -> void
+MeowChan.PluginSdk.SourceAttachment.Height.get -> int?
+MeowChan.PluginSdk.SourceAttachment.Height.init -> void
 MeowChan.PluginSdk.SourceAttachment.IsDeleted.get -> bool
 MeowChan.PluginSdk.SourceAttachment.IsDeleted.init -> void
 MeowChan.PluginSdk.SourceAttachment.MediaId.get -> string?
@@ -559,6 +561,8 @@ MeowChan.PluginSdk.SourceAttachment.Url.get -> System.Uri?
 MeowChan.PluginSdk.SourceAttachment.Url.init -> void
 MeowChan.PluginSdk.SourceAttachment.Variant.get -> string!
 MeowChan.PluginSdk.SourceAttachment.Variant.init -> void
+MeowChan.PluginSdk.SourceAttachment.Width.get -> int?
+MeowChan.PluginSdk.SourceAttachment.Width.init -> void
 MeowChan.PluginSdk.SourceBoardId
 MeowChan.PluginSdk.SourceBoardId.BoardId.get -> string!
 MeowChan.PluginSdk.SourceBoardId.BoardId.init -> void

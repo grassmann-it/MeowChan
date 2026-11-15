@@ -1,5 +1,1 @@
 #nullable enable
-MeowChan.Archive.CapturedAttachment.Height.get -> int?
-MeowChan.Archive.CapturedAttachment.Height.init -> void
-MeowChan.Archive.CapturedAttachment.Width.get -> int?
-MeowChan.Archive.CapturedAttachment.Width.init -> void

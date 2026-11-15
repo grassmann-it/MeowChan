@@ -1,5 +1,1 @@
 #nullable enable
-MeowChan.PluginSdk.SourceAttachment.Height.get -> int?
-MeowChan.PluginSdk.SourceAttachment.Height.init -> void
-MeowChan.PluginSdk.SourceAttachment.Width.get -> int?
-MeowChan.PluginSdk.SourceAttachment.Width.init -> void
