@@ -151,8 +151,8 @@ on the page.
   details. Less common actions have a labelled **More** route. **Plugin details**
   (German: **Plugin-Details**) opens the second level; **Back to source**
   (**Zurück zur Quelle**) returns to the source without changing pages.
-  Older **Show plugin** (German: **Plugin anzeigen**) and **Show source** (German:
-  **Quelle anzeigen**) routes refer to this same shared page, not two footer destinations.
+  **Show plugin** (German: **Plugin anzeigen**) and **Show in Plugins** (German:
+  **In Plugins zeigen**) routes refer to this same shared page, not two footer destinations.
 - **Status (Diagnostics and Statistics):** Diagnostics starts with its filters
   collapsed in Barebones; a non-default filter opens the group. **Check now**,
   retrying the selection and showing it in Downloads stay directly available.
