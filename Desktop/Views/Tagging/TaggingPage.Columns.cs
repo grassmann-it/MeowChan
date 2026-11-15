@@ -1,6 +1,8 @@
 using System;
 using Avalonia.Controls;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
+using MeowChan.Desktop.WorkViews;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
