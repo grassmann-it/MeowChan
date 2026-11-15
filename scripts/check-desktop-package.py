@@ -68,7 +68,10 @@ def _ordinary_directory(path: Path) -> Path:
     """Return the physical package root; only the named system aliases may be links."""
     absolute = Path(os.path.abspath(path))
     parts = absolute.parts[1:]
-    current = Path(absolute.root)
+    # ``Path.root`` is only ``\\`` for a Windows drive; start at the full
+    # anchor (for example ``D:\\``) so temporary package roots stay on the
+    # drive where their fixture was created.
+    current = Path(absolute.anchor)
     for index, part in enumerate(parts):
         current /= part
         if current.is_symlink():
