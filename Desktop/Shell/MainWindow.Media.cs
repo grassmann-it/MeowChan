@@ -65,6 +65,7 @@ public partial class MainWindow
             EditTagsForMenuAsync = (entry, current) => EditMediaLibraryTagsForMenuAsync(entry, current),
             TagPopoverAsync = OpenMediaLibraryTagPopoverAsync,
             TagPopoverOptions = TagPopoverDefaults,
+            DecisionForEntries = DecisionForMediaEntries,
             ExecuteMediaMenuActionAsync = ExecuteMediaLibraryMenuActionAsync,
             ReadUserData = ReadMediaLibraryUserData,
             ReadBooruCatalog = _session.ReadBooruCatalog,
@@ -266,7 +267,7 @@ public partial class MainWindow
                     }
                     break;
                 case "favorites.toggle": await ToggleGalleryFavoriteAsync(entry); break;
-                // The rating menu's stars and "Remove rating" (R opens the same menu on the tile): written like the gallery's rating keys.
+                // Shift+1 to 5 and Shift+0 rate the tile directly (no menu entry any more): written like the gallery's rating keys.
                 case "media.rating.clear": await RateMediaPageEntryAsync(entry, null); break;
                 case "media.rating.set-1": await RateMediaPageEntryAsync(entry, 1); break;
                 case "media.rating.set-2": await RateMediaPageEntryAsync(entry, 2); break;

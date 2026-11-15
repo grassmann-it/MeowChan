@@ -811,7 +811,7 @@ internal static class BooruMediaChecks
     private static async Task TagActionAsync(MediaPage page, MediaLibraryTileRow row, DesktopSessionHost host, string phase)
     {
         await SelectAsync(page, row);
-        MenuItem tags = await MenuItemAsync(page, "media.tags.edit");
+        MenuItem tags = await MenuItemAsync(page, "media.rating.edit");
         // TP3 (plan 1.4): the entry stays enabled and the popover states the reason as text; nothing is tagged.
         Require(tags.IsEnabled && tags.Command!.CanExecute(null), phase + ": the tag entry of downloaded provider media must stay enabled and explain itself.");
         tags.Command!.Execute(null);

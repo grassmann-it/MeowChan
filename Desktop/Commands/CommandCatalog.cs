@@ -52,7 +52,7 @@ public static class CommandCatalog
         new("tagging.clear", "command.tagging.clear", "Clear queue…", "Warteschlange leeren…", "x-circle", null, CommandScope.Media, new[] { "tagging-page" }, new[] { "tagging" }),
         // The rating family has its own mask (star-half, decision #126 of 15.11.2026): the plain star stays the favourite's, so the two neighbouring menu
         // entries no longer look alike.
-        new("media.rating.edit", "command.media.rating.edit", "Rating", "Bewertung", "star-half", "R", CommandScope.Media | CommandScope.Reader | CommandScope.Gallery, new[] { "media-rating" }),
+        new("media.rating.edit", "command.media.rating.edit", "Rate and tag…", "Bewerten und taggen…", "star-half", "R", CommandScope.Media | CommandScope.Reader | CommandScope.Gallery, new[] { "media-rating" }),
         new("media.rating.clear", "command.media.rating.clear", "Remove rating", "Bewertung entfernen", "star-half", "Shift+0", CommandScope.Media | CommandScope.Gallery | CommandScope.Dialog, new[] { "media-rating" }),
         new("media.rating.manage", "command.media.rating.manage", "Manage saved ratings…", "Gespeicherte Bewertungen verwalten…", "star-half", null, CommandScope.Media | CommandScope.Archive | CommandScope.Gallery, new[] { "media-page", "archive-media-rating", "gallery-overflow" }),
         new("media.rating.remove-selected", "command.media.rating.remove-selected", "Remove selected rating…", "Ausgewählte Bewertung entfernen…", "star-half", null, CommandScope.Dialog, new[] { "media-ratings-manager" }),

@@ -2200,7 +2200,7 @@
     "command.reader-groups.move-down": "스레드 아래로 이동",
     "command.reader-groups.save": "그룹 저장",
     "command.reader-groups.read": "그룹 읽기",
-    "command.media.rating.edit": "평가",
+    "command.media.rating.edit": "평가 및 태그 지정…",
     "command.media.rating.clear": "평가 제거",
     "command.media.rating.manage": "저장된 평가 관리…",
     "command.media.rating.remove-selected": "선택한 평가 제거…",

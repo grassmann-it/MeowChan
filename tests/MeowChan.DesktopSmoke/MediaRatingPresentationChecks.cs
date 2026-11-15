@@ -6,6 +6,7 @@ using Avalonia.Input;
 using Avalonia.Styling;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using Texts = MeowChan.Desktop.Localization.Texts;
 
 namespace MeowChan.DesktopSmoke;
@@ -49,11 +50,11 @@ internal static partial class MediaRatingChecks
                 SetChoice(Filter, 0, "Keep presentation cell on all ratings");
                 string scale = _window.RenderScaling.ToString("0.##", CultureInfo.InvariantCulture);
                 string cell = mode.ToLowerInvariant() + "-" + language + "-" + theme.ToString().ToLowerInvariant() + "-" + scale + "x";
-                ContextMenu menu = await OpenRatingMenu(Row(2));
+                QuickTagPopover menu = await OpenRatingMenu(Row(2));
                 RequireMenuShows(menu, 3, "presentation cell");
-                MenuItem clear = RatingItem(menu, null);
-                Require(clear.IsEffectivelyEnabled && menu.Items.OfType<MenuItem>().All(item => !string.IsNullOrWhiteSpace(item.Header?.ToString())),
-                    "Remove rating must be genuinely available and every item labelled in the current language");
+                Button clear = RatingItem(menu, null);
+                Require(clear.IsEffectivelyEnabled && menu.DecisionRow!.StarButtons.All(star => !string.IsNullOrWhiteSpace(Avalonia.Automation.AutomationProperties.GetName(star))),
+                    "Remove rating must be genuinely available and every star labelled in the current language");
                 Program.CaptureWindow(_window, "smoke-rating-matrix-" + cell + "-owner.png");
                 await CloseRatingMenu(menu);
                 Require(Digest(RatingPath) == initialRatings && Rating(Row(2)) == 3, "Presentation menu changed the durable rating");

@@ -1991,7 +1991,7 @@
     "command.reader-groups.move-down": "Przesuń wątek w dół",
     "command.reader-groups.save": "Zapisz grupę",
     "command.reader-groups.read": "Czytaj grupę",
-    "command.media.rating.edit": "Ocena",
+    "command.media.rating.edit": "Oceń i taguj…",
     "command.media.rating.clear": "Usuń ocenę",
     "command.media.rating.manage": "Zarządzaj zapisanymi ocenami…",
     "command.media.rating.remove-selected": "Usuń wybraną ocenę…",

@@ -2350,7 +2350,7 @@
     "command.reader-groups.move-down": "Переместить тред вниз",
     "command.reader-groups.save": "Сохранить группу",
     "command.reader-groups.read": "Читать группу",
-    "command.media.rating.edit": "Оценка",
+    "command.media.rating.edit": "Оценить и добавить тег…",
     "command.media.rating.clear": "Удалить оценку",
     "command.media.rating.manage": "Управление сохранёнными оценками…",
     "command.media.rating.remove-selected": "Удалить выбранную оценку…",

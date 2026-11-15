@@ -4,6 +4,7 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using Avalonia.Threading;
 
@@ -100,6 +101,39 @@ internal sealed partial class GalleryViewer
     /// <summary>The info line (tests and smokes).</summary>
     internal Panel InfoLine => _infoLine;
 
+    // The "Rating: n" segment is no passive text (dead-affordance audit 15.11.): a click, Enter or Space opens "Rate and tag" like R does (the Tags
+    // segment with the stars focused). It is a tab stop with the rating as its accessible name and the command's gesture as its tooltip.
+    private void MakeRatingStatusInteractive() => MakeRatingStatusInteractive(_ratingStatus, RequestRateAndTag);
+
+    internal static void MakeRatingStatusInteractive(TextBlock status, Action open)
+    {
+        status.Focusable = true;
+        status.IsTabStop = true;
+        // The hand cursor needs the platform's cursor factory: without a platform (a headless host) the control keeps the arrow.
+        try { status.Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand); }
+        catch (InvalidOperationException) { }
+        AutomationProperties.SetControlTypeOverride(status, Avalonia.Automation.Peers.AutomationControlType.Button);
+        status.PointerPressed += (_, e) =>
+        {
+            if (!e.GetCurrentPoint(status).Properties.IsLeftButtonPressed) return;
+            e.Handled = true;
+            open();
+        };
+        status.KeyDown += (_, e) =>
+        {
+            if (e.KeyModifiers != Avalonia.Input.KeyModifiers.None || e.Key is not (Avalonia.Input.Key.Enter or Avalonia.Input.Key.Space)) return;
+            e.Handled = true;
+            open();
+        };
+        status.PropertyChanged += (_, e) =>
+        {
+            if (e.Property != TextBlock.TextProperty) return;
+            AutomationProperties.SetName(status, status.Text ?? string.Empty);
+            string label = CommandCatalog.Label("media.rating.edit");
+            ToolTip.SetTip(status, CommandCatalog.ShortcutDisplay("media.rating.edit") is { } gesture ? label + " · " + gesture : label);
+        };
+    }
+
     // Builds the one line: left the segments with their separators, right the status segment. The error and warning lines stay below it.
     private Control BuildInfoContent()
     {
@@ -122,6 +156,7 @@ internal sealed partial class GalleryViewer
                 if (e.Property == TextBlock.TextProperty || e.Property == IsVisibleProperty) UpdateInfoLine();
             };
         }
+        MakeRatingStatusInteractive();
         _infoSegments.Children.Add(_position); // never shown: the position stands between the arrows
         AutomationProperties.SetLiveSetting(_ratingSaved, AutomationLiveSetting.Polite);
         _ratingSavedTimer.Tick += (_, _) => ClearRatingSaved();

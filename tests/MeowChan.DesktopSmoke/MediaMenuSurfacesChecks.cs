@@ -31,7 +31,7 @@ internal static class MediaMenuSurfacesChecks
     // The common section in its one order (the tagging-queue entry sits right after the tag editor since 76620f29); the open command differs by id only (the media page opens its own window).
     private static readonly string[] Order =
     {
-        "gallery.open", "favorites.toggle", "media.rating.edit", "media.tags.edit", "media.queue.add",
+        "gallery.open", "favorites.toggle", "media.rating.edit", "media.queue.add",
         "media.export-original", "media.show-in-folder", "media.copy-path", "media.details", "gallery.show-in-thread"
     };
 
@@ -340,8 +340,8 @@ internal static class MediaMenuSurfacesChecks
         string[] pointer = Snapshot(menu);
         Console.WriteLine("SMOKE media menu gallery: " + string.Join(" | ", pointer));
         RequireOrder(menu, inGallery: true);
-        MenuItem tags = menu.Items.OfType<MenuItem>().Single(item => item.Tag as string == "media.tags.edit");
-        Require(tags.IsEnabled && Equals(tags.Header, Texts.T("media.tags.edit")), "The gallery menu does not offer the media tags.");
+        MenuItem rateAndTag = menu.Items.OfType<MenuItem>().Single(item => item.Tag as string == "media.rating.edit");
+        Require(rateAndTag.IsEnabled && Equals(rateAndTag.Header, CommandCatalog.Label("media.rating.edit")), "The gallery menu does not offer \"Rate and tag\".");
         // "Open in gallery" is meaningless inside the gallery; every other common action agrees with the other surfaces.
         Same("gallery pointer", pointer, "archive tiles", WithoutOpen(archiveTiles));
         Same("gallery pointer", pointer, "media page", WithoutOpen(mediaPageBound));

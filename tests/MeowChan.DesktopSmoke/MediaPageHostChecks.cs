@@ -61,8 +61,8 @@ internal static partial class MediaPageChecks
             async Task OpenMenuAndEditTagsAsync()
             {
                 page.Grid.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = Control.ContextRequestedEvent });
-                MenuItem edit = page.Grid.ContextMenu!.Items.OfType<MenuItem>().Single(item => item.Header as string == Texts.T("media.tags.edit"));
-                Require(edit.IsEnabled, "Edit media tags must be offered for a bound tile.");
+                MenuItem edit = page.Grid.ContextMenu!.Items.OfType<MenuItem>().Single(item => item.Header as string == CommandCatalog.Label("media.rating.edit"));
+                Require(edit.IsEnabled, "Rate and tag must be offered for a bound tile.");
                 // A real pointer click on the entry: it runs the command and then closes the menu like a user's click does.
                 await UntilAsync(() => edit.IsEffectivelyVisible && TopLevel.GetTopLevel(edit) != null);
                 TopLevel root = TopLevel.GetTopLevel(edit)!;

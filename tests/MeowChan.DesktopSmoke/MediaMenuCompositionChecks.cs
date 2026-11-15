@@ -67,9 +67,9 @@ internal static class MediaMenuCompositionChecks
             }
             ContextMenu bMenu = page.MediaMenu ?? throw new InvalidOperationException("The tile did not open the shared media menu.");
             Require(ReferenceEquals(bMenu, bControl.ContextMenu), "The menu was not attached to the exact requested tile control.");
-            Require(Item(bMenu, "media.tags.edit").IsEnabled, "A bound media occurrence lost its enabled tag action.");
-            Execute(bMenu, "media.tags.edit");
-            Require(calls.Count == 1 && calls[0].Id == "media.tags.edit" && ReferenceEquals(calls[0].Entry, b.Entry)
+            Require(Item(bMenu, "media.rating.edit").IsEnabled, "A bound media occurrence lost its enabled Rate and tag action.");
+            Execute(bMenu, "media.rating.edit");
+            Require(calls.Count == 1 && calls[0].Id == "media.rating.edit" && ReferenceEquals(calls[0].Entry, b.Entry)
                 && ReferenceEquals(page.Grid.SelectedItem, a), "Right-clicking B while A is selected acted on the selected row.");
             bMenu.Close();
             await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
@@ -84,7 +84,7 @@ internal static class MediaMenuCompositionChecks
                 KeyEventArgs key = new() { RoutedEvent = InputElement.KeyDownEvent, Key = Key, KeyModifiers = Modifiers };
                 bControl.RaiseEvent(key);
                 Require(key.Handled && page.MediaMenu?.IsOpen == true, "The keyboard context gesture did not open the shared menu.");
-                Execute(page.MediaMenu!, "media.tags.edit");
+                Execute(page.MediaMenu!, "media.rating.edit");
                 Require(calls.Count == 1 && ReferenceEquals(calls[0].Entry, b.Entry),
                     "The keyboard context gesture followed A instead of the focused B tile.");
                 page.MediaMenu!.Close();
@@ -95,11 +95,11 @@ internal static class MediaMenuCompositionChecks
             page.Grid.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = Control.ContextRequestedEvent });
             Require(page.MediaMenu?.IsOpen == true && ReferenceEquals(page.Grid.ContextMenu, page.MediaMenu),
                 "A positionless synthetic grid request did not attach a menu to the grid.");
-            Execute(page.MediaMenu!, "media.tags.edit");
+            Execute(page.MediaMenu!, "media.rating.edit");
             Require(calls.Count == 1 && ReferenceEquals(calls[0].Entry, a.Entry),
                 "A positionless grid request did not use the grid's selected occurrence.");
 
-            MenuItem stale = Item(page.MediaMenu!, "media.tags.edit");
+            MenuItem stale = Item(page.MediaMenu!, "media.rating.edit");
             page.MediaMenu!.Close();
             page.GetVisualDescendants().OfType<ComboBox>().Single(control => control.Name == "MediaSort").SelectedIndex = 1;
             stale.Command!.Execute(null);

@@ -19,8 +19,8 @@ namespace MeowChan.Desktop;
 // Review 15.11. (Tom's decision): the Post segment of the side panel carries what the toolbar's rating button and the rating dialog did.
 // Top to bottom, 12 dip between the sections, 8 inside a section, 4 from a caption to its content (the values the tag panel and the decision
 // row use): where the post is, favourite and stars (a second GalleryDecisionRow, created once and put back on every rebuild), the medium's tags
-// as chips (each a button that opens the Tags segment, like the link) with that link, a rule, then the post itself and the file. R (media.rating.edit) moves the focus to the
-// stars; only a panel that cannot take it opens the rating menu on the viewer.
+// as chips (each a button that opens the Tags segment, like the link) with that link, a rule, then the post itself and the file. R (media.rating.edit,
+// "Rate and tag") opens the Tags segment with its stars focused (RequestRateAndTag); a medium that cannot be tagged gets this segment's stars instead.
 internal sealed partial class GalleryViewer
 {
     internal const string PostDecisionName = "GalleryPostDecision";
@@ -137,12 +137,29 @@ internal sealed partial class GalleryViewer
     private static Control PostRule() => new Border { Name = "GalleryPostRule", Height = 1, [!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.Border"),
         Focusable = false, IsHitTestVisible = false };
 
-    // ---- R: the stars, or the rating menu -------------------------------------------------------------------------------------
+    // ---- R and "Rate and tag…": the Tags segment with the stars focused -------------------------------------------------------
+
+    /// <summary>The medium shown can be rated or tagged now (the "Rate and tag" command and its menu entry are available).</summary>
+    internal bool CanRateAndTag => _entry != null && !_terminalRetirement && (_ratingAvailable || CanOpenTagPanel);
+
+    private bool CanOpenTagPanel => _entry != null && _tagNames != null && CanRequestFavorite;
 
     /// <summary>
-    /// R moves the focus to the checked star (star 1 while unrated) of the panel, as a Tab would. Panel closed: the Post segment opens first.
+    /// R and the menu entry "Rate and tag…" (review 15.11.): the combined surface of the gallery is the Tags segment, favourite and stars on top
+    /// and the tag field under them. It opens when it is closed (the Post segment gives way to it), and its stars take the focus. A medium
+    /// that cannot be tagged has no Tags segment: its Post segment's stars take the focus instead (<see cref="FocusRatingStars"/>).
+    /// </summary>
+    internal void RequestRateAndTag()
+    {
+        if (_entry == null || _terminalRetirement) return;
+        if (!_tagPanelOpen && CanOpenTagPanel) RequestTags(); // the owner opens the tag panel into the Tags slot (ShowTagPanel), synchronously
+        if (!FocusRatingStars() && _tagPanelOpen) _tagSurface?.FocusField();
+    }
+
+    /// <summary>
+    /// Moves the focus to the checked star (star 1 while unrated) of the panel, as a Tab would. Panel closed: the Post segment opens first.
     /// The Tags segment open: it stays and its row's stars take the focus (switching would drop the marked-media context). False when no
-    /// panel can take the focus (the caller then shows the rating menu).
+    /// panel can take the focus.
     /// </summary>
     internal bool FocusRatingStars()
     {
@@ -166,22 +183,5 @@ internal sealed partial class GalleryViewer
             if (row.RouteStarKey(e)) { e.Handled = true; return true; }
         }
         return false;
-    }
-
-    /// <summary>The stars and "Remove rating" as a menu of their own at the viewer (R when no panel can take the focus). Rates the shown medium.</summary>
-    internal void ShowRatingMenu()
-    {
-        if (_entry == null || _terminalRetirement) return;
-        HoldSlideshowAdvance();
-        RevealOverlayControls();
-        GalleryEntry entry = _entry;
-        long navigation = _navigationId;
-        MediaMenuSession session = new(_nativeOverlayActive ? MediaMenuSurface.NativeVideoOverlay : MediaMenuSurface.Gallery, MediaMenuTarget.Of(entry),
-            () => !_terminalRetirement && navigation == _navigationId && _entry is { } current && MediaMenuTarget.Of(current) == MediaMenuTarget.Of(entry));
-        bool available = RatingSetRequested != null && _ratingAvailable;
-        ContextMenu menu = MediaMenuBuilder.BuildRatingMenu(session, _ratingValue, available, MediaMenuReasons.Unavailable,
-            value => { RatingSetRequested?.Invoke(entry, value); return Task.CompletedTask; }, action => action());
-        Control owner = _nativeOverlayActive ? _nativeVideoOverlay : _viewport;
-        _mediaMenuPresenter.Show(menu, session, owner, attachToOrigin: true, fallbackFocus: FocusGallerySurface);
     }
 }

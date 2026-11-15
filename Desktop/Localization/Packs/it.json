@@ -1981,7 +1981,7 @@
     "command.reader-groups.move-down": "Sposta thread in giù",
     "command.reader-groups.save": "Salva gruppo",
     "command.reader-groups.read": "Leggi gruppo",
-    "command.media.rating.edit": "Valutazione",
+    "command.media.rating.edit": "Valuta e tagga…",
     "command.media.rating.clear": "Rimuovi valutazione",
     "command.media.rating.manage": "Gestisci valutazioni salvate…",
     "command.media.rating.remove-selected": "Rimuovi valutazione selezionata…",

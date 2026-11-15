@@ -100,7 +100,7 @@ internal static class LocalMediaTagChecks
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
         tiles.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = Control.ContextRequestedEvent });
         await UntilAsync(() => page.ArchiveMediaMenu?.IsOpen == true);
-        return page.ArchiveMediaMenu!.Items.OfType<MenuItem>().Single(item => item.Tag as string == "media.tags.edit");
+        return page.ArchiveMediaMenu!.Items.OfType<MenuItem>().Single(item => item.Tag as string == "media.rating.edit");
     }
 
     private static async Task<MediaTagDialog> OpenTagsAsync(MainWindow shell, ArchivePage page, string file)

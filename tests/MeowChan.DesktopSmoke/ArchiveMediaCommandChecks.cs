@@ -52,7 +52,7 @@ internal static class ArchiveMediaCommandChecks
                     canExecute = item.Command?.CanExecute(item.CommandParameter) })));
             // The common media section comes first, in the one shared order (wave3 adds "Add to tagging queue" after the tag entry, PT1);
             // the page's own post-bookmark action follows it.
-            Require(page.EditPostBookmark != null && items.Length == 11 && items[^1].Tag == null
+            Require(page.EditPostBookmark != null && items.Length == 10 && items[^1].Tag == null
                 && Equals(items[^1].Header, CommandCatalog.Label("post-bookmarks.edit-post")),
                 "The real reader media menu lost its trailing post-bookmark action or contains unexpected actions.");
             MenuItem bookmark = items[^1];
@@ -62,20 +62,15 @@ internal static class ArchiveMediaCommandChecks
             MenuItem[] commands = items.Take(items.Length - 1).ToArray();
             string[] actualTags = commands.Select(item => item.Tag as string ?? "<untagged>").ToArray();
             Require(actualTags.SequenceEqual(new[]
-            { "gallery.open", "favorites.toggle", "media.rating.edit", "media.tags.edit", "media.queue.add", "media.export-original", "media.show-in-folder", "media.copy-path", "media.details", "gallery.show-in-thread" }),
+            { "gallery.open", "favorites.toggle", "media.rating.edit", "media.queue.add", "media.export-original", "media.show-in-folder", "media.copy-path", "media.details", "gallery.show-in-thread" }),
                 "Inline media menu lacks the shared media actions or order: " + string.Join(", ", actualTags));
             MenuItem rating = commands.Single(item => (string)item.Tag! == "media.rating.edit");
             Require(rating.IsEnabled && rating.Command?.CanExecute(rating.CommandParameter) == true,
                 "Saved inline media has no available shared rating action.");
-            // Review 15.11.: the rating entry is a submenu of five stars and "Remove rating" (no dialog).
-            Require(rating.ItemsSource?.Cast<object>().OfType<MenuItem>().Select(item => item.Tag as string).SequenceEqual(new[]
-                { "media.rating.set-1", "media.rating.set-2", "media.rating.set-3", "media.rating.set-4", "media.rating.set-5", "media.rating.clear" }) == true,
-                "The inline media menu's rating entry lacks its five stars and Remove rating.");
-            // TP3 (E5): one tag entry, "Tag…", which opens the quick tag popover on the attachment (the dialog is "Advanced…" inside it).
-            MenuItem tag = commands.Single(item => (string)item.Tag! == "media.tags.edit");
-            Require(Equals(tag.Header, Texts.T("media.tags.edit")) && Texts.T("media.tags.edit") == CommandCatalog.Label("media.tags.edit")
-                && tag.Command?.CanExecute(tag.CommandParameter) == true && page.TagPopoverAsync != null,
-                "The inline media menu's tag entry is not the one popover action.");
+            // Review 15.11.: "Rate and tag…" is one entry (no rating submenu, no second tag entry); it opens the quick tag popover with the stars on top.
+            Require(rating.ItemsSource == null || !rating.ItemsSource.Cast<object>().Any(), "The inline media menu's rate-and-tag entry must not have a submenu.");
+            Require(Equals(rating.Header, CommandCatalog.Label("media.rating.edit")) && page.TagPopoverAsync != null,
+                "The inline media menu's rate-and-tag entry is not the one popover action.");
             commands.Single(item => (string)item.Tag! == "gallery.open").Command!.Execute(null);
             Require(opened?.PostId == page.CurrentThread!.GetPosts(0, 1).Single().PostId,
                 "Inline context gallery lost the clicked attachment's post association.");

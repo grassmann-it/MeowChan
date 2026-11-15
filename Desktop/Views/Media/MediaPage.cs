@@ -122,7 +122,9 @@ public sealed partial class MediaPage : UserControl
     /// the entry, the tile it opened on, the context of the suggestions and the page's guard. Completes when the popover closed.
     /// Null falls back to the tag dialog of <see cref="EditTagsForMenuAsync"/>.
     /// </summary>
-    internal Func<MediaLibraryEntry, Control, TagContext, Func<bool>, Task>? TagPopoverAsync { get; set; }
+    internal Func<MediaLibraryEntry, Control, TagContext, Func<bool>, RateAndTagRequest, Task>? TagPopoverAsync { get; set; }
+    /// <summary>The favourite and rating row of the selection's "Rate and tag" popover over these entries (the shell supplies the decision session); null: no row.</summary>
+    internal Func<IReadOnlyList<MediaLibraryEntry>, bool, QuickTagPopoverDecision?>? DecisionForEntries { get; set; }
     /// <summary>Limits and suggestions of the selection's tag popover (the shell binds the saved settings); unset uses the defaults.</summary>
     internal Func<TagContext, QuickTagPopoverOptions>? TagPopoverOptions { get; set; }
     /// <summary>Opens the manager of saved ratings (the shell's dialog); the page re-reads ratings when the dialog has closed.</summary>
@@ -885,16 +887,16 @@ public sealed partial class MediaPage : UserControl
         catch (Exception error) when (UnhandledErrors.TryRecover(error, "media.grid.key")) { /* Logged and shown. */ }
     }
 
-    /// <summary>The Tags shortcut: the same two paths as the menu (one tile) and the selection bar (several), with the same gates.</summary>
+    /// <summary>The Tags shortcut: the same popover as "Rate and tag…" for the one tile or the selection, with the tag field focused.</summary>
     internal async Task EditTagsByShortcutAsync()
     {
         if (_lifetime.IsCancellationRequested || _building != null || _selectionBusy) return;
-        if (_grid.Selection.Count > 1) { await TagSelectionAsync(); return; }
+        if (_grid.Selection.Count > 1) { await TagSelectionAsync(focusRating: false); return; }
         if (SelectedRow is not { } row) return;
         bool Current() => !_lifetime.IsCancellationRequested && _building == null && IsEffectivelyVisible;
         MediaLibraryEntry entry = row.Entry;
         Control anchor = _grid.ContainerFromItem(row) ?? _grid;
-        await OpenTagsAsync(entry, row, anchor, Current);
+        await OpenRateAndTagAsync(entry, row, anchor, Current, focusRating: false);
     }
 
     /// <summary>Why the tile cannot be tagged (null when it can): unknown tag index, a provider medium, no bound version.</summary>
@@ -905,26 +907,29 @@ public sealed partial class MediaPage : UserControl
                 providerMedia: entry.BooruPostId != null);
 
     /// <summary>
-    /// "Tag…" of one tile (menu, shortcut): the quick tag popover on the tile, or the reason as text when the tile cannot be tagged.
-    /// Without a popover host the tag dialog opens as before.
+    /// "Rate and tag…" of the tiles (menu, R, Ctrl+Shift+T): the popover on the tile with the favourite and stars row on top and the tag field under
+    /// it; several selected tiles are rated and tagged together. A tile that cannot be tagged gets the stars and the reason as text. Without a popover
+    /// host the tag dialog opens as before.
     /// </summary>
-    private async Task OpenTagsAsync(MediaLibraryEntry entry, MediaLibraryTileRow row, Control anchor, Func<bool> current)
+    private async Task OpenRateAndTagAsync(MediaLibraryEntry entry, MediaLibraryTileRow row, Control anchor, Func<bool> current, bool focusRating)
     {
-        if (TagsBlockedReason(entry, row.State) is { } blocked)
-        {
-            QuickTagPopover.OpenBlocked(anchor, entry.Name ?? string.Empty, blocked, new QuickTagPopoverOptions { IsCurrent = current });
-            return;
-        }
+        if (_grid.Selection.Count > 1 && !_selectionBusy) { await TagSelectionAsync(anchor, focusRating); return; }
+        string? blocked = TagsBlockedReason(entry, row.State);
         if (TagPopoverAsync is { } popover)
         {
-            await popover(entry, anchor, QuickTagPopoverContext.ContextOf(entry, _shown, row.Index), current);
+            await popover(entry, anchor, QuickTagPopoverContext.ContextOf(entry, _shown, row.Index), current, new RateAndTagRequest(focusRating, blocked));
+            return;
+        }
+        if (blocked != null)
+        {
+            QuickTagPopover.OpenBlocked(anchor, entry.Name ?? string.Empty, blocked, new QuickTagPopoverOptions { IsCurrent = current });
             return;
         }
         if (EditTagsForMenuAsync != null) await EditTagsForMenuAsync(entry, current);
         else await ExecuteMediaActionAsync("media.tags.edit", entry, current);
     }
 
-    // media.rating.edit (R) opens the rating menu on the tile; the stars and the removal rate the selected tile directly (Shift+1 to 5, Shift+0).
+    // media.rating.edit (R) opens "Rate and tag" on the tile; the stars and the removal rate the selected tile directly (Shift+1 to 5, Shift+0).
     private static readonly string[] MediaShortcutCommands =
     {
         "media.rating.edit", "media.rating.set-1", "media.rating.set-2", "media.rating.set-3", "media.rating.set-4", "media.rating.set-5", "media.rating.clear",
@@ -937,33 +942,13 @@ public sealed partial class MediaPage : UserControl
     {
         if (_lifetime.IsCancellationRequested || _building != null || _selectionBusy || ExecuteMediaMenuActionAsync == null) return;
         if (id == "media.export-original" && _grid.Selection.Count > 1) { await ExportSelectionAsync(); return; }
+        // R: the combined popover for the tile, or for all selected tiles together.
+        if (id == "media.rating.edit" && _grid.Selection.Count > 1) { await TagSelectionAsync(focusRating: true); return; }
         if (_grid.Selection.Count != 1 || SelectedRow is not { } row || row.Entry.Presence != MediaLibraryPresence.Present) return;
-        if (id.StartsWith("media.rating.", StringComparison.Ordinal) && row.State?.RatingKnown != true) return;
+        if (id.StartsWith("media.rating.", StringComparison.Ordinal) && id != "media.rating.edit" && row.State?.RatingKnown != true) return;
         bool Current() => !_lifetime.IsCancellationRequested && _building == null && IsEffectivelyVisible;
-        if (id == "media.rating.edit") { OpenRatingMenu(row, _grid.ContainerFromItem(row) ?? _grid); return; }
+        if (id == "media.rating.edit") { await OpenRateAndTagAsync(row.Entry, row, _grid.ContainerFromItem(row) ?? _grid, Current, focusRating: true); return; }
         await ExecuteMediaActionAsync(id, row.Entry, Current);
-    }
-
-    /// <summary>
-    /// R on a tile: the rating menu (five stars and "Remove rating") on that tile instead of a dialog. It rates exactly the tile it opened on
-    /// and retires with the page's other menus when the grid, the page or the tile changes.
-    /// </summary>
-    internal void OpenRatingMenu(MediaLibraryTileRow row, Control origin)
-    {
-        if (_lifetime.IsCancellationRequested || !IsEffectivelyVisible || row.Entry.Presence != MediaLibraryPresence.Present) return;
-        long revision = _mediaMenuRevision;
-        long serial = ++_mediaMenuSerial;
-        object? rows = _grid.ItemsSource;
-        bool Current() => !_lifetime.IsCancellationRequested && _building == null && IsEffectivelyVisible
-            && revision == _mediaMenuRevision && serial == _mediaMenuSerial && ReferenceEquals(rows, _grid.ItemsSource)
-            && origin.IsAttachedToVisualTree() && origin.IsEffectivelyVisible;
-        MediaLibraryEntry entry = row.Entry;
-        bool available = ExecuteMediaMenuActionAsync != null && row.State?.RatingKnown == true;
-        MediaMenuSession session = new(MediaMenuSurface.MediaPage, MediaMenuTarget.Of(entry), Current);
-        Task Run(Func<Task> action) => RunMenuActionAsync(action, session);
-        ContextMenu menu = MediaMenuBuilder.BuildRatingMenu(session, row.State?.UserRating, available, MediaMenuReasons.Unavailable,
-            value => ExecuteMediaActionAsync(value == null ? "media.rating.clear" : "media.rating.set-" + value, entry, Current), Run);
-        _mediaMenuPresenter.Show(menu, session, origin, attachToOrigin: true, fallbackFocus: () => FocusGrid(Current));
     }
 
     internal void InitializeSharedMediaMenus()
@@ -1113,7 +1098,6 @@ public sealed partial class MediaPage : UserControl
             FavoriteWired = hostActions,
             RatingWired = hostActions,
             RatingKnown = state?.RatingKnown == true,
-            Rating = state?.UserRating,
             TagsWired = EditTagsForMenuAsync != null || TagPopoverAsync != null || hostActions,
             TagsBlocked = TagsBlockedReason(entry, state),
             TagsBlockedExplained = true,
@@ -1135,7 +1119,7 @@ public sealed partial class MediaPage : UserControl
         {
             [MediaMenuAction.Open] = () => OpenMediaMenuAsync(entry, galleryWindow, galleryStart, Current),
             [MediaMenuAction.Favorite] = () => ExecuteMediaActionAsync("favorites.toggle", entry, Current),
-            [MediaMenuAction.Tags] = () => OpenTagsAsync(entry, row, origin, Current),
+            [MediaMenuAction.RateAndTag] = () => OpenRateAndTagAsync(entry, row, origin, Current, focusRating: true),
             // One tile: that tile. Several selected: the selection frozen now, like the selection actions below.
             [MediaMenuAction.Queue] = queueTiles is { Count: > 1 } ? () => AddTilesToQueueAsync(queueTiles) : () => AddEntryToQueueAsync(entry),
             [MediaMenuAction.Export] = () => ExecuteMediaActionAsync("media.export-original", entry, Current),
@@ -1156,7 +1140,8 @@ public sealed partial class MediaPage : UserControl
             () => tile.IsGroup, Run, MediaMenuReasons.Unavailable, "list"));
         context.Add(MediaMenuBuilder.ContextCommandItem(session, "rules.edit-scope", () => { EditThreadRules?.Invoke(entry); return Task.CompletedTask; },
             () => EditThreadRules != null && HasThreadRules(entry), Run, Texts.T("media.rulesThreadUnavailable"), Texts.T("rules.thisThread")));
-        foreach ((Button action, string key, string icon) in new[] { (_selTag, "media.selection.tag", MenuIcon("tagging.tag-together")),
+        // "Tag the selection" is the common "Rate and tag…" entry when several tiles are selected (one entry, one surface).
+        foreach ((Button action, string key, string icon) in new[] {
             (_selGallery, "media.selection.gallery", MenuIcon("gallery.open")), (_selExport, "media.selection.export", MenuIcon("media.export-original")) })
         {
             Button selectedAction = action;
@@ -1174,8 +1159,7 @@ public sealed partial class MediaPage : UserControl
             ? queueTiles.Select(tileEntry => tileEntry.Entry).ToArray() : new[] { entry };
         if (QueueGroupMenu(session, queueEntries, Run) is { } groups) context.Add(groups);
         // The media panel's menu of a video starts with the playback group (play / pause, mute, repeat), as the reader's menu of a video does.
-        ContextMenu menu = MediaMenuBuilder.Build(session, model, handlers, Run, context, ShowSelectionNote, ReaderPlaybackMenu.MenuItems(playback, session, Run),
-            rate: value => ExecuteMediaActionAsync(value == null ? "media.rating.clear" : "media.rating.set-" + value, entry, Current));
+        ContextMenu menu = MediaMenuBuilder.Build(session, model, handlers, Run, context, ShowSelectionNote, ReaderPlaybackMenu.MenuItems(playback, session, Run));
         _mediaMenuPresenter.Show(menu, session, origin, attachToOrigin: true, fallbackFocus: () => FocusGrid(Current));
     }
 

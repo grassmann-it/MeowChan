@@ -25,8 +25,8 @@ internal enum MediaMenuAction
 {
     Open,
     Favorite,
-    Rating,
-    Tags,
+    /// <summary>"Rate and tag…": the one entry for the combined surface (favourite, stars and tags), review 15.11.</summary>
+    RateAndTag,
     Queue,
     Export,
     ShowInFolder,
@@ -87,8 +87,6 @@ internal sealed record MediaMenuFacts(MediaMenuSurface Surface, MediaMenuTarget?
     internal MediaMenuFavorite Favorite { get; init; } = MediaMenuFavorite.Unknown;
     internal bool FavoriteWired { get; init; } = true;
     internal bool RatingWired { get; init; } = true;
-    /// <summary>The rating of the target (1 to 5), or null when it is unrated; the "Rating" submenu checks it.</summary>
-    internal int? Rating { get; init; }
     /// <summary>False while ratings cannot be read; a nonempty <see cref="RatingBlocked"/> overrides the generic reason.</summary>
     internal bool RatingKnown { get; init; } = true;
     internal string? RatingBlocked { get; init; }
@@ -118,15 +116,8 @@ internal sealed record MediaMenuFacts(MediaMenuSurface Surface, MediaMenuTarget?
 
 /// <summary>One composed menu entry: what it is called, whether it can run and, if not, why.</summary>
 internal sealed record MediaMenuItemModel(MediaMenuAction Action, string? CommandId, string? TextKey, string Label,
-    bool Available, string? Reason, bool? Checked, IReadOnlyList<MediaMenuItemModel>? Children = null)
+    bool Available, string? Reason, bool? Checked)
 {
-    /// <summary>
-    /// The stars of the "Rating" submenu (<c>media.rating.set-1</c> to <c>-5</c>) and its "Remove rating" entry (<c>media.rating.clear</c>) are
-    /// children of the Rating entry; this is the value a child writes (1 to 5, null to remove). Meaningless for any other entry.
-    /// </summary>
-    internal int? RatingValue => CommandId is { } id && id.StartsWith(MediaMenuComposition.RatingSetPrefix, StringComparison.Ordinal)
-        ? int.Parse(id[MediaMenuComposition.RatingSetPrefix.Length..], System.Globalization.CultureInfo.InvariantCulture) : null;
-
     /// <summary>The identity used as the menu item's tag and by the keyboard router.</summary>
     internal string Id => CommandId ?? TextKey ?? Action.ToString();
     /// <summary>The icon of an entry without a catalog command (a command brings its own): the provider post entries take the icons of
@@ -140,7 +131,7 @@ internal sealed record MediaMenuItemModel(MediaMenuAction Action, string? Comman
     /// <summary>Open and show-in-thread group the first section, the file actions the second, the post actions the third.</summary>
     internal int Group => Action switch
     {
-        MediaMenuAction.Open or MediaMenuAction.Favorite or MediaMenuAction.Rating or MediaMenuAction.Tags or MediaMenuAction.Queue => 0,
+        MediaMenuAction.Open or MediaMenuAction.Favorite or MediaMenuAction.RateAndTag or MediaMenuAction.Queue => 0,
         MediaMenuAction.Export or MediaMenuAction.ShowInFolder or MediaMenuAction.CopyPath or MediaMenuAction.Details => 1,
         _ => 2
     };
@@ -184,27 +175,6 @@ internal static class MediaMenuComposition
 {
     internal static IReadOnlyList<MediaMenuAction> Order { get; } = Enum.GetValues<MediaMenuAction>();
 
-    internal const string RatingSetPrefix = "media.rating.set-";
-
-    /// <summary>
-    /// The entries of the "Rating" submenu and of the standalone rating menu (R on the media page and the archive): the five stars as a radio
-    /// group checked on <paramref name="rating"/>, then "Remove rating", which exists only while the target is rated. All share one availability
-    /// and reason; the entry that removes also needs a rating to remove.
-    /// </summary>
-    internal static IReadOnlyList<MediaMenuItemModel> RatingItems(int? rating, bool available, string? reason)
-    {
-        List<MediaMenuItemModel> items = new();
-        for (int value = 1; value <= 5; value++)
-        {
-            string id = RatingSetPrefix + value;
-            items.Add(new(MediaMenuAction.Rating, id, null, CommandCatalog.Label(id), available, available ? null : reason, rating == value));
-        }
-        bool rated = rating.HasValue;
-        items.Add(new(MediaMenuAction.Rating, "media.rating.clear", null, CommandCatalog.Label("media.rating.clear"), available && rated,
-            available ? rated ? null : MediaRatingText.Value(null) : reason, null));
-        return items;
-    }
-
     internal static string OpenCommand(MediaMenuSurface surface) => surface == MediaMenuSurface.MediaPage ? "media.open" : "gallery.open";
 
     internal static MediaMenuModel Compose(MediaMenuFacts facts)
@@ -233,14 +203,14 @@ internal static class MediaMenuComposition
         Add(MediaMenuAction.Favorite, "favorites.toggle", favoriteLabel,
             facts.Present && facts.FavoriteWired && facts.Favorite != MediaMenuFavorite.Unknown,
             NeedsFile() ?? MediaMenuReasons.Unavailable, facts.Favorite == MediaMenuFavorite.Unknown ? null : facts.Favorite == MediaMenuFavorite.On);
-        // "Rating" is a submenu (Tom's decision of 15.11.: no dialog): five stars, then "Remove rating". The entry keeps its id and its default key R.
-        bool ratingAvailable = facts.Present && facts.RatingWired && facts.RatingKnown && facts.RatingBlocked == null;
-        string ratingReason = NeedsFile() ?? facts.RatingBlocked ?? MediaMenuReasons.Unavailable;
-        items.Add(new(MediaMenuAction.Rating, "media.rating.edit", null, CommandCatalog.Label("media.rating.edit"), ratingAvailable,
-            ratingAvailable ? null : ratingReason, null, RatingItems(facts.Rating, ratingAvailable, ratingReason)));
-        Add(MediaMenuAction.Tags, "media.tags.edit", CommandCatalog.Label("media.tags.edit"),
-            facts.Present && facts.TagsWired && (facts.TagsBlocked == null || facts.TagsBlockedExplained),
-            NeedsFile() ?? facts.TagsBlocked ?? MediaMenuReasons.Unavailable);
+        // "Rate and tag…" is the one entry of the combined surface (Tom's decision of 15.11.: no rating submenu, no second tag entry): the favourite and
+        // stars row with the tag field under it. It keeps the id and the default key R of the former rating command. It can run while either half
+        // can: a medium that cannot be rated still gets the tags, a medium that cannot be tagged still gets the stars (its popover says why as text).
+        bool ratingAvailable = facts.RatingWired && facts.RatingKnown && facts.RatingBlocked == null;
+        bool tagsAvailable = facts.TagsWired && (facts.TagsBlocked == null || facts.TagsBlockedExplained);
+        Add(MediaMenuAction.RateAndTag, "media.rating.edit", CommandCatalog.Label("media.rating.edit"),
+            facts.Present && (ratingAvailable || tagsAvailable),
+            NeedsFile() ?? facts.RatingBlocked ?? facts.TagsBlocked ?? MediaMenuReasons.Unavailable);
         Add(MediaMenuAction.Queue, "media.queue.add", CommandCatalog.Label("media.queue.add"),
             facts.Present && facts.QueueWired && facts.QueueBlocked == null,
             NeedsFile() ?? facts.QueueBlocked ?? MediaMenuReasons.Unavailable);

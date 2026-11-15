@@ -69,6 +69,8 @@ internal sealed class GalleryDecisionRow : StackPanel
     }
 
     internal ToggleButton FavoriteButton => _favorite;
+    /// <summary>False hides the favourite button (a popover whose host has no favourites call for its targets); the stars stay.</summary>
+    internal bool FavoriteVisible { get => _favorite.IsVisible; set => _favorite.IsVisible = value; }
     internal IReadOnlyList<ToggleButton> StarButtons => _stars;
     internal Button ClearButton => _clear;
     internal TextBlock Summary => _summary;

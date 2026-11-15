@@ -9,6 +9,7 @@ using Avalonia.Styling;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Favorites;
 using MeowChan.Gallery;
 using MeowChan.Persistence;
@@ -147,40 +148,38 @@ internal static partial class MediaRatingChecks
         Require(ReferenceEquals(liveTiles.SelectedItem, current), "ListBox did not select the current exact-key row");
         return await FocusSelectedAsync(liveTiles, current);
     }
-    // Review 15.11.: the rating modal is gone. The archive rates through its rating menu (the stars and "Remove rating" as radio items of a
-    // context menu); the checks open that real menu and invoke the real item, like a keyboard or pointer user does.
-    private static ContextMenu? OpenMenuOn(Control anchor) => anchor.ContextMenu?.IsOpen == true ? anchor.ContextMenu : null;
-    private static async Task<ContextMenu> OpenRatingMenu(ArchiveAssetRow row)
+    // Review 15.11.: the rating modal and the rating menu are gone. The archive rates through "Rate and tag" (the quick tag popover with the favourite and
+    // stars row on top); the checks open that real popover and press the real stars, like a keyboard or pointer user does.
+    private static async Task<QuickTagPopover> OpenRatingMenu(ArchiveAssetRow row)
     {
         await SelectAsync(row);
         Button edit = _page.FindControl<Button>("ArchiveEditRatingButton")!;
         await Program.WaitUntilAsync(() => edit.IsEnabled);
-        Click(edit, "Open the production rating menu for the selected exact identity");
-        ContextMenu? menu = null;
-        await Program.WaitUntilAsync(() => (menu = OpenMenuOn(_page.RatingMenuAnchor(edit))) != null);
-        Require(menu!.Items.OfType<MenuItem>().Count(item => item.Tag is string tag && tag.StartsWith("media.rating.", StringComparison.Ordinal)) == 6,
-            "The rating menu must offer five stars and Remove rating");
-        return menu!;
+        Click(edit, "Open the production Rate and tag popover for the selected exact identity");
+        QuickTagPopover? popover = null;
+        await Program.WaitUntilAsync(() => (popover = QuickTagPopover.Current) is { IsOpen: true, DecisionRow: not null });
+        Require(popover!.DecisionRow!.StarButtons.Count == 5 && popover.DecisionRow.ClearButton != null, "The popover must offer five stars and Remove rating");
+        return popover;
     }
-    private static MenuItem RatingItem(ContextMenu menu, int? value) =>
-        menu.Items.OfType<MenuItem>().Single(item => item.Tag as string == (value is { } star ? "media.rating.set-" + star : "media.rating.clear"));
-    private static async Task CloseRatingMenu(ContextMenu menu)
+    private static Button RatingItem(QuickTagPopover popover, int? value) =>
+        value is { } star ? popover.DecisionRow!.StarButtons[star - 1] : popover.DecisionRow!.ClearButton;
+    private static async Task CloseRatingMenu(QuickTagPopover popover)
     {
-        menu.Close();
-        await Program.WaitUntilAsync(() => !menu.IsOpen);
+        popover.Close();
+        await Program.WaitUntilAsync(() => !popover.IsOpen);
         await Task.Delay(70);
     }
-    // The checked radio item is the stored rating (none checked while unrated).
-    private static void RequireMenuShows(ContextMenu menu, int? rating, string phase)
+    // The checked star is the stored rating (none checked while unrated).
+    private static void RequireMenuShows(QuickTagPopover popover, int? rating, string phase)
     {
-        int? checkedStar = Enumerable.Range(1, 5).Cast<int?>().SingleOrDefault(star => RatingItem(menu, star).IsChecked);
-        Require(checkedStar == rating, phase + ": the rating menu checks " + (checkedStar?.ToString() ?? "no star") + " instead of " + (rating?.ToString() ?? "no star"));
-        Require(RatingItem(menu, null).IsEnabled == rating.HasValue, phase + ": Remove rating must be available exactly while the medium is rated");
+        int? checkedStar = Enumerable.Range(1, 5).Cast<int?>().SingleOrDefault(star => popover.DecisionRow!.StarButtons[star!.Value - 1].IsChecked == true);
+        Require(checkedStar == rating, phase + ": the popover checks " + (checkedStar?.ToString() ?? "no star") + " instead of " + (rating?.ToString() ?? "no star"));
+        Require(RatingItem(popover, null).IsEnabled == rating.HasValue, phase + ": Remove rating must be available exactly while the medium is rated");
     }
     private static async Task Pick(ArchiveAssetRow row, int? value)
     {
-        ContextMenu menu = await OpenRatingMenu(row);
-        MenuItem item = RatingItem(menu, value);
+        QuickTagPopover menu = await OpenRatingMenu(row);
+        Button item = RatingItem(menu, value);
         Click(item, value is { } star ? "Rate the exact identity " + star : "Remove the exact rating");
         await Program.WaitUntilAsync(() => Rating(row) == value);
         if (menu.IsOpen) await CloseRatingMenu(menu);
@@ -192,7 +191,7 @@ internal static partial class MediaRatingChecks
         Log("Reset shared comparison identity to 3", "explicit fixture reset through same production host callback");
         await _page.SetMediaRatingAsync!(KeyOf(row), 3);
         string before = Digest(RatingPath);
-        ContextMenu menu = await OpenRatingMenu(row);
+        QuickTagPopover menu = await OpenRatingMenu(row);
         RequireMenuShows(menu, 3, "initial confirmed rating");
         Program.CaptureWindow(_window, "smoke-rating-menu-open.png");
         await CloseRatingMenu(menu);
@@ -214,7 +213,7 @@ internal static partial class MediaRatingChecks
         string before = Digest(RatingPath);
         try
         {
-            ContextMenu menu = await OpenRatingMenu(row);
+            QuickTagPopover menu = await OpenRatingMenu(row);
             Click(RatingItem(menu, 4), "Attempt a rating during the durable write failure");
             await Task.Delay(300);
             if (menu.IsOpen) await CloseRatingMenu(menu);
@@ -320,11 +319,11 @@ internal static partial class MediaRatingChecks
             await CompareBasic();
             await CompareRetry();
             // An initially unrated medium offers Remove rating disabled; after the first rating the menu offers it.
-            ContextMenu unratedMenu = await OpenRatingMenu(Row(15));
+            QuickTagPopover unratedMenu = await OpenRatingMenu(Row(15));
             RequireMenuShows(unratedMenu, null, "initially unrated");
             await CloseRatingMenu(unratedMenu);
             await Pick(Row(15), 1);
-            ContextMenu firstRated = await OpenRatingMenu(Row(15));
+            QuickTagPopover firstRated = await OpenRatingMenu(Row(15));
             RequireMenuShows(firstRated, 1, "first rating");
             Click(RatingItem(firstRated, null), "Remove the first rating from the initially unrated medium");
             await Program.WaitUntilAsync(() => Rating(Row(15)) == null);
@@ -385,10 +384,10 @@ internal static partial class MediaRatingChecks
             Require(!Tiles.GetSelfAndVisualAncestors().Contains(_page), "Regression must target genuinely reparented reader pane");
             KeyGesture gesture = CommandBindings.Gesture("media.rating.edit")!;
             Require(Press(selected, gesture.Key, "Invoke configured rating edit on detached pane", gesture.KeyModifiers).Handled, "Detached shortcut not routed");
-            ContextMenu? opened = null;
-            await Program.WaitUntilAsync(() => (opened = OpenMenuOn(selected)) != null);
+            QuickTagPopover? opened = null;
+            await Program.WaitUntilAsync(() => (opened = QuickTagPopover.Current) is { IsOpen: true, DecisionRow: not null });
             await CloseRatingMenu(opened!);
-            Observe("Configured shortcut opened the real rating menu outside ArchivePage visual ancestry");
+            Observe("Configured shortcut opened the real Rate and tag popover outside ArchivePage visual ancestry");
         }
         finally { await _window.SessionHost.ApplySettingsAsync(original); }
     }

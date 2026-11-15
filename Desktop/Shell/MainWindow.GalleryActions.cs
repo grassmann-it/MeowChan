@@ -34,6 +34,7 @@ public partial class MainWindow
         _gallery.RatingSetRequested += (entry, value) => _ = SetGalleryRatingAsync(entry, value);
         _gallery.ManageRatingsRequested += () => _ = RunGalleryActionAsync(ManageMediaRatingsAsync);
         _gallery.FavoriteToggleRequested += entry => _ = RunGalleryActionAsync(() => ToggleGalleryFavoriteAsync(entry), entry.Key.ToString());
+        _gallery.RateAndTagTileRequested += (entry, anchor) => _ = RunGalleryActionAsync(() => OpenGalleryTileRateAndTagAsync(entry, anchor), entry.Key.ToString());
         _gallery.FavoriteSetRequested += (entry, selected) => _ = RunGalleryActionAsync(() => SetGalleryFavoriteAsync(entry, selected), entry.Key.ToString());
         _gallery.ExportOriginalRequested += entry => _ = RunGalleryActionAsync(() => ArchivePage.OpenOriginalExportAsync(
             new[] { FavoriteExportAsset.From(entry.Key.Thread, entry.Manifest, entry.Asset) }, _gallery), entry.Key.ToString());
