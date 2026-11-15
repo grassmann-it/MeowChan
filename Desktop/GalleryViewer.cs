@@ -524,6 +524,7 @@ internal sealed partial class GalleryViewer : UserControl
         InitializeWorkViewTools();
         RegisterWorkViewIds();
         InitializeFilmstrip();
+        InitializeWheelMode();
         UpdateFavorite();
         _exportOriginal.IsEnabled = false;
         UpdateContextButton();

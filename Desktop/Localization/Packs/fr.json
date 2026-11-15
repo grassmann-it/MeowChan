@@ -5078,6 +5078,12 @@
     "transfer.export.resultParts": "Paquets écrits : {0:N0} · fils : {1:N0} · taille totale : {2}",
     "transfer.export.partsKept": "Les paquets déjà écrits restent complets et importables — paquets : {0:N0} · fils : {1:N0} · taille : {2}",
     "transfer.export.withoutMedia": "Écrits sans médias (trop grands pour un paquet) : {0}",
-    "transfer.export.skipped": "Non exportés : {0}"
+    "transfer.export.skipped": "Non exportés : {0}",
+    "settings.galleryWheel": "Molette de la souris dans la galerie",
+    "settings.galleryWheel.hint": "Ce que fait la molette de la souris sur l’image ou la vidéo de la galerie. Zoom (par défaut) : la molette zoome à l’endroit du pointeur et Ctrl+molette passe au média suivant ou précédent. Parcourir les médias : la molette passe au média suivant ou précédent et Ctrl+molette zoome. La bande de miniatures, les commandes vidéo et les panneaux gardent leur propre molette.",
+    "settings.galleryWheel.zoom": "Zoom (Ctrl+molette parcourt)",
+    "settings.galleryWheel.browse": "Parcourir les médias (Ctrl+molette zoome)",
+    "gallery.wheelBrowse": "La molette parcourt les médias",
+    "gallery.wheelBrowse.help": "Activé : la molette passe au média suivant ou précédent et Ctrl+molette zoome. Désactivé : la molette zoome et Ctrl+molette passe au média suivant ou précédent."
   }
 }

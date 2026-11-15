@@ -5084,6 +5084,12 @@
     "transfer.export.resultParts": "Pacchetti scritti: {0:N0} · discussioni: {1:N0} · dimensione totale: {2}",
     "transfer.export.partsKept": "I pacchetti già scritti restano completi e importabili — pacchetti: {0:N0} · discussioni: {1:N0} · dimensione: {2}",
     "transfer.export.withoutMedia": "Scritte senza media (troppo grandi per un pacchetto): {0}",
-    "transfer.export.skipped": "Non esportate: {0}"
+    "transfer.export.skipped": "Non esportate: {0}",
+    "settings.galleryWheel": "Rotellina del mouse nella galleria",
+    "settings.galleryWheel.hint": "Cosa fa la rotellina del mouse sull’immagine o sul video della galleria. Zoom (predefinito): la rotellina ingrandisce sul puntatore e Ctrl+rotellina passa al contenuto successivo o precedente. Scorri i contenuti: la rotellina passa al contenuto successivo o precedente e Ctrl+rotellina ingrandisce. La striscia di anteprime, i controlli video e i pannelli mantengono la propria rotellina.",
+    "settings.galleryWheel.zoom": "Zoom (Ctrl+rotellina scorre)",
+    "settings.galleryWheel.browse": "Scorri i contenuti (Ctrl+rotellina ingrandisce)",
+    "gallery.wheelBrowse": "La rotellina del mouse scorre i contenuti",
+    "gallery.wheelBrowse.help": "Attivo: la rotellina passa al contenuto successivo o precedente e Ctrl+rotellina ingrandisce. Disattivo: la rotellina ingrandisce e Ctrl+rotellina passa al contenuto successivo o precedente."
   }
 }

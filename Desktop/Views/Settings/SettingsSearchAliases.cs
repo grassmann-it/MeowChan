@@ -47,6 +47,7 @@ internal static class SettingsSearchAliases
         ["ReaderHoverEnlargeSize"] = "hover pointer mouse preview zoom size überfahren zeiger maus vorschau größe",
         ["ReaderHoverEnlargeDelayMs"] = "hover pointer mouse preview delay überfahren zeiger maus vorschau verzögerung",
         ["ReaderNavigationMode"] = "navigation arrows next previous thread post bar hide always show off keyboard only pfeile weiter zurück nächster voriger navigationsleiste ausblenden immer anzeigen aus nur tastatur",
+        ["GalleryWheelMode"] = "gallery mouse wheel scroll zoom browse next previous medium picture video ctrl control galerie mausrad scrollen zoomen blättern nächstes voriges medium bild strg",
         ["ReaderNavigationShowPosition"] = "navigation counter position number thread post bar x of y zähler position nummer navigationsleiste von",
         ["ReaderMediaSidebar"] = "sidebar side panel column media large full height focused post leiste seitenleiste medien groß volle höhe markiert",
         ["ReaderMediaSidebarScope"] = "sidebar archive view large reader always where scope leiste seitenleiste archivansicht großer reader immer wo",

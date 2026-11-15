@@ -5127,6 +5127,12 @@
     "transfer.export.resultParts": "Zapsané balíčky: {0:N0} · vlákna: {1:N0} · celková velikost: {2}",
     "transfer.export.partsKept": "Už zapsané balíčky zůstávají úplné a importovatelné – balíčky: {0:N0} · vlákna: {1:N0} · velikost: {2}",
     "transfer.export.withoutMedia": "Zapsáno bez médií (příliš velké pro balíček): {0}",
-    "transfer.export.skipped": "Neexportováno: {0}"
+    "transfer.export.skipped": "Neexportováno: {0}",
+    "settings.galleryWheel": "Kolečko myši v galerii",
+    "settings.galleryWheel.hint": "Co dělá kolečko myši nad obrázkem nebo videem v galerii. Zvětšení (výchozí): kolečko zvětšuje v místě ukazatele a Ctrl+kolečko přejde na další nebo předchozí médium. Procházení médií: kolečko přejde na další nebo předchozí médium a Ctrl+kolečko zvětšuje. Pás náhledů, ovládání videa a panely si ponechávají vlastní kolečko.",
+    "settings.galleryWheel.zoom": "Zvětšení (Ctrl+kolečko prochází)",
+    "settings.galleryWheel.browse": "Procházení médií (Ctrl+kolečko zvětšuje)",
+    "gallery.wheelBrowse": "Kolečko myši prochází média",
+    "gallery.wheelBrowse.help": "Zapnuto: kolečko přejde na další nebo předchozí médium a Ctrl+kolečko zvětšuje. Vypnuto: kolečko zvětšuje a Ctrl+kolečko přejde na další nebo předchozí médium."
   }
 }

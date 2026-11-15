@@ -4983,6 +4983,12 @@
     "transfer.export.resultParts": "書き出したパッケージ：{0:N0} · スレッド：{1:N0} · 合計サイズ：{2}",
     "transfer.export.partsKept": "書き出し済みのパッケージは完全なままでインポートできます — パッケージ：{0:N0} · スレッド：{1:N0} · サイズ：{2}",
     "transfer.export.withoutMedia": "メディアなしで書き出し（1 つのパッケージには大きすぎる）：{0}",
-    "transfer.export.skipped": "エクスポートされていません：{0}"
+    "transfer.export.skipped": "エクスポートされていません：{0}",
+    "settings.galleryWheel": "ギャラリーのマウスホイール",
+    "settings.galleryWheel.hint": "ギャラリーの画像や動画の上でマウスホイールが行う操作です。ズーム（既定）: ホイールでポインター位置を中心に拡大縮小し、Ctrl+ホイールで次または前のメディアへ移動します。メディアを切り替え: ホイールで次または前のメディアへ移動し、Ctrl+ホイールでズームします。フィルムストリップ、動画コントロール、パネルはそれぞれ独自のホイール操作のままです。",
+    "settings.galleryWheel.zoom": "ズーム（Ctrl+ホイールで切り替え）",
+    "settings.galleryWheel.browse": "メディアを切り替え（Ctrl+ホイールでズーム）",
+    "gallery.wheelBrowse": "マウスホイールでメディアを切り替える",
+    "gallery.wheelBrowse.help": "オン: ホイールで次または前のメディアへ移動し、Ctrl+ホイールでズームします。オフ: ホイールでズームし、Ctrl+ホイールで次または前のメディアへ移動します。"
   }
 }

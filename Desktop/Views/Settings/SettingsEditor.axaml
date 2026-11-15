@@ -838,6 +838,18 @@
                             <ToggleSwitch x:Name="ReaderNavigationShowPositionInput" IsChecked="{Binding ReaderNavigationShowPosition, Mode=TwoWay}" AutomationProperties.Name="{Binding ReaderNavigationShowPositionLabel}" AutomationProperties.HelpText="{Binding ReaderNavigationShowPositionHint}" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center" OnContent="{x:Null}" OffContent="{x:Null}" AutomationProperties.LabeledBy="{Binding ElementName=ReaderNavigationShowPositionFieldLabel}" />
                         </Grid>
                     </Border>
+                    <!-- Gallery mouse wheel: zoom (default) or browse to the next and previous medium; Ctrl does the other one. -->
+                    <Border Classes="settings-divider">
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                            <StackPanel VerticalAlignment="Center" Spacing="{StaticResource Workspace.Space.4}" Classes="settings-label">
+                                <TextBlock x:Name="GalleryWheelModeFieldLabel" Text="{Binding GalleryWheelModeLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding GalleryWheelModeHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <ComboBox x:Name="GalleryWheelModeInput" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Stretch" ItemsSource="{Binding GalleryWheelModeChoices}" SelectedItem="{Binding SelectedGalleryWheelMode, Mode=TwoWay}" AutomationProperties.LabeledBy="{Binding ElementName=GalleryWheelModeFieldLabel}" AutomationProperties.Name="{Binding GalleryWheelModeLabel}" AutomationProperties.HelpText="{Binding GalleryWheelModeHint}">
+                                <ComboBox.ItemTemplate><DataTemplate x:DataType="local:SettingsChoice"><TextBlock Text="{Binding Label}" TextWrapping="Wrap" /></DataTemplate></ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </Grid>
+                    </Border>
                     <!-- Gallery filmstrip (V3): on/off, thumbnail size and how many thumbnails are decoded ahead of scrolling. -->
                     <Border Classes="settings-divider">
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">

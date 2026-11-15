@@ -5130,6 +5130,12 @@
     "transfer.export.resultParts": "Zapisane pakiety: {0:N0} · wątki: {1:N0} · łączny rozmiar: {2}",
     "transfer.export.partsKept": "Już zapisane pakiety pozostają kompletne i możliwe do zaimportowania – pakiety: {0:N0} · wątki: {1:N0} · rozmiar: {2}",
     "transfer.export.withoutMedia": "Zapisane bez mediów (za duże na pakiet): {0}",
-    "transfer.export.skipped": "Nie wyeksportowano: {0}"
+    "transfer.export.skipped": "Nie wyeksportowano: {0}",
+    "settings.galleryWheel": "Kółko myszy w galerii",
+    "settings.galleryWheel.hint": "Co robi kółko myszy nad obrazem lub filmem w galerii. Powiększanie (domyślnie): kółko powiększa w miejscu wskaźnika, a Ctrl+kółko przechodzi do następnego lub poprzedniego pliku. Przeglądanie plików: kółko przechodzi do następnego lub poprzedniego pliku, a Ctrl+kółko powiększa. Pasek miniatur, sterowanie filmem i panele zachowują własne działanie kółka.",
+    "settings.galleryWheel.zoom": "Powiększanie (Ctrl+kółko przegląda)",
+    "settings.galleryWheel.browse": "Przeglądanie plików (Ctrl+kółko powiększa)",
+    "gallery.wheelBrowse": "Kółko myszy przegląda pliki",
+    "gallery.wheelBrowse.help": "Włączone: kółko przechodzi do następnego lub poprzedniego pliku, a Ctrl+kółko powiększa. Wyłączone: kółko powiększa, a Ctrl+kółko przechodzi do następnego lub poprzedniego pliku."
   }
 }

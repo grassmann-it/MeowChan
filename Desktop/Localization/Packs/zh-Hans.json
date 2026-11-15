@@ -4983,6 +4983,12 @@
     "transfer.export.resultParts": "已写入传输包：{0:N0} · 帖子：{1:N0} · 总大小：{2}",
     "transfer.export.partsKept": "已写入的传输包保持完整且可导入——传输包：{0:N0} · 帖子：{1:N0} · 大小：{2}",
     "transfer.export.withoutMedia": "已不含媒体写入（单个包放不下）：{0}",
-    "transfer.export.skipped": "未导出：{0}"
+    "transfer.export.skipped": "未导出：{0}",
+    "settings.galleryWheel": "图库中的鼠标滚轮",
+    "settings.galleryWheel.hint": "鼠标滚轮在图库的图片或视频上的作用。缩放（默认）：滚轮在指针处缩放，Ctrl+滚轮切换到下一个或上一个媒体。浏览媒体：滚轮切换到下一个或上一个媒体，Ctrl+滚轮缩放。缩略图条、视频控件和面板保持各自的滚轮行为。",
+    "settings.galleryWheel.zoom": "缩放（Ctrl+滚轮浏览）",
+    "settings.galleryWheel.browse": "浏览媒体（Ctrl+滚轮缩放）",
+    "gallery.wheelBrowse": "鼠标滚轮浏览媒体",
+    "gallery.wheelBrowse.help": "开启：滚轮切换到下一个或上一个媒体，Ctrl+滚轮缩放。关闭：滚轮缩放，Ctrl+滚轮切换到下一个或上一个媒体。"
   }
 }

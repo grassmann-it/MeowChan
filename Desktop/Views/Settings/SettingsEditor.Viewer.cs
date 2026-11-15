@@ -198,7 +198,8 @@ public partial class SettingsEditor
         nameof(MediaBadgeMaxPerCornerLabel), nameof(MediaBadgeMaxPerCornerHint), nameof(GalleryStatusDwellMsLabel), nameof(GalleryStatusDwellMsHint),
         nameof(GalleryFilmstripTileGapLabel), nameof(GalleryFilmstripTileGapHint),
         nameof(GalleryFilmstripFlagFavoriteLabel), nameof(GalleryFilmstripFlagFavoriteHint), nameof(GalleryFilmstripFlagRatingLabel),
-        nameof(GalleryFilmstripFlagRatingHint), nameof(GalleryFilmstripFlagUntaggedLabel), nameof(GalleryFilmstripFlagUntaggedHint)
+        nameof(GalleryFilmstripFlagRatingHint), nameof(GalleryFilmstripFlagUntaggedLabel), nameof(GalleryFilmstripFlagUntaggedHint),
+        nameof(GalleryWheelModeLabel), nameof(GalleryWheelModeHint)
     };
 
     private void RaiseViewerVisibilityChanged() => Raise(new[] { nameof(IsGallerySlideshowVideoSeconds), nameof(IsGallerySlideshowVideoRepeats) });
@@ -222,6 +223,7 @@ public partial class SettingsEditor
         SelectedGallerySlideshowVideoRule = GallerySlideshowVideoRuleChoices.FirstOrDefault(item => item.Value == rule) ?? GallerySlideshowVideoRuleChoices[0];
         RefreshReaderNavigationModeChoices(SelectedReaderNavigationMode?.Value ?? _config.ReaderNavigationMode);
         RefreshGalleryFilmstripFlagUntaggedChoices(SelectedGalleryFilmstripFlagUntagged?.Value ?? _config.GalleryFilmstripFlagUntagged);
+        RefreshGalleryWheelModeChoices(SelectedGalleryWheelMode?.Value ?? _config.GalleryWheelMode);
         if (_refreshingLanguageLabels) RaiseViewerVisibilityChanged();
     }
 
@@ -279,6 +281,7 @@ public partial class SettingsEditor
         ResetNumber(ControlsIdleHideMsInput, config.ControlsIdleHideMs);
         RefreshReaderNavigationModeChoices(config.ReaderNavigationMode);
         ReaderNavigationShowPosition = config.ReaderNavigationShowPosition;
+        RefreshGalleryWheelModeChoices(config.GalleryWheelMode);
         GalleryFilmstrip = config.GalleryFilmstrip;
         GalleryFilmstripFlagFavorite = config.GalleryFilmstripFlagFavorite;
         GalleryFilmstripFlagRating = config.GalleryFilmstripFlagRating;
@@ -308,6 +311,7 @@ public partial class SettingsEditor
         candidate.ControlsIdleHideMs = GetInteger(ControlsIdleHideMs, ControlsIdleHideMsLabel, Config.ControlsIdleHideMsMinimum, Config.ControlsIdleHideMsMaximum);
         candidate.ReaderNavigationMode = SelectedReaderNavigationMode?.Value ?? _config.ReaderNavigationMode;
         candidate.ReaderNavigationShowPosition = ReaderNavigationShowPosition;
+        candidate.GalleryWheelMode = SelectedGalleryWheelMode?.Value ?? _config.GalleryWheelMode;
         candidate.GalleryFilmstrip = GalleryFilmstrip;
         candidate.GalleryFilmstripFlagFavorite = GalleryFilmstripFlagFavorite;
         candidate.GalleryFilmstripFlagRating = GalleryFilmstripFlagRating;

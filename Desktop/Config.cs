@@ -1162,6 +1162,19 @@ namespace MeowChan
         /// <summary>Whether the reader navigation bar shows the "3 / 27" and "12 / 405" counters (default on); off forces its compact form.</summary>
         [JsonConverter(typeof(DesktopPreferenceTrueBooleanConverter))]
         public bool ReaderNavigationShowPosition { get; set; } = true;
+        // Mouse wheel over the gallery's picture or video: "Zoom" (default, the wheel zooms at the pointer) or "Browse" (the wheel moves to the
+        // next or previous medium). Ctrl+wheel does the other one. Any other stored value reads as "Zoom". The filmstrip, the video controls
+        // and the panels keep their own wheel (see GalleryWheel).
+        private string _galleryWheelMode = GalleryWheelModeZoom;
+        public const string GalleryWheelModeZoom = "Zoom", GalleryWheelModeBrowse = "Browse";
+        [JsonConverter(typeof(DesktopPreferenceStringConverter))]
+        public string GalleryWheelMode
+        {
+            get => _galleryWheelMode;
+            set => _galleryWheelMode = NormalizeGalleryWheelMode(value);
+        }
+        internal static string NormalizeGalleryWheelMode(string? value) =>
+            string.Equals(value?.Trim(), GalleryWheelModeBrowse, StringComparison.OrdinalIgnoreCase) ? GalleryWheelModeBrowse : GalleryWheelModeZoom;
         /// <summary>GL5c: how long a transient status of the gallery's info line (the slideshow's "ready", a confirmation) stays before it fades out; a running slideshow and every error stay.</summary>
         [JsonConverter(typeof(DesktopPreferenceGalleryStatusDwellMsConverter))]
         public int GalleryStatusDwellMs { get; set; } = GalleryStatusDwellMsDefault;
@@ -1879,6 +1892,7 @@ namespace MeowChan
                 ControlsIdleHideMs = ControlsIdleHideMs,
                 ReaderNavigationMode = ReaderNavigationMode,
                 ReaderNavigationShowPosition = ReaderNavigationShowPosition,
+                GalleryWheelMode = GalleryWheelMode,
                 GalleryStatusDwellMs = GalleryStatusDwellMs,
                 GalleryFilmstrip = GalleryFilmstrip,
                 GalleryLayout = GalleryLayout,
@@ -2144,6 +2158,7 @@ namespace MeowChan
             ControlsIdleHideMs = source.ControlsIdleHideMs;
             ReaderNavigationMode = source.ReaderNavigationMode;
             ReaderNavigationShowPosition = source.ReaderNavigationShowPosition;
+            GalleryWheelMode = source.GalleryWheelMode;
             GalleryStatusDwellMs = source.GalleryStatusDwellMs;
             GalleryFilmstrip = source.GalleryFilmstrip;
             GalleryLayout = source.GalleryLayoutResetRequested ? null : source.GalleryLayout; // (a draft that asked for the reset: nothing chosen)
@@ -2367,6 +2382,7 @@ namespace MeowChan
             ControlsIdleHideMs = source.ControlsIdleHideMs;
             ReaderNavigationMode = source.ReaderNavigationMode;
             ReaderNavigationShowPosition = source.ReaderNavigationShowPosition;
+            GalleryWheelMode = source.GalleryWheelMode;
             GalleryStatusDwellMs = source.GalleryStatusDwellMs;
             // GL4: the layout is a direct preference of the gallery and is not taken from a draft, except its reset. The filmstrip box of the
             // settings page is the old setting: only a box the person changed sets the filmstrip choice of both modes. Changed means against

@@ -5078,6 +5078,12 @@
     "transfer.export.resultParts": "Paquetes escritos: {0:N0} · hilos: {1:N0} · tamaño total: {2}",
     "transfer.export.partsKept": "Los paquetes ya escritos siguen completos e importables — paquetes: {0:N0} · hilos: {1:N0} · tamaño: {2}",
     "transfer.export.withoutMedia": "Escritos sin multimedia (demasiado grandes para un paquete): {0}",
-    "transfer.export.skipped": "No exportados: {0}"
+    "transfer.export.skipped": "No exportados: {0}",
+    "settings.galleryWheel": "Rueda del ratón en la galería",
+    "settings.galleryWheel.hint": "Qué hace la rueda del ratón sobre la imagen o el vídeo de la galería. Zoom (predeterminado): la rueda amplía en el puntero y Ctrl+rueda pasa al medio siguiente o anterior. Recorrer medios: la rueda pasa al medio siguiente o anterior y Ctrl+rueda amplía. La tira de miniaturas, los controles de vídeo y los paneles conservan su propia rueda.",
+    "settings.galleryWheel.zoom": "Zoom (Ctrl+rueda recorre)",
+    "settings.galleryWheel.browse": "Recorrer medios (Ctrl+rueda amplía)",
+    "gallery.wheelBrowse": "La rueda del ratón recorre los medios",
+    "gallery.wheelBrowse.help": "Activado: la rueda pasa al medio siguiente o anterior y Ctrl+rueda amplía. Desactivado: la rueda amplía y Ctrl+rueda pasa al medio siguiente o anterior."
   }
 }
