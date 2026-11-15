@@ -1,10 +1,11 @@
 using Avalonia.Input;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 
 namespace MeowChan.DesktopTests;
 
 // The Media page's media panel (1.1.0 split view): only the pure plans are pinned here: the body row's widths (MediaPanelColumns),
-// the panel's arrow steps (MediaPanelFollow.Step) and its key routing (MediaPanelKeys.Route). The page itself is driven in the media-page smoke.
+// and its key routing (MediaPanelKeys.Route). The page itself is driven in the media-page smoke.
 public sealed class MediaPanelTests
 {
     private const double GridMinimum = MediaPageLayoutPlan.MinimumGridWidth;
@@ -113,38 +114,18 @@ public sealed class MediaPanelTests
             }
     }
 
-    // ---- MediaPanelFollow.Step ----
-
-    [Theory]
-    [InlineData(0, 5, 1, 1)]
-    [InlineData(3, 5, 1, 4)]
-    [InlineData(4, 5, 1, -1)]
-    [InlineData(4, 5, -1, 3)]
-    [InlineData(0, 5, -1, -1)]
-    [InlineData(2, 5, 7, 3)]
-    [InlineData(2, 5, -7, 1)]
-    [InlineData(0, 1, 1, -1)]
-    [InlineData(0, 1, -1, -1)]
-    [InlineData(0, 0, 1, -1)]
-    [InlineData(-1, 5, 1, -1)]
-    [InlineData(5, 5, -1, -1)]
-    public void StepMovesOneTileWithoutWrapping(int index, int count, int delta, int expected) =>
-        Assert.Equal(expected, MediaPanelFollow.Step(index, count, delta));
-
     // ---- MediaPanelKeys.Route ----
 
     private static MediaPanelKeyRoute Route(string? matched, Key key = Key.None, KeyModifiers modifiers = KeyModifiers.None, bool panelShown = true,
-        bool videoOffered = true, bool nativeInput = false, bool fromPanel = false, bool canPrevious = true, bool canNext = true, string? alsoMatched = null) =>
-        MediaPanelKeys.Route(key, modifiers, id => id == matched || id == alsoMatched, panelShown, videoOffered, nativeInput, fromPanel, canPrevious, canNext);
+        bool videoOffered = true, bool nativeInput = false, bool fromPanel = false, string? alsoMatched = null) =>
+        MediaPanelKeys.Route(key, modifiers, id => id == matched || id == alsoMatched, panelShown, videoOffered, nativeInput, fromPanel);
 
     [Fact]
-    public void TheArrowCommandsStepWhileTheyCanAndOnlyThroughTheirBindings()
+    public void ThePanelHasNoArrowCommandsAndTheGridsArrowKeysAreNoPanelKeys()
     {
-        Assert.Equal(MediaPanelKeyKind.Previous, Route("media.panel.previous").Kind);
-        Assert.Equal(MediaPanelKeyKind.Next, Route("media.panel.next").Kind);
-        Assert.Equal(MediaPanelKeyRoute.None, Route("media.panel.previous", canPrevious: false));
-        Assert.Equal(MediaPanelKeyRoute.None, Route("media.panel.next", canNext: false));
-        // The grid's own arrow keys are not panel keys: only the bindings decide.
+        // The panel shows exactly one medium: no previous/next command, no route that steps. The grid's own arrow keys are not panel keys.
+        Assert.DoesNotContain(CommandCatalog.All, command => command.Id is "media.panel.previous" or "media.panel.next");
+        Assert.Equal(["None", "Video", "ReturnToGrid"], Enum.GetNames<MediaPanelKeyKind>());
         Assert.Equal(MediaPanelKeyRoute.None, Route(null, Key.Right));
         Assert.Equal(MediaPanelKeyRoute.None, Route(null, Key.Left));
     }
@@ -166,7 +147,7 @@ public sealed class MediaPanelTests
     [Fact]
     public void AHiddenPanelOrATextFieldTakesNoKey()
     {
-        foreach (string id in new[] { "media.panel.previous", "media.panel.next", "video.play-pause", "video.mute" })
+        foreach (string id in new[] { "video.play-pause", "video.mute" })
         {
             Assert.Equal(MediaPanelKeyRoute.None, Route(id, panelShown: false));
             Assert.Equal(MediaPanelKeyRoute.None, Route(id, nativeInput: true));
@@ -186,11 +167,10 @@ public sealed class MediaPanelTests
     }
 
     [Fact]
-    public void TheArrowCommandsComeBeforeTheVideoKeys()
+    public void AVideoKeyIsGivenWayByAPageCommandThatHasItToo()
     {
-        // A key rebound to both an arrow command and a video command steps while it can, else plays.
-        Assert.Equal(MediaPanelKeyKind.Next, Route("media.panel.next", alsoMatched: "video.mute").Kind);
-        Assert.Equal(new MediaPanelKeyRoute(MediaPanelKeyKind.Video, ReaderVideoAction.Mute), Route("media.panel.next", canNext: false, alsoMatched: "video.mute"));
+        Assert.Equal(new MediaPanelKeyRoute(MediaPanelKeyKind.Video, ReaderVideoAction.Mute), Route("video.mute"));
+        Assert.Equal(MediaPanelKeyRoute.None, Route("video.mute", alsoMatched: "media.focus-mode"));
         Assert.Equal(new MediaPanelKeyRoute(MediaPanelKeyKind.Video, ReaderVideoAction.PlayPause), Route("video.play-pause", Key.Escape, fromPanel: true));
     }
 }

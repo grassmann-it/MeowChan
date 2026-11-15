@@ -4931,8 +4931,6 @@
     "settings.reader.mediaClick.post": "Otevřít v příspěvku",
     "settings.reader.mediaClick.gallery": "Otevřít v galerii",
     "reader.media.collapseHint": "Dalším kliknutím se obrázek vrátí na malou velikost.",
-    "command.media.panel.previous": "Předchozí médium",
-    "command.media.panel.next": "Další médium",
     "command.media.panel.toggle": "Panel médií",
     "media.layout.panel": "Panel médií",
     "media.layout.panelSide.left": "Panel médií vlevo",

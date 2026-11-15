@@ -4934,8 +4934,6 @@
     "settings.reader.mediaClick.post": "Otwórz w poście",
     "settings.reader.mediaClick.gallery": "Otwórz w galerii",
     "reader.media.collapseHint": "Kolejne kliknięcie przywraca obrazowi mały rozmiar.",
-    "command.media.panel.previous": "Poprzednie medium",
-    "command.media.panel.next": "Następne medium",
     "command.media.panel.toggle": "Panel boczny mediów",
     "media.layout.panel": "Panel boczny mediów",
     "media.layout.panelSide.left": "Panel boczny mediów po lewej",

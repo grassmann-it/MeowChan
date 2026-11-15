@@ -4891,8 +4891,6 @@
     "settings.reader.mediaClick.post": "Apri nel post",
     "settings.reader.mediaClick.gallery": "Apri nella galleria",
     "reader.media.collapseHint": "Un altro clic riporta l’immagine alla dimensione ridotta.",
-    "command.media.panel.previous": "Media precedente",
-    "command.media.panel.next": "Media successivo",
     "command.media.panel.toggle": "Barra laterale dei media",
     "media.layout.panel": "Barra laterale dei media",
     "media.layout.panelSide.left": "Barra laterale dei media a sinistra",

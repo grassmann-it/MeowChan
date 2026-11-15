@@ -23,8 +23,7 @@ public sealed class RoundButtonSingleCircleTests
             .Where(style => style.Elements(A + "Setter").Any(setter => (string?)setter.Attribute("Property") == "CornerRadius" && (string?)setter.Attribute("Value") == "16"))
             .Select(style => (string)style.Attribute("Selector")!).ToArray();
         // A new round button style needs the same review: its icon has no ring of its own.
-        // Button.overlay-nav (reader media sidebar, reviewed in wave8): the dark round arrows over a picture carry a chevron, no circled mask.
-        Assert.Equal(["Button.help-round", "Button.overlay-nav"], round);
+        Assert.Equal(["Button.help-round"], round);
     }
 
     [Fact]

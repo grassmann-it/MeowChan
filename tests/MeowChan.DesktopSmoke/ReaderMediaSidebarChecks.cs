@@ -104,9 +104,8 @@ internal static class ReaderMediaSidebarChecks
                 int shownFiles = Math.Min(count, page.ReaderMedia.Clamped().StripLimit);
                 Require(sidebar.StripVisible && sidebar.StripIndexes.Count == shownFiles, "The strip does not show the files of a post with several media.");
                 Require(sidebar.StripCurrent == page.MediaSidebarIndex && sidebar.Strip.SelectedIndex >= 0, "The strip does not mark the current file.");
-                // The overlay arrows and the "2 / 3" counter exist only for a post with more than one medium.
-                Require(sidebar.NavigationVisible && sidebar.CounterLine == ReaderMediaSidebarRules.CounterText(page.MediaSidebarIndex, count),
-                    "The overlay arrows or the counter of a post with several media are missing or wrong.");
+                // No overlay arrows and no "2 / 3" counter over the medium, also for a post with several media (the strip and Alt+Shift+Left/Right step).
+                Require(!HasOverlayNavigation(sidebar), "A post with several media shows overlay arrows or a counter over the medium.");
                 Require(sidebar.StripCounterText == ReaderMediaMultiRules.CounterText(page.MediaSidebarIndex, count), "The strip counter is wrong.");
                 int next = Math.Min(count - 1, page.MediaSidebarIndex + 1);
                 sidebar.Strip.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Right, Source = sidebar.Strip });
@@ -133,7 +132,7 @@ internal static class ReaderMediaSidebarChecks
                 await Task.Delay(ReaderMediaSidebarRules.FollowIntervalMs * 2);
                 await page.MediaSidebarTask;
                 Require(!sidebar.StripVisible && sidebar.StripCounterText.Length == 0, "A post with one file shows a strip.");
-                Require(!sidebar.NavigationVisible && sidebar.CounterLine.Length == 0, "A post with one file shows overlay arrows or a counter.");
+                Require(!HasOverlayNavigation(sidebar), "A post with one file shows overlay arrows or a counter.");
             }
 
             // Right side.
@@ -167,8 +166,12 @@ internal static class ReaderMediaSidebarChecks
         await Program.WaitUntilAsync(() => !host.IsVisible);
         Require(pane.Parent == page.FindControl<Grid>("ArchiveSplit") && Grid.GetColumn(pane) == embeddedColumn,
             "The pane did not return to its archive split column.");
-        Console.WriteLine("SMOKE reader media sidebar: on by default, compact header with the gallery button, overlay arrows and counter only for several media, framed large reader, View-menu switch, follow with throttle, live region, several-file strip with counter, grid layout, discovery hint, right side, width collapse, Escape and return passed.");
+        Console.WriteLine("SMOKE reader media sidebar: on by default, compact header with the gallery button, no overlay arrows or counter (strip for several media), framed large reader, View-menu switch, follow with throttle, live region, several-file strip with counter, grid layout, discovery hint, right side, width collapse, Escape and return passed.");
     }
+
+    // The sidebar has no arrows and no counter over the medium (named controls of the old overlay).
+    private static bool HasOverlayNavigation(ReaderMediaSidebar sidebar) => sidebar.GetVisualDescendants().OfType<Control>()
+        .Any(control => control.Name is "ReaderMediaSidebarPrevious" or "ReaderMediaSidebarNext" or "ReaderMediaSidebarCounter" or "ReaderMediaSidebarCounterText");
 
     private static async Task Flush() => await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
     private static void Click(Control control) => control.RaiseEvent(new RoutedEventArgs(control is MenuItem ? MenuItem.ClickEvent : Button.ClickEvent));

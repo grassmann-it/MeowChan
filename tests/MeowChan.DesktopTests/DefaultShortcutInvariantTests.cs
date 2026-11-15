@@ -133,16 +133,8 @@ public sealed class DefaultShortcutInvariantTests
         // Seeking with Ctrl+arrows stays a gallery key: on the Media page the arrows move the grid's selection.
         foreach (string id in new[] { "video.seek-back", "video.seek-forward", "video.seek-back-far", "video.seek-forward-far" })
             Assert.False(CommandCatalog.Get(id).Scope.HasFlag(CommandScope.Media), id);
-        // The panel's arrows: Media commands with no default gesture (the grid's own arrow keys step), labelled in both languages.
-        foreach (string id in new[] { "media.panel.previous", "media.panel.next" })
-        {
-            CommandDefinition command = CommandCatalog.Get(id);
-            Assert.Equal(CommandScope.Media, command.Scope);
-            Assert.Contains("media-panel", command.Contexts);
-            Assert.Empty(EffectiveShortcutBindings.Defaults(command, platform));
-            Assert.Empty(bindings.For(id));
-            Assert.False(string.IsNullOrWhiteSpace(command.LabelEn) || string.IsNullOrWhiteSpace(command.LabelDe), id);
-        }
+        // The panel shows exactly one medium: it has no previous/next commands (the grid's own arrow keys move the selection).
+        Assert.DoesNotContain(CommandCatalog.All, command => command.Id is "media.panel.previous" or "media.panel.next");
         Assert.DoesNotContain(bindings.Issues, issue => MediaPanelVideoCommands.Contains(issue.CommandId)
             || issue.OtherCommandId != null && MediaPanelVideoCommands.Contains(issue.OtherCommandId));
     }

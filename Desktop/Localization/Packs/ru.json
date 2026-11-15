@@ -4908,8 +4908,6 @@
     "settings.reader.mediaClick.post": "Открывать в посте",
     "settings.reader.mediaClick.gallery": "Открывать в галерее",
     "reader.media.collapseHint": "Повторный щелчок возвращает картинку к малому размеру.",
-    "command.media.panel.previous": "Предыдущее медиа",
-    "command.media.panel.next": "Следующее медиа",
     "command.media.panel.toggle": "Боковая панель медиа",
     "media.layout.panel": "Боковая панель медиа",
     "media.layout.panelSide.left": "Боковая панель медиа слева",

@@ -4796,8 +4796,6 @@
     "settings.reader.mediaClick.post": "投稿内で開く",
     "settings.reader.mediaClick.gallery": "ギャラリーで開く",
     "reader.media.collapseHint": "もう一度クリックすると画像が元の小さいサイズに戻ります。",
-    "command.media.panel.previous": "前のメディア",
-    "command.media.panel.next": "次のメディア",
     "command.media.panel.toggle": "メディアサイドバー",
     "media.layout.panel": "メディアサイドバー",
     "media.layout.panelSide.left": "メディアサイドバーを左に表示",

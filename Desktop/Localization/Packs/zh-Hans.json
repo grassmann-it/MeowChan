@@ -4796,8 +4796,6 @@
     "settings.reader.mediaClick.post": "在帖子中打开",
     "settings.reader.mediaClick.gallery": "在图库中打开",
     "reader.media.collapseHint": "再次点击可将图片恢复为小尺寸。",
-    "command.media.panel.previous": "上一个媒体",
-    "command.media.panel.next": "下一个媒体",
     "command.media.panel.toggle": "媒体侧栏",
     "media.layout.panel": "媒体侧栏",
     "media.layout.panelSide.left": "媒体侧栏在左侧",

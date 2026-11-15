@@ -186,20 +186,6 @@ public sealed class ReaderInlineVideoBarTests : IDisposable
         Assert.Equal(string.Empty, ReaderMediaSidebarRules.HeaderText("", "", ""));
     }
 
-    [Theory]
-    [InlineData(0, 3, "1 / 3")]
-    [InlineData(1, 3, "2 / 3")]
-    [InlineData(2, 3, "3 / 3")]
-    [InlineData(7, 3, "3 / 3")]   // an index beyond the post is held at the last medium
-    [InlineData(0, 2, "1 / 2")]
-    [InlineData(0, 1, "")]
-    [InlineData(0, 0, "")]
-    public void TheCounterAndTheArrowsExistOnlyForMoreThanOneMedium(int index, int count, string text)
-    {
-        Assert.Equal(text, ReaderMediaSidebarRules.CounterText(index, count));
-        Assert.Equal(count > 1, ReaderMediaSidebarRules.ShowsNavigation(count));
-    }
-
     // ---- the hover bug, and the sources that pin the look -------------------------------------------------------------------------------
 
     private static string Source(string relative, [CallerFilePath] string self = "") =>
@@ -227,16 +213,20 @@ public sealed class ReaderInlineVideoBarTests : IDisposable
     }
 
     [Fact]
-    public void TheOverlayArrowsAreDarkAndWhiteInBothThemes()
+    public void TheMediaSidebarHasNoOverlayArrowsAndNoCounterOverTheMedium()
     {
-        string styles = Source("Desktop/WorkspaceStyles.axaml");
-        int at = styles.IndexOf("Button.overlay-nav\">", StringComparison.Ordinal);
-        Assert.True(at >= 0);
-        string rule = styles[at..styles.IndexOf("</Style>", at, StringComparison.Ordinal)];
-        Assert.Contains("#A6000000", rule);
-        Assert.Contains("Value=\"White\"", rule);
-        Assert.DoesNotContain("DynamicResource", rule);
-        Assert.Contains("overlay-nav", Source("Desktop/Views/Archive/ReaderMediaSidebar.cs"));
+        // Tom (15.11.2026): the arrows and the "n / total" counter over the medium are gone for good, in the reader's sidebar and in the Media page's panel.
+        string styles = Source("Desktop/WorkspaceStyles.axaml"), sidebar = Source("Desktop/Views/Archive/ReaderMediaSidebar.cs");
+        Assert.DoesNotContain("overlay-nav", styles);
+        Assert.DoesNotContain("overlay-counter", styles);
+        foreach (string gone in new[] { "overlay-nav", "overlay-counter", "ReaderMediaSidebarPrevious", "ReaderMediaSidebarNext", "ReaderMediaSidebarCounter", "ShowsNavigation" })
+            Assert.DoesNotContain(gone, sidebar);
+        Assert.DoesNotContain("Previous", Source("Desktop/Views/Media/MediaPage.Panel.cs"));
+        Assert.DoesNotContain("StepPanel", Source("Desktop/Views/Media/MediaPage.Panel.cs"));
+        // The keys stay: Alt+Shift+Left/Right steps through the media of a post in the reader, the strip stays.
+        Assert.Contains("ReaderMediaSidebarStrip", sidebar);
+        Assert.Contains("reader.sidebar.previous-media", Source("Desktop/Commands/CommandCatalog.cs"));
+        Assert.Contains("reader.sidebar.next-media", Source("Desktop/Commands/CommandCatalog.cs"));
     }
 
     [Fact]

@@ -1618,19 +1618,6 @@
     <Style Selector="Button.video-activator:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" /></Style>
     <Style Selector="Button.video-activator:pressed /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" /></Style>
     <Style Selector="Button.video-activator:disabled /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="Transparent" /></Style>
-    <!-- Overlay arrows of the media sidebar: dark round buttons with white glyphs in both themes (they lie over a picture). -->
-    <Style Selector="Button.overlay-nav">
-        <Setter Property="Width" Value="32" /><Setter Property="Height" Value="32" /><Setter Property="MinHeight" Value="0" /><Setter Property="Padding" Value="4" />
-        <Setter Property="CornerRadius" Value="16" /><Setter Property="Foreground" Value="White" /><Setter Property="BorderThickness" Value="0" />
-        <Setter Property="Background" Value="#A6000000" />
-    </Style>
-    <Style Selector="Button.overlay-nav /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#A6000000" /><Setter Property="Foreground" Value="White" /></Style>
-    <Style Selector="Button.overlay-nav:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#D9000000" /><Setter Property="Foreground" Value="White" /></Style>
-    <Style Selector="Button.overlay-nav:pressed /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#F2000000" /><Setter Property="Foreground" Value="White" /></Style>
-    <Style Selector="Button.overlay-nav:disabled /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#66000000" /><Setter Property="Foreground" Value="#80FFFFFF" /></Style>
-    <!-- The media sidebar's counter over the picture ("2 / 3"): dark and theme-independent like the overlay arrows. -->
-    <Style Selector="Border.overlay-counter"><Setter Property="Background" Value="#B3000000" /></Style>
-    <Style Selector="TextBlock.overlay-counter-text"><Setter Property="Foreground" Value="White" /></Style>
     <!-- I7 tile corners: static chip badges and marks; the favourite star appears by opacity only (set, hover, keyboard focus),
          so nothing moves and the tile keeps its height. -->
     <Style Selector="Border.tile-mark"><Setter Property="Padding" Value="3" /></Style>

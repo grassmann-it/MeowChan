@@ -3,14 +3,12 @@ namespace MeowChan.Desktop.Localization;
 /// <summary>
 /// Texts of the Media page's media panel (a large medium beside the grid, the reader's media sidebar in the Media page; in English, as in the
 /// reader, it is the "media sidebar", in German the "Medienleiste": one word per thing): its layout rows,
-/// the header and empty state, the two arrow commands and the switch, the drag handle and the two settings (width, page width below which it hides).
+/// the header and empty state, the switch, the drag handle and the two settings (width, page width below which it hides).
 /// </summary>
 internal static class MediaPanelCatalog
 {
     internal static readonly (string Key, string English, string German)[] Entries =
     {
-        ("command.media.panel.previous", "Previous medium", "Voriges Medium"),
-        ("command.media.panel.next", "Next medium", "Nächstes Medium"),
         ("command.media.panel.toggle", "Media sidebar", "Medienleiste"),
         ("media.layout.panel", "Media sidebar", "Medienleiste"),
         ("media.layout.panel.collapsed", "Hidden while the page is narrower than {0} dip. Your choice stays.", "Ausgeblendet, solange die Seite schmaler als {0} dip ist. Deine Wahl bleibt erhalten."),

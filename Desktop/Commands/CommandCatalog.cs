@@ -288,8 +288,6 @@ public static class CommandCatalog
         new("reader.sidebar.previous-media", "command.reader.sidebar.previous-media", "Previous media of the post", "Voriges Medium des Posts", "chevron-left", "Alt+Shift+Left", CommandScope.Reader, new[] { "reader-media-sidebar" }),
         new("reader.sidebar.next-media", "command.reader.sidebar.next-media", "Next media of the post", "Nächstes Medium des Posts", "chevron-right", "Alt+Shift+Right", CommandScope.Reader, new[] { "reader-media-sidebar" }),
         // The Media page's media panel (a large medium beside the grid).
-        new("media.panel.previous", "command.media.panel.previous", "Previous medium", "Voriges Medium", "chevron-left", null, CommandScope.Media, new[] { "media-panel" }),
-        new("media.panel.next", "command.media.panel.next", "Next medium", "Nächstes Medium", "chevron-right", null, CommandScope.Media, new[] { "media-panel" }),
         new("media.panel.toggle", "command.media.panel.toggle", "Media sidebar", "Medienleiste", "sidebar", "Primary+Shift+M", CommandScope.Media, new[] { "media-layout-menu", "media-panel" }),
         new("post.hide", "command.post.hide", "Hide post", "Post ausblenden", "eye-off", null, CommandScope.Reader, new[] { "reader-post-menu" }),
         new("post.unhide", "command.post.unhide", "Show post again", "Post wieder anzeigen", "eye", null, CommandScope.Reader, new[] { "reader-post-menu" }),

@@ -23,10 +23,10 @@ public sealed class MediaPanelKeysTests : IDisposable
     [Theory, MemberData(nameof(Platforms))]
     public void ASavedMediaBindingOnAVideoKeyLeavesTheKeyToTheGalleryAndTheReader(ShortcutPlatform platform)
     {
-        // Every default gesture of the nine panel video keys, saved for a command that only runs on the Media page (media.focus-mode, an arrow of the panel).
+        // Every default gesture of the nine panel video keys, saved for a command that only runs on the Media page (media.focus-mode, the panel's switch).
         foreach ((string video, _) in ReaderVideoKeys.Commands)
             foreach (ShortcutGesture gesture in EffectiveShortcutBindings.Defaults(CommandCatalog.Get(video), platform))
-                foreach (string owner in new[] { "media.focus-mode", "media.panel.next" })
+                foreach (string owner in new[] { "media.focus-mode", MediaPanelKeys.ToggleCommandId })
                 {
                     var section = new ShortcutBindingsSection().Set(owner, [gesture]);
                     EffectiveShortcutBindings bindings = EffectiveShortcutBindings.Build(section, platform);
@@ -49,11 +49,11 @@ public sealed class MediaPanelKeysTests : IDisposable
         Assert.Empty(bindings.Issues);
         // On the Media page the page's own command has it: the panel does not take Space for its video.
         Assert.Equal(MediaPanelKeyRoute.None, MediaPanelKeys.Route(Key.Space, KeyModifiers.None, id => bindings.Matches(space, id),
-            panelShown: true, videoOffered: true, nativeInput: false, fromPanel: false, canPrevious: true, canNext: true));
+            panelShown: true, videoOffered: true, nativeInput: false, fromPanel: false));
         // Without that binding Space plays the panel video (and so no longer marks a tile with Ctrl+arrows, Space while a video is shown: K-6).
         EffectiveShortcutBindings plain = EffectiveShortcutBindings.Build(null, ShortcutPlatform.Linux);
         Assert.Equal(new MediaPanelKeyRoute(MediaPanelKeyKind.Video, ReaderVideoAction.PlayPause), MediaPanelKeys.Route(Key.Space, KeyModifiers.None,
-            id => plain.Matches(space, id), panelShown: true, videoOffered: true, nativeInput: false, fromPanel: false, canPrevious: true, canNext: true));
+            id => plain.Matches(space, id), panelShown: true, videoOffered: true, nativeInput: false, fromPanel: false));
     }
 
     [Theory, MemberData(nameof(Platforms))]
@@ -85,14 +85,13 @@ public sealed class MediaPanelKeysTests : IDisposable
     }
 
     [Fact]
-    public void ThePageClaimsAKeyThroughItsOwnCommandsButNotThroughTheVideoKeysOrThePanelArrows()
+    public void ThePageClaimsAKeyThroughItsOwnCommandsButNotThroughTheVideoKeys()
     {
         Assert.True(MediaPanelKeys.PageClaims(id => id == "media.focus-mode"));
         Assert.True(MediaPanelKeys.PageClaims(id => id == "media.select-all"));
         Assert.True(MediaPanelKeys.PageClaims(id => id == MediaPanelKeys.ToggleCommandId));
         Assert.True(MediaPanelKeys.PageClaims(id => id == "media.details"));
         Assert.False(MediaPanelKeys.PageClaims(id => ReaderVideoKeys.IsVideoCommand(id)));
-        Assert.False(MediaPanelKeys.PageClaims(id => id is "media.panel.previous" or "media.panel.next"));
         Assert.False(MediaPanelKeys.PageClaims(id => id == "gallery.slideshow-toggle"));
         Assert.False(MediaPanelKeys.PageClaims(_ => false));
     }

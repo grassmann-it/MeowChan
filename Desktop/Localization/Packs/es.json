@@ -4885,8 +4885,6 @@
     "settings.reader.mediaClick.post": "Abrir en la publicación",
     "settings.reader.mediaClick.gallery": "Abrir en la galería",
     "reader.media.collapseHint": "Otro clic devuelve la imagen a su tamaño pequeño.",
-    "command.media.panel.previous": "Medio anterior",
-    "command.media.panel.next": "Medio siguiente",
     "command.media.panel.toggle": "Barra lateral de medios",
     "media.layout.panel": "Barra lateral de medios",
     "media.layout.panelSide.left": "Barra lateral de medios a la izquierda",
