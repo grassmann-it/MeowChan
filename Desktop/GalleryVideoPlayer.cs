@@ -222,7 +222,11 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
     {
         if (!IsCurrent(playback.Generation) || !permitted()) return false;
         MediaPlayer player = playback.Player;
-        if (player.State == VLCState.Ended) player.Stop();
+        if (player.State == VLCState.Ended)
+        {
+            DisableUnrenderedAudioOutput(playback);
+            player.Stop();
+        }
         if (!IsCurrent(playback.Generation) || !permitted()) return false;
         if (!player.Play(playback.Media)) throw new InvalidOperationException("The video backend rejected playback.");
         return true;
@@ -275,7 +279,11 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
         {
             if (!_transportIntent.IsCurrent(command)) return;
             MediaPlayer player = playback.Player;
-            if (mode == VideoPlaybackMode.Stopped) player.Stop();
+            if (mode == VideoPlaybackMode.Stopped)
+            {
+                DisableUnrenderedAudioOutput(playback);
+                player.Stop();
+            }
             else if (mode == VideoPlaybackMode.Paused) player.SetPause(true);
             else if (player.State == VLCState.Paused) player.SetPause(false);
             else if (!player.IsPlaying) PlayCurrent(playback, () => _transportIntent.IsCurrent(command));
@@ -773,6 +781,10 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
                 player.Playing += (_, _) =>
                 {
                     // Start, resume, repeat and replay may (re)create the output and reset mute.
+                    // An Intel host without a CoreAudio endpoint needs the same defensive
+                    // audio-track admission on every play epoch, not only the first medium.
+                    _unrenderedAudioProbes = 0;
+                    _audioTrackDisableAttemptedForUnavailableOutput = false;
                     _audioProbe.Invalidate();
                     PostIntent(generation, intent =>
                     {
@@ -959,7 +971,10 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
                 if (!CanRestart() || expectedPlayer.State != VLCState.Ended) return;
                 long request = _lifetime.RequestId(generation);
                 using (PerformanceDiagnostics.Measure("video.native.repeat-stop", request, revision: generation))
+                {
+                    DisableUnrenderedAudioOutput(_playback!);
                     expectedPlayer.Stop();
+                }
                 if (!CanRestart() || _intent.BeginRepeat(intent) is not { } repeat) return;
                 if (!IsCurrent(generation) || !_intent.CanRepeat(repeat)) return;
                 using (PerformanceDiagnostics.Measure("video.native.repeat-play", request, revision: generation))
@@ -1268,6 +1283,30 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
         finally { _operations.Release(); }
     }
 
+    private void DisableUnrenderedAudioOutput(Playback playback)
+    {
+        if (!VideoNativeInput.UsesFileInput || _audioTrackDisableAttemptedForUnavailableOutput) return;
+        try
+        {
+            MediaStats statistics = playback.Media.Statistics;
+            if (playback.Player.AudioTrackCount > 0 && statistics.DecodedAudio > 0 && statistics.PlayedAudioBuffers == 0)
+            {
+                _audioTrackDisableAttemptedForUnavailableOutput = true;
+                if (playback.Player.SetAudioTrack(-1))
+                {
+                    PerformanceDiagnostics.Record("video.audio", "disable-unrendered-output-before-stop",
+                        _lifetime.RequestId(playback.Generation), revision: playback.Generation);
+                }
+            }
+        }
+        catch (Exception exception)
+        {
+            // Cleanup still owns the player and will attempt the native stop. Do not turn
+            // an unavailable optional audio output into an untracked ownership loss.
+            Serilog.Log.Debug(exception, "Could not disable the unrendered Intel audio track before stop.");
+        }
+    }
+
     // The drawable and callback-reachable inputs remain owned until native release actually returns.
     // A throwing release poisons admission and retains this owner, rather than freeing live callbacks.
     private async Task ClearPlaybackAsync(long notNewerThan)
@@ -1279,6 +1318,8 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
         _lifetime.Cleanup.Owns("native operation, player/drawable, callback roots, media/input, verified stream, native file, engine");
         try
         {
+            _lifetime.Cleanup.Phase("native-audio-detach");
+            DisableUnrenderedAudioOutput(playback);
             _lifetime.Cleanup.Phase("native-stop");
             playback.Player.Stop();
             // A throwing Stop gives no proof that drawable users joined. Retain the owner and

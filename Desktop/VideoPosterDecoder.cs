@@ -22,27 +22,36 @@ internal static class VideoPosterDecoder
 
     /// <summary>The first-frame poster (unchanged contract): decoded from the start, at most 960×640.</summary>
     internal static Task<byte[]> DecodeAsync(Stream verifiedVideo, CancellationToken token) =>
-        DecodeCoreAsync(verifiedVideo, TimeSpan.Zero, PosterMaximumWidth, PosterMaximumHeight, "video.poster.decode", token);
+        DecodeAsync(verifiedVideo, sourceName: null, token);
+
+    /// <summary>Decode a poster while retaining the verified media suffix for LibVLC's file demuxer.</summary>
+    internal static Task<byte[]> DecodeAsync(Stream verifiedVideo, string? sourceName, CancellationToken token) =>
+        DecodeCoreAsync(verifiedVideo, sourceName, TimeSpan.Zero, PosterMaximumWidth, PosterMaximumHeight, "video.poster.decode", token);
 
     /// <summary>
     /// One scrub-preview frame near <paramref name="start"/> (LibVLC <c>:start-time</c>), scaled to fit the given bounds. Like
     /// <see cref="DecodeAsync"/> the decoder owns <paramref name="verifiedVideo"/> from this call on, including failures and cancellation.
     /// A start at or beyond the end fails like a video without a decodable frame. Not exercised natively yet (X06 core, wiring separate).
     /// </summary>
-    internal static Task<byte[]> DecodeAtAsync(Stream verifiedVideo, TimeSpan start, int maximumWidth, int maximumHeight, CancellationToken token)
+    internal static Task<byte[]> DecodeAtAsync(Stream verifiedVideo, TimeSpan start, int maximumWidth, int maximumHeight, CancellationToken token) =>
+        DecodeAtAsync(verifiedVideo, sourceName: null, start, maximumWidth, maximumHeight, token);
+
+    /// <summary>Decode a scrub frame while retaining the verified media suffix for LibVLC's file demuxer.</summary>
+    internal static Task<byte[]> DecodeAtAsync(Stream verifiedVideo, string? sourceName, TimeSpan start,
+        int maximumWidth, int maximumHeight, CancellationToken token)
     {
         if (start < TimeSpan.Zero) { verifiedVideo.Dispose(); throw new ArgumentOutOfRangeException(nameof(start)); }
         if (maximumWidth is < 1 or > PosterMaximumWidth)
         { verifiedVideo.Dispose(); throw new ArgumentOutOfRangeException(nameof(maximumWidth), "The frame bounds exceed the poster limits."); }
         if (maximumHeight is < 1 or > PosterMaximumHeight)
         { verifiedVideo.Dispose(); throw new ArgumentOutOfRangeException(nameof(maximumHeight), "The frame bounds exceed the poster limits."); }
-        return DecodeCoreAsync(verifiedVideo, start, maximumWidth, maximumHeight, "video.scrub.decode", token);
+        return DecodeCoreAsync(verifiedVideo, sourceName, start, maximumWidth, maximumHeight, "video.scrub.decode", token);
     }
 
-    private static async Task<byte[]> DecodeCoreAsync(Stream verifiedVideo, TimeSpan start, int maximumWidth, int maximumHeight,
-        string phase, CancellationToken token)
+    private static async Task<byte[]> DecodeCoreAsync(Stream verifiedVideo, string? sourceName, TimeSpan start,
+        int maximumWidth, int maximumHeight, string phase, CancellationToken token)
     {
-        await using var decoder = new DecodeSession(verifiedVideo, start, maximumWidth, maximumHeight);
+        await using var decoder = new DecodeSession(verifiedVideo, sourceName, start, maximumWidth, maximumHeight);
         using var measurement = PerformanceDiagnostics.Measure(phase, decoder.Id);
         await decoder.InitializeAsync(token).ConfigureAwait(false);
         Frame frame = await decoder.ReadAsync(token).ConfigureAwait(false);
@@ -62,6 +71,7 @@ internal static class VideoPosterDecoder
     {
         internal readonly long Id = PerformanceDiagnostics.NextId();
         private readonly Stream _verifiedVideo;
+        private readonly string? _sourceName;
         private readonly TimeSpan _start;
         private readonly int _maximumWidth, _maximumHeight;
         private readonly object _disposeLock = new();
@@ -84,9 +94,9 @@ internal static class VideoPosterDecoder
         private int _width, _height, _codedWidth, _codedHeight, _pitch, _count;
         private Frame? _last;
 
-        internal DecodeSession(Stream stream, TimeSpan start, int maximumWidth, int maximumHeight)
+        internal DecodeSession(Stream stream, string? sourceName, TimeSpan start, int maximumWidth, int maximumHeight)
         {
-            _verifiedVideo = stream;
+            _verifiedVideo = stream; _sourceName = sourceName;
             _start = start; _maximumWidth = maximumWidth; _maximumHeight = maximumHeight;
             _format = Format;
             _cleanup = (ref IntPtr opaque) => { };
@@ -102,7 +112,7 @@ internal static class VideoPosterDecoder
             _engine = new LibVLC("--no-audio", "--no-spu", "--no-osd", "--no-video-title-show", "--no-media-library", "--avcodec-hw=none");
             if (VideoNativeInput.UsesFileInput)
             {
-                _nativeFile = await VideoNativeInput.MaterializeAsync(_verifiedVideo, null, token).ConfigureAwait(false);
+                _nativeFile = await VideoNativeInput.MaterializeAsync(_verifiedVideo, _sourceName, token).ConfigureAwait(false);
                 _media = new Media(_engine, _nativeFile.Path, FromType.FromPath);
             }
             else

@@ -193,8 +193,8 @@ internal static class VideoPosterCache
                     {
                         // Transfer the handle only after the decoder has accepted the call and returned its task.
                         // A decoder can throw synchronously before it owns the stream; that path remains ours to dispose.
-                        Func<Stream, CancellationToken, Task<byte[]>> decoder =
-                            testSeam?.Decoder ?? VideoPosterDecoder.DecodeAsync;
+                        Func<Stream, CancellationToken, Task<byte[]>> decoder = testSeam?.Decoder
+                            ?? ((verified, cancellation) => VideoPosterDecoder.DecodeAsync(verified, asset.Path, cancellation));
                         Task<byte[]> decoding;
                         using (PerformanceDiagnostics.Measure("gallery.poster.decode", request, asset: asset.AssetId))
                         {
