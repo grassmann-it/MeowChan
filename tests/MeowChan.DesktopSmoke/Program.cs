@@ -264,21 +264,32 @@ internal static class Program
                     RenderingMode = new X11RenderingMode[] { X11RenderingMode.Software }
                 });
             }
-            int exitCode = appBuilder
-                .AfterPlatformServicesSetup(builder =>
-                {
-                    if (!_lockedProfileMode)
-                        ClipboardChecks.Install();
-                    if ((xvfbEnvironment && !_trayHostMode && _run?.NativeTray != true) || _noTrayMode || _trayFailureMode)
+            int exitCode;
+            try
+            {
+                exitCode = appBuilder
+                    .AfterPlatformServicesSetup(builder =>
                     {
-                        IWindowingPlatform platform = AvaloniaLocator.Current.GetRequiredService<IWindowingPlatform>();
-                        AvaloniaLocator.CurrentMutable.Bind<IWindowingPlatform>()
-                            .ToConstant(new NoTrayPlatform(platform, _trayFailureMode));
-                    }
-                })
-                .AfterSetup(builder => Dispatcher.UIThread.Post(async () => await RunAsync(), DispatcherPriority.Background))
-                .StartWithClassicDesktopLifetime(Array.Empty<string>(),
-                    (_downloadSessionMode || _shellLoadMode) ? ShutdownMode.OnExplicitShutdown : ShutdownMode.OnMainWindowClose);
+                        if (!_lockedProfileMode)
+                            ClipboardChecks.Install();
+                        if ((xvfbEnvironment && !_trayHostMode && _run?.NativeTray != true) || _noTrayMode || _trayFailureMode)
+                        {
+                            IWindowingPlatform platform = AvaloniaLocator.Current.GetRequiredService<IWindowingPlatform>();
+                            AvaloniaLocator.CurrentMutable.Bind<IWindowingPlatform>()
+                                .ToConstant(new NoTrayPlatform(platform, _trayFailureMode));
+                        }
+                    })
+                    .AfterSetup(builder => Dispatcher.UIThread.Post(async () => await RunAsync(), DispatcherPriority.Background))
+                    .StartWithClassicDesktopLifetime(Array.Empty<string>(),
+                        (_downloadSessionMode || _shellLoadMode) ? ShutdownMode.OnExplicitShutdown : ShutdownMode.OnMainWindowClose);
+            }
+            catch (Exception exception) when (SmokeStartupDiagnostics.TryGetUnknownCommand(exception, out string commandId))
+            {
+                string diagnostic = SmokeStartupDiagnostics.UnknownCommandRegistration(commandId);
+                startupTiming?.Finish(false, diagnostic);
+                Console.Error.WriteLine("SMOKE STARTUP FAILURE: " + diagnostic);
+                return 1;
+            }
 
             // StartupErrorWindow acknowledges an initialization failure by shutting
             // down with 2. Only this scenario deliberately creates that failure;
@@ -371,6 +382,13 @@ internal static class Program
                 return;
             }
 
+            if (window is not MainWindow)
+            {
+                string startupText = string.Join("\n", window.GetVisualDescendants().OfType<TextBlock>()
+                    .Select(block => block.Text).Where(text => !string.IsNullOrWhiteSpace(text)));
+                if (SmokeStartupDiagnostics.TryGetUnknownCommand(startupText, out string commandId))
+                    throw new InvalidOperationException(SmokeStartupDiagnostics.UnknownCommandRegistration(commandId));
+            }
             MainWindow mainWindow = window as MainWindow ?? throw new InvalidOperationException("MainWindow was not created.");
             if (await RunSelectedAsync(SmokeStage.BeforeSession, mainWindow)) return;
             // StartAsync returns the session's existing startup task, including plugin bootstrap.
@@ -693,8 +711,10 @@ internal static class Program
         }
         catch (Exception exception)
         {
-            _failure = exception;
-            Console.Error.WriteLine("SMOKE check failed: " + exception);
+            _failure = SmokeStartupDiagnostics.TryGetUnknownCommand(exception, out string commandId)
+                ? new InvalidOperationException(SmokeStartupDiagnostics.UnknownCommandRegistration(commandId), exception)
+                : exception;
+            Console.Error.WriteLine("SMOKE check failed: " + _failure);
             if ((_downloadSessionMode || _shellLoadMode || _galleryCloseOnly)
                 && Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime fixtureDesktop)
                 fixtureDesktop.Shutdown(1);
