@@ -294,17 +294,27 @@ internal sealed class ManualImportCatalogStore
         byte[] digest = SHA256.HashData(bytes);
         if (previous is { } same && previousDigest is { } known && digest.AsSpan().SequenceEqual(known))
         {
-            RegularProfileFileIdentity? observed = RegularProfileFile.TryGetIdentity(_path);
-            (_cached, _cachedIdentity, _cachedDigest) = (same, observed ?? before, digest);
+            // The path may have been replaced after the read handle closed. Never promote an identity observed
+            // after that replacement: the digest fallback must re-attest the bytes on the next read.
+            RegularProfileFileIdentity? after = RegularProfileFile.TryGetIdentity(_path);
+            _cached = same;
+            _cachedIdentity = before is { } stable && after == stable ? stable : null;
+            _cachedDigest = digest;
             Interlocked.Increment(ref _cachedReads);
             return same;
         }
         Interlocked.Increment(ref _fullReads);
         ManualImportCatalogSnapshot? read = Parse(bytes, out bool newer);
         if (newer) throw new ManualImportException(ManualImportError.CatalogNewer);
-        // Only a file that did not change while it was read may be reused.
-        if (read != null && before is { } stable && RegularProfileFile.TryGetIdentity(_path) == stable)
-            (_cached, _cachedIdentity, _cachedDigest) = (read, stable, digest);
+        // Keep a validated snapshot for digest re-attestation even when the identity is unavailable or changed during
+        // the read. A fast identity hit is used only after the before/after identities remained stable.
+        RegularProfileFileIdentity? afterRead = RegularProfileFile.TryGetIdentity(_path);
+        if (read != null)
+        {
+            _cached = read;
+            _cachedIdentity = before is { } stable && afterRead == stable ? stable : null;
+            _cachedDigest = digest;
+        }
         return read ?? ManualImportCatalogSnapshot.Empty;
     }
 
@@ -334,7 +344,7 @@ internal sealed class ManualImportCatalogStore
             throw;
         }
         // The atomic writer has just published exactly these bytes. Keep the snapshot even when a platform cannot
-        // report a complete identity or reports a stale size; a later read still reattests the bytes by digest.
+        // provide an identity; subsequent reads can still re-attest the content by digest.
         (_cached, _cachedIdentity, _cachedDigest) = (snapshot, RegularProfileFile.TryGetIdentity(_path), SHA256.HashData(bytes));
         _validatedBackupDigest = replacedDigest;
     }
