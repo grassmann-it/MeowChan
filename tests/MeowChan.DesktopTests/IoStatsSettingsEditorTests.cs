@@ -94,9 +94,25 @@ public sealed class IoStatsSettingsEditorTests : IDisposable
     {
         XDocument markup = Markup();
         XElement option = Named(markup, "StatsHeaderMonitorInput");
-        Assert.Equal("CheckBox", option.Name.LocalName);
+        Assert.Equal("ToggleSwitch", option.Name.LocalName);
         Assert.Equal("{Binding StatsHeaderMonitorShown, Mode=TwoWay}", (string?)option.Attribute("IsChecked"));
         Assert.Equal("{Binding StatsHeaderMonitorLabel}", (string?)option.Attribute("AutomationProperties.Name"));
+        Assert.Equal("{Binding StatsHeaderMonitorHint}", (string?)option.Attribute("AutomationProperties.HelpText"));
+        Assert.Equal("{Binding ElementName=StatsHeaderMonitorFieldLabel}", (string?)option.Attribute("AutomationProperties.LabeledBy"));
+        Assert.Equal("{Binding StatsHeaderMonitorHint}", (string?)option.Attribute("ToolTip.Tip"));
+        Assert.Equal("{x:Null}", (string?)option.Attribute("OnContent"));
+        Assert.Equal("{x:Null}", (string?)option.Attribute("OffContent"));
+
+        XElement row = Named(markup, "StatsHeaderMonitorRow");
+        Assert.Equal("Border", row.Name.LocalName);
+        Assert.Equal("settings-divider", (string?)row.Attribute("Classes"));
+        XElement grid = Assert.Single(row.Elements());
+        Assert.Equal("Grid", grid.Name.LocalName);
+        Assert.Equal("settings-row", (string?)grid.Attribute("Classes"));
+        Assert.Equal("*,280", (string?)grid.Attribute("ColumnDefinitions"));
+        Assert.Contains(option.Ancestors(), e => ReferenceEquals(e, row));
+        Assert.Equal("{Binding StatsHeaderMonitorLabel}", (string?)Named(markup, "StatsHeaderMonitorFieldLabel").Attribute("Text"));
+        Assert.Contains(row.Descendants(), e => (string?)e.Attribute("Text") == "{Binding StatsHeaderMonitorHint}");
         Assert.Contains(option.Ancestors(), e => (string?)e.Attribute(X + "Name") == "SettingsInterfacePage");
         Assert.DoesNotContain(option.Ancestors(), e => (string?)e.Attribute(X + "Name") == "SettingsBehaviorPage");
         Assert.DoesNotContain(markup.Descendants(), e => (string?)e.Attribute(X + "Name") == "HeaderMonitorCheck");
@@ -105,6 +121,9 @@ public sealed class IoStatsSettingsEditorTests : IDisposable
         Assert.Contains("StatsHeaderMonitorShown", graph);
         Assert.Contains("HeaderMonitorToggled", graph);
         Assert.Contains("IoStatsDisplay.HeaderGraphOff", graph);
+        Assert.Contains("IoStatsDisplay.HeaderGraphShownAgain(_selectedStatsHeaderGraph?.Value)", graph);
+        string editor = File.ReadAllText(Path.Combine(RepositoryRoot(), "Desktop/Views/Settings/SettingsEditor.axaml.cs"));
+        Assert.Contains("candidate.StatsHeaderGraph = SelectedStatsHeaderGraph?.Value ?? _config.StatsHeaderGraph;", editor);
     }
 
     [Fact]
