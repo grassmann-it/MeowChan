@@ -507,15 +507,24 @@ internal static partial class GalleryPlaybackFeatureChecks
         using var layoutTrace = new ShellGalleryLayoutTrace(shell, viewer);
         async Task PresentForClickAsync(Button action)
         {
-            if (action.IsEffectivelyVisible) return;
-            // Rare gallery actions live in the real More flyout at this shell width.
-            // Present that popup before the shared keyboard-reachable Click helper;
-            // otherwise the hidden menu row is not a valid keyboard target.
+            bool InMorePopup() => action.GetSelfAndVisualAncestors().Contains(viewer.OverflowMenuContent);
+            // A keep-open row (Repeat video) leaves More open. Close it before clicking a toolbar action,
+            // and do not mistake the row's IsVisible state for a presented popup target.
+            if (viewer.IsOverflowOpen && !InMorePopup())
+            {
+                viewer.SetOverflowOpen(false);
+                await UntilAsync(() => !viewer.IsOverflowOpen, "Gallery More did not close before the toolbar action.");
+            }
+            if (action.IsAttachedToVisualTree() && action.IsEffectivelyVisible && action.IsEffectivelyEnabled
+                && action.Bounds.Width > 0 && action.Bounds.Height > 0) return;
+            // Rare gallery actions live in the real More flyout at this shell width. The action is under
+            // GalleryOverflowMenu -> GalleryPlaybackTools, so wait for that actual popup ancestry, not just IsVisible.
             viewer.SetOverflowOpen(true);
-            await UntilAsync(() => viewer.IsOverflowOpen && viewer.OverflowMenuContent.IsEffectivelyVisible
-                && viewer.OverflowMenuContent.Bounds.Height > 0 && action.IsEffectivelyVisible,
+            await UntilAsync(() => viewer.IsOverflowOpen && viewer.OverflowMenuContent.IsAttachedToVisualTree()
+                && viewer.OverflowMenuContent.IsEffectivelyVisible && viewer.OverflowMenuContent.Bounds.Height > 0
+                && InMorePopup() && action.IsAttachedToVisualTree() && action.IsEffectivelyVisible
+                && action.IsEffectivelyEnabled && action.Bounds.Width > 0 && action.Bounds.Height > 0,
                 "Gallery More did not present the hidden preference action.");
-            await LayoutAsync(shell);
         }
         layoutTrace.Record("before repeat");
         ToggleButton repeat = Find<ToggleButton>(viewer, "GalleryVideoRepeatToggle");
