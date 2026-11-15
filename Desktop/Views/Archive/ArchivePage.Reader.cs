@@ -429,7 +429,9 @@ public partial class ArchivePage
             bool offsetLost = requestedOffset is double requested
                 && Math.Abs((posts.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault()?.Offset.Y ?? requested) - requested) > 1;
             requestedOffset = null;
-            if (pass == 0 || offsetLost || posts.ContainerFromItem(row) == null) posts.ScrollIntoView(row);
+            // A target already realized near the viewport (the neighbour of a keyboard step) is aligned from where it really is: the
+            // virtualizer's ScrollIntoView would first move it by estimated heights (off the viewport and back on a step up).
+            if ((pass == 0 && !RealizedNearViewport(posts, row)) || offsetLost || posts.ContainerFromItem(row) == null) posts.ScrollIntoView(row);
             posts.UpdateLayout();
             if (posts.ContainerFromItem(row) is not Control container) continue;
             FocusTarget(container);
@@ -459,6 +461,16 @@ public partial class ArchivePage
         if (!IsCurrent()) return;
         Finish(targetRow != null ? posts.ContainerFromItem(targetRow) as Control : null);
     }
+    // A realized container within one viewport height above or below the visible part of the list.
+    private static bool RealizedNearViewport(ListBox posts, object row)
+    {
+        if (posts.ContainerFromItem(row) is not Control container
+            || posts.GetVisualDescendants().OfType<ScrollContentPresenter>().FirstOrDefault() is not { Bounds.Height: > 0 } viewport
+            || container.TranslatePoint(default, viewport) is not Point at) return false;
+        double height = viewport.Bounds.Height;
+        return at.Y + container.Bounds.Height > -height && at.Y < 2 * height;
+    }
+
     internal void SetReaderScope(IReadOnlyList<ResourceId> threads)
     {
         ++_readerScopeRequest;
