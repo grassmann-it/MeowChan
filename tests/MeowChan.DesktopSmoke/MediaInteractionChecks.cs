@@ -282,9 +282,39 @@ internal static class MediaInteractionChecks
             }
         }
 
-        T Named<T>(string name) where T : Control => viewer!.GetGalleryVisualDescendants().OfType<T>().Single(c => c.Name == name);
+        IEnumerable<Visual> EvidenceVisuals()
+        {
+            GalleryViewer current = viewer!;
+            IEnumerable<Visual> visuals = current.GetGalleryVisualDescendants();
+            if (OperatingSystem.IsMacOS())
+            {
+                // The software-video presentation can leave the shared transport under its
+                // player root while GalleryControlTransfer is moving it into the dock. That
+                // root is still the authoritative control tree, even when it is not included
+                // by the viewer's attached descendants for this UI turn.
+                foreach (GalleryVideoPlayer player in visuals.OfType<GalleryVideoPlayer>())
+                {
+                    visuals = visuals.Concat(new[] { player.TransportControl }.Concat(player.TransportControl.GetVisualDescendants()));
+                    break;
+                }
+            }
+            return visuals.Distinct();
+        }
+        T Named<T>(string name) where T : Control
+        {
+            T[] matches = EvidenceVisuals().OfType<T>().Where(control => control.Name == name).ToArray();
+            if (matches.Length != 1)
+                throw new InvalidOperationException($"Expected exactly one {typeof(T).Name} named {name}; found {matches.Length} in the current gallery presentation.");
+            return matches[0];
+        }
         Slider Seek() => Named<Slider>("GalleryVideoSeek");
-        GalleryVideoPlayer Player() => viewer!.GetGalleryVisualDescendants().OfType<GalleryVideoPlayer>().Single();
+        GalleryVideoPlayer Player()
+        {
+            GalleryVideoPlayer[] players = viewer!.GetGalleryVisualDescendants().OfType<GalleryVideoPlayer>().ToArray();
+            if (players.Length != 1)
+                throw new InvalidOperationException($"Expected exactly one GalleryVideoPlayer in the current gallery presentation; found {players.Length}.");
+            return players[0];
+        }
         async Task<GalleryVideoPlayer.PlaybackEvidence> SampleAsync(string label)
         {
             var evidence = await Player().InspectPlaybackAsync().WaitAsync(TimeSpan.FromSeconds(4));
@@ -343,7 +373,10 @@ internal static class MediaInteractionChecks
         async Task DragAsync(double fraction, bool release)
         {
             Slider seek = Seek();
-            Thumb thumb = seek.GetVisualDescendants().OfType<Track>().Single().Thumb!;
+            Thumb[] thumbs = seek.GetVisualDescendants().OfType<Thumb>().ToArray();
+            Require(thumbs.Length == 1,
+                $"Expected exactly one native timeline thumb in the current slider presentation; found {thumbs.Length}.");
+            Thumb thumb = thumbs[0];
             Record("inject", new { action = "native-thumb-drag", fraction, release });
             string stateBefore = (await SampleAsync("before-native-drag")).State;
             await native!.MoveAsync(thumb);
