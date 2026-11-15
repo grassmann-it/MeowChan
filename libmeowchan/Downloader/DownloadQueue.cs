@@ -769,7 +769,17 @@ public partial class DownloadQueue
             }
             if (cleanup == null)
             {
-                if (!await WaitForProducerAsync(cancellationToken, item.Thread).ConfigureAwait(false)) return false;
+                try
+                {
+                    if (!await WaitForProducerAsync(cancellationToken, item.Thread).ConfigureAwait(false)) return false;
+                }
+                catch (QueueStoppingException) when (!cancellationToken.IsCancellationRequested)
+                {
+                    // Stop can win before this caller has published an AdmissionWaiter.
+                    // A closed queue still completes admission with false; it must not leak
+                    // the internal stop sentinel to a caller that did not cancel its request.
+                    return false;
+                }
                 bool admitted = false;
                 AdmissionWaiter? created = null;
                 LinkedListNode<AdmissionWaiter>? createdNode = null;
