@@ -13,21 +13,22 @@ namespace MeowChan;
 /// grid space (<see cref="LayoutMenuBuilder.ToContextMenu"/>) are all made from the rows, so they cannot disagree, and a test can read what the
 /// menu offers and what each row would change without a window. Every row computes the whole next layout from the current one; the page applies
 /// it (visibility and sizes only) and saves it.
-/// Sections: the tag list (switch and side; the width is the drag handle on its edge), the rows above the grid, the parts of a tile's caption,
+/// Sections: the tag list (switch and side; the width is the drag handle on its edge), the media panel (switch and side, likewise), the rows above the grid, the parts of a tile's caption,
 /// the tile size, the ready-made layouts (the one that matches is checked) and "Reset layout".
 /// </summary>
 internal static class MediaLayoutMenu
 {
     internal const string IdPrefix = "media.layout.";
     internal const string TagListId = IdPrefix + "tagList", SideLeftId = IdPrefix + "side.left", SideRightId = IdPrefix + "side.right",
+        PanelId = IdPrefix + "panel", PanelSideLeftId = IdPrefix + "panelSide.left", PanelSideRightId = IdPrefix + "panelSide.right",
         ChipsId = IdPrefix + "chips", StatusId = IdPrefix + "status", SubtitleId = IdPrefix + "subtitle",
         CaptionNameId = IdPrefix + "caption.name", CaptionTagsId = IdPrefix + "caption.tags", CaptionQueueId = IdPrefix + "caption.queue",
         CaptionSourceId = IdPrefix + "caption.source", SizeSmallId = IdPrefix + "size.small", SizeMediumId = IdPrefix + "size.medium",
         SizeLargeId = IdPrefix + "size.large", PresetStandardId = IdPrefix + "preset.standard", PresetBooruId = IdPrefix + "preset.booru",
         PresetGridId = IdPrefix + "preset.grid", ResetId = IdPrefix + "reset";
 
-    /// <summary>The exclusive groups of the side, the size and the presets.</summary>
-    internal const string SideGroup = "side", SizeGroup = "size", PresetGroup = "preset";
+    /// <summary>The exclusive groups of the tag list's side, the media panel's side, the size and the presets.</summary>
+    internal const string SideGroup = "side", PanelSideGroup = "panelSide", SizeGroup = "size", PresetGroup = "preset";
 
     private static readonly (string Id, string Key, MediaTileCaption Part)[] Captions =
     [
@@ -54,8 +55,11 @@ internal static class MediaLayoutMenu
     /// <summary>The accessible name of the menu in its context-menu form.</summary>
     internal static string MenuName => Texts.T("media.layout.menuName");
 
-    /// <summary>The menu for the layout as it is now. It has no title line (the button and the menu's name say what it edits).</summary>
-    internal static LayoutMenuModel Rows(MediaPageLayout current)
+    /// <summary>
+    /// The menu for the layout as it is now. It has no title line (the button and the menu's name say what it edits). <paramref name="panelHint"/> is what
+    /// the media panel's row says while the panel is chosen but hidden by the page width (the tooltip of the row).
+    /// </summary>
+    internal static LayoutMenuModel Rows(MediaPageLayout current, string? panelHint = null)
     {
         ArgumentNullException.ThrowIfNull(current);
         MediaPageLayout now = current.Normalized();
@@ -67,6 +71,10 @@ internal static class MediaLayoutMenu
         Toggle(TagListId, Texts.T("media.tagList"), now.TagList);
         Choice(SideGroup, SideLeftId, Texts.T("media.layout.side.left"), now.TagListSide == MediaTagListSide.Left);
         Choice(SideGroup, SideRightId, Texts.T("media.layout.side.right"), now.TagListSide == MediaTagListSide.Right);
+        Separator();
+        rows.Add(new(LayoutMenuRowKind.Toggle, PanelId, Texts.T("media.layout.panel")) { Checked = now.Panel, Hint = now.Panel ? panelHint : null });
+        Choice(PanelSideGroup, PanelSideLeftId, Texts.T("media.layout.panelSide.left"), now.PanelSide == MediaPanelSide.Left);
+        Choice(PanelSideGroup, PanelSideRightId, Texts.T("media.layout.panelSide.right"), now.PanelSide == MediaPanelSide.Right);
         Separator();
         Toggle(ChipsId, Texts.T("media.layout.chips"), now.FilterChips);
         Toggle(StatusId, Texts.T("media.layout.status"), now.StatusLine);
@@ -93,6 +101,9 @@ internal static class MediaLayoutMenu
             case TagListId: return now with { TagList = !now.TagList };
             case SideLeftId: return now with { TagListSide = MediaTagListSide.Left };
             case SideRightId: return now with { TagListSide = MediaTagListSide.Right };
+            case PanelId: return now with { Panel = !now.Panel };
+            case PanelSideLeftId: return now with { PanelSide = MediaPanelSide.Left };
+            case PanelSideRightId: return now with { PanelSide = MediaPanelSide.Right };
             case ChipsId: return now with { FilterChips = !now.FilterChips };
             case StatusId: return now with { StatusLine = !now.StatusLine };
             case SubtitleId: return now with { Subtitle = !now.Subtitle };

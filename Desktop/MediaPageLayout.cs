@@ -8,6 +8,9 @@ namespace MeowChan.Desktop;
 /// <summary>Which side of the grid the tag list stands on.</summary>
 internal enum MediaTagListSide { Left, Right }
 
+/// <summary>Which side of the grid the media panel (the large medium beside the grid) stands on.</summary>
+internal enum MediaPanelSide { Left, Right }
+
 /// <summary>The size of a tile: preview, cell width and cell height follow it (<see cref="MediaTileMetrics"/>).</summary>
 internal enum MediaTileSize { Small, Medium, Large }
 
@@ -57,34 +60,54 @@ internal sealed record MediaPageLayout
     internal MediaTileCaption Caption { get; init; } = MediaTileCaption.All;
     internal MediaTileSize TileSize { get; init; } = MediaTileSize.Medium;
 
-    /// <summary>The same layout with the width brought into its range.</summary>
+    /// <summary>
+    /// The media panel: the selected medium large beside the grid. On by default; it still hides by itself while the page is narrower than
+    /// <see cref="MeowChan.Config.MediaPanelMinimumPageWidth"/> (the choice stays, see <see cref="MediaPanelColumns"/>).
+    /// </summary>
+    internal bool Panel { get; init; } = true;
+    internal MediaPanelSide PanelSide { get; init; } = MediaPanelSide.Right;
+    /// <summary>The width of the media panel in dip (<see cref="MeowChan.Config.MediaPanelWidthMinimum"/> to <see cref="MeowChan.Config.MediaPanelWidthMaximum"/>).</summary>
+    internal int PanelWidth { get; init; } = MeowChan.Config.MediaPanelWidthDefault;
+
+    /// <summary>The same layout with the widths brought into their ranges.</summary>
     internal MediaPageLayout Normalized() => this with
     {
         TagListWidth = Math.Clamp(TagListWidth, MeowChan.Config.MediaTagListWidthMinimum, MeowChan.Config.MediaTagListWidthMaximum),
         Caption = Caption & MediaTileCaption.All,
         TagListSide = Enum.IsDefined(TagListSide) ? TagListSide : MediaTagListSide.Left,
-        TileSize = Enum.IsDefined(TileSize) ? TileSize : MediaTileSize.Medium
+        TileSize = Enum.IsDefined(TileSize) ? TileSize : MediaTileSize.Medium,
+        PanelWidth = Math.Clamp(PanelWidth, MeowChan.Config.MediaPanelWidthMinimum, MeowChan.Config.MediaPanelWidthMaximum),
+        PanelSide = Enum.IsDefined(PanelSide) ? PanelSide : MediaPanelSide.Right
     };
 
     /// <summary>
-    /// The layout a preset makes. The width of the tag list is the user's measure and stays (only "Reset" takes the default width back).
+    /// The layout a preset makes. The width of the tag list and the media panel (shown or not, its side and width) are the user's measures and stay (only "Reset" takes the defaults back).
     /// Standard is today's page; the Booru view puts the tag list on the left with compact tiles that show the tag count (and the queue
     /// mark), the chips and the status line on and the subtitle off; the grid only keeps nothing but the toolbar and the tiles.
     /// </summary>
-    internal static MediaPageLayout For(MediaLayoutPreset preset, MediaPageLayout current) => preset switch
+    internal static MediaPageLayout For(MediaLayoutPreset preset, MediaPageLayout current)
     {
-        MediaLayoutPreset.BooruView => new MediaPageLayout
+        MediaPageLayout own = current.Normalized();
+        return preset switch
         {
-            TagList = true, TagListSide = MediaTagListSide.Left, TagListWidth = current.Normalized().TagListWidth, FilterChips = true, StatusLine = true,
-            Subtitle = false, Caption = MediaTileCaption.TagCount | MediaTileCaption.QueueMark, TileSize = MediaTileSize.Small
-        },
-        MediaLayoutPreset.GridOnly => new MediaPageLayout
-        {
-            TagList = false, TagListSide = current.Normalized().TagListSide, TagListWidth = current.Normalized().TagListWidth, FilterChips = false,
-            StatusLine = false, Subtitle = false, Caption = MediaTileCaption.None, TileSize = MediaTileSize.Medium
-        },
-        _ => Standard with { TagListSide = current.Normalized().TagListSide, TagListWidth = current.Normalized().TagListWidth }
-    };
+            MediaLayoutPreset.BooruView => new MediaPageLayout
+            {
+                TagList = true, TagListSide = MediaTagListSide.Left, TagListWidth = own.TagListWidth, FilterChips = true, StatusLine = true,
+                Subtitle = false, Caption = MediaTileCaption.TagCount | MediaTileCaption.QueueMark, TileSize = MediaTileSize.Small,
+                Panel = own.Panel, PanelSide = own.PanelSide, PanelWidth = own.PanelWidth
+            },
+            MediaLayoutPreset.GridOnly => new MediaPageLayout
+            {
+                TagList = false, TagListSide = own.TagListSide, TagListWidth = own.TagListWidth, FilterChips = false,
+                StatusLine = false, Subtitle = false, Caption = MediaTileCaption.None, TileSize = MediaTileSize.Medium,
+                Panel = own.Panel, PanelSide = own.PanelSide, PanelWidth = own.PanelWidth
+            },
+            _ => Standard with
+            {
+                TagListSide = own.TagListSide, TagListWidth = own.TagListWidth, Panel = own.Panel, PanelSide = own.PanelSide, PanelWidth = own.PanelWidth
+            }
+        };
+    }
 
     /// <summary>"Reset": every block and measure at its default, the width of the tag list included.</summary>
     internal static MediaPageLayout Reset => Standard;
@@ -107,7 +130,8 @@ internal sealed record MediaPageLayout
 
     // ---- The saved text ----
 
-    private const string SideKey = "side", WidthKey = "width", ChipsKey = "chips", StatusKey = "status", SubtitleKey = "subtitle", CaptionKey = "caption", SizeKey = "size";
+    private const string SideKey = "side", WidthKey = "width", ChipsKey = "chips", StatusKey = "status", SubtitleKey = "subtitle", CaptionKey = "caption", SizeKey = "size",
+        PanelKey = "panel", PanelSideKey = "pside", PanelWidthKey = "pwidth";
     private static readonly (MediaTileCaption Part, string Name)[] CaptionNames =
     [
         (MediaTileCaption.Name, "name"), (MediaTileCaption.TagCount, "tags"), (MediaTileCaption.QueueMark, "queue"), (MediaTileCaption.Source, "source")
@@ -116,19 +140,27 @@ internal sealed record MediaPageLayout
     /// <summary>
     /// The saved text of everything but the tag list switch (that one lives in <see cref="MeowChan.Config.MediaBooruMode"/>):
     /// <c>side=left;width=256;chips=1;status=1;subtitle=1;caption=name,tags,queue,source;size=m</c>. A caption without parts is <c>caption=none</c>.
+    /// The media panel's three parts follow only where they differ from their defaults (<c>panel=0;pside=left;pwidth=420</c>), so a profile that never
+    /// touched the panel keeps exactly the text it had.
     /// </summary>
     internal string Format()
     {
         MediaPageLayout self = Normalized();
         string caption = self.Caption == MediaTileCaption.None ? "none" : string.Join(',', CaptionNames.Where(part => self.Caption.HasFlag(part.Part)).Select(part => part.Name));
-        return string.Join(';',
+        List<string> parts = new()
+        {
             SideKey + "=" + (self.TagListSide == MediaTagListSide.Right ? "right" : "left"),
             WidthKey + "=" + self.TagListWidth.ToString(CultureInfo.InvariantCulture),
             ChipsKey + "=" + Bit(self.FilterChips),
             StatusKey + "=" + Bit(self.StatusLine),
             SubtitleKey + "=" + Bit(self.Subtitle),
             CaptionKey + "=" + caption,
-            SizeKey + "=" + self.TileSize switch { MediaTileSize.Small => "s", MediaTileSize.Large => "l", _ => "m" });
+            SizeKey + "=" + self.TileSize switch { MediaTileSize.Small => "s", MediaTileSize.Large => "l", _ => "m" }
+        };
+        if (!self.Panel) parts.Add(PanelKey + "=0");
+        if (self.PanelSide != MediaPanelSide.Right) parts.Add(PanelSideKey + "=left");
+        if (self.PanelWidth != MeowChan.Config.MediaPanelWidthDefault) parts.Add(PanelWidthKey + "=" + self.PanelWidth.ToString(CultureInfo.InvariantCulture));
+        return string.Join(';', parts);
     }
 
     private static string Bit(bool value) => value ? "1" : "0";
@@ -161,6 +193,11 @@ internal sealed record MediaPageLayout
                 case CaptionKey when TryCaption(value, out MediaTileCaption caption): layout = layout with { Caption = caption }; break;
                 case SizeKey when value is "s" or "m" or "l":
                     layout = layout with { TileSize = value == "s" ? MediaTileSize.Small : value == "l" ? MediaTileSize.Large : MediaTileSize.Medium };
+                    break;
+                case PanelKey when TryBit(value, out bool panel): layout = layout with { Panel = panel }; break;
+                case PanelSideKey: layout = layout with { PanelSide = value == "left" ? MediaPanelSide.Left : MediaPanelSide.Right }; break;
+                case PanelWidthKey when int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out int panelWidth):
+                    layout = layout with { PanelWidth = Math.Clamp(panelWidth, MeowChan.Config.MediaPanelWidthMinimum, MeowChan.Config.MediaPanelWidthMaximum) };
                     break;
             }
         }
@@ -243,7 +280,7 @@ internal readonly record struct MediaPageLayoutState(bool FocusMode, bool Status
 /// information the user can do without. Applying a plan only changes visibility, side, width and the tile appearance; it never presents the grid again.
 /// </summary>
 internal sealed record MediaPageLayoutPlan(bool Title, bool Subtitle, bool Toolbar, bool FilterChips, bool StatusLine, bool TagList,
-    MediaTagListSide TagListSide, double TagListWidth, MediaTileAppearance Tiles)
+    MediaTagListSide TagListSide, double TagListWidth, bool Panel, MediaPanelSide PanelSide, double PanelWidth, MediaTileAppearance Tiles)
 {
     internal static MediaPageLayoutPlan Of(MediaPageLayout layout, MediaPageLayoutState state)
     {
@@ -259,6 +296,9 @@ internal sealed record MediaPageLayoutPlan(bool Title, bool Subtitle, bool Toolb
             TagList: self.TagList,
             TagListSide: self.TagListSide,
             TagListWidth: self.TagListWidth,
+            Panel: self.Panel,
+            PanelSide: self.PanelSide,
+            PanelWidth: self.PanelWidth,
             Tiles: MediaTileMetrics.For(self.TileSize, self.Caption));
     }
 
@@ -281,4 +321,63 @@ internal sealed record MediaPageLayoutPlan(bool Title, bool Subtitle, bool Toolb
     /// <summary>The width the tag list gets in a body row of this width: the saved width within what <see cref="EffectiveTagListMaximum"/> allows.</summary>
     internal static double EffectiveTagListWidth(double savedWidth, double bodyWidth) =>
         Math.Clamp(savedWidth, MeowChan.Config.MediaTagListWidthMinimum, EffectiveTagListMaximum(bodyWidth));
+}
+
+/// <summary>
+/// The widths of the body row with the media panel (pure, no control): what the tag list and the panel get beside the grid in a body row of
+/// this width, and whether the panel shows at all. The panel is chosen in the layout (default on) and hides by itself while the body row is
+/// narrower than the minimum page width setting, or when even its smallest width would leave the grid under <see cref="MediaPageLayoutPlan.MinimumGridWidth"/>;
+/// the choice stays, the panel returns when the page is wide again. The tag list and the panel can both be shown: the panel keeps its smallest width
+/// first, then the tag list takes what it needs, and the grid keeps the rest (never less than its minimum). An unknown width (not laid out yet)
+/// counts as wide enough, so opening the page does not lay it out twice.
+/// </summary>
+internal readonly record struct MediaPanelColumns(bool PanelShown, bool CollapsedByWidth, double TagListWidth, double PanelWidth)
+{
+    /// <summary>What the panel's column adds beside the grid besides its width: its edge margin and the drag handle (a layout measure).</summary>
+    internal const double PanelChrome = 12 + 6;
+
+    internal static MediaPanelColumns Of(MediaPageLayout layout, double bodyWidth, int minimumPageWidth)
+    {
+        ArgumentNullException.ThrowIfNull(layout);
+        MediaPageLayout self = layout.Normalized();
+        bool known = double.IsFinite(bodyWidth) && bodyWidth > 0;
+        int minimum = Math.Clamp(minimumPageWidth, MeowChan.Config.MediaPanelMinimumPageWidthMinimum, MeowChan.Config.MediaPanelMinimumPageWidthMaximum);
+        bool collapsed = self.Panel && known && bodyWidth < minimum;
+        bool wanted = self.Panel && !collapsed;
+        double TagListFor(bool reservePanel) => !self.TagList ? 0 : !known ? self.TagListWidth : Math.Clamp(self.TagListWidth, MeowChan.Config.MediaTagListWidthMinimum,
+            Math.Max(MeowChan.Config.MediaTagListWidthMinimum, Math.Min(MeowChan.Config.MediaTagListWidthMaximum,
+                bodyWidth - MediaPageLayoutPlan.MinimumGridWidth - MediaPageLayoutPlan.BodyChrome
+                - (reservePanel ? MeowChan.Config.MediaPanelWidthMinimum + PanelChrome : 0))));
+        double tagList = TagListFor(wanted);
+        double panel = self.PanelWidth;
+        if (known && wanted)
+        {
+            double room = bodyWidth - MediaPageLayoutPlan.MinimumGridWidth - MediaPageLayoutPlan.BodyChrome - PanelChrome - tagList;
+            if (room < MeowChan.Config.MediaPanelWidthMinimum) { wanted = false; collapsed = true; tagList = TagListFor(false); }
+            else panel = Math.Clamp(self.PanelWidth, MeowChan.Config.MediaPanelWidthMinimum, Math.Min(MeowChan.Config.MediaPanelWidthMaximum, room));
+        }
+        return new MediaPanelColumns(wanted, collapsed, tagList, wanted ? panel : 0);
+    }
+
+    /// <summary>
+    /// The widest the tag list may be while the panel is shown at <paramref name="panelWidth"/> in a body row of this width (the list's drag handle's limit): the list's
+    /// own limit less what the panel takes; never below the list's minimum. Without a shown panel it is <see cref="MediaPageLayoutPlan.EffectiveTagListMaximum"/>.
+    /// </summary>
+    internal static double MaximumTagListWidth(double bodyWidth, bool panelShown, double panelWidth)
+    {
+        double maximum = MediaPageLayoutPlan.EffectiveTagListMaximum(bodyWidth);
+        if (!panelShown || !double.IsFinite(bodyWidth) || bodyWidth <= 0) return maximum;
+        return Math.Max(MeowChan.Config.MediaTagListWidthMinimum, Math.Min(maximum, bodyWidth - MediaPageLayoutPlan.MinimumGridWidth - MediaPageLayoutPlan.BodyChrome - PanelChrome - panelWidth));
+    }
+
+    /// <summary>The widest the panel may be in a body row of this width with this layout (the drag handle's limit); its range's maximum when the width is unknown.</summary>
+    internal static double MaximumPanelWidth(MediaPageLayout layout, double bodyWidth)
+    {
+        double maximum = MeowChan.Config.MediaPanelWidthMaximum;
+        if (!double.IsFinite(bodyWidth) || bodyWidth <= 0) return maximum;
+        MediaPageLayout self = layout.Normalized();
+        double tagList = self.TagList ? Math.Min(self.TagListWidth, MediaPageLayoutPlan.EffectiveTagListMaximum(bodyWidth)) : 0;
+        double room = bodyWidth - MediaPageLayoutPlan.MinimumGridWidth - MediaPageLayoutPlan.BodyChrome - PanelChrome - tagList;
+        return Math.Max(MeowChan.Config.MediaPanelWidthMinimum, Math.Min(maximum, room));
+    }
 }

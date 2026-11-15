@@ -286,6 +286,18 @@ namespace MeowChan
         internal const int MediaTagListWidthDefault = 256;
         internal const int MediaTagListWidthMinimum = 180;
         internal const int MediaTagListWidthMaximum = 480;
+        /// <summary>
+        /// The media panel of the Media page (large medium beside the grid): its width in dip, set by dragging its edge or in Settings
+        /// (kept in <see cref="MediaLayout"/> next to the other layout parts, brought into this range when read).
+        /// </summary>
+        internal const int MediaPanelWidthDefault = 360;
+        internal const int MediaPanelWidthMinimum = 240;
+        internal const int MediaPanelWidthMaximum = 900;
+        /// <summary>The panel hides by itself while the Media page body is narrower than this many dip; the choice to show it stays.</summary>
+        public int MediaPanelMinimumPageWidth { get; set; } = MediaPanelMinimumPageWidthDefault;
+        internal const int MediaPanelMinimumPageWidthDefault = 1000;
+        internal const int MediaPanelMinimumPageWidthMinimum = 600;
+        internal const int MediaPanelMinimumPageWidthMaximum = 3000;
         /// <summary>Most entries in the list of known profiles (profiles.json, shared by all profiles). Lowering it keeps every entry; only new profiles are not listed.</summary>
         public int ProfileRegistryLimit { get; set; } = ProfileRegistryLimitDefault;
         internal const int ProfileRegistryLimitDefault = Persistence.ProfileRegistry.DefaultLimit;
@@ -978,6 +990,9 @@ namespace MeowChan
         /// </summary>
         [JsonIgnore]
         internal int? SettingsBaselineMediaTagListWidth { get; set; }
+        /// <summary>Draft only: the settings page's media panel width as it was loaded, for the same reason as <see cref="SettingsBaselineMediaTagListWidth"/> (the panel's handle changes the layout directly).</summary>
+        [JsonIgnore]
+        internal int? SettingsBaselineMediaPanelWidth { get; set; }
 
         [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
         public bool ArchiveMediaTiles { get => ActiveProfile.ArchiveMediaTiles; set => ActiveProfile.ArchiveMediaTiles = value; }
@@ -1486,6 +1501,8 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(TagQueueConfirmAbove), "TagQueueConfirmAbove is outside its supported range (" + TagQueueConfirmAboveMinimum + " to " + TagQueueConfirmAboveMaximum + ").");
             if (MediaTagListTop is < MediaTagListTopMinimum or > MediaTagListTopMaximum)
                 throw new ArgumentOutOfRangeException(nameof(MediaTagListTop), "MediaTagListTop is outside its supported range (" + MediaTagListTopMinimum + " to " + MediaTagListTopMaximum + ").");
+            if (MediaPanelMinimumPageWidth is < MediaPanelMinimumPageWidthMinimum or > MediaPanelMinimumPageWidthMaximum)
+                throw new ArgumentOutOfRangeException(nameof(MediaPanelMinimumPageWidth), "MediaPanelMinimumPageWidth is outside its supported range (" + MediaPanelMinimumPageWidthMinimum + " to " + MediaPanelMinimumPageWidthMaximum + ").");
             if (ProfileRegistryLimit is < ProfileRegistryLimitMinimum or > ProfileRegistryLimitMaximum)
                 throw new ArgumentOutOfRangeException(nameof(ProfileRegistryLimit), "ProfileRegistryLimit is outside its supported range (" + ProfileRegistryLimitMinimum + " to " + ProfileRegistryLimitMaximum + ").");
             if (TagQueueWalkWindow is < TagQueueWalkWindowMinimum or > TagQueueWalkWindowMaximum)
@@ -1734,6 +1751,7 @@ namespace MeowChan
                 TagQueueGroupNameLimit = TagQueueGroupNameLimit,
                 TagQueueConfirmAbove = TagQueueConfirmAbove,
                 MediaTagListTop = MediaTagListTop,
+                MediaPanelMinimumPageWidth = MediaPanelMinimumPageWidth,
                 ProfileRegistryLimit = ProfileRegistryLimit,
                 TagQueueWalkWindow = TagQueueWalkWindow,
                 TagQueueUndoDepth = TagQueueUndoDepth,
@@ -1869,6 +1887,7 @@ namespace MeowChan
                 SettingsBaselineVideoVolume = VideoVolume,
                 SettingsBaselineGalleryFilmstrip = GalleryFilmstrip,
                 SettingsBaselineMediaTagListWidth = Desktop.MediaPageLayout.Parse(MediaLayout, MediaBooruMode).TagListWidth,
+                SettingsBaselineMediaPanelWidth = Desktop.MediaPageLayout.Parse(MediaLayout, MediaBooruMode).PanelWidth,
                 // A fresh draft captures the current normalized state. Session admission
                 // restores the editor's original baseline after freezing via Clone().
                 SettingsBaselineGalleryPlayback = GalleryPlaybackPreferences.FromConfig(this),
@@ -1985,6 +2004,7 @@ namespace MeowChan
             TagQueueGroupNameLimit = source.TagQueueGroupNameLimit;
             TagQueueConfirmAbove = source.TagQueueConfirmAbove;
             MediaTagListTop = source.MediaTagListTop;
+            MediaPanelMinimumPageWidth = source.MediaPanelMinimumPageWidth;
             ProfileRegistryLimit = source.ProfileRegistryLimit;
             TagQueueWalkWindow = source.TagQueueWalkWindow;
             TagQueueUndoDepth = source.TagQueueUndoDepth;
@@ -2192,6 +2212,7 @@ namespace MeowChan
             TagQueueGroupNameLimit = source.TagQueueGroupNameLimit;
             TagQueueConfirmAbove = source.TagQueueConfirmAbove;
             MediaTagListTop = source.MediaTagListTop;
+            MediaPanelMinimumPageWidth = source.MediaPanelMinimumPageWidth;
             ProfileRegistryLimit = source.ProfileRegistryLimit;
             TagQueueWalkWindow = source.TagQueueWalkWindow;
             TagQueueUndoDepth = source.TagQueueUndoDepth;
@@ -2235,6 +2256,11 @@ namespace MeowChan
             Desktop.MediaPageLayout liveLayout = Desktop.MediaPageLayout.Parse(MediaLayout, MediaBooruMode);
             if (draftTagListWidth != (source.SettingsBaselineMediaTagListWidth ?? liveLayout.TagListWidth) && draftTagListWidth != liveLayout.TagListWidth)
                 MediaLayout = (liveLayout with { TagListWidth = draftTagListWidth }).Format();
+            // The media panel's width follows the same rule (only a box the person changed against its baseline takes over).
+            int draftPanelWidth = Desktop.MediaPageLayout.Parse(source.MediaLayout, source.MediaBooruMode).PanelWidth;
+            Desktop.MediaPageLayout panelLayout = Desktop.MediaPageLayout.Parse(MediaLayout, MediaBooruMode);
+            if (draftPanelWidth != (source.SettingsBaselineMediaPanelWidth ?? panelLayout.PanelWidth) && draftPanelWidth != panelLayout.PanelWidth)
+                MediaLayout = (panelLayout with { PanelWidth = draftPanelWidth }).Format();
             MediaBadgeCollapseBelow = source.MediaBadgeCollapseBelow;
             MediaBadgeHideBelow = source.MediaBadgeHideBelow;
             MediaBadgeMaxPerCorner = source.MediaBadgeMaxPerCorner;

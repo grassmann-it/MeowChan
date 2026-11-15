@@ -539,6 +539,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
         frozen.SettingsBaselineGalleryPlayback = settings.SettingsBaselineGalleryPlayback;
         frozen.SettingsBaselineGalleryFilmstrip = settings.SettingsBaselineGalleryFilmstrip;
         frozen.SettingsBaselineMediaTagListWidth = settings.SettingsBaselineMediaTagListWidth;
+        frozen.SettingsBaselineMediaPanelWidth = settings.SettingsBaselineMediaPanelWidth;
         frozen.GalleryLayoutResetRequested = settings.GalleryLayoutResetRequested;
         frozen.SettingsBaselineProfiles = settings.SettingsBaselineProfiles?.ToDictionary(
             pair => pair.Key, pair => pair.Value.Clone(), StringComparer.Ordinal);

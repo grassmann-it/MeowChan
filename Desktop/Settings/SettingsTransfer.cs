@@ -205,6 +205,7 @@ public static class SettingsTransfer
             ReadingHistoryMenuEntries = source.ReadingHistoryMenuEntries,
             TagQueueConfirmAbove = source.TagQueueConfirmAbove,
             MediaTagListTop = source.MediaTagListTop,
+            MediaPanelMinimumPageWidth = source.MediaPanelMinimumPageWidth,
             TagQueueFileLimitMiB = source.TagQueueFileLimitMiB,
             TagQueueHistory = source.TagQueueHistory,
             TagQueueGroupLimit = source.TagQueueGroupLimit,

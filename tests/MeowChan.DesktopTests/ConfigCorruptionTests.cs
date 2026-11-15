@@ -49,6 +49,7 @@ public sealed class ConfigCorruptionTests
         (nameof(Config.TagQueueHistory), Config.TagQueueHistoryMinimum, Config.TagQueueHistoryMaximum),
         (nameof(Config.TagQueueConfirmAbove), Config.TagQueueConfirmAboveMinimum, Config.TagQueueConfirmAboveMaximum),
         (nameof(Config.MediaTagListTop), Config.MediaTagListTopMinimum, Config.MediaTagListTopMaximum),
+        (nameof(Config.MediaPanelMinimumPageWidth), Config.MediaPanelMinimumPageWidthMinimum, Config.MediaPanelMinimumPageWidthMaximum),
         (nameof(Config.FolderSourceMaxFiles), Config.FolderSourceMaxFilesMinimum, Config.FolderSourceMaxFilesMaximum),
         (nameof(Config.FolderSourceMaxRoots), Config.FolderSourceMaxRootsMinimum, Config.FolderSourceMaxRootsMaximum),
         (nameof(Config.FolderSourceHashParallelism), Config.FolderSourceHashParallelismMinimum, Config.FolderSourceHashParallelismMaximum),
