@@ -270,14 +270,12 @@
                                         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource Workspace.Space.12}" VerticalAlignment="Center">
                                             <TextBlock Text="{Binding Title}" VerticalAlignment="Center" FontWeight="Medium" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Title}" />
                                             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="{StaticResource Workspace.Space.8}">
-                                                <!-- A drawn up arrow (P6), not the "↑" glyph; the border carries the tooltip. A Border and a Path have no automation peer, so the
-                                                     accessible name is a visually hidden text that stays in the content view of the row. -->
-                                                <Border Background="Transparent" IsVisible="{Binding IsHighPriority}" VerticalAlignment="Center" ToolTip.Tip="{Binding PriorityDescription}" AutomationProperties.Name="{Binding PriorityDescription}">
-                                                    <Grid>
-                                                        <Path Classes="glyph-icon" Data="M8,13 L8,3 M4,7 L8,3 L12,7" Stroke="{DynamicResource Workspace.Text}" />
-                                                        <TextBlock Text="{Binding PriorityDescription}" Classes="visually-hidden" AutomationProperties.AccessibilityView="Content" />
-                                                    </Grid>
-                                                </Border>
+                                                <!-- A drawn up arrow (P6) on a quiet button (dead-affordance audit): a click restores normal priority, the row menu's "Normal priority" for this one thread.
+                                                     The button has its own automation peer, so the accessible name is the row description plus the action. -->
+                                                <Button Classes="subtle" Padding="2" MinWidth="0" MinHeight="0" BorderThickness="0" IsVisible="{Binding IsHighPriority}" VerticalAlignment="Center"
+                                                        ToolTip.Tip="{Binding PriorityActionDescription}" AutomationProperties.Name="{Binding PriorityActionDescription}" Click="OnPriorityArrowClick">
+                                                    <Path Classes="glyph-icon" Data="M8,13 L8,3 M4,7 L8,3 L12,7" Stroke="{DynamicResource Workspace.Text}" />
+                                                </Button>
                                                 <TextBlock Text="{Binding ThreadId, StringFormat='#{0}'}" VerticalAlignment="Center" Classes="muted inline-thread-id" FontSize="{StaticResource Workspace.Text.Meta}" />
                                             </StackPanel>
                                         </Grid>
@@ -495,8 +493,12 @@
             <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.12}" VerticalAlignment="Center">
                 <TextBlock x:Name="WorkspaceStatus" Classes="muted" FontSize="{StaticResource Workspace.Text.Meta}" TextTrimming="CharacterEllipsis" />
                 <!-- Warns from 75 percent of the favorites, thread favorites and ratings limits and names the setting. -->
-                <TextBlock x:Name="WorkspaceStoreWarning" Grid.Column="1" IsVisible="False" MaxWidth="560" FontSize="{StaticResource Workspace.Text.Meta}" TextTrimming="CharacterEllipsis"
-                           Foreground="{DynamicResource Workspace.Warning}" AutomationProperties.LiveSetting="Polite" />
+                <!-- A link button (dead-affordance audit): a click opens the setting that raises the limit, Settings > Storage and limits. The text keeps its name. -->
+                <Button x:Name="WorkspaceStoreWarningButton" Grid.Column="1" Classes="link" IsVisible="False" MaxWidth="560" Padding="0" MinHeight="0" VerticalAlignment="Center"
+                        Click="OnStoreWarningClick">
+                    <TextBlock x:Name="WorkspaceStoreWarning" FontSize="{StaticResource Workspace.Text.Meta}" TextTrimming="CharacterEllipsis"
+                               Foreground="{DynamicResource Workspace.Warning}" AutomationProperties.LiveSetting="Polite" />
+                </Button>
                 <TextBlock x:Name="WorkspaceCounts" Grid.Column="2" Classes="muted tnum" FontSize="{StaticResource Workspace.Text.Meta}" TextTrimming="CharacterEllipsis" />
             </Grid>
         </Border>

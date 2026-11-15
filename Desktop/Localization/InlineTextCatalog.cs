@@ -130,6 +130,7 @@ internal static class InlineTextCatalog
         ("archive.delete.deleted", "Deleted {0} threads.", "{0} Threads gelöscht."),
         ("archive.delete.filesRemoved", "Removed {0} local files.", "{0} lokale Dateien entfernt."),
         ("priority.rowDescription", "High priority · next runnable files; active downloads are unchanged.", "Hohe Priorität · nächste ausführbare Dateien; laufende Downloads bleiben unverändert."),
+        ("priority.rowRestore", "Click to restore normal priority.", "Klicken, um die normale Priorität wiederherzustellen."),
         ("window.fullscreen.on", "On", "Ein"),
         ("window.fullscreen.off", "Off", "Aus"),
         ("readerGroups.memberUnavailableLocally", "Group member unavailable locally: ", "Gruppenmitglied lokal nicht verfügbar: "),

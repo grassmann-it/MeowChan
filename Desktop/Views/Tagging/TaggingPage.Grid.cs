@@ -82,6 +82,7 @@ public sealed partial class TaggingPage
                 OpenActions.Start(() => ExecuteRowCommandAsync(TaggingCommands.ContinueHere), "tagging.grid.doubleClick");
         };
         _grid.SelectionChanged += OnSelectionChanged;
+        InstallMiddleClick(_grid);
         _tileSizeInput = TileSizeInput.Install(_grid, TileSizeCommands.Media, () => ReadMediaTileSize?.Invoke() ?? _currentTileSize,
             size =>
             {

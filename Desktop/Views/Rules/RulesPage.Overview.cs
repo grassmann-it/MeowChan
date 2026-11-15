@@ -210,6 +210,19 @@ public partial class RulesPage
         card.Classes.Add("workspace-card");
         AutomationProperties.SetName(card, FormatScope(row.Scope) + ": " + string.Join(", ", row.Chips.Select(chip => chip.Text)));
         _overviewMenus[(scope, draftRow)] = AttachOverviewRowMenu(card, row, draftRow, removeOrDiscard);
+        // Dead-affordance audit: the card is a tab stop with the shared focus ring, like a Booru hit card, so Enter on it is the same first button as the
+        // double click and the Menu key or Shift+F10 opens its menu (the host on the card hears keys from the card as well as from its buttons).
+        card.Classes.Add("workspace-card-focusable");
+        card.Focusable = true;
+        card.IsTabStop = true;
+        AutomationProperties.SetControlTypeOverride(card, Avalonia.Automation.Peers.AutomationControlType.ListItem);
+        card.KeyDown += (_, e) =>
+        {
+            // Only Enter pressed on the card itself; Enter on one of its buttons stays that button's.
+            if (!ReferenceEquals(e.Source, card) || !MeowChan.Desktop.Controls.ItemActivation.IsPrimaryKey(e) || !IsEditable || _wizard.IsOpen) return;
+            e.Handled = true;
+            OpenRuleFromOverview(scope);
+        };
         // Interaction audit 1.1.0: a double click on the card (not on one of its buttons) is its first button, Edit or Continue.
         card.DoubleTapped += (_, e) =>
         {

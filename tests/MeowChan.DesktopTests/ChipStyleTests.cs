@@ -256,7 +256,7 @@ public sealed class ChipStyleTests
         Assert.Equal(new[] { "chip", "chip-own", "chip-compact", "tag-pill" }, tile.Classes.Where(name => name[0] != ':'));
         Assert.Equal("tag-pill-partial", WorkspaceChips.TagPillPartial);
         // The call sites: the quick tag surface (suggestions, assigned all/some, key badges and content rows), the reader tag bar, the thread tags,
-        // the stamp chip and the tile chips.
+        // the stamp chip (a read-only badge since the dead-affordance audit) and the tile chips.
         string surface = File.ReadAllText(Root("Desktop/Controls/QuickTagSurface.cs"));
         Assert.Contains("WorkspaceChips.MarkTagPill(button);", surface);
         Assert.Contains("WorkspaceChips.TagPill } };", surface);
@@ -265,7 +265,8 @@ public sealed class ChipStyleTests
         Assert.Equal(2, Count(surface, "Classes = { WorkspaceChips.TagPillContent }"));
         Assert.Contains("MarkTagPill(chip, MeowChan.Desktop.Controls.WorkspaceChips.TagPillAssigned)", File.ReadAllText(Root("Desktop/Views/Archive/ArchivePage.Tags.cs")));
         Assert.Contains("WorkspaceChips.MarkTagPill(WorkspaceChips.MarkOwn(chip), WorkspaceChips.TagPillAssigned)", File.ReadAllText(Root("Desktop/Controls/GalleryThreadTagSection.cs")));
-        Assert.Contains("WorkspaceChips.MarkTagPill(WorkspaceChips.MarkOwn(chip), WorkspaceChips.TagPillAssigned)", File.ReadAllText(Root("Desktop/Views/Tagging/TaggingPage.Stamp.cs")));
+        // The stamp chip is a static badge marked read-only (dead-affordance audit): the cross beside it removes the name, the pill itself does nothing.
+        Assert.Contains("WorkspaceChips.MarkReadOnly(WorkspaceChips.CreateBadge(\"TaggingStampChip\", name))", File.ReadAllText(Root("Desktop/Views/Tagging/TaggingPage.Stamp.cs")));
         Assert.Contains("WorkspaceChips.MarkTagPill(WorkspaceChips.MarkOwn(new Button { Name = \"MediaTileTag\"", File.ReadAllText(Root("Desktop/MediaLibraryTileView.cs")));
     }
 

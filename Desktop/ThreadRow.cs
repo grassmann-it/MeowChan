@@ -82,6 +82,9 @@ public sealed class ThreadRow : INotifyPropertyChanged, IDisposable
     public bool IsHighPriority { get; private set; }
     public string PriorityDescription => IsHighPriority
         ? Texts.T("priority.rowDescription") : string.Empty;
+    /// <summary>The arrow's tooltip and name: what the priority means, and that a click restores normal priority.</summary>
+    public string PriorityActionDescription => IsHighPriority
+        ? Texts.T("priority.rowDescription") + "\n" + Texts.T("priority.rowRestore") : string.Empty;
 
     // Authoritative host projection only; do not optimistically change on click.
     internal void ApplyUserPriority(bool high)
@@ -90,6 +93,7 @@ public sealed class ThreadRow : INotifyPropertyChanged, IDisposable
         IsHighPriority = high;
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsHighPriority)));
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(PriorityDescription)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(PriorityActionDescription)));
     }
 
     public string CompactDetails => string.Join(Environment.NewLine,

@@ -89,6 +89,10 @@ public partial class SavedArchiveSearchesDialog : Window
         Wire("SavedSearchRename", "rename", () => Begin(EditKind.Rename), CanEditSelection);
         Wire("SavedSearchReplace", "replace", () => Begin(EditKind.Replace), () => CanEditSelection() && CanCapture());
         Wire("SavedSearchDelete", "delete", () => Begin(EditKind.Delete), CanEditSelection);
+        // Dead-affordance audit: a double click on a saved search applies it (the "Apply" button); a right-click, Menu key or Shift+F10 offers the
+        // footer's own actions for the selected search. Each runs the button's command, so it is refused exactly when the button is disabled.
+        ListRowActions.OnDoubleClick(List, () => Invoke("SavedSearchApply"));
+        _rowMenu = ListRowActions.AttachMenu(List, ComposeRowMenu);
         Button("SavedSearchConfirm").Click += async (_, _) => await ConfirmAsync();
         Button("SavedSearchCancelEdit").Click += (_, _) => CancelEdit();
         Button("SavedSearchReload").Click += async (_, _) => await ReloadAsync();
@@ -146,7 +150,7 @@ public partial class SavedArchiveSearchesDialog : Window
             _closed = true; _lifetime.Cancel(); CancelInitialFocus();
             _page.SearchStateChanged -= OnPageStateChanged; _host.StateChanged -= OnHostStateChanged; Texts.Changed -= OnLanguageChanged;
             foreach (IDisposable registration in _registrations) registration.Dispose();
-            _router.Dispose();
+            _router.Dispose(); _rowMenu?.Dispose();
         };
         SizeChanged += (_, _) => ArrangeWorkspace();
         Localize(); Refresh(); ArrangeWorkspace();
@@ -237,6 +241,31 @@ public partial class SavedArchiveSearchesDialog : Window
     }
     internal void CloseForLifetime() { if (_closed) return; _closingAccepted = true; _lifetime.Cancel(); Close(); }
     private Button Button(string name) => this.FindControl<Button>(name)!;
+    private ContextMenuHost? _rowMenu;
+    /// <summary>The menu host of the saved searches list; read by tests.</summary>
+    internal ContextMenuHost? RowMenuHost => _rowMenu;
+
+    private bool CanInvoke(string name) => Button(name).Command is { } command && command.CanExecute(null);
+    private void Invoke(string name)
+    {
+        if (Button(name).Command is { } command && command.CanExecute(null)) command.Execute(null);
+    }
+
+    /// <summary>The menu of the selected saved search as it would open now (null without one, or while an editor is open); also the test seam.</summary>
+    internal ContextMenuBuilder? ComposeRowMenu()
+    {
+        if (_closed || Selected == null || _edit != EditKind.None) return null;
+        ContextMenuBuilder menu = new ContextMenuBuilder().Named(Title ?? string.Empty);
+        void Entry(string id, string name) => menu.Command(id, () => Invoke(name), CanInvoke(name));
+        Entry("archive.saved-searches.apply", "SavedSearchApply");
+        menu.Section();
+        Entry("archive.saved-searches.rename", "SavedSearchRename");
+        Entry("archive.saved-searches.replace", "SavedSearchReplace");
+        menu.Section();
+        Entry("archive.saved-searches.delete", "SavedSearchDelete");
+        return menu;
+    }
+
     private void Wire(string name, string suffix, Action execute, Func<bool> canExecute)
     {
         string id = "archive.saved-searches." + suffix;

@@ -89,6 +89,10 @@ internal partial class PostBookmarksDialog : Window
         Bind("Save", "post-bookmarks.save", SaveAsync, () => CanSave);
         Bind("Remove", "post-bookmarks.remove", RemoveAsync, () => CanRemove);
         Bind("OpenTarget", "post-bookmarks.open-target", OpenAsync, () => CanOpen);
+        // Dead-affordance audit: a double click on a bookmark opens its exact local post (the "Open" button); a right-click, Menu key or
+        // Shift+F10 offers Open and Remove, the buttons' own actions.
+        MeowChan.Desktop.Controls.ListRowActions.OnDoubleClick(List, () => { if (CanOpen) _ = OpenAsync(); });
+        _rowMenu = MeowChan.Desktop.Controls.ListRowActions.AttachMenu(List, ComposeRowMenu);
         B("Reload").Content = Texts.T("bookmarks.retry");
         B("Reload").Click += async (_, _) => await ReloadAsync(preserveDraft: true);
         B("Cancel").Content = Texts.T("action.close");
@@ -106,7 +110,7 @@ internal partial class PostBookmarksDialog : Window
             Texts.Changed -= OnLanguageChanged;
             AvailabilityChanged = null; RowLanguageChanged = null;
             foreach (IDisposable registration in _registrations) registration.Dispose();
-            _router.Dispose(); _lifetime.Dispose();
+            _router.Dispose(); _rowMenu?.Dispose(); _lifetime.Dispose();
         };
         void Register(string id, Func<bool> allowed, Func<Task> execute) => _registrations.Add(_router.Register(
             new CommandRegistration(id, this, () => IsVisible && IsActive && !_confirming,
@@ -208,6 +212,15 @@ internal partial class PostBookmarksDialog : Window
         CommandBindings.Apply(button, id);
         button.Command = new DelegateCommand(async () => await execute(), available);
     }
+    private MeowChan.Desktop.Controls.ContextMenuHost? _rowMenu;
+    /// <summary>The menu host of the bookmark list; read by tests.</summary>
+    internal MeowChan.Desktop.Controls.ContextMenuHost? RowMenuHost => _rowMenu;
+    /// <summary>The menu of the selected bookmark as it would open now (null without one); also the test seam.</summary>
+    internal MeowChan.Desktop.Controls.ContextMenuBuilder? ComposeRowMenu() => _postEditor || _key == null || _confirming ? null
+        : new MeowChan.Desktop.Controls.ContextMenuBuilder().Named(Title ?? string.Empty)
+            .Command("post-bookmarks.open-target", () => _ = OpenAsync(), CanOpen)
+            .Section()
+            .Command("post-bookmarks.remove", () => _ = RemoveAsync(), CanRemove);
     private bool CanSave => !_busy && !_conflicted && !_orphanDraft && _snapshot != null && _key != null && ValidNote;
     private bool CanRemove => !_busy && !_conflicted && _snapshot != null && _key != null && _exists;
     private bool CanOpen => !_postEditor && !_busy && _key != null && _targetAvailable;

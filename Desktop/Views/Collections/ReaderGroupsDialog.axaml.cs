@@ -154,6 +154,13 @@ public partial class ReaderGroupsDialog : Window
             RefreshActions();
         };
         C<TextBox>("GroupSearch").TextChanged += async (_, _) => await SearchAsync();
+        // Dead-affordance audit: a double click on a group reads it, on a candidate adds it (the buttons' own commands, refused when they are
+        // disabled); a right-click, Menu key or Shift+F10 on any of the three lists offers the buttons that belong to it.
+        ListRowActions.OnDoubleClick(C<ListBox>("Groups"), () => _ = ExecuteCommandAsync("reader-groups.read"));
+        ListRowActions.OnDoubleClick(C<ListBox>("GroupCandidates"), () => _ = ExecuteCommandAsync("reader-groups.add-members"));
+        _listMenus.Add(ListRowActions.AttachMenu(C<ListBox>("Groups"), () => ComposeListMenu("Groups")));
+        _listMenus.Add(ListRowActions.AttachMenu(C<ListBox>("GroupMembers"), () => ComposeListMenu("GroupMembers")));
+        _listMenus.Add(ListRowActions.AttachMenu(C<ListBox>("GroupCandidates"), () => ComposeListMenu("GroupCandidates")));
         AddHandler(KeyDownEvent, (_, e) => _router.Route(e), RoutingStrategies.Bubble);
         // Fixed dismissal only, independent of all freely assigned application gestures (the dialog policy): the open
         // candidate list is dismissed first, then the dialog asks to close.
@@ -177,6 +184,7 @@ public partial class ReaderGroupsDialog : Window
         Closed += (_, _) =>
         {
             _closed = true; _lifetime.Cancel(); _searchCancellation?.Cancel(); _router.Dispose();
+            foreach (ContextMenuHost menu in _listMenus) menu.Dispose();
             _host.StateChanged -= HostChanged; Texts.Changed -= LanguageChanged;
             _lifetime.Dispose();
         };
@@ -245,6 +253,38 @@ public partial class ReaderGroupsDialog : Window
     {
         foreach (GroupRow row in groups) row.Refresh(draft?.Groups.FirstOrDefault(group => group.Id == row.Id));
         foreach (MemberRow row in members) row.Refresh();
+    }
+
+    private readonly List<ContextMenuHost> _listMenus = new();
+    /// <summary>The menu hosts of the groups, members and candidates lists, in that order; read by tests.</summary>
+    internal IReadOnlyList<ContextMenuHost> ListMenuHosts => _listMenus;
+
+    /// <summary>The menu of a list ("Groups", "GroupMembers" or "GroupCandidates") as it would open now; also the test seam.</summary>
+    internal ContextMenuBuilder? ComposeListMenu(string list)
+    {
+        if (_closed || _confirming) return null;
+        ContextMenuBuilder menu = new ContextMenuBuilder().Named(Title ?? string.Empty);
+        void Entry(string id) => menu.Command(id, () => _ = ExecuteCommandAsync(id), CanExecute(id));
+        switch (list)
+        {
+            case "Groups":
+                Entry("reader-groups.read");
+                menu.Section();
+                Entry("reader-groups.create"); Entry("reader-groups.rename");
+                menu.Section();
+                Entry("reader-groups.delete");
+                break;
+            case "GroupMembers":
+                Entry("reader-groups.move-up"); Entry("reader-groups.move-down");
+                menu.Section();
+                Entry("reader-groups.remove-member");
+                break;
+            case "GroupCandidates":
+                Entry("reader-groups.add-members");
+                break;
+            default: return null;
+        }
+        return menu;
     }
 
     internal bool CanExecute(string id)
