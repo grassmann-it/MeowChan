@@ -70,7 +70,7 @@ public sealed class ReaderSpoilerOutlineTests
     [Fact]
     public void TheBodyStrokesHiddenSpoilersWithTheInteractiveOutlineAfterTheText()
     {
-        string source = File.ReadAllText(Root("Desktop/ReaderBodyTextBlock.cs"));
+        string source = File.ReadAllText(Root("Desktop/ReaderBodyTextBlock.cs")).ReplaceLineEndings("\n");
         Assert.Contains("this[!SpoilerOutlineBrushProperty] = new DynamicResourceExtension(\"Workspace.ControlBorder\");", source);
         Assert.Contains("base.RenderTextLayout(context, origin);\n        if (_spoilerOutlinePen is not { } pen || _spoilerRanges.Count == 0 || SpoilersShown) return;", source);
         Assert.Contains("run[!TextElement.BackgroundProperty] = new DynamicResourceExtension(\"Workspace.ReaderSpoiler\");", source);
