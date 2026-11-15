@@ -113,7 +113,7 @@ internal static class PresentationChecks
                 {
                     await ChangeLanguageAsync(window, language);
                     await CheckSmallWindowAsync(window, selected, mode == "Barebones" ? 640 : 760,
-                        mode == "Barebones" ? 480 : 500, "admission-" + theme + "-" + mode + "-" + language);
+                        CompactAdmissionHeight(window, mode), "admission-" + theme + "-" + mode + "-" + language);
                 }
             }
         }
@@ -173,6 +173,19 @@ internal static class PresentationChecks
         Require(restarted.WorkspaceMode == "Barebones" &&
             !restarted.GetLayoutProfile("Advanced").ColumnVisibility.ContainsKey("ThreadsDataGrid.Completion"),
             "A reset or mode switch leaked download columns into another profile on restart.");
+    }
+
+    private static double CompactAdmissionHeight(MainWindow window, string mode)
+    {
+        double logicalMinimum = mode == "Barebones" ? 480 : 500;
+        if (!OperatingSystem.IsWindows() || window.FrameSize is not Size frame)
+            return logicalMinimum;
+
+        // On Win32 the minimum-track clamp can consume the top frame inset: a
+        // 480 DIP request became a 487 DIP client in run 43691525250, yet the
+        // expanded results still clipped the first 33 DIP table row. Reserve
+        // the measured native frame inset so this content contract is stable.
+        return logicalMinimum + Math.Max(0, frame.Height - window.Bounds.Height);
     }
 
     private static async Task CheckSmallWindowAsync(MainWindow window, ThreadRow selected, double width, double height, string scenario)
