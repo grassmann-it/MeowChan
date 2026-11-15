@@ -577,6 +577,8 @@ namespace MeowChan
             ReaderInlineVideo = mode == ReaderMediaClickMode.Post;
         }
         public bool ReaderInlineVideoAutoplayMuted { get; set; } = false;
+        /// <summary>"Open in the post": an image expanded in its post stays expanded when it scrolls out of the view and back, and when the posts are rebuilt (open thread only). Off: it goes back to its thumbnail.</summary>
+        public bool ReaderKeepImagesExpanded { get; set; } = false;
         public int ReaderInlineVideoMaxPlayers { get; set; } = ReaderInlineVideoMaxPlayersDefault;
         internal const int ReaderInlineVideoMaxPlayersDefault = ReaderInlineVideoOptions.MaxPlayersDefault;
         internal const int ReaderInlineVideoMaxPlayersMinimum = ReaderInlineVideoOptions.MaxPlayersMinimum;
@@ -1878,6 +1880,7 @@ namespace MeowChan
                 ReaderInlineVideo = ReaderInlineVideo,
                 ReaderMediaClick = ReaderMediaClick,
                 ReaderInlineVideoAutoplayMuted = ReaderInlineVideoAutoplayMuted,
+                ReaderKeepImagesExpanded = ReaderKeepImagesExpanded,
                 ReaderInlineVideoMaxPlayers = ReaderInlineVideoMaxPlayers,
                 ReaderInlineVideoMaxFileMiB = ReaderInlineVideoMaxFileMiB,
                 ReaderMediaStripLimit = ReaderMediaStripLimit,
@@ -2133,6 +2136,7 @@ namespace MeowChan
             ReaderInlineVideo = source.ReaderInlineVideo;
             ReaderMediaClick = source.ReaderMediaClick;
             ReaderInlineVideoAutoplayMuted = source.ReaderInlineVideoAutoplayMuted;
+            ReaderKeepImagesExpanded = source.ReaderKeepImagesExpanded;
             ReaderInlineVideoMaxPlayers = source.ReaderInlineVideoMaxPlayers;
             ReaderInlineVideoMaxFileMiB = source.ReaderInlineVideoMaxFileMiB;
             ReaderMediaStripLimit = source.ReaderMediaStripLimit;
@@ -2365,6 +2369,7 @@ namespace MeowChan
             ReaderInlineVideo = source.ReaderInlineVideo;
             ReaderMediaClick = source.ReaderMediaClick;
             ReaderInlineVideoAutoplayMuted = source.ReaderInlineVideoAutoplayMuted;
+            ReaderKeepImagesExpanded = source.ReaderKeepImagesExpanded;
             ReaderInlineVideoMaxPlayers = source.ReaderInlineVideoMaxPlayers;
             ReaderInlineVideoMaxFileMiB = source.ReaderInlineVideoMaxFileMiB;
             ReaderMediaStripLimit = source.ReaderMediaStripLimit;

@@ -4536,6 +4536,8 @@
     "settings.reader.mediaStripLimit.hint": "파일이 여러 개인 게시물은 큰 미디어 아래에 썸네일 스트립을 표시합니다. 이 수보다 파일이 많으면 표시 범위가 이동하며, ◀ ▶ 버튼으로는 계속 모든 파일에 이동할 수 있습니다.",
     "settings.reader.mediaGrid": "짧은 게시물의 여러 이미지를 격자로 표시",
     "settings.reader.mediaGrid.hint": "이미지가 여러 개이고 텍스트가 적은 게시물은 이미지를 긴 한 열 대신 두 열로 표시합니다.",
+    "settings.reader.keepExpanded": "펼친 이미지를 유지",
+    "settings.reader.keepExpanded.hint": "'게시물에서 열기'를 사용하면 게시물에서 펼친 이미지가 화면 밖으로 스크롤했다가 돌아올 때와 게시물이 다시 구성될 때(페이지 전환, 설정 변경)에도 펼쳐진 상태로 유지됩니다. 열려 있는 스레드에만 적용됩니다. 기본값은 꺼짐: 이미지는 썸네일 크기로 돌아갑니다.",
     "settings.reader.mediaGridText": "이미지 격자로 표시할 게시물의 최대 텍스트 길이(글자 수)",
     "settings.reader.mediaGridText.hint": "이보다 텍스트가 긴 게시물은 이미지를 텍스트 옆의 한 열로 유지합니다. 0은 텍스트가 없는 게시물만 의미합니다.",
     "settings.reader.previewPrefetch": "미리보기 미리 불러오기(앞뒤 게시물 수)",

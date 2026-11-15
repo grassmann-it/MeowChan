@@ -216,6 +216,10 @@ public partial class SettingsEditor
     public bool ReaderInlineVideoAutoplayMuted { get => _readerInlineVideoAutoplayMuted; set => SetField(ref _readerInlineVideoAutoplayMuted, value, nameof(ReaderInlineVideoAutoplayMuted)); }
     public string ReaderInlineVideoAutoplayMutedLabel => Texts.T("settings.reader.inlineVideoAutoplay");
     public string ReaderInlineVideoAutoplayMutedHint => Texts.T("settings.reader.inlineVideoAutoplay.hint");
+    private bool _readerKeepImagesExpanded;
+    public bool ReaderKeepImagesExpanded { get => _readerKeepImagesExpanded; set => SetField(ref _readerKeepImagesExpanded, value, nameof(ReaderKeepImagesExpanded)); }
+    public string ReaderKeepImagesExpandedLabel => Texts.T("settings.reader.keepExpanded");
+    public string ReaderKeepImagesExpandedHint => Texts.T("settings.reader.keepExpanded.hint");
     private decimal? _readerInlineVideoMaxPlayers;
     public decimal? ReaderInlineVideoMaxPlayers { get => _readerInlineVideoMaxPlayers; set => SetField(ref _readerInlineVideoMaxPlayers, value, nameof(ReaderInlineVideoMaxPlayers)); }
     public string ReaderInlineVideoMaxPlayersLabel => Texts.T("settings.reader.inlineVideoPlayers");
@@ -400,6 +404,7 @@ public partial class SettingsEditor
         ResetNumber(ReaderMediaSidebarMinimumWidthInput, ReaderMediaSidebarMinimumWidth.Value);
         RefreshMediaClickChoices(ReaderMediaClickRules.ToKey(config.EffectiveReaderMediaClick));
         ReaderInlineVideoAutoplayMuted = config.ReaderInlineVideoAutoplayMuted;
+        ReaderKeepImagesExpanded = config.ReaderKeepImagesExpanded;
         ReaderInlineVideoMaxPlayers = config.ReaderInlineVideoMaxPlayers;
         ResetNumber(ReaderInlineVideoMaxPlayersInput, ReaderInlineVideoMaxPlayers.Value);
         ReaderInlineVideoMaxFileMiB = config.ReaderInlineVideoMaxFileMiB;
@@ -469,6 +474,7 @@ public partial class SettingsEditor
         candidate.ReaderMediaSidebarMinimumWidth = GetInteger(ReaderMediaSidebarMinimumWidth, ReaderMediaSidebarMinimumWidthLabel, Config.ReaderMediaSidebarMinimumWidthMinimum, Config.ReaderMediaSidebarMinimumWidthMaximum);
         candidate.ChooseReaderMediaClick(ReaderMediaClickRules.FromKey(SelectedReaderMediaClick?.Value ?? ReaderMediaClickRules.ToKey(_config.EffectiveReaderMediaClick)));
         candidate.ReaderInlineVideoAutoplayMuted = ReaderInlineVideoAutoplayMuted;
+        candidate.ReaderKeepImagesExpanded = ReaderKeepImagesExpanded;
         candidate.ReaderInlineVideoMaxPlayers = GetInteger(ReaderInlineVideoMaxPlayers, ReaderInlineVideoMaxPlayersLabel, Config.ReaderInlineVideoMaxPlayersMinimum, Config.ReaderInlineVideoMaxPlayersMaximum);
         candidate.ReaderInlineVideoMaxFileMiB = GetInteger(ReaderInlineVideoMaxFileMiB, ReaderInlineVideoMaxFileMiBLabel, Config.ReaderInlineVideoMaxFileMiBMinimum, Config.ReaderInlineVideoMaxFileMiBMaximum);
         candidate.ReaderMediaStripLimit = GetInteger(ReaderMediaStripLimit, ReaderMediaStripLimitLabel, Config.ReaderMediaStripLimitMinimum, Config.ReaderMediaStripLimitMaximum);
@@ -613,6 +619,20 @@ public partial class SettingsEditor
                 case SettingsFieldId.ReaderInlineVideoAutoplayMuted:
                     ReaderInlineVideoAutoplayMuted = _config.ReaderInlineVideoAutoplayMuted;
                     break;
+                case SettingsFieldId.ReaderKeepImagesExpanded:
+                    ReaderKeepImagesExpanded = _config.ReaderKeepImagesExpanded;
+                    break;
+                // The gallery's own settings, offered by the popover too: confirm the draft and its baseline (a later save changes only what
+                // the page itself edited, so it never writes the old value back over the popover's change).
+                case SettingsFieldId.VideoVolume:
+                    _initialVideoVolume = _config.VideoVolume;
+                    VideoVolume = _config.VideoVolume;
+                    ResetNumber(VideoVolumeInput, _config.VideoVolume);
+                    break;
+                case SettingsFieldId.GalleryVideoRepeat:
+                    _initialGalleryPlayback = _initialGalleryPlayback with { VideoRepeat = _config.GalleryVideoRepeat };
+                    GalleryVideoRepeat = _config.GalleryVideoRepeat;
+                    break;
                 case SettingsFieldId.ReaderInlineVideoMaxPlayers:
                     ReaderInlineVideoMaxPlayers = _config.ReaderInlineVideoMaxPlayers;
                     ResetNumber(ReaderInlineVideoMaxPlayersInput, _config.ReaderInlineVideoMaxPlayers);
@@ -671,6 +691,7 @@ public partial class SettingsEditor
         nameof(ReaderMediaSidebarMinimumWidthLabel), nameof(ReaderMediaSidebarMinimumWidthHint), nameof(ReaderMediaSidebarMinimumWidthHelp),
         nameof(ReaderMediaClickLabel), nameof(ReaderMediaClickHint),
         nameof(ReaderInlineVideoAutoplayMutedLabel), nameof(ReaderInlineVideoAutoplayMutedHint),
+        nameof(ReaderKeepImagesExpandedLabel), nameof(ReaderKeepImagesExpandedHint),
         nameof(ReaderInlineVideoMaxPlayersLabel), nameof(ReaderInlineVideoMaxPlayersHint), nameof(ReaderInlineVideoMaxPlayersHelp),
         nameof(ReaderInlineVideoMaxFileMiBLabel), nameof(ReaderInlineVideoMaxFileMiBHint), nameof(ReaderInlineVideoMaxFileMiBHelp),
         nameof(ReaderMediaStripLimitLabel), nameof(ReaderMediaStripLimitHint), nameof(ReaderMediaStripLimitHelp),

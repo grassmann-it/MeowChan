@@ -4622,6 +4622,8 @@
     "settings.reader.mediaStripLimit.hint": "Una publicación con varios archivos muestra bajo el medio grande una tira de miniaturas. Si tiene más archivos que este número, se desplaza una ventana; los botones ◀ ▶ siguen llegando a todos los archivos.",
     "settings.reader.mediaGrid": "Mostrar varias imágenes de una publicación corta como cuadrícula",
     "settings.reader.mediaGrid.hint": "Una publicación con varias imágenes y poco texto las muestra en dos columnas en lugar de una columna larga.",
+    "settings.reader.keepExpanded": "Mantener las imágenes expandidas",
+    "settings.reader.keepExpanded.hint": "Con «Abrir en la publicación», una imagen expandida en su publicación sigue expandida cuando sale de la vista y vuelve, y cuando se reconstruyen las publicaciones (cambio de página, ajuste). Solo para el hilo abierto. Desactivado por defecto: la imagen vuelve al tamaño de su miniatura.",
     "settings.reader.mediaGridText": "Texto más largo de una publicación con cuadrícula de imágenes (caracteres)",
     "settings.reader.mediaGridText.hint": "Las publicaciones con más texto mantienen sus imágenes en una columna junto al texto. 0 significa: solo publicaciones sin texto.",
     "settings.reader.previewPrefetch": "Precargar vistas previas (publicaciones antes y después)",

@@ -31,6 +31,11 @@ internal static class SettingsFieldId
     internal const string ReaderMediaSidebarMinimumWidth = nameof(ReaderMediaSidebarMinimumWidth);
     internal const string ReaderMediaClick = nameof(ReaderMediaClick);
     internal const string ReaderInlineVideoAutoplayMuted = nameof(ReaderInlineVideoAutoplayMuted);
+    internal const string ReaderKeepImagesExpanded = nameof(ReaderKeepImagesExpanded);
+    /// <summary>The remembered video volume (the gallery's own setting; the reader's inline videos use it too).</summary>
+    internal const string VideoVolume = nameof(VideoVolume);
+    /// <summary>"Repeat video" (the gallery's own setting; the reader's inline videos follow it).</summary>
+    internal const string GalleryVideoRepeat = nameof(GalleryVideoRepeat);
     internal const string ReaderInlineVideoMaxPlayers = nameof(ReaderInlineVideoMaxPlayers);
     internal const string ReaderInlineVideoMaxFileMiB = nameof(ReaderInlineVideoMaxFileMiB);
     internal const string ReaderMediaStripLimit = nameof(ReaderMediaStripLimit);

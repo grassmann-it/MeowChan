@@ -281,8 +281,34 @@ public sealed class ReaderSettingsEditorTests : IDisposable
         Assert.False(editor.IsGalleryFitLimited);
     }
 
+    // The volume and "Repeat video" are the gallery's settings (the page edits them with its playback draft, not with the reader draft):
+    // their confirmation has its own test below.
     public static IEnumerable<object[]> QuickReaderSettingIds() =>
-        ReaderQuickSettings.Fields.Select(field => new object[] { field.Id });
+        ReaderQuickSettings.Fields.Where(field => field.Id is not (SettingsFieldId.VideoVolume or SettingsFieldId.GalleryVideoRepeat))
+            .Select(field => new object[] { field.Id });
+
+    [Fact]
+    public void ConfirmedVolumeAndRepeatMoveTheDraftAndItsBaselineSoALaterSaveDoesNotWriteTheOldValueBack()
+    {
+        SettingsEditor editor = CreateEditor();
+        Set(editor, "_initialGalleryPlayback", new GalleryPlaybackPreferences());
+        Set(editor, "VideoVolumeInput", new AccessibleNumberInput { Minimum = 0, Maximum = 100, Value = 70 });
+        Config saved = Get<Config>(editor, "_config");
+        editor.VideoVolume = 70;
+        Set(editor, "_initialVideoVolume", 70);
+        editor.ReaderReplyStep = 17; // an unrelated draft stays
+        saved.VideoVolume = 25;
+        saved.GalleryVideoRepeat = true;
+
+        editor.RefreshConfirmedSettings(new[] { SettingsFieldId.VideoVolume, SettingsFieldId.GalleryVideoRepeat });
+
+        Assert.Equal(25, editor.VideoVolume);
+        Assert.Equal(25, Get<int>(editor, "_initialVideoVolume"));
+        Assert.Equal(25m, Get<AccessibleNumberInput>(editor, "VideoVolumeInput").Value);
+        Assert.True(editor.GalleryVideoRepeat);
+        Assert.True(Get<GalleryPlaybackPreferences>(editor, "_initialGalleryPlayback").VideoRepeat);
+        Assert.Equal(17m, editor.ReaderReplyStep);
+    }
 
     [Theory]
     [MemberData(nameof(QuickReaderSettingIds))]

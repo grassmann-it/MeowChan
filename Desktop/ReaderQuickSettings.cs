@@ -47,6 +47,11 @@ internal static class ReaderQuickSettings
         Integer(SettingsFieldId.ReaderMediaSidebarMinimumWidth, "settings.reader.mediaSidebarMinimumWidth", "settings.reader.mediaSidebarMinimumWidth.hint", Config.ReaderMediaSidebarMinimumWidthMinimum, Config.ReaderMediaSidebarMinimumWidthMaximum, 80, c => c.ReaderMediaSidebarMinimumWidth, (c, v) => c.ReaderMediaSidebarMinimumWidth = v),
         // R10: the players of the reader (in the sidebar and in posts).
         Toggle(SettingsFieldId.ReaderInlineVideoAutoplayMuted, "settings.reader.inlineVideoAutoplay", "settings.reader.inlineVideoAutoplay.hint", c => c.ReaderInlineVideoAutoplayMuted, (c, v) => c.ReaderInlineVideoAutoplayMuted = v),
+        // Inline video settings of the popover (the settings page has all of them): "Keep images expanded" is new, the others are the same
+        // settings as on the page. Volume and "Repeat video" are the gallery's own (one choice for both places) and reach playing videos at once.
+        Toggle(SettingsFieldId.ReaderKeepImagesExpanded, "settings.reader.keepExpanded", "settings.reader.keepExpanded.hint", c => c.ReaderKeepImagesExpanded, (c, v) => c.ReaderKeepImagesExpanded = v),
+        Toggle(SettingsFieldId.GalleryVideoRepeat, "viewer.playback.repeat", "viewer.playback.repeatHelp", c => c.GalleryVideoRepeat, (c, v) => c.GalleryVideoRepeat = v),
+        Slider(SettingsFieldId.VideoVolume, "r08d.settings.videoVolume", null, 0, 100, 5, c => c.VideoVolume, (c, v) => c.VideoVolume = v),
         Integer(SettingsFieldId.ReaderInlineVideoMaxPlayers, "settings.reader.inlineVideoPlayers", "settings.reader.inlineVideoPlayers.hint", Config.ReaderInlineVideoMaxPlayersMinimum, Config.ReaderInlineVideoMaxPlayersMaximum, 1, c => c.ReaderInlineVideoMaxPlayers, (c, v) => c.ReaderInlineVideoMaxPlayers = v),
         Integer(SettingsFieldId.ReaderInlineVideoMaxFileMiB, "settings.reader.inlineVideoMaxFile", "settings.reader.inlineVideoMaxFile.hint", Config.ReaderInlineVideoMaxFileMiBMinimum, Config.ReaderInlineVideoMaxFileMiBMaximum, 64, c => c.ReaderInlineVideoMaxFileMiB, (c, v) => c.ReaderInlineVideoMaxFileMiB = v),
         // R11: posts with several files.
@@ -72,6 +77,10 @@ internal static class ReaderQuickSettings
         new QuickSettingsSection("quicksettings.reader.section.media"),
         // "Clicking a medium" (Config.ReaderMediaClick; Sidebar / Post / Gallery, feature/reader-inline-video-minimal) replaces the old inline video switch here.
         Row(MediaClickFieldId),
+        Row(SettingsFieldId.ReaderKeepImagesExpanded),
+        Row(SettingsFieldId.ReaderInlineVideoAutoplayMuted),
+        Row(SettingsFieldId.GalleryVideoRepeat),
+        Row(SettingsFieldId.VideoVolume),
         Row(SettingsFieldId.ReaderMediaSidebar, shortcut: "reader.sidebar.toggle"),
         Row(SettingsFieldId.ReaderMediaSidebarScope, when: SettingsFieldId.ReaderMediaSidebar),
         Row(SettingsFieldId.ReaderMediaSidebarSide, when: SettingsFieldId.ReaderMediaSidebar),

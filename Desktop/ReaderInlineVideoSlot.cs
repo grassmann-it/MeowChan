@@ -47,6 +47,8 @@ internal sealed class GalleryInlineVideoPlayer : IReaderInlineVideoPlayer
         // An inline player is created to play: the activation is the user's Play (or the opted-in muted autoplay).
         Player.Configure(autoplay: true, startMuted, options.Volume);
         Player.ConfigureSeekStep(options.SeekStepSeconds);
+        // The gallery's "Repeat video" (a silent preference, not a user toggle): the video loops from its first play on.
+        Player.SetLoopEnabled(options.Repeat);
         Player.MuteChosen += muted => MuteChosen?.Invoke(muted);
         Player.PlaybackFailed += () => { _failed = true; Failed?.Invoke(Texts.T("reader.video.failed", Texts.T("gallery.mediaUnavailable"))); };
         Player.DiagnosticNotice += message => { if (!string.IsNullOrWhiteSpace(message)) Failed?.Invoke(Texts.T("reader.video.failed", message)); };
@@ -78,6 +80,13 @@ internal sealed class GalleryInlineVideoPlayer : IReaderInlineVideoPlayer
     public Task StartAsync() => _disposed ? Task.CompletedTask : Player.ShowAsync(_entry, _show.Token);
     public Task PlayAsync() { _failed = false; return _disposed ? Task.CompletedTask : Player.PlayAsync(); }
     public Task PauseAsync() => _disposed ? Task.CompletedTask : Player.PauseAsync();
+
+    public void ApplyLive(int? volume, bool? repeat)
+    {
+        if (_disposed) return;
+        if (volume.HasValue) Player.ConfigureVolume(volume.Value);
+        if (repeat.HasValue) Player.SetLoopEnabled(repeat.Value);
+    }
 
     /// <summary>True when the player's native cleanup failed: it stays in the frame, hidden and disabled, still owning its drawable.</summary>
     internal bool CleanupPending { get; private set; }

@@ -4628,6 +4628,8 @@
     "settings.reader.mediaStripLimit.hint": "Uma postagem com vários arquivos mostra uma faixa de miniaturas sob a mídia grande. Se tiver mais arquivos que este número, uma janela se desloca; os botões ◀ ▶ continuam chegando a todos os arquivos.",
     "settings.reader.mediaGrid": "Mostrar várias imagens de uma postagem curta como grade",
     "settings.reader.mediaGrid.hint": "Uma postagem com várias imagens e pouco texto as mostra em duas colunas em vez de uma coluna longa.",
+    "settings.reader.keepExpanded": "Manter as imagens expandidas",
+    "settings.reader.keepExpanded.hint": "Com «Abrir na postagem», uma imagem expandida na sua postagem continua expandida quando sai da vista e volta e quando as postagens são reconstruídas (mudança de página, configuração). Somente para o tópico aberto. Desativado por padrão: a imagem volta ao tamanho da miniatura.",
     "settings.reader.mediaGridText": "Maior texto de uma postagem com grade de imagens (caracteres)",
     "settings.reader.mediaGridText.hint": "Postagens com mais texto mantêm as imagens em uma coluna ao lado do texto. 0 significa: apenas postagens sem texto.",
     "settings.reader.previewPrefetch": "Pré-carregar prévias (postagens antes e depois)",

@@ -222,6 +222,7 @@ public static class SettingsTransfer
             ReaderInlineVideo = source.ReaderInlineVideo,
             ReaderMediaClick = source.ReaderMediaClick,
             ReaderInlineVideoAutoplayMuted = source.ReaderInlineVideoAutoplayMuted,
+            ReaderKeepImagesExpanded = source.ReaderKeepImagesExpanded,
             ReaderInlineVideoMaxPlayers = source.ReaderInlineVideoMaxPlayers,
             ReaderInlineVideoMaxFileMiB = source.ReaderInlineVideoMaxFileMiB,
             ReaderMediaStripLimit = source.ReaderMediaStripLimit,

@@ -4536,6 +4536,8 @@
     "settings.reader.mediaStripLimit.hint": "複数のファイルがある投稿では、大きなメディアの下にサムネイルのストリップを表示します。この数を超えるファイルがある場合は表示範囲が移動し、◀ ▶ ボタンでは引き続きすべてのファイルに移動できます。",
     "settings.reader.mediaGrid": "短い投稿の複数の画像をグリッドで表示",
     "settings.reader.mediaGrid.hint": "複数の画像があってテキストが少ない投稿では、画像を長い 1 列ではなく 2 列で表示します。",
+    "settings.reader.keepExpanded": "展開した画像を開いたままにする",
+    "settings.reader.keepExpanded.hint": "「投稿内で開く」の場合、投稿内で展開した画像は、表示範囲の外へスクロールして戻ったときや、投稿が再構築されたとき（ページの切り替え、設定の変更）も展開されたままになります。開いているスレッドのみ。既定ではオフ：画像はサムネイルのサイズに戻ります。",
     "settings.reader.mediaGridText": "画像グリッドで表示する投稿の最大テキスト長（文字数）",
     "settings.reader.mediaGridText.hint": "これより長いテキストの投稿では、画像はテキストの横の 1 列のままです。0 はテキストのない投稿のみを意味します。",
     "settings.reader.previewPrefetch": "プレビューの先読み（前後の投稿数）",

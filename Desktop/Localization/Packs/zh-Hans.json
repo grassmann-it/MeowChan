@@ -4536,6 +4536,8 @@
     "settings.reader.mediaStripLimit.hint": "包含多个文件的帖子会在大媒体下方显示一排缩略图。文件数超过此数量时，窗口会随之滑动；◀ ▶ 按钮仍可到达每个文件。",
     "settings.reader.mediaGrid": "将短帖子的多张图片显示为网格",
     "settings.reader.mediaGrid.hint": "包含多张图片且文字很少的帖子会把图片分两列显示，而不是排成一长列。",
+    "settings.reader.keepExpanded": "保持图片展开",
+    "settings.reader.keepExpanded.hint": "选择“在帖子中打开”时，在帖子中展开的图片在滚出视图再滚回，以及帖子被重新构建（切换页面、更改设置）时仍保持展开。仅对当前打开的串有效。默认关闭：图片会恢复为缩略图大小。",
     "settings.reader.mediaGridText": "显示图片网格的帖子的最长文字（字符）",
     "settings.reader.mediaGridText.hint": "文字更多的帖子仍把图片排成一列，显示在文字旁边。0 表示仅限无文字的帖子。",
     "settings.reader.previewPrefetch": "预加载预览图（前后帖子数）",

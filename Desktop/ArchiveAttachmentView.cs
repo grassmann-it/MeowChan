@@ -151,6 +151,7 @@ public sealed class ArchiveAttachmentView : UserControl
             if (change.OldValue is ReaderInlineVideoController old) old.OptionsChanged -= OnInlineOptionsChanged;
             if (change.NewValue is ReaderInlineVideoController current) current.OptionsChanged += OnInlineOptionsChanged;
             RefreshInlineVideo(); UpdateButtonName(DataContext as ArchiveAttachmentRow);
+            RestoreExpanded();
         }
         if (change.Property == ReaderPostLayout.FocusedProperty && _column != null) ScheduleInlineAutoplay();
     }
@@ -161,6 +162,8 @@ public sealed class ArchiveAttachmentView : UserControl
         if (_expanded && GetValue(InlineVideoProperty)?.Options.InPost != true) SetExpanded(false);
         RefreshInlineVideo();
         UpdateButtonName(DataContext as ArchiveAttachmentRow);
+        // "Keep images expanded" was switched on: what is expanded now is remembered, and what was remembered expands again.
+        if (_expanded) RememberExpanded(); else RestoreExpanded();
     }
 
     private double FocusFactor() =>
@@ -211,6 +214,7 @@ public sealed class ArchiveAttachmentView : UserControl
         if (expanded && !ReaderInlineVideoRules.CanExpand(GetValue(InlineVideoProperty)?.Options ?? default, row)) expanded = false;
         if (_expanded == expanded) return;
         _expanded = expanded;
+        RememberExpanded();
         GetValue(HoverEnlargeProperty)?.Leave(this);
         RefreshFocus();
         _column.InvalidateMeasure();
@@ -218,6 +222,21 @@ public sealed class ArchiveAttachmentView : UserControl
     }
 
     private bool WantsEnlarged => _expanded || FocusFactor() > 1;
+
+    // "Keep images expanded": the expanded state of this picture is recorded by the attachment's identity (only while the setting is on), and a
+    // recycled or rebuilt post expands its picture again from it. Without the setting nothing is recorded and a picture goes back as before.
+    private void RememberExpanded()
+    {
+        if (DataContext is ArchiveAttachmentRow { ExpandKey: { } key } && GetValue(InlineVideoProperty) is { Options.KeepImagesExpanded: true } controller)
+            controller.ExpandedImages.Set(key, _expanded);
+    }
+
+    private void RestoreExpanded()
+    {
+        if (_expanded || DataContext is not ArchiveAttachmentRow { ExpandKey: { } key }
+            || GetValue(InlineVideoProperty) is not { Options.KeepImagesExpanded: true } controller || !controller.ExpandedImages.Contains(key)) return;
+        SetExpanded(true);
+    }
 
     /// <summary>
     /// The height around this picture inside the reader card: the post header above the media row, the file line (and a video row or
@@ -403,7 +422,7 @@ public sealed class ArchiveAttachmentView : UserControl
         _column = new AttachmentColumn { Lead = fileLine, Frame = _slot, Trail = _provenance,
             Children = { fileLine, _slot, _provenance } };
         Content = _column;
-        DataContextChanged += (_, _) => { _missing = false; _expanded = false; WatchAspect(DataContext as ArchiveAttachmentRow); Reset(); UpdateLabel(); RefreshInlineVideo(); if (_visible) _ = LoadAsync(); };
+        DataContextChanged += (_, _) => { _missing = false; _expanded = false; WatchAspect(DataContext as ArchiveAttachmentRow); Reset(); UpdateLabel(); RefreshInlineVideo(); RestoreExpanded(); if (_visible) _ = LoadAsync(); };
         EffectiveViewportChanged += (_, e) =>
         {
             Rect bounds = new(Bounds.Size);

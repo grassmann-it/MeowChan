@@ -4622,6 +4622,8 @@
     "settings.reader.mediaStripLimit.hint": "Un message comportant plusieurs fichiers affiche une bande de miniatures sous le grand média. S’il en compte davantage, une fenêtre se déplace ; les boutons ◀ ▶ atteignent toujours chaque fichier.",
     "settings.reader.mediaGrid": "Afficher plusieurs images d’un message court sous forme de grille",
     "settings.reader.mediaGrid.hint": "Un message comportant plusieurs images et peu de texte les affiche sur deux colonnes au lieu d’une longue colonne.",
+    "settings.reader.keepExpanded": "Garder les images agrandies",
+    "settings.reader.keepExpanded.hint": "Avec « Ouvrir dans le message », une image agrandie dans son message reste agrandie quand elle sort de la vue puis y revient et quand les messages sont reconstruits (changement de page, réglage). Uniquement pour le fil ouvert. Désactivé par défaut : l’image revient à la taille de sa miniature.",
     "settings.reader.mediaGridText": "Texte le plus long d’un message avec grille d’images (caractères)",
     "settings.reader.mediaGridText.hint": "Les messages plus longs gardent leurs images dans une colonne à côté du texte. 0 signifie : uniquement les messages sans texte.",
     "settings.reader.previewPrefetch": "Précharger les aperçus (messages avant et après)",

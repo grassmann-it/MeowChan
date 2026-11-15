@@ -94,6 +94,11 @@ internal sealed record ArchiveAttachmentRow(CapturedAttachment Attachment)
     /// <summary>Stores a learned aspect in the session's size memory (set by the reader page; null elsewhere).</summary>
     public Action<double>? RememberAspect { get; set; }
     /// <summary>
+    /// The identity of this attachment for "Keep images expanded" (thread, post and file; set by the reader page, null elsewhere and for
+    /// an attachment without a media identity): a recycled or rebuilt post finds its expanded image again by it.
+    /// </summary>
+    public string? ExpandKey { get; set; }
+    /// <summary>
     /// Decodes the ordinary preview ahead of time at background priority, kept in the shared preview cache like a visible one; null where
     /// nothing is preloaded (the lists, the large reader). The caller releases the result through <see cref="MediaTileThumbnails.Release"/>.
     /// </summary>

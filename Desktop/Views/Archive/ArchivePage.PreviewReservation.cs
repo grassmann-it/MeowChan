@@ -63,6 +63,7 @@ public partial class ArchivePage
         if (_thread == null || posts.Count == 0) return;
         ResourceId resource = _thread.Summary.Id;
         ReaderPreviewAspectMemo memo = ReaderPreviewAspectMemo.Shared;
+        _inlineVideo.ExpandedImages.BeginThread(string.Join('/', resource.Source, resource.Board, resource.Thread)); // "Keep images expanded" remembers only the open thread
         int anchor = Math.Max(0, IndexOfPost(posts, _readerPostId));
         List<PendingSize> unknown = new();
         for (int index = 0; index < posts.Count; index++)
@@ -73,6 +74,7 @@ public partial class ArchivePage
             {
                 if (ReaderPreviewReservation.AspectKey(resource, post.Id, row.Attachment) is not { } key) continue;
                 row.RememberAspect = aspect => memo.Remember(key, aspect);
+                row.ExpandKey = key;
                 if (row.KnownAspect != null) continue;
                 if (memo.TryGet(key, out double aspect)) row.KnownAspect = aspect;
                 else unknown.Add(new PendingSize(index, post.Id, key, row));

@@ -4628,6 +4628,8 @@
     "settings.reader.mediaStripLimit.hint": "Un post con più file mostra una striscia di miniature sotto il media grande. Se i file sono più di questo numero, una finestra scorre; i pulsanti ◀ ▶ raggiungono comunque ogni file.",
     "settings.reader.mediaGrid": "Mostra più immagini di un post breve come griglia",
     "settings.reader.mediaGrid.hint": "Un post con più immagini e poco testo le mostra su due colonne invece che su una lunga colonna.",
+    "settings.reader.keepExpanded": "Mantieni le immagini espanse",
+    "settings.reader.keepExpanded.hint": "Con «Apri nel post», un’immagine espansa nel suo post resta espansa quando esce dalla vista e vi rientra e quando i post vengono ricostruiti (cambio pagina, impostazione). Solo per il thread aperto. Disattivato di default: l’immagine torna alla dimensione dell’anteprima.",
     "settings.reader.mediaGridText": "Testo più lungo di un post con griglia di immagini (caratteri)",
     "settings.reader.mediaGridText.hint": "I post con più testo mantengono le immagini in una colonna accanto al testo. 0 significa: solo post senza testo.",
     "settings.reader.previewPrefetch": "Precarica anteprime (post prima e dopo)",

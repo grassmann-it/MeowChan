@@ -204,6 +204,12 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
     {
         _autoplay = autoplay;
         _muteIntent.ConfigureStartup(startMuted);
+        ConfigureVolume(volume);
+    }
+
+    /// <summary>A new volume from the preferences while the player lives: the slider and the playing video follow, nothing is persisted and mute is not touched.</summary>
+    internal void ConfigureVolume(int volume)
+    {
         int nextVolume = Math.Clamp(volume, 0, 100);
         bool changed = (int)_volume.Value != nextVolume;
         _settingVolume = true;

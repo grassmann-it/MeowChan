@@ -12,7 +12,8 @@ namespace MeowChan.Desktop;
 /// Inline video in the reader (R10) as one value. <see cref="Enabled"/>: videos play in the reader (in the media sidebar, or in the post
 /// as well when <see cref="InPost"/>, the choice "Open in the post"); off with the choice "Open in the gallery". Autoplay (always muted)
 /// is a second opt-in. The number of live players and the largest file played in the reader are
-/// settings with default, minimum and maximum. Volume and "start muted" are the gallery's own preferences (one choice for both).
+/// settings with default, minimum and maximum. Volume, "start muted" and "Repeat video" are the gallery's own preferences (one choice for
+/// both places); the reader's settings popover offers volume and repeat too, and a change reaches the players that are playing.
 /// </summary>
 internal readonly record struct ReaderInlineVideoOptions(bool Enabled, bool AutoplayMuted, int MaxPlayers, int MaxFileMiB)
 {
@@ -36,6 +37,10 @@ internal readonly record struct ReaderInlineVideoOptions(bool Enabled, bool Auto
 
     /// <summary>The gallery's volume (0 to 100), reused so a video sounds the same in both places.</summary>
     internal int Volume { get; init; } = 70;
+    /// <summary>The gallery's "Repeat video": a new player repeats its video, and a change reaches the live players (the gallery's loop semantics, outside a slideshow).</summary>
+    internal bool Repeat { get; init; }
+    /// <summary>"Keep images expanded" (with "Open in the post"): an expanded image stays expanded when its post scrolls away and back or the posts are rebuilt.</summary>
+    internal bool KeepImagesExpanded { get; init; }
     /// <summary>The gallery's "start muted"; autoplay is muted in any case.</summary>
     internal bool StartMuted { get; init; }
     /// <summary>The gallery's seek step (seconds of one "," or "." key), also used by the reader's video keys.</summary>
@@ -48,6 +53,8 @@ internal readonly record struct ReaderInlineVideoOptions(bool Enabled, bool Auto
     {
         InPost = config.EffectiveReaderMediaClick == ReaderMediaClickMode.Post,
         Volume = config.VideoVolume,
+        Repeat = config.GalleryVideoRepeat,
+        KeepImagesExpanded = config.ReaderKeepImagesExpanded,
         StartMuted = config.VideoStartMuted,
         SeekStepSeconds = config.GalleryVideoSeekStepSeconds
     };
@@ -163,6 +170,8 @@ internal interface IReaderInlineVideoPlayer : IAsyncDisposable
     Task StartAsync();
     Task PlayAsync();
     Task PauseAsync();
+    /// <summary>The volume (0 to 100) or the repeat choice changed while the player lives (null: unchanged). The default does nothing, as for a player without those controls.</summary>
+    void ApplyLive(int? volume, bool? repeat) { }
 }
 
 /// <summary>A surface that shows an inline player: a post's attachment or the media sidebar. Told about its player's life.</summary>
@@ -209,6 +218,8 @@ internal sealed class ReaderInlineVideoController
     internal Func<KeyEventArgs, bool>? NavigationKeys { get; set; }
     /// <summary>The video whose controls are shown (the one started last); null without one.</summary>
     internal IReaderInlineVideoOwner? Current { get; private set; }
+    /// <summary>The images the reader expanded in their posts, remembered while "Keep images expanded" is on (see <see cref="ReaderExpandedImages"/>).</summary>
+    internal ReaderExpandedImages ExpandedImages { get; } = new();
     internal int LiveCount => _live.Count;
     /// <summary>Players created and released over the controller's life (smoke and test evidence of the bound and the disposal).</summary>
     internal long Created { get; private set; }
@@ -234,7 +245,16 @@ internal sealed class ReaderInlineVideoController
     {
         ReaderInlineVideoOptions previous = Options;
         Options = options.Clamped();
-        if (previous.InPost != Options.InPost || previous.Enabled != Options.Enabled) OptionsChanged?.Invoke();
+        if (previous.InPost != Options.InPost || previous.Enabled != Options.Enabled || previous.KeepImagesExpanded != Options.KeepImagesExpanded)
+        {
+            // Not keeping any more forgets what was remembered, so switching it on later does not bring old expansions back.
+            if (!Options.KeepImagesExpanded) ExpandedImages.Clear();
+            OptionsChanged?.Invoke();
+        }
+        // Volume and repeat act on the players that live now (a playing video changes without being reloaded); a new player reads them when created.
+        if (previous.Volume != Options.Volume || previous.Repeat != Options.Repeat)
+            foreach (Live live in _live.ToArray())
+                live.Player.ApplyLive(previous.Volume != Options.Volume ? Options.Volume : null, previous.Repeat != Options.Repeat ? Options.Repeat : null);
         // Gallery only, or leaving "in the post": the players of the posts go (the sidebar's slot offers again when it shows a video).
         if (!Options.Enabled || previous.InPost && !Options.InPost) return ReleaseAllAsync();
         Trim(Options.MaxPlayers, keep: null);

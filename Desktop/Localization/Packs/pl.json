@@ -4668,6 +4668,8 @@
     "settings.reader.mediaStripLimit.hint": "Post z wieloma plikami pokazuje pod dużym medium pasek miniatur. Jeśli plików jest więcej niż ta liczba, okno się przesuwa; przyciski ◀ ▶ nadal docierają do każdego pliku.",
     "settings.reader.mediaGrid": "Pokazuj kilka obrazów krótkiego postu jako siatkę",
     "settings.reader.mediaGrid.hint": "Post z kilkoma obrazami i niewielką ilością tekstu pokazuje je w dwóch kolumnach zamiast w jednej długiej.",
+    "settings.reader.keepExpanded": "Zachowuj rozwinięte obrazy",
+    "settings.reader.keepExpanded.hint": "Przy „Otwórz w poście” obraz rozwinięty w poście pozostaje rozwinięty, gdy wyjdzie z widoku i wróci oraz gdy posty są budowane od nowa (zmiana strony, ustawienie). Tylko dla otwartego wątku. Domyślnie wyłączone: obraz wraca do rozmiaru miniatury.",
     "settings.reader.mediaGridText": "Najdłuższy tekst postu z siatką obrazów (znaki)",
     "settings.reader.mediaGridText.hint": "Posty z dłuższym tekstem zachowują obrazy w jednej kolumnie obok tekstu. 0 oznacza: tylko posty bez tekstu.",
     "settings.reader.previewPrefetch": "Wczytuj podglądy z wyprzedzeniem (posty przed i po)",

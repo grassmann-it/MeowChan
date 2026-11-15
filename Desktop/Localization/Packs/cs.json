@@ -4665,6 +4665,8 @@
     "settings.reader.mediaStripLimit.hint": "Příspěvek s více soubory zobrazí pod velkým médiem pás miniatur. Má-li souborů víc, než je toto číslo, okno se posouvá; tlačítka ◀ ▶ stále dosáhnou na každý soubor.",
     "settings.reader.mediaGrid": "Více obrázků krátkého příspěvku zobrazit jako mřížku",
     "settings.reader.mediaGrid.hint": "Příspěvek s více obrázky a jen malým množstvím textu je zobrazí ve dvou sloupcích místo jednoho dlouhého.",
+    "settings.reader.keepExpanded": "Ponechat obrázky rozbalené",
+    "settings.reader.keepExpanded.hint": "S volbou „Otevřít v příspěvku“ zůstane obrázek rozbalený v příspěvku rozbalený, když se posune mimo zobrazení a zpět a když se příspěvky sestaví znovu (změna stránky, nastavení). Jen pro otevřené vlákno. Ve výchozím stavu vypnuto: obrázek se vrátí na velikost náhledu.",
     "settings.reader.mediaGridText": "Nejdelší text příspěvku s mřížkou obrázků (znaky)",
     "settings.reader.mediaGridText.hint": "Příspěvky s delším textem nechají obrázky v jednom sloupci vedle textu. 0 znamená: jen příspěvky bez textu.",
     "settings.reader.previewPrefetch": "Předem načítat náhledy (příspěvky před a za)",

@@ -52,6 +52,8 @@ internal static class SettingsSearchAliases
         ["ReaderMediaSidebarMinimumWidth"] = "sidebar narrow window hide collapse width leiste seitenleiste schmal fenster ausblenden breite",
         ["ReaderMediaClick"] = "click medium image video inline play expand open in post sidebar gallery webm mp4 movie player in place klick medium bild video abspielen aufklappen vergrößern im post seitenleiste galerie wiedergabe",
         ["ReaderInlineVideoAutoplayMuted"] = "video autoplay automatic muted sound silent start automatisch stumm ton start",
+        ["ReaderKeepImagesExpanded"] = "keep expanded images open stay enlarged scroll page rebuild remember in post aufgeklappt bilder offen lassen vergrößert scrollen seite merken im post",
+        ["GalleryVideoRepeat"] = "repeat loop video again replay inline reader gallery wiederholen schleife video erneut wiedergabe reader galerie",
         ["ReaderInlineVideoMaxPlayers"] = "video players memory limit count instances player speicher grenze anzahl",
         ["ReaderInlineVideoMaxFileMiB"] = "video size large file limit mib megabytes größe groß datei grenze",
         ["MediaFolders"] = "folder folders directory directories library local files scan rescan hashing add folder ordner medienordner verzeichnis verzeichnisse bibliothek lokale dateien durchsuchen hinzufügen",
