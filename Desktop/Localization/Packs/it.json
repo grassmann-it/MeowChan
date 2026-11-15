@@ -4433,6 +4433,7 @@
     "tagging.status.undone.done": "Annullato: «{0}» è di nuovo fatto.",
     "tagging.status.undone.skipped": "Annullato: «{0}» è di nuovo saltato.",
     "tagging.status.undoGone": "Nulla annullato: quella voce non è più nella coda di tagging.",
+    "tagging.status.group": "Gruppo «{0}».",
     "tagging.status.missing": "«{0}» non è più nella coda di tagging; non è stato cambiato nulla.",
     "tagging.status.failed": "La decisione non è stata salvata: {0}",
     "tagging.help.heading": "Modalità tagging",

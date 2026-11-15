@@ -4341,6 +4341,7 @@
     "tagging.status.undone.done": "取り消しました: 「{0}」は再び完了です。",
     "tagging.status.undone.skipped": "取り消しました: 「{0}」は再びスキップ済みです。",
     "tagging.status.undoGone": "何も取り消していません: その項目はもうタグ付けキューにありません。",
+    "tagging.status.group": "グループ「{0}」。",
     "tagging.status.missing": "「{0}」はもうタグ付けキューにありません。何も変更していません。",
     "tagging.status.failed": "判断を保存できませんでした: {0}",
     "tagging.help.heading": "タグ付けモード",

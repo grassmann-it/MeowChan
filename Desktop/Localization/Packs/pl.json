@@ -4473,6 +4473,7 @@
     "tagging.status.undone.done": "Cofnięto: „{0}” jest znowu gotowe.",
     "tagging.status.undone.skipped": "Cofnięto: „{0}” jest znowu pominięte.",
     "tagging.status.undoGone": "Nic nie cofnięto: tego wpisu nie ma już w kolejce tagowania.",
+    "tagging.status.group": "Grupa „{0}”.",
     "tagging.status.missing": "„{0}” nie ma już w kolejce tagowania; nic nie zmieniono.",
     "tagging.status.failed": "Decyzja nie została zapisana: {0}",
     "tagging.help.heading": "Tryb tagowania",

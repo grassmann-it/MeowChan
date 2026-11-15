@@ -4427,6 +4427,7 @@
     "tagging.status.undone.done": "Deshecho: «{0}» vuelve a estar listo.",
     "tagging.status.undone.skipped": "Deshecho: «{0}» vuelve a estar omitido.",
     "tagging.status.undoGone": "No se deshizo nada: esa entrada ya no está en la cola de etiquetado.",
+    "tagging.status.group": "Grupo «{0}».",
     "tagging.status.missing": "«{0}» ya no está en la cola de etiquetado; no se cambió nada.",
     "tagging.status.failed": "La decisión no se guardó: {0}",
     "tagging.help.heading": "Modo de etiquetado",

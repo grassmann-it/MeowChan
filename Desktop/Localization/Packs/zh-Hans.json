@@ -4341,6 +4341,7 @@
     "tagging.status.undone.done": "已撤销：“{0}”重新变为已完成。",
     "tagging.status.undone.skipped": "已撤销：“{0}”重新变为已跳过。",
     "tagging.status.undoGone": "未撤销任何内容：该条目已不在标签队列中。",
+    "tagging.status.group": "分组“{0}”。",
     "tagging.status.missing": "“{0}”已不在标签队列中；未做任何更改。",
     "tagging.status.failed": "决定未保存：{0}",
     "tagging.help.heading": "标签模式",

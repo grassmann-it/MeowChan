@@ -4447,6 +4447,7 @@
     "tagging.status.undone.done": "Отменено: «{0}» снова отмечен как готовый.",
     "tagging.status.undone.skipped": "Отменено: «{0}» снова пропущен.",
     "tagging.status.undoGone": "Ничего не отменено: этой записи больше нет в очереди тегов.",
+    "tagging.status.group": "Группа «{0}».",
     "tagging.status.missing": "«{0}» больше нет в очереди тегов; ничего не изменено.",
     "tagging.status.failed": "Решение не сохранено: {0}",
     "tagging.help.heading": "Режим тегирования",

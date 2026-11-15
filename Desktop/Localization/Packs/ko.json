@@ -4341,6 +4341,7 @@
     "tagging.status.undone.done": "취소함: “{0}”이(가) 다시 완료되었습니다.",
     "tagging.status.undone.skipped": "취소함: “{0}”이(가) 다시 건너뛴 항목이 되었습니다.",
     "tagging.status.undoGone": "취소한 것이 없습니다: 해당 항목이 더 이상 태그 지정 대기열에 없습니다.",
+    "tagging.status.group": "그룹 “{0}”.",
     "tagging.status.missing": "“{0}”은(는) 더 이상 태그 지정 대기열에 없습니다. 아무것도 변경하지 않았습니다.",
     "tagging.status.failed": "결정을 저장하지 못했습니다: {0}",
     "tagging.help.heading": "태그 지정 모드",

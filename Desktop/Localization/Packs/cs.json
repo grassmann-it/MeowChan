@@ -4470,6 +4470,7 @@
     "tagging.status.undone.done": "Vráceno: „{0}“ je znovu hotové.",
     "tagging.status.undone.skipped": "Vráceno: „{0}“ je znovu přeskočené.",
     "tagging.status.undoGone": "Nic nebylo vráceno: tato položka už ve frontě štítkování není.",
+    "tagging.status.group": "Skupina „{0}“.",
     "tagging.status.missing": "„{0}“ už ve frontě štítkování není; nic se nezměnilo.",
     "tagging.status.failed": "Rozhodnutí nebylo uloženo: {0}",
     "tagging.help.heading": "Režim štítkování",

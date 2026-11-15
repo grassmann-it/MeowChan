@@ -4433,6 +4433,7 @@
     "tagging.status.undone.done": "Desfeito: “{0}” está concluído de novo.",
     "tagging.status.undone.skipped": "Desfeito: “{0}” está pulado de novo.",
     "tagging.status.undoGone": "Nada foi desfeito: essa entrada não está mais na fila de tags.",
+    "tagging.status.group": "Grupo “{0}”.",
     "tagging.status.missing": "“{0}” não está mais na fila de tags; nada foi alterado.",
     "tagging.status.failed": "A decisão não foi salva: {0}",
     "tagging.help.heading": "Modo de tags",
