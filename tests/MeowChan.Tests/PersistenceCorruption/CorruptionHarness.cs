@@ -387,14 +387,22 @@ internal static class CorruptionScenarios
             ReadResult read = adapter.Read(directory, setup.Lease);
             if (read.Error != null) AssertHygiene(adapter, directory, read.Error, context + " read");
             if (read.Kind == ReadKind.Data)
-                // A store that opens the final link sees the good copy through it, and cannot tell a dangling link from a
-                // missing file: there it starts empty, exactly as it would in a fresh profile.
+                // A store that opens the final link sees the good copy through it. A dangling link is equivalent to a
+                // missing primary at the read boundary: stores that treat a missing primary as empty rebuild it, while
+                // stores with a good backup offer that backup for explicit recovery.
                 Assert.True(adapter.FollowsSymbolicLinks
                     && (kind == "symlink-to-good-copy" && read.Fingerprint == setup.Good.Fingerprint || kind == "dangling-symlink"),
                     $"{context}: the entry was read as data ({read.Fingerprint}).");
 
             Exception? outcome = Try(() => adapter.Mutate(directory, setup.Lease));
-            if (adapter.FollowsSymbolicLinks && kind != "directory")
+            if (read.Kind == ReadKind.Recovery)
+            {
+                // A recovery offer is not writable. In particular, do not implicitly replace a dangling primary and
+                // discard the good backup merely because the filesystem entry itself is a symbolic link.
+                Assert.NotNull(outcome);
+                AssertHygiene(adapter, directory, outcome!, context + " write");
+            }
+            else if (read.Kind == ReadKind.Data && adapter.FollowsSymbolicLinks && kind != "directory")
                 Assert.Null(outcome);
             else if (outcome != null) AssertHygiene(adapter, directory, outcome, context + " write");
             else Assert.True(adapter.Policy == StorePolicy.Rebuild,
