@@ -540,7 +540,7 @@ public partial class ArchivePage : UserControl
             // A new page is a new index space. Do not carry its predecessor's
             // virtualized realization window and estimated item positions over.
             postList.ItemsSource = null;
-            postList.ItemsPanel = new Avalonia.Controls.Templates.FuncTemplate<Panel?>(() => new VirtualizingStackPanel());
+            postList.ItemsPanel = ReaderPostList.NewPanelTemplate();
             postList.ItemsSource = posts;
             if (!posts.Any(post => post.Id == _readerPostId)) _readerPostId = posts.FirstOrDefault()?.Id;
             UpdateReaderNavigation();
