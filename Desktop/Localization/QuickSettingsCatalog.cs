@@ -13,6 +13,8 @@ internal static class QuickSettingsCatalog
         ("quicksettings.reader.all", "All reader settings", "Alle Reader-Einstellungen"),
         ("quicksettings.reader.section.view", "View (this session only)", "Ansicht (nur diese Sitzung)"),
         ("quicksettings.reader.section.media", "Media", "Medien"),
+        ("quicksettings.reader.section.postVideo", "Videos in posts", "Videos in Posts"),
+        ("quicksettings.reader.section.sidebarVideo", "Videos in the media sidebar", "Videos in der Medienleiste"),
         ("quicksettings.reader.section.text", "Text and layout", "Text und Layout"),
         ("quicksettings.reader.section.thread", "Thread", "Thread"),
         ("quicksettings.all.tip", "Open the settings page at these settings. The search there finds every setting.", "Öffnet die Einstellungsseite an diesen Einstellungen. Die dortige Suche findet jede Einstellung."),

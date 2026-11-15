@@ -254,7 +254,7 @@ internal static partial class SmokeScenarios
             await GalleryFitChecks.RunAsync(mainWindow);
             await GalleryViewerChecks.RunAsync(mainWindow);
         }),
-        ["media-panel"] = new(SmokeStage.AfterCommandRefresh, async mainWindow =>
+        ["media-tile-panel"] = new(SmokeStage.AfterCommandRefresh, async mainWindow =>
         {
             await MediaTilePanelChecks.RunAsync(mainWindow);
             await MediaTileRefillChecks.RunAsync(mainWindow);

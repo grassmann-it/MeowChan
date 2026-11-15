@@ -99,6 +99,7 @@ internal static class CommandLabelCatalog
         ("command.reader.find-previous", "Find previous", "Zurücksuchen"),
         ("command.reader.next-post", "Next post", "Nächster Post"),
         ("command.reader.open-quote", "Show quoted post", "Zitierten Post anzeigen"),
+        ("command.reader.media.activate", "Open medium of the post", "Medium des Posts öffnen"),
         ("command.reader.show-replies", "Show replies", "Antworten anzeigen"),
         ("command.gallery.return", "Back to gallery", "Zurück zur Galerie"),
         ("command.media.return", "Back to media", "Zurück zu Medien"),

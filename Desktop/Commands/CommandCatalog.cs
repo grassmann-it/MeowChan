@@ -191,6 +191,7 @@ public static class CommandCatalog
         new("reader.find-previous", "command.reader.find-previous", "Find previous", "Zurücksuchen", "arrow-up", "Shift+F3", CommandScope.Reader, new[] { "reader-find" }),
         new("reader.next-post", "command.reader.next-post", "Next post", "Nächster Post", "arrow-down", "Down", CommandScope.Reader, new[] { "large-reader-navigation" }),
         new("reader.open-quote", "command.reader.open-quote", "Show quoted post", "Zitierten Post anzeigen", "corner-up-left", null, CommandScope.Reader | CommandScope.Gallery, new[] { "reader-post-quote", "reader-reference-list", "gallery-post-context" }),
+        new("reader.media.activate", "command.reader.media.activate", "Open medium of the post", "Medium des Posts öffnen", "image", "Enter", CommandScope.Reader, new[] { "reader-media" }),
         new("reader.show-replies", "command.reader.show-replies", "Show replies", "Antworten anzeigen", "message-square", null, CommandScope.Reader, new[] { "reader-post" }),
         new("gallery.return", "command.gallery.return", "Back to gallery", "Zurück zur Galerie", "arrow-left", "Alt+Left", CommandScope.Reader, new[] { "reader-toolbar" }, new[] { "reader-gallery" }),
         new("media.return", "command.media.return", "Back to media", "Zurück zu Medien", "arrow-left", "Alt+Left", CommandScope.Reader, new[] { "reader-toolbar" }),

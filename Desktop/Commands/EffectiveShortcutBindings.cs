@@ -255,6 +255,9 @@ public sealed class EffectiveShortcutBindings
         //   (Ctrl+wheel does the first two); F5 refreshes the Plugins page on every platform (no Cmd+R on macOS: Primary+R is rules.edit-scope, also on the
         //   Plugins page).
         ["reader.font-size.larger"] = 20, ["reader.font-size.smaller"] = 20, ["reader.font-size.reset"] = 20, ["plugins.refresh"] = 20,
+        // - reader Space and Enter on the selected post's medium: Enter, until now a fixed content key, is the command "Open medium of the post" (what a click
+        //   on the medium does by the choice "Clicking a medium"). Space stays the video's play / pause.
+        ["reader.media.activate"] = 20,
     };
     public static IReadOnlyCollection<string> YieldingDefaultCommandIds => DefaultChangedInRevision.Keys.ToArray();
     // Commands whose default changed only in the macOS table: on Windows and Linux their gesture is the old stable one
@@ -507,17 +510,22 @@ public sealed class EffectiveShortcutBindings
     /// <summary>The presentation context of the video keys that the Media page routes to its media panel (CommandDefinition.Contexts).</summary>
     public const string MediaPanelVideoKeys = "media-video-keys";
 
+    /// <summary>The presentation context of the video keys that the reader routes to the selected post's video or its media sidebar (CommandDefinition.Contexts).</summary>
+    public const string ReaderPostVideoKeys = "reader-video-keys";
+
     /// <summary>
     /// The contexts in which a gesture of <paramref name="id"/> competes with other commands: its <see cref="ExecutionContexts"/>, except the Media page for
-    /// the video keys of its media panel. The page routes them only after its own commands (MediaPanelKeys.Route), so there a Media command on the same
-    /// gesture simply wins: it neither conflicts with the video key nor makes it yield, which would silence it in the gallery and the reader as well
-    /// (the defaults are per command, not per context).
+    /// the video keys of its media panel and the reader for the video keys of its selected post. Both pages route those keys only after their own commands
+    /// (MediaPanelKeys.Route, ReaderVideoKeys.ClassifyUnclaimed), so there a Media or reader command on the same gesture simply wins: it neither conflicts
+    /// with the video key nor makes it yield, which would silence it in the gallery (and on the other page) as well (the defaults are per command, not per context).
     /// </summary>
     public static IReadOnlyList<string> ConflictContexts(string id)
     {
         IReadOnlyList<string> contexts = ExecutionContexts(id);
-        return CommandCatalog.Get(id).Contexts.Contains(MediaPanelVideoKeys, StringComparer.Ordinal) && contexts.Contains("media", StringComparer.Ordinal)
-            ? contexts.Where(context => context != "media").ToArray() : contexts;
+        IReadOnlyList<string> marks = CommandCatalog.Get(id).Contexts;
+        bool media = marks.Contains(MediaPanelVideoKeys, StringComparer.Ordinal), reader = marks.Contains(ReaderPostVideoKeys, StringComparer.Ordinal);
+        return media || reader
+            ? contexts.Where(context => !(media && context == "media" || reader && context == "reader")).ToArray() : contexts;
     }
 
     public static IReadOnlyList<string> ExecutionContexts(string id)

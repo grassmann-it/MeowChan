@@ -151,6 +151,12 @@ public partial class ArchivePage
         sidebar.Close.Click += (_, e) => { e.Handled = true; CloseMediaSidebar(); };
         // The sidebar's keys reach the reader's view shortcuts too (the toggle, the reader's other switches), in either host.
         sidebar.AddHandler(KeyDownEvent, (_, e) => { if (!TryRouteSidebarVideoKey(e)) OnReaderViewKeyDown(sidebar, e); }, RoutingStrategies.Bubble);
+        sidebar.AddHandler(KeyDownEvent, OnSidebarNavigationKey, RoutingStrategies.Bubble);
+        // The large reader's frame is not under the page (the shell hosts it), so the page's and the pane's media menu never see the sidebar: it opens the same
+        // menu itself, on a right click of its picture (also while a video plays), the Menu key and Shift+F10.
+        sidebar.AddHandler(ContextRequestedEvent, OnArchiveMediaContextRequested, RoutingStrategies.Tunnel);
+        sidebar.AddHandler(PointerPressedEvent, OnSidebarPointerPressed, RoutingStrategies.Tunnel);
+        sidebar.AddHandler(KeyDownEvent, OnArchiveMediaContextKey, RoutingStrategies.Tunnel);
         return sidebar;
     }
 

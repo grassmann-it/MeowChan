@@ -45,7 +45,8 @@ internal readonly record struct MediaPanelKeyRoute(MediaPanelKeyKind Kind, Reade
 /// field has the focus (or while the panel is hidden, or has no video for the video keys): Space then stays the
 /// grid's selection key and the letters stay letters. A video key that one of the Media page's own commands also has (a binding the person saved for
 /// it) is left to that command: on the Media page the video keys give way instead of conflicting (EffectiveShortcutBindings.ConflictContexts), so the
-/// gallery and the reader keep them. Enter is not here: it keeps opening the gallery. Escape is not here either: it is a level of the page
+/// gallery and the reader keep them. While the panel shows a video, Space is that video's play / pause (the Space of "mark the focused tile" after
+/// Ctrl+arrows goes to the video then; a Media command saved on Space keeps it, and a medium that is no video leaves Space to the grid). Enter is not here: it keeps opening the gallery. Escape is not here either: it is a level of the page
 /// (MediaFocusMode.Escape), so the focus mode ends before the panel hands the keyboard back to the grid.
 /// </summary>
 internal static class MediaPanelKeys

@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
@@ -23,6 +24,9 @@ public partial class ArchivePage
     private DispatcherTimer? _sidebarVideoAutoplay;
     private string? _sidebarVideoAutoplayKey;
     private Window? _inlineVideoWindow;
+
+    /// <summary>The profile's timeline hover-preview cache (the gallery's own); the shell sets it. Videos started after it is set show the preview on their timeline.</summary>
+    internal VideoScrubPreviewCache? ScrubPreviewCache { get => _inlineVideo.ScrubCache; set => _inlineVideo.ScrubCache = value; }
 
     /// <summary>The reader's inline players (smoke and test seam).</summary>
     internal ReaderInlineVideoController InlineVideo => _inlineVideo;
@@ -64,9 +68,17 @@ public partial class ArchivePage
     private void WatchInlineVideoWindow(Window? window)
     {
         if (ReferenceEquals(window, _inlineVideoWindow)) return;
-        if (_inlineVideoWindow != null) _inlineVideoWindow.PropertyChanged -= OnInlineVideoWindowPropertyChanged;
+        if (_inlineVideoWindow != null)
+        {
+            _inlineVideoWindow.PropertyChanged -= OnInlineVideoWindowPropertyChanged;
+            _inlineVideoWindow.RemoveHandler(KeyDownEvent, OnViewerFocusLostKeyDown);
+        }
         _inlineVideoWindow = window;
-        if (window != null) window.PropertyChanged += OnInlineVideoWindowPropertyChanged;
+        if (window != null)
+        {
+            window.PropertyChanged += OnInlineVideoWindowPropertyChanged;
+            window.AddHandler(KeyDownEvent, OnViewerFocusLostKeyDown, RoutingStrategies.Bubble);
+        }
     }
 
     private void OnInlineVideoWindowPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
@@ -77,73 +89,46 @@ public partial class ArchivePage
     // ---- the reader's video keys --------------------------------------------------------------------------------------------------
 
     /// <summary>
-    /// The video the reader's keys act on for the selected post: the media sidebar's when it is shown and presents a video; otherwise the first
-    /// video of the post that can play in it (one that already plays first). Null when nothing can play inline, so the keys keep their old meaning
-    /// (Enter and Space open the gallery). The sidebar goes first because it is what the person looks at, and so no second player of the
-    /// same file is created beside it.
+    /// The video the reader's video keys (mute, repeat, seek step, speed, next frame) act on for the selected post: the same medium Space and Enter act on (one resolver,
+    /// <see cref="ReaderMediaActivation.Choose"/>), restricted to the videos that can play inline. Null when nothing can play inline, so the keys keep their old meaning.
     /// </summary>
-    private ReaderInlineVideoSlot? ReaderVideoTarget(ArchivePostRow post)
+    private ReaderInlineVideoSlot? ReaderVideoTarget(ArchivePostRow post, Control? source = null)
     {
         if (!_inlineVideo.Options.Enabled) return null;
-        if (_mediaSidebarShown && _sidebarVideo is { IsOffered: true } sidebar) return sidebar;
-        if (ArchivePosts.ContainerFromItem(post) is not Control container) return null;
-        List<ArchiveAttachmentView> views = container.GetVisualDescendants().OfType<ArchiveAttachmentView>()
-            .Where(view => ReaderInlineVideoRules.CanOfferInPost(_inlineVideo.Options, view.DataContext as ArchiveAttachmentRow)).ToList();
-        ArchiveAttachmentView? chosen = views.FirstOrDefault(view => view.InlineVideo?.IsLive == true) ?? views.FirstOrDefault();
-        return chosen?.InlineVideoForKeys();
+        PostMediaSnapshot? snapshot = SnapshotPostMedia(post, source, videosOnly: true);
+        if (snapshot == null || ReaderMediaActivation.Choose(snapshot.Media, snapshot.SidebarIndex, snapshot.SidebarLive, snapshot.SidebarPlaying, snapshot.FocusedIndex) is not { } choice)
+            return null;
+        if (choice.Live == ReaderMediumPlace.Sidebar || choice.Live == ReaderMediumPlace.None && snapshot.SidebarIndex == choice.Index)
+            return _sidebarVideo is { IsOffered: true } sidebar ? sidebar : null;
+        return snapshot.Views[choice.Index]?.InlineVideoForKeys();
     }
 
     /// <summary>
-    /// Enter plays or pauses the selected post's video; the gallery's video keys (play / pause, mute, repeat, seek step, speed, next frame)
-    /// act on it too. They are only taken where the focus is on the post's content (never in a text field, a button or a list of its own, which
-    /// keep their keys), so Space is the video's only where it cannot be anything else; elsewhere in the reader the keys are what they were.
+    /// The selected post's medium keys. Enter (the command "Open medium of the post") and Space (play / pause, with the same action as its fallback) act on one medium
+    /// by one rule (<see cref="ReaderMediaActivation"/>): a video with a player toggles it; anything else does what a click does by the choice "Clicking a medium".
+    /// The gallery's other video keys (mute, repeat, seek step, speed, next frame) act on the same video. They are only taken where the focus is on the post's content (never in a
+    /// text field, a button or a list of its own, which keep their keys) and yield to a saved reader or shell binding on the same gesture.
     /// </summary>
     private bool TryRouteReaderVideoKey(KeyEventArgs e)
     {
         if (e.Handled || !_largeReader || e.Source is not Control source || ArchivePosts.SelectedItem is not ArchivePostRow post) return false;
         if (e.Source is ReaderBodyTextBlock { HasHiddenSpoilers: true }) return false;
         if (!ReaderMediaContextIsCurrent(source, post, needsGallery: false)) return false;
-        // Enter follows the choice "Clicking a medium" for the post's first medium (a click on it, from the keyboard).
-        if (ReaderVideoKeys.IsEnterToggle(e.Key, e.KeyModifiers) && IsReaderMediaGesture(e, ShortcutService.Current)) return TryActivateFirstMedium(e, post);
-        ReaderVideoAction action = ReaderVideoKeys.Classify(id => ShortcutService.Current.Matches(e, id));
-        if (action == ReaderVideoAction.None || ReaderVideoTarget(post) is not { } slot) return false;
+        ReaderVideoAction action = ReaderVideoKeys.ClassifyUnclaimed(id => ShortcutService.Current.Matches(e, id));
+        if (ReaderMediaActivation.IsMediaKey(e.Key, e.KeyModifiers, ShortcutService.Current.Matches(e, ActivateMediumCommandId), ClaimedByOtherReaderCommand(e))
+            || action == ReaderVideoAction.PlayPause)
+            return TryActivatePostMedium(e, post, source);
+        if (action == ReaderVideoAction.None || ReaderVideoTarget(post, source) is not { } slot) return false;
         e.Handled = true;
         _ = slot.ExecuteAsync(action);
         return true;
-    }
-
-    /// <summary>
-    /// Enter on the selected post: what a click on its first medium does by the choice "Clicking a medium". In the sidebar it shows that medium there
-    /// and plays a video (Enter again, while that video is shown, plays or pauses it); in the post it plays a video or expands an image (again: pauses,
-    /// or puts the image back). With the gallery as the choice, or the sidebar closed, it returns false and Enter opens the gallery as it always did.
-    /// </summary>
-    private bool TryActivateFirstMedium(KeyEventArgs e, ArchivePostRow post)
-    {
-        if (!post.ShowsMedia || post.Attachments.Count == 0) return false;
-        ReaderMediaClickMode target = ReaderMediaClickRules.Resolve(_inlineVideo.Options.Mode, _mediaSidebarShown);
-        ArchiveAttachmentRow first = post.Attachments[0];
-        if (target == ReaderMediaClickMode.Sidebar)
-        {
-            e.Handled = true;
-            if (ReferenceEquals(CurrentSidebarAttachment(), first) && _sidebarVideo is { IsOffered: true } shown) _ = shown.ToggleAsync();
-            else ShowTileInMediaSidebar(first);
-            return true;
-        }
-        if (target == ReaderMediaClickMode.Post && ArchivePosts.ContainerFromItem(post) is Control container
-            && container.GetVisualDescendants().OfType<ArchiveAttachmentView>().FirstOrDefault(view => ReferenceEquals(view.DataContext, first)) is { } view)
-        {
-            e.Handled = true;
-            view.ActivateMedium();
-            return true;
-        }
-        return false;
     }
 
     // The sidebar's own focus (its strip, its header buttons): the video keys act on the video it presents.
     private bool TryRouteSidebarVideoKey(KeyEventArgs e)
     {
         if (e.Handled || !_mediaSidebarShown || _sidebarVideo is not { IsOffered: true } slot || e.Source is Button) return false;
-        ReaderVideoAction action = ReaderVideoKeys.Classify(id => CommandBindings.Matches(e, id));
+        ReaderVideoAction action = ReaderVideoKeys.ClassifyUnclaimed(id => CommandBindings.Matches(e, id));
         if (action == ReaderVideoAction.None) return false;
         e.Handled = true;
         _ = slot.ExecuteAsync(action);
@@ -155,8 +140,59 @@ public partial class ArchivePage
     private void CreateSidebarVideo(ReaderMediaSidebar sidebar)
     {
         // In the sidebar the slot's activator covers the poster also while idle: the focusable "Play video here" (Enter plays).
-        ReaderInlineVideoSlot slot = _sidebarVideo = new ReaderInlineVideoSlot(sidebar.FrameArea, activatorWhenIdle: true);
+        ReaderInlineVideoSlot slot = _sidebarVideo = new ReaderInlineVideoSlot(sidebar.FrameArea, activatorWhenIdle: true) { PointerPlayFocus = FocusPostsAfterPointerPlay };
         sidebar.VideoRow.Children.Add(slot.Below);
+    }
+
+    // After a click on the sidebar's play button the button hides itself and would leave no focus: it goes to the posts, where Up and Down
+    // move the reader and the video keys act on the shown video. A menu, dialog or field that took the focus meanwhile keeps it.
+    private void FocusPostsAfterPointerPlay()
+    {
+        if (_ended || !_mediaSidebarShown || _mediaSidebar is not { } sidebar) return;
+        object? focused = TopLevel.GetTopLevel(sidebar)?.FocusManager?.GetFocusedElement();
+        if (focused is Visual visual && !visual.GetSelfAndVisualAncestors().Any(node => ReferenceEquals(node, sidebar))) return;
+        ArchivePosts.Focus(NavigationMethod.Pointer);
+    }
+
+    // ---- keys in the media sidebar -----------------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// The reader's post keys for a key pressed in the media sidebar (not in the timeline or on the picture, which the video slot routes first): the
+    /// large reader moves by the reader's bindings, the archive view moves the selected post one up or down. True when the key did something.
+    /// </summary>
+    internal bool TryNavigateFromViewer(KeyEventArgs e)
+    {
+        if (e.Handled || ShortcutService.IsCapturing || _ended) return false;
+        if (_largeReader) return TryNavigateReaderByKey(e);
+        if (_busy || IsReaderDialogOpen || ArchivePosts.ItemCount == 0) return false;
+        int delta = ShortcutService.Current.Matches(e, "reader.previous-post") ? -1 : ShortcutService.Current.Matches(e, "reader.next-post") ? 1 : 0;
+        if (delta == 0) return false;
+        e.Handled = true;
+        int index = Math.Clamp((ArchivePosts.SelectedIndex < 0 ? (delta > 0 ? -1 : ArchivePosts.ItemCount) : ArchivePosts.SelectedIndex) + delta, 0, ArchivePosts.ItemCount - 1);
+        if (index != ArchivePosts.SelectedIndex)
+        {
+            ArchivePosts.SelectedIndex = index;
+            ArchivePosts.ScrollIntoView(index);
+        }
+        return true;
+    }
+
+    // Bubble, after the strip and the video had their keys: whatever of the reader's navigation is left reaches the reader from any focus in the sidebar.
+    private void OnSidebarNavigationKey(object? sender, KeyEventArgs e)
+    {
+        if (e.Handled || !ReaderVideoKeys.IsNavigationKey(e.Key)) return;
+        TryNavigateFromViewer(e);
+    }
+
+    // A window-level net for the moment the focus is nowhere (the pressed play button hid itself): the key then has the window for its source and would reach
+    // neither the reader's pane nor the sidebar. The sidebar's video keys and the reader's navigation work from there too.
+    private void OnViewerFocusLostKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Handled || !ReferenceEquals(e.Source, sender) || _ended || _obscuredByGallery || IsReaderDialogOpen || ShortcutService.IsCapturing) return;
+        bool visible = _largeReader ? _largeReaderFrame?.IsEffectivelyVisible == true : _mediaSidebarShown && IsEffectivelyVisible;
+        if (!visible) return;
+        if (TryRouteSidebarVideoKey(e)) return;
+        if (ReaderVideoKeys.IsNavigationKey(e.Key)) TryNavigateFromViewer(e);
     }
 
     /// <summary>The sidebar shows this attachment (or none): a video offers inline playback; any other medium gives a player back.</summary>
@@ -179,19 +215,19 @@ public partial class ArchivePage
         OpenMediaSidebarMedia();
     }
 
-    // Opt-in muted autoplay of the sidebar's video, once the selection rested (holding ↑/↓ starts nothing).
+    // The sidebar's own autoplay (default on; sound as its start-muted switch says) of the shown video, once the selection rested (holding ↑/↓ starts nothing).
     private void ScheduleSidebarVideoAutoplay()
     {
         _sidebarVideoAutoplay?.Stop();
         if (_sidebarVideo is not { IsOffered: true, IsLive: false }
-            || !ReaderInlineVideoRules.ShouldAutoplay(_inlineVideo.Options, _mediaSidebarShown && !_obscuredByGallery, presentedElsewhere: false)) return;
+            || !ReaderInlineVideoRules.ShouldAutoplayViewer(_inlineVideo.Options, _mediaSidebarShown && !_obscuredByGallery)) return;
         _sidebarVideoAutoplayKey = ArchivePosts.SelectedItem is ArchivePostRow post ? post.Id + "\n" + _sidebarIndex : null;
         DispatcherTimer timer = _sidebarVideoAutoplay ??= CreateSidebarTimer(() =>
         {
             string? key = ArchivePosts.SelectedItem is ArchivePostRow current ? current.Id + "\n" + _sidebarIndex : null;
             if (!_ended && _mediaSidebarShown && !_obscuredByGallery && key != null && key == _sidebarVideoAutoplayKey
                 && _sidebarVideo is { IsOffered: true, IsLive: false } video)
-                _ = video.PlayAsync(muted: true);
+                _ = video.PlayAsync(); // the sidebar's own autoplay is not muted by force: its "start muted" decides
         });
         timer.Interval = TimeSpan.FromMilliseconds(ReaderInlineVideoRules.AutoplayDelayMs);
         timer.Start();

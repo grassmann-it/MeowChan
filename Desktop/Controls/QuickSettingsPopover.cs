@@ -62,7 +62,8 @@ internal sealed class QuickSettingsSurface : UserControl, IDisposable
     private string? _lastChanged;
     private bool _syncing, _keyboard, _disposed;
 
-    private sealed record Row(QuickSettingField Field, Control Editor, TextBlock? Label);
+    // Visual: what stands in the row when it is not the editor itself (a slider with its value beside it).
+    private sealed record Row(QuickSettingField Field, Control Editor, TextBlock? Label, Control? Visual = null, TextBlock? ValueText = null);
     private sealed record SessionRow(string CommandId, bool IsAction, Control Container, Control Control);
     private sealed record SectionRow(TextBlock Heading, List<Control> Rows);
 
@@ -377,7 +378,8 @@ internal sealed class QuickSettingsSurface : UserControl, IDisposable
     {
         string label = Texts.T(field.LabelKey);
         string? hint = field.HintKey == null ? null : Texts.T(field.HintKey);
-        TextBlock? caption = null;
+        TextBlock? caption = null, valueText = null;
+        Control? visual = null;
         Control editor;
         switch (field)
         {
@@ -390,6 +392,30 @@ internal sealed class QuickSettingsSurface : UserControl, IDisposable
                 };
                 box.SelectionChanged += (_, _) => { if (box.SelectedItem is ChoiceItem item) Edited(field, item.Value); };
                 editor = box;
+                break;
+            }
+            case QuickIntegerField { AsSlider: true } number:
+            {
+                Slider slider = new()
+                {
+                    Minimum = number.Minimum, Maximum = number.Maximum, SmallChange = number.Step, LargeChange = number.Step * 10,
+                    Classes = { "media-slider" }, HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Center
+                };
+                valueText = new TextBlock { Classes = { "workspace-meta" }, VerticalAlignment = VerticalAlignment.Center, MinWidth = 40, TextAlignment = TextAlignment.Right };
+                AutomationProperties.SetAccessibilityView(valueText, AccessibilityView.Raw); // the slider itself reports its value
+                TextBlock shown = valueText;
+                slider.ValueChanged += (_, e) =>
+                {
+                    int value = (int)Math.Round(e.NewValue);
+                    shown.Text = SliderValueText(value);
+                    if (_syncing || (int)Math.Round(e.OldValue) == value) return; // a drag raises fractions of the same step
+                    Edited(field, value.ToString(CultureInfo.InvariantCulture));
+                };
+                Grid host = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 };
+                host.Children.Add(slider);
+                host.Children.Add(valueText); Grid.SetColumn(valueText, 1);
+                visual = host;
+                editor = slider;
                 break;
             }
             case QuickIntegerField number:
@@ -432,14 +458,17 @@ internal sealed class QuickSettingsSurface : UserControl, IDisposable
             if (hint != null) ToolTip.SetTip(caption, hint);
             AutomationProperties.SetLabeledBy(editor, caption);
         }
-        return new Row(field, editor, caption);
+        return new Row(field, editor, caption, visual, valueText);
     }
+
+    // A volume reads "70 %"; the percent sign is the same in every language the packs cover.
+    private static string SliderValueText(int value) => value.ToString(CultureInfo.InvariantCulture) + " %";
 
     private Control RowLayout(Row row, string? shortcutCommandId = null)
     {
         if (row.Label == null)
         {
-            if (shortcutCommandId == null) return row.Editor;
+            if (shortcutCommandId == null) return row.Visual ?? row.Editor;
             // A switch with the key of its command at the right end of the row.
             Grid line = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 16 };
             line.Children.Add(row.Editor);
@@ -449,7 +478,8 @@ internal sealed class QuickSettingsSurface : UserControl, IDisposable
         }
         Grid grid = new() { ColumnDefinitions = new ColumnDefinitions("*," + EditorWidth.ToString(CultureInfo.InvariantCulture)), ColumnSpacing = 16 };
         grid.Children.Add(row.Label);
-        grid.Children.Add(row.Editor); Grid.SetColumn(row.Editor, 1);
+        Control placed = row.Visual ?? row.Editor;
+        grid.Children.Add(placed); Grid.SetColumn(placed, 1);
         return grid;
     }
 
@@ -463,6 +493,10 @@ internal sealed class QuickSettingsSurface : UserControl, IDisposable
                 break;
             case NumericUpDown input when int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int number):
                 if (input.Value != number) input.Value = number;
+                break;
+            case Slider slider when int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int level):
+                if ((int)Math.Round(slider.Value) != level) slider.Value = level;
+                if (row.ValueText != null) row.ValueText.Text = SliderValueText(level);
                 break;
             case CheckBox box:
                 box.IsChecked = bool.TryParse(value, out bool on) && on;

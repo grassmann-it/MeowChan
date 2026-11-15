@@ -98,6 +98,8 @@ internal sealed class QuickIntegerField : QuickSettingField
     internal int Minimum { get; }
     internal int Maximum { get; }
     internal int Step { get; }
+    /// <summary>The popover edits it with a slider (and shows the number beside it) instead of a number field; the values are the same.</summary>
+    internal bool AsSlider { get; init; }
     internal override QuickSettingKind Kind => QuickSettingKind.Integer;
     internal override string Read(Config config) => _get(config).ToString(CultureInfo.InvariantCulture);
 
@@ -144,6 +146,10 @@ internal static class QuickSetting
 
     internal static QuickSettingField Integer(string id, string labelKey, string? hintKey, int minimum, int maximum, int step,
         Func<Config, int> get, Action<Config, int> set) => new QuickIntegerField(id, labelKey, hintKey, minimum, maximum, step, get, set);
+
+    /// <summary>A whole-number setting the popover edits with a slider (a volume); the range and step are those of the setting.</summary>
+    internal static QuickSettingField Slider(string id, string labelKey, string? hintKey, int minimum, int maximum, int step,
+        Func<Config, int> get, Action<Config, int> set) => new QuickIntegerField(id, labelKey, hintKey, minimum, maximum, step, get, set) { AsSlider = true };
 
     internal static QuickSettingField Toggle(string id, string labelKey, string? hintKey, Func<Config, bool> get, Action<Config, bool> set) =>
         new QuickToggleField(id, labelKey, hintKey, get, set);

@@ -159,12 +159,15 @@ public partial class MainWindow
         if (_isClosing) return;
         if (_galleryScrubHost == null)
         {
-            if (_gallery == null) return;
+            // The cache is the profile's one: the gallery and the videos of the reader and the Media page's panel (their timelines) share it and its budget.
+            if (_gallery == null && _archivePage == null && _mediaPage == null) return;
             _galleryScrubHost = new GalleryScrubPreviewHost(_session.ProfileDirectory);
         }
 
         GalleryScrubPreviewHost host = _galleryScrubHost;
         _gallery?.ConfigureScrubPreview(host.Cache);
+        if (_archivePage != null) _archivePage.ScrubPreviewCache = host.Cache;
+        _mediaPage?.ConfigureScrubPreviewCache(host.Cache);
         host.Configure(GalleryScrubPreviewHost.OptionsFor(_config));
     }
 

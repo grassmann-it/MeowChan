@@ -57,9 +57,9 @@ public sealed class MediaPanelKeysTests : IDisposable
     }
 
     [Theory, MemberData(nameof(Platforms))]
-    public void AGalleryOrReaderBindingStillMakesTheVideoKeyYield(ShortcutPlatform platform)
+    public void AGalleryBindingStillMakesTheVideoKeyYield(ShortcutPlatform platform)
     {
-        // The yield of a changed default is unchanged where the gesture really competes: the gallery (here the slideshow on M) and the reader.
+        // The yield of a changed default is unchanged where the gesture really competes: the gallery (here the slideshow on M).
         var section = new ShortcutBindingsSection().Set("gallery.slideshow-toggle", [ShortcutGesture.Parse("M")]);
         EffectiveShortcutBindings bindings = EffectiveShortcutBindings.Build(section, platform);
         Assert.False(Has(bindings, "video.mute", ShortcutGesture.Parse("M")));
@@ -67,13 +67,13 @@ public sealed class MediaPanelKeysTests : IDisposable
     }
 
     [Fact]
-    public void TheVideoKeysCompeteEverywhereTheyRunExceptOnTheMediaPage()
+    public void TheVideoKeysCompeteOnlyInTheGalleryNotOnTheMediaPageOrInTheReader()
     {
         foreach ((string id, _) in ReaderVideoKeys.Commands)
         {
             Assert.Contains("media", CommandCatalog.Get(id).ExecutionContexts);
             Assert.Contains(EffectiveShortcutBindings.MediaPanelVideoKeys, CommandCatalog.Get(id).Contexts);
-            Assert.Equal(new[] { "gallery", "reader" }, EffectiveShortcutBindings.ConflictContexts(id).Order(StringComparer.Ordinal));
+            Assert.Equal(new[] { "gallery" }, EffectiveShortcutBindings.ConflictContexts(id).Order(StringComparer.Ordinal));
             Assert.False(EffectiveShortcutBindings.ContextsOverlap(id, "media.focus-mode"), id);
             Assert.False(EffectiveShortcutBindings.ContextsOverlap(id, MediaPanelKeys.ToggleCommandId), id);
             Assert.True(EffectiveShortcutBindings.ContextsOverlap(id, "gallery.slideshow-toggle"), id);

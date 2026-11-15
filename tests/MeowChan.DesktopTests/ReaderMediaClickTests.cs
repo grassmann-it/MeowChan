@@ -213,7 +213,7 @@ public sealed class ReaderMediaClickTests : IDisposable
     }
 
     [Fact]
-    public void ArrowsAndPageKeysStayWithThePostsEvenWithFocusInThePlayer()
+    public void TheReadersNavigationKeysAreTheSetTheVideoControlsRouteFromOrKeep()
     {
         foreach (Key key in new[] { Key.Up, Key.Down, Key.Left, Key.Right, Key.Home, Key.End, Key.PageUp, Key.PageDown })
             Assert.True(ReaderVideoKeys.IsNavigationKey(key), key.ToString());

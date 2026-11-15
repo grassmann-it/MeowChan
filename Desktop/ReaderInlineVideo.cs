@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Input;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 
@@ -12,7 +13,8 @@ namespace MeowChan.Desktop;
 /// Inline video in the reader (R10) as one value. <see cref="Enabled"/>: videos play in the reader (in the media sidebar, or in the post
 /// as well when <see cref="InPost"/>, the choice "Open in the post"); off with the choice "Open in the gallery". Autoplay (always muted)
 /// is a second opt-in. The number of live players and the largest file played in the reader are
-/// settings with default, minimum and maximum. Volume and "start muted" are the gallery's own preferences (one choice for both).
+/// settings with default, minimum and maximum. Volume, "start muted" and "Repeat video" are the gallery's own preferences (one choice for
+/// both places); the reader's settings popover offers volume and repeat too, and a change reaches the players that are playing.
 /// </summary>
 internal readonly record struct ReaderInlineVideoOptions(bool Enabled, bool AutoplayMuted, int MaxPlayers, int MaxFileMiB)
 {
@@ -36,8 +38,21 @@ internal readonly record struct ReaderInlineVideoOptions(bool Enabled, bool Auto
 
     /// <summary>The gallery's volume (0 to 100), reused so a video sounds the same in both places.</summary>
     internal int Volume { get; init; } = 70;
+    /// <summary>The gallery's "Repeat video": a new player repeats its video, and a change reaches the live players (the gallery's loop semantics, outside a slideshow).</summary>
+    internal bool Repeat { get; init; }
+    /// <summary>"Keep images expanded" (with "Open in the post"): an expanded image stays expanded when its post scrolls away and back or the posts are rebuilt.</summary>
+    internal bool KeepImagesExpanded { get; init; }
     /// <summary>The gallery's "start muted"; autoplay is muted in any case.</summary>
     internal bool StartMuted { get; init; }
+    // "Videos in the media sidebar": the viewer (the reader's sidebar, the archive view's, the Media page's panel) has three switches of its own,
+    // apart from the videos in posts (<see cref="AutoplayMuted"/>, <see cref="Repeat"/>, <see cref="StartMuted"/>), so their defaults differ.
+    // Its autoplay does not force silence: sound follows the volume unless "start muted" is on or the person muted it in this session.
+    /// <summary>The sidebar's video starts by itself once the selection rested (applies to the next medium selected).</summary>
+    internal bool SidebarAutoplay { get; init; } = true;
+    /// <summary>The sidebar's video repeats (applies to the video shown now).</summary>
+    internal bool SidebarLoop { get; init; } = true;
+    /// <summary>The sidebar's video starts muted (applies to the video shown now).</summary>
+    internal bool SidebarStartMuted { get; init; }
     /// <summary>The gallery's seek step (seconds of one "," or "." key), also used by the reader's video keys.</summary>
     internal int SeekStepSeconds { get; init; } = Config.GalleryVideoSeekStepSecondsDefault;
 
@@ -48,7 +63,12 @@ internal readonly record struct ReaderInlineVideoOptions(bool Enabled, bool Auto
     {
         InPost = config.EffectiveReaderMediaClick == ReaderMediaClickMode.Post,
         Volume = config.VideoVolume,
+        Repeat = config.GalleryVideoRepeat,
+        KeepImagesExpanded = config.ReaderKeepImagesExpanded,
         StartMuted = config.VideoStartMuted,
+        SidebarAutoplay = config.ReaderSidebarVideoAutoplay,
+        SidebarLoop = config.ReaderSidebarVideoLoop,
+        SidebarStartMuted = config.ReaderSidebarVideoStartMuted,
         SeekStepSeconds = config.GalleryVideoSeekStepSeconds
     };
 
@@ -96,6 +116,9 @@ internal static class ReaderInlineVideoRules
     internal static bool ShouldAutoplay(ReaderInlineVideoOptions options, bool shown, bool presentedElsewhere) =>
         options.Enabled && options.AutoplayMuted && shown && !presentedElsewhere;
 
+    /// <summary>Whether the sidebar's shown video starts by itself: only with the sidebar's own autoplay on (not muted by force), and not while the gallery covers it.</summary>
+    internal static bool ShouldAutoplayViewer(ReaderInlineVideoOptions options, bool shown) => options.Enabled && options.SidebarAutoplay && shown;
+
     internal enum ViewportAction { Keep, Pause, Release }
 
     /// <summary>
@@ -118,6 +141,9 @@ internal static class ReaderInlineVideoRules
     /// </summary>
     internal static bool StartMuted(ReaderInlineVideoOptions options, bool? sessionChoice, bool autoplay) =>
         autoplay || (sessionChoice ?? options.StartMuted);
+
+    /// <summary>The same for the sidebar's viewer: its own "start muted"; its autoplay is not muted by force.</summary>
+    internal static bool StartMutedViewer(ReaderInlineVideoOptions options, bool? sessionChoice) => sessionChoice ?? options.SidebarStartMuted;
 }
 
 /// <summary>What a key does to the selected post's video (the gallery's commands, used in the reader).</summary>
@@ -148,12 +174,53 @@ internal static class ReaderVideoKeys
         return ReaderVideoAction.None;
     }
 
+    /// <summary>
+    /// <see cref="Classify"/> for the reader: a key that one of the reader's own commands also has (a binding the person saved for it) is that command's, not the
+    /// video's. On the reader the video keys give way instead of conflicting (EffectiveShortcutBindings.ConflictContexts), so the gallery keeps them.
+    /// </summary>
+    internal static ReaderVideoAction ClassifyUnclaimed(Func<string, bool> matches) => ReaderClaims(matches) ? ReaderVideoAction.None : Classify(matches);
+
+    /// <summary>Whether one of the reader's own commands (not a video key) has the key.</summary>
+    internal static bool ReaderClaims(Func<string, bool> matches)
+    {
+        ArgumentNullException.ThrowIfNull(matches);
+        foreach (string id in ReaderCommands.Value)
+            if (matches(id)) return true;
+        return false;
+    }
+
+    // Every command that runs in the reader and competes there for its gestures: not the video keys themselves (they give way).
+    private static readonly Lazy<string[]> ReaderCommands = new(() => CommandCatalog.All
+        .Where(command => command.IsImplemented && !IsVideoCommand(command.Id)
+            && EffectiveShortcutBindings.ConflictContexts(command.Id).Contains("reader", StringComparer.Ordinal))
+        .Select(command => command.Id).ToArray());
+
     /// <summary>Enter on the selected post's video: a fixed content key (no command) that plays or pauses.</summary>
     internal static bool IsEnterToggle(Key key, KeyModifiers modifiers) => key == Key.Enter && modifiers == KeyModifiers.None;
 
-    /// <summary>Keys that move between posts and threads (the reader's navigation): a bar's timeline must not keep them for itself.</summary>
+    /// <summary>Keys that move between posts and threads (the reader's navigation).</summary>
     internal static bool IsNavigationKey(Key key) => key is Key.Up or Key.Down or Key.Left or Key.Right or Key.Home or Key.End or Key.PageUp or Key.PageDown;
+
+    /// <summary>Keys that move between posts (and, where the person bound them, the first, the last and by page): no video control owns them, so a bar's timeline never keeps them for itself.</summary>
+    internal static bool IsPostNavigationKey(Key key) => key is Key.Up or Key.Down or Key.Home or Key.End or Key.PageUp or Key.PageDown;
+
+    /// <summary>
+    /// Who gets a key pressed in a video's controls (pure). The post keys always go to the reader's navigation (its bindings decide which of them move);
+    /// Left and Right belong to the video: the timeline seeks with them when it has the focus, and on the video itself they seek by the seek step (when no
+    /// player lives yet there is nothing to seek, and they go on to the reader). Every other key stays with the control or its video keys.
+    /// </summary>
+    internal static VideoControlKeyOwner OwnerOf(Key key, KeyModifiers modifiers, bool inTimeline, bool playerLive)
+    {
+        if (IsPostNavigationKey(key)) return VideoControlKeyOwner.Reader;
+        if (key is not (Key.Left or Key.Right)) return VideoControlKeyOwner.Control;
+        if (modifiers != KeyModifiers.None) return VideoControlKeyOwner.Control;
+        if (inTimeline) return VideoControlKeyOwner.Control;
+        return playerLive ? VideoControlKeyOwner.Seek : VideoControlKeyOwner.Reader;
+    }
 }
+
+/// <summary>Where a key pressed in a video's controls goes (<see cref="ReaderVideoKeys.OwnerOf"/>).</summary>
+internal enum VideoControlKeyOwner { Control, Reader, Seek }
 
 /// <summary>One live inline player as the controller sees it (the real one wraps <see cref="GalleryVideoPlayer"/>).</summary>
 internal interface IReaderInlineVideoPlayer : IAsyncDisposable
@@ -163,6 +230,8 @@ internal interface IReaderInlineVideoPlayer : IAsyncDisposable
     Task StartAsync();
     Task PlayAsync();
     Task PauseAsync();
+    /// <summary>The volume (0 to 100), the repeat choice or "start muted" changed while the player lives (null: unchanged). The default does nothing, as for a player without those controls.</summary>
+    void ApplyLive(int? volume, bool? repeat, bool? muted = null) { }
 }
 
 /// <summary>A surface that shows an inline player: a post's attachment or the media sidebar. Told about its player's life.</summary>
@@ -174,6 +243,8 @@ internal interface IReaderInlineVideoOwner
     void CurrentChanged(bool current);
     /// <summary>The video started or paused (announced through the owner's live region).</summary>
     void PlaybackChanged(bool playing);
+    /// <summary>The owner is the sidebar's viewer (its own video settings apply) and not a video in a post.</summary>
+    bool IsViewer => false;
 }
 
 /// <summary>
@@ -207,8 +278,15 @@ internal sealed class ReaderInlineVideoController
     /// before its timeline gets it. True when the key moved the reader; a timeline never keeps the arrows for itself.
     /// </summary>
     internal Func<KeyEventArgs, bool>? NavigationKeys { get; set; }
+    /// <summary>
+    /// The profile's hover-preview cache of the timeline (the gallery's own, with its cache budget setting); null shows no preview. Every player made after it is set
+    /// connects to it: a thumbnail is only made while the pointer rests on the timeline and its request ends when the pointer leaves.
+    /// </summary>
+    internal VideoScrubPreviewCache? ScrubCache { get; set; }
     /// <summary>The video whose controls are shown (the one started last); null without one.</summary>
     internal IReaderInlineVideoOwner? Current { get; private set; }
+    /// <summary>The images the reader expanded in their posts, remembered while "Keep images expanded" is on (see <see cref="ReaderExpandedImages"/>).</summary>
+    internal ReaderExpandedImages ExpandedImages { get; } = new();
     internal int LiveCount => _live.Count;
     /// <summary>Players created and released over the controller's life (smoke and test evidence of the bound and the disposal).</summary>
     internal long Created { get; private set; }
@@ -234,12 +312,30 @@ internal sealed class ReaderInlineVideoController
     {
         ReaderInlineVideoOptions previous = Options;
         Options = options.Clamped();
-        if (previous.InPost != Options.InPost || previous.Enabled != Options.Enabled) OptionsChanged?.Invoke();
+        if (previous.InPost != Options.InPost || previous.Enabled != Options.Enabled || previous.KeepImagesExpanded != Options.KeepImagesExpanded)
+        {
+            // Not keeping any more forgets what was remembered, so switching it on later does not bring old expansions back.
+            if (!Options.KeepImagesExpanded) ExpandedImages.Clear();
+            OptionsChanged?.Invoke();
+        }
+        // Volume and repeat act on the players that live now (a playing video changes without being reloaded); a new player reads them when created.
+        // The sidebar's viewer and a video in a post each follow their own loop and mute switch.
+        bool volumeChanged = previous.Volume != Options.Volume;
+        if (previous.StartMuted != Options.StartMuted || previous.SidebarStartMuted != Options.SidebarStartMuted) SessionMuted = null; // the choice made now wins over an older one of this session
+        foreach (Live live in _live.ToArray())
+        {
+            bool viewer = live.Owner.IsViewer;
+            bool? repeat = viewer ? Changed(previous.SidebarLoop, Options.SidebarLoop) : Changed(previous.Repeat, Options.Repeat);
+            bool? muted = viewer ? Changed(previous.SidebarStartMuted, Options.SidebarStartMuted) : Changed(previous.StartMuted, Options.StartMuted);
+            if (volumeChanged || repeat.HasValue || muted.HasValue) live.Player.ApplyLive(volumeChanged ? Options.Volume : null, repeat, muted);
+        }
         // Gallery only, or leaving "in the post": the players of the posts go (the sidebar's slot offers again when it shows a video).
         if (!Options.Enabled || previous.InPost && !Options.InPost) return ReleaseAllAsync();
         Trim(Options.MaxPlayers, keep: null);
         return WhenReleasedAsync();
     }
+
+    private static bool? Changed(bool before, bool after) => before != after ? after : null;
 
     /// <summary>The choice between sidebar, post and gallery changed: a post puts an expanded image back.</summary>
     internal event Action? OptionsChanged;

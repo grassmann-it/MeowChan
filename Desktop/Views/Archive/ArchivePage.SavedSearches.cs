@@ -45,8 +45,8 @@ public partial class ArchivePage
                     && ArchiveListPane.IsEffectivelyVisible && ArchiveListPane.IsKeyboardFocusWithin,
                 canExecute, execute, Priority: 100)));
         }
-        Register("open-manager", () => _ = OpenSavedSearchesAsync(false), CanOpenSavedSearches);
-        Register("save-current", () => _ = OpenSavedSearchesAsync(true), () => CanOpenSavedSearches() && CanSaveCurrentSearch);
+        Register("open-manager", () => OpenActions.Start(() => OpenSavedSearchesAsync(false), "archive.savedSearches.open"), CanOpenSavedSearches);
+        Register("save-current", () => OpenActions.Start(() => OpenSavedSearchesAsync(true), "archive.savedSearches.save"), () => CanOpenSavedSearches() && CanSaveCurrentSearch);
         AddHandler(KeyDownEvent, RouteSavedSearchCommand, RoutingStrategies.Bubble);
         SearchStateChanged += RefreshSavedSearchActions;
         RefreshSavedSearchActions();
@@ -103,7 +103,7 @@ public partial class ArchivePage
     {
         // A menu entry inside the toolbar overflow closes that overflow before the dialog takes over.
         if (ArchiveResultActions.More is { IsChecked: true } more) more.IsChecked = false;
-        _ = OpenSavedSearchesAsync(saveCurrent);
+        OpenActions.Start(() => OpenSavedSearchesAsync(saveCurrent), "archive.savedSearches.menu");
     }
     private async Task OpenSavedSearchesAsync(bool saveCurrent)
     {

@@ -236,7 +236,7 @@ internal static partial class SmokeScenarios
         // Under --download-session it replaces DownloadSessionChecks just as the shell alternatives do.
         Nested("gallery-focus", "MEOWCHAN_GALLERY_FOCUS_ONLY", "MEOWCHAN_GALLERY_FIT_ONLY", "MEOWCHAN_MEDIA_PERFORMANCE_ONLY",
             "MEOWCHAN_GALLERY_THEME_ONLY", "--download-session") with { Group = "--download-session" },
-        Root("media-panel", "MEOWCHAN_MEDIA_PANEL_ONLY"),
+        Root("media-tile-panel", "MEOWCHAN_MEDIA_TILE_PANEL_ONLY"),
         Root("diagnostic-feedback", "MEOWCHAN_DIAGNOSTIC_FEEDBACK_ONLY"),
         Root("page-refresh", "MEOWCHAN_PAGE_REFRESH_ONLY"),
         Root("stat-footer", "MEOWCHAN_STAT_FOOTER_ONLY", "stat footer: Sources card footer row in en/de/fr/ru and both themes; no wrap, same segment places for 0/1/10/1000/12345, labels then counts dropped by width, exact tooltips and names; private Xvfb, no network"),
