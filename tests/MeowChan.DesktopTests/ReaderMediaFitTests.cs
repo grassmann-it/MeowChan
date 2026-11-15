@@ -77,6 +77,56 @@ public sealed class ReaderMediaFitTests : IDisposable
         Assert.Equal(350, ReaderMediaFit.VisibleHeight(500, 150));
     }
 
+    // A fully capped card aligned by a jump (top at AlignedTop) keeps its bottom edge and the scroll air in view (review 2026-11-15, A3).
+    [Fact]
+    public void VisibleHeightLeavesTheAlignmentAirFree()
+    {
+        Assert.Equal(350 - ReaderMediaFit.AlignedAir, ReaderMediaFit.VisibleHeight(500, 150, ReaderMediaFit.AlignedAir));
+        Assert.Equal(350, ReaderMediaFit.VisibleHeight(500, 150, double.NaN));
+        Assert.Equal(1, ReaderMediaFit.VisibleHeight(160, 150, ReaderMediaFit.AlignedAir));
+        double viewport = 641, chrome = 130;
+        double frame = ReaderMediaFit.VisibleHeight(viewport, chrome, ReaderMediaFit.AlignedAir);
+        double cardBottom = ReaderMediaFit.AlignedTop + chrome + frame;
+        Assert.True(cardBottom + ReaderMediaFit.CardMarginBelow + ReaderMediaFit.ScrollMargin <= viewport + Tolerance);
+        // The medium inside that card needs no further scroll once the card is aligned.
+        double frameTop = ReaderMediaFit.AlignedTop + 60;
+        Assert.Equal(0, ReaderMediaFit.ScrollDelta(frameTop, frameTop + frame, viewport));
+    }
+
+    // A5(a): a card that was not arranged yet caps its frame with the list's last measured chrome, not the fixed estimate.
+    [Fact]
+    public void ChromeMemoUsesTheLastMeasurementForACardNotArrangedYet()
+    {
+        ReaderMediaFit.ChromeMemo memo = new();
+        Assert.Equal(ReaderMediaFit.HeaderEstimate, memo.Header(double.NaN)); // nothing measured yet
+        Assert.Equal(ReaderMediaFit.HeaderEstimate, memo.Header(0));          // a layout at its card's origin is no measurement
+        Assert.Equal(41, memo.Header(41));
+        Assert.Equal(41, memo.Header(0));
+        Assert.Equal(41, memo.Header(double.NaN));
+        Assert.Equal(4, memo.Column(4, isMeasurement: false));  // before any measurement the caller's own value stays
+        Assert.Equal(24, memo.Column(24, isMeasurement: true));
+        Assert.Equal(24, memo.Column(4, isMeasurement: false));
+        Assert.Equal(30, memo.Column(30, isMeasurement: true));
+    }
+
+    // A5(b): a late size change of the focused card's frame holds the card's top edge; the medium is only pulled in when it would not
+    // be whole in view from there, and both happen in one scroll.
+    [Fact]
+    public void HoldDeltaKeepsTheCardTopAndOnlyThenTheMediumInView()
+    {
+        // The virtualizer moved the card 290 dip down without an offset change; its medium (60..460 now) fits once the card is back.
+        Assert.Equal(290, ReaderMediaFit.HoldDelta(290, 350, 750, 641), Tolerance);
+        // Nothing moved and the medium is whole in view: no scroll.
+        Assert.Equal(0, ReaderMediaFit.HoldDelta(0, 60, 460, 641), Tolerance);
+        Assert.Equal(0, ReaderMediaFit.HoldDelta(0.4, 60, 460, 641), Tolerance); // layout noise
+        // The frame grew past the bottom: held top, then just enough to show it whole with the air.
+        Assert.Equal(700 - (641 - ReaderMediaFit.ScrollMargin), ReaderMediaFit.HoldDelta(0, 300, 700, 641), Tolerance);
+        // The card moved up by 40 and its frame is cut below once held: both in one delta.
+        Assert.Equal(-40 + (680 - (641 - ReaderMediaFit.ScrollMargin)), ReaderMediaFit.HoldDelta(-40, 240, 640, 641), Tolerance);
+        // Without a frame only the card is held.
+        Assert.Equal(-12, ReaderMediaFit.HoldDelta(-12, double.NaN, double.NaN, 641), Tolerance);
+    }
+
     [Fact]
     public void UnusablePictureSizeIsReturnedUnchanged()
     {

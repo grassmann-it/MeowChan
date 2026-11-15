@@ -391,7 +391,8 @@ public partial class ArchivePage
     // An explicit jump (find, filename search, gallery): a post the view hides is revealed first.
     private void ShowPost(string postId, FilenameSearchOwner? filenameNavigation) => ShowPost(postId, filenameNavigation, reveal: true);
 
-    private void ShowPost(string postId, FilenameSearchOwner? filenameNavigation, bool reveal)
+    // scroll: false when the caller aligns the post itself (FocusPostAsync); a minimal ScrollIntoView here would be a competing write.
+    private void ShowPost(string postId, FilenameSearchOwner? filenameNavigation, bool reveal, bool scroll = true)
     {
         if (!ReferenceEquals(_filenameSearchOwner, filenameNavigation)) InvalidateFilenameSearch();
         if (_thread == null) return;
@@ -415,7 +416,7 @@ public partial class ArchivePage
         if (list.ItemsSource is System.Collections.Generic.IEnumerable<ArchivePostRow> posts)
         {
             list.SelectedItem = posts.FirstOrDefault(post => post.Id == postId);
-            if (list.SelectedItem != null) list.ScrollIntoView(list.SelectedItem);
+            if (scroll && list.SelectedItem != null) list.ScrollIntoView(list.SelectedItem);
         }
     }
 }

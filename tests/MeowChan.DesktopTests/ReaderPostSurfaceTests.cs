@@ -42,6 +42,11 @@ public sealed class ReaderPostSurfaceTests
                 Assert.True(Contrast(Hex(text), Hex(surface)) >= 4.5, $"{theme}: {text} on {surface}");
     }
 
+    // A jump aligns the target card itself (FocusPostAsync); focusing the card afterwards must not scroll the list a second time.
+    [Fact]
+    public void FocusingAPostCardDoesNotScrollTheList() =>
+        Assert.Equal("False", (string?)Posts().Attribute("ScrollViewer.BringIntoViewOnFocusChange"));
+
     [Fact]
     public void PostsSitOnThePageToneWithoutASeparatorRule()
     {

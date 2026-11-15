@@ -48,13 +48,19 @@ public partial class ArchivePage
         ReaderMediaPreferences nextMedia = (media ?? _readerDisplayPreferences.Media).Clamped();
         // The focus and hover options act on the list at once; only a changed textless setting makes the posts build their images again.
         bool postImagesSame = nextMedia.SamePostImages(_readerDisplayPreferences.Media);
+        bool liveOnly = width == ReaderThumbnailWidth && style == ReaderDateStyle && size == ReaderPageSize
+            && depth == ReaderThreadingDepth && postImagesSame;
         if (nextMedia != _readerDisplayPreferences.Media)
         {
+            // A live switch (enlargement, hover, sidebar on/off, its side and width) resizes the focused card or re-wraps every card
+            // without a rebuild: the selected card keeps its place in the viewport over the following layout passes. A rebuild has
+            // its own settings anchor below.
+            Func<Task>? keepSelected = liveOnly ? CaptureReaderCountLayoutCorrection() : null;
             _readerDisplayPreferences.Media = nextMedia;
             ApplyReaderMediaLive();
+            if (keepSelected != null) _ = keepSelected();
         }
-        if (width == ReaderThumbnailWidth && style == ReaderDateStyle && size == ReaderPageSize
-            && depth == ReaderThreadingDepth && postImagesSame) return;
+        if (liveOnly) return;
 
         DiscardStaleReaderSettingsApply();
         if (!_ended && _thread != null && _readerSettingsApply == null)

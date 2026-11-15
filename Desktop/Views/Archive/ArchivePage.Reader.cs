@@ -88,6 +88,9 @@ public partial class ArchivePage
     private int _readerFocusRequest;
     private int _readerInteractionRevision;
     private int _readerLayoutRevision;
+    // The reader jumps (FocusPostAsync) own the list's offset while they align their target (ReaderScrollOwner).
+    private readonly ReaderScrollOwner _readerScrollOwner = new();
+    private bool ReaderJumpOwnsScroll => _readerScrollOwner.JumpOwns(_readerInteractionRevision);
     private IDisposable? _readerTabScope;
     private readonly HashSet<Key> _readerMediaHeldKeys = new();
     private CancellationTokenSource? _readerMediaActivationCancellation;
@@ -257,6 +260,23 @@ public partial class ArchivePage
         {
             if (e.Key is Key.PageDown or Key.PageUp or Key.Home or Key.End or Key.Space) ++_readerInteractionRevision;
         }, RoutingStrategies.Tunnel, handledEventsToo: true);
+        // The theme's list template does not pass ScrollViewer.BringIntoViewOnFocusChange (set on the list in the XAML) on to its
+        // scroll viewer: focusing a card must not scroll the list (FocusPostAsync aligns it), so it is set on the parts themselves.
+        posts.TemplateApplied += (_, _) => KeepFocusFromScrolling(posts);
+        KeepFocusFromScrolling(posts);
+    }
+
+    private static void KeepFocusFromScrolling(ListBox posts)
+    {
+        if (posts.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault() is not { } scroll) return;
+        scroll.BringIntoViewOnFocusChange = false;
+        void Presenter()
+        {
+            if (scroll.GetVisualDescendants().OfType<ScrollContentPresenter>().FirstOrDefault() is { } presenter)
+                ScrollViewer.SetBringIntoViewOnFocusChange(presenter, false);
+        }
+        scroll.TemplateApplied += (_, _) => Presenter();
+        Presenter();
     }
     internal bool ReaderShowsPosts => _showReader && ArchiveContentTabs.SelectedIndex == 0;
     internal Action<Control?>? OpenReaderRequested { get; set; }
@@ -355,7 +375,10 @@ public partial class ArchivePage
         ResourceId? threadId = _thread?.Summary.Id;
         int request = _contentRequest;
         _readerPostId = postId;
-        ShowPost(postId, null, reveal: false);
+        // This jump owns the scroll until it settled (or was superseded): ShowPost only selects, the selection anchor
+        // (AnchorFocusedCard) and the frame re-fit (OnFocusedFrameChanged) stand back, and the passes below are the only offset writes.
+        using ReaderScrollOwner.Jump jump = _readerScrollOwner.BeginJump(_readerInteractionRevision);
+        ShowPost(postId, null, reveal: false, scroll: false);
         UpdateReaderNavigation();
         ListBox posts = ArchivePosts;
         // A jump the user did not ask to restore ends as soon as they take over: a wheel turn, a press or a paging key
@@ -373,14 +396,20 @@ public partial class ArchivePage
         bool confirmed = false;
         double? requestedOffset = null;
         ArchivePostRow? targetRow = null;
-        // Focus must not cause a second competing BringIntoView request.
+        // Focus must not cause a second competing BringIntoView request: the list's scroll viewer does not bring a focused card
+        // into view (BringIntoViewOnFocusChange is off in the XAML), so the card is focused as soon as it is realized in pass 0 and
+        // the focus ring moves with the selection; the alignment below stays the only scroll of the jump.
+        void FocusTarget(Control container)
+        {
+            if (!restoreFocus || container.IsFocused) return;
+            if (focusIntent != null) focusIntent.Restore(container);
+            else container.Focus();
+        }
         void Finish(Control? container)
         {
-            if (restoreFocus && container != null)
-            {
-                if (focusIntent != null) focusIntent.Restore(container);
-                else container.Focus();
-            }
+            if (container != null) FocusTarget(container);
+            // A later frame change of the aligned card holds it here (HoldFocusedCard) instead of scrolling it anew.
+            RememberFocusedCardTop();
             ReaderPositionChanged(deliberate: !interactionRevision.HasValue);
         }
         for (int pass = 0; pass < 8; pass++)
@@ -400,14 +429,17 @@ public partial class ArchivePage
             bool offsetLost = requestedOffset is double requested
                 && Math.Abs((posts.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault()?.Offset.Y ?? requested) - requested) > 1;
             requestedOffset = null;
-            if (pass == 0 || offsetLost || posts.ContainerFromItem(row) == null) posts.ScrollIntoView(row);
+            // A target already realized near the viewport (the neighbour of a keyboard step) is aligned from where it really is: the
+            // virtualizer's ScrollIntoView would first move it by estimated heights (off the viewport and back on a step up).
+            if ((pass == 0 && !RealizedNearViewport(posts, row)) || offsetLost || posts.ContainerFromItem(row) == null) posts.ScrollIntoView(row);
             posts.UpdateLayout();
             if (posts.ContainerFromItem(row) is not Control container) continue;
+            FocusTarget(container);
             ScrollViewer? scroll = posts.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
             ScrollContentPresenter? viewport = scroll?.GetVisualDescendants().OfType<ScrollContentPresenter>().FirstOrDefault();
             if (viewport == null || container.TranslatePoint(default, viewport) is not Point position) continue;
             // The post that carries the reading line scrolls to just below the line, which sits above its card.
-            double offset = Math.Clamp(scroll!.Offset.Y + position.Y - 8 - (row.HasUnreadLine ? ReaderUnreadLineHost.Reach : 0), 0,
+            double offset = Math.Clamp(scroll!.Offset.Y + position.Y - ReaderMediaFit.AlignedTop - (row.HasUnreadLine ? ReaderUnreadLineHost.Reach : 0), 0,
                 Math.Max(0, scroll.Extent.Height - scroll.Viewport.Height));
             if (Math.Abs(offset - scroll.Offset.Y) > 1)
             {
@@ -429,6 +461,16 @@ public partial class ArchivePage
         if (!IsCurrent()) return;
         Finish(targetRow != null ? posts.ContainerFromItem(targetRow) as Control : null);
     }
+    // A realized container within one viewport height above or below the visible part of the list.
+    private static bool RealizedNearViewport(ListBox posts, object row)
+    {
+        if (posts.ContainerFromItem(row) is not Control container
+            || posts.GetVisualDescendants().OfType<ScrollContentPresenter>().FirstOrDefault() is not { Bounds.Height: > 0 } viewport
+            || container.TranslatePoint(default, viewport) is not Point at) return false;
+        double height = viewport.Bounds.Height;
+        return at.Y + container.Bounds.Height > -height && at.Y < 2 * height;
+    }
+
     internal void SetReaderScope(IReadOnlyList<ResourceId> threads)
     {
         ++_readerScopeRequest;

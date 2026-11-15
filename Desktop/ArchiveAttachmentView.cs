@@ -221,19 +221,34 @@ public sealed class ArchiveAttachmentView : UserControl
 
     /// <summary>
     /// The height around this picture inside the reader card: the post header above the media row, the file line (and a video row or
-    /// provenance line), this view's margins and the card's bottom padding. Estimated for the header until the tree can measure it.
+    /// provenance line), this view's margins and the card's bottom padding. A card that was not arranged yet (freshly realized by a
+    /// jump) uses what its list's last arranged card measured (<see cref="ReaderMediaFit.ChromeMemo"/>), the header estimate before any.
     /// </summary>
     internal double ChromeHeight()
     {
-        double above = ReaderMediaFit.HeaderEstimate;
-        if (this.FindAncestorOfType<ReaderPostLayout>() is { } layout && layout.FindAncestorOfType<ListBoxItem>() is { } card
-            && layout.TranslatePoint(default, card) is { } at)
-            above = at.Y;
-        return above + Margin.Top + Margin.Bottom + _column.NonFrameHeight + ReaderMediaFit.CardBottomPadding;
+        double above = double.NaN;
+        ReaderMediaFit.ChromeMemo? memo = null;
+        if (this.FindAncestorOfType<ReaderPostLayout>() is { } layout && layout.FindAncestorOfType<ListBoxItem>() is { } card)
+        {
+            if (card.FindAncestorOfType<ListBox>() is { } list) memo = ChromeMemos.GetValue(list, _ => new ReaderMediaFit.ChromeMemo());
+            // Before its first arrange the layout sits at the card's origin: that is no measurement (the header is always above it).
+            if (layout.TranslatePoint(default, card) is { Y: > 0 } at) above = at.Y;
+        }
+        double header = memo?.Header(above) ?? (above > 0 ? above : ReaderMediaFit.HeaderEstimate);
+        double column = _column.NonFrameHeight;
+        // The file line always has a line of text once measured; zero means the column was not measured yet.
+        if (memo != null) column = memo.Column(column, _column.Lead.DesiredSize.Height > 0);
+        return header + Margin.Top + Margin.Bottom + column + ReaderMediaFit.CardBottomPadding;
     }
 
-    /// <summary>The height a picture's frame may use in the visible reader (viewport minus <see cref="ChromeHeight"/>); NaN while the viewport is unknown.</summary>
-    internal double VisibleFrameHeight() => ReaderMediaFit.VisibleHeight(GetValue(ReaderPostLayout.VisibleHeightProperty), ChromeHeight());
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<ListBox, ReaderMediaFit.ChromeMemo> ChromeMemos = new();
+
+    /// <summary>
+    /// The height a picture's frame may use in the visible reader (viewport minus <see cref="ChromeHeight"/> and the air a card aligned by
+    /// a jump keeps above and below, <see cref="ReaderMediaFit.AlignedAir"/>); NaN while the viewport is unknown.
+    /// </summary>
+    internal double VisibleFrameHeight() =>
+        ReaderMediaFit.VisibleHeight(GetValue(ReaderPostLayout.VisibleHeightProperty), ChromeHeight(), ReaderMediaFit.AlignedAir);
 
     /// <summary>Raised (bubbling) when the frame of an enlarged picture changed size, so the reader can keep the whole picture in view.</summary>
     internal static readonly Avalonia.Interactivity.RoutedEvent<Avalonia.Interactivity.RoutedEventArgs> FocusedFrameChangedEvent =
