@@ -13,7 +13,7 @@ namespace MeowChan.Desktop;
 /// The working part of the tagging page (PT2) without any control: it reads the queue, runs one host command at a time (states,
 /// order, removal, clearing, cursor, stamp) and keeps the sentence the page shows afterwards. Every command writes
 /// <c>tag-queue.json</c> before it completes; a refused or failed change keeps the shown queue and says why, an unreadable file
-/// becomes <see cref="LoadError"/> (shown as the page's error line, recoverable by clearing). Nothing here assigns a tag, favorite
+/// becomes <see cref="LoadError"/> (shown as the page's error state, recoverable by reloading or clearing). Nothing here assigns a tag, favorite
 /// or rating.
 /// </summary>
 internal sealed class TaggingQueueController
@@ -71,6 +71,12 @@ internal sealed class TaggingQueueController
     internal string? ErrorText => LoadError != null ? TagQueueActions.DescribeFailure(LoadError)
         : !Queue.CanWrite ? Texts.T("queue.error.newer") : null;
 
+    /// <summary>The local source named next to an error, so a generic storage failure is not detached from its queue file.</summary>
+    internal string? ErrorSource => ErrorText == null ? null : Texts.T("queue.title") + ": " + TagQueueStore.FileName;
+
+    /// <summary>Whether the page can explicitly reload the queue after a failed read.</summary>
+    internal bool CanReload => ErrorText != null && !Ended && !Busy && !Loading && Loaded && HostReady;
+
     internal bool HostReady => _host.State == DesktopSessionState.Ready;
 
     internal void End() => Ended = true;
@@ -94,7 +100,8 @@ internal sealed class TaggingQueueController
         catch (Exception error) when (IsQueueError(error))
         {
             if (Ended) return;
-            Queue = TagQueueSnapshot.Empty;
+            // Keep the last good snapshot. The page must not turn a read failure into a plausible empty queue;
+            // the error state owns the surface until an explicit reload succeeds.
             LoadError = error;
         }
         finally
@@ -262,7 +269,9 @@ internal sealed class TaggingQueueController
         {
             if (Ended) return false;
             Status = TagQueueActions.DescribeFailure(error);
-            if (_host.TagQueueError is { } unreadable) { LoadError = unreadable; Queue = TagQueueSnapshot.Empty; }
+            // Keep the last good snapshot while the error is visible. In particular, a failed write or reload
+            // must never look like a successful empty queue.
+            if (_host.TagQueueError is { } unreadable) LoadError = unreadable;
             return false;
         }
         finally { Busy = false; }

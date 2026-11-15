@@ -102,6 +102,23 @@ public sealed class TaggingPageLinksTests : IDisposable
     }
 
     [Fact]
+    public void QueueErrorsStayOutOfTheEmptyStateAndOfferAnExplicitReloadWithSourceContext()
+    {
+        string page = Source("Desktop/Views/Tagging/TaggingPage.cs");
+        string empty = Source("Desktop/Views/Tagging/TaggingPage.EmptyStates.cs");
+        string controller = Source("Desktop/Views/Tagging/TaggingQueueController.cs");
+        Assert.Contains("_retryLoad.Click += async (_, _) => await RetryLoadAsync();", page);
+        Assert.Contains("internal async Task RetryLoadAsync()", page);
+        Assert.Contains("_retryLoad.Content = Texts.T("action.retry")", page);
+        Assert.Contains("_errorSource.Text = _queueWork.ErrorSource", page);
+        Assert.Contains("_emptyState.IsVisible = empty && _queueWork.Loaded && _queueWork.ErrorText == null", page);
+        Assert.Contains("_queueWork.Loaded && _queueWork.ErrorText == null", empty);
+        Assert.Contains("internal string? ErrorSource", controller);
+        Assert.Contains("TagQueueStore.FileName", controller);
+        Assert.Contains("Keep the last good snapshot", controller);
+    }
+
+    [Fact]
     public void ADoubleClickAndEnterOnARowContinueThereAndSayWhyWhenTheRowIsNotOpen()
     {
         string commands = Source("Desktop/Views/Tagging/TaggingPage.Commands.cs");

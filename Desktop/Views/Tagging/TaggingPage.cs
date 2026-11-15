@@ -37,7 +37,9 @@ public sealed partial class TaggingPage : UserControl
     private readonly ActionToolBar _actions = new() { Name = "TaggingActions", HorizontalAlignment = HorizontalAlignment.Stretch };
     private readonly WrapPanel _secondaryToolbar = new() { Name = "TaggingSecondaryToolbar", ItemSpacing = 16, LineSpacing = 8, IsVisible = false };
     private readonly Border _error = new() { Name = "TaggingError", Classes = { "workspace-error" }, IsVisible = false };
-    private readonly TextBlock _errorText = new() { TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _errorText = new() { Name = "TaggingErrorText", TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _errorSource = new() { Name = "TaggingErrorSource", Classes = { "muted" }, TextWrapping = TextWrapping.Wrap };
+    private readonly Button _retryLoad = new() { Name = "TaggingRetryLoad", Classes = { "subtle" } };
     // The counters row: "Open n · Finished n · Skipped n", a 120 dip mini bar and the percentage; the "last shown" link sits at its end.
     private readonly Grid _progress = new() { Name = "TaggingProgress", ColumnDefinitions = new ColumnDefinitions("Auto,*"), ColumnSpacing = 16 };
     private readonly TextBlock _progressText = new() { Name = "TaggingProgressText", Classes = { "tnum" }, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
@@ -118,6 +120,8 @@ public sealed partial class TaggingPage : UserControl
     internal TextBlock ProgressText => _progressText;
     internal Button LastShownLink => _lastShown;
     internal Border ErrorPanel => _error;
+    internal TextBlock ErrorSourceText => _errorSource;
+    internal Button RetryLoadButton => _retryLoad;
     internal bool IsBusy => _queueWork.Busy || _queueWork.Loading;
 
     internal TaggingQueueFilter Filter
@@ -130,8 +134,9 @@ public sealed partial class TaggingPage : UserControl
     {
         StackPanel heading = new() { Classes = { "workspace-page-header" }, Children = { _title, _subtitle } };
 
-        _error.Child = _errorText;
+        _error.Child = new StackPanel { Spacing = 8, Children = { _errorText, _errorSource, _retryLoad } };
         AutomationProperties.SetLiveSetting(_errorText, AutomationLiveSetting.Assertive);
+        AutomationProperties.SetLiveSetting(_errorSource, AutomationLiveSetting.Polite);
 
         _bar.VerticalAlignment = VerticalAlignment.Center;
         StackPanel counters = new() { Orientation = Orientation.Horizontal, Spacing = 12, Children = { _progressText, _bar, _percent } };
@@ -237,6 +242,19 @@ public sealed partial class TaggingPage : UserControl
         Dispatcher.UIThread.Post(FocusContent, DispatcherPriority.Input);
     }
 
+    /// <summary>Retries the queue read without presenting a failed read as an empty queue.</summary>
+    internal async Task RetryLoadAsync()
+    {
+        if (!_queueWork.CanReload) return;
+        ShowStatus(Texts.T("tagging.page.loading"));
+        _retryLoad.IsEnabled = false;
+        UpdateActions();
+        await _queueWork.LoadAsync();
+        if (_queueWork.Ended) return;
+        Show();
+        ShowStatus(null);
+    }
+
     /// <summary>Shows the host's last committed queue when it differs from the shown one (another surface added or decided).</summary>
     internal void Refresh()
     {
@@ -309,13 +327,18 @@ public sealed partial class TaggingPage : UserControl
         AutomationProperties.SetName(_bar, Texts.T("tagging.page.progressName"));
         AutomationProperties.SetHelpText(_bar, _progressText.Text + " · " + _percent.Text);
         bool empty = _rows.Count == 0;
-        _emptyState.IsVisible = empty && _queueWork.Loaded;
+        _emptyState.IsVisible = empty && _queueWork.Loaded && _queueWork.ErrorText == null;
         _list.IsVisible = !empty && _viewMode == TaggingViewMode.List;
         _grid.IsVisible = !empty && _viewMode == TaggingViewMode.Grid;
         _columnHeader.IsVisible = !empty && _viewMode == TaggingViewMode.List;
         RenderEmptyState(queue);
         _errorText.Text = _queueWork.ErrorText;
+        _errorSource.Text = _queueWork.ErrorSource;
+        _retryLoad.IsVisible = _queueWork.ErrorText != null;
+        _retryLoad.IsEnabled = _queueWork.CanReload;
         UpdateActions();
+        // Error visibility is work-view gated, so refresh it after the text has been replaced.
+        RefreshWorkView();
         UpdateSelectionBar();
     }
 
@@ -378,6 +401,8 @@ public sealed partial class TaggingPage : UserControl
             AutomationProperties.SetName(_filter, Texts.T("tagging.page.filter"));
             AutomationProperties.SetName(_list, Texts.T("tagging.page.listName"));
             LocalizeEmptyStates();
+            _retryLoad.Content = Texts.T("action.retry");
+            AutomationProperties.SetName(_retryLoad, Texts.T("action.retry"));
             LocalizeGroups();
             _help.Refresh();
             LocalizeColumns();

@@ -305,6 +305,31 @@ public sealed class TaggingPageTests : IDisposable
     }
 
     [Fact]
+    public async Task AQueueReadErrorKeepsTheLastSnapshotNamesItsSourceAndCanBeReloaded()
+    {
+        using TempDirectory temp = new();
+        await using DesktopSessionHost host = await StartAsync(temp.Path);
+        await host.EnqueueTagQueueAsync(new[] { Item(1) });
+        TaggingQueueController work = new(host);
+        await work.LoadAsync();
+        Assert.Equal(1, work.Queue.Count);
+
+        await File.WriteAllTextAsync(Path.Combine(temp.Path, TagQueueStore.FileName), "{ not json");
+        await work.LoadAsync();
+
+        Assert.NotNull(work.LoadError);
+        Assert.Equal(1, work.Queue.Count); // A failed read must not become a plausible empty queue.
+        Assert.Contains("tag-queue.json", work.ErrorSource, StringComparison.Ordinal);
+        Assert.Contains("Tagging queue", work.ErrorSource, StringComparison.Ordinal);
+        Assert.True(work.CanReload);
+
+        File.Delete(Path.Combine(temp.Path, TagQueueStore.FileName));
+        await work.LoadAsync();
+        Assert.Null(work.LoadError);
+        Assert.Equal(0, work.Queue.Count);
+    }
+
+    [Fact]
     public async Task TwoThousandEntriesAreListedWellInsideTheBudget()
     {
         using TempDirectory temp = new();

@@ -60,7 +60,8 @@ public sealed partial class TaggingPage
 
     private void RenderEmptyState(TagQueueSnapshot queue)
     {
-        _emptyKind = _queueWork.Loaded ? TaggingEmptyStates.Of(queue, Filter, _rows.Count, _selectedGroupId, _ungroupedSelected) : TaggingEmptyKind.None;
+        _emptyKind = _queueWork.Loaded && _queueWork.ErrorText == null
+            ? TaggingEmptyStates.Of(queue, Filter, _rows.Count, _selectedGroupId, _ungroupedSelected) : TaggingEmptyKind.None;
         TaggingQueueCounts selectedCounts = TaggingQueueView.Counts(queue, _selectedGroupId, _ungroupedSelected, Scope);
         string? selectedGroupName = _selectedGroupId == null ? null : queue.Group(_selectedGroupId)?.Name;
         _empty.Text = _emptyKind switch
