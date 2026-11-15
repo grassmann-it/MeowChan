@@ -167,7 +167,7 @@ class DesktopPackageTests(unittest.TestCase):
                 package.validate(root, 'linux-x64')
 
     @unittest.skipIf(os.name == 'nt', 'POSIX symlink fixture')
-    def test_build_profile_and_nested_link_artifacts_are_rejected(self):
+    def test_build_profile_artifacts_are_rejected(self):
         with tempfile.TemporaryDirectory() as temporary:
             for relative in ('bin/stray.dll', 'obj/project.assets.json', 'profiles/local/state.json'):
                 with self.subTest(relative=relative):
@@ -177,12 +177,29 @@ class DesktopPackageTests(unittest.TestCase):
                     path.write_bytes(b'generated')
                     with self.assertRaisesRegex(ValueError, 'artifact'):
                         package.validate_payload(root)
-            root = payload(Path(temporary) / 'nested-link')
-            target = root / 'LICENSE'
-            link = root / 'native/subtree/link'
-            link.parent.mkdir(parents=True)
-            link.symlink_to(target)
-            with self.assertRaisesRegex(ValueError, 'symlink'):
+
+    @unittest.skipIf(os.name == 'nt', 'POSIX symlink fixture')
+    def test_internal_native_file_aliases_are_allowed_but_external_and_dangling_links_fail(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = payload(Path(temporary) / 'internal', 'osx-arm64')
+            native = root / 'libvlc/osx-arm64/lib'
+            native.mkdir(parents=True)
+            (native / 'libvlccore.dylib').write_bytes(b'core')
+            (native / 'libvlccore-alias.dylib').symlink_to('libvlccore.dylib')
+            (root / 'native.dylib').write_bytes(b'native')
+            (root / 'native-alias.dylib').symlink_to('native.dylib')
+            package.validate(root, 'osx-arm64')
+
+            outside = Path(temporary) / 'outside.dylib'
+            outside.write_bytes(b'outside')
+            link = root / 'nested/external.dylib'
+            link.parent.mkdir()
+            link.symlink_to(outside)
+            with self.assertRaisesRegex(ValueError, 'Nested.*symlink'):
+                package.validate_payload(root)
+            link.unlink()
+            link.symlink_to('missing.dylib')
+            with self.assertRaisesRegex(ValueError, '(Nested.*symlink|Invalid desktop package symlink)'):
                 package.validate_payload(root)
 
     def test_repository_docs_and_developer_outputs_are_rejected(self):

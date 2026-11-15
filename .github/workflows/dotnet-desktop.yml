@@ -72,6 +72,7 @@ jobs:
     timeout-minutes: 75
     steps:
       - uses: actions/checkout@v7
+        id: checkout_source
         with:
           fetch-depth: 0 # Genuine 1.0.0/1.0.1 replay uses the exact historical tags.
       - name: Require the complete current-source candidate matrix
@@ -84,6 +85,7 @@ jobs:
           test "${{ inputs.platform }}" = all
           test "${{ inputs.scenario }}" = all
       - uses: actions/setup-dotnet@v6
+        id: setup_dotnet
         with:
           global-json-file: global.json
       - name: Record SDK and source commit
@@ -504,23 +506,28 @@ jobs:
         env:
           VALIDATION_STEPS: ${{ toJSON(steps) }}
         run: |
-          python3 - <<'PY'
-          import json
-          import os
-          import sys
-
-          steps = json.loads(os.environ.get("VALIDATION_STEPS", "{}"))
-          failures = {
-              key: value
-              for key, value in steps.items()
-              if value.get("outcome") == "failure"
-          }
-          if failures:
-              print("Validation completed with independent failures:")
-              for key, value in failures.items():
-                  print(f" - {key}: {value.get('outcome', 'failure')}")
-              sys.exit(1)
-          print("All recorded validation steps passed.")
+          # Candidate runs require every platform-appropriate startup and
+          # packaging check. Ordinary diagnostic runs still aggregate every
+          # recorded failure, but retain their intentionally skipped checks.
+          required=(record_source)
+          if [[ "${{ inputs.mode }}" == prerelease-candidate || "${{ inputs.mode }}" == stable-candidate ]]; then
+            required=(candidate_matrix record_source public_api dev_build restore_release retain_release_assets build_all package_fixtures local_package smoke_runner_contract smoke_restore smoke_assets smoke_build plugin_delivery smoke_normal smoke_plugins upgrade_replay first_run preference_startup scoped_diagnostics gif_playback gallery_errors reader_media gallery_features media_input tray_lifecycle)
+            if [[ "$RUNNER_OS" == Linux ]]; then
+              required+=(linux_setup tray_host core_tests)
+            elif [[ "$RUNNER_OS" == macOS ]]; then
+              required+=(prepare_desktop mac_tests)
+            elif [[ "$RUNNER_OS" == Windows ]]; then
+              required+=(prepare_desktop core_tests)
+            else
+              echo "Unsupported runner OS for candidate gate: $RUNNER_OS" >&2
+              exit 1
+            fi
+          fi
+          required_csv="$(IFS=,; echo "${required[*]}")"
+          python3 scripts/aggregate-release-gates.py steps \
+            --json-env VALIDATION_STEPS \
+            --required "$required_csv" \
+            --report artifacts/build-evidence/release-validation-gate.json
 
   library-package:
     if: ${{ always() && (github.event_name != 'workflow_dispatch' || ((inputs.mode == 'validate' || (inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate')) && inputs.scenario == 'all')) }}
@@ -1168,6 +1175,35 @@ jobs:
           name: ${{ inputs.mode }}-${{ github.sha }}
           path: artifacts/${{ inputs.mode }}/*
           if-no-files-found: error
+          retention-days: 7
+
+  # One explicit, fail-closed decision for candidate artifacts. The jobs above
+  # intentionally continue independently so startup and packaging failures can
+  # all be diagnosed; this job is the only candidate admission signal.
+  release-candidate-gate:
+    name: Release candidate gate (fail-closed)
+    if: ${{ always() && github.event_name == 'workflow_dispatch' && (inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate') }}
+    needs: [validate, library-package, macos-package, package-media, linux-distribution, macos-source-candidate, current-source-inventory]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: Reject any incomplete candidate dependency
+        shell: bash
+        env:
+          RELEASE_NEEDS: ${{ toJSON(needs) }}
+        run: |
+          python3 scripts/aggregate-release-gates.py needs \
+            --json-env RELEASE_NEEDS \
+            --required validate,library-package,macos-package,package-media,linux-distribution,macos-source-candidate,current-source-inventory \
+            --report artifacts/release-candidate-gate.json
+      - name: Retain candidate gate decision
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-candidate-gate-${{ github.sha }}
+          path: artifacts/release-candidate-gate.json
+          if-no-files-found: warn
           retention-days: 7
 
   # Diagnostic evidence only: this mode does not run or satisfy release validation.

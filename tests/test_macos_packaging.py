@@ -382,6 +382,20 @@ int main(int argc, char **argv) {
             self.assertTrue(entry.issym())
             self.assertEqual("libAvaloniaNative.dylib", entry.linkname)
 
+    def test_nested_internal_native_symbolic_link_is_preserved(self):
+        native = self.publish / "libvlc" / "osx-arm64" / "lib"
+        native.mkdir(parents=True)
+        (native / "libvlccore.dylib").write_bytes(b"native core")
+        self.symlink("libvlccore.dylib", native / "libvlccore-alias.dylib")
+        bundle, _ = self.package(archive_path=self.archive)
+        link = bundle / "Contents" / "MacOS" / "libvlc" / "osx-arm64" / "lib" / "libvlccore-alias.dylib"
+        self.assertTrue(link.is_symlink())
+        self.assertEqual("libvlccore.dylib", os.readlink(link))
+        with tarfile.open(self.archive, "r:gz") as archive:
+            entry = archive.getmember("MeowChan.app/Contents/MacOS/libvlc/osx-arm64/lib/libvlccore-alias.dylib")
+            self.assertTrue(entry.issym())
+            self.assertEqual("libvlccore.dylib", entry.linkname)
+
     def test_executable_must_not_be_a_symbolic_link(self):
         executable = self.publish / "MeowChan"
         executable.rename(self.publish / "real-apphost")
