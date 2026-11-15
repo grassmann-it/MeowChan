@@ -622,6 +622,11 @@ internal static partial class GalleryPlaybackFeatureChecks
     {
         Slider seek = Find<Slider>(viewer, "GalleryVideoSeek");
         Require(seek.IsEffectivelyEnabled, "Native seek acceptance has no enabled seek slider.");
+        // Saved autoplay deliberately waits long enough for auto-hide. Reveal the
+        // transport with a real pointer move before asking the native backend to
+        // target the slider; do not turn a hidden-control race into a routed click.
+        await MediaInteractionSmokeHelpers.WaitForNativeTargetAsync(native, viewer, seek,
+            "Native seek controls did not become a current hit target after revealing the gallery transport.");
         if (!drag) await native.ClickAsync(seek, SliderPoint(seek, fraction));
         else
         {

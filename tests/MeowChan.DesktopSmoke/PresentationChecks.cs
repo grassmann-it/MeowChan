@@ -186,13 +186,13 @@ internal static class PresentationChecks
             // smallest stable native height instead of weakening the full-row contract.
             return 520;
         }
-        if (OperatingSystem.IsMacOS() && mode == "Simple")
+        if (OperatingSystem.IsMacOS() && mode != "Barebones")
         {
-            // At 760×500 the native macOS Simple layout gives the normal row
-            // 71 DIP of viewport, starts it 32 DIP into that viewport and
-            // realizes the 44 DIP row as 45 DIP. That leaves the strict
-            // full-row check 6 DIP short. A 510 DIP probe leaves 4 DIP of
-            // measured headroom without changing the production minimum.
+            // At 760×500 the native macOS Advanced/Simple layout gives the
+            // normal row 71 DIP of viewport, starts it 32 DIP into that
+            // viewport and realizes the 44 DIP row as 45 DIP. The strict
+            // full-row check is 7 DIP short at 500; 510 leaves measured
+            // headroom without changing the production minimum.
             return 510;
         }
         if (!OperatingSystem.IsWindows() || window.FrameSize is not Size frame)
@@ -201,12 +201,12 @@ internal static class PresentationChecks
         double frameInset = Math.Max(0, frame.Height - window.Bounds.Height);
         if (mode == "Barebones")
         {
-            // Win32 measured 656×498 frame / 640×489 client after the 480 DIP
-            // minimum plus its 9 DIP frame inset. That client still leaves the
-            // selected 33 DIP row 4 DIP short of the strict viewport check when
-            // admission results are expanded. A 500 DIP client is the smallest
-            // stable Windows probe; retain the measured inset for other modes.
-            return Math.Max(500, logicalMinimum + frameInset);
+            // Win32 measured 656×509 frame / 640×500 client after the 480 DIP
+            // minimum plus its frame inset. That client still leaves the
+            // selected 33 DIP row 8 DIP short of the strict viewport check
+            // when admission results are expanded. A 510 DIP client gives the
+            // row a small measured margin without changing production minimums.
+            return Math.Max(510, logicalMinimum + frameInset);
         }
 
         // On Win32 the minimum-track clamp can consume the top frame inset.

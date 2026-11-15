@@ -535,8 +535,16 @@ internal static class MediaInteractionChecks
                     // the OS first, then require the row to be a real hit target before clicking it.
                     await native.ClickAsync(viewer!.OverflowButton);
                     Button help = Named<Button>(panel);
+                    // GalleryHelp lives in Avalonia's separate Flyout/PopupRoot. Its
+                    // center hit-test can remain stale across the native popup-root
+                    // handoff even after the row is laid out. Wait for the actual
+                    // popup and row geometry, then prove delivery with the native
+                    // click and the shortcuts-window assertion below.
                     await Program.WaitUntilAsync(
-                        () => viewer.IsOverflowOpen && MediaInteractionSmokeHelpers.IsPointerTargetReady(help),
+                        () => viewer.IsOverflowOpen && viewer.OverflowMenuContent.IsAttachedToVisualTree()
+                            && viewer.OverflowMenuContent.IsEffectivelyVisible && viewer.OverflowMenuContent.Bounds.Height > 0
+                            && help.IsAttachedToVisualTree() && help.IsEffectivelyVisible
+                            && help.Bounds.Width > 0 && help.Bounds.Height > 0,
                         () => "GalleryHelp did not become a visible native overflow target.");
                     await native.ClickAsync(help);
                 }

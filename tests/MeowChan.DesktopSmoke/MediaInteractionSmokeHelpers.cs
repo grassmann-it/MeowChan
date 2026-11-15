@@ -67,6 +67,14 @@ internal static class MediaInteractionSmokeHelpers
             && hit.GetSelfAndVisualAncestors().Contains(target);
     }
 
+    /// <summary>Reveal an auto-hidden gallery transport, then wait for its current native hit geometry.</summary>
+    internal static async Task WaitForNativeTargetAsync(MediaNativeInput native, GalleryViewer viewer, Control target, string message)
+    {
+        if (!IsPointerTargetReady(target))
+            await native.MoveAsync(viewer, new Point(viewer.Bounds.Width * .4, viewer.Bounds.Height - 2));
+        await Program.WaitUntilAsync(() => IsPointerTargetReady(target), () => message);
+    }
+
     internal static Point TrackPoint(Slider slider, double fraction)
     {
         if (fraction is < 0 or > 1) throw new ArgumentOutOfRangeException(nameof(fraction));

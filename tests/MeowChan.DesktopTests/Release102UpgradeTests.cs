@@ -145,7 +145,10 @@ public sealed class Release102UpgradeTests
             Assert.Equal(DesktopSessionState.Ready, host.State);
             Assert.Equal(31, host.Config.VideoVolume); Assert.True(host.Config.VideoStartMuted);
             Assert.True(host.Config.DownloadsPaused); Assert.Equal("Manual", host.Config.GalleryPlaybackMode);
-            Assert.False(host.Config.GalleryOverlayControls); Assert.False(host.Config.GalleryMediaFocus);
+            // v1.0.0 has no GalleryOverlayControls key. The current Config
+            // default is on for a missing/damaged value; only the explicitly
+            // persisted GalleryMediaFocus=false survives as off.
+            Assert.True(host.Config.GalleryOverlayControls); Assert.False(host.Config.GalleryMediaFocus);
             var currentStore = Assert.IsType<PluginProfileStore>(host.Plugins!.ProfileStore);
             var current = await currentStore.ReadAsync();
             AssertNoInventedHistory(originalV1, await File.ReadAllBytesAsync(statePath));

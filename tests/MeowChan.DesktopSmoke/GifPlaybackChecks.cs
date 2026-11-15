@@ -273,15 +273,17 @@ internal static partial class GalleryPlaybackFeatureChecks
             await UntilAsync(() => GifState(viewer).UserPaused && !GifState(viewer).IsRunning, "Native Space did not pause GIF.");
             await GifStablePixelsAsync(viewer, "Space-paused");
             Button gifPlayPause = Find<Button>(viewer, "GalleryGifPlayPause");
-            await UntilAsync(async () =>
-            {
-                await LayoutAsync(fixture.Window);
-                return gifPlayPause.IsEffectivelyVisible && gifPlayPause.Bounds.Width > 0 && gifPlayPause.Bounds.Height > 0;
-            }, "GIF play/pause control did not become laid out and visible.");
+            // The pixel hold intentionally allows the auto-hide timer to fire.
+            // Reveal the actual control through the OS pointer before each native
+            // click rather than relying on a stale retained visual.
+            await MediaInteractionSmokeHelpers.WaitForNativeTargetAsync(native, viewer, gifPlayPause,
+                "GIF play/pause did not become a current hit target after revealing the gallery transport.");
             await native.ClickAsync(gifPlayPause);
             await UntilAsync(() => !GifState(viewer).UserPaused && GifState(viewer).IsRunning, "GIF button did not resume.");
             await GifChangingPixelsAsync(viewer, "button-resumed");
-            await native.ClickAsync(Find<Button>(viewer, "GalleryGifPlayPause"));
+            await MediaInteractionSmokeHelpers.WaitForNativeTargetAsync(native, viewer, gifPlayPause,
+                "GIF play/pause did not remain a current hit target before the second native click.");
+            await native.ClickAsync(gifPlayPause);
             await UntilAsync(() => GifState(viewer).UserPaused && !GifState(viewer).IsRunning, "GIF button did not pause.");
             await GifStablePixelsAsync(viewer, "button-paused");
             viewer.FocusGallerySurface(); await native.KeyAsync(MediaNativeInput.Space);
