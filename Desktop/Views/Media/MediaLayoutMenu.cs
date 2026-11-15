@@ -72,7 +72,7 @@ internal static class MediaLayoutMenu
         Choice(SideGroup, SideLeftId, Texts.T("media.layout.side.left"), now.TagListSide == MediaTagListSide.Left);
         Choice(SideGroup, SideRightId, Texts.T("media.layout.side.right"), now.TagListSide == MediaTagListSide.Right);
         Separator();
-        rows.Add(new(LayoutMenuRowKind.Toggle, PanelId, Texts.T("media.layout.panel")) { Checked = now.Panel, Hint = now.Panel ? panelHint : null });
+        rows.Add(new(LayoutMenuRowKind.Toggle, PanelId, Texts.T("media.layout.panel")) { Checked = now.Panel, Hint = now.Panel ? panelHint : null, CommandId = MeowChan.Desktop.MediaPanelKeys.ToggleCommandId });
         Choice(PanelSideGroup, PanelSideLeftId, Texts.T("media.layout.panelSide.left"), now.PanelSide == MediaPanelSide.Left);
         Choice(PanelSideGroup, PanelSideRightId, Texts.T("media.layout.panelSide.right"), now.PanelSide == MediaPanelSide.Right);
         Separator();
