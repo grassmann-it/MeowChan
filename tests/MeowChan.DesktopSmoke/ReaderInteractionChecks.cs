@@ -512,7 +512,10 @@ internal static class ReaderInteractionChecks
             finally { foreach (Control control in native) host.Children.Remove(control); }
 
             int protectedBefore = opens;
-            await input.ClickAsync(page.FindControl<Button>("ExportArchiveButton")!);
+            // This is setup for the native dialog-protection assertion, not an export-input check.
+            // ExportArchiveButton may be reparented under ReaderToolbar.More and therefore has no
+            // native hit-testable layout on macOS; keep the real native key checks below intact.
+            Click(page.FindControl<Button>("ExportArchiveButton")!);
             await Program.WaitUntilAsync(() => page.IsReaderDialogOpen);
             page.FindControl<TextBox>("ArchiveExportDestination")!.Focus();
             await input.KeyAsync(MediaNativeInput.Space);
