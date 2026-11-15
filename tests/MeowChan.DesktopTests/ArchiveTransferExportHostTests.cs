@@ -249,6 +249,102 @@ public sealed class ArchiveTransferExportHostTests
         Assert.Equal("KEEP", await File.ReadAllTextAsync(Path.Combine(files.Output, "full-part-02.zip")));
     }
 
+    // The package count is unknown until every package is frozen (halving adds some), so Full export refuses up front when any
+    // numbered sibling of the chosen name exists, whatever its number; a plain export does not look at them at all.
+    [Fact]
+    public async Task FullExportRefusesAnyExistingNumberedSiblingBeforeWritingAndAPlainExportIgnoresThem()
+    {
+        using Workspace files = new();
+        ResourceId[] ids = Threads(9400, 5);
+        await files.SeedAsync(ids.Select(id => (id, 1)).ToArray());
+        long single;
+        await using (ArchiveReader reader = await ArchiveReader.OpenAsync(files.Profile).WaitAsync(Deadline))
+            single = await SmallestTextBudgetAsync(reader, ids[0]);
+        await using DesktopSessionHost host = await files.StartAsync();
+        host.ArchiveTransferMetadataLimitsForTests = new(storedTextBytes: single + single / 2);
+        string existing = Path.Combine(files.Output, "halved-part-07.zip");
+        await File.WriteAllTextAsync(existing, "KEEP");
+        File.WriteAllText(Path.Combine(files.Output, "halved-part-x.zip"), "OTHER"); // not a numbered package name
+        File.WriteAllText(Path.Combine(files.Output, "other-part-01.zip"), "OTHER");
+
+        // A one-package plan that must be halved: the number of parts is unknown at the start, so the sibling decides.
+        ArchiveTransferExportResult result = await host.ExportArchiveTransferAsync(
+            new(null, ArchiveTransferExportMedia.MetadataOnly, Split: true), Path.Combine(files.Output, "halved.zip")).WaitAsync(Deadline);
+
+        Assert.Equal(ArchiveTransferExportError.DestinationExists, result.Error);
+        Assert.Equal(existing, result.Destination);
+        Assert.Empty(result.Parts);
+        Assert.Equal(["halved-part-07.zip", "halved-part-x.zip", "other-part-01.zip"],
+            Directory.EnumerateFiles(files.Output).Select(Path.GetFileName).Order(StringComparer.Ordinal));
+        Assert.Equal("KEEP", await File.ReadAllTextAsync(existing));
+        Assert.Empty(Pending(files.Output));
+
+        ArchiveTransferExportResult plain = await host.ExportArchiveTransferAsync(
+            new(null, ArchiveTransferExportMedia.MetadataOnly), Path.Combine(files.Output, "plain.zip")).WaitAsync(Deadline);
+        // Past the sibling check: refused by the lowered text budget, which a plain export does not halve around.
+        Assert.Equal(ArchiveTransferExportError.SelectionLimit, plain.Error);
+        Assert.Equal("KEEP", await File.ReadAllTextAsync(existing));
+    }
+
+    // A numbered name that appears after the up-front check is never overwritten: the publisher refuses it, and the package
+    // already written stays listed.
+    [Fact]
+    public async Task ANumberedNameCreatedDuringAFullExportIsKeptAndTheWrittenPartsAreListed()
+    {
+        using Workspace files = new();
+        await files.SeedAsync(Threads(9500, 4).Select(id => (id, 1)).ToArray());
+        await using DesktopSessionHost host = await files.StartAsync();
+        host.ArchiveTransferPackageBudgetForTests = ArchiveTransferPackageBudget.Default with { Threads = 2 };
+        string raced = Path.Combine(files.Output, "full-part-02.zip");
+        int writes = 0;
+        host.ArchiveTransferExportCheckpointForTests = (phase, _) =>
+        {
+            if (phase == ArchiveTransferExportPhase.Writing && ++writes == 2) File.WriteAllText(raced, "KEEP");
+            return Task.CompletedTask;
+        };
+
+        ArchiveTransferExportResult result = await host.ExportArchiveTransferAsync(
+            new(null, ArchiveTransferExportMedia.MetadataOnly, Split: true), Path.Combine(files.Output, "full.zip")).WaitAsync(Deadline);
+
+        Assert.Equal(ArchiveTransferExportError.DestinationExists, result.Error);
+        Assert.Equal(Path.Combine(files.Output, "full-part-01.zip"), Assert.Single(result.Parts).Path);
+        Assert.Equal("KEEP", await File.ReadAllTextAsync(raced));
+        Assert.Empty(Pending(files.Output));
+    }
+
+    // Errors keep their meaning: no archive catalog is an empty selection; a read error midway (even a missing file) or a
+    // closed connection is a read failure while the session is ready; only a session that is not ready is "profile unavailable".
+    [Fact]
+    public async Task ExportErrorsDistinguishNoCatalogReadFailuresAndAnUnavailableProfile()
+    {
+        using Workspace empty = new();
+        await using (DesktopSessionHost noCatalog = await empty.StartAsync())
+        {
+            ArchiveTransferExportResult none = await noCatalog.ExportArchiveTransferAsync(
+                new(null, ArchiveTransferExportMedia.MetadataOnly), Path.Combine(empty.Output, "none.zip")).WaitAsync(Deadline);
+            Assert.Equal(ArchiveTransferExportError.EmptySelection, none.Error);
+        }
+
+        using Workspace files = new();
+        await files.SeedAsync((new ResourceId("4chan", "b", "9501"), 1));
+        await using DesktopSessionHost host = await files.StartAsync();
+        string target = Path.Combine(files.Output, "failing.zip");
+        foreach (Exception thrown in new Exception[] { new FileNotFoundException("vanished"), new InvalidOperationException("closed") })
+        {
+            host.ArchiveTransferExportCheckpointForTests = (_, _) => throw thrown;
+            ArchiveTransferExportResult failed = await host.ExportArchiveTransferAsync(
+                new(null, ArchiveTransferExportMedia.MetadataOnly), target).WaitAsync(Deadline);
+            Assert.Equal(ArchiveTransferExportError.ReadFailure, failed.Error);
+            Assert.False(File.Exists(target));
+        }
+        host.ArchiveTransferExportCheckpointForTests = null;
+
+        await host.StopAsync().WaitAsync(Deadline);
+        ArchiveTransferExportResult stopped = await host.ExportArchiveTransferAsync(
+            new(null, ArchiveTransferExportMedia.MetadataOnly), target).WaitAsync(Deadline);
+        Assert.Equal(ArchiveTransferExportError.ProfileUnavailable, stopped.Error);
+    }
+
     private static ResourceId[] Threads(int first, int count) =>
         Enumerable.Range(first, count).Select(i => new ResourceId("4chan", "b", i.ToString())).ToArray();
 
