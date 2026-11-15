@@ -322,6 +322,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          for version in 1.0.0 1.0.1; do
+            fixture="$GITHUB_WORKSPACE/artifacts/upgrade-$version"
+            python tests/fixtures/upgrade-v1x/prepare.py "$fixture" --version "$version"
+            MEOWCHAN_UPGRADE_1X_FIXTURE="$fixture" dotnet test tests/MeowChan.DesktopTests/MeowChan.DesktopTests.csproj -c Release --no-build --no-restore --filter 'FullyQualifiedName~OldReleaseExplicitNewBundledSelectionPreservesHistoryAcrossTwoOfflineRestarts' --logger "trx;LogFileName=upgrade-$version.trx" --results-directory artifacts/upgrade-results
+          done
+          python -c 'import pathlib,xml.etree.ElementTree as E; files=list(pathlib.Path("artifacts/upgrade-results").glob("upgrade-*.trx")); assert len(files)==2; rows=[E.parse(f).getroot().findall(".//{*}UnitTestResult") for f in files]; assert all(len(r)==1 and r[0].get("outcome")=="Passed" for r in rows), "Genuine upgrade tests must actually execute and pass"'
+
+          # The current-side consumer must use the same Debug configuration as
+          # the AP04 test assembly. Mixing Debug and Release changes the
+          # MeowChan.dll byte identity and is rejected by the provenance control.
           fixture="$GITHUB_WORKSPACE/artifacts/upgrade-1.0.2"
           source="$fixture/released102-source"
           profile="$fixture/released102-profile"
@@ -333,6 +343,8 @@ jobs:
           test ! -s "$fixture/status-before.txt"
 
           # Keep the source/generator contracts in this gate as well as the runtime evidence.
+          # Bind and validate the pinned released source/profile before current code
+          # is allowed to open it; these checks are part of the required step.
           python -m unittest discover -s tests -p test_released102_fixture_generation.py -v
           python tests/fixtures/upgrade-v1.0.2/prepare.py "$source" > "$fixture/prepare.log" 2>&1
           python tests/fixtures/upgrade-v1.0.2/check.py --source "$source" > "$fixture/source-check.log"
@@ -349,6 +361,9 @@ jobs:
           consumer=tests/fixtures/upgrade-v1.0.2/current/UpgradeConsumer.csproj
           dotnet restore "$consumer" -p:Configuration=Debug --locked-mode -warnaserror:NU1900
           dotnet build "$consumer" --configuration Debug --no-restore -p:SourceRevisionId="$current_revision" -p:UseSharedCompilation=false -nodeReuse:false
+          test_project=tests/MeowChan.DesktopTests/MeowChan.DesktopTests.csproj
+          dotnet restore "$test_project" -p:Configuration=Debug -warnaserror:NU1900
+          dotnet build "$test_project" --configuration Debug --no-restore -p:SourceRevisionId="$current_revision" -p:UseSharedCompilation=false -nodeReuse:false
           mkdir -p "$fixture/current-test-results"
           if [[ "$RUNNER_OS" == Linux ]]; then
             export MEOWCHAN_RELEASED102_NETWORK_NAMESPACE=1
@@ -358,7 +373,7 @@ jobs:
             MEOWCHAN_RELEASED102_SOURCE_MANIFEST="$source/UPGRADE-102-SOURCE.json" \
             MEOWCHAN_RELEASED102_CONSUMER_DLL="$GITHUB_WORKSPACE/tests/fixtures/upgrade-v1.0.2/current/bin/Debug/net10.0/MeowChan.DesktopTests.dll" \
             MEOWCHAN_RELEASED102_RESULTS="$results" \
-            dotnet test tests/MeowChan.DesktopTests/MeowChan.DesktopTests.csproj -c Release --no-build --no-restore \
+            dotnet test "$test_project" -c Debug --no-build --no-restore \
               --filter 'FullyQualifiedName~MeowChan.DesktopTests.Released102RestPackageUpgradeTests' \
               --logger 'trx;LogFileName=upgrade-1.0.2.trx' --results-directory "$fixture/current-test-results" -nodeReuse:false
           python - <<'PY'
@@ -367,7 +382,8 @@ jobs:
           files = list(Path('artifacts/upgrade-1.0.2/current-test-results').glob('upgrade-1.0.2.trx'))
           assert len(files) == 1, 'the released 1.0.2 upgrade test must produce exactly one TRX'
           rows = [item for item in ET.parse(files[0]).getroot().iter() if item.tag.endswith('UnitTestResult')]
-          assert len(rows) == 1 and rows[0].get('testName') == 'MeowChan.DesktopTests.Released102RestPackageUpgradeTests.ReleasedProviderProfileSurvivesCurrentOpenAndTwoOfflineProcessRestarts' and rows[0].get('outcome') == 'Passed', 'the released 1.0.2 upgrade test must execute and pass'
+          expected = 'MeowChan.DesktopTests.Released102RestPackageUpgradeTests.ReleasedProviderProfileSurvivesCurrentOpenAndTwoOfflineProcessRestarts'
+          assert len(rows) == 1 and rows[0].get('testName') == expected and rows[0].get('outcome') == 'Passed', 'the released 1.0.2 upgrade test must execute and pass'
           PY
           test -f "$results/current-result.json"
           git status --porcelain=v1 --untracked-files=all > "$fixture/status-after.txt"
@@ -601,6 +617,7 @@ jobs:
             artifacts/gallery-features/**
             artifacts/closure-plugin-reselection/**
             artifacts/upgrade-results/**
+            artifacts/upgrade-1.0.2/current-test-results/**
             artifacts/upgrade-1.0.*/receipt.json
             artifacts/upgrade-1.0.*/source-binding.json
             artifacts/upgrade-1.0.*/generator.log

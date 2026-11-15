@@ -52,6 +52,31 @@ def sha256(data):
     return hashlib.sha256(data).hexdigest()
 
 
+class WorkflowControlTests(unittest.TestCase):
+    """The CI AP04 replay must execute the current consumer in the test build configuration."""
+
+    workflow = (ROOT / '.github/workflows/dotnet-desktop.yml').read_text(encoding='utf-8')
+
+    def test_released_102_replay_binds_matching_consumer_and_required_evidence(self):
+        start = self.workflow.index('      - name: Replay genuine 1.0.0 and 1.0.1 profiles')
+        end = self.workflow.index('      - name: Exercise FirstRunSetup', start)
+        section = self.workflow[start:end]
+        for marker in (
+            'id: upgrade_replay',
+            'tests/fixtures/upgrade-v1.0.2/prepare.py',
+            'tests/fixtures/upgrade-v1.0.2/check.py',
+            'tests/fixtures/upgrade-v1.0.2/check_migrated.py',
+            'Released102RestPackageUpgradeTests',
+            'dotnet build "$consumer" --configuration Debug',
+            'dotnet build "$test_project" --configuration Debug',
+            'current/bin/Debug/net10.0/MeowChan.DesktopTests.dll',
+            'MEOWCHAN_RELEASED102_SOURCE_MANIFEST',
+            'test ! -s "$fixture/status-after.txt"',
+        ):
+            self.assertIn(marker, section)
+        self.assertIn('upgrade_replay', self.workflow)
+
+
 class CandidateTests(unittest.TestCase):
     def test_clean_candidate_records_commit_and_tokens(self):
         with tempfile.TemporaryDirectory() as temp:

@@ -26,6 +26,9 @@ public sealed class Released102RestPackageUpgradeTests(ITestOutputHelper output)
         string consumer = RequiredPath("MEOWCHAN_RELEASED102_CONSUMER_DLL");
         string results = RequiredPath("MEOWCHAN_RELEASED102_RESULTS");
         Assert.True(File.Exists(consumer), "Build the current helper with the SAME current source/configuration as this test.");
+        string consumerProduct = Path.Combine(Path.GetDirectoryName(consumer)!, "MeowChan.dll");
+        Assert.True(File.Exists(consumerProduct), "The current helper must carry its current product assembly.");
+        Assert.Equal(AssemblyHash(typeof(Config).Assembly), Hash(ReadOrdinaryFile(consumerProduct)));
         Assert.False(File.Exists(results) || Directory.Exists(results), "Use a new results directory for every attempt, including failures.");
         Assert.False(IsWithin(profile, results), "Evidence must live outside the profile inventory.");
         RequireOrdinaryDirectory(profile);
