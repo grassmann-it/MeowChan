@@ -29,7 +29,7 @@ public partial class ArchivePage
             _transferExportRouter = new(this);
             _transferExportRouter.Register(new("archive.transfer-export", this,
                 // The page, not the button: a view may keep the button under the header's More.
-                () => !_ended && IsEffectivelyVisible, CanOpenTransferExport, () => _ = OpenTransferExportAsync(), Priority: 100));
+                () => !_ended && IsEffectivelyVisible, CanOpenTransferExport, () => OpenActions.Start(OpenTransferExportAsync, "archive.transfer-export"), Priority: 100));
             AddHandler(KeyDownEvent, RouteTransferExportCommand, RoutingStrategies.Bubble);
         }
         UpdateTransferExportAction();
