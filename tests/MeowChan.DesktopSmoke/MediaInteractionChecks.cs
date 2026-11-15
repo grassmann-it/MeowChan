@@ -317,6 +317,19 @@ internal static class MediaInteractionChecks
                 () => $"The {name} control did not settle as a native hit target.");
             return target;
         }
+        async Task<Button> NativeOverflowTargetAsync(string name)
+        {
+            Button target = Named<Button>(name);
+            await Program.WaitUntilAsync(() => viewer!.IsOverflowOpen
+                && viewer.OverflowMenuContent.IsAttachedToVisualTree()
+                && viewer.OverflowMenuContent.IsEffectivelyVisible
+                && viewer.OverflowMenuContent.Bounds.Width > 0
+                && viewer.OverflowMenuContent.Bounds.Height > 0
+                && target.IsAttachedToVisualTree()
+                && MediaInteractionSmokeHelpers.IsNativeGeometryReady(target),
+                () => $"The {name} control did not settle as a native popup target.");
+            return target;
+        }
         Slider Seek() => Named<Slider>("GalleryVideoSeek");
         GalleryVideoPlayer Player()
         {
@@ -352,10 +365,27 @@ internal static class MediaInteractionChecks
                 && p.Length <= 60000 && (OperatingSystem.IsWindows() ? p.DisplayedFrames >= 3 : p.SurfaceFrames >= 3 && p.SurfaceNonUniform));
             Require(Seek().IsEffectivelyEnabled, "Ready video did not enable seek.");
         }
+        async Task DismissTransientNativeRootsAsync()
+        {
+            bool popupOpen = viewer?.IsOverflowOpen == true;
+            bool galleryOverlayOpen = viewer?.IsOverlayOpen == true;
+            bool helpWindowOpen = MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.For(window) is { IsVisible: true };
+            if (!popupOpen && !galleryOverlayOpen && !helpWindowOpen) return;
+
+            // A failed popup-target assertion must not leave its native light-dismiss
+            // root over the next stage. One real Escape dismisses the currently focused
+            // root; the wait below proves that cleanup completed before clicking Close.
+            await native!.KeyAsync(MediaNativeInput.Escape);
+            await Program.WaitUntilAsync(() => viewer?.IsOverflowOpen != true
+                && viewer?.IsOverlayOpen != true
+                && MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.For(window) == null,
+                () => "The previous native media popup/overlay did not dismiss during stage setup.");
+        }
         async Task FreshVideoAsync()
         {
             if (viewer != null)
             {
+                await DismissTransientNativeRootsAsync();
                 viewer.RemoveHandler(InputElement.KeyDownEvent, ViewerKeyTunnel);
                 viewer.RemoveHandler(InputElement.KeyDownEvent, ViewerKeyBubble);
                 // Recovery setup: a previous failed edge assertion may have left controls hidden.
@@ -531,22 +561,14 @@ internal static class MediaInteractionChecks
                 if (expected == "Playing") await SeekClickAsync(.05);
                 if (panel == "GalleryHelp")
                 {
-                    // GalleryHelp is an overflow row, not a hidden toolbar button. Open More through
-                    // the OS first, then require the row to be a real hit target before clicking it.
-                    await native.ClickAsync(viewer!.OverflowButton);
-                    Button help = Named<Button>(panel);
-                    // GalleryHelp lives in Avalonia's separate Flyout/PopupRoot. Its
-                    // center hit-test can remain stale across the native popup-root
-                    // handoff even after the row is laid out. Wait for the actual
-                    // popup and row geometry, then prove delivery with the native
-                    // click and the shortcuts-window assertion below.
-                    await Program.WaitUntilAsync(
-                        () => viewer.IsOverflowOpen && viewer.OverflowMenuContent.IsAttachedToVisualTree()
-                            && viewer.OverflowMenuContent.IsEffectivelyVisible && viewer.OverflowMenuContent.Bounds.Height > 0
-                            && help.IsAttachedToVisualTree() && help.IsEffectivelyVisible
-                            && help.Bounds.Width > 0 && help.Bounds.Height > 0,
-                        () => "GalleryHelp did not become a visible native overflow target.");
-                    await native.ClickAsync(help);
+                    // More is in the gallery root; GalleryHelp is reparented into a
+                    // separate Flyout/PopupRoot. Open it through the OS first, then
+                    // wait for the popup's current screen geometry before converting
+                    // the row coordinate. Popup-root hit testing can lag one layout
+                    // turn, so the native click and shortcuts-window assertion below
+                    // remain the delivery proof.
+                    await native.ClickAsync(Named<Button>("GalleryMore"));
+                    await native.ClickAsync(await NativeOverflowTargetAsync(panel));
                 }
                 else
                     await native.ClickAsync(Named<Button>(panel));
