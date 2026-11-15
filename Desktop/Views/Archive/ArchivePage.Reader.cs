@@ -260,6 +260,23 @@ public partial class ArchivePage
         {
             if (e.Key is Key.PageDown or Key.PageUp or Key.Home or Key.End or Key.Space) ++_readerInteractionRevision;
         }, RoutingStrategies.Tunnel, handledEventsToo: true);
+        // The theme's list template does not pass ScrollViewer.BringIntoViewOnFocusChange (set on the list in the XAML) on to its
+        // scroll viewer: focusing a card must not scroll the list (FocusPostAsync aligns it), so it is set on the parts themselves.
+        posts.TemplateApplied += (_, _) => KeepFocusFromScrolling(posts);
+        KeepFocusFromScrolling(posts);
+    }
+
+    private static void KeepFocusFromScrolling(ListBox posts)
+    {
+        if (posts.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault() is not { } scroll) return;
+        scroll.BringIntoViewOnFocusChange = false;
+        void Presenter()
+        {
+            if (scroll.GetVisualDescendants().OfType<ScrollContentPresenter>().FirstOrDefault() is { } presenter)
+                ScrollViewer.SetBringIntoViewOnFocusChange(presenter, false);
+        }
+        scroll.TemplateApplied += (_, _) => Presenter();
+        Presenter();
     }
     internal bool ReaderShowsPosts => _showReader && ArchiveContentTabs.SelectedIndex == 0;
     internal Action<Control?>? OpenReaderRequested { get; set; }
