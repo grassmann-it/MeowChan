@@ -332,13 +332,16 @@ public sealed class GalleryFavoriteStateTests
         Assert.True(badge.ZIndex > 0);
     }
 
-    // GL5a: the star beside the way back dims with it (30 %) while the overlay controls are away, and comes back with it.
+    // Tom's rule of 15.11.: the star beside the way back is gone with it (opacity 0, no hit test, no focus) while the overlay controls are
+    // auto-hidden, and returns with it or alone after a change (GalleryAutoHideCleanTests drives the states).
     [Fact]
-    public void TheStarDimsAndReturnsWithTheWayBack()
+    public void TheStarHidesCompletelyAndReturnsWithTheWayBack()
     {
         string viewer = ViewerSource();
-        Assert.Contains("_close.Opacity = dimmed ? 0.3 : 1;", viewer);
-        Assert.Contains("_favoriteIndicator.Opacity = _nativeFavoriteIndicator.Opacity = dimmed ? 0.3 : 1;", viewer);
+        Assert.DoesNotContain("0.3", viewer.Substring(viewer.IndexOf("private void UpdateCornerChrome", StringComparison.Ordinal), 1800));
+        Assert.Contains("star.ApplyTo(_favoriteIndicator);", viewer);
+        Assert.Contains("star.ApplyTo(_nativeFavoriteIndicator);", viewer);
+        Assert.Contains("back.ApplyTo(_close);", viewer);
     }
 
     private static string ViewerSource([CallerFilePath] string source = "") =>

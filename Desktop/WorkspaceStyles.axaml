@@ -693,6 +693,8 @@
         <Thickness x:Key="Workspace.Inset.Overlay">12</Thickness>
         <!-- Inset of a popover that carries running text (help popover): text never sits closer than 16 dip to the edge. -->
         <Thickness x:Key="Workspace.Inset.Popover">16</Thickness>
+        <!-- The vertical volume above the speaker: 12 dip above and below the track keep the 12 dip thumb (the ends of the range) fully inside the box. -->
+        <Thickness x:Key="Workspace.Inset.VolumePopup">0,12</Thickness>
         <!-- Page margin of every work view (Downloads, Sources, Plugins, Diagnostics, Statistics, Media, Archive). -->
         <Thickness x:Key="Workspace.Inset.Page">12</Thickness>
         <!-- List cards (Sources list, Plugins list): inner spacing (on the 12 dip grid, one value for both lists) and the start-edge selection bar (LW-06). -->
@@ -1283,6 +1285,11 @@
          pointer clicks land outside the actual value track on macOS/Linux. -->
     <Style Selector="Slider.media-slider:horizontal /template/ Grid#SliderContainer">
         <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <!-- Semi lays a vertical slider out in three Auto columns (tick, track, tick), which leaves the track at the start edge of a wider
+         slider. Centering the container puts the track and the thumb on the middle of the volume box. -->
+    <Style Selector="Slider.media-slider:vertical /template/ Grid#SliderContainer">
+        <Setter Property="HorizontalAlignment" Value="Center" />
     </Style>
     <Style Selector="Slider.media-slider /template/ Thumb">
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />

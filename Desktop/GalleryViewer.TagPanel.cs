@@ -304,6 +304,7 @@ internal sealed partial class GalleryViewer
     private void RequestRating(int? value)
     {
         if (_entry == null) return;
+        RevealForRatingFeedback();
         if (_tagPanelOpen && _tagController?.Decisions != null) { RequestDecisionRating(value); return; }
         RatingSetRequested?.Invoke(_entry, value);
     }

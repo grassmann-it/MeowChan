@@ -179,11 +179,12 @@ public sealed class ReaderToolbarRl1Tests : IDisposable
     // ---- the popover ----------------------------------------------------------------------------------------------------------
 
     [Fact]
-    public void ThePopoverHasTheFourSectionsInTheirOrderAndNothingOfTheOldViewMenuIsLost()
+    public void ThePopoverHasTheSixSectionsInTheirOrderAndNothingOfTheOldViewMenuIsLost()
     {
         IReadOnlyList<QuickSettingsEntry> layout = ReaderQuickSettings.Layout;
         string[] sections = layout.OfType<QuickSettingsSection>().Select(section => section.TitleKey).ToArray();
-        Assert.Equal(["quicksettings.reader.section.view", "quicksettings.reader.section.media", "quicksettings.reader.section.text", "quicksettings.reader.section.thread"], sections);
+        Assert.Equal(["quicksettings.reader.section.view", "quicksettings.reader.section.media", "quicksettings.reader.section.postVideo",
+            "quicksettings.reader.section.sidebarVideo", "quicksettings.reader.section.text", "quicksettings.reader.section.thread"], sections);
         Assert.IsType<QuickSettingsSection>(layout[0]);
         // Section "view (this session only)": the three switches and the post filters action.
         Assert.Equal(["reader.view.media-only", "reader.view.hide-media", "reader.view.conversation", "reader.post-filters"],

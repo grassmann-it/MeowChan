@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
+using Avalonia.Platform;
 using Avalonia.Rendering;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
@@ -22,15 +23,17 @@ public sealed class MediaViewsDeadAffordanceTests : IDisposable
 
     public MediaViewsDeadAffordanceTests() { Texts.Initialize(); Texts.SetLanguage("en"); }
 
-    // The sidebar loads icon masks, so its tests need the asset loader (and the hand cursor needs a cursor factory): the platform without a window, once.
-    private static readonly object PlatformGate = new();
-    private static void Platform()
+    // The sidebar loads icon masks, so its tests need the asset loader (and the hand cursor needs a cursor factory). They run on a dispatcher of
+    // their own (BooruComponentDispatcher: asset loader and Skia in a locator scope, the UI thread and the shortcut observers restored afterwards)
+    // with a cursor factory in that scope, like the dead-affordance guard. No process-wide AppBuilder setup: a bare Application left in the root
+    // locator hid the design tokens from the guard's pages, and controls bound on an xunit worker thread made the next test's thread "a
+    // different thread" (combined runs only).
+    private static void OnOwnDispatcher(Action test) => BooruComponentDispatcher.Run(() =>
     {
-        lock (PlatformGate)
-            if (Application.Current == null)
-                AppBuilder.Configure<Application>().UseSkia().UseStandardRuntimePlatformSubsystem().UseHarfBuzz()
-                    .UseWindowingSubsystem(() => { }).SetupWithoutStarting();
-    }
+        using IDisposable scope = AvaloniaLocator.EnterScope();
+        AvaloniaLocator.CurrentMutable.Bind<ICursorFactory>().ToConstant(new DeadAffordanceGuard.RecordingCursorFactory());
+        test();
+    });
     public void Dispose() { Texts.Initialize(); Texts.SetLanguage("en"); }
 
     private static string RepositoryRoot()
@@ -45,9 +48,8 @@ public sealed class MediaViewsDeadAffordanceTests : IDisposable
     // ---- the reader sidebar -----------------------------------------------------------------------------------------------------
 
     [Fact]
-    public void TheSidebarsHandCursorShowsOnlyWhileAClickOpensAMedium()
+    public void TheSidebarsHandCursorShowsOnlyWhileAClickOpensAMedium() => OnOwnDispatcher(() =>
     {
-        Platform();
         ReaderMediaSidebar sidebar = new();
         // Nothing selected: the placeholder says so, a click opens nothing, so no hand.
         Assert.False(sidebar.FrameClickable);
@@ -72,12 +74,11 @@ public sealed class MediaViewsDeadAffordanceTests : IDisposable
         sidebar.Open.IsEnabled = true;
         Assert.True(sidebar.FrameClickable);
         Assert.Same(PointerCursors.Hand, sidebar.Frame.Cursor);
-    }
+    });
 
     [Fact]
-    public void TheSidebarsCrossIsNoClickTargetWhileItIsInvisible()
+    public void TheSidebarsCrossIsNoClickTargetWhileItIsInvisible() => OnOwnDispatcher(() =>
     {
-        Platform();
         ReaderMediaSidebar sidebar = new();
         Assert.Equal(0, sidebar.Close.Opacity);
         Assert.False(sidebar.Close.IsHitTestVisible);
@@ -90,12 +91,11 @@ public sealed class MediaViewsDeadAffordanceTests : IDisposable
             default, 0, new PointerPointProperties(RawInputModifiers.None, PointerUpdateKind.Other), KeyModifiers.None));
         Assert.Equal(0, sidebar.Close.Opacity);
         Assert.False(sidebar.Close.IsHitTestVisible);
-    }
+    });
 
     [Fact]
-    public void TheHeadersPostNumberIsALinkWhenTheHostGaveItATipAndTheLineStaysWhole()
+    public void TheHeadersPostNumberIsALinkWhenTheHostGaveItATipAndTheLineStaysWhole() => OnOwnDispatcher(() =>
     {
-        Platform();
         ReaderMediaSidebar sidebar = new();
         int clicks = 0;
         sidebar.PostLinkClicked += (_, _) => clicks++;
@@ -122,7 +122,7 @@ public sealed class MediaViewsDeadAffordanceTests : IDisposable
         sidebar.ShowEmpty();
         Assert.False(sidebar.PostLink.IsVisible);
         Assert.Equal(Texts.T(sidebar.TitleKey), sidebar.HeaderLine);
-    }
+    });
 
     [Fact]
     public void TheArchivePageWiresTheNumberLinkToTheSameCopyAsThePostsOwnNumber()

@@ -30,7 +30,6 @@ public sealed class SettingsHintLintTests
         "ComboBox|name=ReadingFontSizeInput|SelectedItem=SelectedReadingFontSize",
         "ToggleSwitch|name=GalleryMediaFocusInput|IsChecked=GalleryMediaFocus",
         "ToggleSwitch|binding=VideoAutoplay|IsChecked=VideoAutoplay",
-        "ToggleSwitch|binding=VideoStartMuted|IsChecked=VideoStartMuted",
         "ToggleSwitch|name=ShowShortcutHelpInput|IsChecked=ShowShortcutHelp",
         "ToggleSwitch|name=PrereleaseUpdatesInput|IsChecked=IncludePrereleaseUpdates",
         "ToggleSwitch|name=InformationNotificationsInput|IsChecked=ShowInformationNotifications",

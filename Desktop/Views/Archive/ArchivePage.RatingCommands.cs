@@ -45,7 +45,7 @@ public partial class ArchivePage
             // R "Rate and tag" opens the popover (stars focused) on the focused file; the keys below rate it directly (Shift+1 to 5, Shift+0).
             _ratingCommands.Register(new("media.rating.edit", pane, () => pane.IsEffectivelyVisible,
                 () => !_ended && _available && FocusedMediaForRateAndTag() != null,
-                () => _ = OpenRateAndTagForFocusAsync(focusRating: true, ArchiveEditRatingButton), Priority: 100));
+                () => OpenActions.Start(() => OpenRateAndTagForFocusAsync(focusRating: true, ArchiveEditRatingButton), "media.rating.edit"), Priority: 100));
             _ratingCommands.Register(new("media.rating.clear", pane, () => pane.IsEffectivelyVisible, Ready,
                 () => _ = ExecuteRatingCommandAsync(null), Priority: 100));
             for (int value = 1; value <= 5; value++)

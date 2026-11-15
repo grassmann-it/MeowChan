@@ -2662,7 +2662,7 @@
     "media.query.reason.ambiguous": "niejednoznaczne, podaj źródło i tablicę",
     "media.query.reason.refused": "nie pasuje do pozostałych filtrów",
     "media.query.reason.tooManyTags": "zbyt wiele tagów",
-    "media.query.tip": "Słowa: plik, wątek, tablica, źródło, tag.\nin:tag,title szuka tylko w tych polach.\ntype:video, -tag:name, sound:none\nsource:4chan, board:g, rating:>=3\nfav, missing, untagged, thread:1234,\nqueue:yes, queue:no, booru:tag, -booru:tag, tag:\"x\" zachowuje spacje.",
+    "media.query.tip": "Szukaj: plik, wątek, board, źródło, tag.\nin:tag,title; type:video, fav, missing\nsound:none, source:4chan, board:g\nrating:>=3, untagged, thread:1234\n-tag:name, queue:yes, queue:no, booru:tag, -booru:tag, tag:\"x\" zachowuje spacje.",
     "media.query.copied": "Filtry skopiowane jako tekst",
     "media.query.copiedLong": "Filtry skopiowane jako tekst. Tekst jest dłuższy, niż przyjmuje pole wyszukiwania (limit znaków: {0}).",
     "media.query.copyFailed": "Nie udało się skopiować filtrów: schowek jest niedostępny.",

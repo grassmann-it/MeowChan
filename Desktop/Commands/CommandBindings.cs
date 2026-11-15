@@ -404,6 +404,16 @@ public static class CommandBindings
         InvokeExistingControl(target);
         return true;
     }
+    /// <summary>
+    /// Whether a visible-action command of <paramref name="context"/> matches <paramref name="e"/> only behind <paramref name="host"/>, which is
+    /// hidden now (the auto-hidden overlay footer): the owner shows it before <see cref="RouteVisibleActions"/> looks for visible controls.
+    /// </summary>
+    internal static bool HasActionBehind(Control context, Control host, KeyEventArgs e)
+    {
+        if (e.Handled || ShortcutService.IsCapturing || host.IsEffectivelyVisible || CommandRouter.IsNativeInput(e.Source, e.Key)) return false;
+        return host.GetVisualDescendants().OfType<Control>().Any(c => c.IsVisible && c is Button or MenuItem or ComboBox or TabItem or Expander
+            && Actions.TryGetValue(c, out var a) && !CommandRouter.HasExplicitRegistration(a.Id, context) && Matches(e, a.Id));
+    }
     internal static bool RouteMenuAction(ContextMenu menu, KeyEventArgs e)
     {
         if (e.Handled || ShortcutService.IsCapturing || CommandRouter.IsNativeInput(e.Source, e.Key)) return false;

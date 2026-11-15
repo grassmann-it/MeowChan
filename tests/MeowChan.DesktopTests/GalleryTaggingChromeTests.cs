@@ -125,7 +125,9 @@ public sealed class GalleryTaggingChromeTests : IDisposable
         Assert.Contains("InfoRating: info && InfoRatingVisible(mediaFocus: false, input.PanelDecisions)", Source("Desktop/GalleryChromePlan.cs"));
         Assert.Contains("PanelDecisions = DecisionRowVisible", Source("Desktop/GalleryViewer.Chrome.cs"));
         string panel = Source("Desktop/GalleryViewer.TagPanel.cs");
-        Assert.Contains("internal bool DecisionRowVisible => _tagPanelOpen && _decisionRow != null;", panel);
+        // The post segment also owns the row now; this source contract keeps the info-line hand-off
+        // in sync for both the tag and post panel paths.
+        Assert.Contains("internal bool DecisionRowVisible => _tagPanelOpen ? _decisionRow != null : PostContextVisible && _entry != null;", panel);
         Assert.Equal(2, CountOf(panel, "ApplyChrome();"));
     }
 

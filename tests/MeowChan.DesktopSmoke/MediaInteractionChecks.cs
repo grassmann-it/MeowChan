@@ -353,10 +353,33 @@ internal static class MediaInteractionChecks
                 // The row can be current and attached while still outside the visible
                 // ScrollViewer viewport. Bring this current instance into view before
                 // asking for screen geometry; a retained row from a previous popup must
-                // never be reused for native input.
+                // never be reused for native input. Avalonia processes BringIntoView on
+                // the popup's dispatcher turn, so update both the popup and its bounded
+                // scroller before converting the row to screen coordinates.
+                ScrollViewer? scroller = viewer.OverflowFlyout.Content as ScrollViewer;
+                TopLevel? popup = TopLevel.GetTopLevel(target);
+                popup?.UpdateLayout();
+                scroller?.UpdateLayout();
                 target.BringIntoView();
+                if (scroller != null && target.TranslatePoint(default, scroller) is { } origin)
+                {
+                    // The help row is below the bounded menu on the 3200x2000 Linux
+                    // smoke desktop. BringIntoView is routed asynchronously and can
+                    // miss the first popup layout; correct the current ScrollViewer
+                    // offset from the current row geometry, never from a stale row.
+                    double y = scroller.Offset.Y;
+                    if (origin.Y < 0) y += origin.Y;
+                    else if (origin.Y + target.Bounds.Height > scroller.Viewport.Height)
+                        y += origin.Y + target.Bounds.Height - scroller.Viewport.Height;
+                    double max = Math.Max(0, scroller.Extent.Height - scroller.Viewport.Height);
+                    scroller.Offset = new Vector(scroller.Offset.X, Math.Clamp(y, 0, max));
+                }
+                scroller?.UpdateLayout();
+                popup?.UpdateLayout();
                 return target.IsAttachedToVisualTree()
-                    && MediaInteractionSmokeHelpers.IsNativeGeometryReady(target);
+                    && popup is not null
+                    && !ReferenceEquals(popup, window)
+                    && MediaInteractionSmokeHelpers.IsPointerTargetReady(target);
             }, () => $"The {name} control did not settle as a native popup target.");
             return target!;
         }
@@ -395,15 +418,25 @@ internal static class MediaInteractionChecks
                 && p.Length <= 60000 && (OperatingSystem.IsWindows() ? p.DisplayedFrames >= 3 : p.SurfaceFrames >= 3 && p.SurfaceNonUniform));
             Require(Seek().IsEffectivelyEnabled, "Ready video did not enable seek.");
         }
+        bool IsOverflowPopupRootVisible()
+        {
+            if (viewer == null || TopLevel.GetTopLevel(viewer.OverflowMenuContent) is not { } popup)
+                return false;
+            return !ReferenceEquals(popup, window) && popup.IsVisible;
+        }
+        bool HasTransientNativePopup(GalleryVideoPlayer? player) =>
+            viewer?.IsOverflowOpen == true
+            || CommandRouter.HasOpenPopup(window)
+            || IsOverflowPopupRootVisible()
+            || viewer?.IsOverlayOpen == true
+            || MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.For(window) is { IsVisible: true }
+            || player?.IsVolumePopupOpen == true;
+
         async Task DismissTransientNativeRootsAsync()
         {
             GalleryVideoPlayer? player = viewer?.GetGalleryVisualDescendants()
                 .OfType<GalleryVideoPlayer>().SingleOrDefault();
-            bool volumePopupOpen = player?.IsVolumePopupOpen == true;
-            bool popupOpen = viewer?.IsOverflowOpen == true;
-            bool galleryOverlayOpen = viewer?.IsOverlayOpen == true;
-            bool helpWindowOpen = MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.For(window) is { IsVisible: true };
-            if (!popupOpen && !galleryOverlayOpen && !helpWindowOpen && !volumePopupOpen) return;
+            if (!HasTransientNativePopup(player)) return;
 
             // Volume is a retained popup in the native transport root, not an Avalonia
             // Flyout, so checking IsOverflowOpen/IsOverlayOpen alone misses it. Close it
@@ -411,13 +444,13 @@ internal static class MediaInteractionChecks
             player?.SetVolumePopupOpen(false);
             // A failed popup-target assertion must not leave its native light-dismiss
             // root over the next stage. One real Escape dismisses the currently focused
-            // root; the wait below proves that cleanup completed before clicking Close.
-            if (popupOpen || galleryOverlayOpen || helpWindowOpen)
+            // root; the explicit Hide below is the owner-side cleanup for a PopupRoot
+            // whose focus was already lost during a failed native target probe.
+            if (HasTransientNativePopup(player))
                 await native!.KeyAsync(MediaNativeInput.Escape);
-            await Program.WaitUntilAsync(() => viewer?.IsOverflowOpen != true
-                && viewer?.IsOverlayOpen != true
-                && MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.For(window) == null
-                && player?.IsVolumePopupOpen != true,
+            viewer?.OverflowFlyout.Hide();
+            viewer?.TryDismissOverlay();
+            await Program.WaitUntilAsync(() => !HasTransientNativePopup(player),
                 () => "The previous native media popup/overlay did not dismiss during stage setup.");
         }
         async Task CloseVolumePopupAsync()

@@ -234,8 +234,11 @@ internal static class GalleryHiddenFavoriteChecks
             void RequireBadge(bool saved, bool pending = false)
             {
                 ToggleButton badge = Badge();
-                Require(badge.IsEffectivelyVisible && badge.IsHitTestVisible && badge.Focusable,
-                    "Current favorite badge disappeared with controls or is not operable.");
+                // Hidden controls leave the picture clean: the badge is fully hidden (or flashing after a key), never dimmed or half-operable.
+                bool shown = badge.Opacity == 1 && badge.IsHitTestVisible && badge.Focusable;
+                bool clean = badge.Opacity == 0 && !badge.IsHitTestVisible && !badge.Focusable;
+                Require(badge.IsEffectivelyVisible && (shown || clean),
+                    "Current favorite badge is neither operable nor completely hidden.");
                 Require(GalleryViewer.FavoriteBadgeState(badge) == (saved, pending) && badge.IsChecked == saved
                     && (AutomationProperties.GetName(badge) ?? "").StartsWith(
                         Texts.T("gallery.decision.favorite"), StringComparison.Ordinal),

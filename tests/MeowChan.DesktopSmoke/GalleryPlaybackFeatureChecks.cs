@@ -521,15 +521,16 @@ internal static partial class GalleryPlaybackFeatureChecks
             && !MediaInteractionSmokeHelpers.EdgeHintVisible(postIndicator);
         await native.MoveAsync(viewer, new Point(viewer.Bounds.Width * .40, viewer.Bounds.Height * .32));
         await UntilAsync(HintsVisible, "Actual center motion did not expose both edge hints.");
-        Require(!Visible(controls) && !Visible(post), "Center hint motion opened a panel.");
+        Require(!Visible(post), "Center hint motion opened the post panel."); // the controls follow any real motion (16.11.), the post panel only its edge
         Program.CaptureWindow(fixture.Window, "smoke-gallery-edge-motion-hints.png");
         await UntilAsync(HintsHidden, "Edge hints did not expire after native pointer idle.");
+        await UntilAsync(() => !Visible(controls), "The controls did not hide again after the idle delay.");
         await HoldAsync(TimeSpan.FromMilliseconds(1600), () => Require(HintsHidden()
             && !Visible(controls) && !Visible(post), "Stationary timer ticks revived hints or opened panels."));
         Program.CaptureWindow(fixture.Window, "smoke-gallery-edge-idle-hints.png");
         await native.MoveAsync(viewer, new Point(viewer.Bounds.Width * .48, viewer.Bounds.Height * .34));
         await UntilAsync(HintsVisible, "New native center motion did not renew expired hints.");
-        Require(!Visible(controls) && !Visible(post), "Renewing hints opened an edge panel.");
+        Require(!Visible(post), "Renewing hints opened the post panel.");
         Console.WriteLine("SMOKE edge hint lifecycle PASS: native center motion -> hints only -> idle expiry -> stationary ticks stay hidden -> new motion renews.");
         await BottomAsync();
         await UntilAsync(() => Visible(controls), "Bottom-edge hover did not reveal transport.");
@@ -542,8 +543,9 @@ internal static partial class GalleryPlaybackFeatureChecks
         await UntilAsync(() => !Visible(controls), "Mouse focus on slideshow Start pinned the controls open.");
         Require(Running(viewer), "Hiding transport stopped a running slideshow.");
         await native.MoveAsync(viewer, new Point(viewer.Bounds.Width * .35, viewer.Bounds.Height * .35));
-        await HoldAsync(TimeSpan.FromMilliseconds(700), () => Require(!Visible(controls) && Running(viewer),
-            "Movement in the middle of the media reopened controls or paused playback."));
+        await HoldAsync(TimeSpan.FromMilliseconds(700), () => Require(Running(viewer),
+            "Movement in the middle of the media paused playback.")); // it shows the controls now; they collapse again when the mouse is idle
+        await UntilAsync(() => !Visible(controls), "The controls did not hide again after mouse motion in the middle.");
         Program.CaptureWindow(fixture.Window, "smoke-gallery-edge-slideshow-hidden.png");
         await BottomAsync();
         await UntilAsync(() => Visible(controls), "Bottom edge did not reopen the controls.");

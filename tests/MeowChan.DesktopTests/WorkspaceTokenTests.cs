@@ -111,7 +111,7 @@ public sealed class WorkspaceTokenTests
             foreach (string key in legacy) Assert.NotNull(Entry(Theme(theme), key));
         foreach (string key in new[] { "Workspace.Space.4", "Workspace.Space.8", "Workspace.Space.12", "Workspace.Space.16",
                      "Workspace.Space.24", "Workspace.Inset.Section", "Workspace.Inset.Message", "Workspace.Inset.Footer",
-                     "Workspace.Inset.Chip" })
+                     "Workspace.Inset.Chip", "Workspace.Inset.VolumePopup" })
             Assert.NotNull(Entry(Root(), key));
     }
 

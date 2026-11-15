@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
@@ -229,6 +230,11 @@ internal sealed partial class GalleryViewer : UserControl
     internal event Action<int>? VideoVolumeChanged;
 
     internal bool IsOverlayOpen => _helpOpen || _contextOpen || IsFavoriteConfirmOpen;
+    /// <summary>
+    /// Whether the help or the favourite question owns the keys while nothing has the focus. The side panel does not: with it open (docked or over
+    /// the picture) and the focus gone (a retired video transport, hidden controls) the gallery keys still reach <see cref="RouteUnfocusedHostShortcut"/>.
+    /// </summary>
+    internal bool BlocksUnfocusedHostKeys => _helpOpen || IsFavoriteConfirmOpen;
     internal bool OwnsOverlayWindow(Window window) =>
         _nativeOverlayActive && ReferenceEquals(TopLevel.GetTopLevel(_nativeVideoOverlay), window);
     internal IEnumerable<Visual> GetGalleryVisualDescendants() =>
@@ -256,11 +262,14 @@ internal sealed partial class GalleryViewer : UserControl
 
     internal void SetFavorite(bool selected, bool pending = false)
     {
+        // A change of the shown medium's favourite (never its first known state) flashes the badge while the controls are auto-hidden.
+        bool changed = _favoriteKnown && (_favoriteSelected != selected || pending && !_favoritePending);
         _favoriteKnown = true;
         _favoritePending = pending;
         _favoriteSelected = selected;
         ReconcileFavoriteConfirm(selected, pending);
         UpdateFavorite();
+        if (changed) FlashFavoriteBadge();
         RefreshDecisionRow(); // the panel's row and the header star stay in step
     }
 
@@ -353,8 +362,8 @@ internal sealed partial class GalleryViewer : UserControl
         StackPanel view = _viewTools = ToolGroup("GalleryViewTools", rightSide);
         // Frequent controls stay on the toolbar; the rare ones are rows of the "⋯" menu (GalleryViewer.Overflow.cs).
         // The way back is not a toolbar button: it floats at the top LEFT edge of the picture, before everything else (Tom's rule of
-        // 14.11.: back and close come first, other buttons stand apart on the right), names where it returns to and stays reachable,
-        // dimmed, while auto-hidden controls are away. The favourite star sits directly right of it as a pair (UpdateFavoriteIndicators);
+        // 14.11.: back and close come first, other buttons stand apart on the right), names where it returns to and is
+        // fully hidden (not dimmed) while auto-hidden controls are away. The favourite star sits directly right of it as a pair (UpdateFavoriteIndicators);
         // every other action is in the toolbar group below, apart from both.
         _close = Command(navigation, "GalleryClose", Texts.T("gallery.viewer0"), () => CloseRequested?.Invoke());
         navigation.Children.Remove(_close);
@@ -363,10 +372,10 @@ internal sealed partial class GalleryViewer : UserControl
         _close.Margin = new Thickness(12);
         _close.ZIndex = 17; // Above the picture, the edge hints and the favorite badge; below the post panel and the help.
         _close.Classes.Add("gallery-back");
-        _close.PointerEntered += (_, _) => UpdateBackButtonOpacity();
-        _close.PointerExited += (_, _) => UpdateBackButtonOpacity();
-        _close.GotFocus += (_, _) => UpdateBackButtonOpacity();
-        _close.LostFocus += (_, _) => UpdateBackButtonOpacity();
+        _close.PointerEntered += (_, _) => UpdateCornerChrome();
+        _close.PointerExited += (_, _) => UpdateCornerChrome();
+        _close.GotFocus += (_, _) => UpdateCornerChrome();
+        _close.LostFocus += (_, _) => UpdateCornerChrome();
         _previous = Command(navigation, "GalleryPrevious", Texts.T("gallery.viewer1"), () => Move(-1));
         navigation.Children.Add(_compactPosition);
         _next = Command(navigation, "GalleryNext", Texts.T("gallery.viewer2"), () => Move(1));
@@ -510,6 +519,9 @@ internal sealed partial class GalleryViewer : UserControl
             _scaleOwner = TopLevel.GetTopLevel(this);
             _viewerInteractionStopped = false;
             if (_scaleOwner != null) _scaleOwner.ScalingChanged += OnScaleOwnerChanged;
+            // The key-up of F must reach the viewer wherever the focus is (or is not): a latch that waits for it would swallow every later F.
+            _scaleOwner?.AddHandler(KeyUpEvent, OnFavoriteKeyUp, RoutingStrategies.Tunnel, handledEventsToo: true);
+            if (_scaleOwner is Window hostWindow) hostWindow.Deactivated += OnHostWindowDeactivated;
             ApplyOverlayPlacement();
             UpdateViewerInteractionTimer();
         };
@@ -518,6 +530,9 @@ internal sealed partial class GalleryViewer : UserControl
             Texts.Changed -= OnLanguageChanged;
             ShortcutService.Changed -= OnShortcutBindingsChanged;
             if (_scaleOwner != null) _scaleOwner.ScalingChanged -= OnScaleOwnerChanged;
+            _scaleOwner?.RemoveHandler(KeyUpEvent, OnFavoriteKeyUp);
+            if (_scaleOwner is Window hostWindow) hostWindow.Deactivated -= OnHostWindowDeactivated;
+            _favoriteGestureKey = null;
             _scaleOwner = null;
             StopViewerInteraction();
         };
@@ -698,18 +713,64 @@ internal sealed partial class GalleryViewer : UserControl
 
     private bool _compactBack;
 
-    // Rule 5: auto-hide never hides the only way out. While the overlay controls are away the back button stays at 30 %
-    // and returns to full strength under the pointer or the keyboard focus.
-    private void UpdateBackButtonOpacity()
+    // Tom's rule of 15.11.: with auto-hide the picture ends up clean. While the overlay controls are away, the way back and the star beside it are
+    // fully hidden (transparent, not hit-testable, not focusable: GalleryCornerChrome) and come back with mouse motion, a favourite or rating
+    // change, the pointer over one of them, or the keyboard focus inside the pair (Tab reveals the controls first). The way out stays Esc and
+    // the keys; the pair hides again after "Hide controls after".
+    private void UpdateCornerChrome()
     {
         if (_close == null) return;
-        // The badge beside it is part of the pair: the pointer or the keyboard focus on either brings both back.
-        bool badgeActive = _favoriteIndicator.IsPointerOver || _favoriteIndicator.IsKeyboardFocusWithin
-            || _nativeFavoriteIndicator.IsPointerOver || _nativeFavoriteIndicator.IsKeyboardFocusWithin;
-        bool dimmed = OverlayControlsEffective && _overlayHidden && !_close.IsPointerOver && !_close.IsKeyboardFocusWithin && !badgeActive;
-        _close.Opacity = dimmed ? 0.3 : 1;
-        // GL5a (UX spec S1): the star beside the way back dims with it (30 %) and comes back with it under the pointer or the focus.
-        _favoriteIndicator.Opacity = _nativeFavoriteIndicator.Opacity = dimmed ? 0.3 : 1;
+        bool autoHidden = OverlayControlsEffective && _overlayHidden;
+        bool pointer = _close.IsPointerOver || _favoriteIndicator.IsPointerOver || _nativeFavoriteIndicator.IsPointerOver;
+        bool focus = _close.IsKeyboardFocusWithin || _favoriteIndicator.IsKeyboardFocusWithin || _nativeFavoriteIndicator.IsKeyboardFocusWithin;
+        // A pointer click that left the focus on a control does not pin the pair (as for the footer); only keyboard focus holds it.
+        bool held = pointer || _keyboardInteraction && focus;
+        bool motion = CornerWindowLive(_lastCornerMotion);
+        GalleryCornerChrome back = GalleryCornerChrome.Resolve(autoHidden, held, motion);
+        // A change of the favourite shows the badge alone with its new state, without the way back.
+        GalleryCornerChrome star = GalleryCornerChrome.Resolve(autoHidden, held, motion || CornerWindowLive(_lastFavoriteFlash));
+        back.ApplyTo(_close);
+        star.ApplyTo(_favoriteIndicator);
+        star.ApplyTo(_nativeFavoriteIndicator);
+        // A hidden control must not keep the focus (it would type into nothing): the focus returns to the picture.
+        bool focusLost = _close.IsKeyboardFocusWithin && !back.Focusable
+            || (_favoriteIndicator.IsKeyboardFocusWithin || _nativeFavoriteIndicator.IsKeyboardFocusWithin) && !star.Focusable;
+        if (focusLost && !_restoringCornerFocus)
+        {
+            _restoringCornerFocus = true;
+            try { FocusGallerySurface(); } finally { _restoringCornerFocus = false; }
+        }
+    }
+
+    private bool _restoringCornerFocus;
+    private long? _lastCornerMotion, _lastFavoriteFlash;
+
+    private bool CornerWindowLive(long? stamp) => stamp is long at
+        && Stopwatch.GetElapsedTime(at) < TimeSpan.FromMilliseconds(_controlsIdleHideMs);
+
+    /// <summary>Whether recent motion or a change still keeps the auto-hidden pair shown (the interaction timer runs to hide it again).</summary>
+    private bool CornerRevealTimed => OverlayControlsEffective && _overlayHidden
+        && (CornerWindowLive(_lastCornerMotion) || CornerWindowLive(_lastFavoriteFlash));
+
+    /// <summary>Mouse motion or a touch brings the pair back for the idle delay (the footer keeps its edge reveal).</summary>
+    private void RevealCorner()
+    {
+        if (_terminalRetirement || _viewerInteractionStopped) return;
+        _lastCornerMotion = Stopwatch.GetTimestamp();
+        UpdateCornerChrome();
+        UpdateViewerInteractionTimer();
+    }
+
+    /// <summary>
+    /// M, U, F, a click or an outside change of the favourite: the badge shows its new state alone for the idle delay while the controls are
+    /// auto-hidden, then hides again.
+    /// </summary>
+    private void FlashFavoriteBadge()
+    {
+        if (_terminalRetirement || _viewerInteractionStopped || _close == null) return;
+        _lastFavoriteFlash = Stopwatch.GetTimestamp();
+        UpdateCornerChrome();
+        UpdateViewerInteractionTimer();
     }
 
     private void ApplyCompactLabel(Button button, string name, string? visibleLabel = null)
@@ -893,7 +954,9 @@ internal sealed partial class GalleryViewer : UserControl
     {
         _favorite.IsChecked = _favoriteSelected;
         ApplyCompactLabel(_favorite, "GalleryFavorite");
-        if (CanRequestFavorite && _entry != null) FavoriteToggleRequested?.Invoke(_entry);
+        if (!CanRequestFavorite || _entry == null) return;
+        FlashFavoriteBadge();
+        FavoriteToggleRequested?.Invoke(_entry);
     }
 
     private void UpdateFavorite()
@@ -1060,17 +1123,35 @@ internal sealed partial class GalleryViewer : UserControl
         if (IsVideoView)
         {
             // A video is dragged only while it is zoomed in, and only by the picture itself, never by the transport.
-            if (!_manualZoom || !IsOverVideoSurface(e.Source, root) || CurrentGeometry == null) return;
+            if (!_manualZoom || !IsOverVideoSurface(e.Source, root) || CurrentGeometry == null)
+            {
+                FocusSurfaceAfterPlainClick(root, e);
+                return;
+            }
         }
-        else if (ReferenceEquals(root, _nativeVideoOverlay) || !CanPanDecodedImage(_entry?.Kind, _info) || !_image.IsVisible || _image.Source == null) return;
+        else if (ReferenceEquals(root, _nativeVideoOverlay) || !CanPanDecodedImage(_entry?.Kind, _info) || !_image.IsVisible || _image.Source == null)
+        {
+            FocusSurfaceAfterPlainClick(root, e);
+            return;
+        }
         if (!e.GetCurrentPoint(root).Properties.IsLeftButtonPressed) return;
         Focus();
         _dragging = true; _dragPoint = e.GetPosition(root); e.Pointer.Capture(root); e.Handled = true;
     }
 
+    // A plain click on the picture (not on a control of the transport) gives the keys a target again: with no focused element the
+    // keys would start at the Window and miss the viewer's own handlers.
+    private void FocusSurfaceAfterPlainClick(Control root, PointerPressedEventArgs e)
+    {
+        if (!e.GetCurrentPoint(root).Properties.IsLeftButtonPressed) return;
+        if (e.Source is Visual source && source.GetSelfAndVisualAncestors().Any(visual => visual is Button or Slider or TextBox or ComboBox)) return;
+        (ReferenceEquals(root, _nativeVideoOverlay) ? (Control)_nativeVideoOverlay : this).Focus(NavigationMethod.Pointer);
+    }
+
     private async Task ShowMediaAsync(GalleryEntry entry, CancellationToken cancellationToken, bool? resumeAutoplay = null)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        _favoriteGestureKey = null; // a new medium starts with no held favourite key
         // A retiring/disabled transport otherwise leaves FocusManager with no target;
         // subsequent keys then originate on Window and never tunnel through the viewer.
         if (_video?.IsKeyboardFocusWithin == true || _video?.TransportControl.IsKeyboardFocusWithin == true
@@ -1513,7 +1594,7 @@ internal sealed partial class GalleryViewer : UserControl
             if (CommandBindings.Matches(e, "video.snapshot")) { RequestSaveFrame(); e.Handled = true; return; }
             if (CommandBindings.Matches(e, "video.ab-loop")) { _video.ToggleAbLoop(); e.Handled = true; return; }
             if (CommandBindings.Matches(e, "video.frame-step")) { _ = _video.StepFrameAsync(); e.Handled = true; return; }
-            if (CommandBindings.Matches(e, "video.speed-choose")) { _video.OpenSpeedMenu(); e.Handled = true; return; }
+            if (CommandBindings.Matches(e, "video.speed-choose")) { RevealControlsForCommand(); _video.OpenSpeedMenu(); e.Handled = true; return; }
             if (CommandBindings.Matches(e, "video.audio-track")) { _video.CycleAudioTrack(); e.Handled = true; return; }
             if (CommandBindings.Matches(e, "video.loop")) { ToggleVideoLoopByKey(); e.Handled = true; return; }
             if (CommandBindings.Matches(e, "video.play")) { _ = _video.PlayAsync(); e.Handled = true; return; }
@@ -1535,7 +1616,13 @@ internal sealed partial class GalleryViewer : UserControl
         else if (CommandBindings.Matches(e, "media.details")) { if (_entry != null) DetailsRequested?.Invoke(_entry); }
         else if (CommandBindings.Matches(e, "gallery.show-in-thread")) { if (_entry?.Post != null) { PauseSlideshow(); ReadPostRequested?.Invoke(_entry); } }
         else if (CommandBindings.Matches(e, ReaderPlaybackMenu.GalleryExtras.PostBookmarkCommandId)) { if (_entry != null && PostBookmarkRequested != null) RequestPostBookmark(_entry); }
-        else { CommandBindings.RouteVisibleActions(this, e); return; }
+        else
+        {
+            // A command that exists only as a button of the hidden footer: the controls come first, then the existing executor runs.
+            if (OverlayControlsEffective && _overlayHidden && CommandBindings.HasActionBehind(this, _overlayFooter, e)) RevealControlsForCommand();
+            CommandBindings.RouteVisibleActions(this, e);
+            return;
+        }
         e.Handled = true;
     }
 
@@ -1624,11 +1711,15 @@ internal sealed partial class GalleryViewer : UserControl
         UnbindNativeShortcutWindow();
         _nativeShortcutWindow = window;
         window.AddHandler(KeyDownEvent, OnUnfocusedNativeWindowKeyDown, RoutingStrategies.Bubble);
+        window.AddHandler(KeyUpEvent, OnFavoriteKeyUp, RoutingStrategies.Tunnel, handledEventsToo: true);
+        window.Deactivated += OnHostWindowDeactivated;
     }
 
     private void UnbindNativeShortcutWindow()
     {
         _nativeShortcutWindow?.RemoveHandler(KeyDownEvent, OnUnfocusedNativeWindowKeyDown);
+        _nativeShortcutWindow?.RemoveHandler(KeyUpEvent, OnFavoriteKeyUp);
+        if (_nativeShortcutWindow != null) _nativeShortcutWindow.Deactivated -= OnHostWindowDeactivated;
         _nativeShortcutWindow = null;
     }
 

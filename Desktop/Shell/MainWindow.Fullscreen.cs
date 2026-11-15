@@ -828,7 +828,7 @@ public partial class MainWindow
         // navigation before our bubble fallback, focusing unrelated shell chrome.
         // Enter the same gallery policy from this existing tunnel handler, ONLY
         // for genuine unfocused host input; focused controls/popups retain ownership.
-        if (_gallery is { IsOverlayOpen: false } activeGallery && !_gallerySuspended
+        if (_gallery is { BlocksUnfocusedHostKeys: false } activeGallery && !_gallerySuspended
             && !ShellHelpOverlay.IsVisible
             && activeGallery.RouteUnfocusedHostShortcut(e)) return;
         if (CanExecuteShellPowerCommand(e.Source, e.Key))

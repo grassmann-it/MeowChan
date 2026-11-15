@@ -131,8 +131,11 @@ public partial class MainWindow
     {
         if (e.Handled || ShortcutService.IsCapturing || !IsEnabled || _isClosing || HasVisibleShellDialog()
             || HasBlockingPageDecision() || _archivePage?.IsReaderDialogOpen == true
-            || ShellHelpOverlay.IsVisible || (_gallery?.IsOverlayOpen ?? false)) return false;
+            || ShellHelpOverlay.IsVisible) return false;
         if (!CommandRouter.IsRoutingContextActive(this, e.Source)) return false;
+        // An open gallery panel keeps the workspace shortcuts away, but not the gallery's own keys while nothing has the focus.
+        if (_gallery is { IsOverlayOpen: true } openGallery)
+            return !openGallery.BlocksUnfocusedHostKeys && !_gallerySuspended && openGallery.RouteUnfocusedHostShortcut(e);
         if (_shortcutRouter?.Route(e) == true) return true;
         // Gallery's tunnel handler owns its native-control and effective-gesture
         // policy. Only a genuine unfocused Window input may enter that same policy

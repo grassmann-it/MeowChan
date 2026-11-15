@@ -41,12 +41,15 @@ public sealed class DeadAffordanceGuardTests
 
     public static IEnumerable<object[]> PageNames() => Pages().Select(page => new object[] { page.Name });
 
-    /// <summary>The design tokens (WorkspaceStyles) as application resources, the way the pages find them in the product; no theme, no window.</summary>
+    /// <summary>
+    /// The design tokens (WorkspaceStyles) as application resources, the way the pages find them in the product; no theme, no window. Always this
+    /// test's own application: another test may have left an application without the tokens in the root locator (an AppBuilder setup without
+    /// starting), which a "use what is there" check would pick up in a combined run.
+    /// </summary>
     private static void EnsureTokens()
     {
-        if (Application.Current != null) return;
         TokenApplication app = new();
-        // Application.Current is the application the locator holds; the dispatcher scope of the test keeps it from leaking into other tests.
+        // Application.Current is the application the locator holds; the locator scope of the test shadows any other one and keeps this one from leaking.
         AvaloniaLocator.CurrentMutable.Bind<Application>().ToConstant(app);
         app.Initialize();
     }
