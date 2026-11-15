@@ -255,6 +255,16 @@ internal sealed class ReaderMediaSidebar : Border
     private Action<Bitmap>? _release;
     private bool _hover;
 
+    // The texts and the toggle command of the host: the reader's sidebar says "post", the Media page's panel says "medium" (same view, other words).
+    /// <summary>The key of the region name and of the header line while nothing is known (the host sets it before it shows the view).</summary>
+    internal string TitleKey { get; set; } = "reader.sidebar.title";
+    /// <summary>The key of the text shown while nothing is selected.</summary>
+    internal string EmptyKey { get; set; } = "reader.sidebar.empty";
+    /// <summary>The key of the cross's name and tip.</summary>
+    internal string CloseKey { get; set; } = "reader.sidebar.close";
+    /// <summary>The command whose shortcut the cross's tip names; null for a host whose cross has no command.</summary>
+    internal string? ToggleCommandId { get; set; } = "reader.sidebar.toggle";
+
     /// <summary>One thumbnail of the strip: the list item, its frame (the current one has the accent edge) and its picture.</summary>
     private sealed class StripThumbnail
     {
@@ -402,14 +412,14 @@ internal sealed class ReaderMediaSidebar : Border
 
     internal void Localize()
     {
-        string title = Texts.T("reader.sidebar.title");
+        string title = Texts.T(TitleKey);
         AutomationProperties.SetName(this, title);
         RefreshHeader();
         string stripName = Texts.T("reader.sidebar.strip");
         AutomationProperties.SetName(_strip, stripName);
         ToolTip.SetTip(_strip, stripName);
-        string close = Texts.T("reader.sidebar.close");
-        ToolTip.SetTip(Close, CommandBindings.Tooltip("reader.sidebar.toggle", null, close));
+        string close = Texts.T(CloseKey);
+        ToolTip.SetTip(Close, ToggleCommandId == null ? close : CommandBindings.Tooltip(ToggleCommandId, null, close));
         AutomationProperties.SetName(Close, close);
     }
 
@@ -444,7 +454,7 @@ internal sealed class ReaderMediaSidebar : Border
     private void RefreshHeader()
     {
         string text = ReaderMediaSidebarRules.HeaderText(_postLine, _fileName, _detail);
-        _title.Text = text.Length > 0 ? text : Texts.T("reader.sidebar.title");
+        _title.Text = text.Length > 0 ? text : Texts.T(TitleKey);
         ToolTip.SetTip(_title, _title.Text);
     }
 
@@ -452,6 +462,14 @@ internal sealed class ReaderMediaSidebar : Border
     {
         _favorite.IsVisible = row != null;
         if (row != null) _favorite.Configure(row.FavoriteAvailable, row.IsFavorite, row.ToggleFavoriteAsync, row.FavoriteError);
+        UpdateBadges();
+    }
+
+    /// <summary>The star for a medium that is no reader attachment (the Media page): the same button with the host's own state and toggle.</summary>
+    internal void ConfigureFavorite(Func<bool>? available, Func<bool>? marked, Func<Task>? toggle, Func<string?>? error = null)
+    {
+        _favorite.IsVisible = available != null;
+        if (available != null) _favorite.Configure(available, marked, toggle, error);
         UpdateBadges();
     }
 
@@ -529,7 +547,7 @@ internal sealed class ReaderMediaSidebar : Border
     /// <summary>No post is selected (or the reader closed): nothing kept.</summary>
     internal void ShowEmpty()
     {
-        ShowPlaceholder(Texts.T("reader.sidebar.empty"));
+        ShowPlaceholder(Texts.T(EmptyKey));
         ClearStrip();
         Describe(string.Empty, string.Empty, string.Empty, false, false, false);
         ConfigureFavorite(null);
@@ -679,7 +697,7 @@ internal sealed class ReaderMediaSidebar : Border
     internal void Announce(string text)
     {
         _live.Text = text;
-        AutomationProperties.SetName(this, text.Length > 0 ? text : Texts.T("reader.sidebar.title"));
+        AutomationProperties.SetName(this, text.Length > 0 ? text : Texts.T(TitleKey));
     }
 
     /// <summary>Gives the shown bitmap back (decoded images to the gallery cache, posters to the thumbnail cache).</summary>

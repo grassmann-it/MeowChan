@@ -193,7 +193,7 @@ internal static class MediaTileThumbnails
     // The index is derived data: only bytes that still match it are shown. A folder source file indexed before it was hashed
     // has no digest yet: a tile never reads it for that (its preview manifest is missing until the gallery, a user action or the
     // background pass hashed it); an index entry from before that digest still matches the hashed manifest, checked by the read below.
-    private static MediaAssetReference? Matching(MediaAssetSnapshot manifest, MediaLibraryEntry entry) =>
+    internal static MediaAssetReference? Matching(MediaAssetSnapshot manifest, MediaLibraryEntry entry) =>
         manifest.FindById(entry.AssetId!) is { } asset && asset.Length == entry.Length
         && (entry.FolderItemId != null && entry.Sha256 == null || string.Equals(asset.Sha256, entry.Sha256, StringComparison.OrdinalIgnoreCase)) ? asset : null;
 }
