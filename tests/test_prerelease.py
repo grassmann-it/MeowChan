@@ -529,6 +529,10 @@ class CandidateWorkflowFixtures(unittest.TestCase):
             'Exercise tray lifecycle separately on the disposable runner',
             'Check native Linux tray host lifecycle on private DBus',
         }
+        linux_only = {
+            'Exercise explicit bundled new-selection confirmation on the actual platform',
+            'Check native Linux tray host lifecycle on private DBus',
+        }
         for os in ('Windows', 'Linux', 'macOS'):
             for scenario in ('all', 'gui-only', 'selection', *selectors):
                 for name, body in scenes.items():
@@ -541,12 +545,12 @@ class CandidateWorkflowFixtures(unittest.TestCase):
                         expected = name == startup
                     else:
                         expected = scenario == 'all' or name not in full_only
-                        if name == 'Check native Linux tray host lifecycle on private DBus':
+                        if name in linux_only:
                             expected = expected and os == 'Linux'
                     with self.subTest(os=os, scenario=scenario, scene=name):
                         self.assertEqual(expected, self.evaluate(expression, scenario=scenario))
                         self.assertEqual(
-                            name != 'Check native Linux tray host lifecycle on private DBus' or os == 'Linux',
+                            name not in linux_only or os == 'Linux',
                             self.evaluate(expression, event='push'))
         for name in ('Record SDK and source commit',
                      'Restore graphical harness with reviewed dependencies',
