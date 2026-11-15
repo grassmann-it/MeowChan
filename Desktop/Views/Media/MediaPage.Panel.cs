@@ -88,7 +88,7 @@ public sealed partial class MediaPage
         ReaderMediaSidebar panel = _panel = new ReaderMediaSidebar
         {
             Name = "MediaPanel", IsVisible = false, TitleKey = "media.panel.title", EmptyKey = "media.panel.empty",
-            CloseKey = "media.panel.close", ToggleCommandId = null
+            CloseKey = "media.panel.close", ToggleCommandId = "media.panel.toggle"
         };
         // The sidebar's border faces the grid (set once; the side comes with the layout).
         panel[!Border.BorderBrushProperty] = new Avalonia.Markup.Xaml.MarkupExtensions.DynamicResourceExtension("Workspace.CardEdge");
@@ -96,6 +96,10 @@ public sealed partial class MediaPage
         CommandBindings.Apply(panel.Next, "media.panel.next", iconOnly: true);
         panel.Localize();
         panel.ShowEmpty();
+        // The drag handle's name and tip exist from the start, not only after the first language change.
+        string resize = Texts.T("media.panel.resize");
+        Avalonia.Automation.AutomationProperties.SetName(_panelHandle, resize);
+        ToolTip.SetTip(_panelHandle, resize);
         panel.Frame.SizeChanged += (_, _) => OnPanelFrameResized();
         panel.Previous.Click += (_, e) => { e.Handled = true; StepPanel(-1); };
         panel.Next.Click += (_, e) => { e.Handled = true; StepPanel(1); };
@@ -500,10 +504,6 @@ public sealed partial class MediaPage
             case MediaPanelKeyKind.Next:
                 e.Handled = true;
                 StepPanel(1);
-                return true;
-            case MediaPanelKeyKind.ReturnToGrid:
-                e.Handled = true;
-                FocusGrid();
                 return true;
             default:
                 return false;
