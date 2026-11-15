@@ -442,11 +442,18 @@ internal sealed class GalleryThreadTagModel
 
     internal IReadOnlySet<TagId> AssignedIds() => Assigned.Select(tag => tag.Id).ToHashSet();
 
+    /// <summary>Create-or-get and assign; one entry may name several tags (TagEntryParser), each through the alias table, in one run.</summary>
     internal Task AddAsync(string? name, CancellationToken token = default) => string.IsNullOrWhiteSpace(name) ? Task.CompletedTask : RunAsync(async () =>
     {
-        PrivateTagCommit defined = await _define(name, token);
-        Adopt(defined.Snapshot);
-        Adopt((await _set(defined.Tag, Thread, true, token)).Snapshot);
+        TagEntry entry = TagEntryParser.Parse(name, Snapshot);
+        IEnumerable<string> names = TagEntryParser.IsPlain(entry, name) || entry.Invalid.Count > 0
+            ? new[] { entry.Invalid.Count > 0 ? entry.Invalid[0] : name } : entry.Items.Select(item => item.Name.Display);
+        foreach (string each in names)
+        {
+            PrivateTagCommit defined = await _define(each, token);
+            Adopt(defined.Snapshot);
+            Adopt((await _set(defined.Tag, Thread, true, token)).Snapshot);
+        }
     });
 
     internal Task RemoveAsync(TagId tag, CancellationToken token = default) => RunAsync(async () =>

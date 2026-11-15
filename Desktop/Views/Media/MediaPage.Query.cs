@@ -175,9 +175,9 @@ public sealed partial class MediaPage
             FindTag = name =>
             {
                 if (tags == null) return null;
-                if (Guid.TryParseExact(name, "D", out Guid id)) return tags.Find(new TagId(id)) != null ? id : null;
-                return PrivateTagName.TryCreate(name, out PrivateTagName? tagName, out _) && tagName != null
-                    ? tags.Tags.FirstOrDefault(tag => tag.Name.Key == tagName.Key)?.Id.Value : null;
+                // A merged-away tag (its former ID or name, now an alias) finds the tag it was merged into.
+                if (Guid.TryParseExact(name, "D", out Guid id)) return tags.ResolveId(new TagId(id))?.Value;
+                return tags.Resolve(name, out _)?.Id.Value;
             },
             TagName = id => tags?.Find(new TagId(id))?.Name.Display,
             FindSource = text => sources.Value.FirstOrDefault(source => string.Equals(source, text, StringComparison.OrdinalIgnoreCase))

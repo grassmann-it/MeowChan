@@ -187,6 +187,8 @@ internal enum QuickTagStatusKind
     /// <summary>The stamp is empty or the target already carries all of it: nothing was written.</summary>
     StampEmpty, StampComplete,
     StampAdded, StampRemoved,
+    /// <summary>One entry added several tags, or a name an alias mapped: <see cref="QuickTagStatus.Name"/> lists them (TagEntryParser.Describe).</summary>
+    AddedSeveral,
     /// <summary>A tag was refused because the stamp holds its most (<see cref="QuickTagStatus.Files"/> = the limit).</summary>
     StampFull
 }
@@ -244,6 +246,7 @@ internal sealed record QuickTagStatus(QuickTagStatusKind Kind, string Name = "",
         QuickTagStatusKind.StampAdded => Texts.T("tags.quick.stamp.added", Name),
         QuickTagStatusKind.StampRemoved => Texts.T("tags.quick.stamp.removed", Name),
         QuickTagStatusKind.StampFull => Texts.T("tags.quick.stamp.full", Files),
+        QuickTagStatusKind.AddedSeveral => Texts.T("tags.entry.added", Name),
         _ => string.Empty
     };
 }
@@ -344,9 +347,52 @@ internal sealed class QuickTagSession : IDisposable
         return coverage.Carriers.Where(item => coverage.StateOf(item.Key) == TagToggleState.All).Select(item => item.Key).ToHashSet();
     }
 
-    /// <summary>Create-or-get by name and give it to the target (Enter, comma, a "new" suggestion).</summary>
-    internal Task AddAsync(string? name, CancellationToken token = default) =>
-        string.IsNullOrWhiteSpace(name) ? Task.CompletedTask : RunAsync(target => target.AddAsync(name, token));
+    /// <summary>
+    /// Create-or-get by name and give it to the target (Enter, comma, a "new" suggestion). The text may name several tags
+    /// (<see cref="TagEntryParser"/>: spaces, quotes, commas), each resolved through the alias table; see <see cref="AddEntryAsync"/>.
+    /// </summary>
+    internal Task AddAsync(string? name, CancellationToken token = default)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return Task.CompletedTask;
+        TagEntry entry = TagEntryParser.Parse(name, Snapshot);
+        // One plain name: the single write as before (an invalid name reports its own error there).
+        if (TagEntryParser.IsPlain(entry, name)) return RunAsync(target => target.AddAsync(name, token));
+        return AddEntryAsync(entry, token);
+    }
+
+    /// <summary>
+    /// Adds the tags of one parsed entry: one write per tag, each its own undo step (like the stamp), in typed order, bound to the
+    /// target the entry started on. A tag every file already carries is skipped. The first refused write stops the run with its error;
+    /// tags written before it stay. Afterwards the status lists what was added and which names an alias mapped
+    /// ("Added: piss (from pee), cute, anal"). A text that is no tag name is refused like a single invalid name.
+    /// </summary>
+    internal async Task AddEntryAsync(TagEntry entry, CancellationToken token = default)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+        if (!Ready) return;
+        if (entry.Invalid.Count > 0)
+        {
+            _status = new QuickTagStatus(QuickTagStatusKind.Error, MessageKey: "tags.error.invalidName");
+            Updated?.Invoke();
+            return;
+        }
+        IQuickTagTarget bound = _target;
+        List<TagEntryItem> added = new();
+        foreach (TagEntryItem item in entry.Items)
+        {
+            if (token.IsCancellationRequested || !Ready || !ReferenceEquals(_target, bound)) break;
+            if (item.Id is { } known && StateOf(known) == TagToggleState.All) continue;
+            int before = _appliedCount;
+            await RunAsync(target => item.Id is { } id ? target.AddExistingAsync(id, token) : target.AddAsync(item.Name.Display, token));
+            if (_status.IsError) return;
+            if (_appliedCount != before) added.Add(item);
+        }
+        if (added.Count == 0 || !ReferenceEquals(_target, bound)) return;
+        // A single unmapped tag keeps the ordinary "Added" text of RunAsync.
+        if (added is [{ Mapped: false }]) return;
+        _status = new QuickTagStatus(QuickTagStatusKind.AddedSeveral, TagEntryParser.Describe(added), bound.Coverage().Total);
+        Updated?.Invoke();
+    }
 
     /// <summary>
     /// A chip toggle: a tag on every file is taken off all of them; otherwise (none or some) it is given to all
