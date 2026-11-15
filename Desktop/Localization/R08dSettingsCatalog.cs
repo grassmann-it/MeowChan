@@ -87,6 +87,8 @@ internal static class R08dSettingsCatalog
         ("key.ctrl", "Ctrl", "Strg"),
         ("key.shift", "Shift", "Umschalt"),
         ("key.backspace", "Backspace", "Rücktaste"),
+        ("key.pageUp", "PageUp", "Bild auf"),
+        ("key.pageDown", "PageDown", "Bild ab"),
         ("settings.shortcutsEditor.keepExplicit", "Keep explicit Ctrl/Meta instead of Primary", "Strg/Meta ausdrücklich statt Primärtaste speichern"),
         ("settings.shortcutsEditor.applyRecording", "Apply recording", "Aufnahme übernehmen"),
         ("settings.shortcutsEditor.takeOver", "Take over conflicting gesture", "Kollidierende Geste übernehmen"),

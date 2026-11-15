@@ -43,7 +43,7 @@ public sealed record ShortcutGesture(string Key, IReadOnlyList<string> Modifiers
         key = key switch
         {
             "OemComma" => ",", "OemPeriod" => ".", "OemPlus" => "+", "OemMinus" => "−", "Apps" => "Menu",
-            "OemOpenBrackets" => "[", "OemCloseBrackets" => "]", "Back" => Texts.T("key.backspace"), _ => key
+            "OemOpenBrackets" => "[", "OemCloseBrackets" => "]", _ => KeyNames.Localized(key) ?? key
         };
         // Key names follow the interface language (German: Strg, Umschalt); the stored gesture stays unchanged.
         return Array.AsReadOnly(Modifiers.Select(m => m is "Primary" or "Control" or "Ctrl" ? Texts.T("key.ctrl")
