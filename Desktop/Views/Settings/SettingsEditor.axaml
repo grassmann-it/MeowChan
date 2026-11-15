@@ -1907,7 +1907,7 @@
                                 <TextBlock Text="{Binding QuickTagPanelSuggestionLimitHint}" Classes="workspace-help" TextWrapping="Wrap" />
                             </StackPanel>
                             <StackPanel Grid.Column="1" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
-                                <desktop:SettingsNumberInput x:Name="QuickTagPanelSuggestionLimitInput" Value="{Binding QuickTagPanelSuggestionLimit, Mode=TwoWay}" Minimum="9" Maximum="200" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=QuickTagPanelSuggestionLimitFieldLabel}" AutomationProperties.Name="{Binding QuickTagPanelSuggestionLimitLabel}" AutomationProperties.HelpText="{Binding QuickTagPanelSuggestionLimitHelp}" />
+                                <desktop:SettingsNumberInput x:Name="QuickTagPanelSuggestionLimitInput" Value="{Binding QuickTagPanelSuggestionLimit, Mode=TwoWay}" Minimum="{x:Static local:SettingsEditor.QuickTagPanelSuggestionLimitMinimum}" Maximum="{x:Static local:SettingsEditor.QuickTagPanelSuggestionLimitMaximum}" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=QuickTagPanelSuggestionLimitFieldLabel}" AutomationProperties.Name="{Binding QuickTagPanelSuggestionLimitLabel}" AutomationProperties.HelpText="{Binding QuickTagPanelSuggestionLimitHelp}" />
                                 <TextBlock x:Name="QuickTagPanelSuggestionLimitInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                         </Grid>

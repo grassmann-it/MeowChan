@@ -33,14 +33,22 @@ public partial class MainWindow
         finally
         {
             _ratingDialogOpen = false;
-            if (held != null && !_isClosing) await held.EndDialogPlaybackHoldAsync();
-            if (_gallery != null && !_gallerySuspended)
+            try
             {
-                // A19: a rating action the view keeps under More returns focus to More, not to the closed menu's hidden row.
-                Control? back = _gallery.FocusReturnTarget(origin, "media.rating.edit");
-                if (back?.IsEffectivelyVisible == true) back.Focus(); else _gallery.Focus();
+                if (held != null && !_isClosing) await held.EndDialogPlaybackHoldAsync();
             }
-            else if (_archivePage?.RestoreMediaRatingFocus(key, origin) != true && origin?.IsEffectivelyVisible == true) origin.Focus();
+            catch (Exception error) { Serilog.Log.Warning(error, "Resuming the gallery playback after the rating dialog failed"); }
+            finally
+            {
+                // The focus restore runs even when resuming the playback failed.
+                if (_gallery != null && !_gallerySuspended)
+                {
+                    // A19: a rating action the view keeps under More returns focus to More, not to the closed menu's hidden row.
+                    Control? back = _gallery.FocusReturnTarget(origin, "media.rating.edit");
+                    if (back?.IsEffectivelyVisible == true) back.Focus(); else _gallery.Focus();
+                }
+                else if (_archivePage?.RestoreMediaRatingFocus(key, origin) != true && origin?.IsEffectivelyVisible == true) origin.Focus();
+            }
         }
     }
     private async Task SetMediaRatingAsync(FavoriteAssetKey key, int? value)

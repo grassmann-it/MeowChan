@@ -22,6 +22,9 @@ namespace MeowChan
 {
     public partial class SettingsEditor : UserControl, INotifyPropertyChanged, IShortcutDraftHost
     {
+        /// <summary>The limits of the tag panel's suggestion box, read by the XAML so it never repeats the numbers (the Config constants are internal).</summary>
+        public static decimal QuickTagPanelSuggestionLimitMinimum => Config.QuickTagPanelSuggestionLimitMinimum;
+        public static decimal QuickTagPanelSuggestionLimitMaximum => Config.QuickTagPanelSuggestionLimitMaximum;
         public static IMultiValueConverter NumericActionNameConverter { get; } =
             new FuncMultiValueConverter<object?, string>((IReadOnlyList<object?> values) =>
                 values.Count == 2 && values[0] is string format && values[1] is string field

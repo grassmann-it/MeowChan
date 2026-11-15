@@ -637,7 +637,7 @@ internal sealed partial class GalleryViewer
         if (_dialogHold is not { } hold) return;
         _dialogHold = null;
         (bool video, bool slideshow) = hold.Resume(_entry?.EntryKey, _video?.IsPlayingNow == true, _slideshow?.IsRunning == true,
-            _terminalRetirement || _viewerInteractionStopped || _navigationPending);
+            _terminalRetirement || _viewerInteractionStopped, navigationPending: _navigationPending);
         if (slideshow) StartSlideshowNavigation(); // holds itself while the window is not usable yet
         if (video && _entry?.Kind == SavedMediaKind.Video && _video != null) await _video.ResumeAfterDialogAsync();
         RefreshPlaybackControls();

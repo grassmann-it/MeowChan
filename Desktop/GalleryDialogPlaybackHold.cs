@@ -9,12 +9,16 @@ namespace MeowChan.Desktop;
 internal readonly record struct GalleryDialogPlaybackHold(GalleryEntryKey? Entry, bool VideoWasPlaying, bool SlideshowWasRunning)
 {
     /// <summary>
-    /// What to resume after the dialog: nothing for another medium or a retired viewer, nothing that is running again already, and never
-    /// something that was not running when the dialog opened.
+    /// What to resume after the dialog. The slideshow belongs to the viewer, so it comes back even when the dialog changed the shown entry
+    /// (a rating filter can move the slideshow on); the video belongs to its entry, so it only comes back for the same medium. Nothing
+    /// comes back for a retired viewer, nothing that is running again already, and never something that was not running when the dialog
+    /// opened. A pending navigation replaces the shown medium, so its video is not resumed, while the slideshow holds itself meanwhile.
     /// </summary>
-    internal (bool Video, bool Slideshow) Resume(GalleryEntryKey? entryNow, bool videoPlayingNow, bool slideshowRunningNow, bool retired)
+    internal (bool Video, bool Slideshow) Resume(GalleryEntryKey? entryNow, bool videoPlayingNow, bool slideshowRunningNow, bool retired,
+        bool navigationPending = false)
     {
-        if (retired || Entry == null || entryNow != Entry) return (false, false);
-        return (VideoWasPlaying && !videoPlayingNow, SlideshowWasRunning && !slideshowRunningNow);
+        if (retired || Entry == null || entryNow == null) return (false, false);
+        bool same = entryNow == Entry && !navigationPending;
+        return (same && VideoWasPlaying && !videoPlayingNow, SlideshowWasRunning && !slideshowRunningNow);
     }
 }

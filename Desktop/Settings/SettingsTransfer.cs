@@ -78,6 +78,8 @@ public static class SettingsTransfer
         Config snapshot = new()
         {
             SchemaVersion = source.SchemaVersion,
+            // An export carries its own defaults revision, so an import migrates the file by what it was written with.
+            PreferenceDefaultsRevision = source.PreferenceDefaultsRevision,
             DownloadPath = source.DownloadPath,
             RecheckTimer = source.RecheckTimer,
             SaveUrlsOnExit = source.SaveUrlsOnExit,

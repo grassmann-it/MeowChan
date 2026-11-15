@@ -22,15 +22,37 @@ public sealed class GalleryDialogPlaybackHoldTests
     }
 
     [Fact]
-    public void NothingResumesForAnotherMediumARetiredViewerOrWhatRunsAgainAlready()
+    public void NothingResumesForARetiredViewerOrWhatRunsAgainAlreadyAndTheVideoOnlyForTheSameMedium()
     {
         GalleryDialogPlaybackHold hold = new(Key("a"), VideoWasPlaying: true, SlideshowWasRunning: true);
-        Assert.Equal((false, false), hold.Resume(Key("b"), false, false, retired: false));
+        Assert.Equal((false, true), hold.Resume(Key("b"), false, false, retired: false));
         Assert.Equal((false, false), hold.Resume(Key("a"), false, false, retired: true));
         Assert.Equal((false, false), hold.Resume(null, false, false, retired: false));
         Assert.Equal((false, true), hold.Resume(Key("a"), videoPlayingNow: true, slideshowRunningNow: false, retired: false));
         Assert.Equal((true, false), hold.Resume(Key("a"), videoPlayingNow: false, slideshowRunningNow: true, retired: false));
         Assert.Equal((false, false), new GalleryDialogPlaybackHold(null, true, true).Resume(null, false, false, retired: false));
+    }
+
+    [Fact]
+    public void ARatingFilterThatMovedTheShownEntryKeepsTheSlideshowButNotTheVideoOfTheOldEntry()
+    {
+        GalleryDialogPlaybackHold hold = new(Key("a"), VideoWasPlaying: true, SlideshowWasRunning: true);
+        Assert.Equal((false, true), hold.Resume(Key("b"), videoPlayingNow: false, slideshowRunningNow: false, retired: false));
+        Assert.Equal((false, true), hold.Resume(Key("a"), false, false, retired: false, navigationPending: true));
+        Assert.Equal((false, false), hold.Resume(Key("b"), false, false, retired: true));
+        Assert.Equal((false, false), hold.Resume(Key("b"), false, slideshowRunningNow: true, retired: false));
+        Assert.Equal((false, false), new GalleryDialogPlaybackHold(Key("a"), true, false).Resume(Key("b"), false, false, retired: false));
+    }
+
+    [Fact]
+    public void TheFocusRestoreAfterTheRatingDialogRunsEvenWhenTheResumeThrows()
+    {
+        string shell = Source("Desktop/Shell/MainWindow.Ratings.cs");
+        int resume = shell.IndexOf("await held.EndDialogPlaybackHoldAsync();", StringComparison.Ordinal);
+        int tryOpen = shell.LastIndexOf("try", resume, StringComparison.Ordinal);
+        int finallyAt = shell.IndexOf("finally", resume, StringComparison.Ordinal);
+        int restore = shell.IndexOf("_gallery.FocusReturnTarget(origin, \"media.rating.edit\")", resume, StringComparison.Ordinal);
+        Assert.True(tryOpen > 0 && resume > tryOpen && finallyAt > resume && restore > finallyAt);
     }
 
     [Fact]
