@@ -153,9 +153,13 @@ public partial class ArchivePage
         sidebar.AddHandler(KeyDownEvent, (_, e) => { if (!TryRouteSidebarVideoKey(e)) OnReaderViewKeyDown(sidebar, e); }, RoutingStrategies.Bubble);
         sidebar.AddHandler(KeyDownEvent, OnSidebarNavigationKey, RoutingStrategies.Bubble);
         // The large reader's frame is not under the page (the shell hosts it), so the page's and the pane's media menu never see the sidebar: it opens the same
-        // menu itself, on a right click of its picture (also while a video plays), the Menu key and Shift+F10.
+        // menu itself, on a right click anywhere in it (its picture also while a video plays, the header line, the card's edge), the Menu key and Shift+F10.
         sidebar.AddHandler(ContextRequestedEvent, OnArchiveMediaContextRequested, RoutingStrategies.Tunnel);
         sidebar.AddHandler(PointerPressedEvent, OnSidebarPointerPressed, RoutingStrategies.Tunnel);
+        sidebar.AddHandler(PointerReleasedEvent, OnSidebarPointerReleased, RoutingStrategies.Tunnel, handledEventsToo: true);
+        // The middle click on its picture: the medium's folder, as for the posts' thumbnails (the pane's handlers skip the sidebar's own subtree).
+        sidebar.AddHandler(PointerPressedEvent, OnSidebarMiddlePressed, RoutingStrategies.Tunnel, handledEventsToo: true);
+        sidebar.AddHandler(PointerReleasedEvent, OnSidebarMiddleReleased, RoutingStrategies.Tunnel);
         sidebar.AddHandler(KeyDownEvent, OnArchiveMediaContextKey, RoutingStrategies.Tunnel);
         return sidebar;
     }

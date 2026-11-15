@@ -156,6 +156,7 @@ public partial class ArchivePage
             Add("thread.show-in-media", () => ShowArchiveSelectionInMedia(ids, lead),
                 () => ShowThreadsInMediaRequested != null, null, count: () => ids.Length);
         if (ids.Length == 1) Add("thread.tags", async () => await OpenThreadTagsAsync(lead.Summary.Id), leadAction: true);
+        if (ids.Length == 1) AddThreadTagFilterSubmenu(builder, lead.Summary.Id);
         builder.Section();
         Add("export.open-html-dialog", async () => await OpenExportForThreadsAsync(ids, origin, offerResults: true), count: () => ids.Length);
         if (ids.Length == 1)
