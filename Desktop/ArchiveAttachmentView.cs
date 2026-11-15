@@ -381,6 +381,8 @@ public sealed class ArchiveAttachmentView : UserControl
             if (_expanded) SetExpanded(false);
             open();
         };
+        // The file name is a click target of the same medium: it does what a click on the thumbnail does (a double click opens the gallery).
+        ConfigureFileNameClick();
         // The play mark is not part of the click target; it is arranged on the same rectangle as the picture, so it is centred on it.
         _slot.Children.Add(_button); _slot.Children.Add(_badges); _slot.Children.Add(_edge);
         _slot.SizeChanged += (_, e) =>
@@ -422,6 +424,26 @@ public sealed class ArchiveAttachmentView : UserControl
             RefreshViewport();
         };
         DetachedFromVisualTree += (_, _) => { _visible = false; Reset(); _autoplay?.Stop(); _ = _inlineVideo?.ReleaseAsync(); };
+    }
+
+    // The file name beside the thumbnail: a click is the thumbnail's click (ActivateMedium), a double click its double click. Pointer only: the thumbnail
+    // button is the keyboard route. The hand shows over the name.
+    private void ConfigureFileNameClick()
+    {
+        _label.Cursor = PointerCursors.Hand;
+        _label.Tapped += (_, e) =>
+        {
+            if (DataContext is not ArchiveAttachmentRow || e.Handled) return;
+            e.Handled = true;
+            ActivateMedium();
+        };
+        _label.DoubleTapped += (_, e) =>
+        {
+            if (DataContext is not ArchiveAttachmentRow { OpenPreview: { } open }) return;
+            e.Handled = true;
+            if (_expanded) SetExpanded(false);
+            open();
+        };
     }
 
     private readonly AttachmentColumn _column;

@@ -196,7 +196,8 @@ public sealed partial class MediaPage : UserControl
         _grid.ItemTemplate = new FuncDataTemplate<MediaLibraryTileRow>((_, _) => new MediaLibraryTileView { ThumbnailLoader = LoadThumbnailAsync, ThumbnailCached = MediaTileThumbnails.TryGetCached,
             ThumbnailRelease = MediaTileThumbnails.Release, ThreadFilter = FilterToThread,
             TagFilter = FilterToTag, TagExclude = ExcludeTag, ShowOccurrences = ShowOccurrences, FavoriteToggle = ToggleTileFavoriteAsync,
-            CanToggleFavorite = () => ExecuteMediaMenuActionAsync != null, InTagQueue = IsInTagQueue, Appearance = _tileAppearance });
+            CanToggleFavorite = () => ExecuteMediaMenuActionAsync != null, InTagQueue = IsInTagQueue, Appearance = _tileAppearance,
+            EditTags = EditTagsOfTile, OpenTagging = () => OpenTaggingPage?.Invoke(), CanOpenTagging = () => OpenTaggingPage != null });
         ScrollViewer.SetHorizontalScrollBarVisibility(_grid, Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled);
         Panel body = new();
         _emptyActions.Children.Add(_importFiles); _emptyActions.Children.Add(_linkFolder); _emptyActions.Children.Add(_goDownloads);
@@ -954,7 +955,7 @@ public sealed partial class MediaPage : UserControl
     private void OnSharedPointerPressed(object? sender, PointerPressedEventArgs e)
     {
         if (e.Handled || _lifetime.IsCancellationRequested || !IsEffectivelyVisible
-            || IsNativeContextSource(e.Source)
+            || IsNativeContextSource(e.Source) || IsTileTagChip(e.Source)
             || !e.GetCurrentPoint(_grid).Properties.IsRightButtonPressed) return;
         MediaLibraryTileRow? row = RowAt(e.Source);
         // MP5: a right click on empty grid space (no tile under the pointer) opens the layout menu, also while a tile is selected.
@@ -969,7 +970,7 @@ public sealed partial class MediaPage : UserControl
 
     private void OnSharedContextKeyDown(object? sender, KeyEventArgs e)
     {
-        if (!IsContextKey(e)) return;
+        if (!IsContextKey(e) || IsTileTagChip(e.Source)) return; // a tag chip has its own menu (the chip's host opens it)
         MediaLibraryTileRow? row = RowAt(e.Source) ?? SelectedRow;
         OpenSharedMediaMenu(row, ResolveMenuOrigin(e.Source, row));
         e.Handled = true;

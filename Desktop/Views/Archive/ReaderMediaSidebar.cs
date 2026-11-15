@@ -229,8 +229,11 @@ internal sealed class ReaderMediaSidebar : Border
 {
     // The header line: "No. 75 · file name · 880 KiB", trimmed with an ellipsis (the full text is its tip).
     private readonly TextBlock _title = new() { Name = "ReaderMediaSidebarHeader", TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.NoWrap, VerticalAlignment = VerticalAlignment.Center };
-    private string _postLine = string.Empty, _fileName = string.Empty, _detail = string.Empty;
-    private readonly Grid _frame = new() { ClipToBounds = true, Background = Brushes.Transparent, Cursor = new Cursor(StandardCursorType.Hand) };
+    private string _postLine = string.Empty, _fileName = string.Empty, _detail = string.Empty, _postLinkTip = string.Empty;
+    // The "No. 75" part of the header line as a link (the reader's sidebar: a click copies the post's reference, as the post's own "No." does). The hand shows while a click opens the medium.
+    private readonly Button _postLink = new() { Name = "ReaderMediaSidebarPostLink", Classes = { "link" }, IsVisible = false, Padding = new Thickness(0), MinHeight = 0,
+        VerticalAlignment = VerticalAlignment.Center };
+    private readonly Grid _frame = new() { ClipToBounds = true, Background = Brushes.Transparent };
     private readonly Image _image = new() { Stretch = Stretch.Uniform, IsVisible = false, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
     private readonly Border _placeholder = new() { IsHitTestVisible = false };
     private readonly TextBlock _status = new TextBlock
@@ -378,9 +381,16 @@ internal sealed class ReaderMediaSidebar : Border
         CommandBindings.Apply(Open, "gallery.open", iconOnly: true);
         Close.Content = CommandBindings.NamedIcon("x");
         Close.Opacity = 0; // shown on hover and keyboard focus, like the reader's navigation cross (edge rule: top right)
+        Close.IsHitTestVisible = false;
+        Open.PropertyChanged += (_, e) => { if (e.Property == IsEnabledProperty) UpdateFrameCursor(); };
+        _postLink.Click += (_, e) => { e.Handled = true; PostLinkClicked?.Invoke(this, EventArgs.Empty); };
         // One compact row: the info line, the favourite star, "Open in gallery" and the cross. It replaces the title and the info box.
         Grid header = _header;
-        header.Children.Add(_title);
+        // Column 0: the post number as a link, then the rest of the line trimmed with an ellipsis.
+        Grid titleHost = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*"), VerticalAlignment = VerticalAlignment.Center };
+        titleHost.Children.Add(_postLink);
+        Grid.SetColumn(_title, 1); titleHost.Children.Add(_title);
+        header.Children.Add(titleHost);
         Grid.SetColumn(_favorite, 1); header.Children.Add(_favorite);
         Grid.SetColumn(Open, 2); header.Children.Add(Open);
         Grid.SetColumn(Close, 3); header.Children.Add(Close);
@@ -454,26 +464,67 @@ internal sealed class ReaderMediaSidebar : Border
         AutomationProperties.SetName(Close, close);
     }
 
-    private void UpdateClose() => Close.Opacity = _hover || IsKeyboardFocusWithin ? 1 : 0;
+    // Hidden at rest and then no click target either: an invisible cross must not close the sidebar under a click that meant the picture's corner.
+    private void UpdateClose()
+    {
+        bool shown = _hover || IsKeyboardFocusWithin;
+        Close.Opacity = shown ? 1 : 0;
+        Close.IsHitTestVisible = shown;
+    }
+
+    // The hand shows only where a click does something: a medium that can be opened (a picture, or its loading / error text), not the empty or text-only state.
+    private void UpdateFrameCursor() => _frame.Cursor = FrameClickable ? PointerCursors.Hand : null;
+
+    /// <summary>Whether a click on the picture frame opens something now (what the hand cursor says; tests read it).</summary>
+    internal bool FrameClickable => Open.IsEnabled && (_bitmap != null || _status.IsVisible);
 
     /// <summary>
     /// The header line and the controls of the medium in its post; shown at once, before the picture is ready.
     /// </summary>
-    internal void Describe(string postLine, string fileLine, string detailLine, bool canOpen)
+    internal void Describe(string postLine, string fileLine, string detailLine, bool canOpen, string? postLinkTip = null)
     {
-        _postLine = postLine; _fileName = fileLine; _detail = detailLine;
+        _postLine = postLine; _fileName = fileLine; _detail = detailLine; _postLinkTip = postLinkTip ?? string.Empty;
         RefreshHeader();
         Open.IsEnabled = canOpen;
         Open.IsVisible = true;
         AutomationProperties.SetName(_image, fileLine);
+        UpdateFrameCursor();
     }
 
+    /// <summary>The "No." of the header line was clicked (only while the host described the post with a tip, see <see cref="Describe"/>).</summary>
+    internal event EventHandler? PostLinkClicked;
+
+    /// <summary>The post number link of the header line (smokes and tests).</summary>
+    internal Button PostLink => _postLink;
+
     /// <summary>The text of the header line now (smokes and tests read it); the plain title while nothing is known.</summary>
-    internal string HeaderLine => _title.Text ?? string.Empty;
+    internal string HeaderLine
+    {
+        get
+        {
+            string text = ReaderMediaSidebarRules.HeaderText(_postLine, _fileName, _detail);
+            return text.Length > 0 ? text : Texts.T(TitleKey);
+        }
+    }
 
     private void RefreshHeader()
     {
         string text = ReaderMediaSidebarRules.HeaderText(_postLine, _fileName, _detail);
+        string rest = ReaderMediaSidebarRules.HeaderText(string.Empty, _fileName, _detail);
+        // The post number is a link only when the host gave it a tip (it copies the post's reference); the line then reads "No. 75" + " · file · size".
+        bool link = _postLine.Length > 0 && _postLinkTip.Length > 0;
+        _postLink.IsVisible = link;
+        if (link)
+        {
+            _postLink.Content = _postLine;
+            ToolTip.SetTip(_postLink, _postLinkTip);
+            AutomationProperties.SetName(_postLink, _postLinkTip);
+            _title.Text = rest.Length > 0 ? " · " + rest : string.Empty;
+            _title.IsVisible = rest.Length > 0;
+            ToolTip.SetTip(_title, text);
+            return;
+        }
+        _title.IsVisible = true;
         _title.Text = text.Length > 0 ? text : Texts.T(TitleKey);
         ToolTip.SetTip(_title, _title.Text);
     }
@@ -528,6 +579,7 @@ internal sealed class ReaderMediaSidebar : Border
         _status.IsVisible = false;
         _badgesOn = true; _playable = playable;
         UpdateBadges();
+        UpdateFrameCursor();
     }
 
     /// <summary>The placeholder with a short text (loading, cannot be shown); the previous picture is given back.</summary>
@@ -542,6 +594,7 @@ internal sealed class ReaderMediaSidebar : Border
         _status.IsVisible = text.Length > 0;
         _badgesOn = false;
         UpdateBadges();
+        UpdateFrameCursor();
     }
 
     /// <summary>
@@ -562,6 +615,7 @@ internal sealed class ReaderMediaSidebar : Border
         else _placeholder.IsVisible = true;
         _status.Text = text;
         _status.IsVisible = text.Length > 0;
+        UpdateFrameCursor();
     }
 
     /// <summary>No post is selected (or the reader closed): nothing kept.</summary>

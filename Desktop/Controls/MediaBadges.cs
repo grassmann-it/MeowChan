@@ -540,7 +540,7 @@ internal static class MediaBadgeIconBitmaps
 /// default). It is not a hit target and not part of the accessibility tree; the tile carries the words (<see cref="MediaBadgeText.Describe(in MediaBadgeState)"/>).
 /// Same look in both themes as the play mark (<see cref="VideoPlayMark"/>): nothing here is a theme token, because the badges lie on arbitrary pictures.
 /// </summary>
-internal sealed class MediaBadgeView : Control
+internal sealed partial class MediaBadgeView : Control
 {
     private static readonly Pen Ring = new(VideoPlayMark.RingBrush, 1);
     private static Geometry? s_triangle, s_untagged;
@@ -567,6 +567,7 @@ internal sealed class MediaBadgeView : Control
         VerticalAlignment = VerticalAlignment.Center;
         AutomationProperties.SetAccessibilityView(this, AccessibilityView.Raw);
         _limitsChanged = OnLimitsChanged;
+        InitializeHitZones();
     }
 
     /// <summary>
