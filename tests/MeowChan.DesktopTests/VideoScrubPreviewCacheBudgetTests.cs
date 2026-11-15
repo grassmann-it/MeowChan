@@ -163,7 +163,9 @@ public sealed class VideoScrubPreviewCacheBudgetTests
         VideoScrubFrameKey key = Key(3001);
         Directory.CreateDirectory(cache.PathOf(key));
 
-        await Assert.ThrowsAnyAsync<IOException>(() => cache.StoreAsync(key, Png(3001), CancellationToken.None));
+        Exception failure = await Assert.ThrowsAnyAsync<Exception>(() => cache.StoreAsync(key, Png(3001), CancellationToken.None));
+        // File.Move reports a directory destination as IOException on Unix and UnauthorizedAccessException on Windows.
+        Assert.True(failure is IOException or UnauthorizedAccessException, failure.GetType().FullName);
         Assert.Empty(Directory.GetFiles(directory, ".poster-scrub-*.tmp"));
 
         Directory.Delete(cache.PathOf(key));

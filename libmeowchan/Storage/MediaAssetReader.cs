@@ -137,8 +137,11 @@ public sealed class MediaAssetSnapshot
         if ((File.GetAttributes(asset.Path) & FileAttributes.ReparsePoint) != 0)
             throw new InvalidDataException("A recorded media asset must not be a symbolic link.");
         // The identity is read before the bytes and again after them: a file that changes while it is hashed is not remembered, and a file
-        // whose identity cannot be read (null) never counts as verified.
-        RegularProfileFileIdentity? identity = memo == null ? null : RegularProfileFile.TryGetIdentity(asset.Path);
+        // whose identity cannot be read (null) never counts as verified. Windows change times are not a safe cache fence for rapid
+        // same-size rewrites: the filesystem can expose the old change time immediately after the write. Derived-preview callers
+        // therefore keep the full hash path on Windows rather than trusting the session memo shortcut.
+        bool useIdentityMemo = memo != null && !OperatingSystem.IsWindows();
+        RegularProfileFileIdentity? identity = useIdentityMemo ? RegularProfileFile.TryGetIdentity(asset.Path) : null;
         FileStream stream = new FileStream(asset.Path, FileMode.Open, FileAccess.Read, FileShare.Read,
             81920, FileOptions.Asynchronous | FileOptions.SequentialScan);
         try
@@ -146,7 +149,7 @@ public sealed class MediaAssetSnapshot
             if (stream.Length != asset.Length)
                 throw new InvalidDataException("The recorded media asset has changed length.");
             // The identity is confirmed once more after the open, so a file swapped in between is hashed like any other.
-            if (memo != null && memo.IsVerified(asset.Path, identity, asset.Sha256) && RegularProfileFile.TryGetIdentity(asset.Path) == identity)
+            if (useIdentityMemo && memo!.IsVerified(asset.Path, identity, asset.Sha256) && RegularProfileFile.TryGetIdentity(asset.Path) == identity)
             {
                 Diagnostics.PerformanceDiagnostics.Record("media.original.verify", "remembered", asset: assetId, value: asset.Length);
                 return stream;
@@ -155,8 +158,8 @@ public sealed class MediaAssetSnapshot
             if (!string.Equals(Convert.ToHexString(digest), asset.Sha256, StringComparison.OrdinalIgnoreCase))
                 throw new InvalidDataException("The recorded media asset no longer matches its committed checksum.");
             cancellationToken.ThrowIfCancellationRequested();
-            if (memo != null && identity is { } before && before.Size == asset.Length && RegularProfileFile.TryGetIdentity(asset.Path) == before)
-                memo.Remember(asset.Path, before, asset.Sha256);
+            if (useIdentityMemo && identity is { } before && before.Size == asset.Length && RegularProfileFile.TryGetIdentity(asset.Path) == before)
+                memo!.Remember(asset.Path, before, asset.Sha256);
             stream.Position = 0;
             Diagnostics.PerformanceDiagnostics.Record("media.original.verify", "verified", asset: assetId, value: asset.Length);
             return stream;

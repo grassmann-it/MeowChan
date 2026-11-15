@@ -422,7 +422,9 @@ internal static class GalleryImageCache
         CancellationToken cancellationToken) where T : class, IDisposable
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (validity.IsRemembered(cache.VerifiedFiles)) return true;
+        // Windows file change times can remain unchanged for a rapid same-size rewrite. A warm image must therefore
+        // take the full manifest hash path on Windows; the identity memo remains a safe fast path on Unix.
+        if (!OperatingSystem.IsWindows() && validity.IsRemembered(cache.VerifiedFiles)) return true;
         try
         {
             await using Stream verified = await entry.Manifest.OpenSessionVerifiedReadAsync(
@@ -432,7 +434,7 @@ internal static class GalleryImageCache
         catch (Exception) { return false; }
         // OpenSessionVerifiedReadAsync remembers only a stable regular file. Require the captured identity too: a swap while the
         // proof was being opened must cause a miss rather than authorize bytes from a different occurrence.
-        return validity.IsVerified(cache.VerifiedFiles);
+        return OperatingSystem.IsWindows() ? validity.IsCurrent() : validity.IsVerified(cache.VerifiedFiles);
     }
 
     /// <summary>
