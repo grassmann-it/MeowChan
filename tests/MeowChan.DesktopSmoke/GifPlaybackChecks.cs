@@ -445,7 +445,7 @@ internal static partial class GalleryPlaybackFeatureChecks
         string media = Path.Combine(profile, "media");
         new Config { DownloadPath = media, SaveUrlsOnExit = false, AutomaticUpdateChecks = false, CloseToTray = false,
             MinimizeToTray = false, WorkspaceMode = "Advanced", GalleryPlaybackMode = "Manual", GalleryOverlayControls = false,
-            GalleryAutoHideControls = false, GalleryContextOpen = false }.SaveConfig(profile);
+            GalleryAutoHideControls = false, GalleryContextOpen = false, ReaderMediaSidebar = false, ReaderMediaClick = "Gallery" }.SaveConfig(profile);
         Directory.CreateDirectory(media); // Valid profile first; never initialize defaults over existing archive data.
         ResourceId id = new("4chan", "g", "50500");
         var entries = new Dictionary<string, object>();
