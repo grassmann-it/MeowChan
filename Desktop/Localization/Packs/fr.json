@@ -4037,6 +4037,8 @@
     "budgets.group.quickTag": "Étiquetage rapide",
     "budgets.quickTagSuggestions": "Suggestions d’étiquettes affichées",
     "budgets.quickTagSuggestionsHint": "Le nombre de puces de suggestion affichées par le champ d’étiquetage rapide lorsqu’il est vide. Seules les neuf premières ont une touche numérique. Par défaut : {0}, autorisé : de {1} à {2}.",
+    "budgets.quickTagPanelSuggestions": "Suggestions d’étiquettes dans le panneau (maximum)",
+    "budgets.quickTagPanelSuggestionsHint": "Le panneau d’étiquettes de la galerie remplit sa hauteur libre de suggestions, jusqu’à ce nombre. Seules les neuf premières ont une touche numérique. Le réglage ci-dessus s’applique toujours à la fenêtre contextuelle d’étiquetage. Par défaut : {0}, autorisé : de {1} à {2}.",
     "budgets.quickTagRecent": "Étiquettes récentes mémorisées",
     "budgets.quickTagRecentHint": "Le nombre d’étiquettes personnelles récemment utilisées qui sont mémorisées jusqu’à la fermeture de l’application et placées plus haut dans les suggestions. 0 désactive cette fonction. Par défaut : {0}, autorisé : de {1} à {2}.",
     "budgets.quickTagUndo": "Étapes d’annulation des changements d’étiquettes",

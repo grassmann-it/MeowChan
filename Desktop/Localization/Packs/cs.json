@@ -3545,6 +3545,8 @@
     "budgets.group.quickTag": "Rychlé štítkování",
     "budgets.quickTagSuggestions": "Zobrazené návrhy štítků",
     "budgets.quickTagSuggestionsHint": "Kolik čipů s návrhy zobrazí prázdné pole rychlého štítkování. Jen prvních devět má přiřazenou číselnou klávesu. Výchozí: {0}, povoleno: {1} až {2}.",
+    "budgets.quickTagPanelSuggestions": "Návrhy štítků v panelu (nejvýše)",
+    "budgets.quickTagPanelSuggestionsHint": "Galerijní panel štítků vyplní volnou výšku návrhy, nejvýše tolika. Jen prvních devět má číselnou klávesu. Nastavení výše platí dál pro vyskakovací okno štítků. Výchozí: {0}, povoleno: {1} až {2}.",
     "budgets.quickTagRecent": "Zapamatované nedávno použité štítky",
     "budgets.quickTagRecentHint": "Kolik nedávno použitých vlastních štítků se pamatuje do zavření aplikace a řadí výše v návrzích. 0 tuto funkci vypne. Výchozí: {0}, povoleno: {1} až {2}.",
     "budgets.quickTagUndo": "Kroky zpět pro štítky",

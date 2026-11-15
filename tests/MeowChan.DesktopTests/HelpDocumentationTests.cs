@@ -313,7 +313,9 @@ public sealed class HelpDocumentationTests
         Assert.Contains("(default 500, 10–5000); its tag-store write limit stays fixed and separate", limits, StringComparison.Ordinal);
         Assert.Contains("an already open panel keeps the limits it opened with", limits, StringComparison.Ordinal);
         Assert.Contains("including 0, trims the remembered list at once, keeping the newest entries", limits, StringComparison.Ordinal);
-        Assert.Equal(7, QuickTagSettingsCatalog.Limits.Length);
+        // Seven documented rows plus the tag panel's own suggestion limit; Help.md still has to get that row (it is Codex's file), then
+        // the table mapping above takes it too.
+        Assert.Equal(8, QuickTagSettingsCatalog.Limits.Length);
     }
 
     [Fact]

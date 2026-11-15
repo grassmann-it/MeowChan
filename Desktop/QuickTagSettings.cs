@@ -27,7 +27,8 @@ internal static class QuickTagSettings
         ArgumentNullException.ThrowIfNull(config);
         return new QuickTagOptions
         {
-            UndoDepth = config.QuickTagUndoDepth, SuggestionCount = config.QuickTagSuggestionCount, MarkedMediaLimit = MarkedMediaLimit(config),
+            UndoDepth = config.QuickTagUndoDepth, SuggestionCount = config.QuickTagSuggestionCount,
+            PanelSuggestionLimit = config.QuickTagPanelSuggestionLimit, MarkedMediaLimit = MarkedMediaLimit(config),
             StampSize = config.TagStampSize // PT7's stamp size setting (Settings › Tagging)
         }.Normalized();
     }

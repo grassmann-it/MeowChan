@@ -4040,6 +4040,8 @@
     "budgets.group.quickTag": "Tagging rapido",
     "budgets.quickTagSuggestions": "Suggerimenti di tag mostrati",
     "budgets.quickTagSuggestionsHint": "Quanti chip di suggerimento mostra il campo del tagging rapido quando è vuoto. Solo i primi nove hanno un tasto numerico. Valore predefinito: {0}, consentiti: da {1} a {2}.",
+    "budgets.quickTagPanelSuggestions": "Suggerimenti di tag nel pannello (massimo)",
+    "budgets.quickTagPanelSuggestionsHint": "Il pannello tag della galleria riempie l’altezza libera con suggerimenti, fino a questo numero. Solo i primi nove hanno un tasto numerico. L’impostazione sopra vale ancora per il popover dei tag. Valore predefinito: {0}, consentiti: da {1} a {2}.",
     "budgets.quickTagRecent": "Tag usati di recente da ricordare",
     "budgets.quickTagRecentHint": "Quanti tag personali usati di recente vengono ricordati fino alla chiusura dell’app e mostrati più in alto nei suggerimenti. 0 disattiva questa funzione. Valore predefinito: {0}, consentiti: da {1} a {2}.",
     "budgets.quickTagUndo": "Passaggi di annullamento per i tag",

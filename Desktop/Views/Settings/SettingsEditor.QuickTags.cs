@@ -6,7 +6,7 @@ using MeowChan.Desktop.Localization;
 namespace MeowChan;
 
 /// <summary>
-/// The quick tagging limits on the "Storage and limits" page (TP5): suggestions shown, remembered recent tags, undo steps,
+/// The quick tagging limits on the "Storage and limits" page (TP5): suggestions shown, suggestions in the tall gallery panel, remembered recent tags, undo steps,
 /// neighbouring media checked, file name words, source tags per medium and media marked in the gallery. Each is a bounded count
 /// with its default, minimum and maximum from <see cref="Config"/>; the consumers (tag panel, tag popover) read them
 /// through <see cref="MeowChan.Desktop.QuickTagSettings"/>. Texts are <see cref="QuickTagSettingsCatalog"/>.
@@ -14,6 +14,7 @@ namespace MeowChan;
 public partial class SettingsEditor
 {
     private decimal? _quickTagSuggestionCount = Config.QuickTagSuggestionCountDefault;
+    private decimal? _quickTagPanelSuggestionLimit = Config.QuickTagPanelSuggestionLimitDefault;
     private decimal? _quickTagRecentCount = Config.QuickTagRecentCountDefault;
     private decimal? _quickTagUndoDepth = Config.QuickTagUndoDepthDefault;
     private decimal? _quickTagNeighbourScan = Config.QuickTagNeighbourScanDefault;
@@ -27,6 +28,10 @@ public partial class SettingsEditor
     public string QuickTagSuggestionCountLabel => Texts.T("budgets.quickTagSuggestions");
     public string QuickTagSuggestionCountHint => Texts.T("budgets.quickTagSuggestionsHint", Config.QuickTagSuggestionCountDefault, Config.QuickTagSuggestionCountMinimum, Config.QuickTagSuggestionCountMaximum);
     public string QuickTagSuggestionCountHelp => FieldHelp(nameof(QuickTagSuggestionCountInput), Texts.T("settings.unitCount") + ". " + QuickTagSuggestionCountHint);
+    public decimal? QuickTagPanelSuggestionLimit { get => _quickTagPanelSuggestionLimit; set => SetField(ref _quickTagPanelSuggestionLimit, value, nameof(QuickTagPanelSuggestionLimit)); }
+    public string QuickTagPanelSuggestionLimitLabel => Texts.T("budgets.quickTagPanelSuggestions");
+    public string QuickTagPanelSuggestionLimitHint => Texts.T("budgets.quickTagPanelSuggestionsHint", Config.QuickTagPanelSuggestionLimitDefault, Config.QuickTagPanelSuggestionLimitMinimum, Config.QuickTagPanelSuggestionLimitMaximum);
+    public string QuickTagPanelSuggestionLimitHelp => FieldHelp(nameof(QuickTagPanelSuggestionLimitInput), Texts.T("settings.unitCount") + ". " + QuickTagPanelSuggestionLimitHint);
     public decimal? QuickTagRecentCount { get => _quickTagRecentCount; set => SetField(ref _quickTagRecentCount, value, nameof(QuickTagRecentCount)); }
     public string QuickTagRecentCountLabel => Texts.T("budgets.quickTagRecent");
     public string QuickTagRecentCountHint => Texts.T("budgets.quickTagRecentHint", Config.QuickTagRecentCountDefault, Config.QuickTagRecentCountMinimum, Config.QuickTagRecentCountMaximum);
@@ -55,6 +60,7 @@ public partial class SettingsEditor
     private static readonly string[] QuickTagHelpProperties =
     {
         nameof(QuickTagSuggestionCountHelp),
+        nameof(QuickTagPanelSuggestionLimitHelp),
         nameof(QuickTagRecentCountHelp),
         nameof(QuickTagUndoDepthHelp),
         nameof(QuickTagNeighbourScanHelp),
@@ -67,6 +73,7 @@ public partial class SettingsEditor
     {
         nameof(QuickTagGroupLabel),
         nameof(QuickTagSuggestionCountLabel), nameof(QuickTagSuggestionCountHint),
+        nameof(QuickTagPanelSuggestionLimitLabel), nameof(QuickTagPanelSuggestionLimitHint),
         nameof(QuickTagRecentCountLabel), nameof(QuickTagRecentCountHint),
         nameof(QuickTagUndoDepthLabel), nameof(QuickTagUndoDepthHint),
         nameof(QuickTagNeighbourScanLabel), nameof(QuickTagNeighbourScanHint),
@@ -84,6 +91,7 @@ public partial class SettingsEditor
     private void LoadQuickTagDraft(Config config)
     {
         QuickTagSuggestionCount = config.QuickTagSuggestionCount;
+        QuickTagPanelSuggestionLimit = config.QuickTagPanelSuggestionLimit;
         QuickTagRecentCount = config.QuickTagRecentCount;
         QuickTagUndoDepth = config.QuickTagUndoDepth;
         QuickTagNeighbourScan = config.QuickTagNeighbourScan;
@@ -91,6 +99,7 @@ public partial class SettingsEditor
         QuickTagSourceTagsPerMedium = config.QuickTagSourceTagsPerMedium;
         QuickTagMarkedMediaLimit = config.QuickTagMarkedMediaLimit;
         ResetNumber(QuickTagSuggestionCountInput, config.QuickTagSuggestionCount);
+        ResetNumber(QuickTagPanelSuggestionLimitInput, config.QuickTagPanelSuggestionLimit);
         ResetNumber(QuickTagRecentCountInput, config.QuickTagRecentCount);
         ResetNumber(QuickTagUndoDepthInput, config.QuickTagUndoDepth);
         ResetNumber(QuickTagNeighbourScanInput, config.QuickTagNeighbourScan);
@@ -103,6 +112,7 @@ public partial class SettingsEditor
     private void ApplyQuickTagDraft(Config candidate)
     {
         candidate.QuickTagSuggestionCount = GetInteger(QuickTagSuggestionCount, QuickTagSuggestionCountLabel, Config.QuickTagSuggestionCountMinimum, Config.QuickTagSuggestionCountMaximum);
+        candidate.QuickTagPanelSuggestionLimit = GetInteger(QuickTagPanelSuggestionLimit, QuickTagPanelSuggestionLimitLabel, Config.QuickTagPanelSuggestionLimitMinimum, Config.QuickTagPanelSuggestionLimitMaximum);
         candidate.QuickTagRecentCount = GetInteger(QuickTagRecentCount, QuickTagRecentCountLabel, Config.QuickTagRecentCountMinimum, Config.QuickTagRecentCountMaximum);
         candidate.QuickTagUndoDepth = GetInteger(QuickTagUndoDepth, QuickTagUndoDepthLabel, Config.QuickTagUndoDepthMinimum, Config.QuickTagUndoDepthMaximum);
         candidate.QuickTagNeighbourScan = GetInteger(QuickTagNeighbourScan, QuickTagNeighbourScanLabel, Config.QuickTagNeighbourScanMinimum, Config.QuickTagNeighbourScanMaximum);
@@ -115,6 +125,8 @@ public partial class SettingsEditor
     {
         yield return (QuickTagSuggestionCountInput, QuickTagSuggestionCount, QuickTagSuggestionCountLabel, Texts.T("settings.unitCount"),
             Config.QuickTagSuggestionCountMinimum, Config.QuickTagSuggestionCountMaximum, true);
+        yield return (QuickTagPanelSuggestionLimitInput, QuickTagPanelSuggestionLimit, QuickTagPanelSuggestionLimitLabel, Texts.T("settings.unitCount"),
+            Config.QuickTagPanelSuggestionLimitMinimum, Config.QuickTagPanelSuggestionLimitMaximum, true);
         yield return (QuickTagRecentCountInput, QuickTagRecentCount, QuickTagRecentCountLabel, Texts.T("settings.unitCount"),
             Config.QuickTagRecentCountMinimum, Config.QuickTagRecentCountMaximum, true);
         yield return (QuickTagUndoDepthInput, QuickTagUndoDepth, QuickTagUndoDepthLabel, Texts.T("settings.unitCount"),

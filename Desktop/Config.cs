@@ -618,6 +618,11 @@ namespace MeowChan
         internal const int QuickTagSuggestionCountDefault = Desktop.QuickTagOptions.DefaultSuggestionCount;
         internal const int QuickTagSuggestionCountMinimum = Desktop.QuickTagOptions.MinimumSuggestionCount;
         internal const int QuickTagSuggestionCountMaximum = Desktop.QuickTagOptions.MaximumSuggestionCount;
+        /// <summary>The most suggestion chips the gallery tag panel asks for when its height lets it show more than <see cref="QuickTagSuggestionCount"/>.</summary>
+        public int QuickTagPanelSuggestionLimit { get; set; } = QuickTagPanelSuggestionLimitDefault;
+        internal const int QuickTagPanelSuggestionLimitDefault = Desktop.QuickTagOptions.DefaultPanelSuggestionLimit;
+        internal const int QuickTagPanelSuggestionLimitMinimum = Desktop.QuickTagOptions.MinimumPanelSuggestionLimit;
+        internal const int QuickTagPanelSuggestionLimitMaximum = Desktop.QuickTagOptions.MaximumPanelSuggestionLimit;
         /// <summary>Own tags the quick tag surface remembers as recently used in this session; 0 switches the recent-tags hint off.</summary>
         public int QuickTagRecentCount { get; set; } = QuickTagRecentCountDefault;
         internal const int QuickTagRecentCountDefault = Desktop.TagContextOptions.DefaultRecentCount;
@@ -914,6 +919,7 @@ namespace MeowChan
             PostFilterRuleLimit = Math.Clamp(PostFilterRuleLimit, PostFilterRuleLimitMinimum, PostFilterRuleLimitMaximum);
             HiddenPostLimit = Math.Clamp(HiddenPostLimit, HiddenPostLimitMinimum, HiddenPostLimitMaximum);
             QuickTagSuggestionCount = Math.Clamp(QuickTagSuggestionCount, QuickTagSuggestionCountMinimum, QuickTagSuggestionCountMaximum);
+            QuickTagPanelSuggestionLimit = Math.Clamp(QuickTagPanelSuggestionLimit, QuickTagPanelSuggestionLimitMinimum, QuickTagPanelSuggestionLimitMaximum);
             QuickTagRecentCount = Math.Clamp(QuickTagRecentCount, QuickTagRecentCountMinimum, QuickTagRecentCountMaximum);
             QuickTagUndoDepth = Math.Clamp(QuickTagUndoDepth, QuickTagUndoDepthMinimum, QuickTagUndoDepthMaximum);
             QuickTagNeighbourScan = Math.Clamp(QuickTagNeighbourScan, QuickTagNeighbourScanMinimum, QuickTagNeighbourScanMaximum);
@@ -1643,6 +1649,8 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(HiddenPostLimit), "HiddenPostLimit is outside its supported range.");
             if (QuickTagSuggestionCount is < QuickTagSuggestionCountMinimum or > QuickTagSuggestionCountMaximum)
                 throw new ArgumentOutOfRangeException(nameof(QuickTagSuggestionCount), "QuickTagSuggestionCount is outside its supported range (" + QuickTagSuggestionCountMinimum + " to " + QuickTagSuggestionCountMaximum + ").");
+            if (QuickTagPanelSuggestionLimit is < QuickTagPanelSuggestionLimitMinimum or > QuickTagPanelSuggestionLimitMaximum)
+                throw new ArgumentOutOfRangeException(nameof(QuickTagPanelSuggestionLimit), "QuickTagPanelSuggestionLimit is outside its supported range (" + QuickTagPanelSuggestionLimitMinimum + " to " + QuickTagPanelSuggestionLimitMaximum + ").");
             if (QuickTagRecentCount is < QuickTagRecentCountMinimum or > QuickTagRecentCountMaximum)
                 throw new ArgumentOutOfRangeException(nameof(QuickTagRecentCount), "QuickTagRecentCount is outside its supported range (" + QuickTagRecentCountMinimum + " to " + QuickTagRecentCountMaximum + ").");
             if (QuickTagUndoDepth is < QuickTagUndoDepthMinimum or > QuickTagUndoDepthMaximum)
@@ -1870,6 +1878,7 @@ namespace MeowChan
                 PostFilterRuleLimit = PostFilterRuleLimit,
                 HiddenPostLimit = HiddenPostLimit,
                 QuickTagSuggestionCount = QuickTagSuggestionCount,
+                QuickTagPanelSuggestionLimit = QuickTagPanelSuggestionLimit,
                 QuickTagRecentCount = QuickTagRecentCount,
                 QuickTagUndoDepth = QuickTagUndoDepth,
                 QuickTagNeighbourScan = QuickTagNeighbourScan,
@@ -2123,6 +2132,7 @@ namespace MeowChan
             PostFilterRuleLimit = source.PostFilterRuleLimit;
             HiddenPostLimit = source.HiddenPostLimit;
             QuickTagSuggestionCount = source.QuickTagSuggestionCount;
+            QuickTagPanelSuggestionLimit = source.QuickTagPanelSuggestionLimit;
             QuickTagRecentCount = source.QuickTagRecentCount;
             QuickTagUndoDepth = source.QuickTagUndoDepth;
             QuickTagNeighbourScan = source.QuickTagNeighbourScan;
@@ -2353,6 +2363,7 @@ namespace MeowChan
             PostFilterRuleLimit = source.PostFilterRuleLimit;
             HiddenPostLimit = source.HiddenPostLimit;
             QuickTagSuggestionCount = source.QuickTagSuggestionCount;
+            QuickTagPanelSuggestionLimit = source.QuickTagPanelSuggestionLimit;
             QuickTagRecentCount = source.QuickTagRecentCount;
             QuickTagUndoDepth = source.QuickTagUndoDepth;
             QuickTagNeighbourScan = source.QuickTagNeighbourScan;

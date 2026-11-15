@@ -336,6 +336,7 @@ public partial class SettingsEditor
         ResetNumber(PostFilterRuleLimitInput, defaults.PostFilterRuleLimit);
         ResetNumber(HiddenPostLimitInput, defaults.HiddenPostLimit);
         ResetNumber(QuickTagSuggestionCountInput, defaults.QuickTagSuggestionCount);
+        ResetNumber(QuickTagPanelSuggestionLimitInput, defaults.QuickTagPanelSuggestionLimit);
         ResetNumber(QuickTagRecentCountInput, defaults.QuickTagRecentCount);
         ResetNumber(QuickTagUndoDepthInput, defaults.QuickTagUndoDepth);
         ResetNumber(QuickTagNeighbourScanInput, defaults.QuickTagNeighbourScan);

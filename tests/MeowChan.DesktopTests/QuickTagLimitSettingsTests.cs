@@ -21,6 +21,7 @@ public sealed class QuickTagLimitSettingsTests
     private static readonly (string Property, int Default, int Minimum, int Maximum, string Stem)[] Limits =
     {
         (nameof(Config.QuickTagSuggestionCount), 9, 3, 18, "quickTagSuggestions"),
+        (nameof(Config.QuickTagPanelSuggestionLimit), 60, 9, 200, "quickTagPanelSuggestions"),
         (nameof(Config.QuickTagRecentCount), 50, 0, 500, "quickTagRecent"),
         (nameof(Config.QuickTagUndoDepth), 20, 1, 100, "quickTagUndo"),
         (nameof(Config.QuickTagNeighbourScan), 2000, 100, 20_000, "quickTagNeighbours"),

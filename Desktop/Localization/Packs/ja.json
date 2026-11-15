@@ -3996,6 +3996,8 @@
     "budgets.group.quickTag": "クイックタグ",
     "budgets.quickTagSuggestions": "表示するタグ候補数",
     "budgets.quickTagSuggestionsHint": "クイックタグの入力欄が空のときに表示する候補チップの数です。数字キーが割り当てられるのは最初の9件だけです。既定値: {0}、許容範囲: {1}～{2}。",
+    "budgets.quickTagPanelSuggestions": "タグパネルに表示する候補の最大数",
+    "budgets.quickTagPanelSuggestionsHint": "ギャラリーのタグパネルは、空いている高さいっぱいに候補を表示します。表示数はこの値までです。数字キーが割り当てられるのは最初の9件だけです。上の設定はタグのポップオーバーに引き続き適用されます。既定値: {0}、許容範囲: {1}～{2}。",
     "budgets.quickTagRecent": "記憶する最近使用したタグ数",
     "budgets.quickTagRecentHint": "アプリを終了するまで記憶し、候補の上位に表示する最近使用した独自タグの数です。0にすると無効になります。既定値: {0}、許容範囲: {1}～{2}。",
     "budgets.quickTagUndo": "タグ変更を元に戻せる回数",

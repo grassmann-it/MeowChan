@@ -3996,6 +3996,8 @@
     "budgets.group.quickTag": "빠른 태그 지정",
     "budgets.quickTagSuggestions": "표시할 태그 제안 수",
     "budgets.quickTagSuggestionsHint": "빠른 태그 필드가 비어 있을 때 표시하는 제안 칩의 개수입니다. 처음 9개에만 숫자 키가 지정됩니다. 기본값: {0}, 허용 범위: {1}~{2}.",
+    "budgets.quickTagPanelSuggestions": "태그 패널의 제안 수(최대)",
+    "budgets.quickTagPanelSuggestionsHint": "갤러리 태그 패널은 남는 높이를 제안으로 채우며, 이 값까지만 표시합니다. 처음 9개에만 숫자 키가 지정됩니다. 위의 설정은 태그 팝오버에 계속 적용됩니다. 기본값: {0}, 허용 범위: {1}~{2}.",
     "budgets.quickTagRecent": "기억할 최근 사용 태그 수",
     "budgets.quickTagRecentHint": "앱을 닫을 때까지 기억하고 제안 목록의 상위에 표시할 최근 사용한 내 태그의 개수입니다. 0이면 이 기능을 끕니다. 기본값: {0}, 허용 범위: {1}~{2}.",
     "budgets.quickTagUndo": "태그 실행 취소 단계 수",
