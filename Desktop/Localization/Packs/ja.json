@@ -4540,6 +4540,7 @@
     "media.filter.queueExcludeChip": "タグ付けキュー外",
     "media.filter.error.queue": "フィルターはタグ付けキューを使いますが、キューを読み込めません。",
     "media.filter.error.sourceTags": "フィルターは Danbooru のタグを使いますが、Danbooru カタログを読み込めません。",
+    "media.filter.retry": "再試行",
     "media.filter.sourceTagChip": "Danbooru タグ: {0}",
     "media.filter.sourceTagExcludeChip": "Danbooru タグなし: {0}",
     "media.query.alias.queue": "キュー",

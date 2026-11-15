@@ -4632,6 +4632,7 @@
     "media.filter.queueExcludeChip": "Non nella coda di tagging",
     "media.filter.error.queue": "Il filtro usa la coda di tagging, ma la coda non è leggibile.",
     "media.filter.error.sourceTags": "Il filtro usa tag di Danbooru, ma il catalogo Danbooru non è leggibile.",
+    "media.filter.retry": "Riprova",
     "media.filter.sourceTagChip": "Tag Danbooru: {0}",
     "media.filter.sourceTagExcludeChip": "Senza tag Danbooru: {0}",
     "media.query.alias.queue": "coda",

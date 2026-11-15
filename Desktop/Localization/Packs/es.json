@@ -4626,6 +4626,7 @@
     "media.filter.queueExcludeChip": "Fuera de la cola de etiquetado",
     "media.filter.error.queue": "El filtro usa la cola de etiquetado, pero no se puede leer la cola.",
     "media.filter.error.sourceTags": "El filtro usa etiquetas de Danbooru, pero no se puede leer el catálogo de Danbooru.",
+    "media.filter.retry": "Intentar de nuevo",
     "media.filter.sourceTagChip": "Etiqueta de Danbooru: {0}",
     "media.filter.sourceTagExcludeChip": "Sin la etiqueta de Danbooru: {0}",
     "media.query.alias.queue": "cola",

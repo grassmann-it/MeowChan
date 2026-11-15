@@ -4669,6 +4669,7 @@
     "media.filter.queueExcludeChip": "Mimo frontu štítkování",
     "media.filter.error.queue": "Filtr používá frontu štítkování, ale frontu nelze přečíst.",
     "media.filter.error.sourceTags": "Filtr používá štítky z Danbooru, ale katalog Danbooru nelze přečíst.",
+    "media.filter.retry": "Zkusit znovu",
     "media.filter.sourceTagChip": "Štítek Danbooru: {0}",
     "media.filter.sourceTagExcludeChip": "Bez štítku Danbooru: {0}",
     "media.query.alias.queue": "fronta",
