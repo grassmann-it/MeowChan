@@ -277,7 +277,7 @@
                     <!-- RL1: the former "View" menu and the quick settings popover in one popover (session view switches, media, text and layout, thread). -->
                     <Button x:Name="ReaderSettingsOpen" desktop:ActionToolBar.Group="3" wv:WorkViewElement.Id="reader.toolbar.settings" Click="OnReaderSettingsClick" />
                     <Button x:Name="ArchiveHistoryBack" desktop:ActionToolBar.Group="4" wv:WorkViewElement.Id="reader.toolbar.history-back" Tag="archive.historyBack" Classes="localized" Click="OnHistoryBack" IsVisible="False" />
-                    <!-- Full screen is under More in every view (RL1): the header button and F11 carry it. -->
+                    <!-- Full screen ends the bar and is the first action to move under More when room runs out (review 15.11.); the header button and F11 carry it too. -->
                     <Button x:Name="ArchiveReaderFullscreen" desktop:ActionToolBar.Group="4" wv:WorkViewElement.Id="reader.toolbar.fullscreen" Content="Full screen" Click="OnReaderFullscreenClick" />
                     </desktop:ActionToolBar>
                     <TextBlock x:Name="ReaderGroupAvailabilityMessage" wv:WorkViewElement.Id="reader.status.group-availability" IsVisible="False" TextWrapping="Wrap" />

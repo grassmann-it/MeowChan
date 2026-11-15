@@ -15,10 +15,10 @@ using Texts = MeowChan.Desktop.Localization.Texts;
 
 namespace MeowChan.DesktopSmoke;
 
-// RL1 (15.11.2026): the reader toolbar in groups, "Read" as the eye, the gear "Settings" in place of "View", full screen under More. One detached
+// RL1 (15.11.2026): the reader toolbar in groups, "Read" as the eye, the gear "Settings" in place of "View", full screen last (under More when it does not fit). One detached
 // reader in a private profile; five checks, named like the spec's ids:
 //   reader-toolbar-order        the bar's order and groups at 1380 in all three work views, the lines between groups (and none for a group that moved
-//                               under More), full screen under More, the overflow following the policy
+//                               under More), full screen last on the bar or under More, the overflow following the policy
 //   reader-toolbar-read-icon    Read carries the eye (not the external-link of "Open source in browser"), the gear, tags and thread their icons
 //   reader-settings-sections    the popover's four sections, its session rows, the media rows and a conditional row
 //   reader-settings-session-dot a view filter of the session puts the accent dot on the gear (and its tip and accessible name), switching off removes it
@@ -60,7 +60,7 @@ internal static class ReaderToolbarChecks
             await SizeAsync(page, window, "Advanced", 1380);
 
             await CheckOrderAsync(page, window);
-            Console.WriteLine("SMOKE reader-toolbar-order: Read, Gallery, Find | Tags, Export, Thread | gear in order and groups, lines only between bar-resident groups, full screen under More, overflow follows the policy in three views.");
+            Console.WriteLine("SMOKE reader-toolbar-order: Read, Gallery, Find | Tags, Export, Thread | gear in order and groups, lines only between bar-resident groups, full screen last on the bar or under More, overflow follows the policy in three views.");
             CheckReadIcon(page);
             Console.WriteLine("SMOKE reader-toolbar-read-icon: Read carries the eye, not the external link; the gear, Tags and Thread carry their icons.");
             await CheckSectionsAsync(page, config);
@@ -112,8 +112,11 @@ internal static class ReaderToolbarChecks
             Button[] shown = order.Select(name => Named(page, name)).Where(button => OnBar(bar, button)).ToArray();
             Require(shown.Length >= 2 && shown.Zip(shown.Skip(1)).All(pair => pair.First.Bounds.Left < pair.Second.Bounds.Left && pair.First.Bounds.Top == pair.Second.Bounds.Top),
                 "The bar's order is wrong in " + Describe() + ": " + string.Join(", ", shown.Select(button => button.Name + "@" + button.Bounds.Left)));
-            Require(Named(page, "ArchiveReaderFullscreen") is { } full && UnderMore(bar, full) && bar.More?.IsEffectivelyVisible == true,
-                "Full screen is not under More in " + Describe() + ".");
+            // Review 15.11.: Barebones keeps full screen under More; elsewhere it stands on the bar while it fits and is the first to move.
+            Require(Named(page, "ArchiveReaderFullscreen") is { } full && (view == "Barebones"
+                    ? UnderMore(bar, full) && bar.More?.IsEffectivelyVisible == true
+                    : OnBar(bar, full) || UnderMore(bar, full) && bar.More?.IsEffectivelyVisible == true),
+                "Full screen is neither on the bar nor under More as the policy says in " + Describe() + ".");
             Require(OnBar(bar, Named(page, "ArchiveReadPosts")) && OnBar(bar, Named(page, "ArchiveOpenGallery")), "Read and Gallery left the bar in " + Describe() + ".");
             if (view == "Advanced")
                 Require(order.All(name => OnBar(bar, Named(page, name))), "The Advanced bar at 1380 has not all seven actions: "

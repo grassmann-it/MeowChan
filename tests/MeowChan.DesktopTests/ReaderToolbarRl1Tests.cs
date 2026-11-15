@@ -151,18 +151,20 @@ public sealed class ReaderToolbarRl1Tests : IDisposable
     // ---- work views ---------------------------------------------------------------------------------------------------------
 
     [Fact]
-    public void TheGearIsTheViewsOldRowAndFullScreenIsUnderMoreInEveryViewAtTheEndOfTheOrder()
+    public void TheGearIsTheViewsOldRowAndFullScreenEndsTheOrderAndOverflowsOnlyWhenItDoesNotFit()
     {
         Assert.Throws<KeyNotFoundException>(() => WorkViewPolicy.Get("reader.toolbar.view"));
         WorkViewEntry gear = WorkViewPolicy.Get("reader.toolbar.settings");
         Assert.Equal((Presence.Overflow, Presence.Direct, Presence.Direct), (gear.Barebones, gear.Simple, gear.Advanced));
         Assert.Null(gear.CommandId);
         WorkViewEntry full = WorkViewPolicy.Get("reader.toolbar.fullscreen");
-        Assert.Equal((Presence.Overflow, Presence.Overflow, Presence.Overflow), (full.Barebones, full.Simple, full.Advanced));
+        // Review 15.11.: on the bar while it fits (Simple, Advanced), the first to move under More; Barebones keeps it under More.
+        Assert.Equal((Presence.Overflow, Presence.Direct, Presence.Direct), (full.Barebones, full.Simple, full.Advanced));
         Assert.Equal("window.fullscreen", full.CommandId);
         Assert.Equal("reader.toolbar.fullscreen", WorkViewPolicy.ReaderToolbarKeepVisibleOrder[^1]);
         foreach (WorkView view in WorkViewSetting.All)
-            Assert.Equal(OverflowMode.Always, WorkViewPresenter.ToolBarMode(WorkViewPolicy.Resolve("reader.toolbar.fullscreen", view)));
+            Assert.Equal(view == WorkView.Barebones ? OverflowMode.Always : OverflowMode.AsNeeded,
+                WorkViewPresenter.ToolBarMode(WorkViewPolicy.Resolve("reader.toolbar.fullscreen", view)));
         // The order a narrow window moves things under More, from the end (owner 14.11., the gear in View's place).
         Assert.Equal(["reader.toolbar.gallery", "reader.toolbar.read", "reader.toolbar.find", "reader.toolbar.tags", "reader.toolbar.export",
             "reader.toolbar.settings", "reader.toolbar.thread", "reader.toolbar.history-back", "reader.toolbar.fullscreen"], WorkViewPolicy.ReaderToolbarKeepVisibleOrder);
