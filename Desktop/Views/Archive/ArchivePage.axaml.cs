@@ -66,7 +66,7 @@ public partial class ArchivePage : UserControl
     private int _workFilter;
     private bool _threadTable;
     private string _archiveLayout = "List";
-    private double _archiveSplitWidth = 270;
+    private double _archiveSplitWidth = Config.ArchiveSplitWidthDefault;
     internal Func<string, double, Task>? SaveViewPreferencesAsync { get; set; }
     internal string ArchiveLayoutPreference
     {
@@ -91,7 +91,7 @@ public partial class ArchivePage : UserControl
     internal double ArchiveSplitPreference
     {
         get => _archiveSplitWidth;
-        set { _archiveSplitWidth = double.IsFinite(value) ? Math.Clamp(value, 180, 1200) : 270; UpdateLayoutMode(); }
+        set { _archiveSplitWidth = Config.NormalizeArchiveSplitWidth(value); UpdateLayoutMode(); }
     }
     private bool _mediaTiles = true;
     internal bool MediaTilesPreference
@@ -983,7 +983,7 @@ public partial class ArchivePage : UserControl
     private async Task SaveArchiveSplitAsync()
     {
         if (ArchiveSplit.ColumnDefinitions[0].ActualWidth <= 0) return;
-        _archiveSplitWidth = Math.Clamp(ArchiveSplit.ColumnDefinitions[0].ActualWidth, 180, 1200);
+        _archiveSplitWidth = Config.NormalizeArchiveSplitWidth(ArchiveSplit.ColumnDefinitions[0].ActualWidth);
         await PersistArchiveViewAsync();
     }
     private async Task PersistArchiveViewAsync()

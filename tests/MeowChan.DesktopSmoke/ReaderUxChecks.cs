@@ -195,6 +195,7 @@ internal static class ReaderUxChecks
         await Program.WaitUntilAsync(() => !page.IsBusy && page.CurrentThread?.Summary.Id == Hero);
         await CheckEmbeddedArchiveFooterAsync(window, page);
         await ArchiveFilterSurfaceChecks.RunAsync(window);
+        await ArchiveListWidthChecks.RunAsync(window);
         await ArchiveSavedMediaPosterChecks.RunAsync(window);
         Click(page.FindControl<Button>("ArchiveReadPosts")!);
         ContentControl reader = window.FindControl<ContentControl>("ReaderHost")!;

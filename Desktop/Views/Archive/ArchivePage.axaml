@@ -16,7 +16,7 @@
         </Grid>
         <!-- ARCH-DENSE-01: while no error banner is shown the split also spans the empty
              status row, so both boxes end at the page margin. -->
-        <Grid x:Name="ArchiveSplit" Grid.Row="1" Grid.RowSpan="2" ColumnDefinitions="270,6,*" ColumnSpacing="{StaticResource Workspace.Space.8}">
+        <Grid x:Name="ArchiveSplit" Grid.Row="1" Grid.RowSpan="2" ColumnDefinitions="330,6,*" ColumnSpacing="{StaticResource Workspace.Space.8}">
             <Grid x:Name="ArchiveListPane" RowSpacing="{StaticResource Workspace.Space.8}">
                 <Grid.RowDefinitions>
                     <!-- Collapsed search tools use only their content height;
