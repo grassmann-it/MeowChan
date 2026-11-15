@@ -44,7 +44,7 @@ internal static class VideoPosterDecoder
     {
         await using var decoder = new DecodeSession(verifiedVideo, start, maximumWidth, maximumHeight);
         using var measurement = PerformanceDiagnostics.Measure(phase, decoder.Id);
-        decoder.Initialize();
+        await decoder.InitializeAsync(token).ConfigureAwait(false);
         Frame frame = await decoder.ReadAsync(token).ConfigureAwait(false);
         token.ThrowIfCancellationRequested();
         using SKBitmap bitmap = new(new SKImageInfo(frame.Width, frame.Height, SKColorType.Bgra8888, SKAlphaType.Opaque));
@@ -69,6 +69,7 @@ internal static class VideoPosterDecoder
         private readonly VideoCleanupWatch _cleanupWatch = new("video.poster.cleanup");
         private LibVLC? _engine;
         private StreamMediaInput? _input;
+        private VerifiedVideoFile? _nativeFile;
         private Media? _media;
         private MediaPlayer? _player;
         private GCHandle _root;
@@ -93,14 +94,22 @@ internal static class VideoPosterDecoder
             _unlock = (_, _, _) => Capture();
             _display = (_, _) => { };
         }
-        internal void Initialize()
+        internal async Task InitializeAsync(CancellationToken token)
         {
             if (Volatile.Read(ref _nativeReleaseFailed) != 0)
                 throw new InvalidOperationException("Video poster decoding is unavailable after a native cleanup failure.");
             NativeVideoRuntime.EnsureInitialized();
             _engine = new LibVLC("--no-audio", "--no-spu", "--no-osd", "--no-video-title-show", "--no-media-library", "--avcodec-hw=none");
-            _input = new StreamMediaInput(_verifiedVideo);
-            _media = new Media(_engine, _input);
+            if (VideoNativeInput.UsesFileInput)
+            {
+                _nativeFile = await VideoNativeInput.MaterializeAsync(_verifiedVideo, null, token).ConfigureAwait(false);
+                _media = new Media(_engine, _nativeFile.Path, FromType.FromPath);
+            }
+            else
+            {
+                _input = new StreamMediaInput(_verifiedVideo);
+                _media = new Media(_engine, _input);
+            }
             _media.AddOption(":no-audio");
             // The first-frame poster passes zero and keeps its exact former option set.
             if (_start > TimeSpan.Zero)
@@ -182,7 +191,7 @@ internal static class VideoPosterDecoder
         private void DisposeCore()
         {
             _cleanupWatch.Begin(Id);
-            _cleanupWatch.Owns("native operation, player, callback buffers/delegates, media/input, verified stream, engine");
+            _cleanupWatch.Owns("native operation, player, callback buffers/delegates, media/input, verified stream, native file, engine");
             try
             {
                 MediaPlayer? player = _player;
@@ -194,12 +203,15 @@ internal static class VideoPosterDecoder
                     _cleanupWatch.Phase("player-dispose");
                     player.Dispose(); _player = null;
                 }
-                _cleanupWatch.Owns("native operation, callback buffers/delegates, media/input, verified stream, engine");
+                _cleanupWatch.Owns("native operation, callback buffers/delegates, media/input, verified stream, native file, engine");
                 _cleanupWatch.Phase("media-dispose");
                 _media?.Dispose(); _media = null;
-                _cleanupWatch.Owns("native operation, callback buffers/delegates, input, verified stream, engine");
+                _cleanupWatch.Owns("native operation, callback buffers/delegates, input, native file, verified stream, engine");
                 _cleanupWatch.Phase("input-dispose");
                 _input?.Dispose(); _input = null;
+                _cleanupWatch.Owns("native operation, callback buffers/delegates, native file, verified stream, engine");
+                _cleanupWatch.Phase("native-file-dispose");
+                _nativeFile?.Dispose(); _nativeFile = null;
                 _cleanupWatch.Owns("native operation, callback buffers/delegates, verified stream, engine");
                 _cleanupWatch.Phase("engine-dispose");
                 _engine?.Dispose(); _engine = null;

@@ -89,6 +89,8 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
     private bool _audioAvailable;
     private int _audioTracks = -1;
     private int _audioRefreshPending;
+    private int _unrenderedAudioProbes;
+    private bool _audioTrackDisableAttemptedForUnavailableOutput;
     // Time ticks re-probe audio only until the current play epoch has settled it.
     private readonly VideoAudioProbeSchedule _audioProbe = new();
 
@@ -396,7 +398,8 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
         return await GalleryFramePng.SaveAsync(shown, path).ConfigureAwait(true);
     }
 
-    private sealed record Playback(long Generation, MediaPlayer Player, Media Media, StreamMediaInput Input, Stream Stream, SoftwareVideoSurface? Surface, CancellationToken Token);
+    private sealed record Playback(long Generation, MediaPlayer Player, Media Media, MediaInput? Input, Stream Stream,
+        VerifiedVideoFile? NativeFile, SoftwareVideoSurface? Surface, CancellationToken Token);
 
     // Acceptance observes the real player under its normal native-operation lock.
     // No alternate decoder, dummy video output or synthetic clock is used.
@@ -714,7 +717,8 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
         _timeline.Reset(generation);
         _isPlaying = false; _ended = false; _canSeek = _knownSeekable = false;
         _muteIntent.BeginMedia();
-        _audioAvailable = false; _audioTracks = -1; _audioProbe.BeginMedia();
+        _audioAvailable = false; _audioTracks = -1; _unrenderedAudioProbes = 0;
+        _audioTrackDisableAttemptedForUnavailableOutput = false; _audioProbe.BeginMedia();
         RefreshTransportPresentation();
         _volumeIntent.Request(generation, (int)_volume.Value);
         EnableTransport(false); _length = 0; DurationChanged?.Invoke(null); UpdateTime(0);
@@ -723,7 +727,8 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
         {
             using (PerformanceDiagnostics.Measure("video.operations.wait", request.Id, asset: entry.Asset.AssetId, revision: generation))
                 await _operations.WaitAsync().ConfigureAwait(false);
-            Stream? stream = null; StreamMediaInput? input = null; Media? media = null; MediaPlayer? player = null; SoftwareVideoSurface? surface = null;
+            Stream? stream = null; MediaInput? input = null; Media? media = null; MediaPlayer? player = null;
+            VerifiedVideoFile? nativeFile = null; SoftwareVideoSurface? surface = null;
             try
             {
                 await ClearPlaybackAsync(generation).ConfigureAwait(false);
@@ -746,16 +751,24 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
                     _appliedVolumeRevision = initialVolume.Revision;
                     player.EnableKeyInput = false; player.EnableMouseInput = false;
                     if (UsesSoftwareVideo) surface = new SoftwareVideoSurface(_softwareVideo, player);
-                    input = new StreamMediaInput(stream);
-                    media = new Media(_engine, input);
+                    bool isoBaseMedia = VideoStreamDemux.HasIsoBaseMediaHeader(stream);
+                    if (VideoNativeInput.UsesFileInput)
+                    {
+                        nativeFile = await VideoNativeInput.MaterializeAsync(stream, entry.Asset.Path, token).ConfigureAwait(false);
+                        media = new Media(_engine, nativeFile.Path, FromType.FromPath);
+                    }
+                    else
+                    {
+                        input = new StreamMediaInput(stream);
+                        media = new Media(_engine, input);
+                    }
                     AddInitialRotation(media);
-                    // VLC 3's MP4 demux can consume a callback-backed, single-chunk
-                    // video-only track to EOF while its reported clock stays at 250ms.
-                    // Keep the verified handle (never reopen by path); avformat demuxes
-                    // the same bytes with progressing native PCR/time and the same decoder.
-                    if (VideoStreamDemux.HasIsoBaseMediaHeader(stream)) media.AddOption(":demux=avformat");
+                    // Keep the verified stream and use a private file on macOS Intel:
+                    // LibVLC 3's callback-backed imem access can reject its get/release
+                    // table there, while the file input preserves seeking/repeat semantics.
+                    if (isoBaseMedia) media.AddOption(":demux=avformat");
                 }
-                _lifetime.Cleanup.Owns("native operation, player/drawable, callback roots, media/input, verified stream, engine");
+                _lifetime.Cleanup.Owns("native operation, player/drawable, callback roots, media/input, verified stream, native file, engine");
                 MediaPlayer ownedPlayer = player;
                 player.Playing += (_, _) =>
                 {
@@ -848,8 +861,8 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
                 };
                 player.EncounteredError += (_, _) => Post(generation, () => _ = FailAsync(generation));
                 token.ThrowIfCancellationRequested();
-                _playback = new Playback(generation, player, media, input, stream, surface, token);
-                player = null; media = null; input = null; stream = null; surface = null;
+                _playback = new Playback(generation, player, media, input, stream, nativeFile, surface, token);
+                player = null; media = null; input = null; stream = null; nativeFile = null; surface = null;
                 await Dispatcher.UIThread.InvokeAsync(() =>
                 {
                     if (IsCurrent(generation) && !UsesSoftwareVideo) _video.MediaPlayer = _playback.Player;
@@ -886,12 +899,12 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
                     // Even a partially constructed player retains its verified input until native release returns.
                     if (player != null)
                     {
-                        _playback = new Playback(generation, player, media!, input!, stream!, surface, token);
+                        _playback = new Playback(generation, player, media!, input, stream!, nativeFile, surface, token);
                         await ClearPlaybackAsync(generation).ConfigureAwait(false);
                     }
                     else
                     {
-                        try { surface?.Dispose(); media?.Dispose(); input?.Dispose(); stream?.Dispose(); }
+                        try { surface?.Dispose(); media?.Dispose(); input?.Dispose(); nativeFile?.Dispose(); stream?.Dispose(); }
                         catch (Exception exception)
                         {
                             _failedStream = stream;
@@ -1099,8 +1112,37 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
                     // Observe the epoch before native state, so a later track/playing event always wins.
                     long epoch = _audioProbe.Observe();
                     int tracks = expectedPlayer.AudioTrackCount, volume = expectedPlayer.Volume;
-                    int played = _playback!.Media.Statistics.PlayedAudioBuffers;
+                    MediaStats statistics = _playback!.Media.Statistics;
+                    int decoded = statistics.DecodedAudio, played = statistics.PlayedAudioBuffers;
                     bool available = VideoAudioAvailability.IsAvailable(tracks, volume, played);
+                    if (VideoNativeInput.UsesFileInput && tracks > 0 && decoded > 0 && played == 0)
+                    {
+                        // Do not let an Intel host with no CoreAudio endpoint keep reopening
+                        // the audio output on every play/repeat. This is enabled only after
+                        // native decoding is proven and two ordered probes prove no buffers
+                        // reached an output; the playback evidence remains auditable.
+                        if (_unrenderedAudioProbes < 2) _unrenderedAudioProbes++;
+                        if (_unrenderedAudioProbes >= 2 && !_audioTrackDisableAttemptedForUnavailableOutput)
+                        {
+                            _audioTrackDisableAttemptedForUnavailableOutput = true;
+                            try
+                            {
+                                if (expectedPlayer.SetAudioTrack(-1))
+                                {
+                                    PerformanceDiagnostics.Record("video.audio", "disable-unrendered-output",
+                                        _lifetime.RequestId(generation), revision: generation);
+                                }
+                            }
+                            catch (Exception exception)
+                            {
+                                Serilog.Log.Debug(exception, "Could not disable the unrendered Intel audio track.");
+                            }
+                        }
+                    }
+                    else if (played > 0 || tracks <= 0)
+                    {
+                        _unrenderedAudioProbes = 0;
+                    }
                     // A volume edit can arrive during backend construction, before the audio
                     // output is ready. Apply it on readiness instead of losing the latest value.
                     VideoVolumeRequest requestedVolume = _volumeIntent.Current;
@@ -1234,7 +1276,7 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
         Playback? playback = _playback;
         if (playback == null || playback.Generation > notNewerThan) return;
         bool watching = _lifetime.Cleanup.Begin(notNewerThan);
-        _lifetime.Cleanup.Owns("native operation, player/drawable, callback roots, media/input, verified stream, engine");
+        _lifetime.Cleanup.Owns("native operation, player/drawable, callback roots, media/input, verified stream, native file, engine");
         try
         {
             _lifetime.Cleanup.Phase("native-stop");
@@ -1248,16 +1290,16 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
             });
             _lifetime.Cleanup.Phase("player-dispose");
             playback.Player.Dispose();
-            _lifetime.Cleanup.Owns("native operation, callback roots, media/input, verified stream, engine");
+            _lifetime.Cleanup.Owns("native operation, callback roots, media/input, verified stream, native file, engine");
             _lifetime.Cleanup.Phase("surface-dispose");
             playback.Surface?.Dispose();
-            _lifetime.Cleanup.Owns("native operation, media/input, verified stream, engine");
+            _lifetime.Cleanup.Owns("native operation, media/input, verified stream, native file, engine");
             _lifetime.Cleanup.Phase("media-dispose");
             playback.Media?.Dispose();
-            _lifetime.Cleanup.Owns("native operation, input, verified stream, engine");
+            _lifetime.Cleanup.Owns("native operation, input, native file, verified stream, engine");
             _lifetime.Cleanup.Phase("input-dispose");
             playback.Input?.Dispose();
-            _lifetime.Cleanup.Owns("native operation, verified stream, engine");
+            _lifetime.Cleanup.Owns("native operation, verified stream, native file, engine");
             _lifetime.Cleanup.Phase("stream-dispose");
             playback.Stream?.Dispose();
             if (playback.Stream != null)
@@ -1265,6 +1307,9 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
                 if (!playback.Stream.CanRead) Interlocked.Increment(ref _releasedStreams);
                 else throw new IOException("The verified video stream did not close.");
             }
+            _lifetime.Cleanup.Phase("native-file-dispose");
+            playback.NativeFile?.Dispose();
+            _lifetime.Cleanup.Owns("native operation, engine");
             _playback = null;
             if (watching) _lifetime.Cleanup.Complete();
         }

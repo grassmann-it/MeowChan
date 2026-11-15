@@ -217,6 +217,11 @@ public partial class MainWindow
                 await WaitMediaSmokeAsync(() => Task.FromResult(!muteButton.IsEnabled && !volumeSlider.IsEnabled), "unavailable audio controls disabled");
                 RequireMediaSmoke(!string.IsNullOrWhiteSpace(AutomationProperties.GetName(muteButton))
                     && !string.IsNullOrWhiteSpace(ToolTip.GetTip(volumeSlider)?.ToString()), "Unavailable audio controls lack an accessible explanation.");
+                bool hasStrictUnavailableEvidence = audio.AudioTracks == 0
+                    || audio.AudioTracks > 0 && (audio.Volume < 0
+                        || audio.DecodedAudio > 0 && audio.PlayedAudioBuffers == 0);
+                RequireMediaSmoke(hasStrictUnavailableEvidence,
+                    "Unavailable audio controls were shown without no-track or decoded-without-output evidence.");
                 checks.Add(audio.AudioTracks == 0 ? "no-audio-track-controls" : "audio-output-unavailable-controls");
             }
             checks.Add("audio-controls-availability");
