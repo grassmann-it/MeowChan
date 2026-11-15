@@ -97,6 +97,18 @@ internal static class ReaderMediaFit
     }
 
     /// <summary>
+    /// How far the list scrolls (positive: further down) to hold the focused card whose top edge moved <paramref name="cardShift"/> dip
+    /// (positive: down) since it settled, and to keep its medium (<paramref name="frameTop"/> to <paramref name="frameBottom"/>, measured
+    /// before the scroll) whole in view from there (<see cref="ScrollDelta"/>). Shifts under one dip are layout noise and are not held.
+    /// Without a frame (NaN) only the card is held.
+    /// </summary>
+    internal static double HoldDelta(double cardShift, double frameTop, double frameBottom, double viewportHeight, double margin = ScrollMargin)
+    {
+        double shift = double.IsFinite(cardShift) && Math.Abs(cardShift) >= 1 ? cardShift : 0;
+        return shift + ScrollDelta(frameTop - shift, frameBottom - shift, viewportHeight, margin);
+    }
+
+    /// <summary>
     /// How far the list scrolls (positive: further down) so a medium whose frame spans <paramref name="top"/> to <paramref name="bottom"/>
     /// (dip from the top of the viewport) is visible whole, with a little air. Zero when it already is. A medium that is not shorter than
     /// the viewport (it should not be, after the cap) gets its top edge aligned to the top of the viewport.

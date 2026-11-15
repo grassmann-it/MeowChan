@@ -391,6 +391,8 @@ public partial class ArchivePage
         void Finish(Control? container)
         {
             if (container != null) FocusTarget(container);
+            // A later frame change of the aligned card holds it here (HoldFocusedCard) instead of scrolling it anew.
+            RememberFocusedCardTop();
             ReaderPositionChanged(deliberate: !interactionRevision.HasValue);
         }
         for (int pass = 0; pass < 8; pass++)

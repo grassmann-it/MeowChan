@@ -131,28 +131,69 @@ public partial class ArchivePage
         Dispatcher.UIThread.Post(() =>
         {
             _focusFitScheduled = false;
-            if (MayRefitFocusedCard) EnsureFocusedMediaVisible();
+            if (MayRefitFocusedCard) HoldFocusedCard();
         }, DispatcherPriority.Loaded);
     }
 
-    // The whole enlarged medium of the focused post is scrolled into view; one taller than the viewport (it should not be after the
-    // cap) gets its top edge aligned. The intent is ReaderMediaFit.ScrollDelta; this only measures and applies it.
-    private void EnsureFocusedMediaVisible()
+    // Where the focused card's top edge settled (in the list's scroll viewer), by the jump that aligned it or the anchor of a pointer
+    // selection; NaN while unknown. A later size change of its frame holds the card there instead of scrolling it anew.
+    private object? _focusedCardItem;
+    private double _focusedCardTop = double.NaN;
+
+    /// <summary>Remembers where the selected card's top edge is now (after a jump aligned it).</summary>
+    private void RememberFocusedCardTop()
+    {
+        ListBox list = ArchivePosts;
+        _focusedCardItem = null;
+        _focusedCardTop = double.NaN;
+        if (list.SelectedItem is not { } item || list.ContainerFromItem(item) is not Control container) return;
+        list.UpdateLayout();
+        if (list.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault() is not { } scroll
+            || container.TranslatePoint(default, scroll) is not Point at) return;
+        _focusedCardItem = item;
+        _focusedCardTop = at.Y;
+    }
+
+    // A frame change of the focused card (the decoded aspect replacing the reserved one, a video row): the card keeps its top edge where
+    // it settled, and only a medium that would then not be whole in view is brought in (one write, ReaderMediaFit.HoldDelta).
+    private void HoldFocusedCard()
     {
         ListBox list = ArchivePosts;
         if (_ended || list.GetValue(ReaderPostLayout.FocusScalePercentProperty) <= 100 || list.SelectedItem is not { } item
             || list.ContainerFromItem(item) is not Control container) return;
-        ScrollViewer? scroll = list.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
+        list.UpdateLayout();
+        double shift = 0;
+        if (ReferenceEquals(_focusedCardItem, item) && double.IsFinite(_focusedCardTop)
+            && list.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault() is { } scroll
+            && container.TranslatePoint(default, scroll) is Point at)
+            shift = at.Y - _focusedCardTop;
+        FitFocusedCard(item, container, shift);
+    }
+
+    // One offset write for the focused card: hold its top edge (the card moved by cardShift since it settled) and bring the whole enlarged
+    // medium into view from there; one taller than the viewport (it should not be after the cap) gets its top edge aligned. The intent is
+    // ReaderMediaFit.HoldDelta; this only measures (the layout is current) and applies it, and remembers where the card ends up.
+    private void FitFocusedCard(object item, Control container, double cardShift)
+    {
+        ScrollViewer? scroll = ArchivePosts.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
+        if (scroll == null || container.TranslatePoint(default, scroll) is not Point top) return;
         ArchiveAttachmentView? view = container.GetVisualDescendants().OfType<ArchiveAttachmentView>().FirstOrDefault(candidate => candidate.IsEffectivelyVisible);
-        if (scroll == null || view?.FrameBoundsIn(scroll) is not { } frame) return;
-        double delta = ReaderMediaFit.ScrollDelta(frame.Top, frame.Bottom, scroll.Viewport.Height);
+        Rect? frame = view?.FrameBoundsIn(scroll);
+        double delta = ReaderMediaFit.HoldDelta(cardShift, frame?.Top ?? double.NaN, frame?.Bottom ?? double.NaN, scroll.Viewport.Height);
+        double moved = 0;
         if (Math.Abs(delta) >= 1)
-            scroll.Offset = new Vector(scroll.Offset.X, Math.Max(0, scroll.Offset.Y + delta));
+        {
+            double previous = scroll.Offset.Y;
+            scroll.Offset = new Vector(scroll.Offset.X, Math.Max(0, previous + delta));
+            moved = scroll.Offset.Y - previous; // as coerced by the extent
+        }
+        _focusedCardItem = item;
+        _focusedCardTop = top.Y - moved;
     }
 
     // Selection changes the focused card's size. Its top edge keeps its place in the viewport: measured before the change is laid out and
-    // again once it was, the scroll offset takes up the difference. Only while the enlargement is in effect. Then the whole medium is
-    // brought into view (EnsureFocusedMediaVisible), once right after the layout and once after other pending scroll requests.
+    // again once it was, the scroll offset takes up the difference and brings the whole medium into view, in one write (FitFocusedCard).
+    // Only while the enlargement is in effect; a second pass after other pending layout work holds the card there.
     // A selection made by a reader jump (FocusPostAsync) is left to the jump, which aligns the card's top itself: the anchor is for a
     // selection by the pointer or anything else that does not scroll.
     private void AnchorFocusedCard()
@@ -166,15 +207,10 @@ public partial class ArchivePage
         {
             if (_ended || !ReferenceEquals(list.SelectedItem, item) || !MayRefitFocusedCard) return;
             list.UpdateLayout();
-            ScrollViewer? scroll = list.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
-            if (before is { } start && scroll != null && list.ContainerFromItem(item) is Control current && current.TranslatePoint(default, list) is Point after)
-            {
-                double shift = after.Y - start.Y;
-                if (Math.Abs(shift) >= 1)
-                    scroll.Offset = new Vector(scroll.Offset.X, Math.Max(0, scroll.Offset.Y + shift));
-            }
-            EnsureFocusedMediaVisible();
-            Dispatcher.UIThread.Post(() => { if (MayRefitFocusedCard) EnsureFocusedMediaVisible(); }, DispatcherPriority.Background);
+            if (list.ContainerFromItem(item) is not Control current) return;
+            double shift = before is { } start && current.TranslatePoint(default, list) is Point after ? after.Y - start.Y : 0;
+            FitFocusedCard(item, current, shift);
+            Dispatcher.UIThread.Post(() => { if (MayRefitFocusedCard) HoldFocusedCard(); }, DispatcherPriority.Background);
         }, DispatcherPriority.Loaded);
     }
 }

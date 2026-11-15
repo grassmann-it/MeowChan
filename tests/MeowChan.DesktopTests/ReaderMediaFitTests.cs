@@ -109,6 +109,24 @@ public sealed class ReaderMediaFitTests : IDisposable
         Assert.Equal(30, memo.Column(30, isMeasurement: true));
     }
 
+    // A5(b): a late size change of the focused card's frame holds the card's top edge; the medium is only pulled in when it would not
+    // be whole in view from there, and both happen in one scroll.
+    [Fact]
+    public void HoldDeltaKeepsTheCardTopAndOnlyThenTheMediumInView()
+    {
+        // The virtualizer moved the card 290 dip down without an offset change; its medium (60..460 now) fits once the card is back.
+        Assert.Equal(290, ReaderMediaFit.HoldDelta(290, 350, 750, 641), Tolerance);
+        // Nothing moved and the medium is whole in view: no scroll.
+        Assert.Equal(0, ReaderMediaFit.HoldDelta(0, 60, 460, 641), Tolerance);
+        Assert.Equal(0, ReaderMediaFit.HoldDelta(0.4, 60, 460, 641), Tolerance); // layout noise
+        // The frame grew past the bottom: held top, then just enough to show it whole with the air.
+        Assert.Equal(700 - (641 - ReaderMediaFit.ScrollMargin), ReaderMediaFit.HoldDelta(0, 300, 700, 641), Tolerance);
+        // The card moved up by 40 and its frame is cut below once held: both in one delta.
+        Assert.Equal(-40 + (680 - (641 - ReaderMediaFit.ScrollMargin)), ReaderMediaFit.HoldDelta(-40, 240, 640, 641), Tolerance);
+        // Without a frame only the card is held.
+        Assert.Equal(-12, ReaderMediaFit.HoldDelta(-12, double.NaN, double.NaN, 641), Tolerance);
+    }
+
     [Fact]
     public void UnusablePictureSizeIsReturnedUnchanged()
     {
