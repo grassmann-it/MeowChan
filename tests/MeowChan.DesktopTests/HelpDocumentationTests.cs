@@ -372,7 +372,7 @@ public sealed class HelpDocumentationTests
         Assert.Contains("return NavigateWorkspace(WorkspacePage.Tagging);", host, StringComparison.Ordinal);
         Assert.Contains("StartTagging = StartTaggingFromPageAsync", host, StringComparison.Ordinal);
         Assert.Contains("Stamp = QuickTagStampSet", host, StringComparison.Ordinal);
-        Assert.Contains("private Task StartTaggingFromPageAsync() => OpenTagQueueGalleryAsync();", host, StringComparison.Ordinal);
+        Assert.Contains("private Task StartTaggingFromPageAsync() => OpenTagQueueGalleryAsync(_taggingPage?.SelectedGroupId, _taggingPage?.UngroupedGroupSelected == true);", host, StringComparison.Ordinal);
         Assert.Contains("_gallery.StartTaggingMode(walk,", Read("Desktop/Shell/MainWindow.TagQueue.cs"), StringComparison.Ordinal);
         string mode = Read("Desktop/GalleryViewer.TaggingMode.cs");
         Assert.Contains("inField && !listOpen && string.IsNullOrEmpty(surface.Input.Text)", mode, StringComparison.Ordinal);
