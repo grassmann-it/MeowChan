@@ -152,7 +152,7 @@ def validate_metrics(metrics, fixture_hash):
             and 0 <= inherited.get('Time', -1) < inherited['Length'] / 2):
         raise ValueError('Missing actual inherited-repeat playback evidence')
     reopened = metrics.get('reopenedPlayback', {})
-    if metrics.get('persistedMode') != 'Repeat' or reopened.get('LoopEnabled') is not True or reopened.get('State') != 'Playing':
+    if metrics.get('persistedMode') != 'Manual+repeat' or reopened.get('LoopEnabled') is not True or reopened.get('State') != 'Playing':
         raise ValueError('Missing saved repeat/reopened gallery evidence')
     for key, cleanup in [('postCloseRestarts', 'closeCleanup'), ('postShutdownRestarts', 'shutdownCleanup')]:
         if not isinstance(metrics.get(key), int) or metrics[key] != metrics[cleanup].get('LoopRestarts'):

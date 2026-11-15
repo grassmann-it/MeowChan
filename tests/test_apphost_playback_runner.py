@@ -24,7 +24,7 @@ def metrics():
                 poster=dict(Generated=True, PersistentCacheHit=True, NonUniform=True, Width=1, Height=1, Sha256='00' * 32),
                 imageCleanup=clean.copy(), closeCleanup=clean.copy(), shutdownCleanup=clean.copy(),
                 repeatAfterSwitch=dict(LoopEnabled=True, LoopRestarts=1, State='Playing', Time=300, Length=12000),
-                reopenedPlayback=dict(LoopEnabled=True, State='Playing'), persistedMode='Repeat', postCloseRestarts=1, postShutdownRestarts=1)
+                reopenedPlayback=dict(LoopEnabled=True, State='Playing'), persistedMode='Manual+repeat', postCloseRestarts=1, postShutdownRestarts=1)
 
 
 class PlaybackRunnerTests(unittest.TestCase):
