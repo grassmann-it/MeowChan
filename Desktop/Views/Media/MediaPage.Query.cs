@@ -74,6 +74,10 @@ public sealed partial class MediaPage
             ClearQueryHint();
             return false;
         }
+        // Do not validate recognized terms against the complete raw query as file-name text. A query such as
+        // "queue:yes" is still in the search box while its queue term is being admitted; validating that raw
+        // spelling as the name can refuse the page-side term before the queue-read error is surfaced.
+        _nameFilter.SetTextSilently(string.Empty);
         MediaFilterQueryApplication applied = MediaFilterQuery.Apply(_terms.ToArray(), parsed, AdmitQueryTerm);
         bool termsChanged = !applied.Terms.SequenceEqual(_terms);
         if (termsChanged)
@@ -117,6 +121,9 @@ public sealed partial class MediaPage
         }
         catch (ArgumentException) { return MediaFilterQueryProblem.TooManyTags; }
         if (SourceTagRefusal(term, terms) != null) return MediaFilterQueryProblem.TooManyTags; // MP4: the same tags-per-list limit
+        // Queue/source-tag terms are applied by MediaPage after the core filter. Their local-read
+        // availability is deliberately handled by Present, not by query admission.
+        if (MediaFilterTerms.IsPageTerm(term)) return null;
         return IsValidFilter(next) ? null : MediaFilterQueryProblem.Refused;
     }
 
