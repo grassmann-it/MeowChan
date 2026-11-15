@@ -506,6 +506,10 @@ internal static class ReaderInteractionChecks
                 body.ContextMenu = new ContextMenu { Items = { new MenuItem { Header = "Fixture menu action" } } };
                 body.ContextMenu.Open(body);
                 await input.KeyAsync(MediaNativeInput.Space);
+                // The native key may have started an async activation just before the
+                // popup consumed it. Drain that task before taking the dialog baseline,
+                // so a late callback cannot be misattributed to dialog protection.
+                await page.ReaderMediaActivationTask;
                 Require(opens == before, "An open native menu leaked Reader activation.");
                 body.ContextMenu.Close(); body.ContextMenu = null;
             }
