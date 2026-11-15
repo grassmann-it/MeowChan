@@ -46,9 +46,9 @@ class LocalPosterSurfaceContractTests(unittest.TestCase):
             "token.ThrowIfCancellationRequested();",
             "if (Kind(row) == SavedMediaKind.Video)",
             "return await MediaTileThumbnails.LoadPosterAsync(row.Manifest, row.Asset, posterCacheDirectory, "
-            "MaximumWidth, MaximumHeight, CacheKey(row), token)",
+            "MaximumWidth, MaximumHeight, CacheKey(row), token, gate)",
             "if (Kind(row) != SavedMediaKind.Image) return null;",
-            "return await MediaTileThumbnails.KeepAsync(")
+            "MediaTileThumbnails.KeepAsync(CacheKey(row), decode)")
 
     def test_archive_tile_default_video_decoder_uses_the_shared_local_poster(self):
         self.assertIn('DecodeAsync(row, token, System.IO.Path.Combine(Config.GetConfigDirectory(), "cache", "video-posters-v1"))',
@@ -98,7 +98,8 @@ class LocalPosterSurfaceContractTests(unittest.TestCase):
             "token.ThrowIfCancellationRequested();",
             "if (png == null) return null;",
             "if (key != null && cache.TryAcquire(key) is { } hit) return hit;",
-            "T? preview = await decode(png, token)",
+            "T? preview = gate == null ? await decode(png, token)",
+            ": await gate.RunAsync(ThumbnailDecodePriority.Poster, () => decode(png, token), token)",
             "if (token.IsCancellationRequested) { preview?.Dispose(); token.ThrowIfCancellationRequested(); }",
             "return preview != null && key != null ? cache.Add(key, preview) : preview;")
         cached = section(self.media, "internal static Bitmap? TryGetCached(", "internal static string? ByteKey(")
@@ -121,7 +122,7 @@ class LocalPosterSurfaceContractTests(unittest.TestCase):
             "if (Matching(manifest, entry) is not { } asset) continue;",
             "await VideoPosterCache.GetPngAsync(manifest, asset, posterCacheDirectory, token, Verified)")
         self.assertIn("manifest.FindById(entry.AssetId!) is { } asset && asset.Length == entry.Length "
-                      "&& string.Equals(asset.Sha256, entry.Sha256, StringComparison.OrdinalIgnoreCase) ? asset : null;", poster)
+                      "&& (entry.FolderItemId != null && entry.Sha256 == null || string.Equals(asset.Sha256, entry.Sha256, StringComparison.OrdinalIgnoreCase)) ? asset : null;", poster)
 
     def test_recycled_tile_discards_late_leases_before_publishing(self):
         load = section(self.archive_tile, "private async Task LoadAsync()", "private void UpdateDescription()")

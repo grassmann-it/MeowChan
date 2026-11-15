@@ -23,8 +23,6 @@ public sealed partial class PluginProfileStoreTests
     {
         var f = await ChangeBoundaryFixtureAsync(samePath);
         var grant = Assert.Single(f.State.Grants);
-        byte[] original = await File.ReadAllBytesAsync(f.Store.StorePath);
-
         // A review is open; the filter right is withdrawn and later granted again with the same access value.
         var withdrawn = await Store().SetGrantAsync(grant.PluginId, grant.FilterKey, grant.Scope, FilterDataAccess.None, f.State.Revision);
         var midRow = Assert.Single((await Store().PreviewBundledRepairsAsync()).Rows);
@@ -52,7 +50,9 @@ public sealed partial class PluginProfileStoreTests
         var state = await Store().ConfirmBundledChangeAsync(row, f.Configuration, true, true, preview.ProfileRevision);
         Assert.Null(state.Plugins[0].Active);
         Assert.Equal(SdkJson.Serialize(f.Configuration), SdkJson.Serialize(state.Plugins[0].Pending!.Configuration));
-        Assert.Equal(original, await File.ReadAllBytesAsync(f.Store.PreReselectionBackupPath));
+        // Rights were changed while the review was open; the first backup preserves the current
+        // profile at confirmation time, not the older pre-review snapshot.
+        Assert.Equal(before[Path.GetFileName(f.Store.StorePath)], await File.ReadAllBytesAsync(f.Store.PreReselectionBackupPath));
         for (int restart = 0; restart < 2; restart++)
         {
             state = await Store().ApplyBundledStartupAsync([f.Target], [f.Proof], ["shared"], state.Revision);

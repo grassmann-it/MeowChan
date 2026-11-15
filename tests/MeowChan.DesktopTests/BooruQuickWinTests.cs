@@ -101,8 +101,11 @@ public sealed class BooruQuickWinTests
         stub.Add(new(5001));
         stub.Publish("cat_ears", 5001);
         using DanbooruTestBinding binding = new(stub);
+        // A globally paused session no longer checks watchers. Hold originals so admitted posts stay queued
+        // while this test observes the watcher notification and catalog state.
+        stub.HoldOriginals();
         await using DesktopSessionHost host = await BooruCompositionHostTests.StartAsync(profile.Path, stub, () => binding.Binding,
-            paused: true, options: new DanbooruWatcherSchedulerOptions { Interval = TimeSpan.FromSeconds(1), CheckStartSpacing = TimeSpan.Zero });
+            options: new DanbooruWatcherSchedulerOptions { Interval = TimeSpan.FromSeconds(1), CheckStartSpacing = TimeSpan.Zero });
         ConcurrentQueue<BooruWatcherCheckNotice> notices = new();
         host.BooruWatcherQueued += notices.Enqueue;
         IBooruWatcherPort watchers = host.BooruServices!.Watchers;

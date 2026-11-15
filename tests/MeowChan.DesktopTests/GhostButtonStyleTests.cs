@@ -44,7 +44,7 @@ public sealed class GhostButtonStyleTests
     [Fact]
     public void BooruCardsKeepTheirOneFindableActionOutlinedAndRemoveRed()
     {
-        string booru = File.ReadAllText(Root("Desktop/Views/Booru/BooruWorkbenchWindow.cs"));
+        string booru = File.ReadAllText(Root("Desktop/Views/Booru/BooruWorkbenchView.cs"));
         Assert.Contains("open.Classes.Add(\"ghost\")", booru);
         Assert.Contains("copy.Classes.Add(\"ghost\")", booru);
         Assert.Equal(3, booru.Split("ghost: true").Length - 1); // Resume, Pause, Restart

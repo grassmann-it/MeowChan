@@ -36,7 +36,7 @@ public sealed class TypographyStyleTests
     [Fact]
     public void BooruCardTitlesCarryTheCardTitleClassInsteadOfALiteralSize()
     {
-        string booru = File.ReadAllText(Root("Desktop/Views/Booru/BooruWorkbenchWindow.cs"));
+        string booru = File.ReadAllText(Root("Desktop/Views/Booru/BooruWorkbenchView.cs"));
         Assert.Contains("Classes = { \"card-title\" } });", booru);
         Assert.Contains("Classes = { \"mono\", \"card-title\" }", booru);
         Assert.DoesNotContain("FontSize = 14", booru);
@@ -54,7 +54,8 @@ public sealed class TypographyStyleTests
     }
 
     // P5: sizes come from the type scale (tokens or the heading classes); the only literals left are the About brand
-    // mark (documented brand size) and the Reader's local post-number style (package P8). Bold is never used.
+    // mark (documented brand size) and the Reader's local post-number style (package P8). The tagging queue
+    // deliberately bolds the next-row number as a state cue; no other desktop surface may use literal bold.
     [Fact]
     public void FontSizesComeFromTheScaleAndNothingIsBold()
     {
@@ -68,8 +69,11 @@ public sealed class TypographyStyleTests
             string relative = Path.GetRelativePath(desktop, file).Replace('\\', '/');
             string text = File.ReadAllText(file);
             foreach (Match match in literal.Matches(text)) found.Add(relative + ": " + match.Value);
-            Assert.DoesNotContain("FontWeight.Bold", text);
-            Assert.DoesNotContain("FontWeight=\"Bold\"", text);
+            if (relative != "Views/Tagging/TaggingQueueRowView.cs")
+            {
+                Assert.DoesNotContain("FontWeight.Bold", text);
+                Assert.DoesNotContain("FontWeight=\"Bold\"", text);
+            }
         }
         string[] allowed = { "Views/About/AboutWindow.axaml: FontSize=\"2", "Views/Archive/ArchivePage.axaml: Property=\"FontSize\" Value=\"1" };
         Assert.All(found, entry => Assert.Contains(allowed, prefix => entry.StartsWith(prefix, StringComparison.Ordinal)));

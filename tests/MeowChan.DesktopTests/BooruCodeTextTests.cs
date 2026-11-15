@@ -29,7 +29,10 @@ public sealed class BooruCodeTextTests : IDisposable
         "temporary-limit", "temporary-budget", "intervention-required", "timeout",
         // Host failure codes with booru.failure.* texts (BooruStatusCatalog).
         "http-network", "http-timeout", "booru-budget", "access-denied", "not-found", "invalid_page", "invalid-request",
-        "post-id"
+        "post-id",
+        // Log-only reasons used while reading the provider cooldown; the surfaced fault is
+        // provider_cooldown_unavailable, which has its own catalog text.
+        "transport_fence_read", "transport_cooldown_read", "maximum_cooldown_read"
     };
 
     private static readonly Regex Literal = new("\"([a-z][a-z0-9]*(?:[_-][a-z0-9]+)+|cancelled|canceled|rejected|busy|closed|exception|error)\"",
