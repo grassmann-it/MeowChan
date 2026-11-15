@@ -153,8 +153,8 @@ internal static class QuickTagKeys
 
 /// <summary>
 /// How many suggestion chips fit a slot: the greedy line wrap of a wrap panel (items left to right, a new row when the next does not fit
-/// the width, rows without line spacing) over the chips' measured sizes. The first <c>minimum</c> chips (the numbered ones) are always
-/// taken, even when they overflow; later ones only while their row still fits the height. Pure, so it is tested without a window.
+/// the width, rows without line spacing) over the chips' measured sizes. The first <c>minimum</c> chips (the configured suggestion count)
+/// are always taken, even when they overflow; later ones only while their row still fits the height. Pure, so it is tested without a window.
 /// </summary>
 internal struct QuickTagStripFit(double width, double height, double itemSpacing, int minimum)
 {
@@ -171,6 +171,12 @@ internal struct QuickTagStripFit(double width, double height, double itemSpacing
         else { _x += (_x > 0 ? itemSpacing : 0) + size.Width; _rowHeight = thisRow; }
         return true;
     }
+
+    /// <summary>
+    /// True when the size of a chip has to be measured (again): it never was, or it was measured for another strip width (a chip's
+    /// desired size can follow the width it is offered, so a size kept across a resize is a stale one).
+    /// </summary>
+    internal static bool NeedsMeasure(bool measured, double measuredWidth, double width) => !measured || measuredWidth != width;
 
     /// <summary>The number of chips of <paramref name="sizes"/> (in order) that fit, at least <paramref name="minimum"/> of them (or all, if fewer).</summary>
     internal static int Count(IReadOnlyList<Size> sizes, double width, double height, double itemSpacing, int minimum)
@@ -295,6 +301,8 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     private DispatcherTimer? _fitTimer;
     private bool _fillSuggestions;
     private bool _stripMeasured;
+    // True while Refresh rebuilds the blocks: the strip is fitted by Refresh itself, against the layout it just took.
+    private bool _refreshing;
     private readonly List<AssignedChip> _assignedChips = new();
     private IQuickTagSuggestionSource _source = FrequentQuickTagSuggestions.Instance;
     // The source the strip asks: the stamp set in front of _source, whatever source the host passes.
@@ -599,11 +607,24 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         PrivateTagStoreSnapshot? snapshot = _session.Snapshot;
         IReadOnlySet<TagId> carried = _session.Carried();
         int cap = SuggestionCap;
-        _candidates = snapshot == null ? Array.Empty<QuickTagSuggestion>() : Normalize(_decorated.Suggest(
-            new QuickTagSuggestionRequest(snapshot, carried, cap)), snapshot, carried, cap);
-        _candidateLetters = QuickTagBadges.Letters(_candidates.Select(item => item.Name.Display).ToArray());
-        BuildSuggestions();
-        BuildAssigned();
+        _refreshing = true;
+        try
+        {
+            // The assigned block comes first: its height decides the height of the strip's slot (the star row below it). In the panel the
+            // layout takes the new height before the strip is fitted, so the strip is final at once and not trimmed 60 ms later. The
+            // candidates and chips of the strip still agree with each other while the layout runs.
+            BuildAssigned();
+            if (_fillSuggestions && _attached)
+            {
+                RefreshTexts();
+                UpdateLayout();
+            }
+            _candidates = snapshot == null ? Array.Empty<QuickTagSuggestion>() : Normalize(_decorated.Suggest(
+                new QuickTagSuggestionRequest(snapshot, carried, cap)), snapshot, carried, cap);
+            _candidateLetters = QuickTagBadges.Letters(_candidates.Select(item => item.Name.Display).ToArray());
+            BuildSuggestions();
+        }
+        finally { _refreshing = false; }
         _input.IsEnabled = snapshot != null;
         if (snapshot == null) _input.Dismiss();
         RefreshTexts();
@@ -664,6 +685,12 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     /// <summary>The assigned block keeps at most this share of a fixed-height surface (and never less than three chip rows).</summary>
     private static double UpperMaxHeightFor(double surfaceHeight) => surfaceHeight > 0 ? Math.Max(96, surfaceHeight * 0.4) : UpperMaxHeight;
 
+    /// <summary>
+    /// The chips the strip always keeps, whatever the height: the configured suggestion count (<see cref="QuickTagOptions.SuggestionCount"/>).
+    /// More show while their rows fit the slot; fewer never do, so a short panel at a high count scrolls, as the setting says.
+    /// </summary>
+    internal int StripMinimum => _options.SuggestionCount;
+
     private void BuildSuggestions()
     {
         ClearStrip();
@@ -688,16 +715,17 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         _stripMeasured = measurable;
         int limit = measurable ? _candidates.Count : Math.Min(_candidates.Count, _options.SuggestionCount);
         int count = 0;
-        QuickTagStripFit fit = new(width, height, StripItemSpacing, QuickTagOptions.NumberedSuggestions);
+        QuickTagStripFit fit = new(width, height, StripItemSpacing, StripMinimum);
         for (int index = 0; index < limit; index++)
         {
             StripItem item = EnsureItem(index);
             if (measurable)
             {
-                if (!item.Measured)
+                if (QuickTagStripFit.NeedsMeasure(item.Measured, item.MeasuredWidth, width))
                 {
                     item.Zone.Measure(new Size(width, double.PositiveInfinity));
                     item.Size = item.Zone.DesiredSize;
+                    item.MeasuredWidth = width;
                     item.Measured = true;
                 }
                 if (!fit.TryAdd(index, item.Size)) break;
@@ -747,6 +775,8 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     private void OnStripHostSizeChanged(object? sender, SizeChangedEventArgs e)
     {
         if (_disposed || !_fillSuggestions) return;
+        // Refresh fits the strip itself right after the layout it asked for: nothing to schedule for this change.
+        if (_refreshing) return;
         if (!_stripMeasured) { RefitStrip(); return; }
         _fitTimer ??= CreateFitTimer();
         _fitTimer.Stop();
@@ -777,6 +807,8 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         internal Control Zone { get; } = zone;
         internal Size Size { get; set; }
         internal bool Measured { get; set; }
+        // The strip width the size was measured for.
+        internal double MeasuredWidth { get; set; }
     }
 
     private void BuildAssigned()

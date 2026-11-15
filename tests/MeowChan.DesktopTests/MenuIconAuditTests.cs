@@ -128,6 +128,15 @@ public sealed class MenuIconAuditTests : IDisposable
         string groups = File.ReadAllText(Root("Desktop/Views/Tagging/TaggingPage.Groups.cs"));
         Assert.Contains("menu.Item(TaggingCommands.GroupNew, Texts.T(\"tagging.page.group.newMenu\")", groups, StringComparison.Ordinal);
         Assert.Contains("GroupNameDialog.ShowAsync(this, Texts.T(\"tagging.page.group.new\")", groups, StringComparison.Ordinal);
+        // The "Manage groups" menu names its first entry the same way (it used to show the plain dialog title).
+        Assert.Contains(".Item(\"tagging.group.new\", Texts.T(\"tagging.page.group.newMenu\")", groups, StringComparison.Ordinal);
+        Assert.DoesNotContain(".Item(\"tagging.group.new\", Texts.T(\"tagging.page.group.new\")", groups, StringComparison.Ordinal);
+        // No group action is dropped as a bare task: every one runs through RunGroupAction, which says a failure in the status line.
+        Assert.DoesNotContain("_ = CreateGroupDialogAsync()", groups, StringComparison.Ordinal);
+        Assert.DoesNotContain("_ = RenameGroupDialogAsync()", groups, StringComparison.Ordinal);
+        Assert.DoesNotContain("_ = DeleteGroupAsync()", groups, StringComparison.Ordinal);
+        Assert.Equal(4, System.Text.RegularExpressions.Regex.Matches(groups, @"_ = RunGroupAction\(").Count);
+        Assert.Contains("ShowStatus(TagQueueActions.DescribeFailure(error))", groups, StringComparison.Ordinal);
     }
 
     [Fact]
