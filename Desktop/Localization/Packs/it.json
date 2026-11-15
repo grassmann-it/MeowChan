@@ -4874,6 +4874,22 @@
     "settings.reader.mediaClick.sidebar": "Mostra nella barra laterale",
     "settings.reader.mediaClick.post": "Apri nel post",
     "settings.reader.mediaClick.gallery": "Apri nella galleria",
-    "reader.media.collapseHint": "Un altro clic riporta l’immagine alla dimensione ridotta."
+    "reader.media.collapseHint": "Un altro clic riporta l’immagine alla dimensione ridotta.",
+    "command.media.panel.previous": "Media precedente",
+    "command.media.panel.next": "Media successivo",
+    "media.layout.panel": "Pannello dei media",
+    "media.layout.panelSide.left": "Pannello dei media a sinistra",
+    "media.layout.panelSide.right": "Pannello dei media a destra",
+    "media.panel.title": "Media selezionato",
+    "media.panel.empty": "Seleziona un media per vederlo qui in grande.",
+    "media.panel.close": "Chiudi il pannello dei media",
+    "media.panel.region": "Media {0} di {1}: {2}",
+    "media.panel.regionEmpty": "Pannello dei media: nessun media selezionato",
+    "media.panel.resize": "Trascina per cambiare la larghezza del pannello dei media, oppure usa le frecce quando questo bordo ha il focus",
+    "settings.limits.mediaPanelWidth": "Pannello dei media: larghezza (dip)",
+    "settings.limits.mediaPanelWidth.hint": "Larghezza del pannello dei media accanto alla griglia della pagina Media. Si cambia anche trascinando il bordo del pannello.",
+    "settings.limits.mediaPanelMinimumPageWidth": "Nascondi il pannello dei media sotto questa larghezza della pagina (dip)",
+    "settings.limits.mediaPanelMinimumPageWidth.hint": "Una pagina Media più stretta mostra solo la griglia; il pannello torna appena la pagina è di nuovo abbastanza larga. La tua scelta nel menu Layout resta salvata.",
+    "media.layout.panel.collapsed": "Nascosto finché la pagina è più stretta di {0} dip. La tua scelta resta salvata."
   }
 }

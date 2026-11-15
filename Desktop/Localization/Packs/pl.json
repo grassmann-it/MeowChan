@@ -4917,6 +4917,22 @@
     "settings.reader.mediaClick.sidebar": "Pokaż w panelu bocznym",
     "settings.reader.mediaClick.post": "Otwórz w poście",
     "settings.reader.mediaClick.gallery": "Otwórz w galerii",
-    "reader.media.collapseHint": "Kolejne kliknięcie przywraca obrazowi mały rozmiar."
+    "reader.media.collapseHint": "Kolejne kliknięcie przywraca obrazowi mały rozmiar.",
+    "command.media.panel.previous": "Poprzednie medium",
+    "command.media.panel.next": "Następne medium",
+    "media.layout.panel": "Panel mediów",
+    "media.layout.panelSide.left": "Panel mediów po lewej",
+    "media.layout.panelSide.right": "Panel mediów po prawej",
+    "media.panel.title": "Zaznaczone medium",
+    "media.panel.empty": "Zaznacz medium, aby zobaczyć je tutaj w dużym rozmiarze.",
+    "media.panel.close": "Zamknij panel mediów",
+    "media.panel.region": "Medium {0} z {1}: {2}",
+    "media.panel.regionEmpty": "Panel mediów: nie zaznaczono żadnego medium",
+    "media.panel.resize": "Przeciągnij, aby zmienić szerokość panelu mediów, lub użyj strzałek, gdy ta krawędź ma fokus",
+    "settings.limits.mediaPanelWidth": "Panel mediów: szerokość (dip)",
+    "settings.limits.mediaPanelWidth.hint": "Szerokość panelu mediów obok siatki na stronie Media. Można ją zmienić także przeciągając krawędź panelu.",
+    "settings.limits.mediaPanelMinimumPageWidth": "Ukryj panel mediów poniżej tej szerokości strony (dip)",
+    "settings.limits.mediaPanelMinimumPageWidth.hint": "Węższa strona Media pokazuje tylko siatkę; panel wraca, gdy strona znów jest wystarczająco szeroka. Twój wybór w menu Układ zostaje zachowany.",
+    "media.layout.panel.collapsed": "Ukryty, dopóki strona jest węższa niż {0} dip. Twój wybór zostaje zachowany."
   }
 }

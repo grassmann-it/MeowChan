@@ -90,6 +90,8 @@ internal static class SettingsSearchAliases
         ["TagQueueUndoDepth"] = "undo back history steps queue rückgängig zurücknehmen schritte verlauf warteschlange tagging-warteschlange",
         ["MediaTagListTop"] = "booru mode tag list sidebar tag counts top show all booru-modus tag-liste seitenleiste anzahl alle anzeigen",
         ["MediaTagListWidth"] = "tag list width sidebar handle resize wide narrow booru layout breite tag-liste seitenleiste layout schmal breit",
+        ["MediaPanelWidth"] = "media panel width sidebar preview large medium split view handle resize wide narrow medienleiste breite vorschau groß seitenleiste schmal breit",
+        ["MediaPanelMinimumPageWidth"] = "media panel hide narrow page width threshold auto split view medienleiste ausblenden schmal seitenbreite schwelle automatisch",
         ["TaggingCardCount"] = "cards tinder karten kartenmodus card mode",
         ["TaggingCardsDefault"] = "cards tinder karten kartenmodus card mode start default beginnen standard",
     };

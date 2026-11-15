@@ -4779,6 +4779,22 @@
     "settings.reader.mediaClick.sidebar": "サイドバーで表示",
     "settings.reader.mediaClick.post": "投稿内で開く",
     "settings.reader.mediaClick.gallery": "ギャラリーで開く",
-    "reader.media.collapseHint": "もう一度クリックすると画像が元の小さいサイズに戻ります。"
+    "reader.media.collapseHint": "もう一度クリックすると画像が元の小さいサイズに戻ります。",
+    "command.media.panel.previous": "前のメディア",
+    "command.media.panel.next": "次のメディア",
+    "media.layout.panel": "メディアパネル",
+    "media.layout.panelSide.left": "メディアパネルを左に表示",
+    "media.layout.panelSide.right": "メディアパネルを右に表示",
+    "media.panel.title": "選択中のメディア",
+    "media.panel.empty": "メディアを選択すると、ここに大きく表示されます。",
+    "media.panel.close": "メディアパネルを閉じる",
+    "media.panel.region": "メディア {0}/{1}: {2}",
+    "media.panel.regionEmpty": "メディアパネル: メディアが選択されていません",
+    "media.panel.resize": "ドラッグしてメディアパネルの幅を変更します。この端にフォーカスがあるときは矢印キーでも変更できます",
+    "settings.limits.mediaPanelWidth": "メディアパネル: 幅（dip）",
+    "settings.limits.mediaPanelWidth.hint": "メディアページでグリッドの横に表示されるメディアパネルの幅です。パネルの端をドラッグしても変更できます。",
+    "settings.limits.mediaPanelMinimumPageWidth": "ページ幅がこの値未満ならメディアパネルを隠す（dip）",
+    "settings.limits.mediaPanelMinimumPageWidth.hint": "メディアページが狭いときはグリッドだけを表示し、十分な幅に戻るとパネルも戻ります。レイアウトメニューでの選択は保持されます。",
+    "media.layout.panel.collapsed": "ページの幅が {0} dip 未満の間は非表示です。選択は保持されます。"
   }
 }

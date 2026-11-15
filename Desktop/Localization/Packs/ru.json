@@ -4891,6 +4891,22 @@
     "settings.reader.mediaClick.sidebar": "Показывать в боковой панели",
     "settings.reader.mediaClick.post": "Открывать в посте",
     "settings.reader.mediaClick.gallery": "Открывать в галерее",
-    "reader.media.collapseHint": "Повторный щелчок возвращает картинку к малому размеру."
+    "reader.media.collapseHint": "Повторный щелчок возвращает картинку к малому размеру.",
+    "command.media.panel.previous": "Предыдущее медиа",
+    "command.media.panel.next": "Следующее медиа",
+    "media.layout.panel": "Панель медиа",
+    "media.layout.panelSide.left": "Панель медиа слева",
+    "media.layout.panelSide.right": "Панель медиа справа",
+    "media.panel.title": "Выбранное медиа",
+    "media.panel.empty": "Выберите медиа, чтобы увидеть его здесь крупно.",
+    "media.panel.close": "Закрыть панель медиа",
+    "media.panel.region": "Медиа {0} из {1}: {2}",
+    "media.panel.regionEmpty": "Панель медиа: ничего не выбрано",
+    "media.panel.resize": "Перетащите, чтобы изменить ширину панели медиа, или используйте клавиши со стрелками, когда фокус на этом краю",
+    "settings.limits.mediaPanelWidth": "Панель медиа: ширина (dip)",
+    "settings.limits.mediaPanelWidth.hint": "Ширина панели медиа рядом с сеткой на странице «Медиа». Её можно менять и перетаскиванием края панели.",
+    "settings.limits.mediaPanelMinimumPageWidth": "Скрывать панель медиа, если ширина страницы меньше (dip)",
+    "settings.limits.mediaPanelMinimumPageWidth.hint": "На более узкой странице «Медиа» видна только сетка; панель вернётся, как только ширины снова будет достаточно. Ваш выбор в меню «Раскладка» сохраняется.",
+    "media.layout.panel.collapsed": "Скрыта, пока страница уже {0} dip. Ваш выбор сохраняется."
   }
 }

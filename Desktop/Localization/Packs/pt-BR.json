@@ -4874,6 +4874,22 @@
     "settings.reader.mediaClick.sidebar": "Mostrar na barra lateral",
     "settings.reader.mediaClick.post": "Abrir na postagem",
     "settings.reader.mediaClick.gallery": "Abrir na galeria",
-    "reader.media.collapseHint": "Outro clique devolve a imagem ao tamanho pequeno."
+    "reader.media.collapseHint": "Outro clique devolve a imagem ao tamanho pequeno.",
+    "command.media.panel.previous": "Mídia anterior",
+    "command.media.panel.next": "Próxima mídia",
+    "media.layout.panel": "Painel de mídia",
+    "media.layout.panelSide.left": "Painel de mídia à esquerda",
+    "media.layout.panelSide.right": "Painel de mídia à direita",
+    "media.panel.title": "Mídia selecionada",
+    "media.panel.empty": "Selecione uma mídia para vê-la aqui em tamanho grande.",
+    "media.panel.close": "Fechar o painel de mídia",
+    "media.panel.region": "Mídia {0} de {1}: {2}",
+    "media.panel.regionEmpty": "Painel de mídia: nenhuma mídia selecionada",
+    "media.panel.resize": "Arraste para mudar a largura do painel de mídia, ou use as setas quando esta borda estiver com o foco",
+    "settings.limits.mediaPanelWidth": "Painel de mídia: largura (dip)",
+    "settings.limits.mediaPanelWidth.hint": "Largura do painel de mídia ao lado da grade da página Mídia. Também pode ser alterada arrastando a borda do painel.",
+    "settings.limits.mediaPanelMinimumPageWidth": "Ocultar o painel de mídia abaixo desta largura de página (dip)",
+    "settings.limits.mediaPanelMinimumPageWidth.hint": "Uma página Mídia mais estreita mostra só a grade; o painel volta assim que a página estiver larga o suficiente de novo. Sua escolha no menu Layout é mantida.",
+    "media.layout.panel.collapsed": "Oculto enquanto a página for mais estreita que {0} dip. Sua escolha é mantida."
   }
 }

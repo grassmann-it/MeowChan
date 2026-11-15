@@ -4868,6 +4868,22 @@
     "settings.reader.mediaClick.sidebar": "Mostrar en la barra lateral",
     "settings.reader.mediaClick.post": "Abrir en la publicación",
     "settings.reader.mediaClick.gallery": "Abrir en la galería",
-    "reader.media.collapseHint": "Otro clic devuelve la imagen a su tamaño pequeño."
+    "reader.media.collapseHint": "Otro clic devuelve la imagen a su tamaño pequeño.",
+    "command.media.panel.previous": "Medio anterior",
+    "command.media.panel.next": "Medio siguiente",
+    "media.layout.panel": "Panel de medios",
+    "media.layout.panelSide.left": "Panel de medios a la izquierda",
+    "media.layout.panelSide.right": "Panel de medios a la derecha",
+    "media.panel.title": "Medio seleccionado",
+    "media.panel.empty": "Seleccione un medio para verlo aquí en grande.",
+    "media.panel.close": "Cerrar el panel de medios",
+    "media.panel.region": "Medio {0} de {1}: {2}",
+    "media.panel.regionEmpty": "Panel de medios: ningún medio seleccionado",
+    "media.panel.resize": "Arrastre para cambiar el ancho del panel de medios, o use las teclas de flecha cuando este borde tenga el foco",
+    "settings.limits.mediaPanelWidth": "Panel de medios: ancho (dip)",
+    "settings.limits.mediaPanelWidth.hint": "Ancho del panel de medios junto a la cuadrícula de la página Medios. También se cambia arrastrando el borde del panel.",
+    "settings.limits.mediaPanelMinimumPageWidth": "Ocultar el panel de medios por debajo de este ancho de página (dip)",
+    "settings.limits.mediaPanelMinimumPageWidth.hint": "Una página Medios más estrecha muestra solo la cuadrícula; el panel vuelve en cuanto la página vuelve a ser lo bastante ancha. Su elección en el menú Diseño se conserva.",
+    "media.layout.panel.collapsed": "Oculto mientras la página sea más estrecha que {0} dip. Su elección se conserva."
   }
 }

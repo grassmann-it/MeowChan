@@ -146,6 +146,6 @@ public partial class SettingsEditor
     {
         nameof(TagQueueLimitHelp), nameof(TagQueueFileLimitMiBHelp), nameof(TagQueueHistoryHelp),
         nameof(TagQueueGroupLimitHelp), nameof(TagQueueGroupNameLimitHelp), nameof(TagQueueConfirmAboveHelp),
-        nameof(MediaTagListTopHelp), nameof(MediaTagListWidthHelp),
+        nameof(MediaTagListTopHelp), nameof(MediaTagListWidthHelp), nameof(MediaPanelWidthHelp), nameof(MediaPanelMinimumPageWidthHelp),
     };
 }

@@ -4779,6 +4779,22 @@
     "settings.reader.mediaClick.sidebar": "사이드바에 표시",
     "settings.reader.mediaClick.post": "게시물에서 열기",
     "settings.reader.mediaClick.gallery": "갤러리에서 열기",
-    "reader.media.collapseHint": "다시 클릭하면 이미지가 원래의 작은 크기로 돌아갑니다."
+    "reader.media.collapseHint": "다시 클릭하면 이미지가 원래의 작은 크기로 돌아갑니다.",
+    "command.media.panel.previous": "이전 미디어",
+    "command.media.panel.next": "다음 미디어",
+    "media.layout.panel": "미디어 패널",
+    "media.layout.panelSide.left": "미디어 패널을 왼쪽에",
+    "media.layout.panelSide.right": "미디어 패널을 오른쪽에",
+    "media.panel.title": "선택한 미디어",
+    "media.panel.empty": "미디어를 선택하면 여기에 크게 표시됩니다.",
+    "media.panel.close": "미디어 패널 닫기",
+    "media.panel.region": "미디어 {0}/{1}: {2}",
+    "media.panel.regionEmpty": "미디어 패널: 선택한 미디어 없음",
+    "media.panel.resize": "끌어서 미디어 패널의 너비를 바꿉니다. 이 가장자리에 포커스가 있으면 화살표 키도 사용할 수 있습니다",
+    "settings.limits.mediaPanelWidth": "미디어 패널: 너비(dip)",
+    "settings.limits.mediaPanelWidth.hint": "미디어 페이지에서 그리드 옆 미디어 패널의 너비입니다. 패널의 가장자리를 끌어서도 바꿀 수 있습니다.",
+    "settings.limits.mediaPanelMinimumPageWidth": "페이지 너비가 이보다 좁으면 미디어 패널 숨기기(dip)",
+    "settings.limits.mediaPanelMinimumPageWidth.hint": "미디어 페이지가 좁으면 그리드만 표시하며, 다시 충분히 넓어지면 패널이 돌아옵니다. 레이아웃 메뉴에서 고른 설정은 그대로 유지됩니다.",
+    "media.layout.panel.collapsed": "페이지 너비가 {0}dip보다 좁은 동안 숨겨집니다. 선택은 그대로 유지됩니다."
   }
 }

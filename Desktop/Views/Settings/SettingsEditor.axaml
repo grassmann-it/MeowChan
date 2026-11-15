@@ -1470,6 +1470,30 @@
                             </StackPanel>
                         </Grid>
                     </Border>
+                    <Border Classes="settings-divider">
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                            <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                <TextBlock x:Name="MediaPanelWidthFieldLabel" Text="{Binding MediaPanelWidthLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding MediaPanelWidthHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="MediaPanelWidthInput" Value="{Binding MediaPanelWidth, Mode=TwoWay}" Minimum="{Binding MediaPanelWidthMinimum}" Maximum="{Binding MediaPanelWidthMaximum}" Increment="10" AutomationProperties.LabeledBy="{Binding ElementName=MediaPanelWidthFieldLabel}" AutomationProperties.Name="{Binding MediaPanelWidthLabel}" AutomationProperties.HelpText="{Binding MediaPanelWidthHelp}" />
+                                <TextBlock x:Name="MediaPanelWidthInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                    <Border Classes="settings-divider">
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                            <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                <TextBlock x:Name="MediaPanelMinimumPageWidthFieldLabel" Text="{Binding MediaPanelMinimumPageWidthLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding MediaPanelMinimumPageWidthHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="MediaPanelMinimumPageWidthInput" Value="{Binding MediaPanelMinimumPageWidth, Mode=TwoWay}" Minimum="{Binding MediaPanelMinimumPageWidthMinimum}" Maximum="{Binding MediaPanelMinimumPageWidthMaximum}" Increment="50" AutomationProperties.LabeledBy="{Binding ElementName=MediaPanelMinimumPageWidthFieldLabel}" AutomationProperties.Name="{Binding MediaPanelMinimumPageWidthLabel}" AutomationProperties.HelpText="{Binding MediaPanelMinimumPageWidthHelp}" />
+                                <TextBlock x:Name="MediaPanelMinimumPageWidthInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
                     <TextBlock x:Name="LimitsPreviewsHeading" Text="{Binding PreviewsGroupLabel}" Classes="workspace-field-label settings-subheading" FontWeight="SemiBold" TextWrapping="Wrap" />
                     <Border Classes="settings-divider">
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">

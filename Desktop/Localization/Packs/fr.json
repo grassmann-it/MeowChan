@@ -4868,6 +4868,22 @@
     "settings.reader.mediaClick.sidebar": "Afficher dans le panneau latéral",
     "settings.reader.mediaClick.post": "Ouvrir dans le message",
     "settings.reader.mediaClick.gallery": "Ouvrir dans la galerie",
-    "reader.media.collapseHint": "Un nouveau clic remet l’image à sa petite taille."
+    "reader.media.collapseHint": "Un nouveau clic remet l’image à sa petite taille.",
+    "command.media.panel.previous": "Média précédent",
+    "command.media.panel.next": "Média suivant",
+    "media.layout.panel": "Panneau des médias",
+    "media.layout.panelSide.left": "Panneau des médias à gauche",
+    "media.layout.panelSide.right": "Panneau des médias à droite",
+    "media.panel.title": "Média sélectionné",
+    "media.panel.empty": "Sélectionnez un média pour le voir ici en grand.",
+    "media.panel.close": "Fermer le panneau des médias",
+    "media.panel.region": "Média {0} sur {1} : {2}",
+    "media.panel.regionEmpty": "Panneau des médias : aucun média sélectionné",
+    "media.panel.resize": "Faites glisser pour modifier la largeur du panneau des médias, ou utilisez les flèches quand ce bord a le focus",
+    "settings.limits.mediaPanelWidth": "Panneau des médias : largeur (dip)",
+    "settings.limits.mediaPanelWidth.hint": "Largeur du panneau des médias à côté de la grille de la page Médias. Elle se règle aussi en faisant glisser le bord du panneau.",
+    "settings.limits.mediaPanelMinimumPageWidth": "Masquer le panneau des médias sous cette largeur de page (dip)",
+    "settings.limits.mediaPanelMinimumPageWidth.hint": "Une page Médias plus étroite n’affiche que la grille ; le panneau revient dès que la page est de nouveau assez large. Votre choix dans le menu Disposition est conservé.",
+    "media.layout.panel.collapsed": "Masqué tant que la page est plus étroite que {0} dip. Votre choix est conservé."
   }
 }
