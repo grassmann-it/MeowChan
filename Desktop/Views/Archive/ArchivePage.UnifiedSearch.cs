@@ -5,6 +5,7 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 
@@ -253,7 +254,7 @@ public partial class ArchivePage
         if (!CanRunArchiveScope) return;
         string draft = ArchiveScopedBox.Text ?? string.Empty;
         origin ??= ArchiveScopedBox;
-        if (ArchiveScope == SearchScope.FileName) _ = OpenFilenameSearchAsync(origin, draft);
+        if (ArchiveScope == SearchScope.FileName) OpenActions.Start(() => OpenFilenameSearchAsync(origin, draft), "archive.filenameSearch.open");
         else if (ValidHashDraft(draft, rejected => _archiveHashRejected = rejected))
             MediaHashSearchTask = OpenHashSearchAsync(origin, draft);
     }
@@ -266,7 +267,7 @@ public partial class ArchivePage
         if (!CanRunReaderScope) return;
         string draft = ReaderScopedBox.Text ?? string.Empty;
         origin ??= ReaderScopedBox;
-        if (ReaderScope == SearchScope.FileName) _ = OpenFilenameSearchAsync(origin, draft);
+        if (ReaderScope == SearchScope.FileName) OpenActions.Start(() => OpenFilenameSearchAsync(origin, draft), "reader.filenameSearch.open");
         else if (ValidHashDraft(draft, rejected => _readerHashRejected = rejected))
             MediaHashSearchTask = OpenHashSearchAsync(origin, draft);
     }

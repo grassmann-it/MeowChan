@@ -53,7 +53,7 @@ public partial class MainWindow
         }
         _manualImportOpening = true;
         _manualImportPending.AddRange(roots);
-        _ = OpenManualImportDialogCheckedAsync();
+        OpenActions.Start(OpenManualImportDialogCheckedAsync, "import.manual.open");
     }
 
     private async Task OpenManualImportDialogCheckedAsync()

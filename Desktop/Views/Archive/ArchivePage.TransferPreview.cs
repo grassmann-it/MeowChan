@@ -46,7 +46,7 @@ public partial class ArchivePage
         _transferPreviewRouter = new(this);
         _transferPreviewRouter.Register(new("archive.transfer-preview", this,
             () => !_ended && IsEffectivelyVisible, () => CanOpenTransferPreview,
-            () => _ = OpenTransferPreviewAsync(), Priority: 100));
+            () => OpenActions.Start(OpenTransferPreviewAsync, "archive.transferPreview.open"), Priority: 100));
         AddHandler(KeyDownEvent, RouteTransferPreviewCommand, RoutingStrategies.Bubble);
     }
 

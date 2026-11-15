@@ -32,7 +32,7 @@ public partial class MainWindow
         if (_shortcutRouter == null || _archivePage == null) return;
         _shortcutRouter.Register(new CommandRegistration("reader-groups.open-manager", this,
             () => !_largeReaderOpen && _gallery == null,
-            () => CanOpenReaderGroups, () => _ = OpenReaderGroupsAsync(), Priority: 0));
+            () => CanOpenReaderGroups, () => OpenActions.Start(() => OpenReaderGroupsAsync(), "readerGroups.open"), Priority: 0));
         Control pane = _archivePage.FindControl<Control>("ArchiveReaderPane")!;
         _shortcutRouter.Register(new CommandRegistration("reader.skip-unavailable-group-member", pane,
             () => _largeReaderOpen && (_gallery == null || _gallerySuspended),

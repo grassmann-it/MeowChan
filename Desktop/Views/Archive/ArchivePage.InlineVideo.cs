@@ -105,7 +105,7 @@ public partial class ArchivePage
         if (!ReaderMediaContextIsCurrent(source, post, needsGallery: false)) return false;
         // Enter follows the choice "Clicking a medium" for the post's first medium (a click on it, from the keyboard).
         if (ReaderVideoKeys.IsEnterToggle(e.Key, e.KeyModifiers) && IsReaderMediaGesture(e, ShortcutService.Current)) return TryActivateFirstMedium(e, post);
-        ReaderVideoAction action = ReaderVideoKeys.Classify(id => ShortcutService.Current.Matches(e, id));
+        ReaderVideoAction action = ReaderVideoKeys.ClassifyUnclaimed(id => ShortcutService.Current.Matches(e, id));
         if (action == ReaderVideoAction.None || ReaderVideoTarget(post) is not { } slot) return false;
         e.Handled = true;
         _ = slot.ExecuteAsync(action);
@@ -143,7 +143,7 @@ public partial class ArchivePage
     private bool TryRouteSidebarVideoKey(KeyEventArgs e)
     {
         if (e.Handled || !_mediaSidebarShown || _sidebarVideo is not { IsOffered: true } slot || e.Source is Button) return false;
-        ReaderVideoAction action = ReaderVideoKeys.Classify(id => CommandBindings.Matches(e, id));
+        ReaderVideoAction action = ReaderVideoKeys.ClassifyUnclaimed(id => CommandBindings.Matches(e, id));
         if (action == ReaderVideoAction.None) return false;
         e.Handled = true;
         _ = slot.ExecuteAsync(action);

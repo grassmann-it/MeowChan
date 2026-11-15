@@ -158,6 +158,12 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
     private Action? _openGallery;
     private bool _current;
 
+    /// <summary>
+    /// Whether one of the owner's own commands has a key (the argument says whether the key is a command's gesture): the video key then gives way to it.
+    /// The reader's by default; the Media page's panel sets its page's.
+    /// </summary>
+    internal Func<Func<string, bool>, bool> OwnerClaims { get; set; } = ReaderVideoKeys.ReaderClaims;
+
     /// <summary>The identity of an attachment for the slot: the same file at the same place of a rebuilt row keeps its player.</summary>
     internal static string KeyOf(MeowChan.Archive.CapturedAttachment attachment) => string.Join("\n", attachment.Position,
         attachment.MediaId ?? string.Empty, attachment.Variant, attachment.OriginalFileName ?? string.Empty, attachment.AttachmentRevisionKey ?? string.Empty);
@@ -331,7 +337,7 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
                     return;
                 case ReaderInlineVideoRules.KeyAction.Toggle:
                     // Space only when it is the toggle's binding (a person may have moved it); Enter is a fixed content key.
-                    if (ReaderVideoKeys.IsEnterToggle(e.Key, e.KeyModifiers) || CommandBindings.Matches(e, "video.play-pause"))
+                    if (ReaderVideoKeys.IsEnterToggle(e.Key, e.KeyModifiers) || CommandBindings.Matches(e, "video.play-pause") && !OwnerClaims(id => CommandBindings.Matches(e, id)))
                     {
                         e.Handled = true;
                         _ = ToggleAsync();
@@ -342,7 +348,7 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
         }
         // The other video keys: the gallery's commands from the bindings (the text-input guard is the binding match's own).
         ReaderVideoAction action = ReaderVideoKeys.Classify(id => CommandBindings.Matches(e, id));
-        if (action == ReaderVideoAction.None || action == ReaderVideoAction.PlayPause) return;
+        if (action == ReaderVideoAction.None || action == ReaderVideoAction.PlayPause || OwnerClaims(id => CommandBindings.Matches(e, id))) return;
         e.Handled = true;
         _ = ExecuteAsync(action);
     }

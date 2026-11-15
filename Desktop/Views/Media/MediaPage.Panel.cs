@@ -71,13 +71,18 @@ public sealed partial class MediaPage
 
     /// <summary>
     /// The video options of the panel (the shell: the gallery's volume, start-muted choice and seek step, the reader's player and file limits; the panel
-    /// always plays inline) and the gallery's fit limit, which the panel's picture follows. A change applies to what the panel shows now.
+    /// always plays inline) and the gallery's fit limit, which the panel's picture follows. A change applies to what the panel shows now; the shell
+    /// calls it after the settings were saved and after a preference changed in the gallery (the volume) was written, so only a new fit limit decodes the
+    /// picture again (a volume or seek step is read when the next player is made).
     /// </summary>
     internal void ConfigurePanel(ReaderInlineVideoOptions video, GalleryFitPreferences fit)
     {
+        bool fitChanged = _panelFit != fit;
         _panelFit = fit;
         _ = _panelVideoController.ConfigureAsync((video with { Enabled = true }).Clamped());
-        if (_panelShown) { OfferPanelVideo(_panelRow); RefreshPanel(); }
+        if (!_panelShown) return;
+        OfferPanelVideo(_panelRow);
+        if (fitChanged) RefreshPanel();
     }
 
     // ---- the view -------------------------------------------------------------------------------------------------------------
@@ -102,12 +107,12 @@ public sealed partial class MediaPage
         Avalonia.Automation.AutomationProperties.SetName(_panelHandle, resize);
         ToolTip.SetTip(_panelHandle, resize);
         panel.Frame.SizeChanged += (_, _) => OnPanelFrameResized();
-        panel.Open.Click += (_, e) => { e.Handled = true; _ = OpenPanelMediaAsync(); };
-        panel.GalleryRequested += (_, _) => _ = OpenPanelMediaAsync();
+        panel.Open.Click += (_, e) => { e.Handled = true; StartOpenPanelMedia(); };
+        panel.GalleryRequested += (_, _) => StartOpenPanelMedia();
         panel.PictureActivated += (_, _) => OnPanelPictureActivated();
         panel.Close.Click += (_, e) => { e.Handled = true; ClosePanel(); };
         // In the panel the slot's activator covers the poster also while idle: the focusable "Play video here" (Enter plays).
-        ReaderInlineVideoSlot slot = _panelVideo = new ReaderInlineVideoSlot(panel.FrameArea, activatorWhenIdle: true);
+        ReaderInlineVideoSlot slot = _panelVideo = new ReaderInlineVideoSlot(panel.FrameArea, activatorWhenIdle: true) { OwnerClaims = MediaPanelKeys.PageClaims };
         panel.VideoRow.Children.Add(slot.Below);
         panel.AddHandler(KeyDownEvent, OnPanelKeyDown, RoutingStrategies.Tunnel);
         panel.AddHandler(PointerPressedEvent, OnPanelPointerPressed, RoutingStrategies.Tunnel);
@@ -204,7 +209,7 @@ public sealed partial class MediaPage
         if (_lifetime.IsCancellationRequested) return;
         if (!_panelShown || _panel == null) { _panelRow = _panelWanted = null; return; }
         MediaLibraryTileRow? previous = _panelRow ?? _panelWanted;
-        MediaLibraryTileRow? rebound = previous == null ? null : RowOfTile(MediaLibraryTileKey.Of(previous.Tile));
+        MediaLibraryTileRow? rebound = previous == null ? null : RowOfTile(MediaLibraryTileKey.Of(previous.Tile), previous.Index);
         MediaLibraryTileRow? pick = rebound != null && _grid.Selection.IsSelected(rebound.Index) ? rebound : SelectedRow ?? rebound;
         bool sameMedium = pick != null && _panelRow != null && MediaLibraryTileKey.Of(pick.Tile) == MediaLibraryTileKey.Of(_panelRow.Tile);
         if (sameMedium)
@@ -219,9 +224,12 @@ public sealed partial class MediaPage
         RefreshPanel();
     }
 
-    private MediaLibraryTileRow? RowOfTile(MediaLibraryTileKey key)
+    // The tile's row by its key. A presentation that kept the order (the own state changed) finds it at its old place at once (<paramref name="hint"/>);
+    // only a reordered or filtered one walks the tiles.
+    private MediaLibraryTileRow? RowOfTile(MediaLibraryTileKey key, int hint = -1)
     {
         if (_grid.ItemsSource is not IReadOnlyList<MediaLibraryTileRow> rows) return null;
+        if (hint >= 0 && hint < _tiles.Count && hint < rows.Count && MediaLibraryTileKey.Of(_tiles[hint]) == key) return rows[hint];
         for (int i = 0; i < _tiles.Count && i < rows.Count; i++)
             if (MediaLibraryTileKey.Of(_tiles[i]) == key) return rows[i];
         return null;
@@ -295,8 +303,10 @@ public sealed partial class MediaPage
         _panelSizeText = entry.Length is > 0 and long bytes ? SizeText.Format(bytes) : string.Empty;
         DescribePanel(panel, row);
         OfferPanelVideo(row);
-        ScheduleAnnouncement(Texts.T("media.panel.region", row.Index + 1, _tiles.Count,
-            ReaderMediaSidebarRules.FileText(new CapturedAttachmentText(row.Name, entry.Length))));
+        // A refresh of the same medium (a larger frame, a changed setting) is no news for a screen reader: only another medium is announced.
+        if (!same)
+            ScheduleAnnouncement(Texts.T("media.panel.region", row.Index + 1, _tiles.Count,
+                ReaderMediaSidebarRules.FileText(new CapturedAttachmentText(row.Name, entry.Length))));
         CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         _panelLoading = loading;
         PanelTask = LoadPanelAsync(panel, row, request, loading.Token);
@@ -424,7 +434,7 @@ public sealed partial class MediaPage
         bool offered = _panelShown && entry != null && MediaPanelKeys.CanOfferVideo(_panelVideoController.Options.Enabled,
             entry.Presence == MediaLibraryPresence.Present && entry.Directory != null && entry.AssetId != null, entry.Kind == SavedMediaKind.Video);
         slot.Offer(offered ? _panelVideoController : null, offered ? PanelVideoKey(entry!) : null,
-            offered ? token => ResolvePanelEntryAsync(entry!, token) : null, row?.Name ?? string.Empty, offered ? () => _ = OpenPanelMediaAsync() : null);
+            offered ? token => ResolvePanelEntryAsync(entry!, token) : null, row?.Name ?? string.Empty, offered ? StartOpenPanelMedia : null);
         SchedulePanelVideoAutoplay(offered ? PanelVideoKey(entry!) : null);
     }
 
@@ -467,13 +477,16 @@ public sealed partial class MediaPage
     private void OnPanelPictureActivated()
     {
         if (_panelVideo is { IsOffered: true } slot) { _ = slot.ToggleAsync(); return; }
-        _ = OpenPanelMediaAsync();
+        StartOpenPanelMedia();
     }
 
     // ---- opening, closing ------------------------------------------------------------------------------------------------------
 
     /// <summary>"Open in gallery" (and a click on an image in the panel): the gallery at the panel's medium, the same path as Enter on the tile.</summary>
     internal Task OpenPanelMediaAsync() => _panelRow is { } row ? OpenRowAsync(row) : Task.CompletedTask;
+
+    // Every click, key and menu entry starts the open through the shared safe path: a failure is shown in the error banner, never lost in a discarded task.
+    private void StartOpenPanelMedia() => OpenActions.Start(OpenPanelMediaAsync, "media.panel.open");
 
     /// <summary>The cross: the panel is turned off in the layout (saved); the focus goes back to the grid.</summary>
     internal void ClosePanel()

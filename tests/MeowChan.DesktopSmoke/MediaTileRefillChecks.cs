@@ -10,7 +10,7 @@ using MeowChan.Desktop;
 
 namespace MeowChan.DesktopSmoke;
 
-// MEOWCHAN_MEDIA_PANEL_ONLY: ListBox.ScrollIntoView after the grid is refilled (new row objects, as MediaPage.Present does)
+// MEOWCHAN_MEDIA_TILE_PANEL_ONLY: ListBox.ScrollIntoView after the grid is refilled (new row objects, as MediaPage.Present does)
 // while a container is focused, at the top or far down; then Focus() on the target as MediaPage.FocusGrid does.
 internal static class MediaTileRefillChecks
 {

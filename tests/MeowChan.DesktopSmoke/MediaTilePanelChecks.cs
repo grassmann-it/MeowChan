@@ -170,7 +170,7 @@ internal static class MediaTilePanelChecks
                 }
                 int realized = list.GetVisualDescendants().OfType<ListBoxItem>().Count();
                 if (!baseline) Require(realized < 80, "Deep scrolling accumulated tile containers.");
-                Console.WriteLine($"SMOKE media-panel mode={(baseline ? "wrap-baseline" : "ursa-adapter")} n={count} initial={initialMs}ms scroll-cycle={scrollMs}ms resize={resizeMs}ms containers={initialContainers}/{realized} working-set={initialMemory}/{Process.GetCurrentProcess().WorkingSet64}");
+                Console.WriteLine($"SMOKE media-tile-panel mode={(baseline ? "wrap-baseline" : "ursa-adapter")} n={count} initial={initialMs}ms scroll-cycle={scrollMs}ms resize={resizeMs}ms containers={initialContainers}/{realized} working-set={initialMemory}/{Process.GetCurrentProcess().WorkingSet64}");
             }
             finally { fixture.Close(); }
         }
