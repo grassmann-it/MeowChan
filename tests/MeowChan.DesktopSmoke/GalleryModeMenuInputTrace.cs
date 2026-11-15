@@ -16,7 +16,7 @@ internal static partial class GalleryPlaybackFeatureChecks
         private readonly GalleryViewer _viewer;
         private readonly Control _mode;
         private readonly Window[] _roots;
-        private readonly PixelPoint _requested;
+        private PixelPoint? _requested;
         private int _remaining = 40;
         private int _opened, _closed;
         internal bool ModePressed { get; private set; }
@@ -27,7 +27,6 @@ internal static partial class GalleryPlaybackFeatureChecks
         internal ModeMenuInputTrace(Window host, GalleryViewer viewer, Control mode)
         {
             _viewer = viewer; _mode = mode;
-            _requested = mode.PointToScreen(new Point(mode.Bounds.Width / 2, mode.Bounds.Height / 2));
             _roots = new[] { host, TopLevel.GetTopLevel(mode) as Window }.OfType<Window>().Distinct().ToArray();
             foreach (Control target in _roots.Cast<Control>().Append(mode))
             {
@@ -64,11 +63,19 @@ internal static partial class GalleryPlaybackFeatureChecks
             if (_remaining-- <= 0) return;
             string Label(object? value) => value is Control control ? control.GetType().Name + ":" + control.Name
                 : value?.GetType().Name ?? "null";
+            // A native popup/template transition can detach and reattach the control between
+            // the readiness probe and this trace callback. PointToScreen rejects that brief
+            // interval, so sample the current geometry defensively rather than making tracing
+            // turn a transient visual-tree race into a smoke failure.
+            _requested = TryScreenCenter();
             var currentRoot = TopLevel.GetTopLevel(_mode);
-            var center = _mode.IsAttachedToVisualTree()
-                ? _mode.PointToScreen(new Point(_mode.Bounds.Width / 2, _mode.Bounds.Height / 2)).ToString() : "detached";
-            object? hit = currentRoot?.IsAttachedToVisualTree() == true
-                ? currentRoot.InputHitTest(currentRoot.PointToClient(_requested)) : null;
+            var center = _requested?.ToString() ?? "detached";
+            object? hit = null;
+            if (_requested is { } requested && currentRoot?.IsAttachedToVisualTree() == true)
+            {
+                try { hit = currentRoot.InputHitTest(currentRoot.PointToClient(requested)); }
+                catch (ArgumentException) { /* root migration; this sample is intentionally best-effort */ }
+            }
             Console.WriteLine("SMOKE mode-menu input: " + System.Text.Json.JsonSerializer.Serialize(new
             {
                 phase, elapsedMs = _clock.ElapsedMilliseconds, sender = Label(sender),
@@ -88,10 +95,17 @@ internal static partial class GalleryPlaybackFeatureChecks
                 time = Find<TextBlock>(_viewer, "GalleryVideoTime").Text
             }));
         }
-        private static object? NativeTarget(PixelPoint point)
+        private PixelPoint? TryScreenCenter()
         {
-            if (!OperatingSystem.IsWindows()) return null;
-            nint hit = WindowFromPoint(new WinPoint { X = point.X, Y = point.Y });
+            if (!_mode.IsAttachedToVisualTree() || !_mode.IsArrangeValid || _mode.Bounds.Width <= 0 || _mode.Bounds.Height <= 0)
+                return null;
+            try { return _mode.PointToScreen(new Point(_mode.Bounds.Width / 2, _mode.Bounds.Height / 2)); }
+            catch (ArgumentException) { return null; }
+        }
+        private static object? NativeTarget(PixelPoint? point)
+        {
+            if (!OperatingSystem.IsWindows() || point is not { } requested) return null;
+            nint hit = WindowFromPoint(new WinPoint { X = requested.X, Y = requested.Y });
             GetWindowThreadProcessId(hit, out uint process);
             GetCursorPos(out WinPoint cursor);
             return new { hit = hit.ToString("x"), root = GetAncestor(hit, 2).ToString("x"), process,
