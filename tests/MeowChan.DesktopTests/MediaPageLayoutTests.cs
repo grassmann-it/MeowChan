@@ -350,7 +350,7 @@ public sealed class MediaPageLayoutTests : IDisposable
         Assert.Equal(ids, rows.Interactive.Select(row => row.Id).ToArray());
         Assert.Equal(string.Empty, rows.Title);
         Assert.Empty(model.OversizedSections);
-        Assert.Equal(6, model.Sections.Count);
+        Assert.Equal(7, model.Sections.Count);
         // The state of today's page: tag list off, left side, all rows and captions on, medium tiles, Standard preset.
         Dictionary<string, bool> checkedState = model.Entries.ToDictionary(entry => entry.Id, entry => entry.Checked);
         Assert.False(checkedState[MediaLayoutMenu.TagListId]);
