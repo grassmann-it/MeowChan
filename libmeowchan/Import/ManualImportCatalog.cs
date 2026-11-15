@@ -282,15 +282,29 @@ internal sealed class ManualImportCatalogStore
             Interlocked.Increment(ref _cachedReads);
             return hit;
         }
+
+        // An atomic replacement can change the Windows file identity even when the bytes are the same. Keep the
+        // previous content cache long enough to confirm that case by digest; equal bytes still describe the same
+        // validated snapshot, while changed bytes are parsed normally below.
+        ManualImportCatalogSnapshot? previous = _cached;
+        byte[]? previousDigest = _cachedDigest;
         ForgetCache();
         byte[]? bytes = ReadBytes(_path);
         if (bytes == null) return ManualImportCatalogSnapshot.Empty;
+        byte[] digest = SHA256.HashData(bytes);
+        if (previous is { } same && previousDigest is { } known && digest.AsSpan().SequenceEqual(known))
+        {
+            RegularProfileFileIdentity? observed = RegularProfileFile.TryGetIdentity(_path);
+            (_cached, _cachedIdentity, _cachedDigest) = (same, observed ?? before, digest);
+            Interlocked.Increment(ref _cachedReads);
+            return same;
+        }
         Interlocked.Increment(ref _fullReads);
         ManualImportCatalogSnapshot? read = Parse(bytes, out bool newer);
         if (newer) throw new ManualImportException(ManualImportError.CatalogNewer);
         // Only a file that did not change while it was read may be reused.
         if (read != null && before is { } stable && RegularProfileFile.TryGetIdentity(_path) == stable)
-            (_cached, _cachedIdentity, _cachedDigest) = (read, stable, SHA256.HashData(bytes));
+            (_cached, _cachedIdentity, _cachedDigest) = (read, stable, digest);
         return read ?? ManualImportCatalogSnapshot.Empty;
     }
 

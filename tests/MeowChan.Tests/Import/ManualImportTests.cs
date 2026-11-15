@@ -126,6 +126,20 @@ public sealed class ManualImportTests
     }
 
     [Fact]
+    public void SameBytesAfterAtomicReplacementReuseTheCachedSnapshot()
+    {
+        using Fixture fixture = new();
+        using ProfileAdmissionToken admission = fixture.Lease.Admission.EnterStoreWriter();
+        ManualImportCatalogSnapshot written = fixture.Store.PutBatchAdmitted(Batch(items: Item()), 0, admission);
+        string replacement = Path.Combine(fixture.Temp.Path, "replacement.json");
+        File.Copy(fixture.Store.FilePath, replacement);
+        File.Replace(replacement, fixture.Store.FilePath, destinationBackupFileName: null);
+
+        for (int index = 0; index < 3; index++) Assert.Same(written, fixture.Store.Read());
+        Assert.Equal(0, fixture.Store.ReadCounts.Full);
+    }
+
+    [Fact]
     public void ABackupChangedBehindTheStoresBackIsCheckedAgain()
     {
         using Fixture fixture = new();
