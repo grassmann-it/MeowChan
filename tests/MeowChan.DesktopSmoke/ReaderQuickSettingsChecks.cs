@@ -117,13 +117,23 @@ internal static class ReaderQuickSettingsChecks
         await Program.WaitUntilAsync(() => config.ReaderSpoilers == "Always", () => "spoilers not saved");
         Require((width.SelectedItem as QuickSettingsSurface.ChoiceItem)?.Value == Config.ReaderPostWidthFull && thumbs.Value == 180, "The editors lost the saved values.");
 
-        // A failed save is reported in the popover and the confirmed value comes back.
-        fail = new InvalidOperationException("smoke failure");
+        // A failed save is reported in the popover and the confirmed value comes back. Since W3-15 the popover shows a localized cause
+        // (UserFacingError), never Exception.Message: an unknown failure reads "error.cause.other", an IOException "error.cause.io".
         ComboBox date = (ComboBox)surface.EditorOf(SettingsFieldId.ReaderDateStyle)!;
-        date.SelectedItem = ((IEnumerable<QuickSettingsSurface.ChoiceItem>)date.ItemsSource!).Single(item => item.Value == "Long");
-        await Program.WaitUntilAsync(() => surface.Status.IsVisible, () => "no failure shown");
-        Require(surface.Status.Text!.Contains("smoke failure") && config.ReaderDateStyle == "System" && (date.SelectedItem as QuickSettingsSurface.ChoiceItem)?.Value == "System",
-            "A failed save did not keep the confirmed value: " + surface.Status.Text);
+        QuickSettingsSurface.ChoiceItem[] dates = ((IEnumerable<QuickSettingsSurface.ChoiceItem>)date.ItemsSource!).ToArray();
+        foreach ((Exception failure, string cause) in new (Exception, string)[]
+        {
+            (new InvalidOperationException("smoke failure"), "error.cause.other"),
+            (new IOException("smoke failure"), "error.cause.io")
+        })
+        {
+            fail = failure;
+            string expected = Texts.T("quicksettings.failed", Texts.T(cause));
+            date.SelectedItem = dates.Single(item => item.Value == "Long");
+            await Program.WaitUntilAsync(() => surface.Status.IsVisible && surface.Status.Text == expected, () => "no failure shown as '" + expected + "': " + surface.Status.Text);
+            Require(!surface.Status.Text!.Contains("smoke failure") && config.ReaderDateStyle == "System" && (date.SelectedItem as QuickSettingsSurface.ChoiceItem)?.Value == "System",
+                "A failed save did not keep the confirmed value: " + surface.Status.Text);
+        }
         fail = null;
 
         // Escape closes only the popover; the focus is back on the View button. The surface is still the open popover's.
