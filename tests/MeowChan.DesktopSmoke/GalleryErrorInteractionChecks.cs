@@ -505,12 +505,30 @@ internal static partial class GalleryPlaybackFeatureChecks
         }
         int expectedSavedVolume = availableAudio ? 61 : 25;
         using var layoutTrace = new ShellGalleryLayoutTrace(shell, viewer);
+        async Task PresentForClickAsync(Button action)
+        {
+            if (action.IsEffectivelyVisible) return;
+            // Rare gallery actions live in the real More flyout at this shell width.
+            // Present that popup before the shared keyboard-reachable Click helper;
+            // otherwise the hidden menu row is not a valid keyboard target.
+            viewer.SetOverflowOpen(true);
+            await UntilAsync(() => viewer.IsOverflowOpen && viewer.OverflowMenuContent.IsEffectivelyVisible
+                && viewer.OverflowMenuContent.Bounds.Height > 0 && action.IsEffectivelyVisible,
+                "Gallery More did not present the hidden preference action.");
+            await LayoutAsync(shell);
+        }
         layoutTrace.Record("before repeat");
-        Click(Find<ToggleButton>(viewer, "GalleryVideoRepeatToggle"));
+        ToggleButton repeat = Find<ToggleButton>(viewer, "GalleryVideoRepeatToggle");
+        await PresentForClickAsync(repeat);
+        Click(repeat);
         layoutTrace.Record("before context");
-        Click(Find<Button>(viewer, "GalleryToggleContext"));
+        Button context = Find<Button>(viewer, "GalleryToggleContext");
+        await PresentForClickAsync(context);
+        Click(context);
         layoutTrace.Record("before overlay");
-        Click(Find<Button>(viewer, "GalleryOverlayToggle"));
+        ToggleButton overlay = Find<ToggleButton>(viewer, "GalleryOverlayToggle");
+        await PresentForClickAsync(overlay);
+        Click(overlay);
         layoutTrace.Record("after overlay");
         GalleryViewerState intendedSelection = viewer.CaptureState();
         Require(intendedSelection.ContextOpen, "Actual context action did not open the gallery context.");
