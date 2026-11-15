@@ -42,7 +42,7 @@ public static class CommandCatalog
         // TG1: the rest of the entry menu (list and grid). Tag…, the stamp, the gallery, the thread, the folder and the file path are the
         // existing commands of the media page and the gallery (one id, one key, one binding); these have no counterpart there.
         new("tagging.tag-together", "command.tagging.tag-together", "Tag together…", "Gemeinsam taggen…", "tag", null, CommandScope.Media, new[] { "tagging-list-menu" }, new[] { "tagging" }),
-        new("tagging.show-in-media", "command.tagging.show-in-media", "Show in Media", "In Medien zeigen", "crosshair", null, CommandScope.Media, new[] { "tagging-list-menu" }, new[] { "tagging" }),
+        new("tagging.show-in-media", "command.tagging.show-in-media", "Show in Media", "In Medien zeigen", "grid", null, CommandScope.Media, new[] { "tagging-list-menu" }, new[] { "tagging" }),
         new("tagging.move-first", "command.tagging.move-first", "Move to the start", "An den Anfang", "chevrons-up", "Alt+Home", CommandScope.Media, new[] { "tagging-list-menu" }, new[] { "tagging" }),
         new("tagging.move-last", "command.tagging.move-last", "Move to the end", "Ans Ende", "chevrons-down", "Alt+End", CommandScope.Media, new[] { "tagging-list-menu" }, new[] { "tagging" }),
         new("tagging.add", "command.tagging.add", "Add…", "Hinzufügen…", "plus", null, CommandScope.Media, new[] { "tagging-page" }, new[] { "tagging" }),
@@ -117,7 +117,7 @@ public static class CommandCatalog
         new("session.pause", "command.session.pause", "Pause / resume downloads and checks", "Downloads und Prüfungen pausieren / fortsetzen", "pause", "Primary+Shift+P", CommandScope.Application, new[] { "header", "app-menu", "workspace-keyboard", "tray" }),
         new("appearance.theme", "command.appearance.theme", "Change theme", "Farbschema wechseln", "moon", null, CommandScope.Settings | CommandScope.Application, new[] { "header", "settings", "app-menu" }),
         new("window.minimize", "command.window.minimize", "Minimize window", "Fenster minimieren", "minus", null, CommandScope.Application, new[] { "window-caption" }),
-        new("window.maximize", "command.window.maximize", "Maximize / Restore window", "Fenster maximieren / wiederherstellen", "square", null, CommandScope.Application, new[] { "window-caption", "titlebar-double-click" }),
+        new("window.maximize", "command.window.maximize", "Maximize / restore window", "Fenster maximieren / wiederherstellen", "square", null, CommandScope.Application, new[] { "window-caption", "titlebar-double-click" }),
         new("window.close", "command.window.close", "Close window", "Fenster schließen", "x", null, CommandScope.Application, new[] { "window-caption" }),
         new("input.focus-url", "command.input.focus-url", "Focus URL input", "URL-Eingabe fokussieren", "link", "Primary+L", CommandScope.Application, new[] { "workspace", "sources-details" }),
         new("watch.add-url", "command.watch.add-url", "Add URL", "URL hinzufügen", "plus", null, CommandScope.Downloads, new[] { "downloads-url-bar" }),
@@ -227,7 +227,7 @@ public static class CommandCatalog
         new("rules.discard", "command.rules.discard", "Discard draft", "Entwurf verwerfen", "rotate-ccw", null, CommandScope.Application, new[] { "rules-footer" }),
         new("rules.template-create", "templates.create", "Create template", "Vorlage erstellen", "plus", null, CommandScope.Application, new[] { "rules-page" }),
         new("rules.template-edit", "templates.edit", "Edit template", "Vorlage bearbeiten", "edit-2", null, CommandScope.Application, new[] { "rules-page" }),
-        new("rules.template-delete", "templates.delete", "Delete template", "Vorlage löschen", "x", null, CommandScope.Application, new[] { "rules-page" }),
+        new("rules.template-delete", "templates.delete", "Delete template", "Vorlage löschen", "x-circle", null, CommandScope.Application, new[] { "rules-page" }),
         new("rules.template-preview", "templates.preview", "Preview template", "Vorlage ansehen", "eye", null, CommandScope.Application, new[] { "rules-page" }),
         new("rules.template-apply", "templates.apply", "Copy into draft", "In Entwurf übernehmen", "copy", null, CommandScope.Dialog, new[] { "rules-page" }),
         new("rules.template-undo-apply", "templates.undo-apply", "Undo template copy", "Übernahme rückgängig", "rotate-ccw", null, CommandScope.Application, new[] { "rules-page" }),
@@ -354,7 +354,7 @@ public static class CommandCatalog
         new("video.loop", "command.video.loop", "Repeat video", "Video wiederholen", "refresh-cw", "L", CommandScope.Gallery | CommandScope.Reader | CommandScope.Media, new[] { "gallery-video-controls", "gallery-keyboard", "reader-video-keys", "media-video-keys" }),
         // Left/Right stay previous/next medium; seeking takes Ctrl (⌘) with the arrows, far seeking adds Shift.
         new("video.seek-back", "command.video.seek-back", "Back 5 seconds", "5 Sekunden zurück", "rotate-ccw", "Primary+Left", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
-        new("video.seek-forward", "command.video.seek-forward", "Forward 5 seconds", "5 Sekunden vor", "refresh-cw", "Primary+Right", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
+        new("video.seek-forward", "command.video.seek-forward", "Forward 5 seconds", "5 Sekunden vor", "rotate-cw", "Primary+Right", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
         new("video.seek-back-far", "command.video.seek-back-far", "Back 30 seconds", "30 Sekunden zurück", "chevron-left", "Primary+Shift+Left", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
         new("video.seek-forward-far", "command.video.seek-forward-far", "Forward 30 seconds", "30 Sekunden vor", "chevron-right", "Primary+Shift+Right", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
         // "," and "." jump back and forward by the seek step setting (5 seconds by default, 1 to 60); they act only while a video is shown.
@@ -377,7 +377,7 @@ public static class CommandCatalog
         new("about.show-licenses", "command.about.show-licenses", "Licenses", "Lizenzen", "file-text", null, CommandScope.About, new[] { "about-navigation" }),
         new("export.start-originals", "command.export.start-originals", "Export originals", "Originale exportieren", "download", null, CommandScope.Dialog, new[] { "original-export-dialog" }),
         new("rules.toggle-enabled", "command.rules.toggle-enabled", "Enable or disable rule", "Regel aktivieren oder deaktivieren", "power", null, CommandScope.Application, new[] { "rules-overview-row" }),
-        new("rules.delete", "command.rules.delete", "Delete rule…", "Regel löschen…", "x", null, CommandScope.Application, new[] { "rules-overview-row" }),
+        new("rules.delete", "command.rules.delete", "Delete rule…", "Regel löschen…", "x-circle", null, CommandScope.Application, new[] { "rules-overview-row" }),
         new("rules.copy-summary", "command.rules.copy-summary", "Copy rule summary", "Regelzusammenfassung kopieren", "copy", null, CommandScope.Application, new[] { "rules-overview-row" }),
         new("statistics.copy-row", "command.statistics.copy-row", "Copy row", "Zeile kopieren", "copy", "Primary+C", CommandScope.Application, new[] { "statistics-table" }, new[] { "statistics" }),
         new("statistics.copy-source", "command.statistics.copy-source", "Copy source name", "Quellennamen kopieren", "copy", null, CommandScope.Application, new[] { "statistics-table" }, new[] { "statistics" }),

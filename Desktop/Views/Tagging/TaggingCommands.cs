@@ -35,6 +35,10 @@ internal static class TaggingCommands
     internal const string GroupRemove = "tagging.group.remove";
     internal const string GroupPrefix = "tagging.group.assign:";
     internal const string GroupMenu = "tagging.group.menu";
+    // The group entries are no catalog commands; they take the icons of the matching reader-group commands (create, remove a member, the list).
+    internal const string GroupNewIcon = "plus";
+    internal const string GroupRemoveIcon = "minus";
+    internal const string GroupMenuIcon = "list";
 
     /// <summary>The menu's sections (a separator between two): continue, state, look, order and the destructive one last.</summary>
     internal static readonly IReadOnlyList<IReadOnlyList<string>> Sections =
@@ -184,7 +188,8 @@ internal static class TaggingQueueMenu
             {
                 menu.Section();
                 ContextMenuBuilder groups = new ContextMenuBuilder().Named(Texts.T("tagging.page.group.assign"));
-                groups.Item(TaggingCommands.GroupNew, Texts.T("tagging.page.group.new"), action(TaggingCommands.GroupNew), context.Capabilities.CanChange);
+                groups.Item(TaggingCommands.GroupNew, Texts.T("tagging.page.group.new"), action(TaggingCommands.GroupNew), context.Capabilities.CanChange,
+                    icon: TaggingCommands.GroupNewIcon);
                 foreach (TagQueueGroup group in context.Queue.Groups)
                 {
                     string groupId = TaggingCommands.GroupPrefix + group.Id;
@@ -192,9 +197,9 @@ internal static class TaggingQueueMenu
                     groups.Radio("tagging-groups", groupId, group.Name, checkedValue, action(groupId));
                 }
                 groups.Item(TaggingCommands.GroupRemove, Texts.T("tagging.page.group.remove"), action(TaggingCommands.GroupRemove),
-                    context.Capabilities.CanChange && context.Selected.Any(row => row.Item.GroupId != null));
+                    context.Capabilities.CanChange && context.Selected.Any(row => row.Item.GroupId != null), icon: TaggingCommands.GroupRemoveIcon);
                 menu.Submenu(TaggingCommands.GroupMenu, Texts.T("tagging.page.group.assign"), groups.ToModel(), context.Capabilities.CanChange,
-                    Texts.T("tagging.menu.reason.busy"));
+                    Texts.T("tagging.menu.reason.busy"), TaggingCommands.GroupMenuIcon);
             }
         }
         return menu;

@@ -140,7 +140,8 @@ public sealed partial class TaggingPage
     {
         if (SelectedCount == 0) return null;
         ContextMenuBuilder menu = new ContextMenuBuilder().Named(Texts.T("tagging.page.group.assign"));
-        menu.Item(TaggingCommands.GroupNew, Texts.T("tagging.page.group.new"), () => _ = CreateGroupDialogAsync(), CanChange);
+        menu.Item(TaggingCommands.GroupNew, Texts.T("tagging.page.group.new"), () => _ = CreateGroupDialogAsync(), CanChange,
+            icon: TaggingCommands.GroupNewIcon);
         foreach (TagQueueGroup group in _queueWork.Queue.Groups)
         {
             TagQueueGroup target = group;
@@ -149,7 +150,7 @@ public sealed partial class TaggingPage
                 () => _ = AssignSelectionToGroupAsync(target.Id));
         }
         menu.Item(TaggingCommands.GroupRemove, Texts.T("tagging.page.group.remove"), () => _ = AssignSelectionToGroupAsync(null),
-            CanChange && Selected.Any(row => row.Item.GroupId != null));
+            CanChange && Selected.Any(row => row.Item.GroupId != null), icon: TaggingCommands.GroupRemoveIcon);
         return menu;
     }
 

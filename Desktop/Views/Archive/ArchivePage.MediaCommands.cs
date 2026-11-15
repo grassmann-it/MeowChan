@@ -322,16 +322,18 @@ public partial class ArchivePage
             // acts on the whole selection, frozen now, exactly like the media page.
             context.Add(MediaMenuBuilder.Note(Texts.T("media.menu.note.selection", selection.Length)));
             string unavailable = Texts.T("media.selection.reason.unavailable");
+            // The selection entries take the icons of the commands that do the same for one file (the menu's icon column stays filled).
+            static string Icon(string commandId) => CommandCatalog.Get(commandId).Icon;
             context.Add(MediaMenuBuilder.ContextItem(session, "media.selection.tag", () => TagMediaSelectionAsync(thread, selection, entries, origin),
-                () => MediaTagServices != null && !_mediaSelectionBusy, Run, unavailable));
+                () => MediaTagServices != null && !_mediaSelectionBusy, Run, unavailable, Icon("tagging.tag-together")));
             context.Add(MediaMenuBuilder.ContextItem(session, "media.selection.queue", () => AddMediaSelectionToQueueAsync(thread, selection, entries),
-                () => AddToTagQueue != null && !_mediaSelectionBusy, Run, unavailable));
+                () => AddToTagQueue != null && !_mediaSelectionBusy, Run, unavailable, Icon("media.queue.add")));
             context.Add(MediaMenuBuilder.ContextItem(session, "media.selection.gallery", () => OpenMediaSelectionGalleryAsync(thread, selection, entries, origin),
-                () => OpenMediaGallery != null, Run, unavailable));
+                () => OpenMediaGallery != null, Run, unavailable, Icon("gallery.open")));
             context.Add(MediaMenuBuilder.ContextItem(session, "media.selection.export", () => ExportMediaSelectionAsync(thread, selection, origin),
-                () => true, Run));
+                () => true, Run, icon: Icon("media.export-original")));
             context.Add(MediaMenuBuilder.ContextItem(session, "media.selection.clear", () => { ClearMediaSelection(); return Task.CompletedTask; },
-                () => true, Run));
+                () => true, Run, icon: "x"));
         }
         ContextMenu menu = MediaMenuBuilder.Build(session, model, handlers, Run, context, text => Message(text), PlaybackMenuItems(playback, session, Run));
         return (menu, session);

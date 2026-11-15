@@ -89,6 +89,7 @@ internal static class MediaMenuBuilder
         else
         {
             item = new MenuItem { Header = entry.Label, Command = new DelegateCommand(Execute, CanExecute), IsEnabled = CanExecute() };
+            if (entry.Icon != null) item.Icon = CommandBindings.IconFromKey(entry.Icon);
             AutomationProperties.SetName(item, entry.Label);
             if (!executable) AutomationProperties.SetHelpText(item, entry.Reason ?? MediaMenuReasons.Unavailable);
             ToolTip.SetTip(item, executable ? entry.Label : entry.Label + " · " + (entry.Reason ?? MediaMenuReasons.Unavailable));
@@ -111,9 +112,12 @@ internal static class MediaMenuBuilder
         if (!session.IsCurrent) session.Invalidate();
     }
 
-    /// <summary>A context-specific item that runs only while the session is current.</summary>
+    /// <summary>
+    /// A context-specific item that runs only while the session is current. <paramref name="icon"/> is a catalog mask: the items below the
+    /// common section keep its icon column, and an item that does what a command does takes that command's icon.
+    /// </summary>
     internal static MenuItem ContextItem(MediaMenuSession session, string textKey, Func<Task> action, Func<bool> available,
-        Func<Func<Task>, Task> run, string? reason = null)
+        Func<Func<Task>, Task> run, string? reason = null, string? icon = null)
     {
         void Execute()
         {
@@ -121,6 +125,7 @@ internal static class MediaMenuBuilder
         }
         bool CanExecute() => available() && session.IsCurrent;
         MenuItem item = new() { Header = Texts.T(textKey), Tag = textKey, Command = new DelegateCommand(Execute, CanExecute) };
+        if (icon != null) item.Icon = CommandBindings.IconFromKey(icon);
         item.IsEnabled = CanExecute();
         item.Click += (_, _) => RetireIfStale(session);
         AutomationProperties.SetName(item, item.Header?.ToString() ?? string.Empty);
@@ -135,7 +140,7 @@ internal static class MediaMenuBuilder
 
     /// <summary>A context-specific item with a dynamic label, used for named queue groups.</summary>
     internal static MenuItem ContextItem(MediaMenuSession session, string id, string label, Func<Task> action, Func<bool> available,
-        Func<Func<Task>, Task> run, string? reason = null)
+        Func<Func<Task>, Task> run, string? reason = null, string? icon = null)
     {
         void Execute()
         {
@@ -143,6 +148,7 @@ internal static class MediaMenuBuilder
         }
         bool CanExecute() => available() && session.IsCurrent;
         MenuItem item = new() { Header = label, Tag = id, Command = new DelegateCommand(Execute, CanExecute) };
+        if (icon != null) item.Icon = CommandBindings.IconFromKey(icon);
         item.IsEnabled = CanExecute();
         item.Click += (_, _) => RetireIfStale(session);
         AutomationProperties.SetName(item, label);
@@ -157,11 +163,12 @@ internal static class MediaMenuBuilder
 
     /// <summary>Builds a context-specific submenu while retaining the media menu's stale-target guard.</summary>
     internal static MenuItem Submenu(MediaMenuSession session, string id, string label, IReadOnlyList<Control> children,
-        Func<bool>? available = null, string? reason = null)
+        Func<bool>? available = null, string? reason = null, string? icon = null)
     {
         ArgumentNullException.ThrowIfNull(children);
         bool enabled = available == null || available();
         MenuItem item = new() { Header = label, Tag = id, IsEnabled = enabled, ItemsSource = children };
+        if (icon != null) item.Icon = CommandBindings.IconFromKey(icon);
         AutomationProperties.SetName(item, label);
         if (!enabled && reason != null)
         {
