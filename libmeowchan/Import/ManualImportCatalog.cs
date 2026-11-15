@@ -436,7 +436,27 @@ internal sealed class ManualImportCatalogStore
             writer.WriteEndArray();
             writer.WriteEndObject();
         }
-        return stream.ToArray();
+        // AtomicJsonFile publishes UTF-8 JSON with LF line endings on every platform. Keep the serializer's
+        // byte contract aligned with that canonical form; otherwise Utf8JsonWriter's Windows indentation would
+        // make Serialize(snapshot) differ from the bytes that were actually published.
+        return CanonicalizeLineEndings(stream.ToArray());
+    }
+
+    private static byte[] CanonicalizeLineEndings(byte[] bytes)
+    {
+        int crlfCount = 0;
+        for (int index = 0; index + 1 < bytes.Length; index++)
+            if (bytes[index] == (byte)'\r' && bytes[index + 1] == (byte)'\n') crlfCount++;
+        if (crlfCount == 0) return bytes;
+
+        byte[] canonical = new byte[bytes.Length - crlfCount];
+        int write = 0;
+        for (int index = 0; index < bytes.Length; index++)
+        {
+            if (bytes[index] == (byte)'\r' && index + 1 < bytes.Length && bytes[index + 1] == (byte)'\n') continue;
+            canonical[write++] = bytes[index];
+        }
+        return canonical;
     }
 
     private static string Time(DateTimeOffset value) => value.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture);

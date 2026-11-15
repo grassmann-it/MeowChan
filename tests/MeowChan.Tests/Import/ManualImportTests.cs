@@ -133,6 +133,8 @@ public sealed class ManualImportTests
         ManualImportCatalogSnapshot written = fixture.Store.PutBatchAdmitted(Batch(items: Item()), 0, admission);
         string replacement = Path.Combine(fixture.Temp.Path, "replacement.json");
         byte[] expectedBytes = ManualImportCatalogStore.Serialize(written);
+        // The catalog has one canonical byte representation on Windows and Unix; the replacement must preserve it.
+        Assert.DoesNotContain((byte)'\r', expectedBytes);
         Assert.Equal(expectedBytes, File.ReadAllBytes(fixture.Store.FilePath));
         File.Copy(fixture.Store.FilePath, replacement);
         File.Replace(replacement, fixture.Store.FilePath, destinationBackupFileName: null);
