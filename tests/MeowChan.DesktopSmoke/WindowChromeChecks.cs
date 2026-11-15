@@ -19,8 +19,18 @@ internal static class WindowChromeChecks
 {
     internal static async Task RunAsync(MainWindow window)
     {
-        Require(window.WindowDecorations == WindowDecorations.BorderOnly,
-            "The shell still requests an OS title bar.");
+        if (WindowChrome.Mode == WindowChromeMode.NativeCaptionButtons)
+        {
+            Require(window.WindowDecorations == WindowDecorations.Full
+                && window.ExtendClientAreaToDecorationsHint
+                && Math.Abs(window.ExtendClientAreaTitleBarHeightHint - WindowChrome.TitleBarHeight) < 0.01,
+                "The shell did not keep the native macOS title bar.");
+        }
+        else
+        {
+            Require(window.WindowDecorations == WindowDecorations.BorderOnly,
+                "The shell still requests an OS title bar.");
+        }
         PrepareIsolatedBackdrop();
         Size entryBounds = window.Bounds.Size;
         // Reader fixtures can request a canvas larger than a hosted native
@@ -138,7 +148,9 @@ internal static class WindowChromeChecks
         window.Width = entryBounds.Width;
         window.Height = entryBounds.Height;
         await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, entryBounds.Width, entryBounds.Height));
-        Console.WriteLine("SMOKE custom caption: no OS title bar; maximize/restore labels, header double-click and minimize/taskbar roundtrip passed.");
+        Console.WriteLine(WindowChrome.ShowsOwnCaptionButtons(WindowChrome.Mode)
+            ? "SMOKE custom caption: no OS title bar; maximize/restore labels, header double-click and minimize/taskbar roundtrip passed."
+            : "SMOKE native macOS caption buttons: native title bar; maximize/restore, header double-click and minimize/taskbar roundtrip passed.");
     }
 
     private static Task WaitForNormalBoundsAsync(MainWindow window, Size expected) => Program.WaitUntilAsync(() =>
@@ -464,7 +476,10 @@ internal static class WindowChromeChecks
     internal static async Task CheckReachableAsync(MainWindow window)
     {
         window.UpdateLayout();
-        foreach (string name in new[] { "WindowMinimizeButton", "WindowMaximizeButton", "WindowCloseButton", "PauseButton", "ThemeToggleButton" })
+        string[] names = WindowChrome.ShowsOwnCaptionButtons(WindowChrome.Mode)
+            ? new[] { "WindowMinimizeButton", "WindowMaximizeButton", "WindowCloseButton", "PauseButton", "ThemeToggleButton" }
+            : new[] { "PauseButton", "ThemeToggleButton" };
+        foreach (string name in names)
         {
             Button button = window.FindControl<Button>(name)!;
             Point? origin = button.TranslatePoint(default, window);
