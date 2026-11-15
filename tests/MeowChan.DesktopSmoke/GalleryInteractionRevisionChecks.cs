@@ -4,6 +4,7 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
@@ -384,7 +385,7 @@ internal static partial class GalleryPlaybackFeatureChecks
         }
         else
         {
-            await native.ClickAsync(volume, SliderPoint(volume, .65));
+            await NativeSliderClickAsync(native, volume, .65);
             await UntilAsync(async () => (await player.InspectPlaybackAsync()).Volume >= 55, "Native volume click did not change decoder volume.");
         }
         await ObservePlayingAsync(player, "volume click");
@@ -535,18 +536,68 @@ internal static partial class GalleryPlaybackFeatureChecks
     private static Point SliderPoint(Slider slider, double fraction)
     {
         Track track = slider.GetVisualDescendants().OfType<Track>().Single();
-        bool vertical = slider.Orientation == Orientation.Vertical;
-        double thumb = track.Thumb is { } trackThumb
-            ? vertical ? trackThumb.Bounds.Height : trackThumb.Bounds.Width
-            : 12;
-        if (vertical)
-        {
-            double y = track.Bounds.Height - (thumb / 2 + fraction * (track.Bounds.Height - thumb));
-            return track.TranslatePoint(new Point(track.Bounds.Width / 2, y), slider)
-                ?? throw new InvalidOperationException("Native slider track has no screen transform.");
-        }
-        return track.TranslatePoint(new Point(thumb / 2 + fraction * (track.Bounds.Width - thumb), track.Bounds.Height / 2), slider)
+        Point trackPoint = SliderTrackPoint(track, slider.Orientation, fraction);
+        return track.TranslatePoint(trackPoint, slider)
             ?? throw new InvalidOperationException("Native slider track has no screen transform.");
+    }
+
+    private static async Task NativeSliderClickAsync(MediaNativeInput native, Slider slider, double fraction)
+    {
+        Track track = slider.GetVisualDescendants().OfType<Track>().Single();
+        Point trackPoint = SliderTrackPoint(track, slider.Orientation, fraction);
+        TopLevel root = TopLevel.GetTopLevel(slider)
+            ?? throw new InvalidOperationException("Native slider has no top-level input root.");
+        PixelPoint screen = track.PointToScreen(trackPoint);
+        Point rootPoint = root.PointToClient(screen);
+        Visual? hit = root.InputHitTest(rootPoint) as Visual;
+        Console.WriteLine("SMOKE native slider input geometry: " + System.Text.Json.JsonSerializer.Serialize(new
+        {
+            slider = slider.Name, orientation = slider.Orientation.ToString(), fraction,
+            sliderBounds = slider.Bounds.ToString(), trackBounds = track.Bounds.ToString(),
+            thumbBounds = track.Thumb?.Bounds.ToString(), trackPoint = trackPoint.ToString(),
+            sliderPoint = track.TranslatePoint(trackPoint, slider)?.ToString(), screen = screen.ToString(),
+            rootPoint = rootPoint.ToString(), hit = hit?.GetType().Name, hitName = (hit as Control)?.Name,
+            hitSlider = hit?.GetSelfAndVisualAncestors().Contains(slider) == true,
+            popupVisible = slider.GetVisualAncestors().OfType<Control>().FirstOrDefault(c => c.Name == "GalleryVideoVolumePopup")?.IsEffectivelyVisible
+        }));
+        Require(hit != null && hit.GetSelfAndVisualAncestors().Contains(slider),
+            "Native slider point is not on the slider input route; see native slider input geometry.");
+        List<string> route = new();
+        void Pointer(object? _, PointerEventArgs e) => route.Add($"{e.RoutedEvent?.Name ?? "Pointer"}:{(e.Source is Control source ? source.Name ?? source.GetType().Name : e.Source?.GetType().Name)}:handled={e.Handled}");
+        void Changed(object? _, AvaloniaPropertyChangedEventArgs e)
+        {
+            if (e.Property == Slider.ValueProperty) route.Add($"Value:{e.GetNewValue<double>():0.##}");
+        }
+        slider.AddHandler(InputElement.PointerPressedEvent, Pointer, RoutingStrategies.Tunnel | RoutingStrategies.Bubble, handledEventsToo: true);
+        slider.AddHandler(InputElement.PointerReleasedEvent, Pointer, RoutingStrategies.Tunnel | RoutingStrategies.Bubble, handledEventsToo: true);
+        slider.PropertyChanged += Changed;
+        try
+        {
+            // Use the actual PART_Track as the native coordinate owner. This avoids a second
+            // transform through the 32-DIP popup child while retaining the strict decoder edit.
+            await native.ClickAsync(track, trackPoint);
+        }
+        finally
+        {
+            slider.RemoveHandler(InputElement.PointerPressedEvent, Pointer);
+            slider.RemoveHandler(InputElement.PointerReleasedEvent, Pointer);
+            slider.PropertyChanged -= Changed;
+        }
+        Console.WriteLine("SMOKE native slider event route: " + System.Text.Json.JsonSerializer.Serialize(route));
+        Require(route.Any(entry => entry.StartsWith("PointerPressed:", StringComparison.Ordinal))
+            && route.Any(entry => entry.StartsWith("PointerReleased:", StringComparison.Ordinal)),
+            "Native slider click did not traverse the slider pointer route; see native slider event route.");
+    }
+
+    private static Point SliderTrackPoint(Track track, Orientation orientation, double fraction)
+    {
+        if (fraction is < 0 or > 1) throw new ArgumentOutOfRangeException(nameof(fraction));
+        double thumb = track.Thumb is { } trackThumb
+            ? orientation == Orientation.Vertical ? trackThumb.Bounds.Height : trackThumb.Bounds.Width
+            : 12;
+        return orientation == Orientation.Vertical
+            ? new Point(track.Bounds.Width / 2, track.Bounds.Height - (thumb / 2 + fraction * (track.Bounds.Height - thumb)))
+            : new Point(thumb / 2 + fraction * (track.Bounds.Width - thumb), track.Bounds.Height / 2);
     }
 
     private static async Task NativeSeekAsync(MediaNativeInput native, GalleryViewer viewer, double fraction, bool drag)

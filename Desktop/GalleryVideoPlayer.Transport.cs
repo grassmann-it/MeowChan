@@ -174,7 +174,12 @@ internal sealed partial class GalleryVideoPlayer
     // Below this width the row splits in two (timeline above, controls below); an inline volume slider needs 80 dip more.
     private double CompactTransportWidth => _volumeAsPopup ? 560 : 660;
 
-    private bool KeepVolumeOpen => _volumeHost.IsPointerOver || _volumeKeyboardFocus || _volumeDragging;
+    // The popup is intentionally drawn above the compact transport and therefore can sit
+    // outside the host Grid's arranged bounds. Keep it alive from the actual popup/slider
+    // hover as well as the speaker host; on native macOS input the overflow child can stop
+    // contributing to the host's IsPointerOver state during the move into the slider.
+    private bool KeepVolumeOpen => _volumeHost.IsPointerOver || _volumePopup.IsPointerOver
+        || _volume.IsPointerOver || _volumeKeyboardFocus || _volumeDragging;
 
     // A native Windows video draws above everything in its area: with docked controls (no overlay window) the volume stays a
     // horizontal slider in the row, as before. The software surface (Linux, macOS) and the native overlay window take the popup.
