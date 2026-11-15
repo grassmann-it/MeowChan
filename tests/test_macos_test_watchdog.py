@@ -27,6 +27,17 @@ class WatchdogTests(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
 
+    def test_dotnet_command_is_single_node_and_has_vstest_hang_diagnostics(self):
+        command = watchdog.build_test_command(
+            'tests/MeowChan.Tests/MeowChan.Tests.csproj', self.root / 'core')
+        self.assertIn('-m:1', command)
+        self.assertEqual(command[command.index('--blame-hang-timeout') + 1], '2min')
+        self.assertEqual(command[command.index('--blame-hang-dump-type') + 1], 'mini')
+        self.assertIn('--blame-hang', command)
+        self.assertIn('--no-build', command)
+        self.assertIn('--no-restore', command)
+        self.assertIn('--results-directory', command)
+
     def test_real_timeout_cleanup_and_later_success_remain_distinct(self):
         failed = watchdog.run_one('failed', [sys.executable, '-c', 'raise SystemExit(7)'],
                                   self.root / 'failed', 2)

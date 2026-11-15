@@ -22,6 +22,16 @@ STANDARD_DESKTOP_TIMEOUT = 600
 CANDIDATE_CORE_TIMEOUT = 360
 CANDIDATE_DESKTOP_TIMEOUT = 720
 
+# Keep MSBuild single-node and let vstest terminate a genuinely stalled test host
+# before the suite watchdog has to kill the whole process group. The latter is
+# diagnostic/containment, not a suite timeout or a skipped-test mechanism.
+DOTNET_TEST_OPTIONS = (
+    '-m:1',
+    '--blame-hang',
+    '--blame-hang-timeout', '2min',
+    '--blame-hang-dump-type', 'mini',
+)
+
 
 def processes(group):
     result = subprocess.run(['ps', '-axo', 'pid=,ppid=,pgid=,stat=,etime=,command='],
@@ -96,6 +106,14 @@ def capture_timeout(group, output):
                         log.write('\nsample exceeded 8 seconds\n')
     except Exception as exc:
         (output / 'capture-error.txt').write_text(repr(exc))
+
+
+def build_test_command(project, target):
+    return ['dotnet', 'test', project, '--configuration', 'Release',
+            '--no-build', '--no-restore', *DOTNET_TEST_OPTIONS,
+            '--logger', 'trx', '--logger', 'console;verbosity=normal',
+            '--diag', str(target / 'vstest-diag.log'),
+            '--results-directory', str(target / 'results')]
 
 
 def run_one(name, command, output, timeout):
@@ -181,10 +199,7 @@ def main():
         commands = []
         for name, project in PROJECTS:
             target = output / name
-            commands.append((name, ['dotnet', 'test', project, '--configuration', 'Release',
-                '--no-build', '--no-restore', '--logger', 'trx', '--logger',
-                'console;verbosity=normal', '--diag', str(target / 'vstest-diag.log'),
-                '--results-directory', str(target / 'results')]))
+            commands.append((name, build_test_command(project, target)))
     for name, command in commands:
         budget = desktop_timeout if name == 'desktop' and desktop_timeout is not None else core_timeout
         if args.self_test and name == 'timeout':
