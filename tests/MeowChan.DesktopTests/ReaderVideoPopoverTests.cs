@@ -19,16 +19,19 @@ public sealed class ReaderVideoPopoverTests : IDisposable
     private sealed class FakePlayer : IReaderInlineVideoPlayer
     {
         internal readonly List<(int? Volume, bool? Repeat)> Live = new();
+        internal readonly List<bool?> LiveMuted = new();
         public bool IsPlaying { get; private set; }
         public Task StartAsync() { IsPlaying = true; return Task.CompletedTask; }
         public Task PlayAsync() { IsPlaying = true; return Task.CompletedTask; }
         public Task PauseAsync() { IsPlaying = false; return Task.CompletedTask; }
-        public void ApplyLive(int? volume, bool? repeat) => Live.Add((volume, repeat));
+        public void ApplyLive(int? volume, bool? repeat, bool? muted = null) { Live.Add((volume, repeat)); LiveMuted.Add(muted); }
         public ValueTask DisposeAsync() { IsPlaying = false; return ValueTask.CompletedTask; }
     }
 
     private sealed class FakeOwner : IReaderInlineVideoOwner
     {
+        internal bool Viewer;
+        public bool IsViewer => Viewer;
         public void PlayerReleased() { }
         public void CurrentChanged(bool current) { }
         public void PlaybackChanged(bool playing) { }
@@ -39,12 +42,114 @@ public sealed class ReaderVideoPopoverTests : IDisposable
     // ---- the popover rows ---------------------------------------------------------------------------------------------------------
 
     [Fact]
-    public void TheMediaSectionHoldsTheInlineVideoRowsRightAfterTheClickChoice()
+    public void TheVideoGroupsAreOwnSectionsAndKeepImagesExpandedFollowsTheClickChoice()
     {
         string[] ids = ReaderQuickSettings.Fields.Select(field => field.Id).ToArray();
         int click = Array.IndexOf(ids, ReaderQuickSettings.MediaClickFieldId);
-        Assert.Equal(new[] { SettingsFieldId.ReaderKeepImagesExpanded, SettingsFieldId.ReaderInlineVideoAutoplayMuted, SettingsFieldId.GalleryVideoRepeat, SettingsFieldId.VideoVolume },
-            ids.Skip(click + 1).Take(4));
+        Assert.Equal(SettingsFieldId.ReaderKeepImagesExpanded, ids[click + 1]);
+        string? section = null;
+        Dictionary<string, List<string>> groups = new();
+        foreach (QuickSettingsEntry entry in ReaderQuickSettings.Layout)
+        {
+            if (entry is QuickSettingsSection header) section = header.TitleKey;
+            else if (entry is QuickSettingsFieldEntry row) { if (!groups.TryGetValue(section!, out List<string>? list)) groups[section!] = list = new(); list.Add(row.Field.Id); }
+        }
+        Assert.Equal(new[] { SettingsFieldId.ReaderInlineVideoAutoplayMuted, SettingsFieldId.GalleryVideoRepeat, SettingsFieldId.VideoStartMuted, SettingsFieldId.VideoVolume },
+            groups["quicksettings.reader.section.postVideo"]);
+        Assert.Equal(new[] { SettingsFieldId.ReaderSidebarVideoAutoplay, SettingsFieldId.ReaderSidebarVideoLoop, SettingsFieldId.ReaderSidebarVideoStartMuted },
+            groups["quicksettings.reader.section.sidebarVideo"]);
+    }
+
+    [Fact]
+    public void TheSidebarVideoDefaultsAreAutoplayOnLoopOnAndSoundOn()
+    {
+        Config config = new();
+        Assert.True(config.ReaderSidebarVideoAutoplay);
+        Assert.True(config.ReaderSidebarVideoLoop);
+        Assert.False(config.ReaderSidebarVideoStartMuted);
+        ReaderInlineVideoOptions options = ReaderInlineVideoOptions.From(config);
+        Assert.True(options.SidebarAutoplay);
+        Assert.True(options.SidebarLoop);
+        Assert.False(options.SidebarStartMuted);
+        // An older settings file without the keys, or with a broken value, gets the defaults ON; a saved off stays off.
+        Config old = JsonSerializer.Deserialize<Config>("{}")!;
+        Assert.True(old.ReaderSidebarVideoAutoplay && old.ReaderSidebarVideoLoop);
+        Config broken = JsonSerializer.Deserialize<Config>("{\"ReaderSidebarVideoAutoplay\":\"x\",\"ReaderSidebarVideoLoop\":null}")!;
+        Assert.True(broken.ReaderSidebarVideoAutoplay && broken.ReaderSidebarVideoLoop);
+        Config saved = JsonSerializer.Deserialize<Config>("{\"ReaderSidebarVideoAutoplay\":false,\"ReaderSidebarVideoLoop\":false,\"ReaderSidebarVideoStartMuted\":true}")!;
+        Assert.False(saved.ReaderSidebarVideoAutoplay);
+        Assert.False(saved.ReaderSidebarVideoLoop);
+        Assert.True(saved.ReaderSidebarVideoStartMuted);
+        Assert.True(ReaderInlineVideoRules.ShouldAutoplayViewer(options with { Enabled = true }, shown: true));
+        Assert.False(ReaderInlineVideoRules.ShouldAutoplayViewer(options with { Enabled = true, SidebarAutoplay = false }, shown: true));
+        Assert.False(ReaderInlineVideoRules.ShouldAutoplayViewer(options with { Enabled = true }, shown: false));
+        Assert.True(ReaderInlineVideoRules.StartMutedViewer(options with { SidebarStartMuted = true }, null));
+        Assert.False(ReaderInlineVideoRules.StartMutedViewer(options with { SidebarStartMuted = true }, false)); // the session's speaker choice wins
+        Assert.True(ReaderInlineVideoRules.StartMutedViewer(options, true));
+    }
+
+    [Fact]
+    public void SidebarVideoSettingsSurviveCloneCopiesExportAndTheJsonRoundTrip()
+    {
+        Config source = new() { ReaderSidebarVideoAutoplay = false, ReaderSidebarVideoLoop = false, ReaderSidebarVideoStartMuted = true };
+        Config clone = source.Clone();
+        Config copy = new(); copy.CopyFrom(source);
+        Config settings = new(); settings.CopySettingsFieldsFrom(source);
+        Config loaded = JsonSerializer.Deserialize<Config>(JsonSerializer.Serialize(source))!;
+        foreach (Config config in new[] { clone, copy, settings, loaded })
+        {
+            Assert.False(config.ReaderSidebarVideoAutoplay);
+            Assert.False(config.ReaderSidebarVideoLoop);
+            Assert.True(config.ReaderSidebarVideoStartMuted);
+        }
+        Assert.False(SettingsTransfer.CreatePortableSnapshot(source).ReaderSidebarVideoLoop);
+        Assert.False(SettingsTransfer.Export(source, "1.1.0")[nameof(Config.ReaderSidebarVideoLoop)]!.GetValue<bool>());
+    }
+
+    [Fact]
+    public async Task SidebarLoopAndMuteReachOnlyTheViewerAndInlineRepeatOnlyThePostVideos()
+    {
+        ReaderInlineVideoController controller = new();
+        await controller.ConfigureAsync(On());
+        FakeOwner viewer = new() { Viewer = true };
+        FakeOwner post = new();
+        FakePlayer viewerPlayer = new(), postPlayer = new();
+        Assert.True(await controller.PlayAsync(viewer, () => viewerPlayer));
+        Assert.True(await controller.PlayAsync(post, () => postPlayer));
+
+        await controller.ConfigureAsync(On() with { SidebarLoop = false });
+        Assert.Equal(((int?)null, (bool?)false), Assert.Single(viewerPlayer.Live));
+        Assert.Empty(postPlayer.Live);
+        await controller.ConfigureAsync(On() with { SidebarLoop = false, Repeat = true });
+        Assert.Equal(((int?)null, (bool?)true), postPlayer.Live[0]);
+        Assert.Single(viewerPlayer.Live);
+        await controller.ConfigureAsync(On() with { SidebarLoop = false, Repeat = true, SidebarStartMuted = true });
+        Assert.Equal(true, viewerPlayer.LiveMuted[^1]);
+        Assert.Single(postPlayer.Live);
+        Assert.True(postPlayer.IsPlaying);
+    }
+
+    [Fact]
+    public void TheNewTextsExistInAllTwelveLanguages()
+    {
+        string[] keys =
+        {
+            "settings.reader.sidebarVideoAutoplay", "settings.reader.sidebarVideoAutoplay.hint", "settings.reader.sidebarVideoLoop", "settings.reader.sidebarVideoLoop.hint",
+            "settings.reader.sidebarVideoMuted", "settings.reader.sidebarVideoMuted.hint",
+            "quicksettings.reader.section.postVideo", "quicksettings.reader.section.sidebarVideo"
+        };
+        foreach (string key in keys)
+        {
+            Assert.False(string.IsNullOrWhiteSpace(BuiltInCatalog.English[key]), key);
+            Assert.False(string.IsNullOrWhiteSpace(BuiltInCatalog.German[key]), key);
+        }
+        string packs = Path.Combine(RepositoryRoot(), "Desktop/Localization/Packs");
+        foreach (string file in Directory.GetFiles(packs, "*.json"))
+        {
+            using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(file));
+            JsonElement strings = doc.RootElement.GetProperty("strings");
+            foreach (string key in keys) Assert.True(strings.TryGetProperty(key, out JsonElement value) && !string.IsNullOrWhiteSpace(value.GetString()), $"{Path.GetFileName(file)} {key}");
+        }
     }
 
     [Fact]

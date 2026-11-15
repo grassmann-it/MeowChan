@@ -579,6 +579,15 @@ namespace MeowChan
         public bool ReaderInlineVideoAutoplayMuted { get; set; } = false;
         /// <summary>"Open in the post": an image expanded in its post stays expanded when it scrolls out of the view and back, and when the posts are rebuilt (open thread only). Off: it goes back to its thumbnail.</summary>
         public bool ReaderKeepImagesExpanded { get; set; } = false;
+        // "Videos in the media sidebar" (the one viewer of the reader, the large reader, the archive view and the Media page's panel): its own three
+        // switches, apart from the videos in posts. Autoplay and loop are on by default (a file without these keys, an older profile, gets them too);
+        // start muted is off, so the sound follows the remembered volume. The volume itself is the gallery's (VideoVolume).
+        [JsonConverter(typeof(DesktopPreferenceTrueBooleanConverter))]
+        public bool ReaderSidebarVideoAutoplay { get; set; } = true;
+        [JsonConverter(typeof(DesktopPreferenceTrueBooleanConverter))]
+        public bool ReaderSidebarVideoLoop { get; set; } = true;
+        [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
+        public bool ReaderSidebarVideoStartMuted { get; set; }
         public int ReaderInlineVideoMaxPlayers { get; set; } = ReaderInlineVideoMaxPlayersDefault;
         internal const int ReaderInlineVideoMaxPlayersDefault = ReaderInlineVideoOptions.MaxPlayersDefault;
         internal const int ReaderInlineVideoMaxPlayersMinimum = ReaderInlineVideoOptions.MaxPlayersMinimum;
@@ -1881,6 +1890,9 @@ namespace MeowChan
                 ReaderMediaClick = ReaderMediaClick,
                 ReaderInlineVideoAutoplayMuted = ReaderInlineVideoAutoplayMuted,
                 ReaderKeepImagesExpanded = ReaderKeepImagesExpanded,
+                ReaderSidebarVideoAutoplay = ReaderSidebarVideoAutoplay,
+                ReaderSidebarVideoLoop = ReaderSidebarVideoLoop,
+                ReaderSidebarVideoStartMuted = ReaderSidebarVideoStartMuted,
                 ReaderInlineVideoMaxPlayers = ReaderInlineVideoMaxPlayers,
                 ReaderInlineVideoMaxFileMiB = ReaderInlineVideoMaxFileMiB,
                 ReaderMediaStripLimit = ReaderMediaStripLimit,
@@ -2137,6 +2149,9 @@ namespace MeowChan
             ReaderMediaClick = source.ReaderMediaClick;
             ReaderInlineVideoAutoplayMuted = source.ReaderInlineVideoAutoplayMuted;
             ReaderKeepImagesExpanded = source.ReaderKeepImagesExpanded;
+            ReaderSidebarVideoAutoplay = source.ReaderSidebarVideoAutoplay;
+            ReaderSidebarVideoLoop = source.ReaderSidebarVideoLoop;
+            ReaderSidebarVideoStartMuted = source.ReaderSidebarVideoStartMuted;
             ReaderInlineVideoMaxPlayers = source.ReaderInlineVideoMaxPlayers;
             ReaderInlineVideoMaxFileMiB = source.ReaderInlineVideoMaxFileMiB;
             ReaderMediaStripLimit = source.ReaderMediaStripLimit;
@@ -2370,6 +2385,9 @@ namespace MeowChan
             ReaderMediaClick = source.ReaderMediaClick;
             ReaderInlineVideoAutoplayMuted = source.ReaderInlineVideoAutoplayMuted;
             ReaderKeepImagesExpanded = source.ReaderKeepImagesExpanded;
+            ReaderSidebarVideoAutoplay = source.ReaderSidebarVideoAutoplay;
+            ReaderSidebarVideoLoop = source.ReaderSidebarVideoLoop;
+            ReaderSidebarVideoStartMuted = source.ReaderSidebarVideoStartMuted;
             ReaderInlineVideoMaxPlayers = source.ReaderInlineVideoMaxPlayers;
             ReaderInlineVideoMaxFileMiB = source.ReaderInlineVideoMaxFileMiB;
             ReaderMediaStripLimit = source.ReaderMediaStripLimit;

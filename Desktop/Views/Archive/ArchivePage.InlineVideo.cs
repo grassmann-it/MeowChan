@@ -179,19 +179,19 @@ public partial class ArchivePage
         OpenMediaSidebarMedia();
     }
 
-    // Opt-in muted autoplay of the sidebar's video, once the selection rested (holding ↑/↓ starts nothing).
+    // The sidebar's own autoplay (default on; sound as its start-muted switch says) of the shown video, once the selection rested (holding ↑/↓ starts nothing).
     private void ScheduleSidebarVideoAutoplay()
     {
         _sidebarVideoAutoplay?.Stop();
         if (_sidebarVideo is not { IsOffered: true, IsLive: false }
-            || !ReaderInlineVideoRules.ShouldAutoplay(_inlineVideo.Options, _mediaSidebarShown && !_obscuredByGallery, presentedElsewhere: false)) return;
+            || !ReaderInlineVideoRules.ShouldAutoplayViewer(_inlineVideo.Options, _mediaSidebarShown && !_obscuredByGallery)) return;
         _sidebarVideoAutoplayKey = ArchivePosts.SelectedItem is ArchivePostRow post ? post.Id + "\n" + _sidebarIndex : null;
         DispatcherTimer timer = _sidebarVideoAutoplay ??= CreateSidebarTimer(() =>
         {
             string? key = ArchivePosts.SelectedItem is ArchivePostRow current ? current.Id + "\n" + _sidebarIndex : null;
             if (!_ended && _mediaSidebarShown && !_obscuredByGallery && key != null && key == _sidebarVideoAutoplayKey
                 && _sidebarVideo is { IsOffered: true, IsLive: false } video)
-                _ = video.PlayAsync(muted: true);
+                _ = video.PlayAsync(); // the sidebar's own autoplay is not muted by force: its "start muted" decides
         });
         timer.Interval = TimeSpan.FromMilliseconds(ReaderInlineVideoRules.AutoplayDelayMs);
         timer.Start();

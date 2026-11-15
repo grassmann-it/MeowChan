@@ -43,6 +43,15 @@ internal readonly record struct ReaderInlineVideoOptions(bool Enabled, bool Auto
     internal bool KeepImagesExpanded { get; init; }
     /// <summary>The gallery's "start muted"; autoplay is muted in any case.</summary>
     internal bool StartMuted { get; init; }
+    // "Videos in the media sidebar": the viewer (the reader's sidebar, the archive view's, the Media page's panel) has three switches of its own,
+    // apart from the videos in posts (<see cref="AutoplayMuted"/>, <see cref="Repeat"/>, <see cref="StartMuted"/>), so their defaults differ.
+    // Its autoplay does not force silence: sound follows the volume unless "start muted" is on or the person muted it in this session.
+    /// <summary>The sidebar's video starts by itself once the selection rested (applies to the next medium selected).</summary>
+    internal bool SidebarAutoplay { get; init; } = true;
+    /// <summary>The sidebar's video repeats (applies to the video shown now).</summary>
+    internal bool SidebarLoop { get; init; } = true;
+    /// <summary>The sidebar's video starts muted (applies to the video shown now).</summary>
+    internal bool SidebarStartMuted { get; init; }
     /// <summary>The gallery's seek step (seconds of one "," or "." key), also used by the reader's video keys.</summary>
     internal int SeekStepSeconds { get; init; } = Config.GalleryVideoSeekStepSecondsDefault;
 
@@ -56,6 +65,9 @@ internal readonly record struct ReaderInlineVideoOptions(bool Enabled, bool Auto
         Repeat = config.GalleryVideoRepeat,
         KeepImagesExpanded = config.ReaderKeepImagesExpanded,
         StartMuted = config.VideoStartMuted,
+        SidebarAutoplay = config.ReaderSidebarVideoAutoplay,
+        SidebarLoop = config.ReaderSidebarVideoLoop,
+        SidebarStartMuted = config.ReaderSidebarVideoStartMuted,
         SeekStepSeconds = config.GalleryVideoSeekStepSeconds
     };
 
@@ -103,6 +115,9 @@ internal static class ReaderInlineVideoRules
     internal static bool ShouldAutoplay(ReaderInlineVideoOptions options, bool shown, bool presentedElsewhere) =>
         options.Enabled && options.AutoplayMuted && shown && !presentedElsewhere;
 
+    /// <summary>Whether the sidebar's shown video starts by itself: only with the sidebar's own autoplay on (not muted by force), and not while the gallery covers it.</summary>
+    internal static bool ShouldAutoplayViewer(ReaderInlineVideoOptions options, bool shown) => options.Enabled && options.SidebarAutoplay && shown;
+
     internal enum ViewportAction { Keep, Pause, Release }
 
     /// <summary>
@@ -125,6 +140,9 @@ internal static class ReaderInlineVideoRules
     /// </summary>
     internal static bool StartMuted(ReaderInlineVideoOptions options, bool? sessionChoice, bool autoplay) =>
         autoplay || (sessionChoice ?? options.StartMuted);
+
+    /// <summary>The same for the sidebar's viewer: its own "start muted"; its autoplay is not muted by force.</summary>
+    internal static bool StartMutedViewer(ReaderInlineVideoOptions options, bool? sessionChoice) => sessionChoice ?? options.SidebarStartMuted;
 }
 
 /// <summary>What a key does to the selected post's video (the gallery's commands, used in the reader).</summary>
@@ -170,8 +188,8 @@ internal interface IReaderInlineVideoPlayer : IAsyncDisposable
     Task StartAsync();
     Task PlayAsync();
     Task PauseAsync();
-    /// <summary>The volume (0 to 100) or the repeat choice changed while the player lives (null: unchanged). The default does nothing, as for a player without those controls.</summary>
-    void ApplyLive(int? volume, bool? repeat) { }
+    /// <summary>The volume (0 to 100), the repeat choice or "start muted" changed while the player lives (null: unchanged). The default does nothing, as for a player without those controls.</summary>
+    void ApplyLive(int? volume, bool? repeat, bool? muted = null) { }
 }
 
 /// <summary>A surface that shows an inline player: a post's attachment or the media sidebar. Told about its player's life.</summary>
@@ -183,6 +201,8 @@ internal interface IReaderInlineVideoOwner
     void CurrentChanged(bool current);
     /// <summary>The video started or paused (announced through the owner's live region).</summary>
     void PlaybackChanged(bool playing);
+    /// <summary>The owner is the sidebar's viewer (its own video settings apply) and not a video in a post.</summary>
+    bool IsViewer => false;
 }
 
 /// <summary>
@@ -252,14 +272,23 @@ internal sealed class ReaderInlineVideoController
             OptionsChanged?.Invoke();
         }
         // Volume and repeat act on the players that live now (a playing video changes without being reloaded); a new player reads them when created.
-        if (previous.Volume != Options.Volume || previous.Repeat != Options.Repeat)
-            foreach (Live live in _live.ToArray())
-                live.Player.ApplyLive(previous.Volume != Options.Volume ? Options.Volume : null, previous.Repeat != Options.Repeat ? Options.Repeat : null);
+        // The sidebar's viewer and a video in a post each follow their own loop and mute switch.
+        bool volumeChanged = previous.Volume != Options.Volume;
+        if (previous.StartMuted != Options.StartMuted || previous.SidebarStartMuted != Options.SidebarStartMuted) SessionMuted = null; // the choice made now wins over an older one of this session
+        foreach (Live live in _live.ToArray())
+        {
+            bool viewer = live.Owner.IsViewer;
+            bool? repeat = viewer ? Changed(previous.SidebarLoop, Options.SidebarLoop) : Changed(previous.Repeat, Options.Repeat);
+            bool? muted = viewer ? Changed(previous.SidebarStartMuted, Options.SidebarStartMuted) : Changed(previous.StartMuted, Options.StartMuted);
+            if (volumeChanged || repeat.HasValue || muted.HasValue) live.Player.ApplyLive(volumeChanged ? Options.Volume : null, repeat, muted);
+        }
         // Gallery only, or leaving "in the post": the players of the posts go (the sidebar's slot offers again when it shows a video).
         if (!Options.Enabled || previous.InPost && !Options.InPost) return ReleaseAllAsync();
         Trim(Options.MaxPlayers, keep: null);
         return WhenReleasedAsync();
     }
+
+    private static bool? Changed(bool before, bool after) => before != after ? after : null;
 
     /// <summary>The choice between sidebar, post and gallery changed: a post puts an expanded image back.</summary>
     internal event Action? OptionsChanged;

@@ -39,7 +39,7 @@ internal sealed class GalleryInlineVideoPlayer : IReaderInlineVideoPlayer
     internal event Action<bool>? MuteChosen;
 
     internal GalleryInlineVideoPlayer(Panel area, Control below, Panel transportHost, GalleryEntry entry, ReaderInlineVideoOptions options, bool startMuted,
-        string name, Action? openGallery = null)
+        string name, Action? openGallery = null, bool viewer = false)
     {
         _area = area;
         _entry = entry;
@@ -47,8 +47,9 @@ internal sealed class GalleryInlineVideoPlayer : IReaderInlineVideoPlayer
         // An inline player is created to play: the activation is the user's Play (or the opted-in muted autoplay).
         Player.Configure(autoplay: true, startMuted, options.Volume);
         Player.ConfigureSeekStep(options.SeekStepSeconds);
-        // The gallery's "Repeat video" (a silent preference, not a user toggle): the video loops from its first play on.
-        Player.SetLoopEnabled(options.Repeat);
+        // The loop switch of its place (the gallery's "Repeat video" for a video in a post, the sidebar's own for the viewer): a silent
+        // preference, not a user toggle; the video loops from its first play on.
+        Player.SetLoopEnabled(viewer ? options.SidebarLoop : options.Repeat);
         Player.MuteChosen += muted => MuteChosen?.Invoke(muted);
         Player.PlaybackFailed += () => { _failed = true; Failed?.Invoke(Texts.T("reader.video.failed", Texts.T("gallery.mediaUnavailable"))); };
         Player.DiagnosticNotice += message => { if (!string.IsNullOrWhiteSpace(message)) Failed?.Invoke(Texts.T("reader.video.failed", message)); };
@@ -81,11 +82,13 @@ internal sealed class GalleryInlineVideoPlayer : IReaderInlineVideoPlayer
     public Task PlayAsync() { _failed = false; return _disposed ? Task.CompletedTask : Player.PlayAsync(); }
     public Task PauseAsync() => _disposed ? Task.CompletedTask : Player.PauseAsync();
 
-    public void ApplyLive(int? volume, bool? repeat)
+    public void ApplyLive(int? volume, bool? repeat, bool? muted = null)
     {
         if (_disposed) return;
         if (volume.HasValue) Player.ConfigureVolume(volume.Value);
         if (repeat.HasValue) Player.SetLoopEnabled(repeat.Value);
+        // "Start muted" changed: the video shown now mutes or unmutes (the speaker is the player's own; this is not the person's session choice).
+        if (muted.HasValue && Player.Muted != muted.Value) _ = Player.ToggleMuteAsync();
     }
 
     /// <summary>True when the player's native cleanup failed: it stays in the frame, hidden and disabled, still owning its drawable.</summary>
@@ -257,8 +260,9 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
             await controller.PlayAsync(this, () =>
             {
                 GalleryInlineVideoPlayer player = new(_area, Activator, _transportHost, entry, options,
-                    ReaderInlineVideoRules.StartMuted(options, controller.SessionMuted, autoplay: muted),
-                    _name.Length > 0 ? _name : Texts.T("reader.video.unnamed"), _openGallery);
+                    _activatorWhenIdle ? ReaderInlineVideoRules.StartMutedViewer(options, controller.SessionMuted)
+                        : ReaderInlineVideoRules.StartMuted(options, controller.SessionMuted, autoplay: muted),
+                    _name.Length > 0 ? _name : Texts.T("reader.video.unnamed"), _openGallery, viewer: _activatorWhenIdle);
                 player.MuteChosen += muted => controller.SessionMuted = muted;
                 player.Failed += message => Dispatcher.UIThread.Post(() => { if (ReferenceEquals(_player, player)) ShowError(message); });
                 player.UserPlayback += playing => { if (ReferenceEquals(_player, player)) controller.OnUserPlayback(this, playing); };
@@ -384,6 +388,9 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
         Activator.IsVisible = IsOffered && (live ? !_current : _activatorWhenIdle);
         Row.IsVisible = _transportHost.IsVisible || _error.IsVisible || !string.IsNullOrEmpty(_live.Text);
     }
+
+    // The slots of the sidebar, the large reader and the Media page's panel are the viewer (they show the idle poster with the activator).
+    bool IReaderInlineVideoOwner.IsViewer => _activatorWhenIdle;
 
     void IReaderInlineVideoOwner.PlayerReleased()
     {

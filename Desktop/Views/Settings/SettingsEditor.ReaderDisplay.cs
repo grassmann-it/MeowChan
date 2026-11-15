@@ -216,6 +216,18 @@ public partial class SettingsEditor
     public bool ReaderInlineVideoAutoplayMuted { get => _readerInlineVideoAutoplayMuted; set => SetField(ref _readerInlineVideoAutoplayMuted, value, nameof(ReaderInlineVideoAutoplayMuted)); }
     public string ReaderInlineVideoAutoplayMutedLabel => Texts.T("settings.reader.inlineVideoAutoplay");
     public string ReaderInlineVideoAutoplayMutedHint => Texts.T("settings.reader.inlineVideoAutoplay.hint");
+    private bool _readerSidebarVideoAutoplay;
+    public bool ReaderSidebarVideoAutoplay { get => _readerSidebarVideoAutoplay; set => SetField(ref _readerSidebarVideoAutoplay, value, nameof(ReaderSidebarVideoAutoplay)); }
+    public string ReaderSidebarVideoAutoplayLabel => Texts.T("settings.reader.sidebarVideoAutoplay");
+    public string ReaderSidebarVideoAutoplayHint => Texts.T("settings.reader.sidebarVideoAutoplay.hint");
+    private bool _readerSidebarVideoLoop;
+    public bool ReaderSidebarVideoLoop { get => _readerSidebarVideoLoop; set => SetField(ref _readerSidebarVideoLoop, value, nameof(ReaderSidebarVideoLoop)); }
+    public string ReaderSidebarVideoLoopLabel => Texts.T("settings.reader.sidebarVideoLoop");
+    public string ReaderSidebarVideoLoopHint => Texts.T("settings.reader.sidebarVideoLoop.hint");
+    private bool _readerSidebarVideoStartMuted;
+    public bool ReaderSidebarVideoStartMuted { get => _readerSidebarVideoStartMuted; set => SetField(ref _readerSidebarVideoStartMuted, value, nameof(ReaderSidebarVideoStartMuted)); }
+    public string ReaderSidebarVideoStartMutedLabel => Texts.T("settings.reader.sidebarVideoMuted");
+    public string ReaderSidebarVideoStartMutedHint => Texts.T("settings.reader.sidebarVideoMuted.hint");
     private bool _readerKeepImagesExpanded;
     public bool ReaderKeepImagesExpanded { get => _readerKeepImagesExpanded; set => SetField(ref _readerKeepImagesExpanded, value, nameof(ReaderKeepImagesExpanded)); }
     public string ReaderKeepImagesExpandedLabel => Texts.T("settings.reader.keepExpanded");
@@ -405,6 +417,9 @@ public partial class SettingsEditor
         RefreshMediaClickChoices(ReaderMediaClickRules.ToKey(config.EffectiveReaderMediaClick));
         ReaderInlineVideoAutoplayMuted = config.ReaderInlineVideoAutoplayMuted;
         ReaderKeepImagesExpanded = config.ReaderKeepImagesExpanded;
+        ReaderSidebarVideoAutoplay = config.ReaderSidebarVideoAutoplay;
+        ReaderSidebarVideoLoop = config.ReaderSidebarVideoLoop;
+        ReaderSidebarVideoStartMuted = config.ReaderSidebarVideoStartMuted;
         ReaderInlineVideoMaxPlayers = config.ReaderInlineVideoMaxPlayers;
         ResetNumber(ReaderInlineVideoMaxPlayersInput, ReaderInlineVideoMaxPlayers.Value);
         ReaderInlineVideoMaxFileMiB = config.ReaderInlineVideoMaxFileMiB;
@@ -475,6 +490,9 @@ public partial class SettingsEditor
         candidate.ChooseReaderMediaClick(ReaderMediaClickRules.FromKey(SelectedReaderMediaClick?.Value ?? ReaderMediaClickRules.ToKey(_config.EffectiveReaderMediaClick)));
         candidate.ReaderInlineVideoAutoplayMuted = ReaderInlineVideoAutoplayMuted;
         candidate.ReaderKeepImagesExpanded = ReaderKeepImagesExpanded;
+        candidate.ReaderSidebarVideoAutoplay = ReaderSidebarVideoAutoplay;
+        candidate.ReaderSidebarVideoLoop = ReaderSidebarVideoLoop;
+        candidate.ReaderSidebarVideoStartMuted = ReaderSidebarVideoStartMuted;
         candidate.ReaderInlineVideoMaxPlayers = GetInteger(ReaderInlineVideoMaxPlayers, ReaderInlineVideoMaxPlayersLabel, Config.ReaderInlineVideoMaxPlayersMinimum, Config.ReaderInlineVideoMaxPlayersMaximum);
         candidate.ReaderInlineVideoMaxFileMiB = GetInteger(ReaderInlineVideoMaxFileMiB, ReaderInlineVideoMaxFileMiBLabel, Config.ReaderInlineVideoMaxFileMiBMinimum, Config.ReaderInlineVideoMaxFileMiBMaximum);
         candidate.ReaderMediaStripLimit = GetInteger(ReaderMediaStripLimit, ReaderMediaStripLimitLabel, Config.ReaderMediaStripLimitMinimum, Config.ReaderMediaStripLimitMaximum);
@@ -622,6 +640,18 @@ public partial class SettingsEditor
                 case SettingsFieldId.ReaderKeepImagesExpanded:
                     ReaderKeepImagesExpanded = _config.ReaderKeepImagesExpanded;
                     break;
+                case SettingsFieldId.ReaderSidebarVideoAutoplay:
+                    ReaderSidebarVideoAutoplay = _config.ReaderSidebarVideoAutoplay;
+                    break;
+                case SettingsFieldId.ReaderSidebarVideoLoop:
+                    ReaderSidebarVideoLoop = _config.ReaderSidebarVideoLoop;
+                    break;
+                case SettingsFieldId.ReaderSidebarVideoStartMuted:
+                    ReaderSidebarVideoStartMuted = _config.ReaderSidebarVideoStartMuted;
+                    break;
+                case SettingsFieldId.VideoStartMuted:
+                    VideoStartMuted = _config.VideoStartMuted;
+                    break;
                 // The gallery's own settings, offered by the popover too: confirm the draft and its baseline (a later save changes only what
                 // the page itself edited, so it never writes the old value back over the popover's change).
                 case SettingsFieldId.VideoVolume:
@@ -692,6 +722,9 @@ public partial class SettingsEditor
         nameof(ReaderMediaClickLabel), nameof(ReaderMediaClickHint),
         nameof(ReaderInlineVideoAutoplayMutedLabel), nameof(ReaderInlineVideoAutoplayMutedHint),
         nameof(ReaderKeepImagesExpandedLabel), nameof(ReaderKeepImagesExpandedHint),
+        nameof(ReaderSidebarVideoAutoplayLabel), nameof(ReaderSidebarVideoAutoplayHint),
+        nameof(ReaderSidebarVideoLoopLabel), nameof(ReaderSidebarVideoLoopHint),
+        nameof(ReaderSidebarVideoStartMutedLabel), nameof(ReaderSidebarVideoStartMutedHint),
         nameof(ReaderInlineVideoMaxPlayersLabel), nameof(ReaderInlineVideoMaxPlayersHint), nameof(ReaderInlineVideoMaxPlayersHelp),
         nameof(ReaderInlineVideoMaxFileMiBLabel), nameof(ReaderInlineVideoMaxFileMiBHint), nameof(ReaderInlineVideoMaxFileMiBHelp),
         nameof(ReaderMediaStripLimitLabel), nameof(ReaderMediaStripLimitHint), nameof(ReaderMediaStripLimitHelp),

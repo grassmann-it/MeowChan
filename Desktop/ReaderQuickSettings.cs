@@ -52,6 +52,11 @@ internal static class ReaderQuickSettings
         Toggle(SettingsFieldId.ReaderKeepImagesExpanded, "settings.reader.keepExpanded", "settings.reader.keepExpanded.hint", c => c.ReaderKeepImagesExpanded, (c, v) => c.ReaderKeepImagesExpanded = v),
         Toggle(SettingsFieldId.GalleryVideoRepeat, "viewer.playback.repeat", "viewer.playback.repeatHelp", c => c.GalleryVideoRepeat, (c, v) => c.GalleryVideoRepeat = v),
         Slider(SettingsFieldId.VideoVolume, "r08d.settings.videoVolume", null, 0, 100, 5, c => c.VideoVolume, (c, v) => c.VideoVolume = v),
+        Toggle(SettingsFieldId.VideoStartMuted, "r08d.settings.videoStartMuted", null, c => c.VideoStartMuted, (c, v) => c.VideoStartMuted = v),
+        // The videos of the media sidebar (reader, large reader, archive view, Media page panel) have their own three switches.
+        Toggle(SettingsFieldId.ReaderSidebarVideoAutoplay, "settings.reader.sidebarVideoAutoplay", "settings.reader.sidebarVideoAutoplay.hint", c => c.ReaderSidebarVideoAutoplay, (c, v) => c.ReaderSidebarVideoAutoplay = v),
+        Toggle(SettingsFieldId.ReaderSidebarVideoLoop, "settings.reader.sidebarVideoLoop", "settings.reader.sidebarVideoLoop.hint", c => c.ReaderSidebarVideoLoop, (c, v) => c.ReaderSidebarVideoLoop = v),
+        Toggle(SettingsFieldId.ReaderSidebarVideoStartMuted, "settings.reader.sidebarVideoMuted", "settings.reader.sidebarVideoMuted.hint", c => c.ReaderSidebarVideoStartMuted, (c, v) => c.ReaderSidebarVideoStartMuted = v),
         Integer(SettingsFieldId.ReaderInlineVideoMaxPlayers, "settings.reader.inlineVideoPlayers", "settings.reader.inlineVideoPlayers.hint", Config.ReaderInlineVideoMaxPlayersMinimum, Config.ReaderInlineVideoMaxPlayersMaximum, 1, c => c.ReaderInlineVideoMaxPlayers, (c, v) => c.ReaderInlineVideoMaxPlayers = v),
         Integer(SettingsFieldId.ReaderInlineVideoMaxFileMiB, "settings.reader.inlineVideoMaxFile", "settings.reader.inlineVideoMaxFile.hint", Config.ReaderInlineVideoMaxFileMiBMinimum, Config.ReaderInlineVideoMaxFileMiBMaximum, 64, c => c.ReaderInlineVideoMaxFileMiB, (c, v) => c.ReaderInlineVideoMaxFileMiB = v),
         // R11: posts with several files.
@@ -78,9 +83,6 @@ internal static class ReaderQuickSettings
         // "Clicking a medium" (Config.ReaderMediaClick; Sidebar / Post / Gallery, feature/reader-inline-video-minimal) replaces the old inline video switch here.
         Row(MediaClickFieldId),
         Row(SettingsFieldId.ReaderKeepImagesExpanded),
-        Row(SettingsFieldId.ReaderInlineVideoAutoplayMuted),
-        Row(SettingsFieldId.GalleryVideoRepeat),
-        Row(SettingsFieldId.VideoVolume),
         Row(SettingsFieldId.ReaderMediaSidebar, shortcut: "reader.sidebar.toggle"),
         Row(SettingsFieldId.ReaderMediaSidebarScope, when: SettingsFieldId.ReaderMediaSidebar),
         Row(SettingsFieldId.ReaderMediaSidebarSide, when: SettingsFieldId.ReaderMediaSidebar),
@@ -90,6 +92,16 @@ internal static class ReaderQuickSettings
         Row(SettingsFieldId.ReaderFocusedMediaScalePercent, when: SettingsFieldId.ReaderFocusedMediaEnlarge),
         Row(SettingsFieldId.ReaderHoverEnlarge, shortcut: "reader.view.hover-enlarge"),
         Row(SettingsFieldId.ReaderThumbnailWidth),
+        // Videos: the ones in posts (inline) and the ones in the media sidebar are separate groups; the volume is one memory for both.
+        new QuickSettingsSection("quicksettings.reader.section.postVideo"),
+        Row(SettingsFieldId.ReaderInlineVideoAutoplayMuted),
+        Row(SettingsFieldId.GalleryVideoRepeat),
+        Row(SettingsFieldId.VideoStartMuted),
+        Row(SettingsFieldId.VideoVolume),
+        new QuickSettingsSection("quicksettings.reader.section.sidebarVideo"),
+        Row(SettingsFieldId.ReaderSidebarVideoAutoplay),
+        Row(SettingsFieldId.ReaderSidebarVideoLoop),
+        Row(SettingsFieldId.ReaderSidebarVideoStartMuted),
         new QuickSettingsSection("quicksettings.reader.section.text"),
         Row(SettingsFieldId.ReaderPostWidth),
         Row(SettingsFieldId.ReadingFontSize),

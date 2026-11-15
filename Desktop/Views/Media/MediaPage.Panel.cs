@@ -425,6 +425,36 @@ public sealed partial class MediaPage
             entry.Presence == MediaLibraryPresence.Present && entry.Directory != null && entry.AssetId != null, entry.Kind == SavedMediaKind.Video);
         slot.Offer(offered ? _panelVideoController : null, offered ? PanelVideoKey(entry!) : null,
             offered ? token => ResolvePanelEntryAsync(entry!, token) : null, row?.Name ?? string.Empty, offered ? () => _ = OpenPanelMediaAsync() : null);
+        SchedulePanelVideoAutoplay(offered ? PanelVideoKey(entry!) : null);
+    }
+
+    // The panel is a viewer like the reader's sidebar: its video starts by itself (the shared "Autoplay videos in the media sidebar", default on)
+    // once the selection rested, and only for a medium that was not started this way before (a refresh of the same tile starts nothing).
+    private DispatcherTimer? _panelAutoplay;
+    private string? _panelAutoplayKey, _panelAutoplayDone;
+
+    private void SchedulePanelVideoAutoplay(string? key)
+    {
+        _panelAutoplay?.Stop();
+        _panelAutoplayKey = key;
+        if (key == null) { _panelAutoplayDone = null; return; }
+        if (key == _panelAutoplayDone || _panelVideo is not { IsOffered: true, IsLive: false }
+            || !ReaderInlineVideoRules.ShouldAutoplayViewer(_panelVideoController.Options, _panelShown && !_panelObscured)) return;
+        DispatcherTimer timer = _panelAutoplay ??= new DispatcherTimer();
+        timer.Interval = TimeSpan.FromMilliseconds(ReaderInlineVideoRules.AutoplayDelayMs);
+        timer.Tick -= OnPanelAutoplayTick;
+        timer.Tick += OnPanelAutoplayTick;
+        timer.Start();
+    }
+
+    private void OnPanelAutoplayTick(object? sender, EventArgs e)
+    {
+        _panelAutoplay?.Stop();
+        if (_lifetime.IsCancellationRequested || !_panelShown || _panelObscured || _panelAutoplayKey == null
+            || _panelVideo is not { IsOffered: true, IsLive: false } video
+            || !ReaderInlineVideoRules.ShouldAutoplayViewer(_panelVideoController.Options, shown: true)) return;
+        _panelAutoplayDone = _panelAutoplayKey;
+        _ = video.PlayAsync();
     }
 
     /// <summary>Every panel player pauses (the gallery opens over the page, the page is left); the players stay to continue later.</summary>
