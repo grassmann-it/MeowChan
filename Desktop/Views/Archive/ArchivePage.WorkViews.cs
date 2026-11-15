@@ -80,7 +80,7 @@ public partial class ArchivePage
             AutomationProperties.SetName(toolbar, Texts.T("nav.archive"));
             toolbar.RefreshOverflowLabel();
         }
-        foreach (Button button in new[] { ArchiveTransferPreview, ArchiveCleanupOpen, RefreshArchiveButton }) CommandBindings.Refresh(button);
+        foreach (Button button in new[] { ArchiveTransferPreview, ArchiveTransferExport, ArchiveCleanupOpen, RefreshArchiveButton }) CommandBindings.Refresh(button);
     }
 
     // ---- Search scope chip (R6: any scope other than Text is shown, whatever the view) ----

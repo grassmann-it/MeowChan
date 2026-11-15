@@ -46,7 +46,7 @@ public partial class ArchivePage
         _transferPreviewRouter = new(this);
         _transferPreviewRouter.Register(new("archive.transfer-preview", this,
             () => !_ended && IsEffectivelyVisible, () => CanOpenTransferPreview,
-            () => _ = OpenTransferPreviewAsync(), Priority: 100));
+            () => OpenActions.Start(OpenTransferPreviewAsync, "archive.transferPreview.open"), Priority: 100));
         AddHandler(KeyDownEvent, RouteTransferPreviewCommand, RoutingStrategies.Bubble);
     }
 
@@ -54,7 +54,7 @@ public partial class ArchivePage
 
     private bool CanOpenTransferPreview => !_ended && !_busy && _available && !_urlTextExportBusy
         && !_transferPreviewOpening && _transferPreviewDialog == null && _transferImportDialog == null
-        && !IsArchiveCleanupOpen && !IsReaderDialogOpen && !_exportRunning
+        && !IsArchiveCleanupOpen && !IsReaderDialogOpen && !_exportRunning && !IsTransferExportOpen
         && (_transferImportHost == null || _transferImportHost.State == DesktopSessionState.Ready);
 
     private void UpdateTransferPreviewAction()

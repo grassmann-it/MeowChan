@@ -1,3 +1,4 @@
+using Avalonia.Input;
 using MeowChan.Desktop;
 
 namespace MeowChan.DesktopTests;
@@ -63,5 +64,30 @@ public sealed class ReaderScrollOwnerTests
         owner.OpenFitWindow(0, 2, 1500);
         using (owner.BeginJump(2)) Assert.False(owner.MayRefit(10, 2));
         Assert.True(owner.MayRefit(10, 2));
+    }
+
+    // Review finding 4: the list no longer scrolls on focus by itself; keyboard focus of a control inside a card does so explicitly.
+    [Theory]
+    [InlineData(NavigationMethod.Tab, true)]
+    [InlineData(NavigationMethod.Directional, true)]
+    [InlineData(NavigationMethod.Pointer, false)]
+    [InlineData(NavigationMethod.Unspecified, false)]
+    public void OnlyKeyboardNavigationScrollsAFocusedControlIntoView(NavigationMethod method, bool scrolls)
+    {
+        ReaderScrollOwner owner = new();
+        Assert.Equal(scrolls, owner.FocusMayScroll(method, 5));
+    }
+
+    [Fact]
+    public void AJumpStillOwnsTheOffsetWhenTheKeyboardMovesTheFocus()
+    {
+        ReaderScrollOwner owner = new();
+        using (owner.BeginJump(5))
+        {
+            Assert.False(owner.FocusMayScroll(NavigationMethod.Tab, 5));
+            // The reader took over meanwhile (the revision moved): the focus may scroll again.
+            Assert.True(owner.FocusMayScroll(NavigationMethod.Tab, 6));
+        }
+        Assert.True(owner.FocusMayScroll(NavigationMethod.Tab, 5));
     }
 }

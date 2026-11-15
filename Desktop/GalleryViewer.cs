@@ -171,7 +171,6 @@ internal sealed partial class GalleryViewer : UserControl
     internal event Action<Views.Shortcuts.ShortcutHelpContext>? ShortcutHelpRequested;
     internal event EventHandler<KeyEventArgs>? ShellKeyRequested;
     internal event Action<GalleryEntry>? FavoriteToggleRequested;
-    internal event Action<GalleryEntry>? RatingEditRequested;
     /// <summary>The saved-ratings manager (the shell's dialog), from the rating rows of the "⋯" menu.</summary>
     internal event Action? ManageRatingsRequested;
     private readonly Button _manageRatingsButton = new() { Name = "GalleryManageRatings" };
@@ -182,9 +181,10 @@ internal sealed partial class GalleryViewer : UserControl
     private CommandRouter CreateRatingRouter(Control owner)
     {
         CommandRouter router = new(owner);
-        bool Ready() => _entry != null && _ratingButton.IsEnabled;
+        bool Ready() => _entry != null && _ratingAvailable;
+        // R (Tom's decision of 15.11.: no dialog) moves the focus to the stars of the panel; only a panel that cannot take it shows the menu.
         router.Register(new("media.rating.edit", owner, () => owner.IsEffectivelyVisible, Ready,
-            () => { if (_entry != null) RatingEditRequested?.Invoke(_entry); }, Priority: 200));
+            () => { if (!FocusRatingStars()) ShowRatingMenu(); }, Priority: 200));
         router.Register(new("media.rating.manage", owner, () => owner.IsEffectivelyVisible, () => ManageRatingsRequested != null,
             () => ManageRatingsRequested?.Invoke(), Priority: 200));
         router.Register(new("media.rating.clear", owner, () => owner.IsEffectivelyVisible, Ready,
@@ -200,49 +200,18 @@ internal sealed partial class GalleryViewer : UserControl
     private int? _ratingValue;
     private string? _ratingError;
     private bool _ratingAvailable;
-    private readonly Button _ratingButton = new() { Name = "GalleryRating" };
+    // A write is under way: the stars of the Post row stay enabled (the focus must not be lost under a keyboard user) and ignore clicks.
+    private bool _ratingPending;
     private readonly TextBlock _ratingStatus = new() { Name = "GalleryRatingStatus", TextWrapping = TextWrapping.Wrap };
-    internal void SetRating(int? value, string? error, bool available = true)
+    internal void SetRating(int? value, string? error, bool available = true, bool pending = false)
     {
         bool changedError = _ratingError != error;
-        _ratingValue = value; _ratingError = error; _ratingAvailable = available;
+        _ratingValue = value; _ratingError = error; _ratingAvailable = available; _ratingPending = pending;
         _ratingStatus.Text = MediaRatingText.Label + ": " + MediaRatingText.Value(value);
-        PresentRatingButton();
         if (changedError) ReportDiagnostic("rating", error);
-        _ratingButton.IsEnabled = available && _entry != null;
         ApplyChrome();
-        RefreshDecisionRow(); // the panel's row shows the same rating
-    }
-    /// <summary>
-    /// GL5d (UX spec S1): the rating button of the bar shows the star and the value ("☆ 4", "☆ –" while unrated): the value is the
-    /// confirmation, so the info line drops its own rating while this button is on the bar (GalleryChromePlan.InfoRating). Tooltip
-    /// "Edit rating… · R" with the keys that set it ("Shift+1–5").
-    /// </summary>
-    internal static string RatingButtonValue(int? value) => value.HasValue ? value.Value.ToString(Texts.Culture) : "–";
-
-    /// <summary>The "Shift+1–5" of the rating keys, from the bindings of the five commands (the plain bindings if they do not share a prefix).</summary>
-    internal static string RatingKeysText()
-    {
-        string? first = CommandCatalog.ShortcutDisplay("media.rating.set-1"), last = CommandCatalog.ShortcutDisplay("media.rating.set-5");
-        if (first == null || last == null) return string.Empty;
-        return first.Length > 1 && last.Length > 1 && first[..^1] == last[..^1] ? first + "–" + last[^1] : first + " … " + last;
-    }
-
-    private void PresentRatingButton()
-    {
-        if (_ratingButton.Tag is OverflowItem) return; // a menu row keeps its own text
-        string name = CommandCatalog.Label("media.rating.edit");
-        TextBlock value = new() { Text = RatingButtonValue(_ratingValue), VerticalAlignment = VerticalAlignment.Center, MinWidth = 8 };
-        _ratingButton.Content = new StackPanel
-        {
-            Orientation = Orientation.Horizontal, Spacing = 4, VerticalAlignment = VerticalAlignment.Center,
-            Children = { CommandBindings.NamedIcon(CommandCatalog.Get("media.rating.edit").Icon, 16), value }
-        };
-        string keys = RatingKeysText();
-        string tip = CommandBindings.Tooltip("media.rating.edit") + (keys.Length > 0 ? " · " + keys : string.Empty);
-        ToolTip.SetTip(_ratingButton, tip);
-        AutomationProperties.SetName(_ratingButton, name + ": " + MediaRatingText.Value(_ratingValue));
-        AutomationProperties.SetHelpText(_ratingButton, tip);
+        RefreshDecisionRow(); // the Tags panel's row shows the same rating
+        RefreshPostDecision(); // and so does the Post row, with the error of a failed write under it
     }
 
     internal event Action<GalleryEntry>? ExportOriginalRequested;
@@ -414,9 +383,6 @@ internal sealed partial class GalleryViewer : UserControl
         _actualRow.IsVisible = false;
         _rotate = Command(_overflowPanel, "GalleryRotate", CommandCatalog.Label("gallery.rotate"), () => RotateView(), overflow: true, keepOpen: true);
         AddOverflowSeparator();
-        CommandBindings.Apply(_ratingButton, "media.rating.edit");
-        _ratingButton.Click += (_, _) => { if (_entry != null) RatingEditRequested?.Invoke(_entry); };
-        AddOverflowItem(_ratingButton, "media.rating.edit", label: () => CommandCatalog.Label("media.rating.edit"));
         CommandBindings.Apply(_manageRatingsButton, "media.rating.manage");
         _manageRatingsButton.Click += (_, _) => { PauseSlideshow(); ManageRatingsRequested?.Invoke(); };
         AddOverflowItem(_manageRatingsButton, "media.rating.manage", label: () => CommandCatalog.Label("media.rating.manage"));
@@ -558,6 +524,7 @@ internal sealed partial class GalleryViewer : UserControl
         InitializeWorkViewTools();
         RegisterWorkViewIds();
         InitializeFilmstrip();
+        InitializeWheelMode();
         UpdateFavorite();
         _exportOriginal.IsEnabled = false;
         UpdateContextButton();
@@ -572,9 +539,8 @@ internal sealed partial class GalleryViewer : UserControl
     {
         if (!Avalonia.Threading.Dispatcher.UIThread.CheckAccess())
         { Avalonia.Threading.Dispatcher.UIThread.Post(() => OnLanguageChanged(sender, e)); return; }
-        CommandBindings.Apply(_ratingButton, "media.rating.edit");
         CommandBindings.Apply(_manageRatingsButton, "media.rating.manage");
-        SetRating(_ratingValue, _ratingError, _ratingAvailable);
+        SetRating(_ratingValue, _ratingError, _ratingAvailable, _ratingPending);
         if (IsFavoriteConfirmOpen) UpdateFavoriteConfirmText();
         UpdateTagsButton();
         PresentToolbarControls();
@@ -735,7 +701,10 @@ internal sealed partial class GalleryViewer : UserControl
     private void UpdateBackButtonOpacity()
     {
         if (_close == null) return;
-        bool dimmed = OverlayControlsEffective && _overlayHidden && !_close.IsPointerOver && !_close.IsKeyboardFocusWithin;
+        // The badge beside it is part of the pair: the pointer or the keyboard focus on either brings both back.
+        bool badgeActive = _favoriteIndicator.IsPointerOver || _favoriteIndicator.IsKeyboardFocusWithin
+            || _nativeFavoriteIndicator.IsPointerOver || _nativeFavoriteIndicator.IsKeyboardFocusWithin;
+        bool dimmed = OverlayControlsEffective && _overlayHidden && !_close.IsPointerOver && !_close.IsKeyboardFocusWithin && !badgeActive;
         _close.Opacity = dimmed ? 0.3 : 1;
         // GL5a (UX spec S1): the star beside the way back dims with it (30 %) and comes back with it under the pointer or the focus.
         _favoriteIndicator.Opacity = _nativeFavoriteIndicator.Opacity = dimmed ? 0.3 : 1;
@@ -912,6 +881,7 @@ internal sealed partial class GalleryViewer : UserControl
         EnsureContextCurrent();
         LayoutContext();
         UpdateContextButton();
+        ApplyChrome(); // the info line's rating yields to the panel's rows while the panel is open (QW5)
         RefreshPlaybackControls();
         if (!open && (!hover || hadFocus)) FocusGallerySurface();
         if (notify && !hover && !tagOnly) ContextOpenChanged?.Invoke(open);
@@ -1123,8 +1093,8 @@ internal sealed partial class GalleryViewer : UserControl
         ResetMediaTags(); // A new medium's tags are unknown until the owner reports them.
         _favoriteKnown = _favoritePending = _favoriteSelected = false;
         UpdateFavorite();
-        _ratingValue = null; _ratingError = null; _ratingAvailable = false;
-        _ratingStatus.Text = string.Empty; _ratingButton.IsEnabled = false; ClearRatingSaved();
+        _ratingValue = null; _ratingError = null; _ratingAvailable = false; _ratingPending = false;
+        _ratingStatus.Text = string.Empty; ClearRatingSaved();
         _status.Text = Texts.T("gallery.loading"); _quality.Text = string.Empty; UpdateContext();
         await gifRetired;
         if (request != _request || cancellationToken.IsCancellationRequested) return;
@@ -1355,6 +1325,10 @@ internal sealed partial class GalleryViewer : UserControl
             var post = entry.Post;
             AddContext(entry.Key.Thread.Source + " /" + entry.Key.Thread.Board + "/ · " + entry.Key.Thread.Thread
                 + (post != null ? " · #" + post.PostId : string.Empty), "workspace-meta", "GalleryPostWhere");
+            // Review 15.11.: favourite and stars, then the medium's tags, stand on top of the card, with or without a post (GalleryViewer.PostPanel.cs).
+            _context.Children.Add(PostDecisionSection());
+            _context.Children.Add(BuildPostTagsSection(ContextCommand));
+            _context.Children.Add(PostRule());
             IReadOnlyList<GalleryEntry> associations = _associationIndex?.For(entry.Key) ?? Array.Empty<GalleryEntry>();
             if (associations.Count > 1)
             {
@@ -1486,6 +1460,7 @@ internal sealed partial class GalleryViewer : UserControl
         if (IsFavoriteConfirmOpen) { RouteFavoriteConfirmKey(e); return; }
         // The Menu key and Shift+F10 open the same media menu as a right-click, for the medium shown now.
         if (_entry != null && MeowChan.Desktop.MediaActions.MediaMenuPresenter.IsContextKey(e)) { ShowMediaMenu(); e.Handled = true; return; }
+        if (RouteDecisionRowKey(e)) return; // the stars of the panel rove with the arrows and Esc returns to the picture
         if ((ReferenceEquals(routingOwner, _nativeVideoOverlay) ? _nativeRatingRouter : _ratingRouter)?.Route(e) == true) return;
         if (_contextOpen && _sidePanel.RouteSegmentKey(e)) return;
         if (_tagging != null && RouteTaggingKey(e)) return; // the tagging mode's keys come first (PT3)

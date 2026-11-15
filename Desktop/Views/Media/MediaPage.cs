@@ -374,11 +374,13 @@ public sealed partial class MediaPage : UserControl
         internal MediaPageTermFilter? PageTerms { get; init; }
         internal IReadOnlySet<TagQueueKey>? Queue { get; init; }
         internal Func<MediaSourceTagIndex?>? SourceTags { get; init; }
+        /// <summary>The search text this presentation was made for; the row where it was found names it.</summary>
+        internal string? SearchText { get; init; }
     }
 
     private sealed record PresentResult(IReadOnlyList<MediaLibraryTile> Tiles, MediaLibraryEntry[] Shown, int[] PresentPositions,
         MediaLibraryTileRow[] Rows, int ShownMissing, int Unfiltered, bool FilterActive, string? ErrorKey, int AudioUnknown,
-        int? UntaggedTiles, MediaLibraryUntagged? Untagged, IReadOnlyList<int> Restored, MediaLibraryUserOrder? UserOrder);
+        int? UntaggedTiles, MediaLibraryUntagged? Untagged, IReadOnlyList<int> Restored, MediaLibraryUserOrder? UserOrder, MediaTextCounts? Breakdown = null);
 
     private void Present()
     {
@@ -446,6 +448,7 @@ public sealed partial class MediaPage : UserControl
             _audio, _untagged, _tiles, _grid.Selection.SelectedIndexes.ToArray(), _selectionStamp)
         {
             PageTerms = pageTerms,
+            SearchText = _nameFilter.Text,
             Queue = pageTerms?.NeedsQueue == true ? _queueKeys : null,
             SourceTags = pageTerms?.NeedsSourceTags != true ? null : () =>
             {
@@ -464,6 +467,7 @@ public sealed partial class MediaPage : UserControl
         int audioUnknown = 0;
         int? untaggedTiles = null;
         bool filterActive = false;
+        IReadOnlyList<MediaTextTally>? tally = null; // where the words were found, for the media that pass every other filter
         MediaLibraryUntagged? untagged = input.Untagged;
         if (input.InvalidFilter)
         {
@@ -480,7 +484,14 @@ public sealed partial class MediaPage : UserControl
                 MediaLibraryFilterResult result = MediaLibraryFilterEngine.Evaluate(all, filter, input.UserData, input.Audio);
                 passing = result.Passing;
                 // MP1/MP4: the tagging queue and the source tags narrow what the core filter let through.
-                if (input.PageTerms is { } pageTerms) passing = pageTerms.Apply(passing, input.Queue, input.SourceTags?.Invoke());
+                tally = result.TextTally;
+                if (input.PageTerms is { } pageTerms)
+                {
+                    MediaSourceTagIndex? sourceTags = input.SourceTags?.Invoke();
+                    passing = pageTerms.Apply(passing, input.Queue, sourceTags);
+                    // The row counts after the page-side terms too, so its numbers are exact with a queue or source tag term active.
+                    if (tally != null) tally = KeepTallied(tally, pageTerms.Apply(tally.Select(item => item.Entry).ToArray(), input.Queue, sourceTags));
+                }
                 audioUnknown = result.UnknownSoundVideos;
                 if (!filter.WithoutMediaTags)
                 {
@@ -490,6 +501,7 @@ public sealed partial class MediaPage : UserControl
             }
             catch (MediaLibraryFilterException exception)
             {
+                tally = null;
                 errorKey = exception.Error switch
                 {
                     MediaLibraryFilterError.UnknownTag => "media.filter.error.unknownTag",
@@ -537,8 +549,26 @@ public sealed partial class MediaPage : UserControl
         MediaLibraryTileRow[] rows = new MediaLibraryTileRow[tiles.Count];
         for (int i = 0; i < rows.Length; i++) rows[i] = new MediaLibraryTileRow(tiles[i], i, state);
         IReadOnlyList<int> restored = RestoredSelection(input, tiles);
+        // errorKey is null here exactly when the filter ran; with a text it also tallied. The tiles the scope shows are the grid's own.
+        MediaTextCounts? breakdown = tally == null || errorKey != null ? null
+            : MediaTextCounts.Of(tally, input.IncludeMissing, input.Filter!.TextFields, shown.Length);
         return new PresentResult(tiles, shown, MediaLibraryView.PresentIndex(shown), rows, missing, unfiltered, filterActive, errorKey,
-            audioUnknown, untaggedTiles, untagged, restored, userOrder ?? input.UserOrder);
+            audioUnknown, untaggedTiles, untagged, restored, userOrder ?? input.UserOrder, breakdown);
+    }
+
+    // The entries of the tally the page-side terms kept. Both lists follow the order of the index (the terms only remove), so one pass pairs them.
+    private static IReadOnlyList<MediaTextTally> KeepTallied(IReadOnlyList<MediaTextTally> tally, IReadOnlyList<MediaLibraryEntry> kept)
+    {
+        List<MediaTextTally> result = new(kept.Count);
+        int next = 0;
+        foreach (MediaTextTally item in tally)
+        {
+            if (next == kept.Count) break;
+            if (!ReferenceEquals(item.Entry, kept[next])) continue;
+            result.Add(item);
+            next++;
+        }
+        return result;
     }
 
     private static IReadOnlyList<int> RestoredSelection(PresentInputs input, IReadOnlyList<MediaLibraryTile> tiles)
@@ -580,6 +610,8 @@ public sealed partial class MediaPage : UserControl
         PresentPositions = result.PresentPositions;
         _shownMissing = result.ShownMissing;
         _unfiltered = result.Unfiltered;
+        _breakdownCounts = result.Breakdown;
+        _breakdownText = input.SearchText ?? string.Empty;
         _restoring = true;
         try
         {
@@ -615,7 +647,7 @@ public sealed partial class MediaPage : UserControl
         _emptyReset.IsVisible = _filterActive;
         // AP2/A6: a file name that matches nothing here can be tried in Archive in one step.
         string name = _nameFilter.Text ?? string.Empty;
-        _emptySearchInArchive.IsVisible = showEmpty && _filterActive && name.Length > 0 && SearchInArchiveRequested != null;
+        _emptySearchInArchive.IsVisible = showEmpty && _filterActive && MediaLibraryFilter.HasText(name) && SearchInArchiveRequested != null;
         if (_emptySearchInArchive.IsVisible)
         {
             _emptySearchInArchive.Content = Texts.T("search.carry.toArchive", name);
@@ -828,6 +860,13 @@ public sealed partial class MediaPage : UserControl
                 if (_grid.Selection.Count > 0 && _building == null) await AddSelectionToQueueAsync();
                 return;
             }
+            // tagging.remove (Delete): the selected media that are in the tagging queue leave it; otherwise the key does nothing. It never deletes a file.
+            if (CommandBindings.Matches(e, "tagging.remove"))
+            {
+                e.Handled = true;
+                await RemoveSelectionFromQueueAsync();
+                return;
+            }
             // Rating, details, export, folder and file path of the medium (menu commands): the same actions and gates as the tile menu.
             foreach (string id in MediaShortcutCommands)
                 if (CommandBindings.Matches(e, id))
@@ -883,7 +922,12 @@ public sealed partial class MediaPage : UserControl
         else await ExecuteMediaActionAsync("media.tags.edit", entry, current);
     }
 
-    private static readonly string[] MediaShortcutCommands = { "media.rating.edit", "media.details", "media.export-original", "media.show-in-folder", "media.copy-path" };
+    // media.rating.edit (R) opens the rating menu on the tile; the stars and the removal rate the selected tile directly (Shift+1 to 5, Shift+0).
+    private static readonly string[] MediaShortcutCommands =
+    {
+        "media.rating.edit", "media.rating.set-1", "media.rating.set-2", "media.rating.set-3", "media.rating.set-4", "media.rating.set-5", "media.rating.clear",
+        "media.details", "media.export-original", "media.show-in-folder", "media.copy-path"
+    };
 
     /// <summary>The shortcut for a menu command of one medium. Export with several selected tiles exports the selection;
     /// the others need exactly one saved tile, like the menu entries they stand for.</summary>
@@ -892,9 +936,32 @@ public sealed partial class MediaPage : UserControl
         if (_lifetime.IsCancellationRequested || _building != null || _selectionBusy || ExecuteMediaMenuActionAsync == null) return;
         if (id == "media.export-original" && _grid.Selection.Count > 1) { await ExportSelectionAsync(); return; }
         if (_grid.Selection.Count != 1 || SelectedRow is not { } row || row.Entry.Presence != MediaLibraryPresence.Present) return;
-        if (id == "media.rating.edit" && row.State?.RatingKnown != true) return;
+        if (id.StartsWith("media.rating.", StringComparison.Ordinal) && row.State?.RatingKnown != true) return;
         bool Current() => !_lifetime.IsCancellationRequested && _building == null && IsEffectivelyVisible;
+        if (id == "media.rating.edit") { OpenRatingMenu(row, _grid.ContainerFromItem(row) ?? _grid); return; }
         await ExecuteMediaActionAsync(id, row.Entry, Current);
+    }
+
+    /// <summary>
+    /// R on a tile: the rating menu (five stars and "Remove rating") on that tile instead of a dialog. It rates exactly the tile it opened on
+    /// and retires with the page's other menus when the grid, the page or the tile changes.
+    /// </summary>
+    internal void OpenRatingMenu(MediaLibraryTileRow row, Control origin)
+    {
+        if (_lifetime.IsCancellationRequested || !IsEffectivelyVisible || row.Entry.Presence != MediaLibraryPresence.Present) return;
+        long revision = _mediaMenuRevision;
+        long serial = ++_mediaMenuSerial;
+        object? rows = _grid.ItemsSource;
+        bool Current() => !_lifetime.IsCancellationRequested && _building == null && IsEffectivelyVisible
+            && revision == _mediaMenuRevision && serial == _mediaMenuSerial && ReferenceEquals(rows, _grid.ItemsSource)
+            && origin.IsAttachedToVisualTree() && origin.IsEffectivelyVisible;
+        MediaLibraryEntry entry = row.Entry;
+        bool available = ExecuteMediaMenuActionAsync != null && row.State?.RatingKnown == true;
+        MediaMenuSession session = new(MediaMenuSurface.MediaPage, MediaMenuTarget.Of(entry), Current);
+        Task Run(Func<Task> action) => RunMenuActionAsync(action, session);
+        ContextMenu menu = MediaMenuBuilder.BuildRatingMenu(session, row.State?.UserRating, available, MediaMenuReasons.Unavailable,
+            value => ExecuteMediaActionAsync(value == null ? "media.rating.clear" : "media.rating.set-" + value, entry, Current), Run);
+        _mediaMenuPresenter.Show(menu, session, origin, attachToOrigin: true, fallbackFocus: () => FocusGrid(Current));
     }
 
     internal void InitializeSharedMediaMenus()
@@ -1044,6 +1111,7 @@ public sealed partial class MediaPage : UserControl
             FavoriteWired = hostActions,
             RatingWired = hostActions,
             RatingKnown = state?.RatingKnown == true,
+            Rating = state?.UserRating,
             TagsWired = EditTagsForMenuAsync != null || TagPopoverAsync != null || hostActions,
             TagsBlocked = TagsBlockedReason(entry, state),
             TagsBlockedExplained = true,
@@ -1065,7 +1133,6 @@ public sealed partial class MediaPage : UserControl
         {
             [MediaMenuAction.Open] = () => OpenMediaMenuAsync(entry, galleryWindow, galleryStart, Current),
             [MediaMenuAction.Favorite] = () => ExecuteMediaActionAsync("favorites.toggle", entry, Current),
-            [MediaMenuAction.Rating] = () => ExecuteMediaActionAsync("media.rating.edit", entry, Current),
             [MediaMenuAction.Tags] = () => OpenTagsAsync(entry, row, origin, Current),
             // One tile: that tile. Several selected: the selection frozen now, like the selection actions below.
             [MediaMenuAction.Queue] = queueTiles is { Count: > 1 } ? () => AddTilesToQueueAsync(queueTiles) : () => AddEntryToQueueAsync(entry),
@@ -1105,7 +1172,8 @@ public sealed partial class MediaPage : UserControl
             ? queueTiles.Select(tileEntry => tileEntry.Entry).ToArray() : new[] { entry };
         if (QueueGroupMenu(session, queueEntries, Run) is { } groups) context.Add(groups);
         // The media panel's menu of a video starts with the playback group (play / pause, mute, repeat), as the reader's menu of a video does.
-        ContextMenu menu = MediaMenuBuilder.Build(session, model, handlers, Run, context, ShowSelectionNote, ReaderPlaybackMenu.MenuItems(playback, session, Run));
+        ContextMenu menu = MediaMenuBuilder.Build(session, model, handlers, Run, context, ShowSelectionNote, ReaderPlaybackMenu.MenuItems(playback, session, Run),
+            rate: value => ExecuteMediaActionAsync(value == null ? "media.rating.clear" : "media.rating.set-" + value, entry, Current));
         _mediaMenuPresenter.Show(menu, session, origin, attachToOrigin: true, fallbackFocus: () => FocusGrid(Current));
     }
 

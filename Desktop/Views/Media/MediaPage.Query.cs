@@ -26,6 +26,7 @@ public sealed partial class MediaPage
     private readonly TextBlock _queryProblem = new() { Name = "MediaQueryProblem", TextWrapping = Avalonia.Media.TextWrapping.Wrap, IsVisible = false, Classes = { "workspace-error" } };
     private readonly StackPanel _queryHint = new() { Name = "MediaQueryHint", Spacing = 2, IsVisible = false };
     private IReadOnlyDictionary<string, MediaFilterField>? _queryAliases;
+    private IReadOnlyDictionary<string, MediaTextFields>? _queryScopeAliases;
     private long _queryHintRevision;
 
     /// <summary>The note below the chips after a conversion or a copy (null when none), for tests and smokes.</summary>
@@ -39,6 +40,8 @@ public sealed partial class MediaPage
     {
         AutomationProperties.SetLiveSetting(_queryNote, AutomationLiveSetting.Polite);
         AutomationProperties.SetLiveSetting(_queryProblem, AutomationLiveSetting.Polite);
+        _queryHint.Children.Add(BuildBreakdown()); // the row where the text was found, then the live text of its summary (MediaPage.Breakdown.cs)
+        _queryHint.Children.Add(_breakdownLive);
         _queryHint.Children.Add(_queryNote);
         _queryHint.Children.Add(_queryProblem);
         _nameFilter.KeyDown += (_, e) =>
@@ -52,13 +55,16 @@ public sealed partial class MediaPage
     {
         _queryNote.Text = note; _queryNote.IsVisible = !string.IsNullOrEmpty(note);
         _queryProblem.Text = problem; _queryProblem.IsVisible = !string.IsNullOrEmpty(problem);
-        _queryHint.IsVisible = _queryNote.IsVisible || _queryProblem.IsVisible;
+        UpdateQueryHintVisibility();
     }
+
+    // The block is there for a note, a problem or the row where the text was found.
+    private void UpdateQueryHintVisibility() => _queryHint.IsVisible = _queryNote.IsVisible || _queryProblem.IsVisible || _breakdown.IsVisible;
 
     private void ClearQueryHint()
     {
         ++_queryHintRevision; // A pending clipboard result belongs to the old query/context, even when no hint is visible.
-        if (_queryHint.IsVisible) ShowQueryHint(null, null);
+        if (_queryNote.IsVisible || _queryProblem.IsVisible) ShowQueryHint(null, null);
     }
 
     /// <summary>
@@ -80,13 +86,18 @@ public sealed partial class MediaPage
         // spelling as the name can refuse the page-side term before the queue-read error is surfaced.
         _nameFilter.SetTextSilently(string.Empty);
         MediaFilterQueryApplication applied = MediaFilterQuery.Apply(_terms.ToArray(), parsed, AdmitQueryTerm);
-        bool termsChanged = !applied.Terms.SequenceEqual(_terms);
+        // The scope of the text (in:) is not a member of the set: it moves into _textScope and the rest of the query stays as it was.
+        IReadOnlyList<MediaFilterTerm> kept = applied.Terms.Any(term => term.Field == MediaFilterField.In)
+            ? applied.Terms.Where(term => term.Field != MediaFilterField.In).ToArray() : applied.Terms;
+        if (applied.Terms.FirstOrDefault(term => term.Field == MediaFilterField.In) is { } scope && MediaFilterTerm.TextFieldsOf(scope.Value) is { } fields)
+            _textScope = fields;
+        bool termsChanged = !kept.SequenceEqual(_terms);
         if (termsChanged)
             foreach (MediaFilterTerm thread in applied.Added.Where(term => term.Field == MediaFilterField.Thread && term.Resource != null))
                 _threadTitle = threadTitle(thread.Resource!) is { Length: > 0 } title ? title : "#" + thread.Value;
         _nameFilter.SetTextSilently(applied.Remainder);
         _nameFilter.CaretIndex = applied.Remainder.Length;
-        if (termsChanged) EditTerms(_ => applied.Terms);
+        if (termsChanged) EditTerms(_ => kept);
         else FilterEdited();
         string? note = applied.Added.Count == 0 ? null
             : Texts.T("media.query.converted", string.Join(", ", applied.Added.Select(term => TermLabel(term)?.Label ?? MediaFilterTermSet.IdentityKey(term))));
@@ -119,11 +130,14 @@ public sealed partial class MediaPage
         // SP5: the configured tags-per-list limit is checked only for the list the term grows; the ceiling guards the filter itself.
         if (term.Field == MediaFilterField.Tag && TagTermCount(next, term.Exclude) > Math.Max(TagTermCount(terms, term.Exclude), ArchiveTagFilterTagsPerListPreference))
             return MediaFilterQueryProblem.TooManyTags;
+        // The tag filter guards the tag lists only. Without a tag term it has nothing to check (and refuses an empty one), so a
+        // type:, source:, in: … token must not be refused as "too many tags".
         try
         {
-            _ = new ArchiveTagFilter(next.Where(item => item.Field == MediaFilterField.Tag && !item.Exclude).Select(item => Guid.Parse(item.Value)),
-                next.Where(item => item.Field == MediaFilterField.Tag && item.Exclude).Select(item => Guid.Parse(item.Value)),
-                ArchiveTagMatch.All, ArchiveTagFilter.MaximumConfigurableTagsPerList);
+            if (next.Any(item => item.Field == MediaFilterField.Tag))
+                _ = new ArchiveTagFilter(next.Where(item => item.Field == MediaFilterField.Tag && !item.Exclude).Select(item => Guid.Parse(item.Value)),
+                    next.Where(item => item.Field == MediaFilterField.Tag && item.Exclude).Select(item => Guid.Parse(item.Value)),
+                    ArchiveTagMatch.All, ArchiveTagFilter.MaximumConfigurableTagsPerList);
         }
         catch (ArgumentException) { return MediaFilterQueryProblem.TooManyTags; }
         return IsValidFilter(next) ? null : MediaFilterQueryProblem.Refused;
@@ -157,12 +171,13 @@ public sealed partial class MediaPage
         return new MediaFilterQueryVocabulary
         {
             Aliases = _queryAliases ??= MediaFilterQueryVocabulary.AliasesFrom(key => Texts.T(key)),
+            ScopeAliases = _queryScopeAliases ??= MediaFilterQueryVocabulary.ScopeAliasesFrom(key => Texts.T(key)),
             FindTag = name =>
             {
                 if (tags == null) return null;
-                if (Guid.TryParseExact(name, "D", out Guid id)) return tags.Find(new TagId(id)) != null ? id : null;
-                return PrivateTagName.TryCreate(name, out PrivateTagName? tagName, out _) && tagName != null
-                    ? tags.Tags.FirstOrDefault(tag => tag.Name.Key == tagName.Key)?.Id.Value : null;
+                // A merged-away tag (its former ID or name, now an alias) finds the tag it was merged into.
+                if (Guid.TryParseExact(name, "D", out Guid id)) return tags.ResolveId(new TagId(id))?.Value;
+                return tags.Resolve(name, out _)?.Id.Value;
             },
             TagName = id => tags?.Find(new TagId(id))?.Name.Display,
             FindSource = text => sources.Value.FirstOrDefault(source => string.Equals(source, text, StringComparison.OrdinalIgnoreCase))

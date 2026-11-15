@@ -10,6 +10,7 @@ namespace MeowChan;
 // Interaction audit 1.1.0: in both tables a double click on a row and Enter run the row's primary action, "Show in Downloads" (the
 // toolbar button and the context menu entry), for a row that names a thread or board; the platform facts have none and stay as they
 // are. Ctrl/Cmd+C copies the row's details like "Copy details" (the table's own copy of the cell texts would lose the details).
+// The Menu key, Shift+F10 and the rebindable "Open context menu" (menu.context-open) open the menu of the selected row, as in the other lists.
 public partial class DiagnosticsPage
 {
     private void InitializeRowInteraction()
@@ -38,6 +39,15 @@ public partial class DiagnosticsPage
     {
         if (sender is not DataGrid grid || e.Handled || ShortcutService.IsCapturing || !MainWindow.IsListCommandSource(e.Source, grid)
             || grid.SelectedItem is not DiagnosticEntry entry) return;
+        // The rebindable "Open context menu" (Shift+F10 and the Menu key by default), like the Downloads, Archive and Plugins lists.
+        if (CommandBindings.Matches(e, "menu.context-open"))
+        {
+            e.Handled = true;
+            OpenDiagnosticKeyboardMenu(grid);
+            return;
+        }
+        // The Menu key stays native. A Shift+F10 that was rebound must not open the menu through its old native accelerator.
+        if (e.Key == Key.F10 && e.KeyModifiers == KeyModifiers.Shift) { e.Handled = true; return; }
         if (ItemActivation.IsPrimaryKey(e))
         {
             if (!HasPrimaryAction(entry) || grid.SelectedItems.Count != 1) return;

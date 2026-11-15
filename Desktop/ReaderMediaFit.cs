@@ -97,6 +97,29 @@ internal static class ReaderMediaFit
     }
 
     /// <summary>
+    /// The scroll offset a reader jump aims for, for a card whose top edge is <paramref name="cardTop"/> dip below the top of the viewport
+    /// while the list is at <paramref name="offset"/>. Without <paramref name="centre"/> the card's top edge goes to <see cref="AlignedTop"/>
+    /// (below <paramref name="leading"/>, the reading line some cards carry above them). With it (the focused media is enlarged) the card,
+    /// leading part included, is centred vertically in the viewport; a card that does not fit with the air <see cref="AlignedAir"/> falls back
+    /// to the top alignment, so its header stays visible. The result is limited to the scroll range: at the start and the end of the list
+    /// the card cannot be centred and sits as near the centre as the extent allows.
+    /// </summary>
+    internal static double JumpOffset(double offset, double cardTop, double cardHeight, double viewportHeight, double extentHeight,
+        double leading, bool centre)
+    {
+        double desiredTop = AlignedTop + leading;
+        if (centre && FitsCentred(cardHeight, viewportHeight, leading))
+            desiredTop = (viewportHeight - (cardHeight + leading)) / 2 + leading;
+        double range = double.IsFinite(extentHeight) && double.IsFinite(viewportHeight) ? Math.Max(0, extentHeight - viewportHeight) : double.PositiveInfinity;
+        return Math.Clamp(offset + cardTop - desiredTop, 0, range);
+    }
+
+    /// <summary>Whether a card (with its <paramref name="leading"/> part) can be centred in the viewport and still keep <see cref="AlignedAir"/>.</summary>
+    internal static bool FitsCentred(double cardHeight, double viewportHeight, double leading = 0) =>
+        double.IsFinite(cardHeight) && cardHeight > 0 && double.IsFinite(viewportHeight) && viewportHeight > 0
+        && cardHeight + Math.Max(0, leading) <= viewportHeight - AlignedAir;
+
+    /// <summary>
     /// How far the list scrolls (positive: further down) to hold the focused card whose top edge moved <paramref name="cardShift"/> dip
     /// (positive: down) since it settled, and to keep its medium (<paramref name="frameTop"/> to <paramref name="frameBottom"/>, measured
     /// before the scroll) whole in view from there (<see cref="ScrollDelta"/>). Shifts under one dip are layout noise and are not held.
@@ -106,6 +129,19 @@ internal static class ReaderMediaFit
     {
         double shift = double.IsFinite(cardShift) && Math.Abs(cardShift) >= 1 ? cardShift : 0;
         return shift + ScrollDelta(frameTop - shift, frameBottom - shift, viewportHeight, margin);
+    }
+
+    /// <summary>
+    /// The top edge of what a pointer selection keeps in view with the enlarged medium (dip from the top of the viewport): the card's
+    /// <paramref name="cardTop"/> when the card from there down to the medium's <paramref name="frameBottom"/> fits the viewport with air,
+    /// so the post header of a card clicked while partly above the view comes in with its medium; otherwise the medium's own
+    /// <paramref name="frameTop"/>. A card that is whole in view is not moved by this (<see cref="ScrollDelta"/> is zero for it).
+    /// </summary>
+    internal static double KeptTop(double cardTop, double frameTop, double frameBottom, double viewportHeight, double margin = ScrollMargin)
+    {
+        if (!double.IsFinite(cardTop) || !double.IsFinite(frameTop) || !double.IsFinite(frameBottom) || !double.IsFinite(viewportHeight)
+            || cardTop > frameTop) return frameTop;
+        return frameBottom - cardTop <= viewportHeight - 2 * Math.Max(0, margin) ? cardTop : frameTop;
     }
 
     /// <summary>

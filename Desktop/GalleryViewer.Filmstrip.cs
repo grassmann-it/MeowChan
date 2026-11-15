@@ -73,6 +73,7 @@ internal sealed partial class GalleryViewer
         CommandBindings.BindExisting(_filmstripToggle, "gallery.filmstrip-toggle");
         _filmstripToggle.Click += (_, _) => ToggleFilmstrip();
         _filmstrip.TileActivated += OnFilmstripTileActivated;
+        _filmstrip.TileContextRequested += OnFilmstripTileContextRequested;
         _filmstrip.ExitRequested += () => { FocusGallerySurface(); _keyboardInteraction = false; };
         _compactPosition.PropertyChanged += (_, e) =>
         { if (e.Property == TextBlock.TextProperty) RefreshFilmstripPosition(); };
@@ -91,6 +92,18 @@ internal sealed partial class GalleryViewer
         _filmstripGap = GalleryFilmstripPlan.ClampGap(gap);
         UpdateFilmstripPlacement();
     }
+
+    /// <summary>
+    /// Filmstrip flags (decision 123): the choices of Settings, "Filmstrip shows" (favourite, rating, no tags yet). Called with the other gallery
+    /// preferences; the tiles in view draw again only when what is shown changed.
+    /// </summary>
+    internal void ConfigureFilmstripFlags(FilmstripFlagSettings settings) => _filmstrip.ConfigureFlags(settings);
+
+    /// <summary>Gives the strip the owner's view of favourites, ratings and tags (data that is already loaded; asked only for the flags that are shown).</summary>
+    internal void SetFilmstripFlagSource(Func<GalleryEntry, FilmstripFlagKinds, FilmstripFlagFacts>? source) => _filmstrip.FlagSource = source;
+
+    /// <summary>A favourite, rating or tag changed: the tiles in view read their flags again.</summary>
+    internal void RefreshFilmstripFlags() => _filmstrip.RefreshFlags();
 
     // The strip follows the list the shell owns: the entries (the same list that grows as further threads load) and the shown one.
     private void FilmstripShown(GalleryEntry entry, IReadOnlyList<GalleryEntry> list)
@@ -288,6 +301,15 @@ internal sealed partial class GalleryViewer
         if (!(delta < 0 ? _previous.IsEnabled : _next.IsEnabled)) return;
         _navigationPending = true; // No old-media timer while the shell resolves the entry.
         MoveRequested?.Invoke(delta);
+    }
+
+    // A right-click on a tile: the media menu of that tile's medium (the shown one's own menu when it is the shown tile). The menu belongs to the
+    // medium that is shown now; another navigation retires it.
+    private void OnFilmstripTileContextRequested(int index)
+    {
+        if (_terminalRetirement || _viewerInteractionStopped || !_interactionAvailable || _filmstrip.EntryAt(index) is not { } entry) return;
+        if (index == _filmstrip.CurrentIndex) ShowMediaMenu();
+        else ShowMediaMenu(entry);
     }
 
     private void RetireFilmstrip()

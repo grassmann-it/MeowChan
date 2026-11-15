@@ -7,6 +7,7 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
+using MeowChan.Desktop.MediaActions;
 using MeowChan.Favorites;
 using MeowChan.Gallery;
 
@@ -14,20 +15,6 @@ namespace MeowChan;
 public partial class ArchivePage
 {
     internal Func<FavoriteAssetKey, int?>? GetMediaRating { get; set; }
-    internal Func<GalleryEntry, Task>? EditMediaRatingAsync { get; set; }
-    internal bool RestoreMediaRatingFocus(FavoriteAssetKey key, Control? origin)
-    {
-        if (_selectedThread != key.Thread || !IsEffectivelyVisible) return false;
-        if (!VisibleAssets().Any(row => FavoriteAssetKey.From(key.Thread, row.Asset) == key))
-        { ArchiveRatingFilter.Focus(); return true; }
-        if (origin?.IsEffectivelyVisible == true)
-        {
-            ArchiveAssetRow? row = origin.GetSelfAndVisualAncestors().OfType<Control>().Select(control => control.DataContext).OfType<ArchiveAssetRow>().FirstOrDefault();
-            if (row == null || FavoriteAssetKey.From(key.Thread, row.Asset) == key) { origin.Focus(); return true; }
-        }
-        (_mediaTiles ? (Control)ArchiveMediaTiles : ArchiveMediaGrid).Focus();
-        return true;
-    }
     private int _mediaRatingFilter;
     private string? _mediaRatingError;
     private void ConfigureMediaRatings()
@@ -79,18 +66,48 @@ public partial class ArchivePage
         try { await ManageMediaRatingsAsync(); }
         catch (Exception error) { if (!_ended) Message(error.Message, true); }
     }
-    private async void OnEditMediaRatingClick(object? sender, RoutedEventArgs e)
+    // The button opens the rating menu (the stars and "Remove rating") instead of a dialog. A button the toolbar keeps under "More" is no anchor
+    // while that menu is closed: the menu then opens on "More" (A19), and on the media list when "More" is not shown either.
+    private void OnEditMediaRatingClick(object? sender, RoutedEventArgs e)
     {
-        if (_selectedThread == null || SelectedMediaRow() is not ArchiveAssetRow row || EditMediaRatingAsync == null || _mediaRatingError != null) return;
+        if (_selectedThread == null || SelectedMediaRow() is not ArchiveAssetRow row) return;
         GalleryEntry entry = new(new(_selectedThread, row.Manifest.Directory, row.Asset.AssetId), row.Manifest, row.Asset, null, null, !row.Asset.IsCurrent, true);
-        try { await EditMediaRatingAsync(entry); }
-        catch (Exception error) { if (!_ended) Message(error.Message, true); }
+        OpenRatingMenu(entry, RatingMenuAnchor(ArchiveEditRatingButton));
+    }
+    /// <summary>The control a rating menu opens on for <paramref name="button"/>: the button, "More" when the toolbar reduced it, the media list otherwise.</summary>
+    internal Control RatingMenuAnchor(Control button)
+    {
+        ActionToolBar bar = ReaderMediaActions;
+        if (!bar.ReducedItems.Contains(button) && button.IsEffectivelyVisible) return button;
+        if (bar.More is { IsEffectivelyVisible: true } more) return more;
+        return _mediaTiles ? ArchiveMediaTiles : ArchiveMediaGrid;
+    }
+    private int? CurrentMediaRating(FavoriteAssetKey key)
+    {
+        try { return GetMediaRating?.Invoke(key); }
+        catch (Exception) { return null; } // the error is shown by the rating row of the page (_mediaRatingError)
+    }
+    /// <summary>R in the reader or the media list: the rating menu for <paramref name="entry"/> on <paramref name="origin"/>.</summary>
+    internal void OpenRatingMenu(GalleryEntry entry, Control origin)
+    {
+        if (_ended || !_available || _thread == null || _selectedThread == null || SetMediaRatingAsync == null || _mediaRatingError != null) return;
+        var thread = _thread;
+        ResourceId threadId = _selectedThread;
+        FavoriteAssetKey key = FavoriteAssetKey.From(entry.Key.Thread, entry.Asset);
+        bool available = !_busy && CanChangeMediaRating?.Invoke(key) == true;
+        Action<string> reportError = CaptureActionErrorReporter();
+        MediaMenuSession session = new(MediaMenuSurface.ArchiveTable, MediaMenuTarget.Of(entry), () => !_ended && _available && !IsFilenameSearchOpen
+            && ReferenceEquals(_thread, thread) && _selectedThread == threadId);
+        Task Run(Func<Task> action) => RunArchiveMenuActionAsync(action, session, reportError);
+        ContextMenu menu = MediaMenuBuilder.BuildRatingMenu(session, CurrentMediaRating(key), available, MediaMenuReasons.Unavailable,
+            value => SetMediaRatingAsync(key, value), Run);
+        _mediaMenuPresenter.Show(menu, session, origin, attachToOrigin: true, fallbackFocus: () => (_mediaTiles ? (Control)ArchiveMediaTiles : ArchiveMediaGrid).Focus());
     }
     private void UpdateMediaRatingAction()
     {
         if (this.FindControl<Button>("ArchiveEditRatingButton") is Button edit)
             edit.IsEnabled = !_ended && _available && !_busy && _mediaRatingError == null && _selectedThread != null
-                && SelectedMediaRow() is ArchiveAssetRow row && EditMediaRatingAsync != null
+                && SelectedMediaRow() is ArchiveAssetRow row && SetMediaRatingAsync != null
                 && CanChangeMediaRating?.Invoke(FavoriteAssetKey.From(_selectedThread, row.Asset)) == true;
     }
     private void LocalizeMediaRatings()

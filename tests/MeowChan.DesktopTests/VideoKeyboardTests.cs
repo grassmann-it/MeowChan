@@ -71,10 +71,10 @@ public sealed class VideoKeyboardTests : IDisposable
         Assert.Equal(shortcut, command.Shortcut);
         Assert.True(command.IsImplemented);
         // The video keys run in the reader too (on the selected post's video, 15.11.2026) and on the Media page's panel video (revision 18), where they give
-        // way to the page's own commands instead of competing; the filmstrip belongs to the gallery alone.
+        // way to the page's own commands instead of competing (so does the reader's, ConflictContexts); the filmstrip belongs to the gallery alone.
         bool video = id.StartsWith("video.", StringComparison.Ordinal);
         Assert.Equal(video ? new[] { "gallery", "media", "reader" } : new[] { "gallery" }, EffectiveShortcutBindings.ExecutionContexts(id).Order(StringComparer.Ordinal));
-        Assert.Equal(video ? new[] { "gallery", "reader" } : new[] { "gallery" }, EffectiveShortcutBindings.ConflictContexts(id).Order(StringComparer.Ordinal));
+        Assert.Equal(new[] { "gallery" }, EffectiveShortcutBindings.ConflictContexts(id).Order(StringComparer.Ordinal));
         Assert.Contains(id, EffectiveShortcutBindings.YieldingDefaultCommandIds);
         Assert.True(EffectiveShortcutBindings.DefaultsRevision >= 12);
         foreach (ShortcutPlatform platform in Enum.GetValues<ShortcutPlatform>())

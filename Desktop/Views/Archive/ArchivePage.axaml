@@ -10,6 +10,7 @@
             <!-- WV2: the header tools are one toolbar, so a view that moves one off the bar keeps it under the same "More". -->
             <desktop:ActionToolBar x:Name="ArchiveHeaderActions" Grid.Column="1" VerticalAlignment="Top" HorizontalAlignment="Right">
                 <Button x:Name="ArchiveTransferPreview" wv:WorkViewElement.Id="archive.header.transfer-preview" Click="OnTransferPreviewClick" ursa:ToolBar.OverflowMode="AsNeeded" />
+                <Button x:Name="ArchiveTransferExport" wv:WorkViewElement.Id="archive.header.transfer-export" Click="OnTransferExportClick" ursa:ToolBar.OverflowMode="AsNeeded" />
                 <Button x:Name="ArchiveCleanupOpen" wv:WorkViewElement.Id="archive.header.cleanup" Click="OnArchiveCleanupClick" ursa:ToolBar.OverflowMode="AsNeeded" />
                 <Button x:Name="RefreshArchiveButton" wv:WorkViewElement.Id="archive.header.refresh" Tag="archive.refresh" Classes="localized" Click="OnRefreshClick" ursa:ToolBar.OverflowMode="AsNeeded" />
             </desktop:ActionToolBar>
@@ -54,6 +55,7 @@
                         <ToggleButton x:Name="ArchiveLayoutList" wv:WorkViewElement.Id="archive.results.layout-list" Content="List" Classes="segment segment-first" MinWidth="64" MinHeight="32" ursa:ToolBar.OverflowMode="AsNeeded" />
                         <ToggleButton x:Name="ArchiveLayoutTable" wv:WorkViewElement.Id="archive.results.layout-table" Content="Table" Classes="segment segment-last" MinWidth="64" MinHeight="32" ursa:ToolBar.OverflowMode="AsNeeded" />
                         <Button x:Name="ArchiveResultsGallery" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="archive.results.gallery" Tag="gallery.results" Classes="localized" ursa:ToolBar.OverflowMode="AsNeeded" />
+                        <Button x:Name="ArchiveResultsOpenInMedia" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="archive.results.open-in-media" ursa:ToolBar.OverflowMode="AsNeeded" />
                         <Button x:Name="ArchiveThreadColumnsButton" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="archive.results.columns" Content="Columns" ursa:ToolBar.OverflowMode="AsNeeded" IsVisible="False" />
                         <Button x:Name="ArchiveFavoritesOverview" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="archive.results.favorites" Content="Favorites" ursa:ToolBar.OverflowMode="AsNeeded" />
                         <Button x:Name="ArchiveResultsExport" desktop:ActionToolBar.Group="2" wv:WorkViewElement.Id="archive.results.export" ursa:ToolBar.OverflowMode="AsNeeded" />
@@ -308,8 +310,8 @@
                     </StackPanel>
                     <!-- Own thread tags: inline like reader find, always bound to the open thread. -->
                     <StackPanel x:Name="ReaderTagBar" IsVisible="False" Spacing="{StaticResource Workspace.Space.4}">
-                        <WrapPanel x:Name="ReaderTagChips" ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.4}" />
-                        <WrapPanel x:Name="ReaderTagSuggestions" ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.4}" IsVisible="False" />
+                        <WrapPanel x:Name="ReaderTagChips" ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.8}" />
+                        <WrapPanel x:Name="ReaderTagSuggestions" ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.8}" IsVisible="False" />
                         <controls:HeaderBar x:Name="ReaderTagRow">
                         <WrapPanel ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.4}">
                             <desktop:IdentitySuggestionBox x:Name="ReaderTagInput" Width="240" />
@@ -339,7 +341,7 @@
                                              1-px edge (>= 3:1 against the page) on the darker page tone. The active post is an
                                              AccentSurface card with the accent edge; keyboard focus adds a heavier edge and the
                                              shared focus adorner. Semi's hover/pressed tints are suppressed on cards. -->
-                                        <ListBox x:Name="ArchivePosts" Classes="reader-fit-width" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                        <desktop:ReaderPostList x:Name="ArchivePosts" Classes="reader-fit-width" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                                  ScrollViewer.BringIntoViewOnFocusChange="False"
                                                  Background="{DynamicResource Workspace.Background}" Padding="0,4"
                                                  ContainerPrepared="OnReaderPostContainerPrepared">
@@ -580,7 +582,7 @@
                                                     </Panel>
                                                 </DataTemplate>
                                             </ListBox.ItemTemplate>
-                                        </ListBox>
+                                        </desktop:ReaderPostList>
                                         <TextBlock x:Name="ArchiveNoPosts" Tag="archive.noPosts" Classes="muted localized" TextWrapping="Wrap" Margin="16" />
                                         <!-- One accent wash for the post a jump lands on (fades out once in 400 ms; never per post). -->
                                         <Border x:Name="ReaderJumpFlash" IsVisible="False" IsHitTestVisible="False" Opacity="0" HorizontalAlignment="Left" VerticalAlignment="Top"
@@ -650,7 +652,7 @@
                                         </DataGrid>
                                         <ListBox x:Name="ArchiveMediaTiles" Classes="workspace-selection-bar" IsVisible="False" SelectionMode="Multiple" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto" SelectionChanged="OnMediaSelected" DoubleTapped="OnMediaDoubleTapped">
                                             <ListBox.Styles><Style Selector="ListBoxItem"><Setter Property="Padding" Value="0" /><Setter Property="Margin" Value="0" /><Setter Property="HorizontalContentAlignment" Value="Stretch" /><Setter Property="VerticalContentAlignment" Value="Stretch" /></Style></ListBox.Styles>
-                                            <ListBox.ItemsPanel><ItemsPanelTemplate><desktop:MediaTilePanel /></ItemsPanelTemplate></ListBox.ItemsPanel>
+                                            <!-- The tile panel is made in code (ArchivePage.TileSize.cs): its cell follows the tile size. -->
                                             <ListBox.ItemTemplate><DataTemplate x:DataType="desktop:ArchiveAssetRow">
                                                 <desktop:ArchiveMediaTileView />
                                             </DataTemplate></ListBox.ItemTemplate>

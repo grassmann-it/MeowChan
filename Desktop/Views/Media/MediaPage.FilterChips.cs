@@ -11,6 +11,7 @@ using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.MediaActions;
+using MeowChan.Gallery;
 using Ursa.Controls;
 
 namespace MeowChan;
@@ -38,6 +39,8 @@ public sealed partial class MediaPage
     // Term: the chip's term (null for the tag mode chip); ValueName: what its switch names ("Switch to exclude: Videos").
     private sealed record FilterChip(string Key, string Label, Action Remove, MediaFilterTerm? Term = null, string? ValueName = null)
     {
+        /// <summary>What the chip's tooltip lists besides its label (the thread titles of a thread set); null for most chips.</summary>
+        internal string? Tip { get; init; }
         internal bool Negatable => Term != null && MediaFilterTerm.CanExclude(Term.Field);
     }
 
@@ -121,7 +124,8 @@ public sealed partial class MediaPage
         {
             if (term.Field != MediaFilterField.Tag) AddMode();
             string key = (term.Exclude ? "-" : "+") + MediaFilterTermSet.IdentityKey(term);
-            void Add(string label, string? valueName = null) => chips.Add(new FilterChip(key, label, () => RemoveFilterTerm(term), term, valueName));
+            void Add(string label, string? valueName = null) => chips.Add(new FilterChip(key, label, () => RemoveFilterTerm(term), term, valueName)
+                { Tip = term.Field == MediaFilterField.Threads && term.ThreadSet != null ? ThreadSetTip(term.ThreadSet) : null });
             if (TermLabel(term) is { } text) Add(text.Label, text.ValueName);
         }
         AddMode();
@@ -141,11 +145,19 @@ public sealed partial class MediaPage
                 return (Texts.T(term.Exclude ? "tags.filter.excludeChip" : "tags.filter.includeChip", tag), tag);
             case MediaFilterField.Thread:
                 return (Texts.T("media.filter.threadChip", _threadTitle ?? "#" + term.Value), null);
+            case MediaFilterField.Threads when term.ThreadSet != null:
+                // The results of an Archive search or the threads picked in a list, handed over as a set (MediaPage.ThreadSet.cs).
+                return (ThreadSetChipText(term.ThreadSet), null);
             case MediaFilterField.Untagged:
                 // Reached from the status line while the filter fields are closed, so it is removable without opening them.
                 return (Texts.T("media.filter.withoutTags"), null);
             case MediaFilterField.Name:
-                return (Texts.T("media.filter.nameChip", term.Value.Trim()), null);
+                // A narrowed scope says where the words are looked for: "“cat” in tags, thread titles".
+                return (_textScope == MediaTextFields.All ? Texts.T("media.filter.nameChip", term.Value.Trim())
+                    : Texts.T("media.filter.nameChipScoped", term.Value.Trim(), TextScopeNames(_textScope)), null);
+            case MediaFilterField.In:
+                // The scope of the text has no chip of its own: it is the wording of the name chip ("“cat” in tags") and the scope chip's label.
+                return null;
             case MediaFilterField.Type when MediaFilterTerm.TypeOf(term.Value) is { } kind:
                 return (Texts.T(term.Exclude ? "media.filter.kindExcludeChip" : "media.filter.kindChip", KindLabel(kind)), KindLabel(kind));
             case MediaFilterField.Sound:
@@ -175,6 +187,7 @@ public sealed partial class MediaPage
 
     private void RenderFilterChips()
     {
+        UpdateScopeChip(); // the chip in the search field names the scope of the text (MediaPage.Breakdown.cs)
         _filterResetAll.Content = Texts.T("media.filter.resetAll");
         ToolTip.SetTip(_filterResetAll, Texts.T("media.filter.resetAllHint"));
         AutomationProperties.SetName(_filterResetAll, Texts.T("media.filter.resetAllHint"));
@@ -186,7 +199,7 @@ public sealed partial class MediaPage
         _filterChips.IsVisible = _filterResetAll.IsVisible = chips.Count > 0;
         UpdateChipRowVisibility(); // no chip: no row (and no empty gap in the header)
         // An unchanged row is kept as it is: a late text event must not rebuild the chips under the keyboard focus.
-        string[] rendered = chips.Select(chip => chip.Key + "\u0001" + chip.Label).ToArray();
+        string[] rendered = chips.Select(chip => chip.Key + "\u0001" + chip.Label + "\u0001" + chip.Tip).ToArray();
         if (rendered.SequenceEqual(_renderedChips) && _filterChips.Children.Count == chips.Count) return;
         _renderedChips = rendered;
         _filterChips.Children.Clear();
@@ -199,6 +212,12 @@ public sealed partial class MediaPage
                 () => RemoveFilterChip(position, chip.Remove), chip.Negatable ? () => ToggleFilterChip(term!) : null, chip.ValueName,
                 menu: MediaFilterChipMenu.Options(term, _terms.ToArray(), term?.Field is MediaFilterField.Tag or MediaFilterField.SourceTag ? chip.ValueName : null, ChipActions));
             if (term != null) tag.Tag = MediaFilterTermSet.IdentityKey(term);
+            if (chip.Tip != null)
+            {
+                // The chip's accessible name stays "Remove filter: …"; the titles are its tip and its description.
+                ToolTip.SetTip(tag, chip.Tip);
+                AutomationProperties.SetHelpText(tag, chip.Tip);
+            }
             _filterChips.Children.Add(tag);
         }
     }

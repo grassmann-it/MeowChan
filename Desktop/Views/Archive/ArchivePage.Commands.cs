@@ -148,10 +148,13 @@ public partial class ArchivePage
         }
         Add("gallery.open", () => { if (OpenGallery is { } open) OpenActions.Start(() => open(lead.Summary.Id, null, origin), "archive.menu.gallery"); }, leadAction: true);
         Add("thread.details", async () => await ShowArchiveDetailsAsync(lead), leadAction: true);
-        // QW-A #7: from a thread to its media (the thread: chip of the Media page).
+        // QW-A #7: from a thread to its media (the thread: chip of the Media page); several selected threads open as one thread set.
         if (ids.Length == 1)
             Add("thread.show-in-media", () => ShowThreadInMediaRequested?.Invoke(lead.Summary.Id, lead.Summary.Title),
                 () => ShowThreadInMediaRequested != null, null, leadAction: true);
+        else
+            Add("thread.show-in-media", () => ShowArchiveSelectionInMedia(ids, lead),
+                () => ShowThreadsInMediaRequested != null, null, count: () => ids.Length);
         if (ids.Length == 1) Add("thread.tags", async () => await OpenThreadTagsAsync(lead.Summary.Id), leadAction: true);
         builder.Section();
         Add("export.open-html-dialog", async () => await OpenExportForThreadsAsync(ids, origin, offerResults: true), count: () => ids.Length);

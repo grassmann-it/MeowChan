@@ -32,7 +32,6 @@ public sealed class SecondaryLanguageRefreshRegressionTests : IDisposable
 
     [Theory]
     [InlineData("Desktop/Views/Admission/BoardAdmissionWindow.cs")]
-    [InlineData("Desktop/MediaRatingDialog.cs")]
     [InlineData("Desktop/MediaRatingsManagerDialog.cs")]
     [InlineData("Desktop/Views/About/AboutWindow.axaml.cs")]
     [InlineData("Desktop/StartupErrorWindow.cs")]

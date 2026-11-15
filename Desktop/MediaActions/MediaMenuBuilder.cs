@@ -26,9 +26,11 @@ internal static class MediaMenuBuilder
     /// <param name="contextItems">Context-specific items, shown after a separator below the common section.</param>
     /// <param name="explain">Shows the summary of unavailable actions; null keeps the summary item out of the menu.</param>
     /// <param name="leadingItems">A group on top of the common section (the playback group of a video in the reader), followed by a separator.</param>
+    /// <param name="rate">Writes a rating (1 to 5, null removes it) for the frozen target; the "Rating" submenu is available only with it.</param>
     internal static ContextMenu Build(MediaMenuSession session, MediaMenuModel model,
         IReadOnlyDictionary<MediaMenuAction, Func<Task>> handlers, Func<Func<Task>, Task> run,
-        IReadOnlyList<Control>? contextItems = null, Action<string>? explain = null, IReadOnlyList<Control>? leadingItems = null)
+        IReadOnlyList<Control>? contextItems = null, Action<string>? explain = null, IReadOnlyList<Control>? leadingItems = null,
+        Func<int?, Task>? rate = null)
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(model);
@@ -45,7 +47,7 @@ internal static class MediaMenuBuilder
         {
             if (group >= 0 && entry.Group != group) items.Add(new Separator());
             group = entry.Group;
-            items.Add(Item(session, entry, handlers, run));
+            items.Add(entry.Children != null ? RatingSubmenu(session, entry, rate, run) : Item(session, entry, handlers, run));
         }
         if (contextItems is { Count: > 0 })
         {
@@ -70,6 +72,72 @@ internal static class MediaMenuBuilder
             menu.Close();
         };
         return menu;
+    }
+
+    /// <summary>
+    /// The standalone rating menu (R on the media page and in the archive, and in the gallery when its panel cannot take the focus): the same
+    /// five stars and "Remove rating" as the "Rating" submenu, as a menu of their own at the focused tile or row.
+    /// </summary>
+    internal static ContextMenu BuildRatingMenu(MediaMenuSession session, int? rating, bool available, string? reason,
+        Func<int?, Task> rate, Func<Func<Task>, Task> run)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(rate);
+        ArgumentNullException.ThrowIfNull(run);
+        List<Control> items = RatingChildren(session, MediaMenuComposition.RatingItems(rating, available, reason), rate, run);
+        ContextMenu menu = new() { ItemsSource = items };
+        session.Invalidated += () =>
+        {
+            foreach (MenuItem item in items.OfType<MenuItem>()) item.IsEnabled = false;
+            menu.Close();
+        };
+        return menu;
+    }
+
+    // The "Rating" entry is a submenu with the entry's own id, label, icon and key (R); it does nothing by itself.
+    private static MenuItem RatingSubmenu(MediaMenuSession session, MediaMenuItemModel entry, Func<int?, Task>? rate, Func<Func<Task>, Task> run)
+    {
+        bool executable = entry.Available && rate != null;
+        MenuItem item = CommandBindings.CreateMenuItem(entry.CommandId!, () => { }, () => executable,
+            () => executable ? null : entry.Reason ?? MediaMenuReasons.Unavailable, () => entry.Label);
+        item.Command = null;
+        item.Tag = entry.Id;
+        item.IsEnabled = executable && session.IsCurrent;
+        ToolTip.SetShowOnDisabled(item, true);
+        item.ItemsSource = rate == null ? Array.Empty<Control>() : RatingChildren(session, entry.Children!, rate, run);
+        session.Invalidated += () => item.IsEnabled = false;
+        return item;
+    }
+
+    private static List<Control> RatingChildren(MediaMenuSession session, IReadOnlyList<MediaMenuItemModel> children, Func<int?, Task> rate,
+        Func<Func<Task>, Task> run)
+    {
+        List<Control> items = new();
+        foreach (MediaMenuItemModel child in children)
+        {
+            // The stars are a group of radio items; the removal stands apart below them.
+            if (child.CommandId == "media.rating.clear") items.Add(new Separator());
+            int? value = child.RatingValue;
+            bool executable = child.Available;
+            void Execute()
+            {
+                if (session.IsCurrent) _ = run(() => rate(value));
+            }
+            bool CanExecute() => executable && session.IsCurrent;
+            MenuItem item = CommandBindings.CreateMenuItem(child.CommandId!, Execute, CanExecute,
+                () => executable ? null : child.Reason ?? MediaMenuReasons.Unavailable, () => child.Label);
+            item.Tag = child.Id;
+            item.Click += (_, _) => RetireIfStale(session);
+            ToolTip.SetShowOnDisabled(item, true);
+            if (child.Checked is { } isChecked)
+            {
+                item.ToggleType = MenuItemToggleType.Radio;
+                item.GroupName = "media.rating";
+                item.IsChecked = isChecked;
+            }
+            items.Add(item);
+        }
+        return items;
     }
 
     private static MenuItem Item(MediaMenuSession session, MediaMenuItemModel entry,

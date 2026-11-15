@@ -23,6 +23,7 @@ internal static class ReaderSettingsPreferences
         reader.QuotePreviewDelayMilliseconds = config.ReaderPreviewDelayMs;
         reader.InlineReplyPageSize = config.ReaderReplyStep;
         reader.ReplyCardMaxLines = config.ReaderReplyLines;
+        reader.ReaderExpandRepliesPreference = config.ReaderExpandReplies;
         reader.ReaderMediaSidebarFit = Gallery(config);
         ReaderPreviewAspectMemo.Shared.Capacity = config.ReaderPreviewSizeMemory;
         reader.ReaderPreviewPrefetchPosts = config.ReaderPreviewPrefetchPosts;

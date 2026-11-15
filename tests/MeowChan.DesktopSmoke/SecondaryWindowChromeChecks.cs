@@ -28,7 +28,6 @@ internal static class SecondaryWindowChromeChecks
             await CheckAboutAsync(owner);
             await CheckSettingsAsync(owner);
             await CheckRatingsManagerAsync(owner);
-            await CheckRatingPromptAsync(owner);
             await CheckModelessBookmarksAsync(owner);
             await CheckOwnerlessStartupErrorAsync(owner);
         }
@@ -72,8 +71,7 @@ internal static class SecondaryWindowChromeChecks
         foreach ((string name, Func<Window> create) in new (string, Func<Window>)[]
         {
             ("about", () => new AboutWindow()),
-            ("ratings-manager", () => new MediaRatingsManagerDialog(owner.SessionHost)),
-            ("rating", () => new MediaRatingDialog(key, null, _ => Task.CompletedTask))
+            ("ratings-manager", () => new MediaRatingsManagerDialog(owner.SessionHost))
         })
         {
             Window window = create();
@@ -132,29 +130,6 @@ internal static class SecondaryWindowChromeChecks
             await shown;
             await WaitActiveAsync(owner, "ratings-manager-owner-return");
             Console.WriteLine("SMOKE ratings-manager caption: Dialog variant (no minimize); native Escape closed the modal; owner active again.");
-        }
-        finally { if (!closed) dialog.Close(); }
-    }
-
-    // Small modal prompt, Dialog variant: no minimize, maximize/restore/double-click, Escape closes.
-    private static async Task CheckRatingPromptAsync(MainWindow owner)
-    {
-        var key = new MeowChan.Favorites.FavoriteAssetKey(new ResourceId("4chan", "g", "123"), "chrome", "original", new string('a', 64));
-        int commits = 0;
-        var dialog = new MediaRatingDialog(key, null, _ => { commits++; return Task.CompletedTask; });
-        bool closed = false;
-        dialog.Closed += (_, _) => closed = true;
-        try
-        {
-            Task shown = dialog.ShowDialog(owner);
-            using MediaNativeInput input = await StageDialogAsync(dialog, "rating");
-            await CheckCaptionAsync(dialog, input, "rating", WindowChromeKind.Dialog);
-            await input.KeyAsync(MediaNativeInput.Escape);
-            await Program.WaitUntilAsync(() => closed);
-            await shown;
-            Require(commits == 0, "Closing the rating prompt committed a rating.");
-            await WaitActiveAsync(owner, "rating-owner-return");
-            Console.WriteLine("SMOKE rating caption: Dialog variant without minimize; native Escape closed it without a commit.");
         }
         finally { if (!closed) dialog.Close(); }
     }

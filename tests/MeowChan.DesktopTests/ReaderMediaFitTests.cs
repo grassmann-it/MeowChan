@@ -276,4 +276,101 @@ public sealed class ReaderMediaFitTests : IDisposable
         Assert.True(frame.DesiredSize.Height <= visible + Tolerance, $"{frame.DesiredSize.Height} > {visible}");
         Assert.Equal(0.5, frame.DesiredSize.Width / frame.DesiredSize.Height, 0.01); // layout rounding to whole pixels
     });
+
+    // Reader jump target (Tom, 15.11.2026): with the focused media enlarged the card is centred in the viewport.
+    private static double CardCentreInViewport(double offsetBefore, double cardTop, double cardHeight, double offsetAfter) =>
+        cardTop - (offsetAfter - offsetBefore) + cardHeight / 2;
+
+    [Theory]
+    [InlineData(300)]
+    [InlineData(444)]
+    [InlineData(620)]
+    [InlineData(780)] // viewport 800 minus the air (20): the largest card that is still centred
+    public void ACardThatFitsIsCentredInTheViewport(double height)
+    {
+        double offset = ReaderMediaFit.JumpOffset(5000, 123, height, 800, 20000, 0, centre: true);
+        Assert.Equal(400, CardCentreInViewport(5000, 123, height, offset), 1e-6);
+    }
+
+    [Theory]
+    [InlineData(781)]
+    [InlineData(800)]
+    [InlineData(1500)]
+    public void ACardTallerThanTheViewportMinusAirKeepsItsTopAndHeader(double height)
+    {
+        double offset = ReaderMediaFit.JumpOffset(5000, 123, height, 800, 20000, 0, centre: true);
+        Assert.Equal(5000 + 123 - ReaderMediaFit.AlignedTop, offset, 1e-6);
+        Assert.False(ReaderMediaFit.FitsCentred(height, 800));
+    }
+
+    [Fact]
+    public void WithoutEnlargementTheTopEdgeIsAligned()
+    {
+        Assert.Equal(5000 + 123 - ReaderMediaFit.AlignedTop, ReaderMediaFit.JumpOffset(5000, 123, 300, 800, 20000, 0, centre: false), 1e-6);
+        // The reading line above a card scrolls in with it.
+        Assert.Equal(5000 + 123 - ReaderMediaFit.AlignedTop - 30, ReaderMediaFit.JumpOffset(5000, 123, 300, 800, 20000, 30, centre: false), 1e-6);
+    }
+
+    [Fact]
+    public void TheReadingLineAboveACardIsCentredWithIt()
+    {
+        double offset = ReaderMediaFit.JumpOffset(5000, 123, 400, 800, 20000, 30, centre: true);
+        // The region from the line to the card's bottom (430) sits in the middle: 185 above, 185 below; the card starts below the line.
+        Assert.Equal(123 - (offset - 5000), 185 + 30, 1e-6);
+        // A card that fits only without the line falls back to the top alignment with the line visible.
+        Assert.Equal(5000 + 123 - ReaderMediaFit.AlignedTop - 30, ReaderMediaFit.JumpOffset(5000, 123, 760, 800, 20000, 30, centre: true), 1e-6);
+    }
+
+    [Fact]
+    public void ACardNearTheStartOrTheEndOfTheListIsAsCentredAsTheExtentAllows()
+    {
+        // First card: centring would need a negative offset; the list stays at its start.
+        Assert.Equal(0, ReaderMediaFit.JumpOffset(0, 8, 400, 800, 5000, 0, centre: true));
+        Assert.Equal(0, ReaderMediaFit.JumpOffset(100, 8, 400, 800, 5000, 0, centre: true));
+        // Last card: the list stops at the end of its extent (viewport 800, extent 5000: the largest offset is 4200).
+        Assert.Equal(4200, ReaderMediaFit.JumpOffset(4000, 700, 400, 800, 5000, 0, centre: true));
+        // Extent shorter than the viewport: nothing to scroll.
+        Assert.Equal(0, ReaderMediaFit.JumpOffset(0, 300, 200, 800, 500, 0, centre: true));
+    }
+
+    [Fact]
+    public void UnknownViewportOrCardMeasuresFallBackToTheTopAlignment()
+    {
+        double aligned = 5000 + 123 - ReaderMediaFit.AlignedTop;
+        Assert.Equal(aligned, ReaderMediaFit.JumpOffset(5000, 123, double.NaN, 800, 20000, 0, centre: true), 1e-6);
+        Assert.Equal(aligned, ReaderMediaFit.JumpOffset(5000, 123, 300, double.NaN, 20000, 0, centre: true), 1e-6);
+        Assert.Equal(aligned, ReaderMediaFit.JumpOffset(5000, 123, 0, 800, 20000, 0, centre: true), 1e-6);
+    }
+
+    [Fact]
+    public void ALateSizeChangeRecentresOnTheSameTarget()
+    {
+        // The jump centred a 300 dip card; the decoded picture makes it 520 dip tall (its top stays, it grows downwards).
+        double offset = ReaderMediaFit.JumpOffset(5000, 123, 300, 800, 20000, 0, centre: true);
+        double topNow = 123 - (offset - 5000);
+        double again = ReaderMediaFit.JumpOffset(offset, topNow, 520, 800, 20000, 0, centre: true);
+        Assert.Equal(400, CardCentreInViewport(offset, topNow, 520, again), 1e-6);
+        // Idempotent: nothing moves when the size did not change.
+        Assert.Equal(offset, ReaderMediaFit.JumpOffset(offset, topNow, 300, 800, 20000, 0, centre: true), 1e-6);
+    }
+
+    [Fact]
+    public void APointerSelectionKeepsTheHeaderInViewWithTheMediumWhenBothFit()
+    {
+        // A card clicked while 150 dip above the view (viewport 786): its medium spans 80..420 of the card, so the card from its top
+        // down to the medium's bottom (420 dip) fits; the kept span starts at the card's top and the header comes in with the medium.
+        double kept = ReaderMediaFit.KeptTop(-150, -70, 270, 786);
+        Assert.Equal(-150, kept, Tolerance);
+        Assert.Equal(-150 - ReaderMediaFit.ScrollMargin, ReaderMediaFit.HoldDelta(0, kept, 270, 786), Tolerance);
+        // Partly below the view: the span is the same, only its bottom is brought in (the card's top stays in view).
+        Assert.Equal(636, ReaderMediaFit.KeptTop(636, 716, 1100, 786), Tolerance);
+        Assert.Equal(1100 - (786 - ReaderMediaFit.ScrollMargin), ReaderMediaFit.HoldDelta(0, 636, 1100, 786), Tolerance);
+        // A card whose header and medium do not fit together: only the medium is kept in view (its own top).
+        Assert.Equal(-200, ReaderMediaFit.KeptTop(-400, -200, 560, 786), Tolerance);
+        // Without a medium or a viewport nothing changes: the medium's top (NaN, so only the card is held).
+        Assert.True(double.IsNaN(ReaderMediaFit.KeptTop(-150, double.NaN, double.NaN, 786)));
+        Assert.Equal(-70, ReaderMediaFit.KeptTop(-150, -70, 270, double.NaN), Tolerance);
+        // A card already whole in view is not moved by the kept span.
+        Assert.Equal(0, ReaderMediaFit.HoldDelta(0, ReaderMediaFit.KeptTop(60, 140, 480, 786), 480, 786), Tolerance);
+    }
 }

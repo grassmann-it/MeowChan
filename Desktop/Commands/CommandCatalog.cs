@@ -40,7 +40,7 @@ public static class CommandCatalog
         new("tagging.mark-skipped", "command.tagging.mark-skipped", "Mark as skipped", "Als übersprungen markieren", "chevron-right", "S", CommandScope.Media, new[] { "tagging-list-menu" }, new[] { "tagging" }),
         new("tagging.move-up", "command.tagging.move-up", "Move up", "Nach oben", "arrow-up", "Alt+Up", CommandScope.Media, new[] { "tagging-list-menu" }, new[] { "tagging" }),
         new("tagging.move-down", "command.tagging.move-down", "Move down", "Nach unten", "arrow-down", "Alt+Down", CommandScope.Media, new[] { "tagging-list-menu" }, new[] { "tagging" }),
-        new("tagging.remove", "command.tagging.remove", "Remove from queue", "Aus der Warteschlange entfernen", "x", "Delete", CommandScope.Media, new[] { "tagging-list-menu" }, new[] { "tagging" }),
+        new("tagging.remove", "command.tagging.remove", "Remove from queue", "Aus der Warteschlange entfernen", "x", "Delete", CommandScope.Media, new[] { "tagging-list-menu", "media-grid-keys" }, new[] { "tagging", "media" }),
         // TG1: the rest of the entry menu (list and grid). Tag…, the stamp, the gallery, the thread, the folder and the file path are the
         // existing commands of the media page and the gallery (one id, one key, one binding); these have no counterpart there.
         new("tagging.tag-together", "command.tagging.tag-together", "Tag together…", "Gemeinsam taggen…", "tag", null, CommandScope.Media, new[] { "tagging-list-menu" }, new[] { "tagging" }),
@@ -52,7 +52,7 @@ public static class CommandCatalog
         new("tagging.clear", "command.tagging.clear", "Clear queue…", "Warteschlange leeren…", "x-circle", null, CommandScope.Media, new[] { "tagging-page" }, new[] { "tagging" }),
         // The rating family has its own mask (star-half, decision #126 of 15.11.2026): the plain star stays the favourite's, so the two neighbouring menu
         // entries no longer look alike.
-        new("media.rating.edit", "command.media.rating.edit", "Edit rating…", "Bewertung bearbeiten…", "star-half", "R", CommandScope.Media | CommandScope.Reader | CommandScope.Gallery, new[] { "media-rating" }),
+        new("media.rating.edit", "command.media.rating.edit", "Rating", "Bewertung", "star-half", "R", CommandScope.Media | CommandScope.Reader | CommandScope.Gallery, new[] { "media-rating" }),
         new("media.rating.clear", "command.media.rating.clear", "Remove rating", "Bewertung entfernen", "star-half", "Shift+0", CommandScope.Media | CommandScope.Gallery | CommandScope.Dialog, new[] { "media-rating" }),
         new("media.rating.manage", "command.media.rating.manage", "Manage saved ratings…", "Gespeicherte Bewertungen verwalten…", "star-half", null, CommandScope.Media | CommandScope.Archive | CommandScope.Gallery, new[] { "media-page", "archive-media-rating", "gallery-overflow" }),
         new("media.rating.remove-selected", "command.media.rating.remove-selected", "Remove selected rating…", "Ausgewählte Bewertung entfernen…", "star-half", null, CommandScope.Dialog, new[] { "media-ratings-manager" }),
@@ -84,7 +84,8 @@ public static class CommandCatalog
         new("navigation.sources", "command.navigation.sources", "Plugins", "Plugins", "globe", null, CommandScope.Application, new[] { "footer", "tools-menu" }),
         // The Diagnostics segment of Status: no main page, no default gesture (MainPageOrder.StatusSegmentCommandIds); the Sources page opens it.
         new("navigation.diagnostics", "command.navigation.diagnostics", "Diagnostics", "Diagnose", "activity", null, CommandScope.Sources | CommandScope.Application, new[] { "sources", "status-segment" }),
-        new("plugins.refresh", "plugins.refresh", "Refresh status", "Status aktualisieren", "refresh-cw", null, CommandScope.Settings, new[] { "plugins" }),
+        // Revision 20 (audit V13): F5 refreshes the plugin list's status, like the button.
+        new("plugins.refresh", "plugins.refresh", "Refresh status", "Status aktualisieren", "refresh-cw", "F5", CommandScope.Settings, new[] { "plugins" }),
         new("plugins.folder", "plugins.folder", "Open plugin folder", "Pluginordner öffnen", "folder", null, CommandScope.Settings, new[] { "plugins" }),
         new("plugins.back", "plugins.back", "Back to plugins", "Zurück zur Pluginliste", "arrow-left", null, CommandScope.Settings, new[] { "plugins" }),
         new("plugins.save", "plugins.save", "Save for next start", "Für nächsten Start speichern", "save", null, CommandScope.Settings, new[] { "plugins" }),
@@ -137,10 +138,18 @@ public static class CommandCatalog
         new("media.folders", "command.media.folders", "Media folders…", "Medienordner…", "folder", null, CommandScope.Media, new[] { "media-page" }),
         new("media.focus-mode", "command.media.focus-mode", "Focus mode", "Fokusmodus", "maximize", "Shift+F", CommandScope.Media, new[] { "media-toolbar", "media-tiles" }, new[] { "media" }),
         new("media.select-all", "command.media.select-all", "Select all media", "Alle Medien auswählen", "check-square", "Primary+A", CommandScope.Media, new[] { "media-tiles" }),
-        // Interaction audit 1.1.0: the Layout menu tile-size steps also have direct Ctrl/Cmd bindings.
-        new("media.tile-size.larger", "command.media.tile-size.larger", "Larger tiles", "Größere Kacheln", "zoom-in", "Primary+Plus", CommandScope.Media, new[] { "media-tiles" }),
-        new("media.tile-size.smaller", "command.media.tile-size.smaller", "Smaller tiles", "Kleinere Kacheln", "zoom-out", "Primary+Minus", CommandScope.Media, new[] { "media-tiles" }),
+        // Interaction audit 1.1.0: the Layout menu tile-size steps also have direct Ctrl/Cmd bindings. The tagging page's grid shares the media page's
+        // tile size (it is one setting), so these commands also run there (the "tagging" context); the reset key (Ctrl/Cmd+0) is new in revision 20.
+        new("media.tile-size.larger", "command.media.tile-size.larger", "Larger tiles", "Größere Kacheln", "zoom-in", "Primary+Plus", CommandScope.Media, new[] { "media-tiles", "tagging-grid" }, new[] { "media", "tagging" }),
+        new("media.tile-size.smaller", "command.media.tile-size.smaller", "Smaller tiles", "Kleinere Kacheln", "zoom-out", "Primary+Minus", CommandScope.Media, new[] { "media-tiles", "tagging-grid" }, new[] { "media", "tagging" }),
+        new("media.tile-size.reset", "command.media.tile-size.reset", "Medium tiles", "Mittlere Kacheln", "grid", "Primary+0", CommandScope.Media, new[] { "media-tiles", "tagging-grid" }, new[] { "media", "tagging" }),
+        // DefaultsRevision 20: the archive's media tiles (the reader's Media tab, tile view) have a size of their own. Their own context ("archive") keeps
+        // Ctrl/Cmd+Plus, Minus and 0 apart from the reader's font size keys (context "reader"): each runs only while its own list has the focus.
+        new("archive.media-tile-size.larger", "command.archive.media-tile-size.larger", "Larger tiles", "Größere Kacheln", "zoom-in", "Primary+Plus", CommandScope.Archive, new[] { "archive-media-tiles" }, new[] { "archive" }),
+        new("archive.media-tile-size.smaller", "command.archive.media-tile-size.smaller", "Smaller tiles", "Kleinere Kacheln", "zoom-out", "Primary+Minus", CommandScope.Archive, new[] { "archive-media-tiles" }, new[] { "archive" }),
+        new("archive.media-tile-size.reset", "command.archive.media-tile-size.reset", "Medium tiles", "Mittlere Kacheln", "grid", "Primary+0", CommandScope.Archive, new[] { "archive-media-tiles" }, new[] { "archive" }),
         new("gallery.open-results", "command.gallery.open-results", "Media from matching threads", "Medien der Treffer", "image", null, CommandScope.Archive, new[] { "archive-results-toolbar" }),
+        new("archive.open-results-in-media", "command.archive.open-results-in-media", "Open in Media", "In Medien öffnen", "grid", null, CommandScope.Archive, new[] { "archive-results-toolbar" }),
         new("thread.show-in-media", "command.thread.show-in-media", "Show in Media", "In Medien zeigen", "grid", "Alt+M", CommandScope.Archive | CommandScope.Reader | CommandScope.Downloads, new[] { "downloads-thread-menu", "archive-card-menu", "archive-table-menu", "reader-thread-menu" }),
         new("thread.details", "command.thread.details", "Show details", "Details anzeigen", "info", "Alt+Enter", CommandScope.Archive | CommandScope.Downloads, new[] { "downloads-thread-menu", "downloads-board-menu", "downloads-toolbar", "archive-card-menu", "archive-table-menu", "reader-thread-menu" }),
         new("inspector.close", "command.inspector.close", "Close details", "Details schließen", "x", null, CommandScope.Downloads, new[] { "downloads-inspector" }),
@@ -161,6 +170,8 @@ public static class CommandCatalog
         new("export.open-all-results-html-dialog", "command.export.open-all-results-html-dialog", "Export all results", "Alle Treffer exportieren", "download", null, CommandScope.Archive, new[] { "archive-results-toolbar" }),
         new("archive.refresh", "command.archive.refresh", "Refresh archive", "Archiv aktualisieren", "refresh-cw", null, CommandScope.Archive, new[] { "archive-toolbar" }),
         new("archive.transfer-preview", "transfer.preview.open", "Inspect transfer package…", "Transferpaket prüfen…", "archive", null, CommandScope.Archive, new[] { "archive-header" }),
+        // Export labels carry no trailing ellipsis (ExportLabelPunctuationTests); the tooltip names the dialog instead (DialogHint).
+        new("archive.transfer-export", "command.archive.transfer-export", "Export archive", "Archiv exportieren", "download", null, CommandScope.Archive, new[] { "archive-header" }),
         new("archive.cleanup", "command.archive.cleanup", "Clean up archive…", "Archiv aufräumen…", "archive", null, CommandScope.Archive, new[] { "archive-toolbar" }),
         new("archive.saved-searches.open-manager", "savedSearch.openManager", "Saved searches…", "Gespeicherte Suchen…", "folder", null, CommandScope.Archive, new[] { "archive-results-toolbar" }),
         new("archive.saved-searches.save-current", "savedSearch.saveCurrent", "Save applied search…", "Angewandte Suche speichern…", "save", null, CommandScope.Archive | CommandScope.Dialog, new[] { "archive-results-toolbar" }),
@@ -187,6 +198,7 @@ public static class CommandCatalog
         new("reader.find-previous", "command.reader.find-previous", "Find previous", "Zurücksuchen", "arrow-up", "Shift+F3", CommandScope.Reader, new[] { "reader-find" }),
         new("reader.next-post", "command.reader.next-post", "Next post", "Nächster Post", "arrow-down", "Down", CommandScope.Reader, new[] { "large-reader-navigation" }),
         new("reader.open-quote", "command.reader.open-quote", "Show quoted post", "Zitierten Post anzeigen", "corner-up-left", null, CommandScope.Reader | CommandScope.Gallery, new[] { "reader-post-quote", "reader-reference-list", "gallery-post-context" }),
+        new("reader.media.activate", "command.reader.media.activate", "Open medium of the post", "Medium des Posts öffnen", "image", "Enter", CommandScope.Reader, new[] { "reader-media" }),
         new("reader.show-replies", "command.reader.show-replies", "Show replies", "Antworten anzeigen", "message-square", null, CommandScope.Reader, new[] { "reader-post" }),
         new("gallery.return", "command.gallery.return", "Back to gallery", "Zurück zur Galerie", "arrow-left", "Alt+Left", CommandScope.Reader, new[] { "reader-toolbar" }, new[] { "reader-gallery" }),
         new("media.return", "command.media.return", "Back to media", "Zurück zu Medien", "arrow-left", "Alt+Left", CommandScope.Reader, new[] { "reader-toolbar" }),
@@ -274,6 +286,10 @@ public static class CommandCatalog
         new("table.choose-columns", "command.table.choose-columns", "Choose columns…", "Spalten auswählen…", "columns", null, CommandScope.Archive | CommandScope.Downloads, new[] { "downloads-table", "archive-table" }),
         new("table.reset-layout", "command.table.reset-layout", "Reset table layout", "Tabellenlayout zurücksetzen", "rotate-ccw", null, CommandScope.Archive | CommandScope.Downloads, new[] { "downloads-table", "archive-table", "split-layout" }),
         new("reader.font-size", "command.reader.font-size", "Reading font size", "Leseschriftgröße", "type", null, CommandScope.Reader | CommandScope.Media | CommandScope.Settings, new[] { "reader-toolbar", "settings-reading-media" }),
+        // Revision 20 (audit V4): the reader's font size one step up or down (Small, Normal, Large of the setting) or back to Normal; Ctrl+wheel steps it too.
+        new("reader.font-size.larger", "command.reader.font-size.larger", "Larger reading font", "Größere Leseschrift", "zoom-in", "Primary+Plus", CommandScope.Reader, new[] { "reader-text" }),
+        new("reader.font-size.smaller", "command.reader.font-size.smaller", "Smaller reading font", "Kleinere Leseschrift", "zoom-out", "Primary+Minus", CommandScope.Reader, new[] { "reader-text" }),
+        new("reader.font-size.reset", "command.reader.font-size.reset", "Default reading font size", "Standard-Leseschriftgröße", "type", "Primary+0", CommandScope.Reader, new[] { "reader-text" }),
         new("watch.follow-live", "command.watch.follow-live", "Show new posts automatically", "Neue Posts automatisch anzeigen", "arrow-down", "Primary+Shift+L", CommandScope.Reader | CommandScope.Downloads, new[] { "reader-settings", "threadwatcher" }),
         new("reader.show-new-posts", "command.reader.show-new-posts", "Show new posts", "Neue Posts anzeigen", "arrow-down", "Primary+Shift+N", CommandScope.Reader, new[] { "reader-new-posts-notice" }),
         // The reader's view options (plan P0; the settings popover's session rows since RL1). No default gesture; each one can be given a shortcut. The conversation view
@@ -402,7 +418,7 @@ public static class CommandCatalog
         new("feedback.dismiss-all", "command.feedback.dismiss-all", "Close all notifications", "Alle Benachrichtigungen schließen", "x", null, CommandScope.Application, new[] { "notification" }),
         new("settings.reset-default", "command.settings.reset-default", "Reset setting", "Einstellung zurücksetzen", "rotate-ccw", null, CommandScope.Settings, new[] { "settings-row" }),
         new("settings.copy-id", "command.settings.copy-id", "Copy setting id", "Einstellungs-ID kopieren", "copy", null, CommandScope.Settings, new[] { "settings-row" }),
-        new("menu.context-open", "command.menu.context-open", "Open context menu", "Kontextmenü öffnen", "more-horizontal", "Shift+F10", CommandScope.Archive | CommandScope.Downloads | CommandScope.Settings, new[] { "downloads-thread-list", "downloads-board-list", "archive-card-list", "archive-table", "plugins-list", "header-io-monitor", "rules-overview-row", "statistics-table", "settings-row", "archive-active-filter-chip", "tag-filter-picker", "notification", "media-filter-chip", "media-filter-row" }, new[] { "downloads", "archive", "plugins", "header-io-monitor", "rules", "statistics", "settings", "notification" }),
+        new("menu.context-open", "command.menu.context-open", "Open context menu", "Kontextmenü öffnen", "more-horizontal", "Shift+F10", CommandScope.Archive | CommandScope.Downloads | CommandScope.Settings, new[] { "downloads-thread-list", "downloads-board-list", "archive-card-list", "archive-table", "plugins-list", "header-io-monitor", "rules-overview-row", "statistics-table", "settings-row", "archive-active-filter-chip", "tag-filter-picker", "notification", "media-filter-chip", "media-filter-row", "diagnostics-table", "booru-hit" }, new[] { "downloads", "archive", "plugins", "header-io-monitor", "rules", "statistics", "settings", "notification", "diagnostics", "booru" }),
     };
     private static readonly IReadOnlyDictionary<string, CommandDefinition> ById =
         new ReadOnlyDictionary<string, CommandDefinition>(Entries.ToDictionary(x => x.Id, StringComparer.Ordinal));
@@ -494,7 +510,7 @@ public static class CommandCatalog
     public static string? DialogHint(string id) => id switch
     {
         "export.open-html-dialog" or "export.open-all-results-html-dialog" or "export.open-urltext-dialog"
-            or "favorites.export-originals" or "media.export-original" => Texts.T("command.hint.opens-export-dialog"),
+            or "favorites.export-originals" or "media.export-original" or "archive.transfer-export" => Texts.T("command.hint.opens-export-dialog"),
         _ => null
     };
 

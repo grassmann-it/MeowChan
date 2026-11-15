@@ -38,6 +38,7 @@ public partial class MainWindow
         _gallery?.ConfigurePlayback(_presentedGalleryPlayback);
         _gallery?.ConfigureFit(ReaderSettingsPreferences.Gallery(_config));
         _gallery?.ConfigureZoomLimits(_config.GalleryMaxZoomPercent);
+        _gallery?.ConfigureWheelMode(_config.GalleryWheelMode);
         if (_gallery != null) _gallery.ControlsIdleHideMs = _config.ControlsIdleHideMs;
         if (_gallery != null) _gallery.VideoSeekStepSeconds = _config.GalleryVideoSeekStepSeconds;
         if (_gallery != null) _gallery.StatusDwellMs = _config.GalleryStatusDwellMs;
@@ -156,6 +157,8 @@ public partial class MainWindow
         try
         {
             await write;
+            // The gallery's volume reaches the Media page's panel (its next player) now, not only after the settings were saved.
+            if (!_isClosing) ConfigureMediaPanel();
             if (_pendingGalleryContext == null && _desiredGalleryContext == _config.GalleryContextOpen)
                 _desiredGalleryContext = null;
             if (_pendingGalleryVolume == null && _desiredGalleryVolume == _config.VideoVolume)

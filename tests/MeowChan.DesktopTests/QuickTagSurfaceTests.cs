@@ -454,6 +454,12 @@ public sealed class QuickTagSurfaceTests : IDisposable
             Assert.Equal("Alt+2", AutomationProperties.GetAcceleratorKey(chips[1]));
             Assert.Contains(WorkspaceChips.Available, chips[0].Classes);
             Assert.Contains(WorkspaceChips.SourceButton, chips[2].Classes); // dashed source chip, never an own-tag look
+            Assert.Contains(WorkspaceChips.TagPill, chips[0].Classes);      // the 28 dip tag pill
+            Assert.Contains("chip-keyed", chips[0].Classes);                // a number hint leads: 8 dip start padding
+            Assert.DoesNotContain(WorkspaceChips.TagPillAssigned, chips[0].Classes); // a suggestion is never the accent-tinted assigned look
+            ChipOutline sourceChip = Assert.IsType<ChipOutline>(chips[2].Content);
+            Assert.Contains(WorkspaceChips.TagPill, sourceChip.Classes);
+            Assert.All(new[] { chips[0], chips[1] }, chip => Assert.Contains(WorkspaceChips.TagPillContent, Assert.IsType<StackPanel>(chip.Content).Classes));
             Assert.Equal(new char?[] { 'S', 'W', 'B' }, surface.Letters);
 
             await surface.ToggleSuggestionAsync(1); // Alt+2
@@ -828,6 +834,8 @@ public sealed class QuickTagSurfaceTests : IDisposable
             Assert.Equal("Remove red from all", AutomationProperties.GetName(chips[1].Remove));
             Assert.Contains(WorkspaceChips.Own, chips[0].Chip.Classes);       // all: filled + check
             Assert.Contains(WorkspaceChips.Available, chips[1].Chip.Classes); // some: outline + half square
+            Assert.Contains(WorkspaceChips.TagPillAssigned, chips[0].Chip.Classes); // all: accent tint and edge
+            Assert.Contains(WorkspaceChips.TagPillPartial, chips[1].Chip.Classes);  // some: quiet fill, accent edge
             Assert.Empty(surface.Shown); // both tags are carried: no suggestion repeats a chip
 
             await session.ToggleAsync(red);
@@ -899,6 +907,42 @@ public sealed class QuickTagSurfaceTests : IDisposable
         Texts.SetLanguage("de");
         Assert.Equal("aus diesem Thread", QuickTagReasons.Text(QuickTagReason.Thread));
     }
+
+    // The slot of the strip is what the assigned block leaves (a star row), so the strip can only be fitted once that block is built and laid
+    // out. Layout is not available without a window, so the order is pinned in the source, and the flag that lets Refresh do its own fit.
+    [Fact]
+    public void RefreshBuildsTheAssignedBlockAndLaysItOutBeforeTheStripIsFittedAndNoSecondFitIsScheduled()
+    {
+        string source = File.ReadAllText(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(ThisFile())!, "../../Desktop/Controls/QuickTagSurface.cs")));
+        string refresh = Between(source, "internal void Refresh()", "internal static IReadOnlyList<QuickTagSuggestion> Normalize(");
+        int assigned = refresh.IndexOf("BuildAssigned();", StringComparison.Ordinal), layout = refresh.IndexOf("UpdateLayout();", StringComparison.Ordinal),
+            suggestions = refresh.IndexOf("BuildSuggestions();", StringComparison.Ordinal), ask = refresh.IndexOf("_decorated.Suggest(", StringComparison.Ordinal);
+        Assert.True(assigned >= 0 && assigned < layout && layout < suggestions, "BuildAssigned, then the layout, then the strip");
+        Assert.True(layout < ask, "the ranking is asked after the layout, so the old candidates and chips agree while it runs");
+        Assert.Contains("_fillSuggestions && _attached", refresh);
+        Assert.Contains("_refreshing = true;", refresh);
+        Assert.Contains("finally { _refreshing = false; }", refresh);
+        string sizeChanged = Between(source, "private void OnStripHostSizeChanged(", "private DispatcherTimer CreateFitTimer()");
+        Assert.True(sizeChanged.IndexOf("if (_refreshing) return;", StringComparison.Ordinal) is > 0 and var guard && guard < sizeChanged.IndexOf("_fitTimer", StringComparison.Ordinal),
+            "a size change caused by the refresh's own layout starts no debounce timer");
+        // The fit asks for the configured count as its minimum, and a measured size is kept per width.
+        string fit = Between(source, "private void ApplyFit()", "private StripItem EnsureItem(");
+        Assert.Contains("new(width, height, StripItemSpacing, StripMinimum)", fit);
+        Assert.Contains("QuickTagStripFit.NeedsMeasure(item.Measured, item.MeasuredWidth, width)", fit);
+        Assert.Contains("item.MeasuredWidth = width;", fit);
+        Assert.DoesNotContain("QuickTagOptions.NumberedSuggestions", fit);
+    }
+
+    private static string Between(string source, string start, string end)
+    {
+        int first = source.IndexOf(start, StringComparison.Ordinal);
+        Assert.True(first >= 0, "Missing source anchor: " + start);
+        int last = source.IndexOf(end, first + start.Length, StringComparison.Ordinal);
+        Assert.True(last > first, "Missing source anchor: " + end);
+        return source[first..last];
+    }
+
+    private static string ThisFile([System.Runtime.CompilerServices.CallerFilePath] string path = "") => path;
 
     private static string[] Placeholders(string text) => System.Text.RegularExpressions.Regex.Matches(text, @"\{\d+(:[^}]*)?\}")
         .Select(match => match.Value).Distinct().Order(StringComparer.Ordinal).ToArray();

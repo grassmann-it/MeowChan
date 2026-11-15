@@ -115,7 +115,14 @@ public sealed class EffectiveShortcutBindings
     private static long _nextVersion;
     /// <summary>Revision of the default table. Raise it, and list the command in
     /// <see cref="DefaultChangedInRevision"/>, whenever a default gesture is added to or changed on a command.</summary>
-    public const int DefaultsRevision = 19;
+    public const int DefaultsRevision = 20;
+    /// <summary>Command ids that existed in an earlier build and were removed on purpose (the previous/next media-panel keys).
+    /// A saved binding for one is dead data, not a typo: <see cref="Build"/> skips it without an issue and the next save drops it
+    /// (<see cref="ShortcutBindingsSection.WithoutRetired"/>). A truly unknown id is still reported and kept. The defaults revision does not change.</summary>
+    internal static readonly IReadOnlySet<string> RetiredCommands = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "media.panel.previous", "media.panel.next",
+    };
     /// <summary>Commands whose default gesture set was introduced or changed after profiles with saved
     /// bindings may already exist, with the revision that did it. A new default on such a command yields to
     /// a saved binding of another command instead of silencing both; entries are never removed because a
@@ -180,7 +187,7 @@ public sealed class EffectiveShortcutBindings
         ["tags.queue.done-next"] = 9, ["tags.queue.skip"] = 9, ["tags.queue.back"] = 9, ["tags.queue.play-pause"] = 9,
         // New in revision 9 (PT2): the list keys of the tagging page. They act only in its queue list (context "tagging") and
         // yield to a saved binding of another command like every new default.
-        ["tagging.continue-here"] = 9, ["tagging.move-up"] = 9, ["tagging.move-down"] = 9, ["tagging.remove"] = 9,
+        ["tagging.continue-here"] = 9, ["tagging.move-up"] = 9, ["tagging.move-down"] = 9,
         // PT4 (card mode) joins the same revision 9 of the tagging mode (neither is released yet): K and the card keys 1 to 5.
         ["tags.queue.cards"] = 9, ["tags.queue.card-1"] = 9, ["tags.queue.card-2"] = 9, ["tags.queue.card-3"] = 9,
         ["tags.queue.card-4"] = 9, ["tags.queue.card-5"] = 9,
@@ -240,6 +247,21 @@ public sealed class EffectiveShortcutBindings
         // another command, like every new default.
         ["tagging.mark-done"] = 19, ["tagging.mark-skipped"] = 19, ["post.hide"] = 19, ["post.copy-link"] = 19, ["media.copy-path"] = 19,
         ["thread.show-in-media"] = 19, ["tagging.show-in-media"] = 19, ["reader.expand"] = 19, ["media.open-external"] = 19,
+        // Revision 20 (one revision for the quick-win packages of 15.11.2026; each entry yields to a saved binding of another command like every new default):
+        // - "menus, delete, Esc": Delete (and Primary+Back on macOS) also acts on the media page, where it removes the selected media that are in the
+        //   tagging queue from it (the same command as the tagging list's, now also in the context "media"; introduced in revision 9). It never deletes a file.
+        ["tagging.remove"] = 20,
+        // - "mouse and keyboard" (audit V4, V13): Ctrl/Cmd+Plus and Ctrl/Cmd+Minus step the reader's font size, Ctrl/Cmd+0 sets it back to Normal
+        //   (Ctrl+wheel does the first two); F5 refreshes the Plugins page (macOS: Cmd+Option+R first and F5 as an extra; not Cmd+R, which
+        //   is rules.edit-scope, also on the Plugins page).
+        ["reader.font-size.larger"] = 20, ["reader.font-size.smaller"] = 20, ["reader.font-size.reset"] = 20, ["plugins.refresh"] = 20,
+        // - reader Space and Enter on the selected post's medium: Enter, until now a fixed content key, is the command "Open medium of the post" (what a click
+        //   on the medium does by the choice "Clicking a medium"). Space stays the video's play / pause.
+        ["reader.media.activate"] = 20,
+        // - tile sizes: Ctrl/Cmd+0 sets the medium tile size where Ctrl/Cmd+Plus and Minus step it (media page and the tagging grid, one setting:
+        //   media.tile-size.reset is new; media.tile-size.larger/.smaller, revision 16, now also act in the context "tagging"), and the archive's media
+        //   tiles get the same three keys for a size of their own (archive.media-tile-size.*, context "archive").
+        ["media.tile-size.reset"] = 20, ["archive.media-tile-size.larger"] = 20, ["archive.media-tile-size.smaller"] = 20, ["archive.media-tile-size.reset"] = 20,
     };
     public static IReadOnlyCollection<string> YieldingDefaultCommandIds => DefaultChangedInRevision.Keys.ToArray();
     // Commands whose default changed only in the macOS table: on Windows and Linux their gesture is the old stable one
@@ -294,6 +316,15 @@ public sealed class EffectiveShortcutBindings
             case "gallery.zoom-out": list.Add(ShortcutGesture.Parse("Subtract")); break;
             case "media.tile-size.larger": list.Add(ShortcutGesture.Parse("Primary+Add")); break;
             case "media.tile-size.smaller": list.Add(ShortcutGesture.Parse("Primary+Subtract")); break;
+            // The reader's font size (revision 20): the main keyboard's Plus and Minus (the catalog's gesture) and the number pad's, and the
+            // number pad's 0 next to Primary+0.
+            case "reader.font-size.larger": list.Add(ShortcutGesture.Parse("Primary+Add")); break;
+            case "reader.font-size.smaller": list.Add(ShortcutGesture.Parse("Primary+Subtract")); break;
+            case "reader.font-size.reset": list.Add(ShortcutGesture.Parse("Primary+NumPad0")); break;
+            case "archive.media-tile-size.larger": list.Add(ShortcutGesture.Parse("Primary+Add")); break;
+            case "archive.media-tile-size.smaller": list.Add(ShortcutGesture.Parse("Primary+Subtract")); break;
+            case "media.tile-size.reset":
+            case "archive.media-tile-size.reset": list.Add(ShortcutGesture.Parse("Primary+NumPad0")); break;
             case "viewer.shortcut-help": list.Add(new("OemQuestion", new[] { "Shift" }, "?")); break;
             case "menu.context-open": list.Add(ShortcutGesture.Parse("Apps")); break;
             case "reader.find-next": list.Add(ShortcutGesture.Parse("Primary+G")); break;
@@ -330,6 +361,9 @@ public sealed class EffectiveShortcutBindings
             "archive.next-page" => Of("Primary+Alt+Right", "Alt+PageDown"),
             "media.return" or "reader.history-back" or "gallery.return" => Of("Primary+Left"),
             "window.minimize" => Of("Primary+M"),
+            // Revision 20: F5 needs Fn on an Apple keyboard, so the Plugins page's refresh gets Cmd+Option+R first, like "Check now" (watch.check); F5 stays an
+            // extra. Not Cmd+R: that is rules.edit-scope, also on the Plugins page.
+            "plugins.refresh" => Of("Primary+Alt+R", "F5"),
             "pagination.previous" => Of("Primary+Alt+Left", "Alt+PageUp"),
             "pagination.next" => Of("Primary+Alt+Right", "Alt+PageDown"),
             "media.details" => Of("I", "Primary+I"),
@@ -402,7 +436,12 @@ public sealed class EffectiveShortcutBindings
             var entries = section.Overrides.ToArray();
             foreach (var entry in entries)
             {
-                if (!values.ContainsKey(entry.Name)) { issues.Add(ShortcutIssue.FromReason(entry.Name, new("unknownAction", "Unknown action retained / Unbekannte Aktion erhalten"), blocksSave: false)); continue; }
+                if (!values.ContainsKey(entry.Name))
+                {
+                    if (RetiredCommands.Contains(entry.Name)) continue;
+                    issues.Add(ShortcutIssue.FromReason(entry.Name, new("unknownAction", "Unknown action retained / Unbekannte Aktion erhalten"), blocksSave: false));
+                    continue;
+                }
                 values[entry.Name] = Array.Empty<ShortcutGesture>();
                 try
                 {
@@ -482,17 +521,22 @@ public sealed class EffectiveShortcutBindings
     /// <summary>The presentation context of the video keys that the Media page routes to its media panel (CommandDefinition.Contexts).</summary>
     public const string MediaPanelVideoKeys = "media-video-keys";
 
+    /// <summary>The presentation context of the video keys that the reader routes to the selected post's video or its media sidebar (CommandDefinition.Contexts).</summary>
+    public const string ReaderPostVideoKeys = "reader-video-keys";
+
     /// <summary>
     /// The contexts in which a gesture of <paramref name="id"/> competes with other commands: its <see cref="ExecutionContexts"/>, except the Media page for
-    /// the video keys of its media panel. The page routes them only after its own commands (MediaPanelKeys.Route), so there a Media command on the same
-    /// gesture simply wins: it neither conflicts with the video key nor makes it yield, which would silence it in the gallery and the reader as well
-    /// (the defaults are per command, not per context).
+    /// the video keys of its media panel and the reader for the video keys of its selected post. Both pages route those keys only after their own commands
+    /// (MediaPanelKeys.Route, ReaderVideoKeys.ClassifyUnclaimed), so there a Media or reader command on the same gesture simply wins: it neither conflicts
+    /// with the video key nor makes it yield, which would silence it in the gallery (and on the other page) as well (the defaults are per command, not per context).
     /// </summary>
     public static IReadOnlyList<string> ConflictContexts(string id)
     {
         IReadOnlyList<string> contexts = ExecutionContexts(id);
-        return CommandCatalog.Get(id).Contexts.Contains(MediaPanelVideoKeys, StringComparer.Ordinal) && contexts.Contains("media", StringComparer.Ordinal)
-            ? contexts.Where(context => context != "media").ToArray() : contexts;
+        IReadOnlyList<string> marks = CommandCatalog.Get(id).Contexts;
+        bool media = marks.Contains(MediaPanelVideoKeys, StringComparer.Ordinal), reader = marks.Contains(ReaderPostVideoKeys, StringComparer.Ordinal);
+        return media || reader
+            ? contexts.Where(context => !(media && context == "media" || reader && context == "reader")).ToArray() : contexts;
     }
 
     public static IReadOnlyList<string> ExecutionContexts(string id)
@@ -514,7 +558,7 @@ public sealed class EffectiveShortcutBindings
         // page and the gallery, the folder of the shown medium (media.show-in-folder). Neither claims the other's page.
         if (id == "location.open-folder") return new[] { "archive", "dialog", "downloads" };
         if (id == "media.rating.clear" || id.StartsWith("media.rating.set-", StringComparison.Ordinal))
-            return new[] { "media", "reader", "gallery", "dialog:media-rating" };
+            return new[] { "media", "reader", "gallery" };
         if (id.StartsWith("navigation.") || id is "session.pause" or "window.fullscreen" or "input.focus-url" or "viewer.shortcut-help" or "workspace.view-cycle") return new[] { "shell" };
         // The large reader owns thread find; the archive search box is not reachable from it.
         if (id is "reader.find" or "reader.find-next" or "reader.find-previous") return new[] { "large-reader" };
@@ -525,7 +569,6 @@ public sealed class EffectiveShortcutBindings
         {
             string family = id.StartsWith("archive.saved-searches.", StringComparison.Ordinal) ? "saved-searches"
                 : id.StartsWith("post-bookmarks.", StringComparison.Ordinal) ? "post-bookmarks"
-                : id.StartsWith("media.rating.", StringComparison.Ordinal) ? "media-rating"
                 : id.Split('.')[0];
             return new[] { "dialog:" + family };
         }

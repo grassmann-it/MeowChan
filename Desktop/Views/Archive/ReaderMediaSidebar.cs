@@ -390,6 +390,8 @@ internal sealed class ReaderMediaSidebar : Border
         KeyboardNavigation.SetTabNavigation(_strip, KeyboardNavigationMode.Once);
         _strip.SelectionChanged += OnStripSelectionChanged;
         _strip.AddHandler(KeyDownEvent, OnStripKeyDown, RoutingStrategies.Tunnel);
+        // Audit V6: the vertical wheel over the strip scrolls it sideways, like the gallery filmstrip (nothing happens while all thumbnails fit).
+        MeowChan.Desktop.Controls.StripWheel.Attach(_strip, ReaderMediaMultiRules.ThumbnailWidth + ReaderMediaMultiRules.ThumbnailSpacing);
         _strip.DoubleTapped += (_, e) =>
         {
             if (!_stripRow.IsVisible || !MeowChan.Desktop.Controls.ItemActivation.IsItemDoubleClick(e, _strip)

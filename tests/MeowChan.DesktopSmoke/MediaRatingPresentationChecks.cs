@@ -10,7 +10,7 @@ using Texts = MeowChan.Desktop.Localization.Texts;
 
 namespace MeowChan.DesktopSmoke;
 
-/// <summary>Optional 12-cell presentation pass at the executor's scale; no successful rating mutations.</summary>
+/// <summary>Optional 12-cell presentation pass at the executor's scale; no rating mutations.</summary>
 internal static partial class MediaRatingChecks
 {
     private static void RequireInsideWindow(Window window, Control control, string intent)
@@ -23,22 +23,6 @@ internal static partial class MediaRatingChecks
             && point.Y + control.Bounds.Height <= window.ClientSize.Height + 1,
             intent + " lies outside the actual dialog client area");
     }
-    private static void RequireLocalizedRatingError(Window dialog, bool removing)
-    {
-        const string cause = "The ratings index path is not a regular file.";
-        string operation = Texts.Language == "de"
-            ? removing ? "Bewertung konnte nicht entfernt werden." : "Bewertung konnte nicht gespeichert werden."
-            : removing ? "Could not remove the rating." : "Could not save the rating.";
-        string expected = operation + "\nDetails: " + cause;
-        string? actual = Find<TextBlock>(dialog, "MediaRatingError").Text;
-        bool result = actual == expected;
-        Evidence.Add(new { sequence = Evidence.Count + 1,
-            ratingErrorPresentation = removing ? "failed Clear" : "failed Save", language = Texts.Language,
-            expectedOperation = operation, retainedTechnicalCause = cause, actualText = actual, result });
-        SaveEvidence(result ? "running localized rating error checks" : "failed localized rating error check");
-        Require(result, "Rating error must show the exact localized operation and unchanged technical cause as Details");
-    }
-
     private static async Task RunPresentationMatrix()
     {
         Config original = _window.SessionHost.Config.Clone();
@@ -65,54 +49,21 @@ internal static partial class MediaRatingChecks
                 SetChoice(Filter, 0, "Keep presentation cell on all ratings");
                 string scale = _window.RenderScaling.ToString("0.##", CultureInfo.InvariantCulture);
                 string cell = mode.ToLowerInvariant() + "-" + language + "-" + theme.ToString().ToLowerInvariant() + "-" + scale + "x";
-                MediaRatingDialog dialog = await OpenStar(Row(2));
-                Control editor = Editor(dialog);
-                Button clear = Find<Button>(dialog, "MediaRatingClear");
-                await PreparePresentationDialog(dialog, editor, cell);
-                RequireInsideWindow(dialog, editor, "Star editor"); RequireInsideWindow(dialog, clear, "Clear action");
-                Require(clear.IsEffectivelyEnabled && AutomationProperties.GetName(clear) == CommandCatalog.Label("media.rating.clear"),
-                    "Clear must be genuinely available and labelled in the current language");
-                Require(Find<TextBlock>(dialog, "MediaRatingValue").Text == MediaRatingText.Value(3), "Initial rating label must follow language");
+                ContextMenu menu = await OpenRatingMenu(Row(2));
+                RequireMenuShows(menu, 3, "presentation cell");
+                MenuItem clear = RatingItem(menu, null);
+                Require(clear.IsEffectivelyEnabled && menu.Items.OfType<MenuItem>().All(item => !string.IsNullOrWhiteSpace(item.Header?.ToString())),
+                    "Remove rating must be genuinely available and every item labelled in the current language");
                 Program.CaptureWindow(_window, "smoke-rating-matrix-" + cell + "-owner.png");
-                Program.CaptureWindow(dialog, "smoke-rating-matrix-" + cell + "-star-clear.png");
-                string backup = RatingPath + ".bak", parked = backup + ".presentation-parked";
-                Log("Keep rating bytes unchanged while displaying real commit error", "disposable fixture backup-path obstruction");
-                if (File.Exists(backup)) File.Move(backup, parked);
-                Directory.CreateDirectory(backup);
-                try
-                {
-                    await Choose(dialog, 4);
-                    Press(editor, Key.Enter, "Attempt rating commit for real error presentation");
-                    await Program.WaitUntilAsync(() => Find<Button>(dialog, "MediaRatingRetry").IsVisible && editor.IsEnabled);
-                    await AssertEditorRender(dialog, 3, "presentation failed save restored confirmed rating");
-                    RequireLocalizedRatingError(dialog, removing: false);
-                    Require(Rating(Row(2)) == 3 && Digest(RatingPath) == initialRatings, "Presentation failed commit changed durable rating");
-                    // Clear is also exercised through its actual command under the same failed-write condition.
-                    Click(clear, "Exercise actual Clear with durable error and unchanged value");
-                    await Program.WaitUntilAsync(() => Find<Button>(dialog, "MediaRatingRetry").IsVisible && editor.IsEnabled);
-                    await AssertEditorRender(dialog, 3, "presentation failed Clear restored confirmed rating");
-                    RequireLocalizedRatingError(dialog, removing: true);
-                    TextBlock error = Find<TextBlock>(dialog, "MediaRatingError");
-                    Require(!string.IsNullOrWhiteSpace(error.Text), "Presentation commit error is missing");
-                    RequireInsideWindow(dialog, error, "Commit error"); RequireInsideWindow(dialog, Find<Button>(dialog, "MediaRatingRetry"), "Retry action");
-                    Require(editor.Focus(NavigationMethod.Tab) && ReferenceEquals(dialog.FocusManager?.GetFocusedElement(), editor),
-                        "Error presentation must retain reachable editor focus");
-                    Program.CaptureWindow(dialog, "smoke-rating-matrix-" + cell + "-error.png");
-                    Observe("Presentation cell failed Set/Clear preserves same exact rating and file", Rating(Row(2)) == 3 && Digest(RatingPath) == initialRatings);
-                }
-                finally
-                {
-                    Directory.Delete(backup);
-                    if (File.Exists(parked)) File.Move(parked, backup);
-                }
-                await Close(dialog);
+                await CloseRatingMenu(menu);
+                Require(Digest(RatingPath) == initialRatings && Rating(Row(2)) == 3, "Presentation menu changed the durable rating");
                 await ManagerCancelFocus("smoke-rating-matrix-" + cell + "-manager-focus.png");
                 Require(Digest(RatingPath) == initialRatings, "Presentation manager cancel changed rating bytes");
                 cells++;
                 Evidence.Add(new { presentationCell = cell, result = true, requestedClientDip = new { width, height },
                     actualClientDip = _window.ClientSize.ToString(), actualMode = _window.SessionHost.Config.WorkspaceMode,
                     actualLanguage = Texts.Language, actualTheme = _window.ActualThemeVariant.ToString(), actualScale = _window.RenderScaling,
-                    ratingFileSha256 = Digest(RatingPath), scope = "real presentation/focus/error controls, no successful rating write; no human/native-AT claim" });
+                    ratingFileSha256 = Digest(RatingPath), scope = "real presentation/focus controls, no rating write; no human/native-AT claim" });
                 SaveEvidence("running presentation matrix");
             }
             Require(cells == 12, "Presentation matrix must complete all twelve cells");

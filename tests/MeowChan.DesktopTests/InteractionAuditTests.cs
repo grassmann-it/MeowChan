@@ -150,8 +150,9 @@ public sealed class InteractionAuditTests
             Assert.True(EffectiveShortcutBindings.YieldsOn(id, platform), id);
         }
         // Each runs only where its list is: the media page, the Diagnostics table, the Statistics table (never next to Copy link(s)).
-        Assert.Equal(new[] { "media" }, EffectiveShortcutBindings.ExecutionContexts("media.tile-size.larger"));
-        Assert.Equal(new[] { "media" }, EffectiveShortcutBindings.ExecutionContexts("media.tile-size.smaller"));
+        // (The tagging grid shares the media page's tile size, so the commands also run there: the "tagging" context.)
+        Assert.Equal(new[] { "media", "tagging" }, EffectiveShortcutBindings.ExecutionContexts("media.tile-size.larger"));
+        Assert.Equal(new[] { "media", "tagging" }, EffectiveShortcutBindings.ExecutionContexts("media.tile-size.smaller"));
         Assert.Equal(new[] { "diagnostics" }, EffectiveShortcutBindings.ExecutionContexts("diagnostics.copy"));
         Assert.Equal(new[] { "statistics" }, EffectiveShortcutBindings.ExecutionContexts("statistics.copy-row"));
     }
@@ -192,13 +193,17 @@ public sealed class InteractionAuditTests
     public void CtrlWheelAndCtrlPlusMinusStepTheSavedTileSizeOfTheLayoutMenu()
     {
         string interaction = Read("Desktop/Views/Media/MediaPage.Interaction.cs");
-        Assert.Contains("_grid.AddHandler(PointerWheelChangedEvent, OnTileSizeWheel, RoutingStrategies.Tunnel);", interaction);
-        Assert.Contains("ItemActivation.IsZoomWheel(e.KeyModifiers)", interaction);
-        Assert.Contains("ApplyLayout(_layout with { TileSize = next });", interaction);
-        Assert.Contains("CommandRouter.IsNativeInput(e.Source, e.Key)", interaction);
-        Assert.Contains("TileSizeLargerCommandId", interaction);
+        string input = Read("Desktop/Controls/TileSizeInput.cs");
+        // The media page uses the shared tile size input (also used by the tagging grid and the archive's media tiles).
+        Assert.Contains("TileSizeInput.Install(_grid, TileSizeCommands.Media, () => _layout.TileSize, ApplyTileSize);", interaction);
+        Assert.Contains("surface.AddHandler(InputElement.PointerWheelChangedEvent, input.OnWheel, RoutingStrategies.Tunnel);", input);
+        Assert.Contains("ItemActivation.IsZoomWheel(e.KeyModifiers)", input);
+        Assert.Contains("ApplyLayout(_layout with { TileSize = size });", interaction);
+        Assert.Contains("CommandRouter.IsNativeInput(e.Source, e.Key)", input);
         Assert.Equal("media.tile-size.larger", MediaPage.TileSizeLargerCommandId);
         Assert.Equal("media.tile-size.smaller", MediaPage.TileSizeSmallerCommandId);
+        Assert.Equal("media.tile-size.reset", MediaPage.TileSizeResetCommandId);
+        Assert.Equal(MediaPage.TileSizeLargerCommandId, TileSizeCommands.Media.Larger);
     }
 
     [Fact]
@@ -234,9 +239,11 @@ public sealed class InteractionAuditTests
         Assert.Contains("ItemActivation.IsCardDoubleClick(e, card) || !IsEditable || _wizard.IsOpen", rules);
         // The card's Edit/Continue button and its double click open the same scope.
         Assert.True(Count(rules, "OpenRuleFromOverview(scope)") >= 3);
-        string booru = Read("Desktop/Views/Booru/BooruWorkbenchView.cs");
+        // Booru hits (decision 95): the double click and Enter run "Show in Media" for a saved hit and nothing else (no download).
+        string booru = Read("Desktop/Views/Booru/BooruWorkbenchView.Hits.cs");
         Assert.Contains("ItemActivation.IsCardDoubleClick(e, card)", booru);
-        Assert.Contains("showInMedia is { IsEffectivelyEnabled: true } ? showInMedia : load.IsEffectivelyEnabled ? load : null", booru);
+        Assert.Contains("showInMedia is { IsEffectivelyEnabled: true } ? showInMedia : null", booru);
+        Assert.Contains("ItemActivation.IsCardDoubleClick(e, card)", booru.Substring(booru.IndexOf("ConfigureWatcherCard", StringComparison.Ordinal)));
         string sidebar = Read("Desktop/Views/Archive/ReaderMediaSidebar.cs");
         Assert.Contains("StripActivated?.Invoke(this, index);", sidebar);
         Assert.Contains("sidebar.StripActivated += (_, index) => { SelectMediaSidebarIndex(index); OpenMediaSidebarMedia(); };",

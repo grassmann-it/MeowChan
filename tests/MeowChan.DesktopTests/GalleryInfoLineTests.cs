@@ -153,12 +153,12 @@ public sealed class GalleryInfoLineTests
         Assert.Equal(scope, GalleryChromePlan.Resolve(Input(WorkView.Advanced, width)).InfoScope);
 
     [Theory]
-    [InlineData(WorkView.Advanced, 1920, false)] // the rating button (☆ 4) shows the value
-    [InlineData(WorkView.Advanced, 1050, true)] // the button went under ⋯: the info line says the rating
-    [InlineData(WorkView.Simple, 1920, false)]
-    [InlineData(WorkView.Simple, 800, true)] // Simple has lost the button by then (S2)
-    [InlineData(WorkView.Barebones, 1920, true)] // Barebones has no rating button at all
-    public void TheInfoRatingShowsOnlyWithoutARatingButtonOnTheBar(WorkView view, double width, bool rating) =>
+    [InlineData(WorkView.Advanced, 1920, true)] // there is no rating button on the bar any more: the info line says the rating
+    [InlineData(WorkView.Advanced, 1050, true)]
+    [InlineData(WorkView.Simple, 1920, true)]
+    [InlineData(WorkView.Simple, 800, true)]
+    [InlineData(WorkView.Barebones, 1920, true)]
+    public void TheInfoRatingShowsWheneverThePanelDoesNotCarryIt(WorkView view, double width, bool rating) =>
         Assert.Equal(rating, GalleryChromePlan.Resolve(Input(view, width)).InfoRating);
 
     [Fact]
@@ -221,7 +221,7 @@ public sealed class GalleryInfoLineTests
         Texts.SetLanguage("en");
         string info = Texts.T("gallery.layout.infoHelp"), hints = Texts.T("gallery.layout.hintsHelp");
         Assert.Contains("One line", info);
-        Assert.Contains("rating button", info);
+        Assert.Contains("side panel", info);
         Assert.Contains("status on the right", hints);
         Assert.Contains("fades out", hints);
     }

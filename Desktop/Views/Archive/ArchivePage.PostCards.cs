@@ -20,6 +20,8 @@ public partial class ArchivePage
         object? item = (sender as ItemsControl)?.ItemFromContainer(e.Container) ?? e.Container.DataContext;
         e.Container.Classes.Set("reader-op", item is ArchivePostRow { IsOpeningPost: true });
         DecorateReaderPost(e.Container, item as ArchivePostRow, ArchivePosts.Bounds.Width);
+        // Before the container is measured the first time: the replies are open (or not) on the row, so the card has its final shape.
+        if (item is ArchivePostRow post) ApplyAutomaticReplies(post);
     }
 
     // A click on an inline >>No. in the post text navigates exactly like its quote button.

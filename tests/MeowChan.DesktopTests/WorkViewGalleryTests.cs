@@ -43,10 +43,10 @@ public sealed class WorkViewGalleryTests
     public void TheCuratingToolsMoveUnderMoreInBarebonesAndOntoTheBarFromSimpleOn()
     {
         Assert.Empty(WorkViewPolicy.GalleryBarToolIds(WorkView.Barebones));
-        Assert.Equal(["gallery.toolbar.rating", "gallery.toolbar.tags", "gallery.toolbar.slideshow"],
+        Assert.Equal(["gallery.toolbar.tags", "gallery.toolbar.slideshow"],
             WorkViewPolicy.GalleryBarToolIds(WorkView.Simple));
         // Advanced adds the shortcut help. E2: the slideshow's seconds and playback mode are settings, not tools: under More in every view.
-        Assert.Equal(["gallery.toolbar.rating", "gallery.toolbar.tags", "gallery.toolbar.slideshow", "gallery.toolbar.help"],
+        Assert.Equal(["gallery.toolbar.tags", "gallery.toolbar.slideshow", "gallery.toolbar.help"],
             WorkViewPolicy.GalleryBarToolIds(WorkView.Advanced));
     }
 
@@ -119,10 +119,10 @@ public sealed class WorkViewGalleryTests
     [Fact]
     public void DialogsOfReducedCommandsReturnFocusToMore()
     {
-        // Barebones keeps rating, tags and the ratings manager under More; Simple brings rating and tags onto the bar.
-        Assert.True(WorkViewPolicy.GalleryCommandReduced("media.rating.edit", WorkView.Barebones));
+        // Barebones keeps tags and the ratings manager under More; Simple brings tags onto the bar. The rating has no button and no dialog
+        // any more (review 15.11.), so R is never a "reduced" command that would return focus to More.
         Assert.True(WorkViewPolicy.GalleryCommandReduced("media.tags.edit", WorkView.Barebones));
-        Assert.False(WorkViewPolicy.GalleryCommandReduced("media.rating.edit", WorkView.Simple));
+        foreach (WorkView view in WorkViewSetting.All) Assert.False(WorkViewPolicy.GalleryCommandReduced("media.rating.edit", view));
         Assert.False(WorkViewPolicy.GalleryCommandReduced("media.tags.edit", WorkView.Advanced));
         foreach (WorkView view in WorkViewSetting.All)
         {
@@ -134,7 +134,7 @@ public sealed class WorkViewGalleryTests
         string tags = ReadSource("Desktop/Shell/MainWindow.GalleryTags.cs");
         Assert.Contains("FocusReturnTarget(origin, \"media.tags.edit\")", tags);
         string ratings = ReadSource("Desktop/Shell/MainWindow.Ratings.cs");
-        Assert.Contains("FocusReturnTarget(origin, \"media.rating.edit\")", ratings);
+        Assert.DoesNotContain("FocusReturnTarget(origin, \"media.rating.edit\")", ratings);
         Assert.Contains("FocusReturnTarget(origin, \"media.rating.manage\")", ratings);
     }
 

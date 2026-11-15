@@ -81,6 +81,11 @@ public sealed class WorkspaceTokenTests
     [InlineData("Workspace.Radius.Chip", "12")]
     [InlineData("Workspace.Radius.ChipCompact", "9")]
     [InlineData("Workspace.Inset.ChipCompact", "6,1")]
+    [InlineData("Workspace.Size.TagPill", "28")]
+    [InlineData("Workspace.Size.TagKey", "16")]
+    [InlineData("Workspace.Radius.TagPill", "14")]
+    [InlineData("Workspace.Inset.TagPill", "12,0")]
+    [InlineData("Workspace.Inset.TagPillKeyed", "8,0,12,0")]
     [InlineData("Workspace.Inset.Card", "12,10,12,12")]
     [InlineData("Workspace.Inset.Overlay", "12")]
     public void ThemeNeutralTokensKeepTheirDesignValues(string key, string value) =>

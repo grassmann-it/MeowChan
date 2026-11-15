@@ -67,6 +67,8 @@ public partial class ArchivePage
         _deletePrivateTag = host.DeletePrivateTagAsync;
         _inspectLocalTagOrphans = host.InspectLocalMediaTagOrphansAsync;
         _removeLocalTagOrphans = host.RemoveLocalMediaTagAssignmentsAsync;
+        _tagMergeCommands = new TagMergeCommands(host.MergePrivateTagsAsync, host.UndoPrivateTagMergeAsync,
+            host.AddPrivateTagAliasAsync, host.RemovePrivateTagAliasAsync);
         ReloadPrivateTags();
     }
 
@@ -198,7 +200,7 @@ public partial class ArchivePage
 
     internal void OpenThreadTagsByShortcut()
     {
-        if (ThreadTagsShortcutTarget is ResourceId id) _ = OpenThreadTagsAsync(id);
+        if (ThreadTagsShortcutTarget is ResourceId id) OpenActions.Start(() => OpenThreadTagsAsync(id), "archive.threadTags.open");
     }
 
     private void OnCloseThreadTags(object? sender, RoutedEventArgs e) => CloseTagBar(focusOpen: true);
@@ -235,12 +237,19 @@ public partial class ArchivePage
         PrivateTagTask = AddThreadTagAsync(name, clearInput: true);
     }
 
-    // Create-or-get, then assign. Both steps are idempotent, so a repeated click cannot duplicate.
+    // Create-or-get, then assign. Both steps are idempotent, so a repeated click cannot duplicate. One entry may name several
+    // tags (TagEntryParser: spaces, quotes, commas); each goes through the alias table and is added in turn.
     private Task AddThreadTagAsync(string name, bool clearInput) => RunThreadTagOperationAsync(async (thread, token) =>
     {
-        PrivateTagCommit defined = await _definePrivateTag!(name, token);
-        AdoptPrivateTagCommit(defined);
-        AdoptPrivateTagCommit(await _setThreadTag!(defined.Tag, thread, true, token));
+        TagEntry entry = TagEntryParser.Parse(name, _privateTags);
+        IEnumerable<string> names = TagEntryParser.IsPlain(entry, name) || entry.Invalid.Count > 0
+            ? new[] { entry.Invalid.Count > 0 ? entry.Invalid[0] : name } : entry.Items.Select(item => item.Name.Display);
+        foreach (string each in names)
+        {
+            PrivateTagCommit defined = await _definePrivateTag!(each, token);
+            AdoptPrivateTagCommit(defined);
+            AdoptPrivateTagCommit(await _setThreadTag!(defined.Tag, thread, true, token));
+        }
     }, clearInput);
 
     private Task RemoveThreadTagAsync(TagId tag) => RunThreadTagOperationAsync(async (thread, token) =>
@@ -326,6 +335,7 @@ public partial class ArchivePage
             TagId tagId = tag.Id;
             // A TextBlock keeps underscores in names literal instead of access-key markers.
             Button chip = MeowChan.Desktop.Controls.WorkspaceChips.MarkOwn(new Button { Content = MeowChan.Desktop.Controls.WorkspaceChips.RemovableContent(tag.Name.Display), IsEnabled = canEdit });
+            MeowChan.Desktop.Controls.WorkspaceChips.MarkTagPill(chip, MeowChan.Desktop.Controls.WorkspaceChips.TagPillAssigned);
             string hint = Texts.T("tags.remove", tag.Name.Display);
             AutomationProperties.SetName(chip, hint);
             ToolTip.SetTip(chip, hint);
@@ -346,6 +356,7 @@ public partial class ArchivePage
             {
                 string display = name.Display;
                 Button suggestion = MeowChan.Desktop.Controls.WorkspaceChips.MarkOffered(new Button { Content = new TextBlock { Text = "+ " + display }, IsEnabled = canEdit });
+                MeowChan.Desktop.Controls.WorkspaceChips.MarkTagPill(suggestion);
                 string hint = Texts.T("tags.addSuggestion", display);
                 AutomationProperties.SetName(suggestion, hint);
                 ToolTip.SetTip(suggestion, hint);

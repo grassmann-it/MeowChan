@@ -107,10 +107,28 @@ public partial class ArchivePage
         if (_ended || !_available || IsReaderDialogOpen || e.Source is not Control source || !MediaMenuPresenter.IsContextKey(e)) return;
         Control[] path = source.GetSelfAndVisualAncestors().OfType<Control>().ToArray();
         if (!path.Any(control => control is ArchiveAttachmentView || control.Name is "ArchiveMediaGrid" or "ArchiveMediaTiles")
-            && SidebarMediaContext(path) == null) return;
+            && SidebarMediaContext(path) == null && SidebarStripContext(path) == null) return;
         ContextRequestedEventArgs request = new() { RoutedEvent = ContextRequestedEvent };
         source.RaiseEvent(request);
         e.Handled = request.Handled;
+    }
+
+    // The sidebar's right click of its picture: the press itself opens the menu (nothing the player does with the pointer can swallow it), and the
+    // ContextRequested that Avalonia may send after it is consumed once. The bar's own controls keep their behaviour.
+    private bool _sidebarPointerContextPending;
+
+    private void OnSidebarPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (e.Handled || _ended || !_available || !_mediaSidebarShown || _mediaSidebar is not { } sidebar || e.Source is not Control source
+            || !e.GetCurrentPoint(sidebar).Properties.IsRightButtonPressed || MediaMenuPresenter.IsNativeTextSource(source)) return;
+        Control[] ancestors = source.GetSelfAndVisualAncestors().OfType<Control>().ToArray();
+        if (!ancestors.Any(control => ReferenceEquals(control, sidebar.FrameArea)) || ancestors.Any(control => ReferenceEquals(control, sidebar.VideoRow))) return;
+        ContextRequestedEventArgs request = new(e) { RoutedEvent = ContextRequestedEvent };
+        source.RaiseEvent(request);
+        if (!request.Handled) return;
+        e.Handled = true;
+        _sidebarPointerContextPending = true;
+        Avalonia.Threading.Dispatcher.UIThread.Post(() => _sidebarPointerContextPending = false, Avalonia.Threading.DispatcherPriority.Background);
     }
 
     private void OnArchiveMediaContextRequested(object? sender, ContextRequestedEventArgs e)
@@ -119,12 +137,19 @@ public partial class ArchivePage
         // Text inputs and selectable text keep their own native menu.
         if (MediaMenuPresenter.IsNativeTextSource(source)) return;
         Control[] ancestors = source.GetSelfAndVisualAncestors().OfType<Control>().ToArray();
+        if (_sidebarPointerContextPending && _mediaSidebar != null && ancestors.Any(control => ReferenceEquals(control, _mediaSidebar)))
+        {
+            _sidebarPointerContextPending = false; // the menu opened with the press
+            e.Handled = true;
+            return;
+        }
         ArchiveAttachmentView? attachmentView = ancestors.OfType<ArchiveAttachmentView>().FirstOrDefault();
         ArchiveAttachmentRow? attachment = attachmentView?.DataContext as ArchiveAttachmentRow;
         ArchiveAssetRow? asset = ancestors.Select(control => control.DataContext).OfType<ArchiveAssetRow>().FirstOrDefault();
         Control? origin = attachmentView;
         if (asset != null) origin = ancestors.First(control => control.DataContext is ArchiveAssetRow);
-        if (asset == null && attachment == null && !e.TryGetPosition(this, out _))
+        bool keyboard = !e.TryGetPosition(source, out _);
+        if (asset == null && attachment == null && keyboard)
         {
             Control? list = ancestors.FirstOrDefault(control => control.Name is "ArchiveMediaGrid" or "ArchiveMediaTiles");
             // No pointer: the menu is for the focused file of the list (the Menu key or Shift+F10), which may be one of several selected.
@@ -134,9 +159,14 @@ public partial class ArchivePage
         string? postId = ancestors.Select(control => control.DataContext).OfType<ArchivePostRow>().FirstOrDefault()?.Id;
         // The medium of the media sidebar: the same menu as the attachment it shows in its post (right-click, Menu key, Shift+F10).
         ReaderInlineVideoSlot? playback = attachmentView?.InlineVideoForKeys();
-        if (attachment == null && asset == null && SidebarMediaContext(ancestors) is { } shown)
+        if (attachment == null && asset == null && SidebarMediaContext(ancestors, keyboard) is { } shown)
         {
             attachment = shown.Attachment; postId = shown.PostId; origin = shown.Origin; playback = _sidebarVideo;
+        }
+        // A thumbnail of the sidebar's strip: the menu of that file, not of the one shown (right-click, Menu key, Shift+F10).
+        else if (attachment == null && asset == null && SidebarStripContext(ancestors) is { } thumbnail)
+        {
+            attachment = thumbnail.Attachment; postId = thumbnail.PostId; origin = thumbnail.Origin; playback = thumbnail.Shown ? _sidebarVideo : null;
         }
         if (attachment != null) asset = _selectedThread == null || postId == null ? null : FindMatchingAsset(_selectedThread, postId, attachment.Attachment, _assets);
         if (asset == null && attachment == null) return;
@@ -183,12 +213,25 @@ public partial class ArchivePage
     }
 
     // The sidebar's picture and video row (not its header buttons) stand for the medium it shows: its attachment, post and menu origin.
-    private (ArchiveAttachmentRow Attachment, string PostId, Control Origin)? SidebarMediaContext(Control[] ancestors)
+    // With the keyboard (the Menu key, Shift+F10) any focus inside the sidebar stands for it, its strip and header buttons included.
+    private (ArchiveAttachmentRow Attachment, string PostId, Control Origin)? SidebarMediaContext(Control[] ancestors, bool keyboard = true)
     {
         if (_mediaSidebar == null || !_mediaSidebarShown || !ancestors.Any(control => ReferenceEquals(control, _mediaSidebar.FrameArea)
-                || ReferenceEquals(control, _mediaSidebar.VideoRow))) return null;
+                || ReferenceEquals(control, _mediaSidebar.VideoRow) || keyboard && ReferenceEquals(control, _mediaSidebar))) return null;
         return ArchivePosts.SelectedItem is ArchivePostRow post && CurrentSidebarAttachment() is { } current
             ? (current, post.Id, _mediaSidebar.FrameArea) : null;
+    }
+
+    // A thumbnail of the sidebar's strip stands for its own file of the focused post: its attachment, post and the thumbnail as menu origin. From the keyboard the
+    // strip itself is the source, and the menu is the focused (the selected, i.e. shown) thumbnail's. Shown tells whether that file is the one the sidebar shows.
+    private (ArchiveAttachmentRow Attachment, string PostId, Control Origin, bool Shown)? SidebarStripContext(Control[] ancestors)
+    {
+        if (_mediaSidebar == null || !_mediaSidebarShown || !ancestors.Any(control => ReferenceEquals(control, _mediaSidebar.Strip))
+            || ArchivePosts.SelectedItem is not ArchivePostRow { ShowsMedia: true } post) return null;
+        ListBoxItem? item = ancestors.OfType<ListBoxItem>().FirstOrDefault(candidate => candidate.Tag is int)
+            ?? _mediaSidebar.Strip.SelectedItem as ListBoxItem;
+        if (item?.Tag is not int index || index < 0 || index >= post.Attachments.Count) return null;
+        return (post.Attachments[index], post.Id, item, index == ReaderMediaSidebarRules.ClampIndex(_sidebarIndex, post.Attachments.Count));
     }
 
     // The playback group of a video that plays in the reader: Play / Pause, Mute / Unmute, Repeat on / off, with the bindings' shortcuts.
@@ -237,7 +280,8 @@ public partial class ArchivePage
             InGallerySequence = galleryTarget != null,
             Favorite = favorite == null ? MediaMenuFavorite.Unknown : favorite == true ? MediaMenuFavorite.On : MediaMenuFavorite.Off,
             FavoriteWired = ToggleArchiveFavoriteAsync != null,
-            RatingWired = EditMediaRatingAsync != null,
+            RatingWired = SetMediaRatingAsync != null && target != null && CanChangeMediaRating?.Invoke(FavoriteAssetKey.From(threadId, target.Asset)) != false,
+            Rating = target == null ? null : CurrentMediaRating(FavoriteAssetKey.From(threadId, target.Asset)),
             RatingBlocked = _mediaRatingError,
             TagsWired = EditArchiveMediaTagsAsync != null || TagPopoverAsync != null,
             TagsBlocked = tagsBlocked,
@@ -264,7 +308,6 @@ public partial class ArchivePage
                     await OpenMediaGallery(galleryEntries, galleryTarget.EntryKey, origin);
             },
             [MediaMenuAction.Favorite] = async () => { if (target != null) await ToggleArchiveMediaFavoriteAsync(target); },
-            [MediaMenuAction.Rating] = async () => { if (target != null && EditMediaRatingAsync != null) await EditMediaRatingAsync(target); },
             [MediaMenuAction.Tags] = async () =>
             {
                 // A file that cannot be tagged gets the reason as text in the popover; a taggable one the tag popover on its tile.
@@ -335,7 +378,10 @@ public partial class ArchivePage
             context.Add(MediaMenuBuilder.ContextItem(session, "media.selection.clear", () => { ClearMediaSelection(); return Task.CompletedTask; },
                 () => true, Run, icon: "x"));
         }
-        ContextMenu menu = MediaMenuBuilder.Build(session, model, handlers, Run, context, text => Message(text), PlaybackMenuItems(playback, session, Run));
+        // The "Rating" submenu rates the file the menu opened on; a failed write is reported on this thread like the other menu actions.
+        Func<int?, Task>? rate = target == null || SetMediaRatingAsync == null ? null
+            : value => SetMediaRatingAsync(FavoriteAssetKey.From(threadId, target.Asset), value);
+        ContextMenu menu = MediaMenuBuilder.Build(session, model, handlers, Run, context, text => Message(text), PlaybackMenuItems(playback, session, Run), rate);
         return (menu, session);
     }
 

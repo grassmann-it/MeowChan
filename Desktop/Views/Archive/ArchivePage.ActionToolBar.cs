@@ -26,6 +26,7 @@ public partial class ArchivePage
         Bind("ArchiveLayoutTable", OnArchiveLayoutClick);
         Bind("ArchiveThreadColumnsButton", OnArchiveColumnsClick);
         Bind("ArchiveResultsGallery", OnResultsGalleryClick, () => ResultActionsReady && _listTotal > 0);
+        Bind("ArchiveResultsOpenInMedia", OnResultsOpenInMediaClick, () => CanOpenResultsInMedia);
         Bind("ArchiveFavoritesOverview", OnFavoritesOverviewClick, () => ResultActionsReady);
         Bind("ArchiveResultsExport", OnResultsExportClick, () => CanExportResults);
 
@@ -108,15 +109,19 @@ public partial class ArchivePage
                 CommandBindings.Apply(button, featureId, iconWithLabel: true); // Reader groups and Post bookmarks both carry their catalog icon now.
             string? reason = button.Name switch
             {
-                "ArchiveResultsGallery" or "ArchiveResultsExport" when !ResultActionsReady => Texts.T("archive.command.busy"),
-                "ArchiveResultsGallery" or "ArchiveResultsExport" when _listTotal == 0 => Texts.T("archive.noResults"),
+                "ArchiveResultsGallery" or "ArchiveResultsExport" or "ArchiveResultsOpenInMedia" when !ResultActionsReady => Texts.T("archive.command.busy"),
+                "ArchiveResultsGallery" or "ArchiveResultsExport" or "ArchiveResultsOpenInMedia" when _listTotal == 0 => Texts.T("archive.noResults"),
                 "ArchiveFavoritesOverview" when !ResultActionsReady => Texts.T("archive.command.busy"),
                 _ => null
             };
-            if (button.Name is "ArchiveResultsGallery" or "ArchiveFavoritesOverview" or "ArchiveResultsExport"
+            // The enabled state follows every refresh (it also depends on a handoff in progress); only the presentation is cached.
+            if (button.Name == "ArchiveResultsOpenInMedia") UpdateResultsOpenInMediaAction();
+            if (button.Name is "ArchiveResultsGallery" or "ArchiveResultsOpenInMedia" or "ArchiveFavoritesOverview" or "ArchiveResultsExport"
                 && !ResultActionStale(button.Name, reason)) continue;
             if (button.Name == "ArchiveResultsGallery")
                 CommandBindings.Apply(button, "gallery.open-results", () => reason, iconWithLabel: true);
+            else if (button.Name == "ArchiveResultsOpenInMedia")
+                CommandBindings.Apply(button, "archive.open-results-in-media", () => reason, iconWithLabel: true);
             else if (button.Name == "ArchiveFavoritesOverview")
                 CommandBindings.Apply(button, "favorites.open", () => reason, iconWithLabel: true);
             else if (button.Name == "ArchiveResultsExport")

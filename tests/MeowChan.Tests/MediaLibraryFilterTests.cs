@@ -128,6 +128,48 @@ public sealed class MediaLibraryFilterTests
     }
 
     [Fact]
+    public void ThreadSetKeepsOnlyTheMediaOfItsThreadsAndAnEmptySetShowsNothingWhileNoSetShowsAll()
+    {
+        MediaLibraryEntry a1 = Entry("a", "1", 'a'), a2 = Entry("a", "2", 'b'), b1 = Entry("b", "1", 'c'), c1 = Entry("c", "1", 'd', source: "t"),
+            d1 = Entry("d", "1", 'e', board: "x");
+        MediaLibraryEntry[] all = [a1, a2, b1, c1, d1];
+        MediaLibraryUserData data = MediaLibraryUserData.Unavailable;
+
+        Assert.Equal(new[] { "a:1", "a:2", "c:1" }, Posts(MediaLibraryFilterEngine.Apply(all, new(threads: [a1.Thread, c1.Thread, new ResourceId("s", "b", "gone")]), data)));
+        // The set is exact: the same thread number on another board or source is another thread.
+        Assert.Empty(MediaLibraryFilterEngine.Apply(all, new(threads: [new ResourceId("s", "x", "a"), new ResourceId("t", "b", "a")]), data));
+        // An empty set is a restriction that nothing passes; no set at all (null) is no restriction.
+        MediaLibraryFilter none = new(threads: []);
+        Assert.False(none.IsEmpty);
+        Assert.Empty(MediaLibraryFilterEngine.Apply(all, none, data));
+        Assert.Equal(5, MediaLibraryFilterEngine.Apply(all, new(threads: null), data).Count);
+        Assert.True(new MediaLibraryFilter(threads: null).IsEmpty);
+        Assert.NotEqual(none, MediaLibraryFilter.None);
+        // It narrows together with the other parts and the single thread.
+        Assert.Equal(new[] { "a:1", "a:2" }, Posts(MediaLibraryFilterEngine.Apply(all, new(threads: [a1.Thread, b1.Thread], thread: a1.Thread), data)));
+        Assert.Empty(MediaLibraryFilterEngine.Apply(all, new(threads: [a1.Thread], thread: b1.Thread), data));
+        Assert.Equal(new[] { "c:1" }, Posts(MediaLibraryFilterEngine.Apply(all, new(threads: [a1.Thread, c1.Thread, d1.Thread], source: "t"), data)));
+        Assert.Equal(new[] { "b:1" }, Posts(MediaLibraryFilterEngine.Apply(all, new(threads: [a1.Thread, b1.Thread], nameContains: "Tb"), data)));
+    }
+
+    [Fact]
+    public void ThreadSetsCompareByContentAndStayAFastLookupForTensOfThousandsOfThreads()
+    {
+        ResourceId[] many = [.. Enumerable.Range(0, 50_000).Select(index => new ResourceId("s", "b", index.ToString()))];
+        MediaLibraryFilter first = new(threads: many), reversed = new(threads: many.Reverse());
+        Assert.Equal(first, reversed);
+        Assert.Equal(first.GetHashCode(), reversed.GetHashCode());
+        Assert.NotEqual(first, new MediaLibraryFilter(threads: many.Skip(1)));
+        Assert.NotEqual(first, MediaLibraryFilter.None);
+        MediaLibraryEntry[] entries = [.. Enumerable.Range(0, 20_000).Select(index => Entry((index * 5).ToString(), "1", 'a'))];
+        System.Diagnostics.Stopwatch watch = System.Diagnostics.Stopwatch.StartNew();
+        IReadOnlyList<MediaLibraryEntry> passing = MediaLibraryFilterEngine.Apply(entries, first, MediaLibraryUserData.Unavailable);
+        watch.Stop();
+        Assert.Equal(Enumerable.Range(0, 20_000).Count(index => index * 5 < 50_000), passing.Count);
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(5), "A set lookup per entry took " + watch.Elapsed);
+    }
+
+    [Fact]
     public void KindsAreASetWhereEmptyMeansEveryTypeAndWithoutVideoIsTheOtherTypes()
     {
         MediaLibraryEntry png = Entry("a", "1", 'a', name: "Cat.PNG"), gif = Entry("a", "2", 'b', name: "dance.GIF"),
@@ -318,6 +360,212 @@ public sealed class MediaLibraryFilterTests
         Assert.Empty(Find("\"cats general\""));
         Assert.Equal(new[] { "a:1", "a:2" }, Find("cats general")); // unquoted, the order of the words does not matter
         Assert.Equal(new[] { "/kot/", "general: cats", "a\"b" }, new MediaLibraryFilter(nameContains: "/kot/ \"general: cats\" \"a\\\"b\" /KOT/").TextWords);
+    }
+
+    // Review 15.11.2026, finding 10: "" is a text of two characters but of no word, so the filter is not active.
+    [Fact]
+    public void AnEmptyPhraseOrWhiteSpaceIsNoTextAndEqualsNoFilter()
+    {
+        foreach (string text in new[] { "", " ", "\"\"", "\"\" \"\"", "  \"\"  " })
+        {
+            MediaLibraryFilter filter = new(nameContains: text);
+            Assert.True(filter.IsEmpty, text);
+            Assert.Null(filter.NameContains);
+            Assert.Empty(filter.TextWords);
+            Assert.Equal(MediaLibraryFilter.None, filter);
+            Assert.False(MediaLibraryFilter.HasText(text));
+        }
+        Assert.True(MediaLibraryFilter.HasText(" cat "));
+        Assert.True(MediaLibraryFilter.HasText("\" \"")); // a phrase of white space is a word
+        Assert.False(new MediaLibraryFilter(nameContains: "cat").IsEmpty);
+        MediaLibraryEntry[] all = [Entry("a", "1", 'a'), Entry("a", "2", 'b')];
+        Assert.Equal(2, MediaLibraryFilterEngine.Apply(all, new(nameContains: "\"\""), MediaLibraryUserData.Unavailable).Count);
+    }
+
+    // Review 15.11.2026, finding 11: board and source name themselves as a whole; "chan" is no longer every 4chan file.
+    [Fact]
+    public void BoardAndSourceMatchAsWholeValuesWhileNameAndTitleStaySubstrings()
+    {
+        MediaLibraryEntry g = Entry("a", "1", 'a', name: "a.webm", source: "4chan", board: "g") with { ThreadTitle = "General" },
+            b = Entry("b", "1", 'b', name: "b.webm", source: "4chan", board: "b") with { ThreadTitle = "Random" },
+            kot = Entry("c", "1", 'c', name: "c.webm", source: "8kun", board: "kot") with { ThreadTitle = "/kot/ talk" },
+            plain = Entry("d", "1", 'd', name: "chanel.webm", source: "8kun", board: "x") with { ThreadTitle = "4 items" };
+        MediaLibraryEntry[] all = [g, b, kot, plain];
+        string[] Find(string text) => Posts(MediaLibraryFilterEngine.Apply(all, new(nameContains: text), MediaLibraryUserData.Unavailable));
+
+        Assert.Equal(new[] { "a:1", "b:1" }, Find("4chan")); // the source as a whole, any case
+        Assert.Equal(new[] { "a:1", "b:1" }, Find("4CHAN"));
+        Assert.Equal(new[] { "d:1" }, Find("chan")); // not the source "4chan"; only the file name "chanel.webm" holds it
+        Assert.Equal(new[] { "d:1" }, Find("4")); // the title "4 items"; not the source "4chan"
+        Assert.Equal(new[] { "a:1" }, Find("g")); // the board g (and "General"); no other board, source, title or name holds a g
+        Assert.Equal(new[] { "a:1" }, Find("/g/ general")); // "/g/" names the board; the other word is in the title
+        Assert.Equal(new[] { "a:1" }, Find("/G/"));
+        Assert.Equal(new[] { "c:1" }, Find("kot")); // board kot, and "/kot/" in the title
+        Assert.Equal(new[] { "c:1" }, Find("/kot/")); // the board "kot" without its slashes, and the title literally
+        Assert.Equal(new[] { "d:1" }, Find("items"));
+        Assert.Empty(Find("//")); // slashes alone name no board
+    }
+
+    // ---- where the text was found (the page's breakdown row) -----------------------------------------------------
+
+    private static int CountIn(IEnumerable<MediaTextTally> tally, MediaTextFields field) => tally.Count(item => (item.Fields & field) != 0);
+
+    private static (MediaLibraryEntry[] All, MediaLibraryUserData Data) TallyLibrary()
+    {
+        MediaLibraryEntry name = Entry("a", "1", 'a', name: "cute.png") with { ThreadTitle = "Plain" },
+            title = Entry("b", "1", 'b', name: "x.png") with { ThreadTitle = "Cute thread" },
+            tag = Entry("c", "1", 'c', name: "y.png") with { ThreadTitle = "Other" },
+            all = Entry("d", "1", 'd', name: "cute.webm", kind: SavedMediaKind.Video) with { ThreadTitle = "cute thread" },
+            spread = Entry("e", "1", 'e', name: "cute.gif") with { ThreadTitle = "thread story" },
+            none = Entry("f", "1", 'f', name: "z.png") with { ThreadTitle = "Nothing" };
+        // The tag "cute" is on the file of c, and on the thread d (so it counts for every file of that thread).
+        return ([name, title, tag, all, spread, none], Data(threads: [new(new TagId(Cute), all.Thread)], media: [MediaTag(Cute, tag)]));
+    }
+
+    [Fact]
+    public void TextTallyCountsEveryFieldInWhichAllWordsHit()
+    {
+        (MediaLibraryEntry[] library, MediaLibraryUserData data) = TallyLibrary();
+        MediaLibraryFilterResult one = MediaLibraryFilterEngine.Evaluate(library, new(nameContains: "cute"), data);
+        IReadOnlyList<MediaTextTally> tally = one.TextTally!;
+        Assert.Equal(new[] { "a:1", "b:1", "c:1", "d:1", "e:1" }, Posts(tally.Select(item => item.Entry)));
+        Assert.Equal(Posts(one.Passing), Posts(tally.Select(item => item.Entry))); // the default scope is "All"
+        Assert.Equal(new[] { MediaTextFields.Name, MediaTextFields.Title, MediaTextFields.Tag, MediaTextFields.Name | MediaTextFields.Title | MediaTextFields.Tag, MediaTextFields.Name },
+            tally.Select(item => item.Fields));
+        Assert.Equal(3, CountIn(tally, MediaTextFields.Name));
+        Assert.Equal(2, CountIn(tally, MediaTextFields.Title));
+        Assert.Equal(2, CountIn(tally, MediaTextFields.Tag)); // the tag on a file, and the tag of a thread for its files
+        Assert.Equal(0, CountIn(tally, MediaTextFields.Board));
+        Assert.Equal(0, CountIn(tally, MediaTextFields.Source));
+
+        // Two words: each must hit, in the same field to count for that field.
+        IReadOnlyList<MediaTextTally> two = MediaLibraryFilterEngine.Evaluate(library, new(nameContains: "cute thread"), data).TextTally!;
+        Assert.Equal(new[] { "b:1", "d:1", "e:1" }, Posts(two.Select(item => item.Entry)));
+        Assert.Equal(new[] { MediaTextFields.Title, MediaTextFields.Title, MediaTextFields.None }, two.Select(item => item.Fields)); // e: "cute" in the name, "thread" in the title
+        Assert.Equal(0, CountIn(two, MediaTextFields.Name));
+        Assert.Equal(2, CountIn(two, MediaTextFields.Title));
+    }
+
+    [Fact]
+    public void WordsSpreadOverSeveralFieldsAreInEveryFieldCountOfNothingButInTheTotal()
+    {
+        (MediaLibraryEntry[] library, MediaLibraryUserData data) = TallyLibrary();
+        MediaLibraryEntry spread = library[4];
+        IReadOnlyList<MediaTextTally> tally = MediaLibraryFilterEngine.Evaluate([spread], new(nameContains: "cute story"), data).TextTally!;
+        Assert.Equal(spread, Assert.Single(tally).Entry);
+        Assert.Equal(MediaTextFields.None, tally[0].Fields);
+        foreach (MediaTextFields field in new[] { MediaTextFields.Name, MediaTextFields.Title, MediaTextFields.Board, MediaTextFields.Source, MediaTextFields.Tag })
+        {
+            Assert.Equal(0, CountIn(tally, field));
+            // Chosen alone, that field finds nothing; the total ("All") finds the file.
+            Assert.Empty(MediaLibraryFilterEngine.Apply([spread], new(nameContains: "cute story", textFields: field), data));
+        }
+        Assert.Single(MediaLibraryFilterEngine.Apply([spread], new(nameContains: "cute story"), data));
+        // Name and title together are enough for the two words.
+        Assert.Single(MediaLibraryFilterEngine.Apply([spread], new(nameContains: "cute story", textFields: MediaTextFields.Name | MediaTextFields.Title), data));
+    }
+
+    [Fact]
+    public void AScopeNarrowsWhatPassesButNotTheTally()
+    {
+        (MediaLibraryEntry[] library, MediaLibraryUserData data) = TallyLibrary();
+        MediaLibraryFilterResult all = MediaLibraryFilterEngine.Evaluate(library, new(nameContains: "cute"), data);
+        string[] total = Posts(all.TextTally!.Select(item => item.Entry));
+        foreach ((MediaTextFields scope, string[] expected) in new (MediaTextFields, string[])[]
+        {
+            (MediaTextFields.Name, ["a:1", "d:1", "e:1"]), (MediaTextFields.Title, ["b:1", "d:1"]), (MediaTextFields.Tag, ["c:1", "d:1"]),
+            (MediaTextFields.Name | MediaTextFields.Tag, ["a:1", "c:1", "d:1", "e:1"]), (MediaTextFields.Board, []), (MediaTextFields.Source, [])
+        })
+        {
+            MediaLibraryFilterResult narrowed = MediaLibraryFilterEngine.Evaluate(library, new(nameContains: "cute", textFields: scope), data);
+            Assert.Equal(expected, Posts(narrowed.Passing));
+            Assert.Equal(total, Posts(narrowed.TextTally!.Select(item => item.Entry))); // the numbers do not depend on the scope
+            Assert.Equal(all.TextTally!.Select(item => item.Fields), narrowed.TextTally!.Select(item => item.Fields));
+            // "Chosen alone, a part shows exactly its number" holds for every single field.
+            if (scope is MediaTextFields.Name or MediaTextFields.Title or MediaTextFields.Tag or MediaTextFields.Board or MediaTextFields.Source)
+                Assert.Equal(CountIn(all.TextTally!, scope), narrowed.Passing.Count);
+        }
+        // No text, no tally.
+        Assert.Null(MediaLibraryFilterEngine.Evaluate(library, new(kind: MediaLibraryKindFilter.Video), data).TextTally);
+        Assert.Null(MediaLibraryFilterEngine.Evaluate(library, MediaLibraryFilter.None, data).TextTally);
+    }
+
+    [Fact]
+    public void TheTallyHoldsOnlyWhatPassesEveryOtherPartOfTheFilter()
+    {
+        (MediaLibraryEntry[] library, MediaLibraryUserData data) = TallyLibrary();
+        // A type filter: only the video of "d" is left of the five hits.
+        IReadOnlyList<MediaTextTally> videos = MediaLibraryFilterEngine.Evaluate(library, new(nameContains: "cute", kind: MediaLibraryKindFilter.Video), data).TextTally!;
+        Assert.Equal(new[] { "d:1" }, Posts(videos.Select(item => item.Entry)));
+        // A tag filter counts as the grid does: thread tag Cute reaches "d" only (the file tag is on "c").
+        IReadOnlyList<MediaTextTally> tagged = MediaLibraryFilterEngine.Evaluate(library, new(tags: new ArchiveTagFilter([Cute], null), nameContains: "cute"), data).TextTally!;
+        Assert.Equal(new[] { "c:1", "d:1" }, Posts(tagged.Select(item => item.Entry)));
+        // A video whose sound is unknown is in no answer, so it is not in the tally either.
+        IReadOnlyList<MediaTextTally> sound = MediaLibraryFilterEngine.Evaluate(library, new(nameContains: "cute", sound: MediaLibrarySoundFilter.WithSound), data).TextTally!;
+        Assert.Empty(sound);
+    }
+
+    [Fact]
+    public void BoardAndSourceAreFieldsOfTheTextAndNeedTheWholeValue()
+    {
+        MediaLibraryEntry g = Entry("a", "1", 'a', name: "x.webm", source: "4chan", board: "g") with { ThreadTitle = "Lamp" };
+        IReadOnlyList<MediaTextTally> board = MediaLibraryFilterEngine.Evaluate([g], new(nameContains: "/g/"), MediaLibraryUserData.Unavailable).TextTally!;
+        Assert.Equal(MediaTextFields.Board, Assert.Single(board).Fields);
+        IReadOnlyList<MediaTextTally> source = MediaLibraryFilterEngine.Evaluate([g], new(nameContains: "4CHAN"), MediaLibraryUserData.Unavailable).TextTally!;
+        Assert.Equal(MediaTextFields.Source, Assert.Single(source).Fields);
+        Assert.Empty(MediaLibraryFilterEngine.Evaluate([g], new(nameContains: "chan"), MediaLibraryUserData.Unavailable).TextTally!);
+        Assert.Single(MediaLibraryFilterEngine.Apply([g], new(nameContains: "4chan", textFields: MediaTextFields.Source), MediaLibraryUserData.Unavailable));
+        Assert.Empty(MediaLibraryFilterEngine.Apply([g], new(nameContains: "4chan", textFields: MediaTextFields.Name | MediaTextFields.Title | MediaTextFields.Board), MediaLibraryUserData.Unavailable));
+    }
+
+    [Fact]
+    public void WithoutTheTagIndexTheDefaultScopeSkipsTheTagFieldButInTagFails()
+    {
+        (MediaLibraryEntry[] library, _) = TallyLibrary();
+        MediaLibraryUserData none = MediaLibraryUserData.Unavailable;
+        // "All": the four other fields answer; the tag-only file ("c") is simply not found, nothing throws.
+        MediaLibraryFilterResult result = MediaLibraryFilterEngine.Evaluate(library, new(nameContains: "cute"), none);
+        Assert.Equal(new[] { "a:1", "b:1", "d:1", "e:1" }, Posts(result.Passing));
+        Assert.Equal(0, CountIn(result.TextTally!, MediaTextFields.Tag));
+        // Naming the tags as the place to look is refused, as a tag filter is.
+        Assert.Equal(MediaLibraryFilterError.TagsUnavailable, Assert.Throws<MediaLibraryFilterException>(() =>
+            MediaLibraryFilterEngine.Apply(library, new(nameContains: "cute", textFields: MediaTextFields.Tag), none)).Error);
+        Assert.Equal(MediaLibraryFilterError.TagsUnavailable, Assert.Throws<MediaLibraryFilterException>(() =>
+            MediaLibraryFilterEngine.Apply(library, new(nameContains: "cute", textFields: MediaTextFields.Name | MediaTextFields.Tag), none)).Error);
+        Assert.Equal(new[] { "a:1", "d:1", "e:1" }, Posts(MediaLibraryFilterEngine.Apply(library, new(nameContains: "cute", textFields: MediaTextFields.Name), none)));
+        // Without any word the scope means nothing, so it cannot fail either.
+        Assert.Equal(library.Length, MediaLibraryFilterEngine.Apply(library, new(textFields: MediaTextFields.Tag), none).Count);
+    }
+
+    [Fact]
+    public void ThreadFieldsAreSearchedOncePerThreadAndEvaluation()
+    {
+        MediaLibraryEntry[] files = [.. Enumerable.Range(1, 40).Select(index => Entry("a", index.ToString(), (char)('a' + index % 20), name: "f" + index + ".png") with { ThreadTitle = "Cute thread" }),
+            Entry("b", "1", 'z', name: "g.png") with { ThreadTitle = "Cute thread" }];
+        int before = MediaLibraryFilterEngine.ThreadSearchCount;
+        MediaLibraryFilterResult result = MediaLibraryFilterEngine.Evaluate(files, new(nameContains: "cute thread f"), MediaLibraryUserData.Unavailable);
+        Assert.Equal(40, result.Passing.Count); // "f" hits the file names of the first thread only
+        Assert.Equal(2, MediaLibraryFilterEngine.ThreadSearchCount - before); // two threads, three words, 41 files
+    }
+
+    [Fact]
+    public void TheTextScopeIsPartOfTheFilterAndDefaultsToEveryField()
+    {
+        Assert.Equal(MediaTextFields.All, new MediaLibraryFilter(nameContains: "cat").TextFields);
+        Assert.Equal(new MediaLibraryFilter(nameContains: "cat"), new MediaLibraryFilter(nameContains: "cat", textFields: MediaTextFields.All));
+        MediaLibraryFilter tags = new(nameContains: "cat", textFields: MediaTextFields.Tag), titles = new(nameContains: "cat", textFields: MediaTextFields.Title);
+        Assert.NotEqual(new MediaLibraryFilter(nameContains: "cat"), tags);
+        Assert.NotEqual(tags, titles);
+        Assert.NotEqual(tags.GetHashCode(), titles.GetHashCode());
+        Assert.Equal(tags, new MediaLibraryFilter(nameContains: " cat ", textFields: MediaTextFields.Tag));
+        Assert.Equal(tags.GetHashCode(), new MediaLibraryFilter(nameContains: " cat ", textFields: MediaTextFields.Tag).GetHashCode());
+        // Without a word the scope is forgotten: the filter is empty and equal to no filter.
+        MediaLibraryFilter empty = new(nameContains: "\"\"", textFields: MediaTextFields.Tag);
+        Assert.Equal(MediaTextFields.All, empty.TextFields);
+        Assert.True(empty.IsEmpty);
+        Assert.Equal(MediaLibraryFilter.None, new MediaLibraryFilter(textFields: MediaTextFields.Name));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new MediaLibraryFilter(nameContains: "cat", textFields: MediaTextFields.None));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new MediaLibraryFilter(nameContains: "cat", textFields: (MediaTextFields)64));
     }
 
     [Fact]

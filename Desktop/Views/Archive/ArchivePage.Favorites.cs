@@ -255,7 +255,7 @@ public partial class ArchivePage
         await shown;
         loading.Dispose();
         if (galleryStart != null && galleryEntries != null && OpenFavoritesGallery != null && !_ended)
-            await OpenFavoritesGallery(galleryEntries, galleryStart, () => { if (!_ended) _ = OpenFavoritesOverviewAsync(returnState); });
+            await OpenFavoritesGallery(galleryEntries, galleryStart, () => { if (!_ended) OpenActions.Start(() => OpenFavoritesOverviewAsync(returnState), "archive.favorites.open"); });
     }
 
     private async Task<HashSet<ResourceId>> FilteredFavoriteThreadsAsync(MeowChan.Archive.ArchiveSearchRequest query,

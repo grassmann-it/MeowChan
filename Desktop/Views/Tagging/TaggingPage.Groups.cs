@@ -96,6 +96,21 @@ public sealed partial class TaggingPage
         RenderGroups();
     }
 
+    /// <summary>
+    /// Runs a group menu action whose task nobody awaits (a menu callback is synchronous). A failure does not vanish in the dropped task:
+    /// it is said in the page's status line, like the failure of any other queue change.
+    /// </summary>
+    private async Task RunGroupAction(Func<Task> action)
+    {
+        try { await action(); }
+        catch (OperationCanceledException) { }
+        catch (Exception error)
+        {
+            if (_queueWork.Ended) return;
+            ShowStatus(TagQueueActions.DescribeFailure(error));
+        }
+    }
+
     private async Task CreateGroupDialogAsync()
     {
         IReadOnlyList<TaggingQueueRow> selected = Selected;
@@ -139,9 +154,9 @@ public sealed partial class TaggingPage
     {
         bool named = _selectedGroupId != null && CanChange;
         return new ContextMenuBuilder().Named(Texts.T("tagging.page.group.manage"))
-            .Item("tagging.group.new", Texts.T("tagging.page.group.new"), () => _ = CreateGroupDialogAsync(), CanChange)
-            .Item("tagging.group.rename", Texts.T("tagging.page.group.rename"), () => _ = RenameGroupDialogAsync(), named)
-            .Item("tagging.group.delete", Texts.T("tagging.page.group.delete"), () => _ = DeleteGroupAsync(), named);
+            .Item("tagging.group.new", Texts.T("tagging.page.group.newMenu"), () => _ = RunGroupAction(CreateGroupDialogAsync), CanChange)
+            .Item("tagging.group.rename", Texts.T("tagging.page.group.rename"), () => _ = RunGroupAction(RenameGroupDialogAsync), named)
+            .Item("tagging.group.delete", Texts.T("tagging.page.group.delete"), () => _ = RunGroupAction(DeleteGroupAsync), named);
     }
 
     internal ContextMenuModel? GroupMenuModel() => ComposeGroupMenu()?.ToModel();
@@ -150,7 +165,7 @@ public sealed partial class TaggingPage
     {
         if (SelectedCount == 0) return null;
         ContextMenuBuilder menu = new ContextMenuBuilder().Named(Texts.T("tagging.page.group.assign"));
-        menu.Item(TaggingCommands.GroupNew, Texts.T("tagging.page.group.newMenu"), () => _ = CreateGroupDialogAsync(), CanChange,
+        menu.Item(TaggingCommands.GroupNew, Texts.T("tagging.page.group.newMenu"), () => _ = RunGroupAction(CreateGroupDialogAsync), CanChange,
             icon: TaggingCommands.GroupNewIcon);
         foreach (TagQueueGroup group in _queueWork.Queue.Groups)
         {

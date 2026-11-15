@@ -32,7 +32,6 @@ public partial class MainWindow
     {
         if (_gallery == null) return;
         _gallery.RatingSetRequested += (entry, value) => _ = SetGalleryRatingAsync(entry, value);
-        _gallery.RatingEditRequested += entry => _ = RunGalleryActionAsync(() => EditMediaRatingAsync(entry), entry.Key.ToString());
         _gallery.ManageRatingsRequested += () => _ = RunGalleryActionAsync(ManageMediaRatingsAsync);
         _gallery.FavoriteToggleRequested += entry => _ = RunGalleryActionAsync(() => ToggleGalleryFavoriteAsync(entry), entry.Key.ToString());
         _gallery.FavoriteSetRequested += (entry, selected) => _ = RunGalleryActionAsync(() => SetGalleryFavoriteAsync(entry, selected), entry.Key.ToString());

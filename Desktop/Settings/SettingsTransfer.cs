@@ -78,6 +78,8 @@ public static class SettingsTransfer
         Config snapshot = new()
         {
             SchemaVersion = source.SchemaVersion,
+            // An export carries its own defaults revision, so an import migrates the file by what it was written with.
+            PreferenceDefaultsRevision = source.PreferenceDefaultsRevision,
             DownloadPath = source.DownloadPath,
             RecheckTimer = source.RecheckTimer,
             SaveUrlsOnExit = source.SaveUrlsOnExit,
@@ -128,6 +130,7 @@ public static class SettingsTransfer
             ControlsIdleHideMs = source.ControlsIdleHideMs,
             ReaderNavigationMode = source.ReaderNavigationMode,
             ReaderNavigationShowPosition = source.ReaderNavigationShowPosition,
+            GalleryWheelMode = source.GalleryWheelMode,
             GalleryStatusDwellMs = source.GalleryStatusDwellMs,
             StatsHistorySamples = source.StatsHistorySamples,
             StatsBackgroundIntervalMs = source.StatsBackgroundIntervalMs,
@@ -157,6 +160,7 @@ public static class SettingsTransfer
             ReaderPreviewDelayMs = source.ReaderPreviewDelayMs,
             ReaderReplyStep = source.ReaderReplyStep,
             ReaderReplyLines = source.ReaderReplyLines,
+            ReaderExpandReplies = source.ReaderExpandReplies,
             ReaderPageSize = source.ReaderPageSize,
             ReaderThreadingDepth = source.ReaderThreadingDepth,
             GalleryFitMaxUpscalePercent = source.GalleryFitMaxUpscalePercent,
@@ -183,6 +187,9 @@ public static class SettingsTransfer
             GalleryLayout = source.GalleryLayout, // GL4: the layout choice of both modes travels with the profile settings
             GalleryFilmstripHeight = source.GalleryFilmstripHeight,
             GalleryFilmstripTileGap = source.GalleryFilmstripTileGap,
+            GalleryFilmstripFlagFavorite = source.GalleryFilmstripFlagFavorite,
+            GalleryFilmstripFlagRating = source.GalleryFilmstripFlagRating,
+            GalleryFilmstripFlagUntagged = source.GalleryFilmstripFlagUntagged,
             GalleryFilmstripPreload = source.GalleryFilmstripPreload,
             GalleryVideoSeekStepSeconds = source.GalleryVideoSeekStepSeconds,
             MediaBadgeCollapseBelow = source.MediaBadgeCollapseBelow,
@@ -222,6 +229,10 @@ public static class SettingsTransfer
             ReaderInlineVideo = source.ReaderInlineVideo,
             ReaderMediaClick = source.ReaderMediaClick,
             ReaderInlineVideoAutoplayMuted = source.ReaderInlineVideoAutoplayMuted,
+            ReaderKeepImagesExpanded = source.ReaderKeepImagesExpanded,
+            ReaderSidebarVideoAutoplay = source.ReaderSidebarVideoAutoplay,
+            ReaderSidebarVideoLoop = source.ReaderSidebarVideoLoop,
+            ReaderSidebarVideoStartMuted = source.ReaderSidebarVideoStartMuted,
             ReaderInlineVideoMaxPlayers = source.ReaderInlineVideoMaxPlayers,
             ReaderInlineVideoMaxFileMiB = source.ReaderInlineVideoMaxFileMiB,
             ReaderMediaStripLimit = source.ReaderMediaStripLimit,
@@ -238,6 +249,7 @@ public static class SettingsTransfer
             MediaBooruMode = source.MediaBooruMode,
             MediaTagListSort = source.MediaTagListSort,
             MediaLayout = source.MediaLayout,
+            ArchiveMediaTileSize = source.ArchiveMediaTileSize,
             TaggingPageView = source.TaggingPageView,
             TaggingPreviewColumn = source.TaggingPreviewColumn,
             TaggingStampBlock = source.TaggingStampBlock,

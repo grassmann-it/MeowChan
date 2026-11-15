@@ -30,8 +30,6 @@ public sealed class DialogFooterBudgetTests : IDisposable
     // padding 16,0,16,8 around a 1 dip bordered Border with Inset.Message 12; Button padding 10,5 and 1 dip border, MinHeight 30.
     private const double BodySize = 13, SideInset = 16, ButtonChrome = 22, ButtonHeight = 30, ItemGap = 8;
     private const double FooterVertical = 1 + 24, HeaderVertical = 24, StripChrome = 8 + 26, StatusGap = 8;
-    // DialogFrame without a header: the layout starts 16 dip below the title bar.
-    private const double HeaderlessTopInset = 16;
     // A body that still shows something useful between the fixed parts (it scrolls beyond this).
     private const double UsableBody = 80;
 
@@ -167,56 +165,6 @@ public sealed class DialogFooterBudgetTests : IDisposable
         }
         Assert.True(worst <= minHeight, "Saved searches need " + Math.Ceiling(worst) + " dip in '" + worstLanguage + "' at width " + minWidth
             + " but MinHeight is " + minHeight + ": the footer would be clipped.");
-    }
-
-    // ---- rating dialog ----------------------------------------------------------------------------------------------
-
-    private static (double MinWidth, double MinHeight, double StripCap) RatingGeometry()
-    {
-        // The minimum comes from the dialog's size step (modals plan MD1), the strip cap from its source.
-        string source = File.ReadAllText(Source("Desktop/MediaRatingDialog.cs"));
-        Assert.Contains("DialogWindow.Configure(this, DialogStep, modal: true);", source);
-        Match strip = Regex.Match(source, @"DialogFrame\.ErrorStrip\(_error, maxHeight: (?<cap>\d+)\)");
-        Assert.True(strip.Success, "The rating dialog's error strip cap is no longer where this test reads it.");
-        Avalonia.Size minimum = WorkspaceMetrics.DialogMinimumSize(MediaRatingDialog.DialogStep);
-        return (minimum.Width, minimum.Height, double.Parse(strip.Groups["cap"].Value, CultureInfo.InvariantCulture));
-    }
-
-    private static double[] RatingFooterWidths() => new[]
-    {
-        ButtonWidth(CommandCatalog.Label("media.rating.clear")), ButtonWidth(Texts.T("media.rating.retry")), ButtonWidth(Texts.T("media.rating.close"))
-    };
-
-    [Fact]
-    public void RatingDialogFooterButtonsFitTheMinimumWidthInEveryLanguage()
-    {
-        (double minWidth, _, _) = RatingGeometry();
-        foreach (string code in Codes())
-        {
-            Texts.SetLanguage(code);
-            Assert.All(RatingFooterWidths(), width => Assert.True(width <= minWidth - 2 * SideInset,
-                code + ": a footer button needs " + Math.Ceiling(width) + " of " + (minWidth - 2 * SideInset) + " dip."));
-        }
-    }
-
-    [Fact]
-    public void RatingDialogErrorStateKeepsItsWrappedFooterInsideTheMinimumSize()
-    {
-        (double minWidth, double minHeight, double stripCap) = RatingGeometry();
-        double worst = 0; string worstLanguage = "";
-        foreach (string code in Codes())
-        {
-            Texts.SetLanguage(code);
-            // Error state: no heading (the title stands in the title bar only, owner decision E1), the frame's top inset,
-            // the capped strip with Retry shown next to Remove rating and Close.
-            Assert.DoesNotContain("_heading", File.ReadAllText(Source("Desktop/MediaRatingDialog.cs")));
-            double header = HeaderlessTopInset;
-            double footer = FooterVertical + WrappedHeight(WrapRows(RatingFooterWidths(), minWidth - 2 * SideInset));
-            double needed = WorkspaceMetrics.TitleBarHeight + header + stripCap + StripChrome + footer + UsableBody;
-            if (needed > worst) { worst = needed; worstLanguage = code; }
-        }
-        Assert.True(worst <= minHeight, "The rating dialog's error state needs " + Math.Ceiling(worst) + " dip in '" + worstLanguage
-            + "' at width " + minWidth + " but MinHeight is " + minHeight + ": the footer would be clipped.");
     }
 
     // ---- generic: the plain footer verbs of every dialog -----------------------------------------------------------

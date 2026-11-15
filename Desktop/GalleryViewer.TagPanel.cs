@@ -43,8 +43,11 @@ internal sealed partial class GalleryViewer
     /// <summary>The media marked for one tag change; null until the tag panel was opened once.</summary>
     internal GalleryMarks? Marks => _marks;
 
-    /// <summary>True while the panel's favorite and rating row (PT6) is on the screen: it then shows the rating, the info line does not (QW5).</summary>
-    internal bool DecisionRowVisible => _tagPanelOpen && _decisionRow != null;
+    /// <summary>
+    /// True while a favorite and rating row is on the screen: the Tags segment's row (PT6) or the Post segment's (review 15.11.). The row then
+    /// shows the rating, the info line does not (QW5); with no panel open the info line is the only place that shows it.
+    /// </summary>
+    internal bool DecisionRowVisible => _tagPanelOpen ? _decisionRow != null : PostContextVisible && _entry != null;
 
     // While the tag panel holds the slot the post context is neither built nor current.
     private bool PostContextVisible => _contextOpen && !_tagPanelOpen;
@@ -100,6 +103,7 @@ internal sealed partial class GalleryViewer
         ShowUnavailableReason(controller.UnavailableReason);
         surface.LoadSourceTags();
         _tagPanelOpen = true;
+        _filmstrip.SetTaggingViewOpen(true); // the filmstrip's "no tags yet" mark follows the tagging view
         _hoverContextOpen = false; // an edge-hover opened post panel would otherwise close the slot behind the tags
         RefreshDecisionRow();
         ApplyChrome(); // the info line's rating yields to the row (QW5)
@@ -126,6 +130,7 @@ internal sealed partial class GalleryViewer
     {
         if (!_tagPanelOpen) return false;
         _tagPanelOpen = false;
+        _filmstrip.SetTaggingViewOpen(false);
         QuickTagSurface? surface = _tagSurface;
         GalleryTagPanelController? controller = _tagController;
         _tagSurface = null; _tagController = null; _tagOwner = null;

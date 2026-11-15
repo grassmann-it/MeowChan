@@ -102,7 +102,7 @@ public sealed class GalleryChromePlanTests
                     if (mode == GalleryChromeMode.Tag)
                     {
                         GalleryChromePlan tag = Plan(Input(mode, view, new(Tools: true), mediaFocus: focus) with { Walk = true });
-                        Assert.False(tag.Tools || tag.Zoom || tag.PanelToggle || tag.Rating || tag.Tags || tag.Help);
+                        Assert.False(tag.Tools || tag.Zoom || tag.PanelToggle || tag.Tags || tag.Help);
                         Assert.True(tag.DecisionRow);
                         // Tag without a walk: the same Tag layout, but no decisions (they only exist for the tagging queue).
                         GalleryChromePlan free = Plan(Input(mode, view, new(Tools: true), mediaFocus: focus));
@@ -156,7 +156,7 @@ public sealed class GalleryChromePlanTests
         // E1: in the mode (with or without a walk) the panel's decision row is the one favourite surface; without the panel the button comes back.
         Assert.Equal(tag && panel ? GalleryFavoriteSurface.Panel : GalleryFavoriteSurface.Bar, plan.FavoriteSurface);
         Assert.Equal(!(tag && panel), plan.Favorite);
-        // The movable tools: the view's bar, narrowed by the width (help first, then rating, then everything); none in the mode.
+        // The movable tools: the view's bar, narrowed by the width (help first, then everything); none in the mode.
         string[] byView = WorkViewPolicy.GalleryBarToolIds(view).ToArray();
         int stage = GalleryChromePlan.OverflowStage(width);
         string[] expected = tag ? [] : byView.Where(id => stage < GalleryChromePlan.LeaveStage(view, id)).ToArray();
@@ -164,7 +164,7 @@ public sealed class GalleryChromePlanTests
         // The info line: quality always; the scope only outside the mode and as the view says; the rating yields to the panel's row.
         Assert.True(plan.InfoQuality);
         Assert.Equal(!tag && view != WorkView.Barebones && width >= GalleryChromePlan.NarrowWidth, plan.InfoScope); // S2: the scope leaves below 900
-        Assert.Equal(!panel && !plan.Rating, plan.InfoRating); // GL5c: and the rating button of the bar shows the value too
+        Assert.Equal(!panel, plan.InfoRating); // there is no rating button on the bar any more (review 15.11.): only an open panel shows the rating instead
         Assert.Equal(walk && width < 1280, plan.StripTwoRows);
     }
 
@@ -182,15 +182,15 @@ public sealed class GalleryChromePlanTests
     // view, width, the movable tools on the bar (policy order), Layout on the bar, mode as icons, 1:1 on the bar, the info scope
     public static IEnumerable<object[]> OverflowTable()
     {
-        const string rating = "gallery.toolbar.rating", tags = "gallery.toolbar.tags", slideshow = "gallery.toolbar.slideshow", help = "gallery.toolbar.help";
-        // Advanced: stage 1 help to More, stage 2 the rating button (and Layout, and the words), stage 3 tags and slideshow (and the scope), stage 4 1:1.
-        yield return [WorkView.Advanced, 1920d, new[] { rating, tags, slideshow, help }, true, false, true, true];
-        yield return [WorkView.Advanced, 1279d, new[] { rating, tags, slideshow }, true, false, true, true];
+        const string tags = "gallery.toolbar.tags", slideshow = "gallery.toolbar.slideshow", help = "gallery.toolbar.help";
+        // Advanced: stage 1 help to More, stage 2 Layout and the words, stage 3 tags and slideshow (and the scope), stage 4 1:1.
+        yield return [WorkView.Advanced, 1920d, new[] { tags, slideshow, help }, true, false, true, true];
+        yield return [WorkView.Advanced, 1279d, new[] { tags, slideshow }, true, false, true, true];
         yield return [WorkView.Advanced, 1099d, new[] { tags, slideshow }, false, true, true, true];
         yield return [WorkView.Advanced, 899d, Array.Empty<string>(), false, true, true, false];
         yield return [WorkView.Advanced, 639d, Array.Empty<string>(), false, true, false, false];
-        // Simple: no help and no Layout on the bar; stage 1 the rating button, stage 2 tags (and the words), stage 3 the slideshow (and the scope).
-        yield return [WorkView.Simple, 1920d, new[] { rating, tags, slideshow }, false, false, true, true];
+        // Simple: no help and no Layout on the bar; stage 2 tags (and the words), stage 3 the slideshow (and the scope).
+        yield return [WorkView.Simple, 1920d, new[] { tags, slideshow }, false, false, true, true];
         yield return [WorkView.Simple, 1279d, new[] { tags, slideshow }, false, false, true, true];
         yield return [WorkView.Simple, 1099d, new[] { slideshow }, false, true, true, true];
         yield return [WorkView.Simple, 899d, Array.Empty<string>(), false, true, true, false];
@@ -235,15 +235,15 @@ public sealed class GalleryChromePlanTests
     [Fact]
     public void TheOverflowPriorityLetsTheLowestToolGoFirstAndNeverTheCore()
     {
-        Assert.Equal(["gallery.toolbar.help", "gallery.toolbar.rating", "gallery.toolbar.slideshow", "gallery.toolbar.tags"], GalleryChromePlan.OverflowOrder);
+        Assert.Equal(["gallery.toolbar.help", "gallery.toolbar.slideshow", "gallery.toolbar.tags"], GalleryChromePlan.OverflowOrder);
         // The keep-visible order: navigation, More and the tools toggle first; every movable tool of the policy is in it.
         Assert.Equal(["gallery.position", "gallery.toolbar.more", "gallery.toolbar.tools-toggle"], GalleryChromePlan.Priority.Take(3));
         Assert.All(GalleryChromePlan.OverflowOrder, id => Assert.Contains(id, WorkViewPolicy.GalleryMovableToolIds));
         Assert.All(GalleryChromePlan.Priority, id => WorkViewPolicy.Get(id));
-        // Advanced on a shrinking viewer: help leaves first, then rating, then the rest; navigation and More stay.
+        // Advanced on a shrinking viewer: help leaves first, then the rest; navigation and More stay.
         string[] Bar(double width) => Plan(Input(view: WorkView.Advanced, width: width)).BarToolIds.ToArray();
-        Assert.Equal(["gallery.toolbar.rating", "gallery.toolbar.tags", "gallery.toolbar.slideshow", "gallery.toolbar.help"], Bar(1380));
-        Assert.Equal(["gallery.toolbar.rating", "gallery.toolbar.tags", "gallery.toolbar.slideshow"], Bar(1279));
+        Assert.Equal(["gallery.toolbar.tags", "gallery.toolbar.slideshow", "gallery.toolbar.help"], Bar(1380));
+        Assert.Equal(["gallery.toolbar.tags", "gallery.toolbar.slideshow"], Bar(1279));
         Assert.Equal(["gallery.toolbar.tags", "gallery.toolbar.slideshow"], Bar(1099));
         Assert.Empty(Bar(899));
         // R6: an active slideshow keeps its toggle at every width and with hidden tools.
@@ -283,7 +283,7 @@ public sealed class GalleryChromePlanTests
         GalleryChromeInput free = Input(GalleryChromeMode.Tag, WorkView.Simple, panelOpen: true) with { PanelDecisions = true };
         GalleryChromePlan plan = Plan(free);
         Assert.Equal(GalleryFavoriteSurface.Panel, plan.FavoriteSurface); // E1: the panel's row, not a decision strip
-        Assert.False(plan.DecisionRow || plan.Favorite || plan.Rating || plan.Tags || plan.Tools || plan.InfoRating);
+        Assert.False(plan.DecisionRow || plan.Favorite || plan.Tags || plan.Tools || plan.InfoRating);
         Assert.True(plan.ModeSwitch && plan.Nav && plan.More && plan.InfoQuality);
         // The panel closed: the favourite button is back on the bar, so the favourite stays reachable (and the star shows it anyway).
         GalleryChromePlan closed = Plan(free with { PanelOpen = false, PanelDecisions = false });
@@ -310,7 +310,7 @@ public sealed class GalleryChromePlanTests
         foreach (WorkView view in Views) Assert.Equal(Presence.Required, WorkViewPolicy.Resolve("gallery.favorite", view));
         GalleryChromePlan tag = Plan(Input(GalleryChromeMode.Tag, panelOpen: true, panelCoupled: true) with { PanelDecisions = true });
         Assert.Equal(GalleryFavoriteSurface.Panel, tag.FavoriteSurface);
-        Assert.False(tag.Favorite || tag.Rating || tag.Tags || tag.InfoRating); // E1: favourite, rating and "Tag…" leave the bar
+        Assert.False(tag.Favorite || tag.Tags || tag.InfoRating); // E1: favourite, rating and "Tag…" leave the bar
         // A panel without the decision row (its owner offers none) leaves the bar's button in place.
         Assert.Equal(GalleryFavoriteSurface.Bar, Plan(Input(GalleryChromeMode.Tag, panelOpen: true)).FavoriteSurface);
         Assert.True(Plan(Input(GalleryChromeMode.Tag, panelOpen: true)).Favorite);

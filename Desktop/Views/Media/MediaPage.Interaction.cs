@@ -16,14 +16,50 @@ namespace MeowChan;
 // tile size of the Layout menu (Small, Medium, Large) and save it like the menu does; nothing outside these three sizes exists.
 public sealed partial class MediaPage
 {
-    private readonly WheelSteps _tileSizeWheel = new();
+    private readonly MiddleClickTracker _tileMiddleClick = new();
+    private TileSizeInput? _tileSizeInput;
 
     private void InstallTileInteraction()
     {
         _grid.DoubleTapped += OnTileDoubleTapped;
-        _grid.AddHandler(PointerWheelChangedEvent, OnTileSizeWheel, RoutingStrategies.Tunnel);
-        _grid.AddHandler(KeyDownEvent, OnTileSizeKey, RoutingStrategies.Tunnel);
+        // The shared tile size input (TileSizeInput): the same wheel and keys as the tagging grid and the archive tiles.
+        _tileSizeInput = TileSizeInput.Install(_grid, TileSizeCommands.Media, () => _layout.TileSize, ApplyTileSize);
+        // Audit V5: the middle click on a tile opens its folder, the menu's "Show in folder".
+        _grid.AddHandler(PointerPressedEvent, OnTileMiddlePressed, RoutingStrategies.Tunnel, handledEventsToo: true);
+        _grid.AddHandler(PointerReleasedEvent, OnTileMiddleReleased, RoutingStrategies.Tunnel);
     }
+
+    private MediaLibraryTileRow? MiddleClickRow(object? source) =>
+        ItemActivation.IsOwnedByInteractivePart(source, _grid) ? null : RowAt(source);
+
+    private void OnTileMiddlePressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (!MiddleClickTracker.IsPress(e, _grid)) { _tileMiddleClick.Cancel(); return; }
+        _tileMiddleClick.Pressed(MiddleClickRow(e.Source));
+    }
+
+    private void OnTileMiddleReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        if (e.Handled || !MiddleClickTracker.IsRelease(e)) return;
+        MediaLibraryTileRow? row = MiddleClickRow(e.Source);
+        if (!_tileMiddleClick.Released(row) || row == null) return;
+        e.Handled = true;
+        OpenActions.Start(() => RunMediaCommandOnTileAsync(FolderCommandId, row), "media.grid.middleClick");
+    }
+
+    /// <summary>
+    /// A menu command of <paramref name="row"/>'s medium, run by a click on that tile (the selection stays as it is). The rules are those of the menu entry and of
+    /// its shortcut: a saved medium, nothing being built or busy, the host's action wired.
+    /// </summary>
+    internal async Task RunMediaCommandOnTileAsync(string id, MediaLibraryTileRow row)
+    {
+        if (_lifetime.IsCancellationRequested || _building != null || _selectionBusy || ExecuteMediaMenuActionAsync == null
+            || row.Entry.Presence != MediaLibraryPresence.Present) return;
+        bool Current() => !_lifetime.IsCancellationRequested && _building == null && IsEffectivelyVisible;
+        await ExecuteMediaActionAsync(id, row.Entry, Current);
+    }
+
+    internal const string FolderCommandId = "media.show-in-folder";
 
     private void OnTileDoubleTapped(object? sender, TappedEventArgs e)
     {
@@ -46,37 +82,28 @@ public sealed partial class MediaPage
     }
 
     /// <summary>The tile size one step larger (<paramref name="steps"/> &gt; 0) or smaller; the ends stay where they are.</summary>
-    internal static MediaTileSize StepTileSize(MediaTileSize size, int steps) =>
-        (MediaTileSize)Math.Clamp((int)size + Math.Sign(steps), (int)MediaTileSize.Small, (int)MediaTileSize.Large);
+    internal static MediaTileSize StepTileSize(MediaTileSize size, int steps) => MediaTileSizes.Step(size, steps);
 
     /// <summary>Applies the next tile size and saves the layout (one save per step; nothing happens at the ends).</summary>
-    internal bool StepTileSize(int steps)
+    internal bool StepTileSize(int steps) => _tileSizeInput?.StepBy(steps) ?? false;
+
+    /// <summary>Sets a tile size and saves the layout (Ctrl+0 sets Medium); nothing happens when it is the size already.</summary>
+    internal bool SetTileSize(MediaTileSize size) => _tileSizeInput?.Set(size) ?? false;
+
+    /// <summary>
+    /// The tagging grid shares this size (one tile size for both): its input changed the setting, so the page shows it now and saves nothing
+    /// again (the shell saved it).
+    /// </summary>
+    internal void ApplySavedTileSize(MediaTileSize size) => ApplyLayout(_layout with { TileSize = size }, save: false);
+
+    private bool ApplyTileSize(MediaTileSize size)
     {
-        if (steps == 0 || _lifetime.IsCancellationRequested) return false;
-        MediaTileSize next = StepTileSize(_layout.TileSize, steps);
-        if (next == _layout.TileSize) return false;
-        ApplyLayout(_layout with { TileSize = next });
+        if (_lifetime.IsCancellationRequested) return false;
+        ApplyLayout(_layout with { TileSize = size });
         return true;
-    }
-
-    private void OnTileSizeWheel(object? sender, PointerWheelEventArgs e)
-    {
-        if (e.Handled || !ItemActivation.IsZoomWheel(e.KeyModifiers)) return;
-        // The wheel with Ctrl never scrolls the grid: a step changes the size, the rest of a touchpad gesture waits for the next one.
-        e.Handled = true;
-        int steps = _tileSizeWheel.Add(e.Delta.Y, DateTime.UtcNow);
-        if (steps != 0) StepTileSize(steps);
-    }
-
-    private void OnTileSizeKey(object? sender, KeyEventArgs e)
-    {
-        if (e.Handled || ShortcutService.IsCapturing || CommandRouter.IsNativeInput(e.Source, e.Key)) return;
-        int steps = CommandBindings.Matches(e, TileSizeLargerCommandId) ? 1 : CommandBindings.Matches(e, TileSizeSmallerCommandId) ? -1 : 0;
-        if (steps == 0) return;
-        e.Handled = true;
-        StepTileSize(steps);
     }
 
     internal const string TileSizeLargerCommandId = "media.tile-size.larger";
     internal const string TileSizeSmallerCommandId = "media.tile-size.smaller";
+    internal const string TileSizeResetCommandId = "media.tile-size.reset";
 }

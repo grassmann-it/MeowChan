@@ -13,6 +13,7 @@ using Avalonia.Input;
 using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Stats;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Booru;
@@ -80,6 +81,7 @@ public partial class MainWindow
         InitializeMediaFocusChrome();
         _archivePage = new ArchivePage(_session.OpenArchiveReaderAsync, _session.SetCaptureEnabledAsync, directory => OpenDirectory(directory, _archivePage?.CaptureActionErrorReporter()));
         _archivePage.AttachTransferImport(_session);
+        _archivePage.AttachTransferExport(_session);
         _archivePage.AttachSavedSearches(_session);
         _archivePage.AttachThreadFavorites(_session);
         _archivePage.AttachPrivateTags(_session);
@@ -140,6 +142,9 @@ public partial class MainWindow
             string mode = _config.WorkspaceMode;
             return _session.SaveViewPreferencesAsync(current => current.GetLayoutProfile(mode).ArchiveMediaTiles = tiles);
         };
+        // The tile size of the saved-media tiles is a view preference of the profile (not of the work view): one size for every mode.
+        _archivePage.MediaTileSizePreference = MediaTileSizes.Parse(_config.ArchiveMediaTileSize);
+        _archivePage.SaveMediaTileSize = size => _session.SaveViewPreferencesAsync(current => current.ArchiveMediaTileSize = size.ToString());
         // The reader's quick media switches (View menu) write only the switch that was flipped; Settings shows the confirmed value again.
         _archivePage.SaveReaderMediaSwitches = async change =>
         {
@@ -155,7 +160,6 @@ public partial class MainWindow
         _archivePage.GetMediaRating = _session.GetMediaRating;
         _archivePage.SetMediaRatingAsync = SetMediaRatingAsync;
         _archivePage.CanChangeMediaRating = key => !_isClosing && !_ratingChanges.Contains(key);
-        _archivePage.EditMediaRatingAsync = EditMediaRatingAsync;
         _archivePage.EditArchiveMediaTagsAsync = entry => EditGalleryMediaTagsAsync(entry);
         _archivePage.TagPopoverAsync = OpenArchiveMediaTagPopoverAsync;
         _archivePage.TagPopoverOptions = TagPopoverDefaults;
@@ -207,6 +211,7 @@ public partial class MainWindow
         InitializeTagQueue();
         InitializeTaggingPage();
         InitializePostFilters();
+        InitializeGalleryFilmstripFlags();
         InitializeFolderSources();
         InitializeBooru();
         MeowChan.Diagnostics.PerformanceDiagnostics.Record("startup.pages", "resume-bookmarks-booru-done");

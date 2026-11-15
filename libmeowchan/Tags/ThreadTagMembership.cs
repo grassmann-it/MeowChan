@@ -27,21 +27,28 @@ internal sealed class ThreadTagMembership
     /// <summary>Revision of the tag snapshot this membership was computed from.</summary>
     internal long Revision { get; }
 
-    /// <summary>False when the filter names a tag the snapshot does not contain; nothing is guessed.</summary>
+    /// <summary>
+    /// False when the filter names a tag the snapshot does not contain; nothing is guessed. A tag that was merged into another one
+    /// counts as that tag (<see cref="PrivateTagStoreSnapshot.ResolveId"/>), so a saved search keeps finding what it found.
+    /// </summary>
     internal static bool TryCreate(ArchiveTagFilter filter, PrivateTagStoreSnapshot snapshot, out ThreadTagMembership? membership)
     {
         ArgumentNullException.ThrowIfNull(filter);
         ArgumentNullException.ThrowIfNull(snapshot);
         membership = null;
-        HashSet<Guid> known = snapshot.Tags.Select(tag => tag.Id.Value).ToHashSet();
-        if (filter.Include.Concat(filter.Exclude).Any(id => !known.Contains(id))) return false;
-        Dictionary<Guid, HashSet<ResourceId>> threads = filter.Include.Concat(filter.Exclude)
-            .ToDictionary(id => id, _ => new HashSet<ResourceId>());
+        Dictionary<Guid, Guid> resolved = new();
+        foreach (Guid id in filter.Include.Concat(filter.Exclude))
+        {
+            if (resolved.ContainsKey(id)) continue;
+            if (snapshot.ResolveId(new TagId(id)) is not { } current) return false;
+            resolved[id] = current.Value;
+        }
+        Dictionary<Guid, HashSet<ResourceId>> threads = resolved.Values.Distinct().ToDictionary(id => id, _ => new HashSet<ResourceId>());
         foreach (PrivateThreadTagAssignment assignment in snapshot.ThreadAssignments)
             if (threads.TryGetValue(assignment.TagId.Value, out HashSet<ResourceId>? set)) set.Add(assignment.Thread);
         HashSet<ResourceId> excluded = new();
-        foreach (Guid id in filter.Exclude) excluded.UnionWith(threads[id]);
-        membership = new(snapshot.Revision, filter.Include.Select(id => threads[id]).ToArray(), excluded,
+        foreach (Guid id in filter.Exclude) excluded.UnionWith(threads[resolved[id]]);
+        membership = new(snapshot.Revision, filter.Include.Select(id => threads[resolved[id]]).ToArray(), excluded,
             filter.Match == ArchiveTagMatch.Any);
         return true;
     }

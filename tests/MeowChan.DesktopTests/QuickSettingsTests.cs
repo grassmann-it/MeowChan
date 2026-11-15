@@ -30,19 +30,22 @@ public sealed class QuickSettingsTests : IDisposable
     public void TheReaderPopoverOffersTheMostNeededDisplayOptionsUnderUniqueIds()
     {
         // RL1: the popover is the gear's, in the order of its sections (media, then text and layout); the history limits, the hover size and delay,
-        // the sidebar widths, the video players and the multi-file settings are on the settings page only.
+        // the sidebar widths, the video player limits and the multi-file settings are on the settings page only; the video groups (in posts: autoplay, repeat,
+        // start muted, volume; in the media sidebar: autoplay, repeat, start muted) and "keep images expanded" are in the popover.
         Assert.Equal(new[]
         {
-            ReaderQuickSettings.MediaClickFieldId, SettingsFieldId.ReaderMediaSidebar, SettingsFieldId.ReaderMediaSidebarScope, SettingsFieldId.ReaderMediaSidebarSide,
+            ReaderQuickSettings.MediaClickFieldId, SettingsFieldId.ReaderKeepImagesExpanded, SettingsFieldId.ReaderMediaSidebar, SettingsFieldId.ReaderMediaSidebarScope, SettingsFieldId.ReaderMediaSidebarSide,
             SettingsFieldId.ReaderTextlessLargeImages, SettingsFieldId.ReaderTextlessMediaWidth,
             SettingsFieldId.ReaderFocusedMediaEnlarge, SettingsFieldId.ReaderFocusedMediaScalePercent, SettingsFieldId.ReaderHoverEnlarge,
             SettingsFieldId.ReaderThumbnailWidth,
+            SettingsFieldId.ReaderInlineVideoAutoplayMuted, SettingsFieldId.GalleryVideoRepeat, SettingsFieldId.VideoStartMuted, SettingsFieldId.VideoVolume,
+            SettingsFieldId.ReaderSidebarVideoAutoplay, SettingsFieldId.ReaderSidebarVideoLoop, SettingsFieldId.ReaderSidebarVideoStartMuted,
             SettingsFieldId.ReaderPostWidth, SettingsFieldId.ReadingFontSize, SettingsFieldId.ReaderDateStyle, SettingsFieldId.ReaderSpoilers,
-            SettingsFieldId.ReaderPageSize
+            SettingsFieldId.ReaderPageSize, SettingsFieldId.ReaderExpandReplies
         }, Reader.Fields.Select(field => field.Id));
         foreach (string moved in new[] { SettingsFieldId.ReadingHistoryLimit, SettingsFieldId.ReadingHistoryMenuEntries, SettingsFieldId.ReaderHoverEnlargeSize,
             SettingsFieldId.ReaderHoverEnlargeDelayMs, SettingsFieldId.ReaderMediaSidebarWidth, SettingsFieldId.ReaderMediaSidebarMinimumWidth,
-            SettingsFieldId.ReaderInlineVideoAutoplayMuted, SettingsFieldId.ReaderInlineVideoMaxPlayers, SettingsFieldId.ReaderInlineVideoMaxFileMiB,
+            SettingsFieldId.ReaderInlineVideoMaxPlayers, SettingsFieldId.ReaderInlineVideoMaxFileMiB,
             SettingsFieldId.ReaderMediaStripLimit, SettingsFieldId.ReaderMediaGrid, SettingsFieldId.ReaderMediaGridTextLimit })
             Assert.False(QuickSettingsSurfaces.Contains(moved), moved);
         Assert.Equal(Reader.Fields.Count, Reader.Fields.Select(field => field.Id).Distinct(StringComparer.Ordinal).Count());

@@ -26,7 +26,7 @@ internal static class GalleryLayoutCatalog
         ("gallery.layout.resetDone", "{0}: layout reset to the default of the work view.", "{0}: Layout auf den Standard der Arbeitsansicht zurückgesetzt."),
         ("gallery.layout.filmstripHelp", "Thumbnails of the media before and after the shown one.", "Vorschaubilder der Medien vor und nach dem gezeigten."),
         ("gallery.layout.toolsHelp", "Zoom, post panel, favorite, view tools and slideshow. The arrows with the position and ⋯ stay.", "Zoom, Post-Panel, Favorit, Ansichtswerkzeuge und Diashow. Die Pfeile mit der Position und ⋯ bleiben."),
-        ("gallery.layout.infoHelp", "One line: size, zoom, source and number, plus the rating where the bar has no rating button. Errors and warnings always stay.", "Eine Zeile: Größe, Zoom, Quelle und Nummer, dazu die Bewertung, wo die Leiste keinen Bewertungsknopf hat. Fehler und Warnungen bleiben immer."),
+        ("gallery.layout.infoHelp", "One line: size, zoom, source and number, plus the rating while no side panel is open. Errors and warnings always stay.", "Eine Zeile: Größe, Zoom, Quelle und Nummer, dazu die Bewertung, solange kein Seitenpanel offen ist. Fehler und Warnungen bleiben immer."),
         ("gallery.layout.hintsHelp", "The status on the right of the info line: slideshow ready or running. “Ready” fades out after a few seconds; reasons for a pause and errors always stay.", "Der Status rechts in der Infozeile: Diashow bereit oder läuft. „Bereit“ verschwindet nach einigen Sekunden; Pausengründe und Fehler bleiben immer."),
         ("gallery.layout.hintOwn", "Your choice", "Eigene Wahl"),
         ("gallery.layout.hintView", "Default of the work view", "Standard der Arbeitsansicht"),

@@ -86,8 +86,6 @@ public sealed class MenuIconAuditTests : IDisposable
             Assert.True(CommandCatalog.Get(id).Icon == "star", id);
         Assert.Equal("star-filled", CommandCatalog.IconForState("favorites.toggle", "marked"));
         Assert.NotEqual(CommandCatalog.Get("favorites.toggle").Icon, CommandCatalog.Get("media.rating.edit").Icon);
-        // The gallery's rating button shows the command's icon, not a star of its own.
-        Assert.Contains("NamedIcon(CommandCatalog.Get(\"media.rating.edit\").Icon, 16)", File.ReadAllText(Root("Desktop/GalleryViewer.cs")), StringComparison.Ordinal);
         // Deleting (not removing from a list) is the circled cross everywhere.
         foreach (string id in new[] { "archive.delete-permanently", "reader-groups.delete", "archive.saved-searches.delete", "rules.delete", "rules.template-delete" })
             Assert.True(CommandCatalog.Get(id).Icon == "x-circle", id);
@@ -128,6 +126,15 @@ public sealed class MenuIconAuditTests : IDisposable
         string groups = File.ReadAllText(Root("Desktop/Views/Tagging/TaggingPage.Groups.cs"));
         Assert.Contains("menu.Item(TaggingCommands.GroupNew, Texts.T(\"tagging.page.group.newMenu\")", groups, StringComparison.Ordinal);
         Assert.Contains("GroupNameDialog.ShowAsync(this, Texts.T(\"tagging.page.group.new\")", groups, StringComparison.Ordinal);
+        // The "Manage groups" menu names its first entry the same way (it used to show the plain dialog title).
+        Assert.Contains(".Item(\"tagging.group.new\", Texts.T(\"tagging.page.group.newMenu\")", groups, StringComparison.Ordinal);
+        Assert.DoesNotContain(".Item(\"tagging.group.new\", Texts.T(\"tagging.page.group.new\")", groups, StringComparison.Ordinal);
+        // No group action is dropped as a bare task: every one runs through RunGroupAction, which says a failure in the status line.
+        Assert.DoesNotContain("_ = CreateGroupDialogAsync()", groups, StringComparison.Ordinal);
+        Assert.DoesNotContain("_ = RenameGroupDialogAsync()", groups, StringComparison.Ordinal);
+        Assert.DoesNotContain("_ = DeleteGroupAsync()", groups, StringComparison.Ordinal);
+        Assert.Equal(4, System.Text.RegularExpressions.Regex.Matches(groups, @"_ = RunGroupAction\(").Count);
+        Assert.Contains("ShowStatus(TagQueueActions.DescribeFailure(error))", groups, StringComparison.Ordinal);
     }
 
     [Fact]

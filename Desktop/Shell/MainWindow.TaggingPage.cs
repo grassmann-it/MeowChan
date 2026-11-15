@@ -77,15 +77,40 @@ public partial class MainWindow
             SavePreviewColumn = visible => _ = _session.SaveViewPreferencesAsync(config => config.TaggingPreviewColumn = visible),
             ReadMediaTileAppearance = () =>
             {
-                MediaPageLayout layout = MediaPageLayout.Parse(_session.Config.MediaLayout, _session.Config.MediaBooruMode);
+                MediaPageLayout layout = CurrentMediaLayout();
                 return MediaTileMetrics.For(layout.TileSize, layout.Caption);
-            }
+            },
+            ReadMediaTileSize = () => CurrentMediaLayout().TileSize,
+            ChooseMediaTileSize = ChooseSharedTileSize
         };
         _taggingPage.RestoreViewMode(TaggingViewModes.Parse(_session.Config.TaggingPageView));
         _taggingPage.RestorePreviewColumn(_session.Config.TaggingPreviewColumn);
         _taggingPage.RestoreStampBlock(TaggingStampBlocks.Parse(_session.Config.TaggingStampBlock));
         _taggingPage.ApplyWorkView(_workViews.Current);
         TaggingPageHost.Content = _taggingPage;
+    }
+
+    // The tagging grid and the media page show one tile size, the media page's setting (inside MediaLayout). The media page, once it exists, holds the
+    // live layout (a change is shown there before the saved settings confirm it); before that the size chosen on the tagging grid stands in for the
+    // settings that are still being written.
+    private MediaTileSize? _tileSizeChosenInTagging;
+
+    private MediaPageLayout CurrentMediaLayout()
+    {
+        MediaPageLayout saved = _mediaPage?.PageLayout ?? MediaPageLayout.Parse(_session.Config.MediaLayout, _session.Config.MediaBooruMode);
+        return _mediaPage == null && _tileSizeChosenInTagging is { } size ? saved with { TileSize = size } : saved;
+    }
+
+    // Ctrl+wheel and Ctrl+Plus / Minus / 0 over the tagging grid: the media page's tile size changes (it shows it at once when it exists) and is
+    // saved into the media layout; the rest of that layout stays as it is.
+    private bool ChooseSharedTileSize(MediaTileSize size)
+    {
+        if (_isClosing) return false;
+        _tileSizeChosenInTagging = size;
+        _mediaPage?.ApplySavedTileSize(size);
+        _ = _session.SaveViewPreferencesAsync(config =>
+            config.MediaLayout = (MediaPageLayout.Parse(config.MediaLayout, config.MediaBooruMode) with { TileSize = size }).Format());
+        return true;
     }
 
     // Called by NavigateWorkspace after the page became the shown one.

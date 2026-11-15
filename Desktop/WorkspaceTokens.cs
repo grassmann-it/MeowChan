@@ -59,4 +59,13 @@ internal static class WorkspaceTokens
         border[!Border.CornerRadiusProperty] = new DynamicResourceExtension(RadiusControl);
         return border;
     }
+
+    /// <summary>The same size for a button that stands beside buttons (the gallery's favourite badge): control height, at least a square of it, control corners.</summary>
+    internal static T ControlSized<T>(this T control) where T : Avalonia.Controls.Primitives.TemplatedControl
+    {
+        control[!Layoutable.HeightProperty] = new DynamicResourceExtension(SizeControl);
+        control[!Layoutable.MinWidthProperty] = new DynamicResourceExtension(SizeControl);
+        control[!Avalonia.Controls.Primitives.TemplatedControl.CornerRadiusProperty] = new DynamicResourceExtension(RadiusControl);
+        return control;
+    }
 }

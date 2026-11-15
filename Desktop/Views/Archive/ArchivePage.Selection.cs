@@ -301,11 +301,11 @@ public partial class ArchivePage
         { e.Handled = true; if (CheckSelectedWatches != null) await CheckArchiveSelectionAsync(MatchesArchiveCommand(e, "watch.retry-media")); return; }
         if (MatchesArchiveCommand(e, "thread.details"))
         { e.Handled = true; if (ArchiveLead is ArchiveThreadRow row) await ShowArchiveDetailsAsync(row); return; }
-        // Revision 19: "Show in Media" (Alt+M), for one thread like the menu entry.
+        // Revision 19: "Show in Media" (Alt+M), like the menu entry: every selected thread (several open as one thread set on the Media page).
         if (MatchesArchiveCommand(e, "thread.show-in-media"))
         {
             e.Handled = true;
-            if (FrozenArchiveSelection().Length == 1 && ArchiveLead is ArchiveThreadRow row) ShowThreadInMediaRequested?.Invoke(row.Summary.Id, row.Summary.Title);
+            if (ArchiveLead is ArchiveThreadRow row) ShowArchiveSelectionInMedia(FrozenArchiveSelection(), row);
             return;
         }
         if (MatchesArchiveCommand(e, "thread.read") || MatchesArchiveCommand(e, "gallery.open"))

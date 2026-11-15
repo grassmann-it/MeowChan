@@ -36,9 +36,9 @@ public sealed class ToolbarGapPatternTests
     public void TheArchiveResultsBarStandsInThreeGroupsWithTheToggleAsJoinedSegmentsAndSavedSearchesBesideExport()
     {
         XElement[] items = Items(Toolbar("Desktop/Views/Archive/ArchivePage.axaml", "ArchiveResultActions"));
-        Assert.Equal(["ArchiveLayoutList", "ArchiveLayoutTable", "ArchiveResultsGallery", "ArchiveThreadColumnsButton", "ArchiveFavoritesOverview",
+        Assert.Equal(["ArchiveLayoutList", "ArchiveLayoutTable", "ArchiveResultsGallery", "ArchiveResultsOpenInMedia", "ArchiveThreadColumnsButton", "ArchiveFavoritesOverview",
             "ArchiveResultsExport", "ArchiveSavedSearches", "ArchiveReaderGroups"], items.Select(item => (string)item.Attribute(X + "Name")!));
-        Assert.Equal([0, 0, 1, 1, 1, 2, 2, 2], items.Select(item => int.Parse(Attribute(item, "ActionToolBar.Group") ?? "0")));
+        Assert.Equal([0, 0, 1, 1, 1, 1, 2, 2, 2], items.Select(item => int.Parse(Attribute(item, "ActionToolBar.Group") ?? "0")));
         Assert.Equal("segment segment-first", (string?)items[0].Attribute("Classes"));
         Assert.Equal("segment segment-last", (string?)items[1].Attribute("Classes"));
         foreach (XElement toggle in items.Take(2))

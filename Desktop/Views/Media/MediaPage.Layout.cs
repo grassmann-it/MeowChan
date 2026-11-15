@@ -351,7 +351,7 @@ public sealed partial class MediaPage
         ApplyLayout(_layout with { PanelWidth = width });
     }
 
-    // The realized tiles change their own size and parts, the panel its cell; the rows, the selection and the previews stay.
+    // The realized tiles change their own size and parts, the tile panel its cell; the rows, the selection and the previews stay.
     private void ApplyTileAppearance(MediaTileAppearance appearance)
     {
         MediaTilePanel? panel = TilePanel();

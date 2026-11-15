@@ -29,6 +29,7 @@ internal static class ReaderQuickSettings
         Choice(SettingsFieldId.ReaderDateStyle, "settings.reader.dateStyle", "settings.reader.dateStyle.hint", Options(("System", "settings.reader.dateStyle.system"), ("Long", "settings.reader.dateStyle.long"), ("SinceOp", "settings.reader.dateStyle.sinceOp"), ("RelativeToNow", "settings.reader.dateStyle.relative")), c => c.ReaderDateStyle, (c, v) => c.ReaderDateStyle = v),
         Choice(SettingsFieldId.ReaderSpoilers, "settings.reader.spoilers", "settings.reader.spoilers.hint", Options(("Hide", "settings.reader.spoilers.hide"), ("Hover", "settings.reader.spoilers.hover"), ("Always", "settings.reader.spoilers.always")), c => c.ReaderSpoilers, (c, v) => c.ReaderSpoilers = v),
         Integer(SettingsFieldId.ReaderPageSize, "settings.reader.pageSize", "settings.reader.pageSize.hint", Config.ReaderPageSizeMinimum, Config.ReaderPageSizeMaximum, 10, c => c.ReaderPageSize, (c, v) => c.ReaderPageSize = v),
+        Toggle(SettingsFieldId.ReaderExpandReplies, "settings.reader.expandReplies", "settings.reader.expandReplies.hint", c => c.ReaderExpandReplies, (c, v) => c.ReaderExpandReplies = v),
         // R5/R6: the reading history and the reader media sizes, same ids and steps as on the settings page.
         Integer(SettingsFieldId.ReadingHistoryLimit, "settings.reader.historyLimit", "settings.reader.historyLimit.hint", Config.ReadingHistoryLimitMinimum, Config.ReadingHistoryLimitMaximum, 1, c => c.ReadingHistoryLimit, (c, v) => c.ReadingHistoryLimit = v),
         Integer(SettingsFieldId.ReadingHistoryMenuEntries, "settings.reader.historyMenuEntries", "settings.reader.historyMenuEntries.hint", Config.ReadingHistoryMenuEntriesMinimum, Config.ReadingHistoryMenuEntriesMaximum, 1, c => c.ReadingHistoryMenuEntries, (c, v) => c.ReadingHistoryMenuEntries = v),
@@ -47,6 +48,16 @@ internal static class ReaderQuickSettings
         Integer(SettingsFieldId.ReaderMediaSidebarMinimumWidth, "settings.reader.mediaSidebarMinimumWidth", "settings.reader.mediaSidebarMinimumWidth.hint", Config.ReaderMediaSidebarMinimumWidthMinimum, Config.ReaderMediaSidebarMinimumWidthMaximum, 80, c => c.ReaderMediaSidebarMinimumWidth, (c, v) => c.ReaderMediaSidebarMinimumWidth = v),
         // R10: the players of the reader (in the sidebar and in posts).
         Toggle(SettingsFieldId.ReaderInlineVideoAutoplayMuted, "settings.reader.inlineVideoAutoplay", "settings.reader.inlineVideoAutoplay.hint", c => c.ReaderInlineVideoAutoplayMuted, (c, v) => c.ReaderInlineVideoAutoplayMuted = v),
+        // Inline video settings of the popover (the settings page has all of them): "Keep images expanded" is new, the others are the same
+        // settings as on the page. Volume and "Repeat video" are the gallery's own (one choice for both places) and reach playing videos at once.
+        Toggle(SettingsFieldId.ReaderKeepImagesExpanded, "settings.reader.keepExpanded", "settings.reader.keepExpanded.hint", c => c.ReaderKeepImagesExpanded, (c, v) => c.ReaderKeepImagesExpanded = v),
+        Toggle(SettingsFieldId.GalleryVideoRepeat, "viewer.playback.repeat", "viewer.playback.repeatHelp", c => c.GalleryVideoRepeat, (c, v) => c.GalleryVideoRepeat = v),
+        Slider(SettingsFieldId.VideoVolume, "r08d.settings.videoVolume", null, 0, 100, 5, c => c.VideoVolume, (c, v) => c.VideoVolume = v),
+        Toggle(SettingsFieldId.VideoStartMuted, "r08d.settings.videoStartMuted", null, c => c.VideoStartMuted, (c, v) => c.VideoStartMuted = v),
+        // The videos of the media sidebar (reader, large reader, archive view, Media page panel) have their own three switches.
+        Toggle(SettingsFieldId.ReaderSidebarVideoAutoplay, "settings.reader.sidebarVideoAutoplay", "settings.reader.sidebarVideoAutoplay.hint", c => c.ReaderSidebarVideoAutoplay, (c, v) => c.ReaderSidebarVideoAutoplay = v),
+        Toggle(SettingsFieldId.ReaderSidebarVideoLoop, "settings.reader.sidebarVideoLoop", "settings.reader.sidebarVideoLoop.hint", c => c.ReaderSidebarVideoLoop, (c, v) => c.ReaderSidebarVideoLoop = v),
+        Toggle(SettingsFieldId.ReaderSidebarVideoStartMuted, "settings.reader.sidebarVideoMuted", "settings.reader.sidebarVideoMuted.hint", c => c.ReaderSidebarVideoStartMuted, (c, v) => c.ReaderSidebarVideoStartMuted = v),
         Integer(SettingsFieldId.ReaderInlineVideoMaxPlayers, "settings.reader.inlineVideoPlayers", "settings.reader.inlineVideoPlayers.hint", Config.ReaderInlineVideoMaxPlayersMinimum, Config.ReaderInlineVideoMaxPlayersMaximum, 1, c => c.ReaderInlineVideoMaxPlayers, (c, v) => c.ReaderInlineVideoMaxPlayers = v),
         Integer(SettingsFieldId.ReaderInlineVideoMaxFileMiB, "settings.reader.inlineVideoMaxFile", "settings.reader.inlineVideoMaxFile.hint", Config.ReaderInlineVideoMaxFileMiBMinimum, Config.ReaderInlineVideoMaxFileMiBMaximum, 64, c => c.ReaderInlineVideoMaxFileMiB, (c, v) => c.ReaderInlineVideoMaxFileMiB = v),
         // R11: posts with several files.
@@ -72,6 +83,7 @@ internal static class ReaderQuickSettings
         new QuickSettingsSection("quicksettings.reader.section.media"),
         // "Clicking a medium" (Config.ReaderMediaClick; Sidebar / Post / Gallery, feature/reader-inline-video-minimal) replaces the old inline video switch here.
         Row(MediaClickFieldId),
+        Row(SettingsFieldId.ReaderKeepImagesExpanded),
         Row(SettingsFieldId.ReaderMediaSidebar, shortcut: "reader.sidebar.toggle"),
         Row(SettingsFieldId.ReaderMediaSidebarScope, when: SettingsFieldId.ReaderMediaSidebar),
         Row(SettingsFieldId.ReaderMediaSidebarSide, when: SettingsFieldId.ReaderMediaSidebar),
@@ -81,12 +93,23 @@ internal static class ReaderQuickSettings
         Row(SettingsFieldId.ReaderFocusedMediaScalePercent, when: SettingsFieldId.ReaderFocusedMediaEnlarge),
         Row(SettingsFieldId.ReaderHoverEnlarge, shortcut: "reader.view.hover-enlarge"),
         Row(SettingsFieldId.ReaderThumbnailWidth),
+        // Videos: the ones in posts (inline) and the ones in the media sidebar are separate groups; the volume is one memory for both.
+        new QuickSettingsSection("quicksettings.reader.section.postVideo"),
+        Row(SettingsFieldId.ReaderInlineVideoAutoplayMuted),
+        Row(SettingsFieldId.GalleryVideoRepeat),
+        Row(SettingsFieldId.VideoStartMuted),
+        Row(SettingsFieldId.VideoVolume),
+        new QuickSettingsSection("quicksettings.reader.section.sidebarVideo"),
+        Row(SettingsFieldId.ReaderSidebarVideoAutoplay),
+        Row(SettingsFieldId.ReaderSidebarVideoLoop),
+        Row(SettingsFieldId.ReaderSidebarVideoStartMuted),
         new QuickSettingsSection("quicksettings.reader.section.text"),
         Row(SettingsFieldId.ReaderPostWidth),
         Row(SettingsFieldId.ReadingFontSize),
         Row(SettingsFieldId.ReaderDateStyle),
         Row(SettingsFieldId.ReaderSpoilers),
         Row(SettingsFieldId.ReaderPageSize),
+        Row(SettingsFieldId.ReaderExpandReplies),
         new QuickSettingsSection("quicksettings.reader.section.thread"),
         new QuickSettingsSessionEntry("watch.follow-live"),
     };

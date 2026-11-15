@@ -96,6 +96,10 @@ public partial class SettingsEditor
     public string ReaderReplyLinesLabel => Texts.T("settings.reader.replyLines");
     public string ReaderReplyLinesHint => Texts.T("settings.reader.replyLines.hint") + " " + Texts.T("settings.reader.range", Config.ReaderReplyLinesMinimum, Config.ReaderReplyLinesMaximum);
     public string ReaderReplyLinesHelp => FieldHelp(nameof(ReaderReplyLinesInput), ReaderReplyLinesHint);
+    private bool _readerExpandReplies;
+    public bool ReaderExpandReplies { get => _readerExpandReplies; set => SetField(ref _readerExpandReplies, value, nameof(ReaderExpandReplies)); }
+    public string ReaderExpandRepliesLabel => Texts.T("settings.reader.expandReplies");
+    public string ReaderExpandRepliesHint => Texts.T("settings.reader.expandReplies.hint");
     private decimal? _readerPageSize;
     public decimal? ReaderPageSize { get => _readerPageSize; set => SetField(ref _readerPageSize, value, nameof(ReaderPageSize)); }
     public string ReaderPageSizeLabel => Texts.T("settings.reader.pageSize");
@@ -216,6 +220,22 @@ public partial class SettingsEditor
     public bool ReaderInlineVideoAutoplayMuted { get => _readerInlineVideoAutoplayMuted; set => SetField(ref _readerInlineVideoAutoplayMuted, value, nameof(ReaderInlineVideoAutoplayMuted)); }
     public string ReaderInlineVideoAutoplayMutedLabel => Texts.T("settings.reader.inlineVideoAutoplay");
     public string ReaderInlineVideoAutoplayMutedHint => Texts.T("settings.reader.inlineVideoAutoplay.hint");
+    private bool _readerSidebarVideoAutoplay;
+    public bool ReaderSidebarVideoAutoplay { get => _readerSidebarVideoAutoplay; set => SetField(ref _readerSidebarVideoAutoplay, value, nameof(ReaderSidebarVideoAutoplay)); }
+    public string ReaderSidebarVideoAutoplayLabel => Texts.T("settings.reader.sidebarVideoAutoplay");
+    public string ReaderSidebarVideoAutoplayHint => Texts.T("settings.reader.sidebarVideoAutoplay.hint");
+    private bool _readerSidebarVideoLoop;
+    public bool ReaderSidebarVideoLoop { get => _readerSidebarVideoLoop; set => SetField(ref _readerSidebarVideoLoop, value, nameof(ReaderSidebarVideoLoop)); }
+    public string ReaderSidebarVideoLoopLabel => Texts.T("settings.reader.sidebarVideoLoop");
+    public string ReaderSidebarVideoLoopHint => Texts.T("settings.reader.sidebarVideoLoop.hint");
+    private bool _readerSidebarVideoStartMuted;
+    public bool ReaderSidebarVideoStartMuted { get => _readerSidebarVideoStartMuted; set => SetField(ref _readerSidebarVideoStartMuted, value, nameof(ReaderSidebarVideoStartMuted)); }
+    public string ReaderSidebarVideoStartMutedLabel => Texts.T("settings.reader.sidebarVideoMuted");
+    public string ReaderSidebarVideoStartMutedHint => Texts.T("settings.reader.sidebarVideoMuted.hint");
+    private bool _readerKeepImagesExpanded;
+    public bool ReaderKeepImagesExpanded { get => _readerKeepImagesExpanded; set => SetField(ref _readerKeepImagesExpanded, value, nameof(ReaderKeepImagesExpanded)); }
+    public string ReaderKeepImagesExpandedLabel => Texts.T("settings.reader.keepExpanded");
+    public string ReaderKeepImagesExpandedHint => Texts.T("settings.reader.keepExpanded.hint");
     private decimal? _readerInlineVideoMaxPlayers;
     public decimal? ReaderInlineVideoMaxPlayers { get => _readerInlineVideoMaxPlayers; set => SetField(ref _readerInlineVideoMaxPlayers, value, nameof(ReaderInlineVideoMaxPlayers)); }
     public string ReaderInlineVideoMaxPlayersLabel => Texts.T("settings.reader.inlineVideoPlayers");
@@ -366,6 +386,7 @@ public partial class SettingsEditor
         ResetNumber(ReaderReplyStepInput, ReaderReplyStep.Value);
         ReaderReplyLines = config.ReaderReplyLines;
         ResetNumber(ReaderReplyLinesInput, ReaderReplyLines.Value);
+        ReaderExpandReplies = config.ReaderExpandReplies;
         ReaderPageSize = config.ReaderPageSize;
         ResetNumber(ReaderPageSizeInput, ReaderPageSize.Value);
         ReaderThreadingDepth = config.ReaderThreadingDepth;
@@ -400,6 +421,10 @@ public partial class SettingsEditor
         ResetNumber(ReaderMediaSidebarMinimumWidthInput, ReaderMediaSidebarMinimumWidth.Value);
         RefreshMediaClickChoices(ReaderMediaClickRules.ToKey(config.EffectiveReaderMediaClick));
         ReaderInlineVideoAutoplayMuted = config.ReaderInlineVideoAutoplayMuted;
+        ReaderKeepImagesExpanded = config.ReaderKeepImagesExpanded;
+        ReaderSidebarVideoAutoplay = config.ReaderSidebarVideoAutoplay;
+        ReaderSidebarVideoLoop = config.ReaderSidebarVideoLoop;
+        ReaderSidebarVideoStartMuted = config.ReaderSidebarVideoStartMuted;
         ReaderInlineVideoMaxPlayers = config.ReaderInlineVideoMaxPlayers;
         ResetNumber(ReaderInlineVideoMaxPlayersInput, ReaderInlineVideoMaxPlayers.Value);
         ReaderInlineVideoMaxFileMiB = config.ReaderInlineVideoMaxFileMiB;
@@ -447,6 +472,7 @@ public partial class SettingsEditor
         candidate.ReaderPreviewDelayMs = GetInteger(ReaderPreviewDelayMs, ReaderPreviewDelayMsLabel, Config.ReaderPreviewDelayMsMinimum, Config.ReaderPreviewDelayMsMaximum);
         candidate.ReaderReplyStep = GetInteger(ReaderReplyStep, ReaderReplyStepLabel, Config.ReaderReplyStepMinimum, Config.ReaderReplyStepMaximum);
         candidate.ReaderReplyLines = GetInteger(ReaderReplyLines, ReaderReplyLinesLabel, Config.ReaderReplyLinesMinimum, Config.ReaderReplyLinesMaximum);
+        candidate.ReaderExpandReplies = ReaderExpandReplies;
         candidate.ReaderPageSize = GetInteger(ReaderPageSize, ReaderPageSizeLabel, Config.ReaderPageSizeMinimum, Config.ReaderPageSizeMaximum);
         candidate.ReaderThreadingDepth = GetInteger(ReaderThreadingDepth, ReaderThreadingDepthLabel, Config.ReaderThreadingDepthMinimum, Config.ReaderThreadingDepthMaximum);
         candidate.GalleryFitMaxUpscalePercent = CaptureGalleryFitCap();
@@ -469,6 +495,10 @@ public partial class SettingsEditor
         candidate.ReaderMediaSidebarMinimumWidth = GetInteger(ReaderMediaSidebarMinimumWidth, ReaderMediaSidebarMinimumWidthLabel, Config.ReaderMediaSidebarMinimumWidthMinimum, Config.ReaderMediaSidebarMinimumWidthMaximum);
         candidate.ChooseReaderMediaClick(ReaderMediaClickRules.FromKey(SelectedReaderMediaClick?.Value ?? ReaderMediaClickRules.ToKey(_config.EffectiveReaderMediaClick)));
         candidate.ReaderInlineVideoAutoplayMuted = ReaderInlineVideoAutoplayMuted;
+        candidate.ReaderKeepImagesExpanded = ReaderKeepImagesExpanded;
+        candidate.ReaderSidebarVideoAutoplay = ReaderSidebarVideoAutoplay;
+        candidate.ReaderSidebarVideoLoop = ReaderSidebarVideoLoop;
+        candidate.ReaderSidebarVideoStartMuted = ReaderSidebarVideoStartMuted;
         candidate.ReaderInlineVideoMaxPlayers = GetInteger(ReaderInlineVideoMaxPlayers, ReaderInlineVideoMaxPlayersLabel, Config.ReaderInlineVideoMaxPlayersMinimum, Config.ReaderInlineVideoMaxPlayersMaximum);
         candidate.ReaderInlineVideoMaxFileMiB = GetInteger(ReaderInlineVideoMaxFileMiB, ReaderInlineVideoMaxFileMiBLabel, Config.ReaderInlineVideoMaxFileMiBMinimum, Config.ReaderInlineVideoMaxFileMiBMaximum);
         candidate.ReaderMediaStripLimit = GetInteger(ReaderMediaStripLimit, ReaderMediaStripLimitLabel, Config.ReaderMediaStripLimitMinimum, Config.ReaderMediaStripLimitMaximum);
@@ -565,6 +595,9 @@ public partial class SettingsEditor
                     ReadingHistoryLimit = _config.ReadingHistoryLimit;
                     ResetNumber(ReadingHistoryLimitInput, _config.ReadingHistoryLimit);
                     break;
+                case SettingsFieldId.ReaderExpandReplies:
+                    ReaderExpandReplies = _config.ReaderExpandReplies;
+                    break;
                 case SettingsFieldId.ReaderTextlessLargeImages:
                     ReaderTextlessLargeImages = _config.ReaderTextlessLargeImages;
                     break;
@@ -613,6 +646,32 @@ public partial class SettingsEditor
                 case SettingsFieldId.ReaderInlineVideoAutoplayMuted:
                     ReaderInlineVideoAutoplayMuted = _config.ReaderInlineVideoAutoplayMuted;
                     break;
+                case SettingsFieldId.ReaderKeepImagesExpanded:
+                    ReaderKeepImagesExpanded = _config.ReaderKeepImagesExpanded;
+                    break;
+                case SettingsFieldId.ReaderSidebarVideoAutoplay:
+                    ReaderSidebarVideoAutoplay = _config.ReaderSidebarVideoAutoplay;
+                    break;
+                case SettingsFieldId.ReaderSidebarVideoLoop:
+                    ReaderSidebarVideoLoop = _config.ReaderSidebarVideoLoop;
+                    break;
+                case SettingsFieldId.ReaderSidebarVideoStartMuted:
+                    ReaderSidebarVideoStartMuted = _config.ReaderSidebarVideoStartMuted;
+                    break;
+                case SettingsFieldId.VideoStartMuted:
+                    VideoStartMuted = _config.VideoStartMuted;
+                    break;
+                // The gallery's own settings, offered by the popover too: confirm the draft and its baseline (a later save changes only what
+                // the page itself edited, so it never writes the old value back over the popover's change).
+                case SettingsFieldId.VideoVolume:
+                    _initialVideoVolume = _config.VideoVolume;
+                    VideoVolume = _config.VideoVolume;
+                    ResetNumber(VideoVolumeInput, _config.VideoVolume);
+                    break;
+                case SettingsFieldId.GalleryVideoRepeat:
+                    _initialGalleryPlayback = _initialGalleryPlayback with { VideoRepeat = _config.GalleryVideoRepeat };
+                    GalleryVideoRepeat = _config.GalleryVideoRepeat;
+                    break;
                 case SettingsFieldId.ReaderInlineVideoMaxPlayers:
                     ReaderInlineVideoMaxPlayers = _config.ReaderInlineVideoMaxPlayers;
                     ResetNumber(ReaderInlineVideoMaxPlayersInput, _config.ReaderInlineVideoMaxPlayers);
@@ -649,6 +708,7 @@ public partial class SettingsEditor
         nameof(ReaderPreviewDelayMsLabel), nameof(ReaderPreviewDelayMsHint), nameof(ReaderPreviewDelayMsHelp),
         nameof(ReaderReplyStepLabel), nameof(ReaderReplyStepHint), nameof(ReaderReplyStepHelp),
         nameof(ReaderReplyLinesLabel), nameof(ReaderReplyLinesHint), nameof(ReaderReplyLinesHelp),
+        nameof(ReaderExpandRepliesLabel), nameof(ReaderExpandRepliesHint),
         nameof(ReaderPageSizeLabel), nameof(ReaderPageSizeHint), nameof(ReaderPageSizeHelp),
         nameof(ReaderThreadingDepthLabel), nameof(ReaderThreadingDepthHint), nameof(ReaderThreadingDepthHelp),
         nameof(GalleryFitMaxUpscalePercentLabel), nameof(GalleryFitMaxUpscalePercentHint), nameof(GalleryFitMaxUpscalePercentHelp),
@@ -671,6 +731,10 @@ public partial class SettingsEditor
         nameof(ReaderMediaSidebarMinimumWidthLabel), nameof(ReaderMediaSidebarMinimumWidthHint), nameof(ReaderMediaSidebarMinimumWidthHelp),
         nameof(ReaderMediaClickLabel), nameof(ReaderMediaClickHint),
         nameof(ReaderInlineVideoAutoplayMutedLabel), nameof(ReaderInlineVideoAutoplayMutedHint),
+        nameof(ReaderKeepImagesExpandedLabel), nameof(ReaderKeepImagesExpandedHint),
+        nameof(ReaderSidebarVideoAutoplayLabel), nameof(ReaderSidebarVideoAutoplayHint),
+        nameof(ReaderSidebarVideoLoopLabel), nameof(ReaderSidebarVideoLoopHint),
+        nameof(ReaderSidebarVideoStartMutedLabel), nameof(ReaderSidebarVideoStartMutedHint),
         nameof(ReaderInlineVideoMaxPlayersLabel), nameof(ReaderInlineVideoMaxPlayersHint), nameof(ReaderInlineVideoMaxPlayersHelp),
         nameof(ReaderInlineVideoMaxFileMiBLabel), nameof(ReaderInlineVideoMaxFileMiBHint), nameof(ReaderInlineVideoMaxFileMiBHelp),
         nameof(ReaderMediaStripLimitLabel), nameof(ReaderMediaStripLimitHint), nameof(ReaderMediaStripLimitHelp),

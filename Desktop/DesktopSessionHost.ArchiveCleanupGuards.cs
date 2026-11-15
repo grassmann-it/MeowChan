@@ -131,7 +131,7 @@ internal sealed partial class DesktopSessionHost
                 }
                 if (name == PrivateTagStore.FileName)
                 {
-                    // v1 or the local-media v2: the store's own strict parser decides, for primary and backup.
+                    // v1, the local-media v2 or the alias v3: the store's own strict parser decides, for primary and backup.
                     PrivateTagStore.ValidateDocumentBytes(bytes);
                     continue;
                 }

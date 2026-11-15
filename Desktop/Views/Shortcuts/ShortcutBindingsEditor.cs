@@ -26,7 +26,7 @@ namespace MeowChan.Desktop.Views.Shortcuts;
 /// count, Undo, Reset all, Discard and Save. It edits a <see cref="ShortcutDraftSession"/> that the Settings card shares;
 /// recording never persists or publishes, only Save does (through <see cref="SaveHandler"/>).
 /// </summary>
-public sealed class ShortcutBindingsEditor : UserControl
+public sealed partial class ShortcutBindingsEditor : UserControl
 {
     internal const string SearchName = "ShortcutsSearch";
     internal const string ListName = "ShortcutsList";
@@ -128,6 +128,7 @@ public sealed class ShortcutBindingsEditor : UserControl
             e.Handled = true;
             StartRecording(replace: true);
         };
+        InitializeRowMenu();
         AddHandler(KeyDownEvent, OnEditorKeyDown, RoutingStrategies.Bubble);
         _capture.AcceptableKeys = Enum.GetValues<Key>().Where(k => k is not Key.Tab and not Key.Escape).ToList();
         _capture.AddHandler(KeyDownEvent, CaptureKey, RoutingStrategies.Tunnel);
@@ -218,6 +219,7 @@ public sealed class ShortcutBindingsEditor : UserControl
     internal void Detach()
     {
         StopCapture();
+        _rowMenu?.Close();
         _session.Changed -= OnSessionChanged;
     }
 

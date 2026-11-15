@@ -3,6 +3,7 @@ using Avalonia;
 using MeowChan.Desktop.Feedback;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
@@ -142,7 +143,7 @@ internal static class GalleryFavoriteChecks
             Texts.SetLanguage(oldLanguage);
         }
 
-        Border Badge() => viewer.GetGalleryVisualDescendants().OfType<Border>().Single(c => c.Name == "GalleryFavoriteIndicator");
+        ToggleButton Badge() => viewer.GetGalleryVisualDescendants().OfType<ToggleButton>().Single(c => c.Name == "GalleryFavoriteIndicator");
         void HideControls()
         {
             viewer.ConfigurePlayback(new GalleryPlaybackPreferences { OverlayControls = false, AutoHideControls = true, MediaFocus = true });
@@ -152,11 +153,12 @@ internal static class GalleryFavoriteChecks
         }
         void RequireBadge(bool saved, bool pending = false)
         {
-            Border badge = Badge();
-            Require(badge.IsEffectivelyVisible && !badge.IsHitTestVisible && !badge.Focusable,
-                "Favorite badge is hidden or steals input.");
-            string label = Texts.T(saved ? "viewer.favorite.saved" : "viewer.favorite.unsaved");
-            Require(GalleryViewer.FavoriteBadgeState(badge) == (saved, pending)
+            ToggleButton badge = Badge();
+            // Review 15.11.: the badge is a real toggle (pointer, Tab, Space/Enter); the checked state is the saved state.
+            Require(badge.IsEffectivelyVisible && badge.IsHitTestVisible && badge.Focusable && badge.IsEnabled,
+                "Favorite badge is hidden or not operable.");
+            string label = Texts.T("gallery.decision.favorite");
+            Require(GalleryViewer.FavoriteBadgeState(badge) == (saved, pending) && badge.IsChecked == saved
                 && AutomationProperties.GetName(badge)!.StartsWith(label, StringComparison.Ordinal),
                 "Favorite badge misrepresents the saved state or pending write.");
         }

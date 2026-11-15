@@ -24,6 +24,16 @@ internal static class GalleryFilmstripCatalog
         // GL5e: the gap between two tiles.
         ("settings.galleryFilmstripTileGap", "Gap between filmstrip thumbnails", "Abstand zwischen den Vorschaubildern"),
         ("settings.galleryFilmstripTileGapHint", "The space between two thumbnails of the gallery filmstrip. Default {0}, from {1} to {2}.", "Der Abstand zwischen zwei Vorschaubildern im Filmstreifen der Galerie. Standard {0}, von {1} bis {2}."),
+        // Filmstrip flags (decision 123): what a tile shows besides the length.
+        ("settings.galleryFilmstripFlagFavorite", "Filmstrip shows: favorite", "Filmstreifen zeigt: Favorit"),
+        ("settings.galleryFilmstripFlagFavoriteHint", "A small filled star on the thumbnails of favorite media.", "Ein kleiner gefüllter Stern auf den Vorschaubildern von Favoriten."),
+        ("settings.galleryFilmstripFlagRating", "Filmstrip shows: rating", "Filmstreifen zeigt: Bewertung"),
+        ("settings.galleryFilmstripFlagRatingHint", "The own rating, 1 to 5, as a small number with a half star on the thumbnails of rated media.", "Die eigene Bewertung, 1 bis 5, als kleine Zahl mit einem halben Stern auf den Vorschaubildern bewerteter Medien."),
+        ("settings.galleryFilmstripFlagUntagged", "Filmstrip shows: no tags yet", "Filmstreifen zeigt: noch keine Tags"),
+        ("settings.galleryFilmstripFlagUntaggedHint", "A small crossed-out tag mark on media without own tags, the same mark as on the media page. With the tagging view it shows only while the tag panel at the right is open.", "Eine kleine durchgestrichene Tag-Markierung auf Medien ohne eigene Tags, dieselbe Markierung wie auf der Medienseite. Mit der Tagging-Ansicht erscheint sie nur, solange das Tag-Panel rechts geöffnet ist."),
+        ("settings.galleryFilmstripFlagUntagged.tagging", "While the tagging view is open", "Solange die Tagging-Ansicht offen ist"),
+        ("settings.galleryFilmstripFlagUntagged.always", "Always", "Immer"),
+        ("settings.galleryFilmstripFlagUntagged.off", "Never", "Nie"),
         ("settings.galleryFilmstripPreload", "Filmstrip thumbnails prepared in advance", "Im Voraus vorbereitete Vorschaubilder"),
         ("settings.galleryFilmstripPreloadHint", "How many thumbnails on each side of the visible part of the filmstrip are decoded ahead of scrolling. More makes fast scrolling smoother and uses more memory. Default {0}, from {1} to {2}.", "Wie viele Vorschaubilder auf jeder Seite des sichtbaren Teils des Filmstreifens vor dem Scrollen schon dekodiert werden. Mehr macht schnelles Scrollen flüssiger und braucht mehr Speicher. Standard {0}, von {1} bis {2}."),
     };

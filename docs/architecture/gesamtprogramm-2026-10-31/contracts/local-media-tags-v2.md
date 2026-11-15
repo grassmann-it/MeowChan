@@ -189,4 +189,47 @@ für privaten Export; der Hinweis steht im Dialog „Originale exportieren“, d
   Kontextmenü; Archivmenü, Galerie-Werkzeugleiste und Medienseiten-Dialog nehmen lose Ziele an.
 - Favoriten-Galerie: baut Einträge ohne Thread-Auswahl und bietet weder gebundene noch lokale Ziele
   (unverändert).
-- Verwaltete Verschiebung / explizites Neu-Verknüpfen von Waisen; Sammlungsziele (v3).
+- Verwaltete Verschiebung / explizites Neu-Verknüpfen von Waisen; Sammlungsziele (eine spätere Version nach v3).
+
+## 8. Speicher v3: Zusammenführen und weitere Namen (private-tag-store-v3, 15.11.2026)
+
+Tags zusammenführen (Tagverwaltung, „Zusammenführen…“) und weitere Namen (Aliase) erweitern das Dokument
+um einen Abschnitt `Aliases`; alle anderen Abschnitte bleiben in Satzbau und Bedeutung wie v2.
+
+```json
+{"Version":3,"Revision":12,"Tags":[…],"Threads":[…],"Media":[…],"LocalOccurrences":[…],"LocalMedia":[…],
+ "Aliases":[{"Name":"/abdl/","Tag":"<guid Ziel>","Former":"<guid des zusammengeführten Tags>"},
+            {"Name":"ab dl","Tag":"<guid>","Former":null}]}
+```
+
+- **Strikt:** kanonischer Name, `Tag` ist ein vorhandener Tag, kein Tag trägt den Namen (Schlüssel wie
+  Tagnamen), jeder Name höchstens einmal, `Former` ist `null` oder eine kanonische GUID, die kein Tag mehr
+  hat und nur ein Alias nennt. Lesegrenze 20 000 Aliase (feste technische Grenze wie die Zuordnungszahlen;
+  das Wachstum begrenzt die Dateigrößen-Einstellung). `Aliases` in einem v1/v2-Dokument ist ungültig.
+- **Version:** Der erste Schreibvorgang mit einem Alias schreibt v3 (auch aus v1: lokale Abschnitte dann
+  leer), danach bleibt v3 v3. Die v1-Kopie `private-tags.v1.bak` entsteht genauso beim ersten Upgrade aus
+  v1, egal ob nach v2 oder v3. Ältere Stände (auch frühe 1.1.0-Builds mit v2) lesen v3 nicht und
+  überschreiben es nicht.
+- **Zusammenführen** (`MergeAdmitted`): ein einziger atomarer Dateiersatz unter Lease und Store-Writer-
+  Zulassung, gebunden an die gezeigte Revision. Alle Thread-, gebundenen und lokalen Zuordnungen der
+  zusammengeführten Tags gehen an das Ziel; trug ein Element beide, bleibt eine Zuordnung. Die
+  zusammengeführten Tags verlassen das Vokabular, ihre Namen werden Aliase des Ziels mit ihrer ID als
+  `Former`, ihre bisherigen Aliase zeigen aufs Ziel. Ein Fehler vor dem Ersatz lässt die Datei
+  byte-identisch.
+- **Rückgängig:** Der Speicher hat keine Historie. Der Host gibt einen Rückweg im Speicher zurück (die
+  Bytes vor dem Zusammenführen), gültig nur solange die Revision noch die des Zusammenführens ist; jeder
+  andere Schreibvorgang macht ihn ungültig („stale“). Rückgängig schreibt den vorigen Inhalt mit
+  weiterzählender Revision; die Version bleibt v3. Dauerhaft bleibt das Zusammenführen als Aliase mit
+  `Former` sichtbar; bis zum nächsten Schreibvorgang hält auch `.bak` den vorigen Stand.
+- **Auflösung:** Ein getippter Name ergibt den Tag mit diesem Namen, sonst den Alias mit diesem Namen,
+  sonst den Alias mit gleichem Faltungstext (`TagNameFold.Fold`: Groß-/Kleinschreibung, Leerraum und `_`,
+  führendes `#`, umschließende `/x/`), wenn alle solchen Aliase denselben Tag nennen. Anlegen-oder-holen
+  (`Define`, `DefineAndSetMediaSubjects`) löst so auf und legt keinen Tag mit Aliasnamen an. Umbenennen
+  auf den Alias eines anderen Tags ist eine Namenskollision, auf den eigenen Alias übernimmt der Tag den
+  Namen und der Alias entfällt; Löschen entfernt die Aliase des Tags.
+- **Gespeicherte Bezüge:** Gespeicherte Archivsuchen (Tag-IDs), Medienfilter `tag:` und der Stempel
+  (Namen) werden nicht umgeschrieben, sondern über `ResolveId`/`Resolve` aufgelöst: eine ID oder ein Name
+  eines zusammengeführten Tags findet das Ziel. Wird der Alias entfernt, meldet eine gespeicherte Suche
+  wieder „unbekannter Tag“ (nichts wird geraten).
+- **Dublettenvorschläge** (`TagNameFold.Duplicates`) nutzen zusätzlich `Loose` (Plural-s, Bindestriche,
+  Punkte, Apostrophe). Sie sind nur Vorschläge; nichts wird automatisch zusammengeführt oder aufgelöst.

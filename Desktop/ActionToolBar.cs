@@ -351,6 +351,28 @@ public sealed class ActionToolBarPanel : StackPanel
 
     internal static void MarkReduced(Control item, bool reduced) => ((IPseudoClasses)item.Classes).Set(ReducedPseudoClass, reduced);
 
+    // The width an item has while it stands on the bar. Its size depends on :in-overflow (another theme, padding and minimum height
+    // on the bar than under "More"), so an item measured under "More" is narrower than it would be back on the bar. Deciding on that
+    // narrow width would let it "fit", return, grow and overflow again; the overflow decision therefore always uses this last bar width.
+    private static readonly AttachedProperty<double> BarWidthProperty =
+        AvaloniaProperty.RegisterAttached<ActionToolBarPanel, Control, double>("BarWidth", double.NaN);
+
+    /// <summary>
+    /// The width the overflow decision uses for an item: its measured width while it stands on the bar (<paramref name="reduced"/> false),
+    /// else the width it last had on the bar when that is known, else the width measured where it is now. A stale value costs at most one
+    /// round trip: back on the bar the item is measured for real and the cache is the true bar width from then on.
+    /// </summary>
+    internal static double DecisionWidth(bool reduced, double barWidth, double desiredWidth) =>
+        reduced && !double.IsNaN(barWidth) && !double.IsInfinity(barWidth) ? barWidth : desiredWidth;
+
+    private static double DecisionWidth(Control item)
+    {
+        bool reduced = item.Classes.Contains(ReducedPseudoClass);
+        double desired = item.DesiredSize.Width;
+        if (!reduced) item.SetValue(BarWidthProperty, desired);
+        return DecisionWidth(reduced, item.GetValue(BarWidthProperty), desired);
+    }
+
     /// <summary>
     /// Toolbar UX review 15.11.: the gap between two neighbouring items on the bar (Workspace.Space.BarGap). The panel owns it, so no
     /// item or toolbar patches it with a margin; the focus ring (4 outside the control) then stays 4 clear of the neighbour.
@@ -429,7 +451,7 @@ public sealed class ActionToolBarPanel : StackPanel
             // An omitted item takes part like an invisible one: no width, never in the overflow.
             bool visible = item.IsVisible && !ActionToolBar.GetOmitted(item);
             _visible[i] = visible;
-            _itemWidths[i] = visible ? item.DesiredSize.Width : 0;
+            _itemWidths[i] = visible ? DecisionWidth(item) : 0;
             _modes[i] = ToolBar.GetOverflowMode(item);
             _groups[i] = ActionToolBar.GetGroup(item);
             _segments[i] = IsSegment(item);
@@ -629,6 +651,7 @@ public static class ActionOverflowLayout
     /// for the toolbar panel; returns the width on the bar. The gap in front of an item depends on the shown item before it, which depends
     /// on what overflows: each pass counts every item with the largest gap it had so far against the items then on the bar, so the widths
     /// only grow, what overflows only grows, and the passes end; a prioritized bar whose middle item moved away is never underestimated.
+    /// A final greedy pass then takes back the items that fit with the gaps they really have.
     /// <paramref name="gaps"/> ends with the real gap of each item that stays (0 for the others); <paramref name="widths"/>,
     /// <paramref name="previous"/> and <paramref name="order"/> are scratch of at least <paramref name="count"/>.
     /// </summary>
@@ -654,6 +677,19 @@ public static class ActionOverflowLayout
                 if (result[i] != previous[i]) { settled = false; previous[i] = result[i]; }
             if (settled) break;
         }
+        // The loop above counted every item with the largest gap it ever had, so an item can be under "More" although it fits with the gap
+        // it really has (a group start that fits at 8 but not at 16). One greedy pass takes such items back, in the order they would have
+        // been kept (first overflowed item first, so what stays under More is still the tail) and stops at the first one that does not fit.
+        // Each candidate is counted with the real gaps of the bar it would make, and More is counted while anything remains under it.
+        for (int k = 0; k < count; k++)
+        {
+            int i = order[k];
+            if (!visible[i] || !result[i] || modes[i] == OverflowMode.Always) continue;
+            result[i] = false;
+            bool remaining = false;
+            for (int j = 0; j < count; j++) if (visible[j] && result[j]) { remaining = true; break; }
+            if (BarWidth(count, itemWidths, groups, segments, visible, result) + (remaining ? moreWidth : 0) > available) { result[i] = true; break; }
+        }
         double total = 0;
         int shown = -1;
         for (int i = 0; i < count; i++)
@@ -661,6 +697,20 @@ public static class ActionOverflowLayout
             if (!visible[i] || result[i]) { gaps[i] = 0; continue; }
             gaps[i] = shown < 0 ? 0 : ActionToolBarPanel.LeadingGap(segments[shown], groups[shown], segments[i], groups[i]);
             total += itemWidths[i] + gaps[i];
+            shown = i;
+        }
+        return total;
+    }
+
+    // The width of the items that stay on the bar with their real gaps (no allocation).
+    private static double BarWidth(int count, double[] itemWidths, int[] groups, bool[] segments, bool[] visible, bool[] overflowed)
+    {
+        double total = 0;
+        int shown = -1;
+        for (int i = 0; i < count; i++)
+        {
+            if (!visible[i] || overflowed[i]) continue;
+            total += itemWidths[i] + (shown < 0 ? 0 : ActionToolBarPanel.LeadingGap(segments[shown], groups[shown], segments[i], groups[i]));
             shown = i;
         }
         return total;

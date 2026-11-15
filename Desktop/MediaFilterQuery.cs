@@ -30,7 +30,8 @@ internal enum MediaFilterQueryTokenKind { Text, Term, Problem }
 
 /// <summary>
 /// One token of a query as typed: free text, a recognized term, or a problem token (kept as text). <see cref="Raw"/> is what the user
-/// typed; <see cref="Text"/> is what the token contributes to the file name text (the value of a quoted word, or the raw token).
+/// typed; <see cref="Text"/> is what the token contributes to the free text, in the syntax of <see cref="MediaLibraryFilter.WordsOf"/>: a quoted
+/// phrase that holds white space keeps its quotes (it is one word), an empty phrase is empty, any other token is its raw or unquoted spelling.
 /// </summary>
 internal sealed record MediaFilterQueryToken(MediaFilterQueryTokenKind Kind, string Raw, string Text, MediaFilterTerm? Term = null,
     MediaFilterQueryProblem? Problem = null);
@@ -46,6 +47,11 @@ internal sealed class MediaFilterQueryVocabulary
 
     /// <summary>Alias (lower case, letters only) to field, besides the English names (<see cref="MediaFilterTerm.KeyOf"/>), which always work.</summary>
     internal IReadOnlyDictionary<string, MediaFilterField> Aliases { get; init; } = new Dictionary<string, MediaFilterField>();
+    /// <summary>
+    /// The localized names of the text fields for <c>in:</c> (lower case, letters only), besides the English keys and <c>all</c>, which always work
+    /// (<see cref="MediaFilterTerm.TextFieldKey"/>).
+    /// </summary>
+    internal IReadOnlyDictionary<string, MediaTextFields> ScopeAliases { get; init; } = new Dictionary<string, MediaTextFields>();
     /// <summary>The own tag with this name (compared the way tag names are), or null.</summary>
     internal Func<string, Guid?> FindTag { get; init; } = _ => null;
     /// <summary>The display name of an own tag, or null when it is unknown (the query then carries the id).</summary>
@@ -64,7 +70,7 @@ internal sealed class MediaFilterQueryVocabulary
     internal static IReadOnlyDictionary<string, MediaFilterField> AliasesFrom(Func<string, string?> text)
     {
         Dictionary<string, MediaFilterField> aliases = new(StringComparer.Ordinal);
-        foreach (MediaFilterField field in Enum.GetValues<MediaFilterField>())
+        foreach (MediaFilterField field in Enum.GetValues<MediaFilterField>().Where(MediaFilterTerm.HasQueryText))
             foreach (string word in (text("media.query.alias." + MediaFilterTerm.KeyOf(field)) ?? string.Empty)
                 .Split([' ', ',', ';', '、'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
             {
@@ -73,6 +79,27 @@ internal sealed class MediaFilterQueryVocabulary
             }
         return aliases;
     }
+
+    /// <summary>
+    /// Reads the names of the text fields of one language: each field has one text <c>media.query.scope.alias.{key}</c> holding its words
+    /// separated by commas or spaces. Words that are not lower-case letters, that are an English key of a field or <c>all</c>, or that another
+    /// field already owns, are left out.
+    /// </summary>
+    internal static IReadOnlyDictionary<string, MediaTextFields> ScopeAliasesFrom(Func<string, string?> text)
+    {
+        Dictionary<string, MediaTextFields> aliases = new(StringComparer.Ordinal);
+        foreach (MediaTextFields field in MediaFilterTerm.TextFieldOrder)
+            foreach (string word in (text("media.query.scope.alias." + MediaFilterTerm.TextFieldKey(field)) ?? string.Empty)
+                .Split([' ', ',', ';', '、'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                string alias = word.ToLowerInvariant();
+                if (MediaFilterQuery.IsFieldWord(alias) && alias != "all" && MediaFilterTerm.TextFieldsOf(alias) == null) aliases.TryAdd(alias, field);
+            }
+        return aliases;
+    }
+
+    /// <summary>The scope the value of an <c>in:</c> token stands for (English keys, <c>all</c> and this language's names), or null.</summary>
+    internal MediaTextFields? ScopeOf(string value) => MediaFilterTerm.TextFieldsOf(value, word => ScopeAliases.TryGetValue(word, out MediaTextFields field) ? field : null);
 
     internal MediaFilterField? FieldOf(string key)
     {
@@ -89,7 +116,7 @@ internal sealed class MediaFilterQueryResult(IReadOnlyList<MediaFilterQueryToken
     internal IReadOnlyList<MediaFilterTerm> Terms => Tokens.Where(token => token.Term != null).Select(token => token.Term!).ToList();
     internal IReadOnlyList<MediaFilterQueryToken> Problems => Tokens.Where(token => token.Kind == MediaFilterQueryTokenKind.Problem).ToList();
     /// <summary>What is left for the file name: the free words and the tokens that were not understood, joined by single spaces.</summary>
-    internal string FreeText => string.Join(' ', Tokens.Where(token => token.Term == null).Select(token => token.Text));
+    internal string FreeText => string.Join(' ', Tokens.Where(token => token.Term == null && token.Text.Length > 0).Select(token => token.Text));
     /// <summary>The terms plus the free text as a name term: the whole query as one term set (what <see cref="MediaFilterQuery.Serialize"/> writes).</summary>
     internal IReadOnlyList<MediaFilterTerm> AllTerms => FreeText is { Length: > 0 } name ? [.. Terms, MediaFilterTerm.Name(name)] : Terms;
 }
@@ -106,9 +133,12 @@ internal sealed record MediaFilterQueryApplication(IReadOnlyList<MediaFilterTerm
 /// <c>sound:with|none</c>, <c>source:4chan</c>, <c>board:g</c> or <c>board:4chan/g</c>, <c>rating:&gt;=3</c>, <c>thread:1234</c>, <c>name:x</c>;</item>
 /// <item>the bare flags <c>fav</c>, <c>missing</c>, <c>untagged</c> and <c>queue</c> (their aliases too; only <c>-queue</c> may exclude);
 /// <c>queue:yes|no</c> and the provider's tags <c>booru:name</c>, <c>-booru:name</c>;</item>
+/// <item><c>in:tag,title</c> says where the free text is looked for: the English keys <c>name</c>, <c>title</c>, <c>board</c>, <c>source</c>,
+/// <c>tag</c>, comma separated, or their localized names (<see cref="MediaFilterQueryVocabulary.ScopeAliases"/>); <c>in:all</c> and no token
+/// mean every field. It cannot exclude, there is one per query, and an unknown value stays text like any value that is not understood;</item>
 /// <item>free text, which stays the search text: every word of it must occur in the file name, the thread title, the board or the source
 /// (<see cref="MediaLibraryFilter.TextWords"/>); slashes are ordinary characters, so a title pseudo-tag such as <c>/kot/</c> is free text. A value in double quotes may hold spaces (<c>tag:"two words"</c>; inside quotes
-/// <c>\"</c> and <c>\\</c> are escapes); a bare quoted phrase is free text, and quoting a token (<c>"type:video"</c>) keeps it free text.</item>
+/// <c>\"</c> and <c>\\</c> are escapes); a bare quoted phrase is free text that stays one word (<c>"cat girl"</c> keeps its quotes in the text), and quoting a token (<c>"type:video"</c>) keeps it free text.</item>
 /// </list>
 /// A token that looks like a field but is not understood (unknown field or value, nothing after the colon, an exclusion of a field that
 /// cannot exclude, an ambiguous board) is never dropped: it stays in the free text and is reported as a problem. The text is read once,
@@ -181,9 +211,14 @@ internal static class MediaFilterQuery
 
     private static MediaFilterQueryToken Plain(Raw raw, MediaFilterQueryVocabulary vocabulary, bool nested)
     {
-        // A quoted phrase is free text without its quotes, unless it would read as a filter again (then the quotes stay: they are the escape).
-        string text = raw.Quoted && (nested || Parse(raw.Decoded, vocabulary, nested: true).Tokens.All(token => token.Kind == MediaFilterQueryTokenKind.Text))
-            ? raw.Decoded : raw.Text;
+        // The free text is read by MediaLibraryFilter.WordsOf, which honours double quotes: a quoted phrase has to stay one word there. So it
+        // keeps its quotes when its value holds white space, a quote or a backslash (inside them \" and \\ escape); an empty phrase "" is no
+        // text at all; a quoted word that needs no quotes loses them. A phrase that would read as a filter again keeps its raw spelling
+        // (the quotes are the escape).
+        string text = raw.Text;
+        if (raw.Quoted && (nested || Parse(raw.Decoded, vocabulary, nested: true).Tokens.All(token => token.Kind == MediaFilterQueryTokenKind.Text)))
+            text = raw.Decoded.Length == 0 ? string.Empty
+                : raw.Decoded.Any(c => char.IsWhiteSpace(c) || c is '"' or '\\') ? Quote(raw.Decoded, always: true) : raw.Decoded;
         return new MediaFilterQueryToken(MediaFilterQueryTokenKind.Text, raw.Text, text);
     }
 
@@ -216,6 +251,8 @@ internal static class MediaFilterQuery
         if (key.StartsWith('-')) { exclude = true; key = key[1..]; }
         if (!IsFieldWord(key)) return Plain(raw, vocabulary, nested); // "12:30", "http://x", "--tag:x": ordinary text
         if (vocabulary.FieldOf(key) is not { } field) return Problem(raw.Text, MediaFilterQueryProblem.UnknownField);
+        // A thread set is handed over by another page and has no query text: "threadset:x" is ordinary text.
+        if (!MediaFilterTerm.HasQueryText(field)) return Plain(raw, vocabulary, nested);
         if (exclude && !MediaFilterTerm.CanExclude(field)) return Problem(raw.Text, MediaFilterQueryProblem.CannotExclude);
         value = value.Trim();
         if (value.Length == 0 && !IsFlag(field)) return Problem(raw.Text, MediaFilterQueryProblem.NeedsValue);
@@ -243,6 +280,9 @@ internal static class MediaFilterQuery
                     ? Term(raw.Text, MediaFilterTerm.Flag(field)) : Problem(raw.Text, MediaFilterQueryProblem.UnknownValue);
             case MediaFilterField.Thread:
                 return ClassifyThread(raw.Text, value, vocabulary);
+            // "in:tag,title": where the free text is looked for (the exclusion was refused above: a place to look has no "not").
+            case MediaFilterField.In:
+                return vocabulary.ScopeOf(value) is { } scope ? Term(raw.Text, MediaFilterTerm.In(scope)) : Problem(raw.Text, MediaFilterQueryProblem.UnknownValue);
             // MP1: "queue:yes" / "queue:no" ("-queue:yes" is "queue:no").
             case MediaFilterField.Queue:
                 return value.ToLowerInvariant() switch
@@ -333,7 +373,7 @@ internal static class MediaFilterQuery
         {
             if (token.Term == null)
             {
-                text.Add(token.Text);
+                if (token.Text.Length > 0) text.Add(token.Text); // an empty phrase "" contributes no text
                 if (token.Problem is { } problem) kept.Add((token.Raw, problem));
                 continue;
             }
@@ -364,7 +404,7 @@ internal static class MediaFilterQuery
         MediaFilterQueryVocabulary vocab = vocabulary ?? MediaFilterQueryVocabulary.Empty;
         IReadOnlyList<MediaFilterTerm> all = terms.ToList();
         List<string> parts = [];
-        string? name = null;
+        string? name = null, scope = null;
         foreach (MediaFilterTerm term in all)
         {
             string minus = term.Exclude ? "-" : string.Empty;
@@ -401,8 +441,16 @@ internal static class MediaFilterQuery
                 case MediaFilterField.Name:
                     name = name == null ? term.Value : name + " " + term.Value;
                     break;
+                // A set of threads handed over from another page has no query text; the copy leaves it out.
+                case MediaFilterField.Threads:
+                    break;
+                // The scope stands directly before the free text, wherever the set holds it; the default (every field) is not written.
+                case MediaFilterField.In:
+                    scope = MediaFilterTerm.TextFieldsOf(term.Value) is { } fields && fields != MediaTextFields.All ? key + ":" + MediaFilterTerm.TextFieldsValue(fields) : null;
+                    break;
             }
         }
+        if (scope != null) parts.Add(scope);
         if (!string.IsNullOrWhiteSpace(name)) parts.Add(NameText(name, vocab));
         return string.Join(' ', parts);
     }

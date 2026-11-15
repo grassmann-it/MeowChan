@@ -32,7 +32,7 @@ public partial class MainWindow
 
     private void RegisterTagQueueCommands() =>
         _tagQueueRegistration = _shortcutRouter!.Register(new CommandRegistration("media.queue.open", this,
-            () => !_isClosing && !_largeReaderOpen && _gallery == null, () => CanOpenTagQueue, () => _ = OpenTagQueueGalleryAsync()));
+            () => !_isClosing && !_largeReaderOpen && _gallery == null, () => CanOpenTagQueue, () => OpenActions.Start(() => OpenTagQueueGalleryAsync(), "media.queue.open")));
 
     private async Task AddGalleryEntryToTagQueueAsync(GalleryEntry entry)
     {

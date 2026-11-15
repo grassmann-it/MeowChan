@@ -58,7 +58,7 @@ namespace MeowChan
     internal enum SettingsLoadProblem { None, RecoveredFromBackup, DefaultsInUse }
     internal enum ProfileOrigin { Unbound, ConfirmedNew, ExistingValid, BackupRecovery, ExistingMissingSettings, Damaged, Unsupported }
 
-    public class Config : IJsonOnDeserialized
+    public class Config : IJsonOnDeserializing, IJsonOnDeserialized
     {
         private string? _profileDirectory;
         private ProfileLease? _writeLease;
@@ -94,6 +94,13 @@ namespace MeowChan
 
         public Desktop.Commands.ShortcutBindingsSection ShortcutBindings { get; set; } = new();
         public int SchemaVersion { get; set; } = 1;
+        /// <summary>
+        /// Revision of the one-shot migrations of view-preference defaults (1: the archive list width default moved from 270 to 330).
+        /// A new profile starts at the current value; a file without the field is read as 0 (see OnDeserializing), so an old value is
+        /// migrated exactly once and a width the person chose later, 270 included, is kept.
+        /// </summary>
+        public int PreferenceDefaultsRevision { get; set; } = CurrentPreferenceDefaultsRevision;
+        internal const int CurrentPreferenceDefaultsRevision = 1;
         public bool FirstRunSetupPending { get; set; }
         public int FirstRunSetupVersion { get; set; }
         public Dictionary<string, SourceMediaIntegrityPermission> SourceMediaIntegrityPermissions { get; set; } = new(StringComparer.Ordinal);
@@ -488,6 +495,8 @@ namespace MeowChan
         internal const int ReaderReplyLinesDefault = ReaderDisplayLimits.ReplyLinesDefault;
         internal const int ReaderReplyLinesMinimum = ReaderDisplayLimits.ReplyLinesMinimum;
         internal const int ReaderReplyLinesMaximum = ReaderDisplayLimits.ReplyLinesMaximum;
+        /// <summary>Open the nested reply cards of every post as soon as its card is shown (default off); a post the reader collapsed by hand stays collapsed for the open thread.</summary>
+        public bool ReaderExpandReplies { get; set; } = false;
         public int ReaderPageSize { get; set; } = ReaderPageSizeDefault;
         internal const int ReaderPageSizeDefault = ArchivePage.ReaderPageSizeDefault;
         internal const int ReaderPageSizeMinimum = ArchivePage.ReaderPageSizeMinimum;
@@ -577,6 +586,17 @@ namespace MeowChan
             ReaderInlineVideo = mode == ReaderMediaClickMode.Post;
         }
         public bool ReaderInlineVideoAutoplayMuted { get; set; } = false;
+        /// <summary>"Open in the post": an image expanded in its post stays expanded when it scrolls out of the view and back, and when the posts are rebuilt (open thread only). Off: it goes back to its thumbnail.</summary>
+        public bool ReaderKeepImagesExpanded { get; set; } = false;
+        // "Videos in the media sidebar" (the one viewer of the reader, the large reader, the archive view and the Media page's panel): its own three
+        // switches, apart from the videos in posts. Autoplay and loop are on by default (a file without these keys, an older profile, gets them too);
+        // start muted is off, so the sound follows the remembered volume. The volume itself is the gallery's (VideoVolume).
+        [JsonConverter(typeof(DesktopPreferenceTrueBooleanConverter))]
+        public bool ReaderSidebarVideoAutoplay { get; set; } = true;
+        [JsonConverter(typeof(DesktopPreferenceTrueBooleanConverter))]
+        public bool ReaderSidebarVideoLoop { get; set; } = true;
+        [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
+        public bool ReaderSidebarVideoStartMuted { get; set; }
         public int ReaderInlineVideoMaxPlayers { get; set; } = ReaderInlineVideoMaxPlayersDefault;
         internal const int ReaderInlineVideoMaxPlayersDefault = ReaderInlineVideoOptions.MaxPlayersDefault;
         internal const int ReaderInlineVideoMaxPlayersMinimum = ReaderInlineVideoOptions.MaxPlayersMinimum;
@@ -710,6 +730,16 @@ namespace MeowChan
         {
             get => _mediaLayout;
             set => _mediaLayout = Desktop.MediaPageLayout.Canonical(value);
+        }
+        // The tile size (Small, Medium, Large) of the archive's saved-media tiles (the reader's Media tab, tile view); a view preference of the profile.
+        // The media page and the tagging grid share the size inside MediaLayout; the archive tiles are another surface with their own measures. An
+        // unknown or empty text reads as Medium, so a damaged entry never makes the settings file invalid.
+        private string _archiveMediaTileSize = nameof(Desktop.MediaTileSize.Medium);
+        [JsonConverter(typeof(DesktopPreferenceStringConverter))]
+        public string ArchiveMediaTileSize
+        {
+            get => _archiveMediaTileSize;
+            set => _archiveMediaTileSize = Desktop.Controls.MediaTileSizes.Parse(value).ToString();
         }
         // TG1: the tagging page shows its queue as a list or as a grid of thumbnails ("List" or "Grid"); a view preference of the profile.
         private string _taggingPageView = nameof(TaggingViewMode.List);
@@ -899,8 +929,11 @@ namespace MeowChan
             }
         }
 
+        void IJsonOnDeserializing.OnDeserializing() => PreferenceDefaultsRevision = 0;
+
         void IJsonOnDeserialized.OnDeserialized()
         {
+            MigratePreferenceDefaults();
             // Couple only after all legacy keys have been read, independent of JSON order.
             NormalizeGalleryControls();
             ReaderThumbnailWidth = Math.Clamp(ReaderThumbnailWidth, ReaderThumbnailWidthMinimum, ReaderThumbnailWidthMaximum);
@@ -966,6 +999,22 @@ namespace MeowChan
 
         private PresentationProfile ActiveProfile => GetLayoutProfile(WorkspaceMode);
 
+        /// <summary>Applies the preference-default migrations a file written before <see cref="CurrentPreferenceDefaultsRevision"/> still needs, once.</summary>
+        private void MigratePreferenceDefaults()
+        {
+            if (PreferenceDefaultsRevision >= CurrentPreferenceDefaultsRevision) return;
+            if (PreferenceDefaultsRevision < 1)
+            {
+                // Every profile saved before the revision holds the old default, dragged or never touched.
+                foreach (PresentationProfile profile in _layoutProfiles.Values)
+                    profile.ArchiveSplitWidth = MigrateArchiveSplitWidthDefault(profile.ArchiveSplitWidth);
+                if (_deserializedLayoutProfiles != null)
+                    foreach (PresentationProfile profile in _deserializedLayoutProfiles.Values)
+                        profile.ArchiveSplitWidth = MigrateArchiveSplitWidthDefault(profile.ArchiveSplitWidth);
+            }
+            PreferenceDefaultsRevision = CurrentPreferenceDefaultsRevision;
+        }
+
         private static string NormalizeWorkspaceMode(string? mode) =>
             string.Equals(mode?.Trim(), "Advanced", StringComparison.OrdinalIgnoreCase) ? "Advanced" :
             string.Equals(mode?.Trim(), "Simple", StringComparison.OrdinalIgnoreCase) ? "Simple" : "Barebones";
@@ -976,7 +1025,7 @@ namespace MeowChan
             result.ReadingFontSize = string.Equals(profile.ReadingFontSize?.Trim(), "Small", StringComparison.OrdinalIgnoreCase) ? "Small"
                 : string.Equals(profile.ReadingFontSize?.Trim(), "Large", StringComparison.OrdinalIgnoreCase) ? "Large" : "Normal";
             result.ArchiveThreadLayout = string.Equals(profile.ArchiveThreadLayout?.Trim(), "Table", StringComparison.OrdinalIgnoreCase) ? "Table" : "List";
-            result.ArchiveSplitWidth = NormalizeLoadedArchiveSplitWidth(profile.ArchiveSplitWidth);
+            result.ArchiveSplitWidth = NormalizeArchiveSplitWidth(profile.ArchiveSplitWidth);
             return result;
         }
 
@@ -1113,6 +1162,19 @@ namespace MeowChan
         /// <summary>Whether the reader navigation bar shows the "3 / 27" and "12 / 405" counters (default on); off forces its compact form.</summary>
         [JsonConverter(typeof(DesktopPreferenceTrueBooleanConverter))]
         public bool ReaderNavigationShowPosition { get; set; } = true;
+        // Mouse wheel over the gallery's picture or video: "Zoom" (default, the wheel zooms at the pointer) or "Browse" (the wheel moves to the
+        // next or previous medium). Ctrl+wheel does the other one. Any other stored value reads as "Zoom". The filmstrip, the video controls
+        // and the panels keep their own wheel (see GalleryWheel).
+        private string _galleryWheelMode = GalleryWheelModeZoom;
+        public const string GalleryWheelModeZoom = "Zoom", GalleryWheelModeBrowse = "Browse";
+        [JsonConverter(typeof(DesktopPreferenceStringConverter))]
+        public string GalleryWheelMode
+        {
+            get => _galleryWheelMode;
+            set => _galleryWheelMode = NormalizeGalleryWheelMode(value);
+        }
+        internal static string NormalizeGalleryWheelMode(string? value) =>
+            string.Equals(value?.Trim(), GalleryWheelModeBrowse, StringComparison.OrdinalIgnoreCase) ? GalleryWheelModeBrowse : GalleryWheelModeZoom;
         /// <summary>GL5c: how long a transient status of the gallery's info line (the slideshow's "ready", a confirmation) stays before it fades out; a running slideshow and every error stay.</summary>
         [JsonConverter(typeof(DesktopPreferenceGalleryStatusDwellMsConverter))]
         public int GalleryStatusDwellMs { get; set; } = GalleryStatusDwellMsDefault;
@@ -1126,6 +1188,25 @@ namespace MeowChan
         [JsonConverter(typeof(DesktopPreferenceGalleryFilmstripTileGapConverter))]
         public int GalleryFilmstripTileGap { get; set; } = GalleryFilmstripTileGapDefault;
         internal const int GalleryFilmstripTileGapDefault = 8, GalleryFilmstripTileGapMinimum = 4, GalleryFilmstripTileGapMaximum = 16;
+        /// <summary>Filmstrip flags (decision 123): whether a filmstrip tile carries the favourite star (default on).</summary>
+        [JsonConverter(typeof(DesktopPreferenceTrueBooleanConverter))]
+        public bool GalleryFilmstripFlagFavorite { get; set; } = true;
+        /// <summary>Filmstrip flags: whether a filmstrip tile carries the own rating, a small number with the half-star icon (default on).</summary>
+        [JsonConverter(typeof(DesktopPreferenceTrueBooleanConverter))]
+        public bool GalleryFilmstripFlagRating { get; set; } = true;
+        // Filmstrip flags: when a tile carries the "no tags yet" mark. "Tagging" (default) shows it only while the gallery's tagging view (the
+        // right tag panel) is open, "Always" shows it whenever the medium has no own tag, "Off" never. Any other stored value reads as "Tagging".
+        private string _galleryFilmstripFlagUntagged = GalleryFilmstripUntaggedWithTagging;
+        public const string GalleryFilmstripUntaggedWithTagging = "Tagging", GalleryFilmstripUntaggedAlways = "Always", GalleryFilmstripUntaggedOff = "Off";
+        [JsonConverter(typeof(DesktopPreferenceStringConverter))]
+        public string GalleryFilmstripFlagUntagged
+        {
+            get => _galleryFilmstripFlagUntagged;
+            set => _galleryFilmstripFlagUntagged = NormalizeGalleryFilmstripUntagged(value);
+        }
+        internal static string NormalizeGalleryFilmstripUntagged(string? value) =>
+            string.Equals(value?.Trim(), GalleryFilmstripUntaggedAlways, StringComparison.OrdinalIgnoreCase) ? GalleryFilmstripUntaggedAlways
+            : string.Equals(value?.Trim(), GalleryFilmstripUntaggedOff, StringComparison.OrdinalIgnoreCase) ? GalleryFilmstripUntaggedOff : GalleryFilmstripUntaggedWithTagging;
         /// <summary>How many thumbnails on each side of the visible ones the filmstrip decodes in advance.</summary>
         public int GalleryFilmstripPreload { get; set; } = GalleryFilmstripPreloadDefault;
         internal const int GalleryFilmstripPreloadDefault = 12, GalleryFilmstripPreloadMinimum = 4, GalleryFilmstripPreloadMaximum = 60;
@@ -1196,14 +1277,14 @@ namespace MeowChan
         /// (measured by ArchiveListWidthChecks); outside the limits a saved value is clamped.
         /// </summary>
         internal const double ArchiveSplitWidthDefault = 330, ArchiveSplitWidthMinimum = 180, ArchiveSplitWidthMaximum = 1200;
-        /// <summary>The default before the list pane was widened. Every profile saved so far holds it, whether dragged or never touched, so a loaded 270 reads as "never customised".</summary>
+        /// <summary>The default before the list pane was widened. Every profile saved before PreferenceDefaultsRevision 1 holds it, whether dragged or never touched, so there a loaded 270 reads as "never customised".</summary>
         internal const double ArchiveSplitWidthPreviousDefault = 270;
 
         internal static double NormalizeArchiveSplitWidth(double width) =>
             double.IsFinite(width) ? Math.Clamp(width, ArchiveSplitWidthMinimum, ArchiveSplitWidthMaximum) : ArchiveSplitWidthDefault;
 
-        /// <summary>For a value read from a file or an import: the previous default moves to the new one, any other saved width stays.</summary>
-        internal static double NormalizeLoadedArchiveSplitWidth(double width) =>
+        /// <summary>The one-shot migration for a file older than PreferenceDefaultsRevision 1: the previous default moves to the new one, any other width stays.</summary>
+        internal static double MigrateArchiveSplitWidthDefault(double width) =>
             width == ArchiveSplitWidthPreviousDefault ? ArchiveSplitWidthDefault : NormalizeArchiveSplitWidth(width);
 
         [JsonConverter(typeof(DesktopPreferenceSplitWidthConverter))]
@@ -1741,6 +1822,7 @@ namespace MeowChan
             return new Config
             {
                 SchemaVersion = SchemaVersion,
+                PreferenceDefaultsRevision = PreferenceDefaultsRevision,
                 FirstRunSetupPending = FirstRunSetupPending, FirstRunSetupVersion = FirstRunSetupVersion,
                 SourceMediaIntegrityPermissions = SourceMediaIntegrityPermissions.ToDictionary(pair => pair.Key, pair => pair.Value with { }, StringComparer.Ordinal),
                 DownloadPath = DownloadPath,
@@ -1810,11 +1892,15 @@ namespace MeowChan
                 ControlsIdleHideMs = ControlsIdleHideMs,
                 ReaderNavigationMode = ReaderNavigationMode,
                 ReaderNavigationShowPosition = ReaderNavigationShowPosition,
+                GalleryWheelMode = GalleryWheelMode,
                 GalleryStatusDwellMs = GalleryStatusDwellMs,
                 GalleryFilmstrip = GalleryFilmstrip,
                 GalleryLayout = GalleryLayout,
                 GalleryFilmstripHeight = GalleryFilmstripHeight,
                 GalleryFilmstripTileGap = GalleryFilmstripTileGap,
+                GalleryFilmstripFlagFavorite = GalleryFilmstripFlagFavorite,
+                GalleryFilmstripFlagRating = GalleryFilmstripFlagRating,
+                GalleryFilmstripFlagUntagged = GalleryFilmstripFlagUntagged,
                 GalleryFilmstripPreload = GalleryFilmstripPreload,
                 GalleryVideoSeekStepSeconds = GalleryVideoSeekStepSeconds,
                 MediaBadgeCollapseBelow = MediaBadgeCollapseBelow,
@@ -1859,6 +1945,7 @@ namespace MeowChan
                 ReaderPreviewDelayMs = ReaderPreviewDelayMs,
                 ReaderReplyStep = ReaderReplyStep,
                 ReaderReplyLines = ReaderReplyLines,
+                ReaderExpandReplies = ReaderExpandReplies,
                 ReaderPageSize = ReaderPageSize,
                 ReaderThreadingDepth = ReaderThreadingDepth,
                 ReadingHistoryLimit = ReadingHistoryLimit,
@@ -1878,6 +1965,10 @@ namespace MeowChan
                 ReaderInlineVideo = ReaderInlineVideo,
                 ReaderMediaClick = ReaderMediaClick,
                 ReaderInlineVideoAutoplayMuted = ReaderInlineVideoAutoplayMuted,
+                ReaderKeepImagesExpanded = ReaderKeepImagesExpanded,
+                ReaderSidebarVideoAutoplay = ReaderSidebarVideoAutoplay,
+                ReaderSidebarVideoLoop = ReaderSidebarVideoLoop,
+                ReaderSidebarVideoStartMuted = ReaderSidebarVideoStartMuted,
                 ReaderInlineVideoMaxPlayers = ReaderInlineVideoMaxPlayers,
                 ReaderInlineVideoMaxFileMiB = ReaderInlineVideoMaxFileMiB,
                 ReaderMediaStripLimit = ReaderMediaStripLimit,
@@ -1904,6 +1995,7 @@ namespace MeowChan
                 MediaBooruMode = MediaBooruMode,
                 MediaTagListSort = MediaTagListSort,
                 MediaLayout = MediaLayout,
+                ArchiveMediaTileSize = ArchiveMediaTileSize,
                 TaggingPageView = TaggingPageView,
                 TaggingPreviewColumn = TaggingPreviewColumn,
                 TaggingStampBlock = TaggingStampBlock,
@@ -1993,6 +2085,7 @@ namespace MeowChan
             string absoluteDownloadPath = Path.GetFullPath(source.DownloadPath, source._relativePathBaseDirectory);
 
             SchemaVersion = source.SchemaVersion;
+            PreferenceDefaultsRevision = source.PreferenceDefaultsRevision;
             FirstRunSetupPending = source.FirstRunSetupPending; FirstRunSetupVersion = source.FirstRunSetupVersion;
             // Consent is portable within this profile's clones, never across profile-bound instances.
             if (string.Equals(_profileDirectory, source._profileDirectory,
@@ -2065,11 +2158,15 @@ namespace MeowChan
             ControlsIdleHideMs = source.ControlsIdleHideMs;
             ReaderNavigationMode = source.ReaderNavigationMode;
             ReaderNavigationShowPosition = source.ReaderNavigationShowPosition;
+            GalleryWheelMode = source.GalleryWheelMode;
             GalleryStatusDwellMs = source.GalleryStatusDwellMs;
             GalleryFilmstrip = source.GalleryFilmstrip;
             GalleryLayout = source.GalleryLayoutResetRequested ? null : source.GalleryLayout; // (a draft that asked for the reset: nothing chosen)
             GalleryFilmstripHeight = source.GalleryFilmstripHeight;
             GalleryFilmstripTileGap = source.GalleryFilmstripTileGap;
+            GalleryFilmstripFlagFavorite = source.GalleryFilmstripFlagFavorite;
+            GalleryFilmstripFlagRating = source.GalleryFilmstripFlagRating;
+            GalleryFilmstripFlagUntagged = source.GalleryFilmstripFlagUntagged;
             GalleryFilmstripPreload = source.GalleryFilmstripPreload;
             GalleryVideoSeekStepSeconds = source.GalleryVideoSeekStepSeconds;
             MediaBadgeCollapseBelow = source.MediaBadgeCollapseBelow;
@@ -2114,6 +2211,7 @@ namespace MeowChan
             ReaderPreviewDelayMs = source.ReaderPreviewDelayMs;
             ReaderReplyStep = source.ReaderReplyStep;
             ReaderReplyLines = source.ReaderReplyLines;
+            ReaderExpandReplies = source.ReaderExpandReplies;
             ReaderPageSize = source.ReaderPageSize;
             ReaderThreadingDepth = source.ReaderThreadingDepth;
             ReadingHistoryLimit = source.ReadingHistoryLimit;
@@ -2133,6 +2231,10 @@ namespace MeowChan
             ReaderInlineVideo = source.ReaderInlineVideo;
             ReaderMediaClick = source.ReaderMediaClick;
             ReaderInlineVideoAutoplayMuted = source.ReaderInlineVideoAutoplayMuted;
+            ReaderKeepImagesExpanded = source.ReaderKeepImagesExpanded;
+            ReaderSidebarVideoAutoplay = source.ReaderSidebarVideoAutoplay;
+            ReaderSidebarVideoLoop = source.ReaderSidebarVideoLoop;
+            ReaderSidebarVideoStartMuted = source.ReaderSidebarVideoStartMuted;
             ReaderInlineVideoMaxPlayers = source.ReaderInlineVideoMaxPlayers;
             ReaderInlineVideoMaxFileMiB = source.ReaderInlineVideoMaxFileMiB;
             ReaderMediaStripLimit = source.ReaderMediaStripLimit;
@@ -2159,6 +2261,7 @@ namespace MeowChan
             MediaBooruMode = source.MediaBooruMode;
             MediaTagListSort = source.MediaTagListSort;
             MediaLayout = source.MediaLayout;
+            ArchiveMediaTileSize = source.ArchiveMediaTileSize;
             TaggingPageView = source.TaggingPageView;
             TaggingPreviewColumn = source.TaggingPreviewColumn;
             TaggingStampBlock = source.TaggingStampBlock;
@@ -2279,6 +2382,7 @@ namespace MeowChan
             ControlsIdleHideMs = source.ControlsIdleHideMs;
             ReaderNavigationMode = source.ReaderNavigationMode;
             ReaderNavigationShowPosition = source.ReaderNavigationShowPosition;
+            GalleryWheelMode = source.GalleryWheelMode;
             GalleryStatusDwellMs = source.GalleryStatusDwellMs;
             // GL4: the layout is a direct preference of the gallery and is not taken from a draft, except its reset. The filmstrip box of the
             // settings page is the old setting: only a box the person changed sets the filmstrip choice of both modes. Changed means against
@@ -2291,6 +2395,9 @@ namespace MeowChan
             // (GalleryFilmstrip itself follows the View set's filmstrip through ApplyTo; an unchanged box leaves both as they are.)
             GalleryFilmstripHeight = source.GalleryFilmstripHeight;
             GalleryFilmstripTileGap = source.GalleryFilmstripTileGap;
+            GalleryFilmstripFlagFavorite = source.GalleryFilmstripFlagFavorite;
+            GalleryFilmstripFlagRating = source.GalleryFilmstripFlagRating;
+            GalleryFilmstripFlagUntagged = source.GalleryFilmstripFlagUntagged;
             GalleryFilmstripPreload = source.GalleryFilmstripPreload;
             GalleryVideoSeekStepSeconds = source.GalleryVideoSeekStepSeconds;
             // M1: only the tag list width of the draft's media layout, and only when the box was changed against its baseline. The media page changes the
@@ -2346,6 +2453,7 @@ namespace MeowChan
             ReaderPreviewDelayMs = source.ReaderPreviewDelayMs;
             ReaderReplyStep = source.ReaderReplyStep;
             ReaderReplyLines = source.ReaderReplyLines;
+            ReaderExpandReplies = source.ReaderExpandReplies;
             ReaderPageSize = source.ReaderPageSize;
             ReaderThreadingDepth = source.ReaderThreadingDepth;
             ReadingHistoryLimit = source.ReadingHistoryLimit;
@@ -2365,6 +2473,10 @@ namespace MeowChan
             ReaderInlineVideo = source.ReaderInlineVideo;
             ReaderMediaClick = source.ReaderMediaClick;
             ReaderInlineVideoAutoplayMuted = source.ReaderInlineVideoAutoplayMuted;
+            ReaderKeepImagesExpanded = source.ReaderKeepImagesExpanded;
+            ReaderSidebarVideoAutoplay = source.ReaderSidebarVideoAutoplay;
+            ReaderSidebarVideoLoop = source.ReaderSidebarVideoLoop;
+            ReaderSidebarVideoStartMuted = source.ReaderSidebarVideoStartMuted;
             ReaderInlineVideoMaxPlayers = source.ReaderInlineVideoMaxPlayers;
             ReaderInlineVideoMaxFileMiB = source.ReaderInlineVideoMaxFileMiB;
             ReaderMediaStripLimit = source.ReaderMediaStripLimit;
@@ -2469,6 +2581,7 @@ namespace MeowChan
             string filePath = Path.Combine(directory, "settings.json");
             DownloadPath = Path.GetFullPath(DownloadPath, _relativePathBaseDirectory);
             if (Origin == ProfileOrigin.ConfirmedNew && FirstRunSetupVersion == 0) FirstRunSetupPending = true;
+            if (ShortcutBindings.HasRetiredOverrides) ShortcutBindings = ShortcutBindings.WithoutRetired(); // dead bindings of removed commands leave with the next save
             string json = JsonSerializer.Serialize(this, ConfigJsonContext.Default.Config);
             // The read side judges a larger file damaged without reading it; never write one that the next start would refuse.
             if (System.Text.Encoding.UTF8.GetByteCount(json) > SettingsFileCeilingBytes)
@@ -2821,7 +2934,7 @@ namespace MeowChan
         public override double Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
             if (reader.TokenType == JsonTokenType.Number && reader.TryGetDouble(out double value) && double.IsFinite(value))
-                return Config.NormalizeLoadedArchiveSplitWidth(value);
+                return Config.NormalizeArchiveSplitWidth(value);
             reader.Skip();
             return Config.ArchiveSplitWidthDefault;
         }

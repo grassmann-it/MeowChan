@@ -4,6 +4,8 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Controls.Primitives;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
@@ -13,67 +15,84 @@ namespace MeowChan.Desktop;
 internal sealed partial class GalleryViewer
 {
     // Separate visuals per native root: never transfer a badge between layout managers.
-    private readonly Border _favoriteIndicator = CreateFavoriteIndicator("GalleryFavoriteIndicator");
-    private readonly Border _nativeFavoriteIndicator = CreateFavoriteIndicator("GalleryNativeFavoriteIndicator");
+    private readonly ToggleButton _favoriteIndicator = CreateFavoriteIndicator("GalleryFavoriteIndicator");
+    private readonly ToggleButton _nativeFavoriteIndicator = CreateFavoriteIndicator("GalleryNativeFavoriteIndicator");
     private bool _favoriteKnown;
     private bool _favoritePending;
     internal event Action<GalleryEntry, bool>? FavoriteSetRequested;
 
-    internal static Border CreateFavoriteIndicator(string name) => new Border
+    /// <summary>
+    /// The favourite badge beside the way back (Tom's decision of 15.11.): a toggle on the picture that shows the persisted state and, clicked,
+    /// toggles the favourite like the toolbar star. Its look (dark scrim, hover, pressed and focus-visible edge) is the <c>gallery-favorite-badge</c>
+    /// style of WorkspaceStyles.axaml.
+    /// </summary>
+    internal static ToggleButton CreateFavoriteIndicator(string name) => new ToggleButton
     {
         Name = name, HorizontalAlignment = HorizontalAlignment.Left,
-        // The top left edge belongs to the way back; the passive persisted-state badge sits directly right of it as a pair
-        // (UpdateFavoriteIndicators), so neither is painted over by the post panel, which starts below this row where it reaches it.
+        // The top left edge belongs to the way back; the badge sits directly right of it as a pair (UpdateFavoriteIndicators), so neither
+        // is painted over by the post panel, which starts below this row where it reaches it.
         VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(12),
         // As high as the way back beside it (Workspace.Size.Control, see ControlSized) and a square for the star alone; the content is centred.
-        Padding = new Thickness(8, 4),
-        Background = new SolidColorBrush(Color.FromArgb(210, 24, 26, 31)),
-        IsHitTestVisible = false, Focusable = false, IsVisible = false, ZIndex = 16,
+        Classes = { "gallery-favorite-badge" },
+        HorizontalContentAlignment = HorizontalAlignment.Center, VerticalContentAlignment = VerticalAlignment.Center,
+        Focusable = true, IsVisible = false, ZIndex = 16,
         // A drawn star (outline: not saved, filled gold: saved) and, while a write is pending, a trailing "…" (P6: no font glyphs).
-        Child = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, IsHitTestVisible = false,
+        Content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, IsHitTestVisible = false,
             HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
             Children = { WorkspaceIcons.Create(WorkspaceIcons.Star, inheritForeground: false), new TextBlock { Name = "GalleryFavoritePending", Text = "…",
-                Foreground = Brushes.White, IsVisible = false, VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false }.SubtitleText(),
-                // A Border, a StackPanel and a Path have no automation peer: the saved / saving state is also a hidden text (content view), so a screen reader reads it.
-                new TextBlock { Name = "GalleryFavoriteStateText", Classes = { "visually-hidden" } } } }
+                Foreground = Brushes.White, IsVisible = false, VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false }.SubtitleText() } }
     }.ControlSized();
 
     /// <summary>The state a favourite badge shows: saved (filled star) and pending (trailing "…"). Tests and the refresh read it back.</summary>
-    internal static (bool Saved, bool Pending) FavoriteBadgeState(Border badge)
+    internal static (bool Saved, bool Pending) FavoriteBadgeState(ToggleButton badge)
     {
-        StackPanel panel = (StackPanel)badge.Child!;
+        StackPanel panel = (StackPanel)badge.Content!;
         return (WorkspaceIcons.KeyOf(panel.Children[0]) == WorkspaceIcons.StarFilled, panel.Children[1].IsVisible);
     }
 
-    private static void ShowFavoriteBadgeState(Border badge, bool saved, bool pending, string label)
+    // The toggle's checked state is the saved state (a screen reader reads "Favorite, on / off"); the name adds " · saving" while a write is
+    // pending. The enabled state stays on while pending so the focus is not lost under a keyboard user; the click is ignored then.
+    private static void ShowFavoriteBadgeState(ToggleButton badge, bool saved, bool pending, string label, string tip)
     {
-        StackPanel panel = (StackPanel)badge.Child!;
+        StackPanel panel = (StackPanel)badge.Content!;
         Avalonia.Controls.Shapes.Path star = (Avalonia.Controls.Shapes.Path)panel.Children[0];
         star.Tag = saved ? WorkspaceIcons.StarFilled : WorkspaceIcons.Star;
         IBrush ink = saved ? Brushes.Gold : Brushes.White;
         star.Stroke = ink;
         star.Fill = saved ? ink : Brushes.Transparent;
         panel.Children[1].IsVisible = pending;
+        badge.IsChecked = saved;
         AutomationProperties.SetName(badge, label);
-        AutomationProperties.SetName(panel, label);
-        if (panel.Children.Count > 2 && panel.Children[2] is TextBlock stateText) { stateText.Text = label; AutomationProperties.SetAccessibilityView(stateText, AccessibilityView.Content); }
+        AutomationProperties.SetHelpText(badge, tip);
+        ToolTip.SetTip(badge, tip);
     }
 
     private void InitializeFavoriteIndicators()
     {
         _visualRoot.Children.Add(_favoriteIndicator);
         _nativeVideoOverlay.Children.Add(_nativeFavoriteIndicator);
+        foreach (ToggleButton badge in new[] { _favoriteIndicator, _nativeFavoriteIndicator })
+        {
+            ToggleButton clicked = badge;
+            badge.Click += (_, _) => OnFavoriteBadgeClick(clicked);
+            // The badge dims with the way back and returns with it under the pointer or the focus (UpdateBackButtonOpacity).
+            badge.PointerEntered += (_, _) => UpdateBackButtonOpacity();
+            badge.PointerExited += (_, _) => UpdateBackButtonOpacity();
+            badge.GotFocus += (_, _) => UpdateBackButtonOpacity();
+            badge.LostFocus += (_, _) => UpdateBackButtonOpacity();
+        }
         UpdateFavoriteIndicators();
     }
 
     private void UpdateFavoriteIndicators()
     {
-        string state = Texts.T(_favoriteSelected ? "viewer.favorite.saved" : "viewer.favorite.unsaved");
-        string label = _favoritePending
-            ? state + " · " + Texts.T("gallery.saving") : state;
-        foreach (Border badge in new[] { _favoriteIndicator, _nativeFavoriteIndicator })
+        // The name is the thing ("Favorite"), the toggle state says saved or not; a pending write adds " · saving".
+        string label = Texts.T("gallery.decision.favorite");
+        if (_favoritePending) label += " · " + Texts.T("gallery.saving");
+        string tip = CommandBindings.Tooltip("favorites.toggle");
+        foreach (ToggleButton badge in new[] { _favoriteIndicator, _nativeFavoriteIndicator })
         {
-            ShowFavoriteBadgeState(badge, _favoriteSelected, _favoritePending, label);
+            ShowFavoriteBadgeState(badge, _favoriteSelected, _favoritePending, label, tip);
         }
         // Never imply "not saved" while a new selection's persisted status is unknown.
         bool visible = _entry != null && _favoriteKnown && !_terminalRetirement;
@@ -87,6 +106,27 @@ internal sealed partial class GalleryViewer
         _nativeFavoriteIndicator.Margin = beside;
         // Row 0 is deliberately outside the native video in transparency fallback mode.
         Grid.SetRow(_favoriteIndicator, 0);
+        PlaceBadgeAfterBack(_favoriteIndicator);
+        PlaceBadgeAfterBack(_nativeFavoriteIndicator);
+    }
+
+    // Tab order: the badge comes right after "Back to …". The way back is appended to its host whenever the overlay placement runs, so the
+    // badge is moved behind it in place (Move keeps the focus; a removal would drop it).
+    private void PlaceBadgeAfterBack(ToggleButton badge)
+    {
+        if (_close?.Parent is not Panel host || !ReferenceEquals(host, badge.Parent)) return;
+        int at = host.Children.IndexOf(badge), back = host.Children.IndexOf(_close);
+        if (at < 0 || back < 0 || at == back + 1) return;
+        host.Children.Move(at, at < back ? back : back + 1);
+    }
+
+    // A click on the badge toggles like the toolbar star (the keyboard's F keeps its confirmation of a removal). The shown state is the viewer's,
+    // so it is set again before the request goes out; a pending write ignores the click and keeps the focus where it is.
+    private void OnFavoriteBadgeClick(ToggleButton badge)
+    {
+        badge.IsChecked = _favoriteSelected;
+        if (_favoritePending) return;
+        ToggleFavorite();
     }
 
     /// <summary>Gap between the star and the way back, in dip.</summary>

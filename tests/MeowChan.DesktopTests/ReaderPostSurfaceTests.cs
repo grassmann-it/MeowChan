@@ -375,7 +375,7 @@ public sealed class ReaderPostSurfaceTests
     }
 
     private static XElement Posts() => Assert.Single(Source("Desktop/Views/Archive/ArchivePage.axaml")
-        .Descendants(A + "ListBox").Where(element => (string?)element.Attribute(X + "Name") == "ArchivePosts"));
+        .Descendants(Desktop + "ReaderPostList").Where(element => (string?)element.Attribute(X + "Name") == "ArchivePosts"));
 
     // A selector may also carry a behavior-only style (an attached property such as ReaderPostLayout.Focused, no surface setter);
     // the surface style is the one that sets a plain control property.

@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Avalonia.Controls;
+using Avalonia.Controls.Notifications;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Localization;
 using MeowChan.Favorites;
 using MeowChan.Gallery;
 
@@ -11,38 +13,7 @@ public partial class MainWindow
 {
     private readonly HashSet<FavoriteAssetKey> _ratingChanges = new();
     private readonly Dictionary<FavoriteAssetKey, string> _ratingErrors = new();
-    private bool _ratingDialogOpen;
     private bool _ratingManagerOpen;
-    private async Task EditMediaRatingAsync(GalleryEntry entry)
-    {
-        if (_isClosing || _ratingDialogOpen) return;
-        FavoriteAssetKey key = FavoriteAssetKey.From(entry.Key.Thread, entry.Asset);
-        if (_ratingChanges.Contains(key)) return;
-        Control? origin = FocusManager?.GetFocusedElement() as Control;
-        _ratingDialogOpen = true;
-        // Review 15.11.: opened over the gallery, the dialog pauses a playing video and a running slideshow; only those resume after it.
-        GalleryViewer? held = _gallery is { } shown && !_gallerySuspended ? shown : null;
-        try
-        {
-            int? value = _session.GetMediaRating(key);
-            MediaRatingDialog dialog = new(key, value, rating => SetMediaRatingAsync(key, rating));
-            held?.BeginDialogPlaybackHold();
-            await dialog.ShowDialog(this);
-        }
-        catch (Exception) { RefreshGalleryRating(); throw; }
-        finally
-        {
-            _ratingDialogOpen = false;
-            if (held != null && !_isClosing) await held.EndDialogPlaybackHoldAsync();
-            if (_gallery != null && !_gallerySuspended)
-            {
-                // A19: a rating action the view keeps under More returns focus to More, not to the closed menu's hidden row.
-                Control? back = _gallery.FocusReturnTarget(origin, "media.rating.edit");
-                if (back?.IsEffectivelyVisible == true) back.Focus(); else _gallery.Focus();
-            }
-            else if (_archivePage?.RestoreMediaRatingFocus(key, origin) != true && origin?.IsEffectivelyVisible == true) origin.Focus();
-        }
-    }
     private async Task SetMediaRatingAsync(FavoriteAssetKey key, int? value)
     {
         if (!_ratingChanges.Add(key)) return;
@@ -77,11 +48,25 @@ public partial class MainWindow
     }
     private void RefreshGalleryRating()
     {
+        RefreshGalleryFilmstripFlags(); // the filmstrip's flags follow a favourite or rating the gallery just changed
         if (_gallery == null || _galleryIndex < 0 || _galleryIndex >= _galleryEntries.Count) return;
         GalleryEntry entry = _galleryEntries[_galleryIndex];
         FavoriteAssetKey key = FavoriteAssetKey.From(entry.Key.Thread, entry.Asset);
-        try { _gallery.SetRating(_session.GetMediaRating(key), _ratingErrors.GetValueOrDefault(key), !_ratingChanges.Contains(key)); }
+        // A write under way is "pending", not "unavailable": the Post row's stars stay enabled (the keyboard focus must not be lost) and ignore clicks.
+        bool pending = _ratingChanges.Contains(key);
+        try { _gallery.SetRating(_session.GetMediaRating(key), _ratingErrors.GetValueOrDefault(key), available: !pending, pending: pending); }
         catch (Exception error) { _gallery.SetRating(null, error.Message, available: false); }
+    }
+    // The media page's rating menu (the stars, "Remove rating" and R): the dialog used to show a failed write, so it is a notification now.
+    private async Task RateMediaPageEntryAsync(GalleryEntry entry, int? value)
+    {
+        if (_isClosing) return;
+        try { await SetMediaRatingAsync(FavoriteAssetKey.From(entry.Key.Thread, entry.Asset), value); }
+        catch (Exception error) when (error is not OperationCanceledException and not OutOfMemoryException)
+        {
+            if (!_isClosing) ShowNotification(Texts.T("notification.error"), MediaRatingText.FormatError(MediaRatingText.Catalog("media.rating.error.save"), error.Message),
+                NotificationType.Error, operation: "media.rating");
+        }
     }
     private async Task ManageMediaRatingsAsync()
     {

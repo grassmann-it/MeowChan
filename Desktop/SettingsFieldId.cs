@@ -15,6 +15,7 @@ internal static class SettingsFieldId
     internal const string ReaderDateStyle = nameof(ReaderDateStyle);
     internal const string ReaderSpoilers = nameof(ReaderSpoilers);
     internal const string ReaderPageSize = nameof(ReaderPageSize);
+    internal const string ReaderExpandReplies = nameof(ReaderExpandReplies);
     internal const string ReadingHistoryLimit = nameof(ReadingHistoryLimit);
     internal const string ReadingHistoryMenuEntries = nameof(ReadingHistoryMenuEntries);
     internal const string ReaderTextlessLargeImages = nameof(ReaderTextlessLargeImages);
@@ -31,6 +32,17 @@ internal static class SettingsFieldId
     internal const string ReaderMediaSidebarMinimumWidth = nameof(ReaderMediaSidebarMinimumWidth);
     internal const string ReaderMediaClick = nameof(ReaderMediaClick);
     internal const string ReaderInlineVideoAutoplayMuted = nameof(ReaderInlineVideoAutoplayMuted);
+    internal const string ReaderKeepImagesExpanded = nameof(ReaderKeepImagesExpanded);
+    /// <summary>The three switches of "Videos in the media sidebar" (the one viewer shared by the reader, the archive view and the Media page's panel).</summary>
+    internal const string ReaderSidebarVideoAutoplay = nameof(ReaderSidebarVideoAutoplay);
+    internal const string ReaderSidebarVideoLoop = nameof(ReaderSidebarVideoLoop);
+    internal const string ReaderSidebarVideoStartMuted = nameof(ReaderSidebarVideoStartMuted);
+    /// <summary>"Start videos muted" (the gallery's own setting; videos in the reader's posts follow it).</summary>
+    internal const string VideoStartMuted = nameof(VideoStartMuted);
+    /// <summary>The remembered video volume (the gallery's own setting; the reader's inline videos use it too).</summary>
+    internal const string VideoVolume = nameof(VideoVolume);
+    /// <summary>"Repeat video" (the gallery's own setting; the reader's inline videos follow it).</summary>
+    internal const string GalleryVideoRepeat = nameof(GalleryVideoRepeat);
     internal const string ReaderInlineVideoMaxPlayers = nameof(ReaderInlineVideoMaxPlayers);
     internal const string ReaderInlineVideoMaxFileMiB = nameof(ReaderInlineVideoMaxFileMiB);
     internal const string ReaderMediaStripLimit = nameof(ReaderMediaStripLimit);

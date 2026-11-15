@@ -44,6 +44,17 @@ internal static class WorkspaceChips
     internal const string CategoryMark = "chip-category-mark";
     internal const string Label = "chip-label";
     internal const string ThreadMark = "chip-thread-mark";
+    /// <summary>
+    /// The tag pill (UX review 15.11.): the 28 dip full pill of the tag panel, the reader tag bar and the tiles (the compact tile form keeps its size),
+    /// added to a chip button or a source-tag outline. Rest is a quiet filled pill, hover and pressed follow the toolbar buttons.
+    /// </summary>
+    internal const string TagPill = "tag-pill";
+    /// <summary>A tag pill that is assigned (accent tint, accent edge); the check or the label's tooltip states it too.</summary>
+    internal const string TagPillAssigned = "tag-pill-assigned";
+    /// <summary>A tag pill that is on some of a selection (quiet fill, accent edge, half-filled square).</summary>
+    internal const string TagPillPartial = "tag-pill-partial";
+    /// <summary>The content row of a tag pill (glyph or key hint, label); its gap is the Workspace.Space.TagKey token.</summary>
+    internal const string TagPillContent = "tag-pill-content";
     /// <summary>A button whose content is a source-tag chip (I8: the chip is the action, e.g. "add to search").</summary>
     internal const string SourceButton = "chip-source-button";
 
@@ -67,6 +78,8 @@ internal static class WorkspaceChips
 
     internal static T MarkOwn<T>(T control, bool compact = false) where T : Control => Add(control, Chip, Own, compact ? Compact : null);
     internal static T MarkOffered<T>(T control) where T : Control => Add(control, Chip, Available);
+    /// <summary>Gives a chip button (or a source-tag outline) the tag pill look; <paramref name="state"/> is <see cref="TagPillAssigned"/>, <see cref="TagPillPartial"/> or null.</summary>
+    internal static T MarkTagPill<T>(T control, string? state = null) where T : Control => Add(control, TagPill, state);
     internal static T MarkFilter<T>(T control, bool exclude = false) where T : Control => Add(control, Chip, Filter, exclude ? Exclude : null);
 
     /// <summary>The class of a provider category, e.g. "chip-source-artist"; unknown categories use the general mark.</summary>

@@ -15,6 +15,7 @@ using Avalonia.Layout;
 using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
+using Avalonia.VisualTree;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 
@@ -33,7 +34,6 @@ internal enum FilmstripTileKind { Image, Gif, Video }
 /// </summary>
 internal sealed class GalleryFilmstrip : Border
 {
-    private const double ScrollNotchTiles = 2;
     private const double DragThreshold = 4;
 
     // ---- parts ----
@@ -65,6 +65,8 @@ internal sealed class GalleryFilmstrip : Border
     // MB1b: the length of a video when the viewer learned it (the strip never reads a file); drawn as the badge's duration chip.
     private readonly Dictionary<int, TimeSpan> _durations = new();
     private bool _keyboardFocus, _backShown, _forwardShown;
+    // Filmstrip flags (decision 123): the favourite star, the own rating and the "no tags yet" mark, drawn by the same badge view as the length.
+    private readonly FilmstripFlagModel _flags = new();
     private bool _atBottom = true; // GL1: the band's place; only its accessible description depends on it (the viewer sets margins and parent)
 
     internal GalleryFilmstrip()
@@ -118,6 +120,8 @@ internal sealed class GalleryFilmstrip : Border
         _strip.PointerCaptureLost += (_, _) => { _pressed = _dragging = false; };
         _strip.PointerExited += (_, _) => SetHovered(-1);
         PointerWheelChanged += OnWheel;
+        // A right-click on a tile asks for that tile's menu (Menu key and Shift+F10 carry no position and stay with the viewer: the shown medium's).
+        AddHandler(ContextRequestedEvent, OnContextRequested, Avalonia.Interactivity.RoutingStrategies.Bubble);
         PointerEntered += (_, _) => { _pointerOver = true; UpdateChevrons(); };
         PointerExited += (_, _) => { _pointerOver = false; UpdateChevrons(); };
         GotFocus += (_, e) => { _keyboardFocus = e.NavigationMethod is NavigationMethod.Tab or NavigationMethod.Directional; UpdateFocusVisual(); UpdateChevrons(); };
@@ -136,8 +140,20 @@ internal sealed class GalleryFilmstrip : Border
     /// <summary>The cache of video posters (the profile's cache directory unless a test supplies another).</summary>
     internal string PosterCacheDirectory { get; set; } = System.IO.Path.Combine(Config.GetConfigDirectory(), "cache", "video-posters-v1");
 
+    /// <summary>
+    /// Where the flags of a tile come from (the owner reads the favourite list, the rating list and the tag index it already holds; the strip never
+    /// reads a file for them). It is asked only for the flags that are shown, so a strip with every flag off costs nothing per tile.
+    /// </summary>
+    internal Func<GalleryEntry, FilmstripFlagKinds, FilmstripFlagFacts>? FlagSource
+    {
+        get => _flags.Source;
+        set { if (_flags.Source == value) return; _flags.Source = value; UpdateTileNames(); }
+    }
+
     /// <summary>The user asked for the tile (a click or Enter): the entry's index, or the entry count for the "more" tile.</summary>
     internal event Action<int>? TileActivated;
+    /// <summary>The user right-clicked the tile of an entry (never the "more" tile): the entry's index. The strip opens no menu itself.</summary>
+    internal event Action<int>? TileContextRequested;
     /// <summary>The user left the strip with Escape or Enter and wants the picture to take the keyboard back.</summary>
     internal event Action? ExitRequested;
 
@@ -191,6 +207,35 @@ internal sealed class GalleryFilmstrip : Border
         else if (!_durations.Remove(index)) return;
         if (_live.TryGetValue(index, out FilmstripTile? tile)) BindTile(tile, index);
     }
+
+    /// <summary>Takes the flag choices (Settings, "Filmstrip shows"); the tiles in view draw again only when what is shown changed.</summary>
+    internal void ConfigureFlags(FilmstripFlagSettings settings)
+    {
+        if (_flags.Configure(settings)) UpdateTileNames();
+    }
+
+    /// <summary>The gallery's tagging view (the right tag panel) opened or closed: the "no tags yet" mark follows it when the setting says so.</summary>
+    internal void SetTaggingViewOpen(bool open)
+    {
+        if (_flags.SetTaggingViewOpen(open)) UpdateTileNames();
+    }
+
+    /// <summary>
+    /// A favourite, a rating or a tag changed somewhere: the tiles in view read their flags again (the badge view draws only the tiles whose state
+    /// really changed). The owner calls it from the notification it already has; nothing here polls.
+    /// </summary>
+    internal void RefreshFlags()
+    {
+        if (!_retired && _flags.Shown != FilmstripFlagKinds.None) UpdateTileNames();
+    }
+
+    /// <summary>The flags that are shown now (tests and smokes).</summary>
+    internal FilmstripFlagKinds ShownFlags => _flags.Shown;
+
+    /// <summary>The badge state of the tile at <paramref name="index"/> with the length known so far and the flags shown now (tests and smokes); default for the "more" tile.</summary>
+    internal MediaBadgeState BadgeStateAt(int index) =>
+        index < 0 || index >= _count || _entries == null ? default
+            : _flags.StateFor(_entries[index], BadgeStateOf(FileName(_entries[index]), _durations.TryGetValue(index, out TimeSpan length) ? length : null));
 
     /// <summary>Marks the shown medium and scrolls it into view (centred, or just into view when the strip itself asked for it).</summary>
     internal void SetCurrent(int index)
@@ -284,7 +329,20 @@ internal sealed class GalleryFilmstrip : Border
         }
     }
 
+    /// <summary>The entry of a tile (null for the "more" tile or an index outside the list).</summary>
+    internal GalleryEntry? EntryAt(int index) => _entries != null && index >= 0 && index < _count && index < _entries.Count ? _entries[index] : null;
+
     // ---- pointer ----
+
+    private void OnContextRequested(object? sender, ContextRequestedEventArgs e)
+    {
+        if (e.Handled || e.Source is not Visual source || !source.GetSelfAndVisualAncestors().Contains(_strip)
+            || !e.TryGetPosition(_strip, out Point position)) return;
+        // The pointer is on the tile strip: it is this tile's menu or none (the gap between tiles and the "more" tile never open the shown medium's).
+        e.Handled = true;
+        int tile = GalleryFilmstripPlan.TileAt(position.X, _offset, _tile, Slots, _gap);
+        if (tile >= 0 && tile < _count) TileContextRequested?.Invoke(tile);
+    }
 
     private void OnPointerPressed(object? sender, PointerPressedEventArgs e)
     {
@@ -320,10 +378,9 @@ internal sealed class GalleryFilmstrip : Border
 
     private void OnWheel(object? sender, PointerWheelEventArgs e)
     {
-        double notches = e.Delta.Y != 0 ? e.Delta.Y : e.Delta.X;
-        if (notches == 0) return;
-        // Wheel up (and a pad swipe to the right) look back along the strip, wheel down forward.
-        ScrollByUser(_offset - notches * ScrollNotchTiles * GalleryFilmstripPlan.Pitch(_tile, _gap));
+        if (StripWheel.Notches(e.Delta) == 0) return;
+        // Wheel up (and a pad swipe to the right) look back along the strip, wheel down forward (the notch is the one every strip shares, StripWheel).
+        ScrollByUser(StripWheel.NextOffset(_offset, e.Delta, GalleryFilmstripPlan.Pitch(_tile, _gap)));
         e.Handled = true;
     }
 
@@ -448,8 +505,9 @@ internal sealed class GalleryFilmstrip : Border
         }
         GalleryEntry entry = _entries[index];
         string name = FileName(entry);
-        MediaBadgeState badges = BadgeStateOf(name, _durations.TryGetValue(index, out TimeSpan length) ? length : null);
-        tile.Bind(index, name, TileName(index + 1, _count, name, badges), badges, new Size(_tile, _tile), index + 1, Slots,
+        MediaBadgeState badges = _flags.StateFor(entry, BadgeStateOf(name, _durations.TryGetValue(index, out TimeSpan length) ? length : null));
+        MediaBadgeOptions options = _flags.Options;
+        tile.Bind(index, name, TileName(index + 1, _count, name, badges, options), badges, options, new Size(_tile, _tile), index + 1, Slots,
             _thumbnails.TryGet(index), index == _current);
     }
 
@@ -532,9 +590,13 @@ internal sealed class GalleryFilmstrip : Border
     /// The name of a tile: position, file name and what the badges say (video with its length, animated image); a plain image has no badge and
     /// keeps the word "image". The badge sentence replaces the kind word, so nothing is said twice.
     /// </summary>
-    internal static string TileName(int position, int count, string fileName, in MediaBadgeState badges)
+    internal static string TileName(int position, int count, string fileName, in MediaBadgeState badges) =>
+        TileName(position, count, fileName, badges, MediaBadgeOptions.Filmstrip);
+
+    /// <summary><see cref="TileName(int, int, string, in MediaBadgeState)"/> for the options the tile draws with (the flags say "Favorite · Rating 4 of 5 · No tags yet" too).</summary>
+    internal static string TileName(int position, int count, string fileName, in MediaBadgeState badges, in MediaBadgeOptions options)
     {
-        string said = MediaBadgeText.Describe(badges, MediaBadgeOptions.Filmstrip);
+        string said = MediaBadgeText.Describe(badges, options);
         return Texts.T("gallery.filmstrip.tile", position, count, fileName, said.Length > 0 ? said : KindText(KindOf(fileName)));
     }
 
@@ -614,7 +676,7 @@ internal sealed class GalleryFilmstrip : Border
             ApplyBorders();
         }
 
-        internal void Bind(int index, string fileName, string name, in MediaBadgeState badges, Size tile, int position, int size, Bitmap? picture, bool current)
+        internal void Bind(int index, string fileName, string name, in MediaBadgeState badges, in MediaBadgeOptions options, Size tile, int position, int size, Bitmap? picture, bool current)
         {
             Index = index; _more = false;
             _moreGlyph.IsVisible = false;
@@ -624,14 +686,23 @@ internal sealed class GalleryFilmstrip : Border
             bool video = badges.Kind == MediaBadgeKind.Video;
             _extension.VerticalAlignment = video ? VerticalAlignment.Top : VerticalAlignment.Center;
             _extension.Margin = video ? new Thickness(4, 4, 4, 0) : default;
-            _badges.Apply(badges, tile);
-            ToolTip.SetTip(this, fileName);
+            _badges.Apply(badges, tile, options);
+            ToolTip.SetTip(this, TipOf(fileName, badges, options));
             AutomationProperties.SetName(this, name);
             AutomationProperties.SetPositionInSet(this, position);
             AutomationProperties.SetSizeOfSet(this, size);
             SetPicture(picture);
             _current = current;
             ApplyBorders();
+        }
+
+        // The file name; with a flag on the tile (favourite, rating, no tags yet) a second line says it in words, like the tile's accessible name.
+        private static string TipOf(string fileName, in MediaBadgeState badges, in MediaBadgeOptions options)
+        {
+            if (!badges.Favorite && badges.Rating is not >= 1 && badges.TagCount != 0) return fileName;
+            // Only the flags, not the kind (the length and "GIF" are chips on the tile already); the sentence is cached per state.
+            string flags = MediaBadgeSentences.Get(new MediaBadgeState(Favorite: badges.Favorite, Rating: badges.Rating, TagCount: badges.TagCount), options);
+            return flags.Length == 0 ? fileName : fileName + Environment.NewLine + flags;
         }
 
         internal void BindMore(string name, int position, int size)

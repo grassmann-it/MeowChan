@@ -100,7 +100,6 @@ internal sealed partial class GalleryViewer
         WorkViewElement.SetId(_sidePanel.TagsButton, "gallery.panel.tags"); Mark(_sidePanel.TagsButton);
         WorkViewElement.SetId(_fit, "gallery.toolbar.fit"); Mark(_fit);
         WorkViewElement.SetId(_actual, "gallery.toolbar.actual"); Mark(_actual);
-        WorkViewElement.SetId(_ratingButton, "gallery.toolbar.rating"); Mark(_ratingButton);
         WorkViewElement.SetId(_tagsButton, "gallery.toolbar.tags"); Mark(_tagsButton);
         WorkViewElement.SetId(_slideshowToggle, "gallery.toolbar.slideshow"); Mark(_slideshowToggle);
         WorkViewElement.SetId(_slideshowSeconds, "gallery.toolbar.slideshow-seconds"); Mark(_slideshowSeconds);
@@ -135,8 +134,6 @@ internal sealed partial class GalleryViewer
     private void InitializeWorkViewTools()
     {
         _workViewTools.IsVisible = false;
-        _toolSlots.Add(new("gallery.toolbar.rating", _ratingButton, _overflowPanel, _manageRatingsButton, null,
-            button => AddOverflowItem(button, "media.rating.edit", label: () => CommandCatalog.Label("media.rating.edit")), iconOnly: true));
         _toolSlots.Add(new("gallery.toolbar.tags", _tagsButton, _overflowPanel, _exportOriginal, null,
             button => AddOverflowItem(button, "media.tags.edit", label: TagsLabel), iconOnly: true));
         _toolSlots.Add(new("gallery.toolbar.slideshow-seconds", _slideshowSeconds, _slideshowHome, _videoRuleCaption, _secondsCaption, null, iconOnly: false));
@@ -228,11 +225,9 @@ internal sealed partial class GalleryViewer
             bool iconOnly = _compactToolbar || slot.IconOnly;
             CommandBindings.Apply(button, id, iconOnly: iconOnly, iconWithLabel: !iconOnly);
             button.Tag = ToolbarTool;
-            // GL5d (S1): the tools of the bar are squares of the input height with a tooltip; the rating button is the exception, it shows
-            // its value ("☆ 4") and so is as wide as that needs.
-            button.Classes.Set("icon-only", slot.Id != "gallery.toolbar.rating" && (iconOnly));
+            // GL5d (S1): the tools of the bar are squares of the input height with a tooltip.
+            button.Classes.Set("icon-only", iconOnly);
         }
-        PresentRatingButton();
         UpdateTagsButton();
         UpdateHelpButtonTooltip(); // the help button's tooltip names the favourite and post keys as well
     }

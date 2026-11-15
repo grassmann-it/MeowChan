@@ -43,8 +43,11 @@ public partial class MainWindow
 
     // The media panel plays inline always (it is the panel's own control): the gallery's volume, start-muted choice and seek step, the reader's player
     // and file limits, and the gallery's fit limit for its picture.
-    private void ConfigureMediaPanel() => _mediaPage?.ConfigurePanel(ReaderInlineVideoOptions.From(_session.Config) with { Enabled = true },
-        ReaderSettingsPreferences.Gallery(_session.Config));
+    private void ConfigureMediaPanel()
+    {
+        _mediaPage?.ConfigurePanel(ReaderInlineVideoOptions.From(_session.Config) with { Enabled = true }, ReaderSettingsPreferences.Gallery(_session.Config));
+        ConfigureGalleryScrubPreview(); // the panel's timeline hover preview uses the profile's scrub cache (the gallery's)
+    }
 
     private void InitializeMediaPage()
     {
@@ -80,6 +83,7 @@ public partial class MainWindow
             ExportOriginals = ExportMediaLibraryOriginalsAsync,
             AddToTagQueue = AddMediaToTagQueueAsync,
             AddToTagQueueInGroup = AddMediaToTagQueueInGroupAsync,
+            RemoveFromTagQueue = keys => TagQueueActions.RemoveAsync(_session, keys),
             TagQueueConfirmAboveSource = () => _session.Config.TagQueueConfirmAbove,
             // MP1/MP3: the queue as the tiles, the status line and the queue term see it, and the two ways to tagging under More.
             ReadTagQueue = _session.GetTagQueue,
@@ -262,7 +266,13 @@ public partial class MainWindow
                     }
                     break;
                 case "favorites.toggle": await ToggleGalleryFavoriteAsync(entry); break;
-                case "media.rating.edit": await EditMediaRatingAsync(entry); break;
+                // The rating menu's stars and "Remove rating" (R opens the same menu on the tile): written like the gallery's rating keys.
+                case "media.rating.clear": await RateMediaPageEntryAsync(entry, null); break;
+                case "media.rating.set-1": await RateMediaPageEntryAsync(entry, 1); break;
+                case "media.rating.set-2": await RateMediaPageEntryAsync(entry, 2); break;
+                case "media.rating.set-3": await RateMediaPageEntryAsync(entry, 3); break;
+                case "media.rating.set-4": await RateMediaPageEntryAsync(entry, 4); break;
+                case "media.rating.set-5": await RateMediaPageEntryAsync(entry, 5); break;
                 case "media.export-original":
                     await ArchivePage.OpenOriginalExportAsync(new[] { Favorites.FavoriteExportAsset.From(entry.Key.Thread,
                         entry.Manifest, entry.Asset) }, _mediaPage, scopeLabel: CommandCatalog.Label(id));
