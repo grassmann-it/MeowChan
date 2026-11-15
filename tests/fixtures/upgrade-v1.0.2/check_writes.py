@@ -20,6 +20,18 @@ import re
 import sys
 
 REQUIRED_PLUGINS = ('meowchan.official.4chan', 'meowchan.official.8kun', 'meowchan.official.danbooru')
+LEGACY_CHAN_STATES = {
+    'meowchan.source.lainchan': False,
+    'meowchan.source.leftypol': False,
+    'meowchan.source.sushichan': False,
+    'meowchan.source.uboachan': False,
+    'meowchan.source.wizchan': True,
+    'meowchan.source.zzzchan': True,
+}
+CHAN_FAMILIES = {
+    'meowchan.source.vichan': ('lainchan', 'leftypol', 'sushichan', 'uboachan', 'wizchan'),
+    'meowchan.source.jschan': ('zzzchan',),
+}
 THREAD_TAG, LOCAL_TAG = 'ap04-thread-tag', 'ap04-local-tag'
 V1_BACKUP = 'private-tags.v1.bak'
 FORBIDDEN_PREFIXES = ('booru-catalog.',)
@@ -62,10 +74,51 @@ def check_plugins(cycles, required=REQUIRED_PLUGINS):
             require(plugin['Enabled'] and plugin['Active'] and plugin['Problem'] is None,
                     f"{name}: plugin not active: {plugin_id} ({plugin['Problem']})")
         for plugin in by_id.values():
+            # A replaced 1.0.x record deliberately keeps Enabled=true in the profile while
+            # Active is cleared and Problem explains the family takeover. The dedicated
+            # migration check below validates those records instead of treating them as
+            # broken active plugins.
+            if plugin['PluginId'] in LEGACY_CHAN_STATES:
+                continue
             require(not plugin['Enabled'] or (plugin['Active'] and plugin['Problem'] is None),
                     f"{name}: enabled plugin without a working build: {plugin['PluginId']} ({plugin['Problem']})")
     enabled = [p for p in reference if p[1]]
     return f'starts={len(cycles)} plugins={len(reference)} enabled-active={len(enabled)} required={len(required)}'
+
+
+def check_chan_family_migration(profile, cycles):
+    """The released 1.0.2 single-site records are retained, but ownership moves once to families."""
+    profile = Path(profile)
+    switch_path = profile / 'chan-sources.json'
+    switches = load(switch_path)
+    require(switches.get('Version') == 1, 'chan site switch version mismatch')
+    require(switches.get('Enabled') == {
+        'lainchan': False, 'leftypol': False, 'sushichan': False,
+        'uboachan': False, 'wizchan': True, 'zzzchan': True,
+    }, 'chan site switch state was not taken over from 1.0.2')
+    require(switches.get('Migrated') == sorted(LEGACY_CHAN_STATES), 'chan site migration markers mismatch')
+    expected_sites = sorted(site for sites in CHAN_FAMILIES.values() for site in sites)
+    expected_sources = sorted(expected_sites + ['2ch', '4chan', '8kun', 'bbwchan', 'capybarachan', 'endchan',
+                                                 'eightchanmoe', 'fchan', 'kohlchan', 'sevenchan'])
+    for name, cycle in cycles:
+        plugins = cycle.get('Plugins')
+        require(isinstance(plugins, dict), name + ': missing plugin projection')
+        rows = plugins.get('Plugins')
+        require(isinstance(rows, list), name + ': missing plugin rows')
+        by_id = {row.get('PluginId'): row for row in rows}
+        for plugin_id, enabled in LEGACY_CHAN_STATES.items():
+            old = by_id.get(plugin_id)
+            require(old is not None, f'{name}: legacy plugin missing: {plugin_id}')
+            require(old.get('Enabled') is enabled, f'{name}: legacy enabled state changed: {plugin_id}')
+            require(not old.get('Active') and 'Replaced by the bundled plugin' in (old.get('Problem') or ''),
+                    f'{name}: legacy plugin still owns a source: {plugin_id}')
+        for family_id in CHAN_FAMILIES:
+            family = by_id.get(family_id)
+            require(family is not None and family.get('Enabled') and family.get('Active') and family.get('Problem') is None,
+                    f'{name}: family is not active: {family_id}')
+        sources = plugins.get('Sources')
+        require(isinstance(sources, list) and sorted(sources) == expected_sources,
+                f'{name}: family source inventory is not unique/complete')
 
 
 def check_cycle_shape(name, cycle, profile, revision, version, mode):
@@ -170,9 +223,11 @@ def check_writes(profile, results, writes, revision, version):
             require(key == 'Settings' or observed[key] == reference[key], f'{name}: {key} differs from the last migration cycle')
         require(readback['Persisted']['Watch'] == cycle2['Persisted']['Watch'], f'{name}: persisted watch snapshot differs')
         require(readback['Persisted']['Settings']['VideoVolume'] == 47, f'{name}: persisted setting differs')
-    plugin_line = check_plugins([('cycle-0', load(results / 'cycle-0.json')), ('cycle-1', load(results / 'cycle-1.json')),
-                                 ('cycle-2', cycle2), ('write-host', host), ('write-local-tag', local),
-                                 ('readback-1', readbacks[0]), ('readback-2', readbacks[1])])
+    all_cycles = [('cycle-0', load(results / 'cycle-0.json')), ('cycle-1', load(results / 'cycle-1.json')),
+                  ('cycle-2', cycle2), ('write-host', host), ('write-local-tag', local),
+                  ('readback-1', readbacks[0]), ('readback-2', readbacks[1])]
+    plugin_line = check_plugins(all_cycles)
+    check_chan_family_migration(profile, all_cycles)
     # Unchanged until the very end, after all read-backs.
     require(backup.read_bytes() == v1_bytes, V1_BACKUP + ' changed during the read-back restarts')
     leftovers = sorted(p.name for p in profile.iterdir() if p.name.removeprefix('.').startswith(FORBIDDEN_PREFIXES))
@@ -181,7 +236,7 @@ def check_writes(profile, results, writes, revision, version):
         f"WRITES OK settings=volume {w['Settings']['VolumeBefore']}->47,parallel {w['Settings']['ParallelBefore']}->{w['Settings']['ParallelAfter']} "
         f"pause=kept thread-tag=created,v1 conversion=store-level,v2 backup={V1_BACKUP},byte-identical,sha256={digest(v1_bytes)[:16]} {rotating_note}",
         f'READBACK OK restarts=2 tags={",".join(expected_tags)} settings=47 archive/favorites/ratings/bookmarks/watch=unchanged',
-        'PLUGINS OK ' + plugin_line,
+        'PLUGINS OK ' + plugin_line + ' chan-families=2 legacy-single-site-records=6,ownership-unique',
     ]
     return lines
 

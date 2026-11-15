@@ -10,6 +10,29 @@ against the exact exported release. Never patch old product source or hand-autho
 SQL/JSON state to make the fixture succeed. This is synthetic provider input, not
 authentic historical user/release state.
 
+## AP04 chan-family predecessor state
+
+A short released-host probe is opened with its delivered plugin inventory (not with
+injected `IImageBoard` providers) to obtain the six former single-site bundle
+observations. The actual media/profile capture stays on the released direct-provider
+path so unrelated official-plugin candidate selections do not make the current AP04
+open require a manual reselection. The six observations are then persisted through
+the released `PluginProfileStore`; no plugin-state JSON is hand-authored. The pinned
+1.0.2 inventory contains the six former single-site bundles, and the generator sets
+their persisted enabled choices to exercise the upgrade contract:
+
+* `meowchan.source.lainchan`, `leftypol`, `sushichan`, and `uboachan`: disabled;
+* `meowchan.source.wizchan` and `meowchan.source.zzzchan`: enabled.
+
+The current host must retain those old records for rollback compatibility, mark them
+as replaced, activate exactly the two delivered family bundles
+`meowchan.source.vichan` and `meowchan.source.jschan`, and write the six migrated
+site switches without registering a source twice. `check_writes.py` checks this
+across all seven starts (three observation cycles, two write modes, two readbacks),
+including the `chan-sources.json` migration markers and the unique source inventory.
+This extension still does not claim GUI, package, Windows/macOS, or release
+acceptance.
+
 ## AP04 overlay correction and preserved evidence
 
 The failed generator created `profile/exports` before `new Config { ...
@@ -34,7 +57,7 @@ had SHA256 `fabd202a944332e291479f4e5973deb761b55fb5d7ff92d3a9be7d1b319373eb`.
 Only the current versioned overlay is patched. Do not update the old source
 manifest, reuse the failed profile, delete its exports, or repair it into passing
 evidence. Export again to fresh paths so the new manifest binds the changed
-overlay; all identity/content assertions and receipt schemas remain unchanged.
+overlay; all existing identity/content assertions remain; the receipt now also records the legacy chan-plugin states.
 
 `tests/test_released102_fixture_generation.py` is a small source-contract
 regression for the new-path guard, empty pre-save setup and ordinary save before
@@ -237,7 +260,8 @@ python3 tests/fixtures/upgrade-v1.0.2/ap04_run.py --candidate-sha "$SHA" \
   2 and writes `private-tags.v1.bak`; host revalidation of loose files is therefore not exercised) and
   `readback` (two more offline restarts). Unpausing is deliberately not done: it starts the watch producers.
 * `check_writes.py` asserts: required plugins (`4chan`, `8kun`, `danbooru`) enabled and active with no
-  problem and an identical plugin state in all seven starts; written settings/queue options persisted
+  problem, the two chan families active, all six old single-site records retained as replaced, unique
+  source ownership and an identical plugin state in all seven starts; written settings/queue options persisted
   while other values survive; `saved_urls.json` unchanged; tag state readable after restart;
   `private-tags.v1.bak` byte-identical to the copy the runner took while the file was still version 1,
   unchanged after the read-backs, no temporary file left; no Danbooru file without a Danbooru write.
@@ -307,7 +331,7 @@ The manifest is reproducibility evidence, not a signed/authenticated release.
 After generation, `check.py --source ... --profile ...` also prints:
 
 ```
-RECEIPT OK synthetic=true threads=2 posts=4 favorites=2 ratings=2 bookmarks=2 files=N
+RECEIPT OK synthetic=true threads=2 posts=4 favorites=2 ratings=2 bookmarks=2 legacy-chan-plugins=6 files=N
 NOT AN AUTHENTIC USER PROFILE; NOT A MIGRATION/RESTART/RELEASE ACCEPTANCE
 ```
 
@@ -319,6 +343,8 @@ migration. Preserve the receipt independently before current-product opening.
 
 ## Fixture scope and determinism
 
+* Six released single-site chan plugin records are verified in the receipt before current opening; their
+  enabled choices are carried into the current family/site-switch migration checks.
 * Two threads: 4chan and 8kun, board g, thread 123; posts 123/124; media tim 456,
   a fixed embedded PNG, MD5 derived from those bytes. Only six exact URLs and
   GET requests are accepted (maximum 256 requests).

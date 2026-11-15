@@ -36,6 +36,23 @@ class Released102FixtureGenerationTests(unittest.TestCase):
             Directory.CreateDirectory(profile);
         '''), compact(before_config))
 
+    def test_released_inventory_seeds_chan_single_site_state_through_the_real_plugin_store(self):
+        source = GENERATOR.read_text(encoding="utf-8")
+        self.assertIn("new(probe, providers: null, pluginTransportFactory: () => probeClient)", source)
+        self.assertIn("new(profile, new IImageBoard[]", source)
+        self.assertIn("legacyStore.ApplyStartupAsync(legacyChanObservations, 0)", source)
+        for plugin_id, enabled in (
+            ("meowchan.source.lainchan", "false"),
+            ("meowchan.source.leftypol", "false"),
+            ("meowchan.source.sushichan", "false"),
+            ("meowchan.source.uboachan", "false"),
+            ("meowchan.source.wizchan", "true"),
+            ("meowchan.source.zzzchan", "true"),
+        ):
+            self.assertIn(f'["{plugin_id}"] = {enabled}', source)
+        self.assertIn("LegacyChanPlugins = LegacyChanFixture.States", source)
+        self.assertIn("legacyStore.SetEnabledAsync", source)
+
     def test_exports_are_created_only_after_the_first_ordinary_settings_save(self):
         save = "}.SaveConfig(profile);"
         self.assertEqual(1, self.setup.count(save))

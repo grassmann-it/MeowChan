@@ -4,12 +4,15 @@ using System.Text;
 using System.Text.Json;
 using MeowChan;
 using MeowChan.Archive;
-using MeowChan.Boards.FourChan;
+using MeowChan.Interfaces;
 using MeowChan.Boards.EightKun;
+using MeowChan.Boards.FourChan;
 using MeowChan.Desktop;
 using MeowChan.Favorites;
-using MeowChan.Interfaces;
 using MeowChan.Persistence;
+using MeowChan.PluginHost.Activation;
+using MeowChan.PluginHost.Configuration;
+using MeowChan.PluginSdk;
 using MeowChan.Storage;
 using MeowChan.Ratings;
 using System.Reflection;
@@ -42,8 +45,14 @@ new Config { DownloadPath = Path.Combine(profile, "media"), DownloadsPaused = tr
 Directory.CreateDirectory(Path.Combine(profile, "exports"));
 using Fixture transport = new();
 using HttpClient client = new(transport);
+PluginCandidateObservation[] legacyChanObservations = await CaptureLegacyChanObservationsAsync(profile);
 List<object> threads = new();
 List<FavoriteEntry> favorites = new();
+// Keep the captured 4chan/8kun data on the released direct-provider path. The
+// separate released plugin probe below supplies only the six legacy chan records;
+// otherwise the official plugin records would carry an absolute, release-build
+// candidate selection into the current AP04 open and require an unrelated manual
+// reselection.
 await using (DesktopSessionHost host = new(profile, new IImageBoard[] { new FourChanImageBoard(client), new EightKunImageBoard(client) }))
 {
     await host.StartAsync().WaitAsync(TimeSpan.FromSeconds(30));
@@ -74,6 +83,16 @@ await using (DesktopSessionHost host = new(profile, new IImageBoard[] { new Four
             Favorite = favorite, Export = export.Metadata });
     }
 }
+PluginProfileStore legacyStore = new(profile, ExperimentalSourceActivationPolicy.InitiallyEnabled);
+PluginProfileSnapshot oldPlugins = await legacyStore.ApplyStartupAsync(legacyChanObservations, 0);
+foreach ((string pluginId, bool enabled) in LegacyChanFixture.States)
+{
+    if (oldPlugins.Plugins.Single(plugin => plugin.PluginId == pluginId).Enabled != enabled)
+        oldPlugins = await legacyStore.SetEnabledAsync(pluginId, enabled, oldPlugins.Revision);
+}
+RequireLegacyChanPlugins(oldPlugins);
+if (oldPlugins.Plugins.Any(plugin => plugin.Active is null))
+    throw new Exception("A legacy chan plugin was not active in the released profile.");
 object inventory;
 using (ProfileLease lease = ProfileLease.Acquire(profile))
 {
@@ -153,7 +172,7 @@ foreach (string path in Fixture.EnumerateFiles(profile))
 string receiptJson = JsonSerializer.Serialize(new {
     Schema = "meowchan.synthetic-upgrade-102.v1", Synthetic = true, SourceRevision = revision, ProductVersion = productVersion,
     SourceManifestSha256 = Convert.ToHexString(SHA256.HashData(provenance)),
-    Inventory = inventory, Threads = threads, Files = owned,
+    Inventory = inventory, LegacyChanPlugins = LegacyChanFixture.States, Threads = threads, Files = owned,
     Requests = transport.Requests.OrderBy(uri => uri, StringComparer.Ordinal).ToArray(), LegacyProfileLock = File.Exists(Path.Combine(profile, ".ochan-profile.lock")),
     Protocol = File.ReadAllText(Path.Combine(profile, ".meowchan-profile.protocol")) }, new JsonSerializerOptions { WriteIndented = true });
 string pendingReceipt = Path.Combine(profile, "v102-receipt.json.pending");
@@ -165,6 +184,63 @@ using (FileStream output = new(pendingReceipt, FileMode.CreateNew, FileAccess.Wr
 }
 File.Move(pendingReceipt, Path.Combine(profile, "v102-receipt.json"));
 Console.WriteLine("SYNTHETIC PROFILE CREATED; validate receipt before use: " + profile);
+
+static async Task<PluginCandidateObservation[]> CaptureLegacyChanObservationsAsync(string profile)
+{
+    string probe = profile + ".legacy-plugin-probe";
+    if (Directory.Exists(probe) || File.Exists(probe))
+        throw new InvalidOperationException("Legacy plugin probe path already exists: " + probe);
+    Directory.CreateDirectory(probe);
+    try
+    {
+        new Config { DownloadPath = Path.Combine(probe, "media"), DownloadsPaused = true,
+            AutomaticUpdateChecks = false, SaveUrlsOnExit = true }.SaveConfig(probe);
+        using Fixture probeTransport = new();
+        using HttpClient probeClient = new(probeTransport);
+        await using DesktopSessionHost host = new(probe, providers: null, pluginTransportFactory: () => probeClient);
+        await host.StartAsync().WaitAsync(TimeSpan.FromSeconds(30));
+        if (host.State != DesktopSessionState.Ready) throw new Exception("Legacy plugin probe was not ready: " + host.StartupError);
+        PluginProfileSnapshot state = await host.Plugins!.ProfileStore.ReadAsync();
+        RequireLegacyChanPlugins(state);
+        return LegacyChanFixture.States.Keys.Select(pluginId =>
+        {
+            PluginActivationSnapshot plugin = state.Plugins.Single(item => item.PluginId == pluginId);
+            PluginCandidateSnapshot candidate = plugin.Candidates.Single(item => item.Description?.PluginId == pluginId);
+            return new PluginCandidateObservation(candidate.CandidateId, pluginId, candidate.Artifact,
+                candidate.Description, candidate.Problem, candidate.CandidatePath);
+        }).ToArray();
+    }
+    finally
+    {
+        if (Directory.Exists(probe)) Directory.Delete(probe, recursive: true);
+    }
+}
+
+static void RequireLegacyChanPlugins(PluginProfileSnapshot state)
+{
+    foreach (string pluginId in LegacyChanFixture.States.Keys)
+    {
+        PluginActivationSnapshot plugin = state.Plugins.SingleOrDefault(item => item.PluginId == pluginId)
+            ?? throw new Exception("Released profile is missing legacy chan plugin: " + pluginId);
+        PluginDescription description = plugin.Active?.Description ?? plugin.Candidates.SingleOrDefault(item => item.Description?.PluginId == pluginId)?.Description
+            ?? throw new Exception("Released profile has no legacy chan description: " + pluginId);
+        if (description.Sources.Count != 1 || description.Sources[0].SourceId != pluginId["meowchan.source.".Length..])
+            throw new Exception("Released profile has an unexpected legacy chan plugin shape: " + pluginId);
+    }
+}
+
+static class LegacyChanFixture
+{
+    internal static IReadOnlyDictionary<string, bool> States { get; } = new Dictionary<string, bool>(StringComparer.Ordinal)
+    {
+        ["meowchan.source.lainchan"] = false,
+        ["meowchan.source.leftypol"] = false,
+        ["meowchan.source.sushichan"] = false,
+        ["meowchan.source.uboachan"] = false,
+        ["meowchan.source.wizchan"] = true,
+        ["meowchan.source.zzzchan"] = true
+    };
+}
 
 sealed class Fixture : HttpMessageHandler
 {

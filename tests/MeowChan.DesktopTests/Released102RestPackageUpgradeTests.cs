@@ -149,8 +149,11 @@ public sealed class Released102RestPackageUpgradeTests(ITestOutputHelper output)
             AssertJson(thread.GetProperty("Url"), watch.GetProperty("Url"), "watch URL");
             AssertJson(thread.GetProperty("Url"), actual.GetProperty("Url"), "archive URL");
             AssertJson(thread.GetProperty("MediaDirectory"), actual.GetProperty("MediaDirectory"), "media directory identity");
-            // Released 1.0.2 already has integrity/binding fields: NO null overlays or defaults.
-            AssertJson(thread.GetProperty("Posts"), actual.GetProperty("Posts"), "every captured post/attachment/bound revision field");
+            // C18 adds nullable image dimensions to the current attachment projection. A
+            // genuinely old 1.0.2 capture has no dimensions, which must remain null rather
+            // than making this immutable-profile oracle fail on newly materialized fields.
+            AssertJson(WithLegacyAttachmentDimensions(thread.GetProperty("Posts")), actual.GetProperty("Posts"),
+                "every captured post/attachment/bound revision field");
             JsonElement asset = thread.GetProperty("Asset");
             JsonElement bytes = Assert.Single(actual.GetProperty("Assets").EnumerateArray());
             AssertJson(asset, bytes.GetProperty("Reference"), "complete manifest reference/asset identity");
@@ -311,6 +314,28 @@ public sealed class Released102RestPackageUpgradeTests(ITestOutputHelper output)
         foreach (JsonProperty property in released.EnumerateObject())
             rewritten[property.Name] = property.NameEquals("Options") ? JsonSerializer.SerializeToElement(extended) : property.Value;
         return JsonSerializer.SerializeToElement(rewritten);
+    }
+
+    private static JsonElement WithLegacyAttachmentDimensions(JsonElement posts)
+    {
+        List<JsonElement> normalizedPosts = new();
+        foreach (JsonElement post in posts.EnumerateArray())
+        {
+            Dictionary<string, JsonElement> postProperties = post.EnumerateObject()
+                .ToDictionary(property => property.Name, property => property.Value, StringComparer.Ordinal);
+            List<JsonElement> attachments = new();
+            foreach (JsonElement attachment in post.GetProperty("Attachments").EnumerateArray())
+            {
+                Dictionary<string, JsonElement> properties = attachment.EnumerateObject()
+                    .ToDictionary(property => property.Name, property => property.Value, StringComparer.Ordinal);
+                properties.TryAdd("Width", JsonSerializer.SerializeToElement((int?)null));
+                properties.TryAdd("Height", JsonSerializer.SerializeToElement((int?)null));
+                attachments.Add(JsonSerializer.SerializeToElement(properties));
+            }
+            postProperties["Attachments"] = JsonSerializer.SerializeToElement(attachments);
+            normalizedPosts.Add(JsonSerializer.SerializeToElement(postProperties));
+        }
+        return JsonSerializer.SerializeToElement(normalizedPosts);
     }
 
     private static void AssertJson(JsonElement expected, JsonElement actual, string context) =>

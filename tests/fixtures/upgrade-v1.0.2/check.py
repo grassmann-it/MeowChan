@@ -12,6 +12,14 @@ REVISION = 'eec6c0169f8d52f7481ea0bf7febfd20981e97c3'
 OVERLAY = 'tests/Upgrade102FixtureGenerator/'
 PNG = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl2nAAAAABJRU5ErkJggg==')
 URLS = {'https://boards.4chan.org/g/thread/123', 'https://8kun.top/g/res/123.html'}
+LEGACY_CHAN_STATES = {
+    'meowchan.source.lainchan': False,
+    'meowchan.source.leftypol': False,
+    'meowchan.source.sushichan': False,
+    'meowchan.source.uboachan': False,
+    'meowchan.source.wizchan': True,
+    'meowchan.source.zzzchan': True,
+}
 
 
 def require(value, message):
@@ -127,6 +135,8 @@ def main():
     for thread in threads:
         require(sorted(p['PostId'] for p in thread['Posts']) == ['123', '124'], 'post set mismatch')
         require(thread['Asset']['Length'] == len(PNG) and thread['Asset']['Sha256'].lower() == digest(PNG), 'media identity mismatch')
+    legacy = receipt.get('LegacyChanPlugins')
+    require(legacy == LEGACY_CHAN_STATES, 'legacy chan plugin state mismatch')
     inventory = receipt['Inventory']
     favorites = inventory['MediaFavorites']
     require(len(favorites) == 2 and {thread_id(f['Key']['Thread']) for f in favorites} == {'4chan', '8kun'}, 'favorites mismatch')
