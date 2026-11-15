@@ -214,7 +214,7 @@ internal static class GalleryHiddenFavoriteChecks
                 viewer.MoveRequested -= Move;
             }
 
-            Border Badge() => Find<Border>("GalleryFavoriteIndicator");
+            ToggleButton Badge() => Find<ToggleButton>("GalleryFavoriteIndicator");
             T Find<T>(string name) where T : Control => viewer.GetGalleryVisualDescendants().OfType<T>()
                 .Single(control => control.Name == name);
             async Task LayoutAsync() => await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
@@ -233,12 +233,12 @@ internal static class GalleryHiddenFavoriteChecks
             }
             void RequireBadge(bool saved, bool pending = false)
             {
-                Border badge = Badge();
-                Require(badge.IsEffectivelyVisible && !badge.IsHitTestVisible && !badge.Focusable,
-                    "Current favorite badge disappeared with controls or steals input.");
-                Require(GalleryViewer.FavoriteBadgeState(badge) == (saved, pending)
+                ToggleButton badge = Badge();
+                Require(badge.IsEffectivelyVisible && badge.IsHitTestVisible && badge.Focusable,
+                    "Current favorite badge disappeared with controls or is not operable.");
+                Require(GalleryViewer.FavoriteBadgeState(badge) == (saved, pending) && badge.IsChecked == saved
                     && (AutomationProperties.GetName(badge) ?? "").StartsWith(
-                        Texts.T(saved ? "viewer.favorite.saved" : "viewer.favorite.unsaved"), StringComparison.Ordinal),
+                        Texts.T("gallery.decision.favorite"), StringComparison.Ordinal),
                     "Current favorite glyph/accessibility label does not represent persisted truth.");
                 var origin = badge.TranslatePoint(new Point(0, 0), viewer);
                 Require(origin is { } point && point.X >= 0 && point.Y >= 0

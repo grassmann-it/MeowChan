@@ -54,6 +54,16 @@ public sealed class ShortcutBindingsSection
         using var document = JsonDocument.Parse(root.ToJsonString());
         return new(document.RootElement);
     }
+    /// <summary>Whether a saved binding belongs to a command that was removed on purpose.</summary>
+    public bool HasRetiredOverrides => Overrides.Any(p => EffectiveShortcutBindings.RetiredCommands.Contains(p.Name));
+    /// <summary>The section without the bindings of retired commands; everything else, unknown ids included, stays verbatim.</summary>
+    public ShortcutBindingsSection WithoutRetired()
+    {
+        if (!IsEditable || !HasRetiredOverrides) return this;
+        var result = this;
+        foreach (string id in EffectiveShortcutBindings.RetiredCommands) result = result.Set(id, null);
+        return result;
+    }
     public ShortcutBindingsSection ResetKnown()
     {
         var result = this;

@@ -188,7 +188,7 @@ internal static partial class GalleryToolbarLayoutChecks
     };
     private static readonly string[] Rare =
     {
-        "GalleryPlus", "GalleryMinus", "GalleryRotate", "GalleryRating", "GalleryTags", "GalleryExportOriginal", "GalleryPlaybackModeSelector",
+        "GalleryPlus", "GalleryMinus", "GalleryRotate", "GalleryTags", "GalleryExportOriginal", "GalleryPlaybackModeSelector",
         "GallerySlideshowToggle", "GalleryOverlayToggle", "GalleryPostOverlayToggle", "GalleryFullscreen", "GalleryHelp",
         "GalleryVideoRepeatToggle", "GallerySaveFrame"
     };
@@ -225,7 +225,7 @@ internal static partial class GalleryToolbarLayoutChecks
     // Every rare command is a labelled row of the menu: same instance, name, label text and (where bound) shortcut.
     private static void RequireOverflow(GalleryViewer viewer)
     {
-        string[] shortcuts = { "GalleryPlus", "GalleryMinus", "GalleryRotate", "GalleryRating", "GalleryTags", "GalleryExportOriginal", "GalleryFullscreen", "GalleryHelp" };
+        string[] shortcuts = { "GalleryPlus", "GalleryMinus", "GalleryRotate", "GalleryTags", "GalleryExportOriginal", "GalleryFullscreen", "GalleryHelp" };
         foreach (string name in Rare.Where(name => name != "GalleryPlaybackModeSelector"))
         {
             Button row = Find<Button>(viewer, name);

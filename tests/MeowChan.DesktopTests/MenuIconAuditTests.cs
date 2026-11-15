@@ -86,8 +86,6 @@ public sealed class MenuIconAuditTests : IDisposable
             Assert.True(CommandCatalog.Get(id).Icon == "star", id);
         Assert.Equal("star-filled", CommandCatalog.IconForState("favorites.toggle", "marked"));
         Assert.NotEqual(CommandCatalog.Get("favorites.toggle").Icon, CommandCatalog.Get("media.rating.edit").Icon);
-        // The gallery's rating button shows the command's icon, not a star of its own.
-        Assert.Contains("NamedIcon(CommandCatalog.Get(\"media.rating.edit\").Icon, 16)", File.ReadAllText(Root("Desktop/GalleryViewer.cs")), StringComparison.Ordinal);
         // Deleting (not removing from a list) is the circled cross everywhere.
         foreach (string id in new[] { "archive.delete-permanently", "reader-groups.delete", "archive.saved-searches.delete", "rules.delete", "rules.template-delete" })
             Assert.True(CommandCatalog.Get(id).Icon == "x-circle", id);

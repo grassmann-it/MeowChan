@@ -42,8 +42,9 @@ public partial class ArchivePage
             _ratingCommands?.Dispose(); _ratingCommands = new(pane);
             bool Ready() => !_ended && _available && _mediaRatingError == null && FocusedRatingEntry() is { } entry
                 && CanChangeMediaRating?.Invoke(FavoriteAssetKey.From(entry.Key.Thread, entry.Asset)) == true;
+            // R opens the rating menu on the focused file (the stars and "Remove rating"); the keys below rate it directly.
             _ratingCommands.Register(new("media.rating.edit", pane, () => pane.IsEffectivelyVisible, Ready,
-                () => _ = ExecuteRatingCommandAsync(null, edit: true), Priority: 100));
+                () => OpenFocusedRatingMenu(), Priority: 100));
             _ratingCommands.Register(new("media.rating.clear", pane, () => pane.IsEffectivelyVisible, Ready,
                 () => _ = ExecuteRatingCommandAsync(null), Priority: 100));
             for (int value = 1; value <= 5; value++)
@@ -56,15 +57,21 @@ public partial class ArchivePage
         pane.DetachedFromVisualTree += (_, _) => { _ratingCommands?.Dispose(); _ratingCommands = null; };
         pane.KeyDown += (_, e) => _ratingCommands?.Route(e);
     }
-    private async Task ExecuteRatingCommandAsync(int? value, bool edit = false)
+    private void OpenFocusedRatingMenu()
+    {
+        if (FocusedRatingEntry() is not { } entry) return;
+        Control? focused = TopLevel.GetTopLevel(ArchiveReaderPane)?.FocusManager?.GetFocusedElement() as Control;
+        // The focused control is the anchor, unless it is the toolbar's own (reduced) rating button: then the A19 fallback applies.
+        OpenRatingMenu(entry, focused is { IsEffectivelyVisible: true } && !ReferenceEquals(focused, ArchiveEditRatingButton) ? focused : RatingMenuAnchor(ArchiveEditRatingButton));
+    }
+    private async Task ExecuteRatingCommandAsync(int? value)
     {
         GalleryEntry? entry = FocusedRatingEntry();
         if (entry == null) return;
         Action<string> reportError = CaptureActionErrorReporter();
         try
         {
-            if (edit && EditMediaRatingAsync != null) await EditMediaRatingAsync(entry);
-            else if (!edit && SetMediaRatingAsync != null) await SetMediaRatingAsync(FavoriteAssetKey.From(entry.Key.Thread, entry.Asset), value);
+            if (SetMediaRatingAsync != null) await SetMediaRatingAsync(FavoriteAssetKey.From(entry.Key.Thread, entry.Asset), value);
         }
         catch (Exception error) { reportError(error.Message); }
     }

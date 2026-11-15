@@ -47,7 +47,7 @@ public sealed class MediaBadgeTests : IDisposable
             [MediaBadgeCorner.TopRight, MediaBadgeCorner.TopLeft, MediaBadgeCorner.Center, MediaBadgeCorner.BottomLeft,
              MediaBadgeCorner.TopRight, MediaBadgeCorner.BottomRight, MediaBadgeCorner.TopLeft, MediaBadgeCorner.TopRight],
             badges.Select(badge => badge.Corner));
-        Assert.Equal(["x-circle", "star-filled", null, null, "clipboard", "tag", "star", "globe"], badges.Select(badge => badge.Icon));
+        Assert.Equal(["x-circle", "star-filled", null, null, "clipboard", "tag", "star-half", "globe"], badges.Select(badge => badge.Icon));
         Assert.Equal([null, null, null, "0:42", null, "3", "4", null], badges.Select(badge => badge.Label));
     }
 

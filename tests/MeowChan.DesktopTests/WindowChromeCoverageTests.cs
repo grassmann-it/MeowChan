@@ -214,7 +214,6 @@ public sealed class WindowChromeCoverageTests
 
     // Windows on the dialog factory (modals plan MD1) state modal or modeless; a modal one gets the Dialog caption there.
     [Theory]
-    [InlineData("Desktop/MediaRatingDialog.cs", true)]
     [InlineData("Desktop/Views/Collections/PostBookmarksDialog.axaml.cs", true)]
     [InlineData("Desktop/Views/Collections/ReaderGroupsDialog.axaml.cs", true)]
     [InlineData("Desktop/Views/Collections/SavedArchiveSearchesDialog.axaml.cs", true)]

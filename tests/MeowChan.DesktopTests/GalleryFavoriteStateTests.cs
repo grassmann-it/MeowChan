@@ -289,23 +289,23 @@ public sealed class GalleryFavoriteStateTests
     }
 
     [Fact]
-    public void FavoriteIndicatorFactoryCreatesTinyPassiveNonFocusableArtwork()
+    public void FavoriteIndicatorFactoryCreatesAFocusableToggleWithPassiveArtwork()
     {
-        Border badge = GalleryViewer.CreateFavoriteIndicator("GalleryFavoriteIndicator");
+        ToggleButton badge = GalleryViewer.CreateFavoriteIndicator("GalleryFavoriteIndicator");
         Assert.Equal("GalleryFavoriteIndicator", badge.Name);
-        Assert.False(badge.IsHitTestVisible);
-        Assert.False(badge.Focusable);
+        // Review 15.11.: the badge is a real toggle (pointer, Tab, Space and Enter), only its artwork is passive.
+        Assert.True(badge.IsHitTestVisible);
+        Assert.True(badge.Focusable);
+        Assert.Contains("gallery-favorite-badge", badge.Classes);
         Assert.False(badge.IsVisible);
         Assert.Equal(HorizontalAlignment.Left, badge.HorizontalAlignment);
         Assert.Equal(VerticalAlignment.Top, badge.VerticalAlignment);
         Assert.Equal(new Thickness(12), badge.Margin);
-        Assert.Equal(new Thickness(8, 4), badge.Padding);
         // As high as the way back beside it and at least a square of that size: the Workspace.Size.Control token, bound dynamically.
         Assert.NotNull(badge.GetBindingObservable(Layoutable.HeightProperty));
         Assert.NotNull(badge.GetBindingObservable(Layoutable.MinWidthProperty));
-        Assert.NotNull(badge.GetBindingObservable(Border.CornerRadiusProperty));
         Assert.Equal(16, badge.ZIndex);
-        StackPanel glyph = Assert.IsType<StackPanel>(badge.Child);
+        StackPanel glyph = Assert.IsType<StackPanel>(badge.Content);
         Assert.False(glyph.IsHitTestVisible);
         Assert.False(glyph.Focusable);
         // A drawn star (not a font glyph) and a pending "…" that starts hidden.
@@ -322,9 +322,9 @@ public sealed class GalleryFavoriteStateTests
     [Fact]
     public void FavoriteIndicatorSitsTopLeftDirectlyRightOfTheWayBack()
     {
-        Border badge = GalleryViewer.CreateFavoriteIndicator("GalleryFavoriteIndicator");
+        ToggleButton badge = GalleryViewer.CreateFavoriteIndicator("GalleryFavoriteIndicator");
 
-        // The top left edge belongs to the gallery's way back (Tom's rule of 14.11.); the passive badge sits directly right of it
+        // The top left edge belongs to the gallery's way back (Tom's rule of 14.11.); the badge sits directly right of it
         // (UpdateFavoriteIndicators sets the margin from the button's width) and the post panel starts below that row where it reaches it.
         Assert.Equal(HorizontalAlignment.Left, badge.HorizontalAlignment);
         Assert.Equal(VerticalAlignment.Top, badge.VerticalAlignment);
@@ -349,7 +349,7 @@ public sealed class GalleryFavoriteStateTests
     {
         var h = new IndicatorFixture();
         Assert.NotSame(h.Managed, h.Native);
-        Assert.NotSame(h.Managed.Child, h.Native.Child);
+        Assert.NotSame(h.Managed.Content, h.Native.Content);
         Assert.Equal("GalleryFavoriteIndicator", h.Managed.Name);
         Assert.Equal("GalleryNativeFavoriteIndicator", h.Native.Name);
         Assert.NotEqual(h.Managed.Name, h.Native.Name);
@@ -474,10 +474,9 @@ public sealed class GalleryFavoriteStateTests
 
     private static void AssertArtwork(IndicatorFixture h, bool saved, bool pending)
     {
-        string state = Texts.T(saved ? "viewer.favorite.saved" : "viewer.favorite.unsaved");
-        foreach (Border badge in new[] { h.Managed, h.Native })
+        foreach (ToggleButton badge in new[] { h.Managed, h.Native })
         {
-            StackPanel glyph = Assert.IsType<StackPanel>(badge.Child);
+            StackPanel glyph = Assert.IsType<StackPanel>(badge.Content);
             Assert.Equal((saved, pending), GalleryViewer.FavoriteBadgeState(badge));
             Avalonia.Controls.Shapes.Path star = Assert.IsType<Avalonia.Controls.Shapes.Path>(glyph.Children[0]);
             Assert.Equal(saved ? Colors.Gold : Colors.White,
@@ -485,11 +484,13 @@ public sealed class GalleryFavoriteStateTests
             Assert.Equal(saved, star.Fill is ISolidColorBrush { Color.A: > 0 });
             string? label = AutomationProperties.GetName(badge);
             Assert.False(string.IsNullOrWhiteSpace(label));
-            Assert.Contains(state, label!);
+            Assert.StartsWith(Texts.T("gallery.decision.favorite"), label!); // the toggle state (checked), not the name, says saved or not
             Assert.Equal(pending, label!.Contains('…'));
-            Assert.Equal(label, AutomationProperties.GetName(glyph));
-            Assert.False(badge.IsHitTestVisible);
-            Assert.False(badge.Focusable);
+            Assert.Equal(saved, badge.IsChecked);
+            Assert.False(glyph.IsHitTestVisible);
+            Assert.True(badge.IsHitTestVisible);
+            Assert.True(badge.Focusable);
+            Assert.True(badge.IsEnabled); // never disabled while saving: the focus must stay where it is
         }
     }
 
@@ -565,8 +566,8 @@ public sealed class GalleryFavoriteStateTests
     {
         internal GalleryViewer Viewer { get; } = (GalleryViewer)RuntimeHelpers.GetUninitializedObject(typeof(GalleryViewer));
         internal ToggleButton Button { get; } = new();
-        internal Border Managed { get; } = GalleryViewer.CreateFavoriteIndicator("GalleryFavoriteIndicator");
-        internal Border Native { get; } = GalleryViewer.CreateFavoriteIndicator("GalleryNativeFavoriteIndicator");
+        internal ToggleButton Managed { get; } = GalleryViewer.CreateFavoriteIndicator("GalleryFavoriteIndicator");
+        internal ToggleButton Native { get; } = GalleryViewer.CreateFavoriteIndicator("GalleryNativeFavoriteIndicator");
         internal Grid ManagedRoot { get; } = new() { RowDefinitions = new RowDefinitions("*,Auto,Auto") };
         internal Grid NativeRoot { get; } = new();
         internal IndicatorFixture()

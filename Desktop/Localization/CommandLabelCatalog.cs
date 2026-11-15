@@ -24,7 +24,7 @@ internal static class CommandLabelCatalog
         ("command.media.focus-mode", "Focus mode", "Fokusmodus"),
         ("command.media.tile-size.larger", "Larger tiles", "Größere Kacheln"),
         ("command.media.tile-size.smaller", "Smaller tiles", "Kleinere Kacheln"),
-        ("command.media.rating.edit", "Edit rating…", "Bewertung bearbeiten…"),
+        ("command.media.rating.edit", "Rating", "Bewertung"),
         ("command.media.rating.clear", "Remove rating", "Bewertung entfernen"),
         ("command.media.rating.manage", "Manage saved ratings…", "Gespeicherte Bewertungen verwalten…"),
         ("command.media.rating.remove-selected", "Remove selected rating…", "Ausgewählte Bewertung entfernen…"),

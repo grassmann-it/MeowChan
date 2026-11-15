@@ -424,7 +424,6 @@ public sealed class HelpDocumentationTests
     }
 
     [Theory]
-    [InlineData("gallery.toolbar.rating", Presence.Overflow, Presence.Direct, Presence.Direct, "rating, media tags and slideshow controls are under More in Barebones and on the toolbar from Simple on")]
     [InlineData("gallery.toolbar.tags", Presence.Overflow, Presence.Direct, Presence.Direct, "rating, media tags and slideshow controls are under More in Barebones and on the toolbar from Simple on")]
     [InlineData("gallery.toolbar.slideshow", Presence.Overflow, Presence.Direct, Presence.Direct, "A chosen or running slideshow keeps its toggle on the toolbar even in Barebones")]
     // E2 (QW4): the playback mode left the bar in every view; the phrases are the parts of docs/Help.md that name each row.

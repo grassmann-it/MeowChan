@@ -22,6 +22,9 @@ namespace MeowChan
 {
     public partial class SettingsEditor : UserControl, INotifyPropertyChanged, IShortcutDraftHost
     {
+        /// <summary>The limits of the tag panel's suggestion box, read by the XAML so it never repeats the numbers (the Config constants are internal).</summary>
+        public static decimal QuickTagPanelSuggestionLimitMinimum => Config.QuickTagPanelSuggestionLimitMinimum;
+        public static decimal QuickTagPanelSuggestionLimitMaximum => Config.QuickTagPanelSuggestionLimitMaximum;
         public static IMultiValueConverter NumericActionNameConverter { get; } =
             new FuncMultiValueConverter<object?, string>((IReadOnlyList<object?> values) =>
                 values.Count == 2 && values[0] is string format && values[1] is string field
@@ -1661,7 +1664,7 @@ namespace MeowChan
                 bool rebindingChoice = _refreshingLanguageLabels && propertyName is
                     nameof(SelectedTheme) or nameof(SelectedAnimations) or nameof(SelectedWorkspaceMode) or nameof(SelectedLanguage) or
                     nameof(SelectedReadingFontSize) or nameof(SelectedReaderPostWidth) or nameof(SelectedGalleryPlaybackMode) or nameof(SelectedStatsHeaderGraph) or nameof(SelectedHeaderTagline) or nameof(SelectedHeaderTaglineFixed) or nameof(SelectedReaderDateStyle) or nameof(SelectedReaderSpoilers) or nameof(SelectedGalleryFitUpscale)
-                    or nameof(SelectedGallerySlideshowVideoRule) or nameof(SelectedReaderMediaSidebarSide) or nameof(SelectedReaderMediaSidebarScope) or nameof(SelectedReaderMediaClick) or nameof(SelectedReaderNavigationMode)
+                    or nameof(SelectedGallerySlideshowVideoRule) or nameof(SelectedReaderMediaSidebarSide) or nameof(SelectedReaderMediaSidebarScope) or nameof(SelectedReaderMediaClick) or nameof(SelectedReaderNavigationMode) or nameof(SelectedGalleryFilmstripFlagUntagged)
                     or nameof(SelectedTaggingCard1) or nameof(SelectedTaggingCard2) or nameof(SelectedTaggingCard3) or nameof(SelectedTaggingCard4) or nameof(SelectedTaggingCard5);
                 if (!rebindingChoice && propertyName is not (nameof(IsBusy) or nameof(ErrorMessage) or nameof(ErrorDetails) or nameof(StatusMessage)))
                 {

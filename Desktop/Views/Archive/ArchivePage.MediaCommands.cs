@@ -237,7 +237,8 @@ public partial class ArchivePage
             InGallerySequence = galleryTarget != null,
             Favorite = favorite == null ? MediaMenuFavorite.Unknown : favorite == true ? MediaMenuFavorite.On : MediaMenuFavorite.Off,
             FavoriteWired = ToggleArchiveFavoriteAsync != null,
-            RatingWired = EditMediaRatingAsync != null,
+            RatingWired = SetMediaRatingAsync != null && target != null && CanChangeMediaRating?.Invoke(FavoriteAssetKey.From(threadId, target.Asset)) != false,
+            Rating = target == null ? null : CurrentMediaRating(FavoriteAssetKey.From(threadId, target.Asset)),
             RatingBlocked = _mediaRatingError,
             TagsWired = EditArchiveMediaTagsAsync != null || TagPopoverAsync != null,
             TagsBlocked = tagsBlocked,
@@ -264,7 +265,6 @@ public partial class ArchivePage
                     await OpenMediaGallery(galleryEntries, galleryTarget.EntryKey, origin);
             },
             [MediaMenuAction.Favorite] = async () => { if (target != null) await ToggleArchiveMediaFavoriteAsync(target); },
-            [MediaMenuAction.Rating] = async () => { if (target != null && EditMediaRatingAsync != null) await EditMediaRatingAsync(target); },
             [MediaMenuAction.Tags] = async () =>
             {
                 // A file that cannot be tagged gets the reason as text in the popover; a taggable one the tag popover on its tile.
@@ -335,7 +335,10 @@ public partial class ArchivePage
             context.Add(MediaMenuBuilder.ContextItem(session, "media.selection.clear", () => { ClearMediaSelection(); return Task.CompletedTask; },
                 () => true, Run, icon: "x"));
         }
-        ContextMenu menu = MediaMenuBuilder.Build(session, model, handlers, Run, context, text => Message(text), PlaybackMenuItems(playback, session, Run));
+        // The "Rating" submenu rates the file the menu opened on; a failed write is reported on this thread like the other menu actions.
+        Func<int?, Task>? rate = target == null || SetMediaRatingAsync == null ? null
+            : value => SetMediaRatingAsync(FavoriteAssetKey.From(threadId, target.Asset), value);
+        ContextMenu menu = MediaMenuBuilder.Build(session, model, handlers, Run, context, text => Message(text), PlaybackMenuItems(playback, session, Run), rate);
         return (menu, session);
     }
 

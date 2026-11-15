@@ -776,6 +776,50 @@ public sealed class ConfigTests
     }
 
     [Fact]
+    public void ARevisionOneFileKeepsA270ListWidthThroughLoadCloneCopyAndSaveWhileAnOldFileMovesOnceAndIsStampedOnSave()
+    {
+        Assert.Equal(1, new Config().PreferenceDefaultsRevision);
+        const string old = "{\"LayoutProfiles\":{\"Barebones\":{\"ArchiveSplitWidth\":270},\"Advanced\":{\"ArchiveSplitWidth\":270}}}";
+        using (TempDirectory directory = new())
+        {
+            File.WriteAllText(SettingsPath(directory), old);
+            Config loaded = Config.LoadConfig(directory.Path);
+            Assert.Equal(1, loaded.PreferenceDefaultsRevision);
+            Assert.Equal(330d, loaded.GetLayoutProfile("Barebones").ArchiveSplitWidth);
+            Assert.Equal(330d, loaded.GetLayoutProfile("Advanced").ArchiveSplitWidth);
+            // The person drags it back to 270 (keyboard steps of 10): neither a clone nor a save nor the next load may move it again.
+            loaded.GetLayoutProfile("Barebones").ArchiveSplitWidth = 270;
+            Config copy = new();
+            copy.CopyFrom(loaded.Clone());
+            Assert.Equal(270d, loaded.Clone().GetLayoutProfile("Barebones").ArchiveSplitWidth);
+            Assert.Equal(270d, copy.GetLayoutProfile("Barebones").ArchiveSplitWidth);
+            loaded.SaveConfig();
+            using (JsonDocument saved = JsonDocument.Parse(File.ReadAllText(SettingsPath(directory))))
+                Assert.Equal(1, saved.RootElement.GetProperty("PreferenceDefaultsRevision").GetInt32());
+            Config again = Config.LoadConfig(directory.Path);
+            Assert.Equal(270d, again.GetLayoutProfile("Barebones").ArchiveSplitWidth);
+            Assert.Equal(330d, again.GetLayoutProfile("Advanced").ArchiveSplitWidth);
+        }
+        foreach (string json in new[]
+        {
+            "{\"PreferenceDefaultsRevision\":1,\"LayoutProfiles\":{\"Barebones\":{\"ArchiveSplitWidth\":270}}}",
+            "{\"LayoutProfiles\":{\"Barebones\":{\"ArchiveSplitWidth\":270}},\"PreferenceDefaultsRevision\":1}",
+        })
+        {
+            using TempDirectory directory = new();
+            File.WriteAllText(SettingsPath(directory), json);
+            Assert.Equal(270d, Config.LoadConfig(directory.Path).GetLayoutProfile("Barebones").ArchiveSplitWidth);
+        }
+    }
+
+    [Fact]
+    public void TheSettingsBoxOfThePanelSuggestionLimitReadsTheConfigConstants()
+    {
+        Assert.Equal((decimal)Config.QuickTagPanelSuggestionLimitMinimum, SettingsEditor.QuickTagPanelSuggestionLimitMinimum);
+        Assert.Equal((decimal)Config.QuickTagPanelSuggestionLimitMaximum, SettingsEditor.QuickTagPanelSuggestionLimitMaximum);
+    }
+
+    [Fact]
     public void AnUnsavedArchiveListWidthIsTheNewDefaultAndAnExplicitChoiceOfThePreviousDefaultSurvivesTheSession()
     {
         using TempDirectory directory = new();

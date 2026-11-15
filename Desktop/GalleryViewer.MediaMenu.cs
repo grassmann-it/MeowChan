@@ -55,8 +55,9 @@ internal sealed partial class GalleryViewer
             Present = true,
             Favorite = _favoriteSelected ? MediaMenuFavorite.On : MediaMenuFavorite.Off,
             FavoriteWired = FavoriteToggleRequested != null && !_terminalRetirement,
-            RatingWired = RatingEditRequested != null,
-            RatingKnown = _ratingButton.IsEnabled,
+            RatingWired = RatingSetRequested != null,
+            RatingKnown = _ratingAvailable,
+            Rating = _ratingValue,
             TagsWired = TagsRequested != null,
             TagsBlocked = _tagNames == null ? _tagsUnavailableReason ?? MediaMenuReasons.TagsUnknown
                 : CanRequestFavorite ? null : MediaMenuReasons.Unavailable,
@@ -87,7 +88,6 @@ internal sealed partial class GalleryViewer
         Dictionary<MediaMenuAction, Func<Task>> handlers = new()
         {
             [MediaMenuAction.Favorite] = Sync(() => FavoriteToggleRequested?.Invoke(entry)),
-            [MediaMenuAction.Rating] = Sync(() => RatingEditRequested?.Invoke(entry)),
             [MediaMenuAction.Tags] = Sync(() => { PauseSlideshow(); TagsRequested?.Invoke(entry); }),
             [MediaMenuAction.Queue] = Sync(() => QueueRequested?.Invoke(entry)),
             [MediaMenuAction.Export] = Sync(() => ExportOriginalRequested?.Invoke(entry)),
@@ -109,8 +109,9 @@ internal sealed partial class GalleryViewer
         if (ReaderPlaybackMenu.GalleryExtras.OffersPostBookmark(entry.Post != null))
             context = new() { MediaMenuBuilder.PostBookmarkItem(session, Sync(() => RequestPostBookmark(entry)),
                 () => !_terminalRetirement && PostBookmarkRequested != null, run) };
+        // The "Rating" submenu rates the frozen entry (the medium the menu opened on), never the marked media of the tag panel.
         ContextMenu menu = MediaMenuBuilder.Build(session, model, handlers, run, context,
-            text => MenuExplanationRequested?.Invoke(text), playback);
+            text => MenuExplanationRequested?.Invoke(text), playback, value => Sync(() => RatingSetRequested?.Invoke(entry, value))());
         Control owner = _nativeOverlayActive ? _nativeVideoOverlay : _viewport;
         menu.Opened += (_, _) => RefreshPlaybackControls();
         menu.Closed += (_, _) => RefreshPlaybackControls();

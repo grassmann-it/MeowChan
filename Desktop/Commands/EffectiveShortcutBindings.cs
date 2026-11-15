@@ -116,6 +116,13 @@ public sealed class EffectiveShortcutBindings
     /// <summary>Revision of the default table. Raise it, and list the command in
     /// <see cref="DefaultChangedInRevision"/>, whenever a default gesture is added to or changed on a command.</summary>
     public const int DefaultsRevision = 19;
+    /// <summary>Command ids that existed in an earlier build and were removed on purpose (the previous/next media-panel keys).
+    /// A saved binding for one is dead data, not a typo: <see cref="Build"/> skips it without an issue and the next save drops it
+    /// (<see cref="ShortcutBindingsSection.WithoutRetired"/>). A truly unknown id is still reported and kept. The defaults revision does not change.</summary>
+    internal static readonly IReadOnlySet<string> RetiredCommands = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "media.panel.previous", "media.panel.next",
+    };
     /// <summary>Commands whose default gesture set was introduced or changed after profiles with saved
     /// bindings may already exist, with the revision that did it. A new default on such a command yields to
     /// a saved binding of another command instead of silencing both; entries are never removed because a
@@ -402,7 +409,12 @@ public sealed class EffectiveShortcutBindings
             var entries = section.Overrides.ToArray();
             foreach (var entry in entries)
             {
-                if (!values.ContainsKey(entry.Name)) { issues.Add(ShortcutIssue.FromReason(entry.Name, new("unknownAction", "Unknown action retained / Unbekannte Aktion erhalten"), blocksSave: false)); continue; }
+                if (!values.ContainsKey(entry.Name))
+                {
+                    if (RetiredCommands.Contains(entry.Name)) continue;
+                    issues.Add(ShortcutIssue.FromReason(entry.Name, new("unknownAction", "Unknown action retained / Unbekannte Aktion erhalten"), blocksSave: false));
+                    continue;
+                }
                 values[entry.Name] = Array.Empty<ShortcutGesture>();
                 try
                 {
@@ -514,7 +526,7 @@ public sealed class EffectiveShortcutBindings
         // page and the gallery, the folder of the shown medium (media.show-in-folder). Neither claims the other's page.
         if (id == "location.open-folder") return new[] { "archive", "dialog", "downloads" };
         if (id == "media.rating.clear" || id.StartsWith("media.rating.set-", StringComparison.Ordinal))
-            return new[] { "media", "reader", "gallery", "dialog:media-rating" };
+            return new[] { "media", "reader", "gallery" };
         if (id.StartsWith("navigation.") || id is "session.pause" or "window.fullscreen" or "input.focus-url" or "viewer.shortcut-help" or "workspace.view-cycle") return new[] { "shell" };
         // The large reader owns thread find; the archive search box is not reachable from it.
         if (id is "reader.find" or "reader.find-next" or "reader.find-previous") return new[] { "large-reader" };
@@ -525,7 +537,6 @@ public sealed class EffectiveShortcutBindings
         {
             string family = id.StartsWith("archive.saved-searches.", StringComparison.Ordinal) ? "saved-searches"
                 : id.StartsWith("post-bookmarks.", StringComparison.Ordinal) ? "post-bookmarks"
-                : id.StartsWith("media.rating.", StringComparison.Ordinal) ? "media-rating"
                 : id.Split('.')[0];
             return new[] { "dialog:" + family };
         }

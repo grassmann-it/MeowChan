@@ -890,6 +890,36 @@
                         </StackPanel>
                         </Grid>
                     </Border>
+                    <!-- Filmstrip flags (decision 123): what a filmstrip tile shows besides the length: favourite, rating, no tags yet. -->
+                    <Border Classes="settings-divider">
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                            <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                <TextBlock x:Name="GalleryFilmstripFlagFavoriteFieldLabel" Text="{Binding GalleryFilmstripFlagFavoriteLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding GalleryFilmstripFlagFavoriteHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <ToggleSwitch x:Name="GalleryFilmstripFlagFavoriteInput" IsChecked="{Binding GalleryFilmstripFlagFavorite, Mode=TwoWay}" AutomationProperties.Name="{Binding GalleryFilmstripFlagFavoriteLabel}" AutomationProperties.HelpText="{Binding GalleryFilmstripFlagFavoriteHint}" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center" OnContent="{x:Null}" OffContent="{x:Null}" AutomationProperties.LabeledBy="{Binding ElementName=GalleryFilmstripFlagFavoriteFieldLabel}" />
+                        </Grid>
+                    </Border>
+                    <Border Classes="settings-divider">
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                            <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                <TextBlock x:Name="GalleryFilmstripFlagRatingFieldLabel" Text="{Binding GalleryFilmstripFlagRatingLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding GalleryFilmstripFlagRatingHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <ToggleSwitch x:Name="GalleryFilmstripFlagRatingInput" IsChecked="{Binding GalleryFilmstripFlagRating, Mode=TwoWay}" AutomationProperties.Name="{Binding GalleryFilmstripFlagRatingLabel}" AutomationProperties.HelpText="{Binding GalleryFilmstripFlagRatingHint}" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center" OnContent="{x:Null}" OffContent="{x:Null}" AutomationProperties.LabeledBy="{Binding ElementName=GalleryFilmstripFlagRatingFieldLabel}" />
+                        </Grid>
+                    </Border>
+                    <Border Classes="settings-divider">
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                            <StackPanel VerticalAlignment="Center" Spacing="{StaticResource Workspace.Space.4}" Classes="settings-label">
+                                <TextBlock x:Name="GalleryFilmstripFlagUntaggedFieldLabel" Text="{Binding GalleryFilmstripFlagUntaggedLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding GalleryFilmstripFlagUntaggedHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <ComboBox x:Name="GalleryFilmstripFlagUntaggedInput" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Stretch" ItemsSource="{Binding GalleryFilmstripFlagUntaggedChoices}" SelectedItem="{Binding SelectedGalleryFilmstripFlagUntagged, Mode=TwoWay}" AutomationProperties.LabeledBy="{Binding ElementName=GalleryFilmstripFlagUntaggedFieldLabel}" AutomationProperties.Name="{Binding GalleryFilmstripFlagUntaggedLabel}" AutomationProperties.HelpText="{Binding GalleryFilmstripFlagUntaggedHint}">
+                                <ComboBox.ItemTemplate><DataTemplate x:DataType="local:SettingsChoice"><TextBlock Text="{Binding Label}" TextWrapping="Wrap" /></DataTemplate></ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </Grid>
+                    </Border>
                     <Border Classes="settings-divider">
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
                             <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
@@ -1907,7 +1937,7 @@
                                 <TextBlock Text="{Binding QuickTagPanelSuggestionLimitHint}" Classes="workspace-help" TextWrapping="Wrap" />
                             </StackPanel>
                             <StackPanel Grid.Column="1" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
-                                <desktop:SettingsNumberInput x:Name="QuickTagPanelSuggestionLimitInput" Value="{Binding QuickTagPanelSuggestionLimit, Mode=TwoWay}" Minimum="9" Maximum="200" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=QuickTagPanelSuggestionLimitFieldLabel}" AutomationProperties.Name="{Binding QuickTagPanelSuggestionLimitLabel}" AutomationProperties.HelpText="{Binding QuickTagPanelSuggestionLimitHelp}" />
+                                <desktop:SettingsNumberInput x:Name="QuickTagPanelSuggestionLimitInput" Value="{Binding QuickTagPanelSuggestionLimit, Mode=TwoWay}" Minimum="{x:Static local:SettingsEditor.QuickTagPanelSuggestionLimitMinimum}" Maximum="{x:Static local:SettingsEditor.QuickTagPanelSuggestionLimitMaximum}" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=QuickTagPanelSuggestionLimitFieldLabel}" AutomationProperties.Name="{Binding QuickTagPanelSuggestionLimitLabel}" AutomationProperties.HelpText="{Binding QuickTagPanelSuggestionLimitHelp}" />
                                 <TextBlock x:Name="QuickTagPanelSuggestionLimitInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                         </Grid>

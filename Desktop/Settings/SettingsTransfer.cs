@@ -78,6 +78,8 @@ public static class SettingsTransfer
         Config snapshot = new()
         {
             SchemaVersion = source.SchemaVersion,
+            // An export carries its own defaults revision, so an import migrates the file by what it was written with.
+            PreferenceDefaultsRevision = source.PreferenceDefaultsRevision,
             DownloadPath = source.DownloadPath,
             RecheckTimer = source.RecheckTimer,
             SaveUrlsOnExit = source.SaveUrlsOnExit,
@@ -183,6 +185,9 @@ public static class SettingsTransfer
             GalleryLayout = source.GalleryLayout, // GL4: the layout choice of both modes travels with the profile settings
             GalleryFilmstripHeight = source.GalleryFilmstripHeight,
             GalleryFilmstripTileGap = source.GalleryFilmstripTileGap,
+            GalleryFilmstripFlagFavorite = source.GalleryFilmstripFlagFavorite,
+            GalleryFilmstripFlagRating = source.GalleryFilmstripFlagRating,
+            GalleryFilmstripFlagUntagged = source.GalleryFilmstripFlagUntagged,
             GalleryFilmstripPreload = source.GalleryFilmstripPreload,
             GalleryVideoSeekStepSeconds = source.GalleryVideoSeekStepSeconds,
             MediaBadgeCollapseBelow = source.MediaBadgeCollapseBelow,

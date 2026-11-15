@@ -248,8 +248,10 @@ public sealed class QuickTagLimitSettingsTests
             Assert.Contains(field.Ancestors(), e => ReferenceEquals(e, group));
             Assert.DoesNotContain(field.Ancestors(), e => ReferenceEquals(e, expander));
             Assert.Equal("{Binding " + property + ", Mode=TwoWay}", (string?)field.Attribute("Value"));
-            Assert.Equal(minimum.ToString(), (string?)field.Attribute("Minimum"));
-            Assert.Equal(maximum.ToString(), (string?)field.Attribute("Maximum"));
+            // The panel's suggestion box binds the Config limits through SettingsEditor instead of repeating the numbers.
+            bool bound = property == "QuickTagPanelSuggestionLimit";
+            Assert.Equal(bound ? "{x:Static local:SettingsEditor." + property + "Minimum}" : minimum.ToString(), (string?)field.Attribute("Minimum"));
+            Assert.Equal(bound ? "{x:Static local:SettingsEditor." + property + "Maximum}" : maximum.ToString(), (string?)field.Attribute("Maximum"));
             Assert.Equal("{Binding ElementName=" + property + "FieldLabel}", (string?)field.Attribute("AutomationProperties.LabeledBy"));
             Assert.Equal("{Binding " + property + "Label}", (string?)field.Attribute("AutomationProperties.Name"));
             Assert.Equal("{Binding " + property + "Help}", (string?)field.Attribute("AutomationProperties.HelpText"));

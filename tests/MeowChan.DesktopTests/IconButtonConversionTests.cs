@@ -167,7 +167,6 @@ public sealed class IconButtonConversionTests
         { "Desktop/Views/Collections/SavedArchiveSearchesDialog.axaml.cs", "WithText(Button(\"SavedSearchReload\"), \"refresh-cw\")", "refresh-cw" },
         { "Desktop/Views/Collections/TagManagerDialog.cs", "WithText(_rename, \"edit-2\")", "edit-2" },
         { "Desktop/Views/Collections/MediaTagDialog.cs", "WithText(_add, \"plus\")", "plus" },
-        { "Desktop/MediaRatingDialog.cs", "WithText(_retry, \"refresh-cw\")", "refresh-cw" },
     };
 
     [Theory, MemberData(nameof(ConvertedButtons))]
@@ -186,7 +185,6 @@ public sealed class IconButtonConversionTests
         Assert.DoesNotContain("WithText(_confirm", cleanup);
         Assert.DoesNotContain("WithText(discard", ReadSource("Desktop/Views/Archive/MediaConflictsDialog.cs"));
         Assert.DoesNotContain("WithText(_delete", ReadSource("Desktop/Views/Collections/TagManagerDialog.cs"));
-        Assert.DoesNotContain("WithText(_clear", ReadSource("Desktop/MediaRatingDialog.cs"));
     }
 
     // Every literal icon a product file hands to the icon-before-text / icon-only helpers is a file of the mask catalog.

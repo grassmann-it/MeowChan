@@ -5,6 +5,7 @@ using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
@@ -156,24 +157,13 @@ internal static partial class MediaPageChecks
             await UntilAsync(() => favorite.IsEffectivelyEnabled);
             favorite.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await UntilAsync(() => session.GetFavorites().Count == 1);
-            Button rating = viewer.GetGalleryVisualDescendants().OfType<Button>().First(button => button.Name == "GalleryRating");
-            await UntilAsync(() => rating.IsEffectivelyEnabled);
-            rating.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            await UntilAsync(() => shell.OwnedWindows.OfType<MediaRatingDialog>().Any(window => window.IsVisible));
-            MediaRatingDialog ratingDialog = shell.OwnedWindows.OfType<MediaRatingDialog>().Single();
-            Ursa.Controls.Rating editor = C<Ursa.Controls.Rating>(ratingDialog, "MediaRatingEditor");
-            await UntilAsync(() => editor.IsEffectivelyEnabled);
-            for (int guard = 0; editor.Value < 3 && guard < 8; guard++)
-            {
-                editor.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Right });
-                await Task.Yield();
-            }
-            Require(editor.Value == 3, "The rating draft did not reach 3.");
-            editor.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
+            // Review 15.11.: no rating button or dialog; Shift+3 rates the shown medium through the viewer's own key router.
+            await UntilAsync(() => viewer.CaptureState().Key != null);
+            KeyGesture three = CommandBindings.Gesture("media.rating.set-3")!;
+            KeyEventArgs rate = new() { RoutedEvent = InputElement.KeyDownEvent, Key = three.Key, KeyModifiers = three.KeyModifiers, Source = viewer };
+            viewer.RaiseEvent(rate);
+            Require(rate.Handled, "The rating key was not routed by the gallery.");
             await UntilAsync(() => session.GetMediaRatings().Count == 1 && session.GetMediaRatings()[0].Value == 3);
-            await UntilAsync(() => editor.IsEnabled);
-            editor.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
-            await UntilAsync(() => !ratingDialog.IsVisible);
             // The gallery is an overlay: until it closes, the page still shows what it read before.
             Require(Row("100").State!.Favorite == MediaLibraryFlag.No && Row("100").State!.UserRating == null,
                 "The page must not change under the open gallery (the refresh belongs to the close).");

@@ -58,7 +58,7 @@ namespace MeowChan
     internal enum SettingsLoadProblem { None, RecoveredFromBackup, DefaultsInUse }
     internal enum ProfileOrigin { Unbound, ConfirmedNew, ExistingValid, BackupRecovery, ExistingMissingSettings, Damaged, Unsupported }
 
-    public class Config : IJsonOnDeserialized
+    public class Config : IJsonOnDeserializing, IJsonOnDeserialized
     {
         private string? _profileDirectory;
         private ProfileLease? _writeLease;
@@ -94,6 +94,13 @@ namespace MeowChan
 
         public Desktop.Commands.ShortcutBindingsSection ShortcutBindings { get; set; } = new();
         public int SchemaVersion { get; set; } = 1;
+        /// <summary>
+        /// Revision of the one-shot migrations of view-preference defaults (1: the archive list width default moved from 270 to 330).
+        /// A new profile starts at the current value; a file without the field is read as 0 (see OnDeserializing), so an old value is
+        /// migrated exactly once and a width the person chose later, 270 included, is kept.
+        /// </summary>
+        public int PreferenceDefaultsRevision { get; set; } = CurrentPreferenceDefaultsRevision;
+        internal const int CurrentPreferenceDefaultsRevision = 1;
         public bool FirstRunSetupPending { get; set; }
         public int FirstRunSetupVersion { get; set; }
         public Dictionary<string, SourceMediaIntegrityPermission> SourceMediaIntegrityPermissions { get; set; } = new(StringComparer.Ordinal);
@@ -899,8 +906,11 @@ namespace MeowChan
             }
         }
 
+        void IJsonOnDeserializing.OnDeserializing() => PreferenceDefaultsRevision = 0;
+
         void IJsonOnDeserialized.OnDeserialized()
         {
+            MigratePreferenceDefaults();
             // Couple only after all legacy keys have been read, independent of JSON order.
             NormalizeGalleryControls();
             ReaderThumbnailWidth = Math.Clamp(ReaderThumbnailWidth, ReaderThumbnailWidthMinimum, ReaderThumbnailWidthMaximum);
@@ -966,6 +976,22 @@ namespace MeowChan
 
         private PresentationProfile ActiveProfile => GetLayoutProfile(WorkspaceMode);
 
+        /// <summary>Applies the preference-default migrations a file written before <see cref="CurrentPreferenceDefaultsRevision"/> still needs, once.</summary>
+        private void MigratePreferenceDefaults()
+        {
+            if (PreferenceDefaultsRevision >= CurrentPreferenceDefaultsRevision) return;
+            if (PreferenceDefaultsRevision < 1)
+            {
+                // Every profile saved before the revision holds the old default, dragged or never touched.
+                foreach (PresentationProfile profile in _layoutProfiles.Values)
+                    profile.ArchiveSplitWidth = MigrateArchiveSplitWidthDefault(profile.ArchiveSplitWidth);
+                if (_deserializedLayoutProfiles != null)
+                    foreach (PresentationProfile profile in _deserializedLayoutProfiles.Values)
+                        profile.ArchiveSplitWidth = MigrateArchiveSplitWidthDefault(profile.ArchiveSplitWidth);
+            }
+            PreferenceDefaultsRevision = CurrentPreferenceDefaultsRevision;
+        }
+
         private static string NormalizeWorkspaceMode(string? mode) =>
             string.Equals(mode?.Trim(), "Advanced", StringComparison.OrdinalIgnoreCase) ? "Advanced" :
             string.Equals(mode?.Trim(), "Simple", StringComparison.OrdinalIgnoreCase) ? "Simple" : "Barebones";
@@ -976,7 +1002,7 @@ namespace MeowChan
             result.ReadingFontSize = string.Equals(profile.ReadingFontSize?.Trim(), "Small", StringComparison.OrdinalIgnoreCase) ? "Small"
                 : string.Equals(profile.ReadingFontSize?.Trim(), "Large", StringComparison.OrdinalIgnoreCase) ? "Large" : "Normal";
             result.ArchiveThreadLayout = string.Equals(profile.ArchiveThreadLayout?.Trim(), "Table", StringComparison.OrdinalIgnoreCase) ? "Table" : "List";
-            result.ArchiveSplitWidth = NormalizeLoadedArchiveSplitWidth(profile.ArchiveSplitWidth);
+            result.ArchiveSplitWidth = NormalizeArchiveSplitWidth(profile.ArchiveSplitWidth);
             return result;
         }
 
@@ -1126,6 +1152,25 @@ namespace MeowChan
         [JsonConverter(typeof(DesktopPreferenceGalleryFilmstripTileGapConverter))]
         public int GalleryFilmstripTileGap { get; set; } = GalleryFilmstripTileGapDefault;
         internal const int GalleryFilmstripTileGapDefault = 8, GalleryFilmstripTileGapMinimum = 4, GalleryFilmstripTileGapMaximum = 16;
+        /// <summary>Filmstrip flags (decision 123): whether a filmstrip tile carries the favourite star (default on).</summary>
+        [JsonConverter(typeof(DesktopPreferenceTrueBooleanConverter))]
+        public bool GalleryFilmstripFlagFavorite { get; set; } = true;
+        /// <summary>Filmstrip flags: whether a filmstrip tile carries the own rating, a small number with the half-star icon (default on).</summary>
+        [JsonConverter(typeof(DesktopPreferenceTrueBooleanConverter))]
+        public bool GalleryFilmstripFlagRating { get; set; } = true;
+        // Filmstrip flags: when a tile carries the "no tags yet" mark. "Tagging" (default) shows it only while the gallery's tagging view (the
+        // right tag panel) is open, "Always" shows it whenever the medium has no own tag, "Off" never. Any other stored value reads as "Tagging".
+        private string _galleryFilmstripFlagUntagged = GalleryFilmstripUntaggedWithTagging;
+        public const string GalleryFilmstripUntaggedWithTagging = "Tagging", GalleryFilmstripUntaggedAlways = "Always", GalleryFilmstripUntaggedOff = "Off";
+        [JsonConverter(typeof(DesktopPreferenceStringConverter))]
+        public string GalleryFilmstripFlagUntagged
+        {
+            get => _galleryFilmstripFlagUntagged;
+            set => _galleryFilmstripFlagUntagged = NormalizeGalleryFilmstripUntagged(value);
+        }
+        internal static string NormalizeGalleryFilmstripUntagged(string? value) =>
+            string.Equals(value?.Trim(), GalleryFilmstripUntaggedAlways, StringComparison.OrdinalIgnoreCase) ? GalleryFilmstripUntaggedAlways
+            : string.Equals(value?.Trim(), GalleryFilmstripUntaggedOff, StringComparison.OrdinalIgnoreCase) ? GalleryFilmstripUntaggedOff : GalleryFilmstripUntaggedWithTagging;
         /// <summary>How many thumbnails on each side of the visible ones the filmstrip decodes in advance.</summary>
         public int GalleryFilmstripPreload { get; set; } = GalleryFilmstripPreloadDefault;
         internal const int GalleryFilmstripPreloadDefault = 12, GalleryFilmstripPreloadMinimum = 4, GalleryFilmstripPreloadMaximum = 60;
@@ -1196,14 +1241,14 @@ namespace MeowChan
         /// (measured by ArchiveListWidthChecks); outside the limits a saved value is clamped.
         /// </summary>
         internal const double ArchiveSplitWidthDefault = 330, ArchiveSplitWidthMinimum = 180, ArchiveSplitWidthMaximum = 1200;
-        /// <summary>The default before the list pane was widened. Every profile saved so far holds it, whether dragged or never touched, so a loaded 270 reads as "never customised".</summary>
+        /// <summary>The default before the list pane was widened. Every profile saved before PreferenceDefaultsRevision 1 holds it, whether dragged or never touched, so there a loaded 270 reads as "never customised".</summary>
         internal const double ArchiveSplitWidthPreviousDefault = 270;
 
         internal static double NormalizeArchiveSplitWidth(double width) =>
             double.IsFinite(width) ? Math.Clamp(width, ArchiveSplitWidthMinimum, ArchiveSplitWidthMaximum) : ArchiveSplitWidthDefault;
 
-        /// <summary>For a value read from a file or an import: the previous default moves to the new one, any other saved width stays.</summary>
-        internal static double NormalizeLoadedArchiveSplitWidth(double width) =>
+        /// <summary>The one-shot migration for a file older than PreferenceDefaultsRevision 1: the previous default moves to the new one, any other width stays.</summary>
+        internal static double MigrateArchiveSplitWidthDefault(double width) =>
             width == ArchiveSplitWidthPreviousDefault ? ArchiveSplitWidthDefault : NormalizeArchiveSplitWidth(width);
 
         [JsonConverter(typeof(DesktopPreferenceSplitWidthConverter))]
@@ -1741,6 +1786,7 @@ namespace MeowChan
             return new Config
             {
                 SchemaVersion = SchemaVersion,
+                PreferenceDefaultsRevision = PreferenceDefaultsRevision,
                 FirstRunSetupPending = FirstRunSetupPending, FirstRunSetupVersion = FirstRunSetupVersion,
                 SourceMediaIntegrityPermissions = SourceMediaIntegrityPermissions.ToDictionary(pair => pair.Key, pair => pair.Value with { }, StringComparer.Ordinal),
                 DownloadPath = DownloadPath,
@@ -1815,6 +1861,9 @@ namespace MeowChan
                 GalleryLayout = GalleryLayout,
                 GalleryFilmstripHeight = GalleryFilmstripHeight,
                 GalleryFilmstripTileGap = GalleryFilmstripTileGap,
+                GalleryFilmstripFlagFavorite = GalleryFilmstripFlagFavorite,
+                GalleryFilmstripFlagRating = GalleryFilmstripFlagRating,
+                GalleryFilmstripFlagUntagged = GalleryFilmstripFlagUntagged,
                 GalleryFilmstripPreload = GalleryFilmstripPreload,
                 GalleryVideoSeekStepSeconds = GalleryVideoSeekStepSeconds,
                 MediaBadgeCollapseBelow = MediaBadgeCollapseBelow,
@@ -1993,6 +2042,7 @@ namespace MeowChan
             string absoluteDownloadPath = Path.GetFullPath(source.DownloadPath, source._relativePathBaseDirectory);
 
             SchemaVersion = source.SchemaVersion;
+            PreferenceDefaultsRevision = source.PreferenceDefaultsRevision;
             FirstRunSetupPending = source.FirstRunSetupPending; FirstRunSetupVersion = source.FirstRunSetupVersion;
             // Consent is portable within this profile's clones, never across profile-bound instances.
             if (string.Equals(_profileDirectory, source._profileDirectory,
@@ -2070,6 +2120,9 @@ namespace MeowChan
             GalleryLayout = source.GalleryLayoutResetRequested ? null : source.GalleryLayout; // (a draft that asked for the reset: nothing chosen)
             GalleryFilmstripHeight = source.GalleryFilmstripHeight;
             GalleryFilmstripTileGap = source.GalleryFilmstripTileGap;
+            GalleryFilmstripFlagFavorite = source.GalleryFilmstripFlagFavorite;
+            GalleryFilmstripFlagRating = source.GalleryFilmstripFlagRating;
+            GalleryFilmstripFlagUntagged = source.GalleryFilmstripFlagUntagged;
             GalleryFilmstripPreload = source.GalleryFilmstripPreload;
             GalleryVideoSeekStepSeconds = source.GalleryVideoSeekStepSeconds;
             MediaBadgeCollapseBelow = source.MediaBadgeCollapseBelow;
@@ -2291,6 +2344,9 @@ namespace MeowChan
             // (GalleryFilmstrip itself follows the View set's filmstrip through ApplyTo; an unchanged box leaves both as they are.)
             GalleryFilmstripHeight = source.GalleryFilmstripHeight;
             GalleryFilmstripTileGap = source.GalleryFilmstripTileGap;
+            GalleryFilmstripFlagFavorite = source.GalleryFilmstripFlagFavorite;
+            GalleryFilmstripFlagRating = source.GalleryFilmstripFlagRating;
+            GalleryFilmstripFlagUntagged = source.GalleryFilmstripFlagUntagged;
             GalleryFilmstripPreload = source.GalleryFilmstripPreload;
             GalleryVideoSeekStepSeconds = source.GalleryVideoSeekStepSeconds;
             // M1: only the tag list width of the draft's media layout, and only when the box was changed against its baseline. The media page changes the
@@ -2469,6 +2525,7 @@ namespace MeowChan
             string filePath = Path.Combine(directory, "settings.json");
             DownloadPath = Path.GetFullPath(DownloadPath, _relativePathBaseDirectory);
             if (Origin == ProfileOrigin.ConfirmedNew && FirstRunSetupVersion == 0) FirstRunSetupPending = true;
+            if (ShortcutBindings.HasRetiredOverrides) ShortcutBindings = ShortcutBindings.WithoutRetired(); // dead bindings of removed commands leave with the next save
             string json = JsonSerializer.Serialize(this, ConfigJsonContext.Default.Config);
             // The read side judges a larger file damaged without reading it; never write one that the next start would refuse.
             if (System.Text.Encoding.UTF8.GetByteCount(json) > SettingsFileCeilingBytes)
@@ -2821,7 +2878,7 @@ namespace MeowChan
         public override double Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
             if (reader.TokenType == JsonTokenType.Number && reader.TryGetDouble(out double value) && double.IsFinite(value))
-                return Config.NormalizeLoadedArchiveSplitWidth(value);
+                return Config.NormalizeArchiveSplitWidth(value);
             reader.Skip();
             return Config.ArchiveSplitWidthDefault;
         }

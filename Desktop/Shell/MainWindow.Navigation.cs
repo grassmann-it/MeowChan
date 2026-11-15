@@ -155,7 +155,6 @@ public partial class MainWindow
         _archivePage.GetMediaRating = _session.GetMediaRating;
         _archivePage.SetMediaRatingAsync = SetMediaRatingAsync;
         _archivePage.CanChangeMediaRating = key => !_isClosing && !_ratingChanges.Contains(key);
-        _archivePage.EditMediaRatingAsync = EditMediaRatingAsync;
         _archivePage.EditArchiveMediaTagsAsync = entry => EditGalleryMediaTagsAsync(entry);
         _archivePage.TagPopoverAsync = OpenArchiveMediaTagPopoverAsync;
         _archivePage.TagPopoverOptions = TagPopoverDefaults;
@@ -207,6 +206,7 @@ public partial class MainWindow
         InitializeTagQueue();
         InitializeTaggingPage();
         InitializePostFilters();
+        InitializeGalleryFilmstripFlags();
         InitializeFolderSources();
         InitializeBooru();
         MeowChan.Diagnostics.PerformanceDiagnostics.Record("startup.pages", "resume-bookmarks-booru-done");
