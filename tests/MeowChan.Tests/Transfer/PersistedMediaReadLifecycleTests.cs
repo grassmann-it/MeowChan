@@ -22,6 +22,26 @@ public sealed class PersistedMediaReadLifecycleTests
     [InlineData(true, "operation")]
     [InlineData(true, "receipt")]
     [InlineData(true, "page")]
+    public void Schema13HeaderKeepsPersistedEvidenceReadable(bool merge, string kind)
+    {
+        using PersistedMediaFixture f = new();
+        var row = PersistedMediaFixture.Row(merge);
+        if (kind == "receipt") f.InsertReceipt(merge, PersistedMediaFixture.Receipt(merge, row));
+        else f.Insert(merge, row);
+        f.Execute("PRAGMA user_version=13");
+
+        AssertReadCount(Read(f.Connection, null, merge, kind), merge, kind, 1);
+        Assert.Equal(13L, Scalar(f.Connection, null, "PRAGMA user_version"));
+        AssertFreshTransaction(f.Connection);
+    }
+
+    [Theory]
+    [InlineData(false, "operation")]
+    [InlineData(false, "receipt")]
+    [InlineData(false, "page")]
+    [InlineData(true, "operation")]
+    [InlineData(true, "receipt")]
+    [InlineData(true, "page")]
     public void OwnedTransactionIsReleasedOnEmptySuccessSchemaAndDecodeFailures(bool merge, string kind)
     {
         using PersistedMediaFixture f = new();
