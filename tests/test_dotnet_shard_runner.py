@@ -219,7 +219,8 @@ class DotnetShardRunnerTests(unittest.TestCase):
         self.assertNotIn("dotnet test MeowChan.sln", shard_step)
         self.assertNotIn("macos-test-watchdog.py", shard_step)
         mac_step = workflow[end : workflow.index("      - name: Check package layout fixtures", end)]
-        self.assertIn("python3 scripts/macos-test-watchdog.py --timeout 300 --desktop-timeout 600", mac_step)
+        self.assertIn("python3 scripts/macos-test-watchdog.py", mac_step)
+        self.assertIn("--timeout 300 --desktop-timeout 600", mac_step)
         self.assertNotIn("run-dotnet-shards.py", mac_step)
 
 
