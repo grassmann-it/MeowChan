@@ -298,7 +298,7 @@ public sealed class ViewerQuickWinsTests : IDisposable
     [InlineData("video.seek-forward", "Primary+Right")]
     [InlineData("video.seek-back-far", "Primary+Shift+Left")]
     [InlineData("video.seek-forward-far", "Primary+Shift+Right")]
-    [InlineData("video.mute", "M")]
+    [InlineData("video.mute", "Shift+M")]
     [InlineData("video.snapshot", "S")]
     [InlineData("video.speed-down", "OemOpenBrackets")]
     [InlineData("video.speed-up", "OemCloseBrackets")]

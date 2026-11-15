@@ -203,6 +203,29 @@ public sealed class GalleryAutoHideCleanTests
         Assert.True(h.Viewer.BlocksUnfocusedHostKeys);
     }
 
+    [Theory]
+    [InlineData(true, true, false, false, false, false, false, true)]   // active, usable gallery: any mouse motion reveals
+    [InlineData(false, true, false, false, false, false, false, false)] // another window has the focus
+    [InlineData(true, false, false, false, false, false, false, false)] // covered/unavailable
+    [InlineData(true, true, true, false, false, false, false, false)]   // dialog or popup over it
+    [InlineData(true, true, false, true, false, false, false, false)]   // a drag or pointer capture
+    [InlineData(true, true, false, false, true, false, false, false)]   // selected text is being read
+    [InlineData(true, true, false, false, false, true, false, false)]   // keyboard focus in a panel
+    [InlineData(true, true, false, false, false, false, true, false)]   // shortcut help open
+    public void MouseMotionRevealsTheControlsUnlessSomethingElseOwnsTheGallery(bool active, bool available, bool dialog,
+        bool captured, bool selection, bool keyboard, bool help, bool expected) =>
+        Assert.Equal(expected, GalleryEdgeHover.MotionMayReveal(active, available, dialog, captured, selection, keyboard, help));
+
+    [Fact]
+    public void MotionOverShownControlsRenewsTheirIdleClockWithoutTouchingTheLayout()
+    {
+        var h = new Harness(autoHidden: false);
+        h.Set("_lastOverlayActivity", Stopwatch.GetTimestamp() - 60 * Stopwatch.Frequency);
+        long before = (long)h.Get("_lastOverlayActivity")!;
+        h.Invoke("RevealControlsOnMotion");
+        Assert.True((long)h.Get("_lastOverlayActivity")! > before);
+    }
+
     [Fact]
     public void AButtonOnlyCommandBehindTheHiddenFooterIsFoundSoTheControlsComeFirst()
     {

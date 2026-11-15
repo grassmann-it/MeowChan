@@ -568,6 +568,22 @@ internal sealed partial class GalleryViewer
         RefreshFilmstripHover();
     }
 
+    private bool KeyboardPanelFocus => _keyboardInteraction && (_overlayFooter.IsKeyboardFocusWithin
+        || _chrome.IsKeyboardFocusWithin || _infoOverlay.IsKeyboardFocusWithin
+        || _contextPanel.IsKeyboardFocusWithin || _video?.TransportControl.IsKeyboardFocusWithin == true);
+
+    // Real mouse motion anywhere over the gallery (the managed root and the transparent native overlay both feed this) shows the auto-hidden
+    // controls, like the bottom edge does, and keeps them while the mouse keeps moving; they hide after "Hide controls after".
+    private void RevealControlsOnMotion()
+    {
+        if (_terminalRetirement || _viewerInteractionStopped || !OverlayControlsEffective) return;
+        if (!_overlayHidden) { _lastOverlayActivity = Stopwatch.GetTimestamp(); return; }
+        if (!GalleryEdgeHover.MotionMayReveal(IsGalleryWindowActive, _interactionAvailable, HasGalleryDialog || HasGalleryPopup,
+            _dragging || _pressedPointers.Count != 0 || _lastPointer?.Captured != null,
+            HasSelectedPostText || HasSelectedControlsText, KeyboardPanelFocus, _helpOpen)) return;
+        RevealOverlayControls();
+    }
+
     private void RevealHoveredPanels()
     {
         if (_terminalRetirement || _viewerInteractionStopped) return;
@@ -578,11 +594,8 @@ internal sealed partial class GalleryViewer
         if (!IsGalleryWindowActive || !_interactionAvailable || HasGalleryDialog || HasGalleryPopup) return;
         // A pan/seek drag or focused keyboard task is not a request to open another
         // panel. Pointer focus alone deliberately does not pin the controls.
-        bool keyboardPanelFocus = _keyboardInteraction && (_overlayFooter.IsKeyboardFocusWithin
-            || _chrome.IsKeyboardFocusWithin || _infoOverlay.IsKeyboardFocusWithin
-            || _contextPanel.IsKeyboardFocusWithin || _video?.TransportControl.IsKeyboardFocusWithin == true);
         if (!GalleryEdgeHover.CanReveal(_dragging || _pressedPointers.Count != 0 || _lastPointer?.Captured != null,
-            HasSelectedPostText || HasSelectedControlsText, keyboardPanelFocus, _helpOpen)) return;
+            HasSelectedPostText || HasSelectedControlsText, KeyboardPanelFocus, _helpOpen)) return;
         if (controls && OverlayControlsEffective) RevealOverlayControls();
         if (post && PostOverlayEffective && !_contextOpen && !_suppressPostHoverUntilExit && _entry != null)
             OpenEdgePostContext();
@@ -604,6 +617,7 @@ internal sealed partial class GalleryViewer
             _indicatorExpiryTimer.Stop();
             _indicatorExpiryTimer.Start();
             RevealCorner(); // clean media while idle, the way back and the star return with the mouse
+            RevealControlsOnMotion();
         }
         RevealHoveredPanels();
         UpdateEdgeIndicators();

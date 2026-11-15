@@ -46,6 +46,14 @@ internal static class GalleryEdgeHover
 
     internal static bool CanReveal(bool captured, bool selectedText, bool keyboardPanelFocus, bool helpOpen) =>
         !captured && !selectedText && !keyboardPanelFocus && !helpOpen;
+
+    /// <summary>
+    /// Real mouse motion anywhere over the gallery brings the auto-hidden controls back (Tom, 16.11.), under the same guards as the edge reveal
+    /// and only while the gallery is the active, usable surface without a dialog or popup over it.
+    /// </summary>
+    internal static bool MotionMayReveal(bool windowActive, bool available, bool dialogOrPopup, bool captured, bool selectedText,
+        bool keyboardPanelFocus, bool helpOpen) =>
+        windowActive && available && !dialogOrPopup && CanReveal(captured, selectedText, keyboardPanelFocus, helpOpen);
 }
 
 // Only actual mouse motion renews artwork; hover, presses and timer polling do not.
