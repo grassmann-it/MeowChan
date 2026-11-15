@@ -107,14 +107,16 @@ public sealed class TaggingPageLinksTests : IDisposable
         string page = Source("Desktop/Views/Tagging/TaggingPage.cs");
         string empty = Source("Desktop/Views/Tagging/TaggingPage.EmptyStates.cs");
         string controller = Source("Desktop/Views/Tagging/TaggingQueueController.cs");
-        Assert.Contains("_retryLoad.Click += async (_, _) => await RetryLoadAsync();", page);
         Assert.Contains("internal async Task RetryLoadAsync()", page);
+        Assert.Contains("if (!_queueWork.CanReload) return;", page);
+        Assert.Contains("await _queueWork.LoadAsync();", page);
+        Assert.Contains("_retryLoad.IsEnabled = _queueWork.CanReload", page);
         Assert.Contains("_retryLoad.Content = Texts.T(\"action.retry\")", page);
         Assert.Contains("_errorSource.Text = _queueWork.ErrorSource", page);
         Assert.Contains("_emptyState.IsVisible = empty && _queueWork.Loaded && _queueWork.ErrorText == null", page);
         Assert.Contains("_queueWork.Loaded && _queueWork.ErrorText == null", empty);
-        Assert.Contains("internal string? ErrorSource", controller);
-        Assert.Contains("TagQueueStore.FileName", controller);
+        Assert.Contains("internal bool CanReload => ErrorText != null && !Ended && !Busy && !Loading && Loaded && HostReady;", controller);
+        Assert.Contains("internal string? ErrorSource => ErrorText == null ? null : Texts.T(\"queue.title\") + \": \" + TagQueueStore.FileName;", controller);
         Assert.Contains("Keep the last good snapshot", controller);
     }
 
