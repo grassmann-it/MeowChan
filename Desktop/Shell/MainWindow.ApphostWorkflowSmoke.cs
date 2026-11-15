@@ -155,45 +155,54 @@ public partial class MainWindow
                         await using ArchiveReader reader = await _session.OpenArchiveReaderAsync();
                         return (await reader.ReadThreadAsync(id))?.Summary.PostCount == 1;
                     }, "archived captured post");
+                    ArchivePage archivePage = ArchivePage;
                     ClickWorkflow(ArchiveNavigationButton);
-                    await ArchivePage.OpenExportForThreadAsync(id, this.FindControl<DataGrid>("ThreadsDataGrid"));
-                    await WaitWorkflowAsync(() => ArchivePage.FindControl<Button>("ArchiveExportStart")!.IsEffectivelyEnabled,
-                        "export dialog readiness");
+                    // NavigateWorkspace starts archive activation fire-and-forget. Do not race that
+                    // activation with OpenExportForThreadAsync: while the page is loading it rejects
+                    // the request, leaving the lazily-created export controls absent.
+                    await WaitWorkflowAsync(() => SelectedPage == WorkspacePage.Archive
+                        && ArchivePageHost.IsEffectivelyVisible && archivePage.IsEffectivelyVisible && !archivePage.IsBusy,
+                        "archive navigation/content readiness");
+                    await archivePage.OpenExportForThreadAsync(id, ThreadsDataGrid);
+                    await WaitWorkflowControlAsync<Button>(archivePage, "ArchiveExportStart",
+                        control => control.IsEffectivelyEnabled, "export dialog readiness");
+                    TextBox exportDestination = RequireWorkflowControl<TextBox>(archivePage, "ArchiveExportDestination", "export dialog");
+                    CheckBox exportMedia = RequireWorkflowControl<CheckBox>(archivePage, "ArchiveExportMedia", "export dialog");
                     string target = Path.Combine(fixture.Root, "export-one");
-                    ArchivePage.FindControl<TextBox>("ArchiveExportDestination")!.Text = target;
-                    ArchivePage.FindControl<CheckBox>("ArchiveExportMedia")!.IsChecked = true;
+                    exportDestination.Text = target;
+                    exportMedia.IsChecked = true;
                     await RunWorkflowExportAsync(target, 1, exports);
                     string? handedOff = null;
-                    ArchivePage.OpenExportFolder = directory => { handedOff = directory; return Task.CompletedTask; };
-                    ArchivePage.FindControl<TextBox>("ArchiveExportDestination")!.Text = Path.Combine(fixture.Root, "not-the-result");
-                    ClickWorkflow(ArchivePage.FindControl<Button>("ArchiveExportOpen")!);
+                    archivePage.OpenExportFolder = directory => { handedOff = directory; return Task.CompletedTask; };
+                    exportDestination.Text = Path.Combine(fixture.Root, "not-the-result");
+                    ClickWorkflow(RequireWorkflowControl<Button>(archivePage, "ArchiveExportOpen", "export result"));
                     await WaitWorkflowAsync(() => handedOff != null, "export folder command");
                     RequireWorkflow(ApphostWorkflowSmoke.SamePath(handedOff, target), "Open folder used draft text instead of its published result.");
                     externalDispatch = new { kind = "intercepted-export-command", target = handedOff,
                         nativeFileManagerOpened = false, nativeBrowserOpened = false };
                     checks.Add("external-handoff");
-                    RequireWorkflow(WorkflowControlVisible(ArchivePage.FindControl<Button>("ArchiveExportStart")!)
-                        && WorkflowControlVisible(ArchivePage.FindControl<Button>("ArchiveExportClose")!),
+                    RequireWorkflow(WorkflowControlVisible(RequireWorkflowControl<Button>(archivePage, "ArchiveExportStart", "export result"))
+                        && WorkflowControlVisible(RequireWorkflowControl<Button>(archivePage, "ArchiveExportClose", "export result")),
                         "Compact export actions leave the native client viewport.");
                     CaptureWorkflow(fixture.Profile, "export");
-                    ClickWorkflow(ArchivePage.FindControl<Button>("ArchiveExportClose")!);
-                    await ArchivePage.OpenExportForThreadAsync(id, null);
-                    await WaitWorkflowAsync(() => ArchivePage.FindControl<RadioButton>("ArchiveExportUpdate")!.IsEffectivelyEnabled,
-                        "persistent existing export lookup");
-                    ArchivePage.FindControl<RadioButton>("ArchiveExportUpdate")!.IsChecked = true;
-                    ArchivePage.FindControl<CheckBox>("ArchiveExportBackup")!.IsChecked = true;
+                    ClickWorkflow(RequireWorkflowControl<Button>(archivePage, "ArchiveExportClose", "export result"));
+                    await archivePage.OpenExportForThreadAsync(id, null);
+                    await WaitWorkflowControlAsync<RadioButton>(archivePage, "ArchiveExportUpdate",
+                        control => control.IsEffectivelyEnabled, "persistent existing export lookup");
+                    RequireWorkflowControl<RadioButton>(archivePage, "ArchiveExportUpdate", "persistent export lookup").IsChecked = true;
+                    RequireWorkflowControl<CheckBox>(archivePage, "ArchiveExportBackup", "persistent export lookup").IsChecked = true;
                     await RunWorkflowExportAsync(target, 2, exports);
-                    ClickWorkflow(ArchivePage.FindControl<Button>("ArchiveExportClose")!);
-                    await ArchivePage.OpenExportForThreadAsync(id, null);
-                    ArchivePage.FindControl<RadioButton>("ArchiveExportNew")!.IsChecked = true;
+                    ClickWorkflow(RequireWorkflowControl<Button>(archivePage, "ArchiveExportClose", "updated export"));
+                    await archivePage.OpenExportForThreadAsync(id, null);
+                    RequireWorkflowControl<RadioButton>(archivePage, "ArchiveExportNew", "new export lookup").IsChecked = true;
                     string secondTarget = Path.Combine(fixture.Root, "export-two");
-                    ArchivePage.FindControl<TextBox>("ArchiveExportDestination")!.Text = secondTarget;
+                    RequireWorkflowControl<TextBox>(archivePage, "ArchiveExportDestination", "new export lookup").Text = secondTarget;
                     await RunWorkflowExportAsync(secondTarget, 1, exports);
                     ArchiveExportInspection old = await ArchiveExportMetadataFile.InspectAsync(target, id);
                     RequireWorkflow(old.Metadata.Generation == 2 && old.ModifiedPaths.Count == 0 && old.ExtraPaths.Count == 0,
                         "Creating a new export modified the preceding export.");
                     checks.Add("exports-created-updated-new");
-                    ClickWorkflow(ArchivePage.FindControl<Button>("ArchiveExportClose")!);
+                    ClickWorkflow(RequireWorkflowControl<Button>(archivePage, "ArchiveExportClose", "new export lookup"));
                     await _session.SaveViewPreferencesAsync(config =>
                     {
                         config.GalleryPlaybackMode = "Slideshow"; config.GallerySlideshowSeconds = 1;
@@ -225,10 +234,11 @@ public partial class MainWindow
                 CloseGallery(); await GalleryCleanupTask;
                 checks.Add("gallery-preferences-restored-no-autorun");
                 // Verify export history survived an actual process boundary as well.
-                await ArchivePage.OpenExportForThreadAsync(new ResourceId("4chan", "g", "123"), null);
-                RequireWorkflow(ArchivePage.FindControl<RadioButton>("ArchiveExportUpdate")!.IsEnabled,
+                ArchivePage archivePage = ArchivePage;
+                await archivePage.OpenExportForThreadAsync(new ResourceId("4chan", "g", "123"), null);
+                RequireWorkflow(RequireWorkflowControl<RadioButton>(archivePage, "ArchiveExportUpdate", "restored export history").IsEnabled,
                     "Fresh process did not recover the preceding export history.");
-                ClickWorkflow(ArchivePage.FindControl<Button>("ArchiveExportClose")!);
+                ClickWorkflow(RequireWorkflowControl<Button>(archivePage, "ArchiveExportClose", "restored export history"));
                 await WaitWorkflowAsync(() => !RowCommandBusy && !_selectionCommandRunning && UrlList.Count == 1,
                     "complete restored-thread frame before Remove command");
                 ThreadsDataGrid.SelectedItem = UrlList.Single();
@@ -258,13 +268,38 @@ public partial class MainWindow
         finally { SaveEvidence(); }
     }
 
+    private async Task<T> WaitWorkflowControlAsync<T>(ArchivePage page, string name, Func<T, bool> ready, string stage)
+        where T : Control
+    {
+        T? found = null;
+        await WaitWorkflowAsync(() =>
+        {
+            found = page.FindControl<T>(name);
+            return found is { } control && ready(control);
+        }, stage + " (" + name + ")");
+        return found ?? throw new InvalidOperationException(
+            "Packaged workflow " + stage + " did not expose ArchivePage control '" + name + "'.");
+    }
+
+    private T RequireWorkflowControl<T>(ArchivePage page, string name, string stage) where T : Control =>
+        page.FindControl<T>(name) ?? throw new InvalidOperationException(
+            "Packaged workflow " + stage + " could not find ArchivePage control '" + name + "' "
+            + "(selected page: " + SelectedPage + ", archive visible: " + page.IsEffectivelyVisible
+            + ", archive busy: " + page.IsBusy + ").");
+
     private async Task RunWorkflowExportAsync(string target, int generation, List<object> evidence)
     {
-        await WaitWorkflowAsync(() => ArchivePage.FindControl<Button>("ArchiveExportStart")!.IsEnabled, "export command enabled");
-        ClickWorkflow(ArchivePage.FindControl<Button>("ArchiveExportStart")!);
-        await WaitWorkflowAsync(() => !ArchivePage.IsExportRunning && ArchivePage.LastExport?.Metadata?.Generation == generation
-            && ApphostWorkflowSmoke.SamePath(ArchivePage.LastExport.Directory, target), "successful export generation " + generation);
-        ArchiveHtmlExportResult result = ArchivePage.LastExport!;
+        ArchivePage archivePage = ArchivePage;
+        await WaitWorkflowControlAsync<Button>(archivePage, "ArchiveExportStart", control => control.IsEnabled, "export command enabled");
+        ClickWorkflow(RequireWorkflowControl<Button>(archivePage, "ArchiveExportStart", "export command"));
+        await WaitWorkflowAsync(() =>
+        {
+            ArchiveHtmlExportResult? export = archivePage.LastExport;
+            return !archivePage.IsExportRunning && export?.Metadata?.Generation == generation
+                && export != null && ApphostWorkflowSmoke.SamePath(export.Directory, target);
+        }, "successful export generation " + generation);
+        ArchiveHtmlExportResult result = archivePage.LastExport ?? throw new InvalidOperationException(
+            "Packaged workflow completed an export without publishing its result.");
         RequireWorkflow(result.PostCount == 1 && result.FileCount == 1 && result.Omissions.Count == 0,
             "The packaged export did not contain its captured post and verified image.");
         ArchiveExportInspection inspected = await ArchiveExportMetadataFile.InspectAsync(target, new ResourceId("4chan", "g", "123"));
