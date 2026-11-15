@@ -371,7 +371,7 @@ public sealed class FooterLayoutTests
         public Editor() { Texts.Initialize(); Texts.SetLanguage("en"); }
 
         [Fact]
-        public void EveryPageHasACheckBoxAndTwoMoveButtonsWithAutomationNamesAndDownloadsIsPinned()
+        public void EveryPageHasAToggleSwitchAndTwoMoveButtonsWithAutomationNamesAndDownloadsIsPinned()
         {
             OwnedUiDispatcher.Run(() =>
             {
@@ -379,14 +379,18 @@ public sealed class FooterLayoutTests
                 Assert.Equal(Pages.Length, editor.Rows.Children.Count);
                 foreach (string id in Pages)
                 {
-                    CheckBox check = Assert.IsType<CheckBox>(editor.CheckBoxOf(id));
+                    ToggleSwitch check = Assert.IsType<ToggleSwitch>(editor.SwitchOf(id));
                     Assert.False(string.IsNullOrWhiteSpace(Avalonia.Automation.AutomationProperties.GetName(check)));
                     Assert.Equal(id != "navigation.downloads", check.IsEnabled);
                     Assert.Equal(FooterLayout.Default.IsVisible(id), check.IsChecked);
+                    // SP1: the page name is the label of the row (the switch is the control at its end), not the content of the switch.
+                    Assert.Null(check.OnContent);
+                    Assert.Null(check.OffContent);
+                    Assert.Equal(CommandCatalog.Label(id), editor.Rows.Children.OfType<Grid>().First(row => row.Tag as string == id).Children.OfType<TextBlock>().First(t => t.Name?.StartsWith("FooterPageLabel") == true).Text);
                     Assert.NotNull(editor.MoveButtonOf(id, up: true));
                     Assert.NotNull(editor.MoveButtonOf(id, up: false));
                     Assert.False(string.IsNullOrWhiteSpace(Avalonia.Automation.AutomationProperties.GetName(editor.MoveButtonOf(id, true)!)));
-                    Assert.True(editor.CheckBoxOf(id)!.Focusable);
+                    Assert.True(editor.SwitchOf(id)!.Focusable);
                 }
                 Assert.False(editor.MoveButtonOf(Pages[0], up: true)!.IsEnabled);
                 Assert.False(editor.MoveButtonOf(Pages[^1], up: false)!.IsEnabled);
@@ -398,6 +402,43 @@ public sealed class FooterLayoutTests
         private static string? ShortcutTextOf(FooterLayoutEditor editor, string id) =>
             editor.Rows.Children.OfType<Grid>().First(row => row.Tag as string == id).Children.OfType<TextBlock>().First(t => t.Name?.StartsWith("FooterShortcut") == true).Text;
 
+        // M6 (review wave 6): a toggle rebuilds the rows (the digits move), so the switch of the page (SP1) must take the focus again.
+        [Fact]
+        public void TheFocusStaysOnTheToggledCheckBoxAndOnTheMovedButtonAfterTheRowsAreRebuilt()
+        {
+            OwnedUiDispatcher.Run(() =>
+            {
+                var editor = new FooterLayoutEditor();
+                Assert.Null(editor.FocusTarget);
+                ToggleSwitch before = editor.SwitchOf("navigation.rules")!;
+                before.IsChecked = false;
+                Assert.False(editor.Layout.IsVisible("navigation.rules"));
+                ToggleSwitch after = editor.SwitchOf("navigation.rules")!;
+                Assert.NotSame(before, after);
+                Assert.Same(after, editor.FocusTarget);
+                // Checking it again keeps the focus on the switch of that page, not on a neighbour.
+                after.IsChecked = true;
+                Assert.Same(editor.SwitchOf("navigation.rules"), editor.FocusTarget);
+                // A move keeps it on the same kind of button of the page that moved, also at the edge (where it is disabled now).
+                string page = "navigation.status";
+                for (int step = 0; step < Pages.Length; step++)
+                {
+                    Button up = editor.MoveButtonOf(page, up: true)!;
+                    if (!up.IsEnabled) break;
+                    up.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    Button upNow = editor.MoveButtonOf(page, up: true)!;
+                    Assert.Same(upNow.IsEnabled ? upNow : editor.MoveButtonOf(page, up: false), editor.FocusTarget);
+                }
+                Assert.False(editor.MoveButtonOf(page, up: true)!.IsEnabled);
+                Assert.Same(editor.MoveButtonOf(page, up: false), editor.FocusTarget);
+                editor.MoveButtonOf(page, up: false)!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                Assert.Same(editor.MoveButtonOf(page, up: false), editor.FocusTarget);
+                // Reset and Load rebuild without a focus request.
+                editor.ResetButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                Assert.Null(editor.FocusTarget);
+            });
+        }
+
         [Fact]
         public void ChecksAndMovesChangeTheDraftRaiseTheEventAndResetGoesBackToTheDefault()
         {
@@ -406,14 +447,14 @@ public sealed class FooterLayoutTests
                 var editor = new FooterLayoutEditor();
                 int raised = 0;
                 editor.LayoutChanged += (_, _) => raised++;
-                editor.CheckBoxOf("navigation.rules")!.IsChecked = false;
+                editor.SwitchOf("navigation.rules")!.IsChecked = false;
                 Assert.Equal(1, raised);
                 Assert.False(editor.Layout.IsVisible("navigation.rules"));
                 editor.MoveButtonOf("navigation.status", up: true)!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 Assert.Equal(2, raised);
                 Assert.Equal(FooterLayout.Default.IndexOf("navigation.status") - 1, editor.Layout.IndexOf("navigation.status"));
                 Assert.Contains(CommandCatalog.Label("navigation.status"), editor.StatusText.Text, StringComparison.Ordinal);
-                editor.CheckBoxOf("navigation.booru")!.IsChecked = true;
+                editor.SwitchOf("navigation.booru")!.IsChecked = true;
                 Assert.True(editor.Layout.IsVisible("navigation.booru"));
                 // The digit of the draft is shown next to the page and moves with it.
                 Assert.Contains("5", ShortcutTextOf(editor, "navigation.booru"));
@@ -423,7 +464,7 @@ public sealed class FooterLayoutTests
                 // Load replaces the draft silently.
                 editor.Load(FooterLayout.Default.WithVisible("navigation.media", false));
                 Assert.Equal(4, raised);
-                Assert.False(editor.CheckBoxOf("navigation.media")!.IsChecked);
+                Assert.False(editor.SwitchOf("navigation.media")!.IsChecked);
             });
         }
     }

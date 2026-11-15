@@ -72,9 +72,9 @@ internal static class SecondarySettingsLanguageRefreshChecks
         await FocusAsync(window, raw);
         raw.Text = "17 unfinished raw";
         await Program.WaitUntilAsync(() => seconds.Text == raw.Text && raw.Text == "17 unfinished raw");
-        CheckBox mediaFocus = Need<CheckBox>(editor, "GalleryMediaFocusInput");
-        CheckBox overlay = Need<CheckBox>(editor, "GalleryOverlayControlsInput");
-        CheckBox postContext = Need<CheckBox>(editor, "GalleryOverlayPostContextInput");
+        ToggleSwitch mediaFocus = Need<ToggleSwitch>(editor, "GalleryMediaFocusInput");
+        ToggleSwitch overlay = Need<ToggleSwitch>(editor, "GalleryOverlayControlsInput");
+        ToggleSwitch postContext = Need<ToggleSwitch>(editor, "GalleryOverlayPostContextInput");
         mediaFocus.IsChecked = !config.GalleryMediaFocus;
         overlay.IsChecked = !config.GalleryOverlayControls;
         postContext.IsChecked = !config.GalleryOverlayPostContext;
@@ -602,10 +602,11 @@ internal static class SecondarySettingsLanguageRefreshChecks
     private static void AssertAccessible(Control control, string key, string? help = null) => Require(
         AutomationProperties.GetName(control) == T(key) && (help == null || AutomationProperties.GetHelpText(control) == T(help)),
         "Stale accessible gallery label/help: " + key);
-    private static void AssertCheckBox(CheckBox control, string key, string? help = null)
+    private static void AssertCheckBox(ToggleSwitch control, string key, string? help = null)
     {
+        // SP1: the visible label is the row's own text (the switch is labelled by it), not the content of the control.
         AssertAccessible(control, key, help);
-        Require(control.IsEffectivelyVisible && control.Content is TextBlock text && text.Text == T(key), "Stale visible gallery checkbox: " + key);
+        Require(control.IsEffectivelyVisible && AutomationProperties.GetLabeledBy(control) is TextBlock text && text.Text == T(key), "Stale visible gallery switch: " + key);
     }
     private static string[] Files(string profile) => Directory.GetFiles(profile, "*", SearchOption.AllDirectories)
         .OrderBy(path => path, StringComparer.Ordinal)

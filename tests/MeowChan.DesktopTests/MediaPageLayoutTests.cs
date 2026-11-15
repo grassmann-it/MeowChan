@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
@@ -333,7 +334,8 @@ public sealed class MediaPageLayoutTests : IDisposable
     [Fact]
     public void TheMenuOffersTheBlocksTheSizeThePresetsAndReset()
     {
-        ContextMenuModel model = MediaLayoutMenu.Compose(MediaPageLayout.Standard, _ => { }).ToModel();
+        LayoutMenuModel rows = MediaLayoutMenu.Rows(MediaPageLayout.Standard);
+        ContextMenuModel model = LayoutMenuBuilder.ToContextMenu(rows, _ => { }, MediaLayoutMenu.MenuName).ToModel();
         string[] ids = model.Entries.Select(entry => entry.Id).ToArray();
         Assert.Equal(
         [
@@ -343,6 +345,9 @@ public sealed class MediaPageLayoutTests : IDisposable
             MediaLayoutMenu.SizeSmallId, MediaLayoutMenu.SizeMediumId, MediaLayoutMenu.SizeLargeId,
             MediaLayoutMenu.PresetStandardId, MediaLayoutMenu.PresetBooruId, MediaLayoutMenu.PresetGridId, MediaLayoutMenu.ResetId
         ], ids);
+        // The flyout reads the same rows: the interactive ones are the context menu's entries, in order, without a title line.
+        Assert.Equal(ids, rows.Interactive.Select(row => row.Id).ToArray());
+        Assert.Equal(string.Empty, rows.Title);
         Assert.Empty(model.OversizedSections);
         Assert.Equal(6, model.Sections.Count);
         // The state of today's page: tag list off, left side, all rows and captions on, medium tiles, Standard preset.
@@ -354,21 +359,17 @@ public sealed class MediaPageLayoutTests : IDisposable
         Assert.True(checkedState[MediaLayoutMenu.SizeMediumId] && !checkedState[MediaLayoutMenu.SizeSmallId] && !checkedState[MediaLayoutMenu.SizeLargeId]);
         Assert.True(checkedState[MediaLayoutMenu.PresetStandardId] && !checkedState[MediaLayoutMenu.PresetBooruId] && !checkedState[MediaLayoutMenu.PresetGridId]);
         Assert.All(model.Entries, entry => Assert.True(entry.Available && entry.Label.Length > 0 && entry.Label != entry.Id, entry.Id));
+        Assert.All(rows.Interactive, row => Assert.True(row.Enabled && row.DisabledReason == null, row.Id));
     }
 
     [Fact]
-    public void EveryEntryAsksForTheLayoutItNames()
+    public void EveryRowAsksForTheLayoutItNames()
     {
         MediaPageLayout current = MediaPageLayout.Standard with { TagListWidth = 350 };
         Dictionary<string, MediaPageLayout> next = new();
-        ContextMenuModel model = MediaLayoutMenu.Compose(current, _ => { }).ToModel();
-        foreach (ContextMenuEntry entry in model.Entries)
-        {
-            MediaPageLayout? chosen = null;
-            ContextMenuModel one = MediaLayoutMenu.Compose(current, layout => chosen = layout).ToModel();
-            one.Entries.Single(candidate => candidate.Id == entry.Id).Invoke!();
-            next[entry.Id] = chosen ?? throw new InvalidOperationException(entry.Id);
-        }
+        foreach (LayoutMenuRow row in MediaLayoutMenu.Rows(current).Interactive)
+            next[row.Id] = MediaLayoutMenu.Apply(row.Id, current) ?? throw new InvalidOperationException(row.Id);
+        Assert.Null(MediaLayoutMenu.Apply("media.layout.nothing", current));
         Assert.True(next[MediaLayoutMenu.TagListId].TagList);
         Assert.Equal(MediaTagListSide.Right, next[MediaLayoutMenu.SideRightId].TagListSide);
         Assert.False(next[MediaLayoutMenu.ChipsId].FilterChips);
@@ -389,16 +390,34 @@ public sealed class MediaPageLayoutTests : IDisposable
     }
 
     [Fact]
+    public void TheContextMenuFormInvokesTheSameApplyAsTheRows()
+    {
+        MediaPageLayout current = MediaPageLayout.Standard with { TagListWidth = 350 };
+        LayoutMenuModel rows = MediaLayoutMenu.Rows(current);
+        foreach (LayoutMenuRow row in rows.Interactive)
+        {
+            MediaPageLayout? chosen = null;
+            ContextMenuModel one = LayoutMenuBuilder.ToContextMenu(rows, picked => chosen = MediaLayoutMenu.Apply(picked.Id, current)).ToModel();
+            one.Entries.Single(candidate => candidate.Id == row.Id).Invoke!();
+            Assert.Equal(MediaLayoutMenu.Apply(row.Id, current), chosen);
+        }
+    }
+
+    [Fact]
     public void TheMenuChecksTheMatchingPresetAndTheSwitchesOfALayoutOfTheUsersOwn()
     {
         MediaPageLayout booru = MediaPageLayout.For(MediaLayoutPreset.BooruView, MediaPageLayout.Standard);
-        ContextMenuModel model = MediaLayoutMenu.Compose(booru, _ => { }).ToModel();
+        LayoutMenuModel rows = MediaLayoutMenu.Rows(booru);
+        Assert.Equal([MediaLayoutMenu.PresetBooruId], rows.Rows.Where(row => row.Group == MediaLayoutMenu.PresetGroup && row.Checked).Select(row => row.Id));
+        Assert.True(rows.Find(MediaLayoutMenu.TagListId)!.Checked);
+        Assert.True(rows.Find(MediaLayoutMenu.SizeSmallId)!.Checked);
+        // The groups are the exclusive choices of the context menu too.
+        ContextMenuModel model = LayoutMenuBuilder.ToContextMenu(rows, _ => { }).ToModel();
         Assert.Equal([MediaLayoutMenu.PresetBooruId], model.Entries.Where(entry => entry.Group == "preset" && entry.Checked).Select(entry => entry.Id));
-        Assert.True(model.Entries.Single(entry => entry.Id == MediaLayoutMenu.TagListId).Checked);
-        Assert.True(model.Entries.Single(entry => entry.Id == MediaLayoutMenu.SizeSmallId).Checked);
         // A layout that is none of the presets checks none (and never two).
-        ContextMenuModel own = MediaLayoutMenu.Compose(booru with { Subtitle = true }, _ => { }).ToModel();
-        Assert.Empty(own.Entries.Where(entry => entry.Group == "preset" && entry.Checked));
+        LayoutMenuModel own = MediaLayoutMenu.Rows(booru with { Subtitle = true });
+        Assert.Empty(own.Rows.Where(row => row.Group == MediaLayoutMenu.PresetGroup && row.Checked));
+        Assert.Empty(LayoutMenuBuilder.ToContextMenu(own, _ => { }).ToModel().Entries.Where(entry => entry.Group == "preset" && entry.Checked));
     }
 
     // ---- The page's wiring (source contracts; the page needs the asset loader, its behaviour is the media-page smoke's) ----
@@ -446,10 +465,19 @@ public sealed class MediaPageLayoutTests : IDisposable
     public void TheLayoutButtonTheContextMenuAndMoreShareOneMenu()
     {
         string layout = Read("Desktop/Views/Media/MediaPage.Layout.cs"), page = Read("Desktop/Views/Media/MediaPage.cs"), view = Read("Desktop/Views/Media/MediaPage.WorkView.cs");
-        Assert.Contains("MediaLayoutMenu.BuildItems(_layout, layout => ApplyLayout(layout))", layout);
+        // C15: one description (MediaLayoutMenu.Rows / Apply), three forms: the flyout's LayoutMenuPanel, the submenu and the context menu.
+        Assert.Contains("new LayoutMenuPanel(\"MediaLayoutMenu\", () => MediaLayoutMenu.Rows(_layout), ApplyLayoutRow);", layout);
+        Assert.Contains("LayoutMenuBuilder.ToContextMenu(MediaLayoutMenu.Rows(_layout), ApplyLayoutRow, MediaLayoutMenu.MenuName)", layout);
+        Assert.Contains("ItemsSource = LayoutMenuItems()", layout);
+        // The flyout keeps the keyboard behaviour of a menu: Escape closes (handled), the arrows move, the focus returns to the button.
+        Assert.Contains("if (_layoutPanel.HandleMenuKey(e)) e.Handled = true;", layout);
+        Assert.Contains("_layoutButton.Focus(_layoutMenuKeyboard ? NavigationMethod.Tab : NavigationMethod.Pointer);", layout);
+        Assert.Contains("_layoutPanel.CloseRequested += () => _layoutFlyout.Hide();", layout);
+        Assert.DoesNotContain("BuildItems", layout + page + view + Read("Desktop/Views/Media/MediaLayoutMenu.cs"));
+        Assert.DoesNotContain("Compose(", Read("Desktop/Views/Media/MediaLayoutMenu.cs"));
         // The right click on empty grid space (no tile under the pointer) opens the page's blank menu, which carries the layout entries below its two actions.
         Assert.Contains("OpenSharedMediaMenu(row, ResolveMenuOrigin(e.Source, row));", page);
-        Assert.Contains("blankItems.AddRange(MediaLayoutMenu.BuildItems(_layout, layout => ApplyLayout(layout)));", page);
+        Assert.Contains("blankItems.AddRange(LayoutMenuItems());", page);
         // Under More (Barebones or a narrow page) the button is a submenu with the same entries.
         Assert.Contains("if (ReferenceEquals(control, _layoutButton)) { flyout.Items.Add(LayoutSubmenu()); continue; }", view);
         Assert.Contains("WorkViewElement.SetId(_layoutButton, \"media.toolbar.layout\");", view);
@@ -481,6 +509,94 @@ public sealed class MediaPageLayoutTests : IDisposable
         Assert.Contains("x:Name=\"MediaTagListWidthInput\"", axaml);
         Assert.True(axaml.IndexOf("MediaTagListTopInput", StringComparison.Ordinal) < axaml.IndexOf("MediaTagListWidthInput", StringComparison.Ordinal));
         Assert.Equal((256, 180, 480), (Config.MediaTagListWidthDefault, Config.MediaTagListWidthMinimum, Config.MediaTagListWidthMaximum));
+    }
+
+    // ---- M1: the width of the settings page reaches the saved layout without a stale draft rolling a dragged width back ----
+
+    private static Config LiveWithWidth(int width, MediaTagListSide side = MediaTagListSide.Left) =>
+        new() { MediaLayout = (MediaPageLayout.Standard with { TagListWidth = width, TagListSide = side }).Format() };
+
+    private static int WidthOf(Config config) => MediaPageLayout.Parse(config.MediaLayout, config.MediaBooruMode).TagListWidth;
+
+    private static Config DraftWithBox(Config live, int box)
+    {
+        Config draft = live.Clone(); // a fresh draft captures the loaded width as its baseline
+        draft.MediaLayout = (MediaPageLayout.Parse(draft.MediaLayout, draft.MediaBooruMode) with { TagListWidth = box }).Format();
+        return draft;
+    }
+
+    [Fact]
+    public void SavingAChangedTagListWidthBoxTakesOnlyTheWidthOverAndKeepsTheRestOfTheLiveLayout()
+    {
+        Config live = LiveWithWidth(256);
+        Config draft = DraftWithBox(live, 300);
+        Assert.Equal(256, draft.SettingsBaselineMediaTagListWidth);
+        // The person switched the side from the media page while the settings were open: the stale draft must not bring the old side back.
+        live.MediaLayout = (MediaPageLayout.Parse(live.MediaLayout, false) with { TagListSide = MediaTagListSide.Right }).Format();
+        live.CopySettingsFieldsFrom(draft);
+        MediaPageLayout saved = MediaPageLayout.Parse(live.MediaLayout, live.MediaBooruMode);
+        Assert.Equal(300, saved.TagListWidth);
+        Assert.Equal(MediaTagListSide.Right, saved.TagListSide);
+    }
+
+    [Fact]
+    public void SavingWithTheTagListWidthBoxUntouchedKeepsTheWidthTheHandleSetWhileTheSettingsWereOpen()
+    {
+        Config live = LiveWithWidth(256);
+        Config draft = live.Clone(); // loaded with 256, the box is never touched
+        draft.RecheckTimer = 120;
+        // The drag on the media page committed 340 in the meantime.
+        live.MediaLayout = (MediaPageLayout.Parse(live.MediaLayout, false) with { TagListWidth = 340 }).Format();
+        live.CopySettingsFieldsFrom(draft);
+        Assert.Equal(340, WidthOf(live));
+        Assert.Equal(120, live.RecheckTimer);
+    }
+
+    [Fact]
+    public void ABoxChangedBackToTheLiveWidthAndADraftWithoutABaselineLeaveTheLayoutAlone()
+    {
+        Config live = LiveWithWidth(300);
+        Config bare = live.Clone();
+        bare.SettingsBaselineMediaTagListWidth = null; // built by hand: compared with the live value
+        bare.MediaLayout = (MediaPageLayout.Parse(bare.MediaLayout, false) with { TagListWidth = 300 }).Format();
+        live.CopySettingsFieldsFrom(bare);
+        Assert.Equal(300, WidthOf(live));
+        bare.MediaLayout = (MediaPageLayout.Parse(bare.MediaLayout, false) with { TagListWidth = 210 }).Format();
+        live.CopySettingsFieldsFrom(bare);
+        Assert.Equal(210, WidthOf(live));
+    }
+
+    [Fact]
+    public void TheTagListWidthBaselineIsDraftStateAndNeverSaved()
+    {
+        Config draft = LiveWithWidth(333).Clone();
+        Assert.Equal(333, draft.SettingsBaselineMediaTagListWidth);
+        Assert.DoesNotContain(nameof(Config.SettingsBaselineMediaTagListWidth), JsonSerializer.Serialize(draft, ConfigJsonContext.Default.Config));
+    }
+
+    [Fact]
+    public void ASavedTagListWidthSurvivesSavingAndLoadingTheSettings()
+    {
+        using TempDirectory directory = new();
+        Config live = LiveWithWidth(256);
+        live.CopySettingsFieldsFrom(DraftWithBox(live, 417));
+        live.SaveConfig(directory.Path);
+        Config loaded = Config.LoadConfig(directory.Path);
+        Assert.Equal(ProfileOrigin.ExistingValid, loaded.Origin);
+        Assert.Equal(417, WidthOf(loaded));
+    }
+
+    [Fact]
+    public void TheEditorKeepsTheLoadedWidthAsBaselineAndTheShellShowsAChangedWidthLive()
+    {
+        string editor = Read("Desktop/Views/Settings/SettingsEditor.TagQueue.cs"), media = Read("Desktop/Shell/MainWindow.Media.cs"),
+            shell = Read("Desktop/Shell/MainWindow.axaml.cs"), page = Read("Desktop/Views/Media/MediaPage.Layout.cs");
+        Assert.Contains("_initialMediaTagListWidth = MediaPageLayout.Parse(config.MediaLayout", editor);
+        Assert.Contains("candidate.SettingsBaselineMediaTagListWidth = _initialMediaTagListWidth;", editor);
+        Assert.Contains("frozen.SettingsBaselineMediaTagListWidth = settings.SettingsBaselineMediaTagListWidth;", Read("Desktop/DesktopSessionHost.cs"));
+        Assert.Contains("ApplyMediaTagListWidthAfterSettings(mediaTagListWidthBefore);", shell);
+        Assert.Contains("if (width != widthBefore) _mediaPage?.ApplySavedTagListWidth(width);", media);
+        Assert.Contains("ApplyLayout(_layout with { TagListWidth = width }, save: false);", page);
     }
 
     // ---- The texts ----

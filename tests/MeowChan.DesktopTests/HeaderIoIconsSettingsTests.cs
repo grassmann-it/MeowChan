@@ -68,7 +68,7 @@ public sealed class HeaderIoIconsSettingsTests
         XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
         XDocument doc = XDocument.Load(Root("Desktop/Views/Settings/SettingsEditor.axaml"));
         XElement option = doc.Descendants().Single(e => (string?)e.Attribute(x + "Name") == "StatsHeaderIconsInput");
-        Assert.Equal("CheckBox", option.Name.LocalName);
+        Assert.Equal("ToggleSwitch", option.Name.LocalName);
         Assert.Equal("{Binding StatsHeaderIcons, Mode=TwoWay}", (string?)option.Attribute("IsChecked"));
         Assert.Equal("{Binding StatsHeaderIconsLabel}", (string?)option.Attribute("AutomationProperties.Name"));
         Assert.Equal("{Binding StatsHeaderIconsHint}", (string?)option.Attribute("AutomationProperties.HelpText"));

@@ -96,7 +96,7 @@ internal static class StatisticsSettingsChecks
         }
         foreach ((string name, string key) in Switches)
         {
-            CheckBox box = Find<CheckBox>(editor, name + "Input");
+            ToggleSwitch box = Find<ToggleSwitch>(editor, name + "Input");
             Require(box.IsChecked == true, name + " is not on by default.");
             Require(AutomationProperties.GetName(box) == Texts.T("stats.settings." + key), name + " automation name is not its label.");
             Require(Hints(editor).Any(text => text == Texts.T("stats.settings." + key + "Hint")), name + " hint is not shown.");

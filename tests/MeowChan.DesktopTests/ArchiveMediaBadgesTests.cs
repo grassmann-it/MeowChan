@@ -347,17 +347,16 @@ public sealed class ArchiveMediaBadgesTests : IDisposable
         Size picture = new(170, 96);
         MediaBadgeState state = ArchiveMediaBadges.ForAsset(row);
         view.Apply(state, picture);
-        ArchiveBadgeDescription description = default;
-        string sentence = description.Get(state, Archive);
+        string sentence = MediaBadgeSentences.Get(state, Archive);
         Assert.Equal("Favorite · Video", sentence);
         // Warm up the paths once (JIT, the delegates), then measure.
-        for (int index = 0; index < 100; index++) { view.Apply(ArchiveMediaBadges.ForAsset(row), picture); _ = description.Get(ArchiveMediaBadges.ForAsset(row), Archive); }
+        for (int index = 0; index < 100; index++) { view.Apply(ArchiveMediaBadges.ForAsset(row), picture); _ = MediaBadgeSentences.Get(ArchiveMediaBadges.ForAsset(row), Archive); }
         long before = GC.GetAllocatedBytesForCurrentThread();
         for (int index = 0; index < 50_000; index++)
         {
             MediaBadgeState same = ArchiveMediaBadges.ForAsset(row);
             view.Apply(same, picture);
-            if (!ReferenceEquals(sentence, description.Get(same, Archive))) throw new Xunit.Sdk.XunitException("The sentence was built again for an unchanged state.");
+            if (!ReferenceEquals(sentence, MediaBadgeSentences.Get(same, Archive))) throw new Xunit.Sdk.XunitException("The sentence was built again for an unchanged state.");
         }
         long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
         Assert.True(allocated <= 4096, $"50 000 unchanged applications allocated {allocated} bytes.");

@@ -110,6 +110,7 @@ internal static class ReadingPositionChecks
         await page.FocusPostAsync("1022");
         await WaitForAsync(async () => (await ReadPositionAsync(window))?.SelectedPostId == "1022");
         Click(page.FindControl<Button>("ArchiveCloseReader")!);
+        await ReadingHistoryMenuChecks.RunAsync(window); // RH1: the book button's menu, its one icon and its entries
         SemaphoreSlim commands = (SemaphoreSlim)typeof(DesktopSessionHost).GetField("_commands", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window.SessionHost)!;
         await commands.WaitAsync();
         Task delayedResume = window.ResumeLastReadingAsync();

@@ -64,13 +64,16 @@ public partial class SettingsEditor
     private IReadOnlyList<SettingsSearchHit> _searchHits => _searchSession?.Hits ?? Array.Empty<SettingsSearchHit>();
     private Control? _searchMarked;
     private readonly SettingsSearchEnterGuard _searchEnterGuard = new();
+    // The conditional rows (SettingsConditional) the search showed for its jump; they go back with the visit.
+    private readonly SettingsConditionalReveal _conditionalReveal = new();
 
     private static readonly string[] HitClasses = { "settings-search-hit" };
 
     private void InitializeSearch()
     {
         _searchSession = new SettingsSearchSession(() => { EnsureSearchIndex(); return _searchIndex!; }, CommitSearchHit);
-        _searchBox = new SearchBox { Name = "SettingsSearchBox", MaxLength = 100, Width = 460, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left };
+        // SP1: the field lives in the page header (SettingsSearchHost), its width is the flexible 240 to 480 dip of the header column.
+        _searchBox = new SearchBox { Name = "SettingsSearchBox", MaxLength = 100, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch };
         SettingsSearchSession.Configure(_searchBox);
         AddHandler(TextBox.TextChangedEvent, OnSettingValueChanged, RoutingStrategies.Bubble, handledEventsToo: true);
         AddHandler(Avalonia.Controls.Primitives.ToggleButton.IsCheckedChangedEvent, OnSettingValueChanged, RoutingStrategies.Bubble, handledEventsToo: true);
@@ -131,22 +134,56 @@ public partial class SettingsEditor
         content.Children.Add(_searchNone);
         content.Children.Add(_searchCurrent);
         content.Children.Add(_searchKeys);
-        // The one in-window overlay look (surface, edge, radius); its width is the search field's.
+        // The one in-window overlay look (surface, edge, radius); it lies over the page right under the search field and is as wide as the field.
         _searchPanel = new Border
         {
             Name = "SettingsSearchPanel",
             HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top,
             Padding = new Thickness(Space(2)),
             IsVisible = false,
             Child = content
         };
         _searchPanel.Classes.Add("workspace-overlay");
-        _searchPanel.Bind(Layoutable.WidthProperty, _searchBox.GetObservable(Layoutable.WidthProperty));
+        Grid.SetRowSpan(_searchPanel, SettingsRoot.RowDefinitions.Count);
+        _searchBox.SizeChanged += (_, _) => PositionSearchPanel();
+        SettingsRoot.SizeChanged += (_, _) => PositionSearchPanel();
 
         WorkViewElement.SetId(_searchBox, "settings.search");
-        SettingsHeader.Children.Add(_searchBox);
-        SettingsHeader.Children.Add(_searchPanel);
+        SettingsSearchHost.Content = _searchBox;
+        SettingsRoot.Children.Add(_searchPanel);
+        SettingsConditional.RowAppeared += OnConditionalRowAppeared;
+        DetachedFromLogicalTree += (_, _) => SettingsConditional.RowAppeared -= OnConditionalRowAppeared;
+        AttachedToLogicalTree += (_, _) => { SettingsConditional.RowAppeared -= OnConditionalRowAppeared; SettingsConditional.RowAppeared += OnConditionalRowAppeared; };
+        AddHandler(KeyDownEvent, OnSlashFocusesSearch, RoutingStrategies.Bubble);
         ApplySearchTexts();
+    }
+
+    // Under the field, as wide as the field, in the coordinates of the page (the panel is a child of the page's root grid).
+    private void PositionSearchPanel()
+    {
+        if (_searchPanel == null || _searchBox == null || _isClosed) return;
+        Point? origin = _searchBox.TranslatePoint(new Point(0, _searchBox.Bounds.Height + Space(4)), SettingsRoot);
+        if (origin == null || _searchBox.Bounds.Width <= 0) return;
+        _searchPanel.Width = _searchBox.Bounds.Width;
+        _searchPanel.Margin = new Thickness(origin.Value.X, origin.Value.Y, 0, 0);
+    }
+
+    // "/" puts the caret in the search field when no text is being typed (Ctrl+F is the command; both do the same).
+    private void OnSlashFocusesSearch(object? sender, KeyEventArgs e)
+    {
+        if (e.Handled || _isClosed || _searchBox == null) return;
+        bool typing = e.Source is TextBox or NumericUpDown || e.Source is Visual visual && visual.GetSelfAndVisualAncestors().Any(node => node is TextBox or NumericUpDown or ComboBox { IsDropDownOpen: true });
+        if (!SettingsSearchShortcut.IsSlash(e.KeySymbol, e.KeyModifiers, typing)) return;
+        e.Handled = true;
+        FocusSearch();
+    }
+
+    // The row that appeared under its parent is read out by the page's polite line (its own label; no new text).
+    private void OnConditionalRowAppeared(Control row)
+    {
+        if (_isClosed || !IsKeyboardFocusWithin || !this.IsLogicalAncestorOf(row)) return;
+        SettingsConditionalAnnouncement.Text = SettingsConditional.LabelOf(row);
     }
 
     /// <summary>Primary+F: puts the caret in the search field, with its text selected.</summary>
@@ -249,6 +286,7 @@ public partial class SettingsEditor
             ShowSearchAnnouncement(null);
             MarkSearchTarget(null);
             _searchGroups.Release();
+            _conditionalReveal.Release();
             return;
         }
         IReadOnlyList<SettingsSearchHit> hits = _searchSession.Search(query);
@@ -302,6 +340,7 @@ public partial class SettingsEditor
     private void ShowSearchPanel()
     {
         if (_searchPanel == null || _searchBox == null || !_searchBox.HasText) return;
+        PositionSearchPanel();
         // The list never takes more than about a third of the page, so the settings below it stay in view.
         double room = Bounds.Height > 0 ? Bounds.Height * 0.38 : 232;
         if (_searchList != null) _searchList.MaxHeight = Math.Clamp(room, 112, 300);
@@ -364,6 +403,8 @@ public partial class SettingsEditor
         {
             SelectCategory(target.CategoryId);
             _searchGroups.Open(target.Expanders);
+            // A row that only applies under a condition is shown with its parent while the search holds it.
+            _conditionalReveal.Reveal(target.Element);
         }
         finally { _searchJumping = false; }
         MarkSearchTarget(target.Element);
@@ -386,13 +427,16 @@ public partial class SettingsEditor
     {
         MarkSearchTarget(null);
         _searchGroups.Release();
+        _conditionalReveal.Release();
         if (_searchPanel != null) _searchPanel.IsVisible = false;
     }
 
     // The user changed a value: the search-opened groups around it stay open from now on.
     private void OnSettingValueChanged(object? sender, RoutedEventArgs e)
     {
-        if (_searchJumping || _searchGroups.OpenedCount == 0 || e.Source is not Control source || !IsSettingInput(source)) return;
+        if (_searchJumping || e.Source is not Control source || !IsSettingInput(source)) return;
+        _conditionalReveal.NoteEdited(source);
+        if (_searchGroups.OpenedCount == 0) return;
         _searchGroups.NoteEdited(source.GetSelfAndLogicalAncestors().OfType<Expander>());
     }
 
@@ -421,24 +465,30 @@ public partial class SettingsEditor
         else OpenSectionNavigation();
     }
 
+    // One hit: the label (the typed text marked), the section as a chip at the end, and under them the group inside the section and the hint.
     private Control BuildSearchRow(SettingsSearchHit hit)
     {
         var label = new TextBlock { TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
         AppendHighlighted(label, hit.Document.Label, hit.LabelRanges);
-        var group = new TextBlock { TextTrimming = TextTrimming.CharacterEllipsis, Text = hit.Document.Group,
-            Margin = new Thickness(Space(12), 0, 0, 0), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, MaxWidth = 190 };
-        group[!TextBlock.FontSizeProperty] = new DynamicResourceExtension("Workspace.Text.Meta");
-        group[!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Muted");
+        (string section, string? inner) = SettingsSearchChip.Split(hit.Document.Group);
+        var chipText = new TextBlock { Text = section, TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 190 };
+        chipText.Classes.Add("chip-label");
+        var chip = new Border { Child = chipText, Margin = new Thickness(Space(12), 0, 0, 0), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, IsHitTestVisible = false };
+        chip.Classes.Add("chip-badge");
+        chip.Classes.Add("chip-compact");
+        chip.Classes.Add(SettingsSearchChip.ChipClass);
         var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), RowDefinitions = new RowDefinitions("Auto,Auto"), Margin = new Thickness(Space(2), Space(2) / 2) };
         grid.Children.Add(label);
-        Grid.SetColumn(group, 1);
-        grid.Children.Add(group);
-        if (!string.IsNullOrWhiteSpace(hit.Document.Hint))
+        Grid.SetColumn(chip, 1);
+        grid.Children.Add(chip);
+        bool hasHint = !string.IsNullOrWhiteSpace(hit.Document.Hint);
+        if (hasHint || inner != null)
         {
             var hint = new TextBlock { TextTrimming = TextTrimming.CharacterEllipsis };
             hint[!TextBlock.FontSizeProperty] = new DynamicResourceExtension("Workspace.Text.Meta");
             hint[!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Muted");
-            AppendHighlighted(hint, hit.Document.Hint, hit.HintRanges);
+            if (inner != null) (hint.Inlines ??= new InlineCollection()).Add(new Run(hasHint ? inner + " · " : inner));
+            if (hasHint) AppendHighlighted(hint, hit.Document.Hint, hit.HintRanges);
             Grid.SetRow(hint, 1);
             Grid.SetColumnSpan(hint, 2);
             grid.Children.Add(hint);
@@ -513,7 +563,7 @@ public partial class SettingsEditor
                 continue;
             }
             if (page is not Panel panel) continue;
-            string pageTitle = panel.Children.OfType<TextBlock>().FirstOrDefault(IsSearchHeading)?.Text ?? SettingsTitle;
+            string pageTitle = panel.Children.Select(child => child as TextBlock ?? SectionHeadingOf(child)).FirstOrDefault(block => block != null && IsSearchHeading(block))?.Text ?? SettingsTitle;
             ScanFlow(panel, id, pageTitle, pageTitle, Array.Empty<Expander>(), result, pageRoot: true);
         }
         return result;
@@ -528,7 +578,8 @@ public partial class SettingsEditor
         {
             // The media folder list is a live view of the host (names, paths, counts), not a setting: its heading is the entry.
             if (child.Name is "MediaFoldersHost" or "FooterLayoutHost") continue;
-            if (child is TextBlock heading && IsSearchHeading(heading))
+            // SP1: the section heading shares its row with "Reset" (and a help button): the heading is the entry, the row is not.
+            if ((child as TextBlock ?? SectionHeadingOf(child)) is { } heading && IsSearchHeading(heading))
             {
                 string text = heading.Text ?? string.Empty;
                 if (string.IsNullOrWhiteSpace(text)) continue;
@@ -589,6 +640,11 @@ public partial class SettingsEditor
         entry.Key = SettingsFieldId.FromInputName(name);
         return entry;
     }
+
+    // The heading of a section header row (heading and "Reset" on one row): null for every other control.
+    private static TextBlock? SectionHeadingOf(Control control) =>
+        control is Grid grid && grid.Classes.Contains("settings-section-header")
+            ? grid.GetLogicalDescendants().OfType<TextBlock>().FirstOrDefault(IsSearchHeading) : null;
 
     private static bool IsSettingInput(Control control) =>
         control is TextBox or ComboBox or CheckBox or NumericUpDown or ToggleSwitch or Slider or RadioButton;

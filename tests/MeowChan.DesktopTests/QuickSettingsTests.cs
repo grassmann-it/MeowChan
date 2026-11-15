@@ -33,7 +33,7 @@ public sealed class QuickSettingsTests : IDisposable
         {
             SettingsFieldId.ReaderPostWidth, SettingsFieldId.ReaderThumbnailWidth, SettingsFieldId.ReadingFontSize,
             SettingsFieldId.ReaderDateStyle, SettingsFieldId.ReaderSpoilers, SettingsFieldId.ReaderPageSize,
-            SettingsFieldId.ReadingHistoryLimit, SettingsFieldId.ReaderTextlessLargeImages, SettingsFieldId.ReaderTextlessMediaWidth,
+            SettingsFieldId.ReadingHistoryLimit, SettingsFieldId.ReadingHistoryMenuEntries, SettingsFieldId.ReaderTextlessLargeImages, SettingsFieldId.ReaderTextlessMediaWidth,
             SettingsFieldId.ReaderFocusedMediaEnlarge, SettingsFieldId.ReaderFocusedMediaScalePercent, SettingsFieldId.ReaderHoverEnlarge,
             SettingsFieldId.ReaderHoverEnlargeSize, SettingsFieldId.ReaderHoverEnlargeDelayMs, SettingsFieldId.ReaderMediaSidebar,
             SettingsFieldId.ReaderMediaSidebarSide, SettingsFieldId.ReaderMediaSidebarWidth, SettingsFieldId.ReaderMediaSidebarMinimumWidth,

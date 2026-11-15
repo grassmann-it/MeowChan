@@ -10,6 +10,10 @@ namespace MeowChan.Desktop;
 /// <summary>One place in the reading history: the anchor of a thread and when it was last read there (UTC).</summary>
 internal sealed record LocalReadingHistoryEntry(LocalReadingPosition Position, DateTimeOffset At)
 {
+    /// <summary>The post this thread was last read at (the anchor of its position).</summary>
+    [JsonIgnore]
+    internal string LastReadPostId => Position.PostId;
+
     internal void Validate()
     {
         Position?.Validate();
@@ -24,8 +28,11 @@ internal sealed record LocalReadingHistoryEntry(LocalReadingPosition Position, D
 /// </summary>
 internal sealed record LocalReadingHistory(LocalReadingHistoryEntry[] Entries)
 {
-    /// <summary>The fixed file ceiling (documented, not a setting): the entry limit is the user-facing bound.</summary>
-    internal const int MaximumFileBytes = 64 * 1024;
+    /// <summary>
+    /// The fixed file ceiling (documented, not a setting): the entry limit is the user-facing bound. 1 MiB holds the maximum of 500
+    /// entries even with long, non-ASCII titles (about 1.2 KiB each); a usual entry is about 0.3 KiB, so 500 of them are about 150 KiB.
+    /// </summary>
+    internal const int MaximumFileBytes = 1024 * 1024;
 
     internal static LocalReadingHistory Empty { get; } = new(Array.Empty<LocalReadingHistoryEntry>());
 
@@ -60,6 +67,9 @@ internal sealed record LocalReadingHistory(LocalReadingHistoryEntry[] Entries)
     internal IReadOnlyList<LocalReadingHistoryEntry> Newest(int limit) =>
         Entries.Take(Math.Clamp(limit, Config.ReadingHistoryLimitMinimum, Config.ReadingHistoryLimitMaximum)).ToArray();
 
+    /// <summary>The newest entry of <paramref name="thread"/>, or null when this thread has no saved place.</summary>
+    internal LocalReadingHistoryEntry? Find(ResourceId thread) => Entries.FirstOrDefault(entry => entry.Position.ThreadId == thread);
+
     internal byte[] Serialize() => JsonSerializer.SerializeToUtf8Bytes(this, ReadingHistoryJsonContext.Default.LocalReadingHistory);
 
     internal static LocalReadingHistory Parse(byte[] bytes)
@@ -70,7 +80,46 @@ internal sealed record LocalReadingHistory(LocalReadingHistoryEntry[] Entries)
         history.Validate();
         return history;
     }
+
+    /// <summary>
+    /// Reads a history file the way an upgrade has to: every entry is judged on its own, so one damaged or unknown entry (a newer
+    /// version's, a hand-edited one) never costs the others. Entries come out newest first, one per thread (the newest wins); the
+    /// count of dropped entries is reported. A file that is no history at all (not JSON, no entry list, too large) still throws, so
+    /// the caller can set it aside instead of overwriting it silently.
+    /// </summary>
+    internal static LocalReadingHistory ParseTolerant(byte[] bytes, out int dropped)
+    {
+        if (bytes.Length > MaximumFileBytes) throw new InvalidDataException("The saved reading history is too large.");
+        using JsonDocument document = JsonDocument.Parse(bytes);
+        if (document.RootElement.ValueKind != JsonValueKind.Object
+            || !document.RootElement.TryGetProperty(nameof(Entries), out JsonElement list) || list.ValueKind != JsonValueKind.Array)
+            throw new InvalidDataException("The saved reading history is invalid.");
+        List<LocalReadingHistoryEntry> kept = new();
+        dropped = 0;
+        foreach (JsonElement element in list.EnumerateArray())
+        {
+            try
+            {
+                LocalReadingHistoryEntry? entry = element.Deserialize(ReadingHistoryJsonContext.Default.LocalReadingHistoryEntry);
+                if (entry == null) throw new InvalidDataException("The saved reading history entry is empty.");
+                entry.Validate();
+                kept.Add(entry);
+            }
+            catch (Exception error) when (error is JsonException or InvalidDataException or InvalidOperationException)
+            { dropped++; }
+        }
+        // Newest first (a stable sort keeps the file order of equal times); an older entry of the same thread is a duplicate.
+        HashSet<ResourceId> seen = new();
+        List<LocalReadingHistoryEntry> ordered = new();
+        foreach (LocalReadingHistoryEntry entry in kept.OrderByDescending(entry => entry.At))
+        {
+            if (seen.Add(entry.Position.ThreadId)) ordered.Add(entry);
+            else dropped++;
+        }
+        return new LocalReadingHistory(ordered.ToArray());
+    }
 }
 
 [JsonSerializable(typeof(LocalReadingHistory))]
+[JsonSerializable(typeof(LocalReadingHistoryEntry))]
 internal partial class ReadingHistoryJsonContext : JsonSerializerContext { }

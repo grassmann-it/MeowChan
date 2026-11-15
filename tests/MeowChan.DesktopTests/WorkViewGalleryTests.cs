@@ -29,7 +29,7 @@ public sealed class WorkViewGalleryTests
         string[] safety =
         [
             "gallery.info.provenance", "gallery.status.media-unavailable", "gallery.status.file-only", "gallery.status.favorite-error",
-            "gallery.status.rating", "gallery.status.slideshow", "gallery.status.overlay-fallback", "gallery.favorite.confirm",
+            "gallery.status.rating", "gallery.status.rating-saved", "gallery.status.slideshow", "gallery.status.overlay-fallback", "gallery.favorite.confirm",
             "gallery.favorite.indicator"
         ];
         foreach (string id in safety)

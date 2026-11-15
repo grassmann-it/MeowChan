@@ -12,7 +12,7 @@ public sealed class ReaderMediaSizeTests
         Assert.False(config.ReaderFocusedMediaEnlarge);
         Assert.False(config.ReaderHoverEnlarge);
         Assert.Equal(ReaderMediaPreferences.Default, ReaderMediaPreferences.From(config));
-        Assert.Equal(10, config.ReadingHistoryLimit);
+        Assert.Equal(50, config.ReadingHistoryLimit);
         Assert.Equal(new ReaderDisplayPreferences().Media, ReaderMediaPreferences.Default);
     }
 
@@ -22,7 +22,7 @@ public sealed class ReaderMediaSizeTests
         Config source = new()
         {
             ReaderTextlessLargeImages = false, ReaderTextlessMediaWidth = 500, ReaderFocusedMediaEnlarge = true, ReaderFocusedMediaScalePercent = 250,
-            ReaderHoverEnlarge = true, ReaderHoverEnlargeSize = 800, ReaderHoverEnlargeDelayMs = 600, ReadingHistoryLimit = 7
+            ReaderHoverEnlarge = true, ReaderHoverEnlargeSize = 800, ReaderHoverEnlargeDelayMs = 600, ReadingHistoryLimit = 70
         };
         Config clone = source.Clone();
         Config copy = new();
@@ -30,7 +30,7 @@ public sealed class ReaderMediaSizeTests
         foreach (Config config in new[] { clone, copy })
         {
             Assert.Equal(ReaderMediaPreferences.From(source), ReaderMediaPreferences.From(config));
-            Assert.Equal(7, config.ReadingHistoryLimit);
+            Assert.Equal(70, config.ReadingHistoryLimit);
             Assert.Equal(new ReaderMediaPreferences(false, 500, true, 250, true, 800, 600), ReaderMediaPreferences.From(config));
         }
     }
@@ -45,8 +45,8 @@ public sealed class ReaderMediaSizeTests
         Assert.Equal(ReaderDisplayPreferences.HoverEnlargeDelayMaximum, clamped.HoverDelayMs);
         Assert.Equal(clamped, new ReaderDisplayPreferences { Media = new ReaderMediaPreferences(true, -1, true, 5000, true, 1, 999999) }.Media);
 
-        Assert.Throws<ArgumentOutOfRangeException>(() => new Config { ReadingHistoryLimit = 4 }.Validate());
-        Assert.Throws<ArgumentOutOfRangeException>(() => new Config { ReadingHistoryLimit = 26 }.Validate());
+        Assert.Throws<ArgumentOutOfRangeException>(() => new Config { ReadingHistoryLimit = 9 }.Validate());
+        Assert.Throws<ArgumentOutOfRangeException>(() => new Config { ReadingHistoryLimit = 501 }.Validate());
         Assert.Throws<ArgumentOutOfRangeException>(() => new Config { ReaderTextlessMediaWidth = 119 }.Validate());
         Assert.Throws<ArgumentOutOfRangeException>(() => new Config { ReaderFocusedMediaScalePercent = 99 }.Validate());
         Assert.Throws<ArgumentOutOfRangeException>(() => new Config { ReaderHoverEnlargeSize = 239 }.Validate());

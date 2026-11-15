@@ -52,9 +52,11 @@ public sealed class VideoKeyboardTests : IDisposable
         Assert.Contains("video.seek-forward", Owners(bindings, "Right", "Primary"));
         Assert.Contains("video.seek-back-far", Owners(bindings, "Left", "Primary", "Shift"));
         Assert.Contains("video.seek-forward-far", Owners(bindings, "Right", "Primary", "Shift"));
-        // Speed stays on [ and ] alone.
-        Assert.Single(bindings.For("video.speed-down"));
-        Assert.Single(bindings.For("video.speed-up"));
+        // Speed: [ and ] plus X and C (revision 14), Backspace resets.
+        Assert.Equal(new[] { "video.speed-down" }, Owners(bindings, "X"));
+        Assert.Equal(new[] { "video.speed-up" }, Owners(bindings, "C"));
+        Assert.Equal(new[] { "video.speed-down" }, Owners(bindings, "OemOpenBrackets"));
+        Assert.Equal(new[] { "video.speed-up" }, Owners(bindings, "OemCloseBrackets"));
     }
 
     [Theory]

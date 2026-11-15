@@ -82,7 +82,7 @@ internal static class TaggingPageCatalog
         ("tagging.page.stamp.expand", "Show stamp tags", "Stempel-Tags aufklappen"),
         ("tagging.page.stamp.collapse", "Hide stamp tags", "Stempel-Tags einklappen"),
         ("tagging.page.tile.tags", "Tags: {0}", "Tags: {0}"),
-        ("tagging.page.empty.queue", "The tagging queue is empty. Select media on the Media page and choose “Add to tagging queue”.", "Die Tagging-Warteschlange ist leer. Markiere Medien auf der Medienseite und wähle „Zur Tagging-Warteschlange“."),
+        ("tagging.page.empty.queue", "The tagging queue is empty. Select media on the Media page and choose “Add to tagging queue”.", "Die Tagging-Warteschlange ist leer. Wähle auf der Medienseite Medien aus und nimm „Zur Tagging-Warteschlange“."),
         ("tagging.page.empty.media", "Go to Media", "Zur Medienseite"),
         ("tagging.page.empty.how", "How does tagging work?", "Wie funktioniert Taggen?"),
         ("tagging.page.empty.allDone", "Every entry is finished or skipped ({0}).", "Alle Einträge sind erledigt oder übersprungen ({0})."),

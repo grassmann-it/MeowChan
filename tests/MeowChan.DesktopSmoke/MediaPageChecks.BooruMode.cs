@@ -39,7 +39,7 @@ internal static partial class MediaPageChecks
         Require(Math.Abs(sidebar.Bounds.Width - MediaTagSidebar.ColumnWidth) < 0.5 && sidebarRight <= surface.TranslatePoint(default, page)!.Value.X + 0.5
             && page.Grid.Bounds.Height > 100, state + ": the list must stand left of the grid: " + sidebar.Bounds + " / " + surface.Bounds);
         Require(C<TextBlock>(sidebar, "MediaTagSidebarTitle").Text == Texts.T("media.tags.title") && AutomationProperties.GetName(sidebar.List) == Texts.T("media.tags.title")
-            && AutomationProperties.GetHelpText(sidebar.List) == Texts.T("media.tags.hint"), state + ": the list must be named and explained.");
+            && AutomationProperties.GetHelpText(sidebar.List) == Texts.T("media.tags.hint", PlatformKeyNames.Alt()), state + ": the list must be named and explained.");
         MediaTagListItem Surface() => sidebar.Items.Single(row => row.Kind == MediaTagListKind.Tag && row.Name == "surface");
         Require(Surface() is { Polarity: 1 } held && held.Count == tagged && page.TagCounts!.Media == tagged
             && held.AccessibleName.Contains(tagged.ToString("N0", Texts.Culture), StringComparison.Ordinal),

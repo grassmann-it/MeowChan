@@ -43,6 +43,15 @@ internal static partial class GalleryToolbarLayoutChecks
             await UntilAsync(() => Find<Image>(viewer, "GalleryImage").Source is Bitmap);
             string output = Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_TOOLBAR_OUTPUT") ?? AppContext.BaseDirectory;
             GalleryViewerState start = viewer.CaptureState();
+            // GL6: a saved rating is confirmed in the status segment of the info line: a polite live region that fades out after the dwell time.
+            viewer.StatusDwellMs = Config.GalleryStatusDwellMsMinimum;
+            viewer.ConfirmRatingSaved();
+            TextBlock ratingSaved = Find<TextBlock>(viewer, "GalleryRatingSaved");
+            Require(ratingSaved.IsEffectivelyVisible && ratingSaved.Text == Texts.T("gallery.rating.saved")
+                && Avalonia.Automation.AutomationProperties.GetLiveSetting(ratingSaved) == Avalonia.Automation.AutomationLiveSetting.Polite,
+                "The rating confirmation is not shown as a polite live region.");
+            await UntilAsync(() => !ratingSaved.IsVisible);
+            viewer.StatusDwellMs = Config.GalleryStatusDwellMsDefault;
             foreach (ThemeVariant variant in new[] { ThemeVariant.Light, ThemeVariant.Dark })
             foreach ((int width, int height) in new[] { (760, 500), (1440, 920) })
             foreach (string lang in width == 760 ? new[] { "en", "de" } : new[] { "en" })

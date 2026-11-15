@@ -37,12 +37,18 @@ internal sealed class ContextMenuBuilder
         return this;
     }
 
-    /// <summary>A catalog command. <paramref name="label"/> replaces the catalog label where the surface needs a more specific one.</summary>
-    internal ContextMenuBuilder Command(string commandId, Action invoke, bool available = true, string? reason = null, string? label = null, bool showShortcut = true, Func<bool>? availableWhen = null, Func<string?>? reasonWhen = null, Func<string>? labelWhen = null)
+    /// <summary>
+    /// A catalog command. <paramref name="label"/> replaces the catalog label where the surface needs a more specific one.
+    /// <paramref name="entryId"/> names the entry when the same command stands for several entries of one menu (the places of a list
+    /// that all run the one command, each with its own label); it defaults to the command id.
+    /// <paramref name="showShortcut"/> is false for an entry that is not what the command's shortcut does (an older place of a list:
+    /// the shortcut opens the newest).
+    /// </summary>
+    internal ContextMenuBuilder Command(string commandId, Action invoke, bool available = true, string? reason = null, string? label = null, string? entryId = null, bool showShortcut = true, Func<bool>? availableWhen = null, Func<string?>? reasonWhen = null, Func<string>? labelWhen = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(commandId);
         ArgumentNullException.ThrowIfNull(invoke);
-        return Add(new(ContextMenuEntryKind.Command, commandId, label ?? CommandCatalog.Label(commandId), commandId, null, false, available, reason, invoke, showShortcut, availableWhen, reasonWhen, labelWhen));
+        return Add(new(ContextMenuEntryKind.Command, entryId ?? commandId, label ?? CommandCatalog.Label(commandId), commandId, null, false, available, reason, invoke, showShortcut, availableWhen, reasonWhen, labelWhen));
     }
 
     /// <summary>An action that is not a catalog command.</summary>
@@ -119,13 +125,20 @@ internal sealed class ContextMenuBuilder
     {
         ArgumentNullException.ThrowIfNull(model);
         if (model.IsEmpty) return null;
+        return new ContextMenu { ItemsSource = BuildItems(model) };
+    }
+
+    /// <summary>The items of <paramref name="model"/> with separators between its sections, for a submenu that shows the same entries as a context menu.</summary>
+    internal static IReadOnlyList<Control> BuildItems(ContextMenuModel model)
+    {
+        ArgumentNullException.ThrowIfNull(model);
         List<Control> items = [];
         foreach (IReadOnlyList<ContextMenuEntry> section in model.Sections)
         {
             if (items.Count > 0) items.Add(new Separator());
             items.AddRange(section.Select(Item));
         }
-        return new ContextMenu { ItemsSource = items };
+        return items;
     }
 
     private static Control Item(ContextMenuEntry entry)

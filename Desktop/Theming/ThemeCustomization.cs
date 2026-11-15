@@ -80,7 +80,20 @@ internal static class ThemeCustomization
         var (seeds, derived) = Expand(basePalette, overrides);
         ThemePalette palette = ThemePalette.Build(basePalette, seeds);
         var explicitColors = seeds.Where(pair => !derived.Contains(pair.Key)).ToFrozenDictionary(StringComparer.Ordinal);
-        return new ThemePreview(palette, explicitColors, derived.ToFrozenSet(StringComparer.Ordinal), CheckContrast(palette));
+        return new ThemePreview(palette, explicitColors, derived.ToFrozenSet(StringComparer.Ordinal), RefuseTranslucentOverrides(CheckContrast(palette), basePalette, explicitColors));
+    }
+
+    // N9: an explicit override must be opaque. The pair check sees a translucent colour only for seeds that occur in a contrast pair (a translucent Border or
+    // Scrim would pass), so every translucent explicit seed is refused here, unless it only repeats the built-in colour or the pair check already named it.
+    private static ThemeContrastReport RefuseTranslucentOverrides(ThemeContrastReport report, ThemePaletteBase basePalette, IReadOnlyDictionary<string, Color> explicitColors)
+    {
+        List<ThemeContrastIssue>? added = null;
+        foreach (var (seed, color) in explicitColors)
+        {
+            if (color.A == byte.MaxValue || basePalette.Colors[seed] == color || report.Errors.Any(issue => issue.Kind == ContrastFailureKind.InvalidColor && issue.Key == seed)) continue;
+            (added ??= []).Add(new ThemeContrastIssue(ThemeContrastSeverity.Error, seed, seed, null, ContrastGate.TextMinimum, null, ContrastFailureKind.InvalidColor, seed));
+        }
+        return added == null ? report : new ThemeContrastReport(report.Errors.Concat(added).ToArray(), report.Warnings);
     }
 
     /// <summary>

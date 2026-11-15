@@ -70,7 +70,12 @@ public sealed class HeaderBar : Control
     private double _separatorHeight;
     private IBrush? _separatorBrush;
 
-    public HeaderBar() => _children.CollectionChanged += OnChildrenChanged;
+    public HeaderBar()
+    {
+        _children.CollectionChanged += OnChildrenChanged;
+        // N1: the separator keeps the brush it found once; a palette apply (customised colours, a live try) replaces the brushes, so it looks again.
+        MeowChan.Desktop.Theming.ThemeRuntime.FollowApplied(this, ResetSeparatorBrush);
+    }
 
     /// <summary>The row's controls in tab order: the back slot, the content, the remaining buttons.</summary>
     [Content]
@@ -294,7 +299,9 @@ public sealed class HeaderBar : Control
         base.OnDetachedFromVisualTree(e);
     }
 
-    private void OnThemeChanged(object? sender, EventArgs e)
+    private void OnThemeChanged(object? sender, EventArgs e) => ResetSeparatorBrush();
+
+    private void ResetSeparatorBrush()
     {
         _separatorBrush = null;
         InvalidateVisual();

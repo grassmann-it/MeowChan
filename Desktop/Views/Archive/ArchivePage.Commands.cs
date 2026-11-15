@@ -136,6 +136,16 @@ public partial class ArchivePage
             leadAction: true, actionLabel: () => ThreadFavoriteText.Action(_threadFavoriteIds.Contains(lead.Summary.Id)));
         Add("thread.read", async () => { OpenReaderRequested?.Invoke(origin); await LoadThreadAsync(lead.Summary.Id); },
             () => ids.Length == 1, Texts.T("archive.command.singleRead"), leadAction: true);
+        // RH1: the one "continue reading" command with the place of this thread; its shortcut opens the newest place, so none is shown here.
+        string? continueTip = null;
+        if (ids.Length == 1 && ReadingPlaceFor?.Invoke(lead.Summary.Id) is { } readingPlace && ResumeReadingPlace is { } resumeReading)
+        {
+            string? ContinueReason() => Ready() ? null : Texts.T("archive.command.busy");
+            string ContinueLabel() => Texts.T("resume.thread.action", readingPlace.PostId);
+            builder.Command("navigation.continue-reading", () => _ = resumeReading(readingPlace), Ready(), ContinueReason(), ContinueLabel(),
+                showShortcut: false, availableWhen: Ready, reasonWhen: ContinueReason, labelWhen: ContinueLabel);
+            continueTip = ReadingHistoryMenu.EntryTip(readingPlace);
+        }
         Add("gallery.open", async () => { if (OpenGallery != null) await OpenGallery(lead.Summary.Id, null, origin); }, leadAction: true);
         Add("thread.details", async () => await ShowArchiveDetailsAsync(lead), leadAction: true);
         if (ids.Length == 1) Add("thread.tags", async () => await OpenThreadTagsAsync(lead.Summary.Id), leadAction: true);
@@ -169,6 +179,12 @@ public partial class ArchivePage
         }, () => DeletePermanentlyRequested != null, count: () => ids.Length);
 
         builder.Populate(menu);
+        // The place of the thread is the continue entry's tooltip and help text (the builder gives enabled entries none).
+        if (continueTip != null && menu.ItemsSource?.OfType<MenuItem>().FirstOrDefault(item => Equals(item.Tag, "navigation.continue-reading")) is { } continueItem)
+        {
+            ToolTip.SetTip(continueItem, continueTip);
+            AutomationProperties.SetHelpText(continueItem, continueTip);
+        }
         if (ids.Length > 1)
         {
             string count = Texts.Count("archive.command.selectionCount", ids.Length);

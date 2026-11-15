@@ -68,7 +68,6 @@ public sealed class ArchiveAttachmentView : UserControl
     // the star of a favourite, the GIF chip and a missing file. Not hit-testable, not in the accessibility tree: the picture button stays the
     // click target at any size and carries the words (MediaBadgeText.Describe).
     private readonly MediaBadgeView _badges = new() { Name = "ArchiveMediaBadges", Options = MediaBadgeOptions.Archive };
-    private ArchiveBadgeDescription _badgeText;
     private bool _missing;
     // Imageboard file line above the preview: "name.ext (size)" when the capture knows the size.
     // It takes the block's width and wraps to two lines, then trims (one trimmed line in a compact list row): a long name never widens the block beyond the picture.
@@ -260,7 +259,7 @@ public sealed class ArchiveAttachmentView : UserControl
         _column = new AttachmentColumn { Lead = fileLine, Frame = _slot, Trail = _provenance,
             Children = { fileLine, _slot, _provenance } };
         Content = _column;
-        DataContextChanged += (_, _) => { _missing = false; Reset(); UpdateLabel(); RefreshInlineVideo(); if (_visible) _ = LoadAsync(); };
+        DataContextChanged += (_, _) => { _missing = false; WatchAspect(DataContext as ArchiveAttachmentRow); Reset(); UpdateLabel(); RefreshInlineVideo(); if (_visible) _ = LoadAsync(); };
         EffectiveViewportChanged += (_, e) =>
         {
             Rect bounds = new(Bounds.Size);
@@ -282,7 +281,21 @@ public sealed class ArchiveAttachmentView : UserControl
     }
 
     private readonly AttachmentColumn _column;
+    private ArchiveAttachmentRow? _aspectSource;
     private ReaderInlineVideoSlot? _inlineVideo;
+
+    // A size the reader learns while the row is shown (header read, preload) reserves the frame at once, before the pixels arrive.
+    private void WatchAspect(ArchiveAttachmentRow? row)
+    {
+        if (_aspectSource != null) _aspectSource.KnownAspectChanged -= OnKnownAspectChanged;
+        _aspectSource = row;
+        if (row != null) row.KnownAspectChanged += OnKnownAspectChanged;
+    }
+
+    private void OnKnownAspectChanged()
+    {
+        if (DataContext is ArchiveAttachmentRow row && ReferenceEquals(row, _aspectSource)) SetFrame(row.LargePreview, row.KnownAspect);
+    }
     private DispatcherTimer? _autoplay;
 
     /// <summary>The inline video of this attachment (smoke seam); null until it was offered once.</summary>
@@ -355,7 +368,7 @@ public sealed class ArchiveAttachmentView : UserControl
     // did not change (the view compares, the sentence is cached).
     private void UpdateBadges(ArchiveAttachmentRow? row)
     {
-        if (row == null) { _badges.Clear(); _badgeText.Reset(); return; }
+        if (row == null) { _badges.Clear(); return; }
         _badges.Apply(ArchiveMediaBadges.ForAttachment(row, _missing), _slot.PictureSize);
     }
 
@@ -395,7 +408,7 @@ public sealed class ArchiveAttachmentView : UserControl
     {
         bool inline = row != null && InlineVideoOffered;
         // MB1b: what the badges show (favourite, video or GIF, file missing) is part of the button's name and help, as one short sentence.
-        string badges = row == null ? string.Empty : _badgeText.Get(_badges.State, _badges.Options);
+        string badges = row == null ? string.Empty : MediaBadgeSentences.Get(_badges.State, _badges.Options);
         Avalonia.Automation.AutomationProperties.SetName(_button, ArchiveMediaBadges.Append(inline
             ? Texts.T("reader.video.play", row!.Attachment.OriginalFileName ?? row.Attachment.MediaId ?? Texts.T("reader.video.unnamed"))
             : row?.Label ?? string.Empty, badges, "\n"));
@@ -466,7 +479,9 @@ public sealed class ArchiveAttachmentView : UserControl
             { if (bitmap != null) MediaTileThumbnails.Release(bitmap); return; }
             _missing = false;
             UpdateLabel();
-            if (MediaSlotGeometry.AspectOf(bitmap) is { } aspect) { row.KnownAspect = aspect; SetFrame(row.LargePreview, aspect); }
+            // A reserved size this picture agrees with stays exact (no fractional move); only a different picture changes the frame.
+            if (bitmap != null && ReaderPreviewReservation.Settle(row.KnownAspect, bitmap.PixelSize.Width, bitmap.PixelSize.Height) is { } aspect)
+            { row.KnownAspect = aspect; SetFrame(row.LargePreview, aspect); }
             _bitmap = bitmap;
             _image.Source = bitmap;
             _image.IsVisible = bitmap != null;

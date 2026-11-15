@@ -986,7 +986,7 @@ public sealed partial class MediaPage : UserControl
                     MediaMenuReasons.Unavailable),
                 new Separator()
             };
-            blankItems.AddRange(MediaLayoutMenu.BuildItems(_layout, layout => ApplyLayout(layout)));
+            blankItems.AddRange(LayoutMenuItems());
             ContextMenu blankMenu = new() { ItemsSource = blankItems };
             blank.Invalidated += () => blankMenu.Close();
             _mediaMenuPresenter.Show(blankMenu, blank, origin, attachToOrigin: true, fallbackFocus: () => FocusGrid(Current));

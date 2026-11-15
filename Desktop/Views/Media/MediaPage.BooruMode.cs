@@ -69,8 +69,9 @@ public sealed partial class MediaPage
 
     private void LocalizeBooruMode()
     {
-        WorkspaceIcons.MakeSquare(_booruMode, WorkspaceIcons.TagList, Texts.T("media.tagList"), Texts.T("media.tagList.tip"));
-        Avalonia.Automation.AutomationProperties.SetHelpText(_booruMode, Texts.T("media.tagList.tip"));
+        string tip = Texts.T("media.tagList.tip", PlatformKeyNames.Alt());
+        WorkspaceIcons.MakeSquare(_booruMode, WorkspaceIcons.TagList, Texts.T("media.tagList"), tip);
+        Avalonia.Automation.AutomationProperties.SetHelpText(_booruMode, tip);
         _tagSidebar.Localize();
     }
 

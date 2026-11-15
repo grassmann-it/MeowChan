@@ -1664,6 +1664,11 @@
             <Transitions><DoubleTransition Property="Opacity" Duration="0:0:0.15" Easing="CubicEaseOut" /></Transitions>
         </Setter>
     </Style>
+    <!-- GL6: the filmstrip's scroll arrows fade in and out with the pointer or keyboard in the band (Hover 80 ms); under reduced motion they switch at once.
+         The control keeps IsVisible while there is somewhere to scroll and moves only Opacity (code: GalleryFilmstrip.UpdateChevrons). -->
+    <Style Selector=":is(TopLevel):not(.motion-off) Button.filmstrip-chevron">
+        <Setter Property="Transitions"><Transitions><DoubleTransition Property="Opacity" Duration="0:0:0.08" /></Transitions></Setter>
+    </Style>
     <!-- E5: motion-off also silences transitions the theme brings along on the roles above. -->
     <Style Selector=":is(TopLevel).motion-off Button /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Transitions" Value="{x:Null}" /></Style>
     <Style Selector=":is(TopLevel).motion-off ToggleButton /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Transitions" Value="{x:Null}" /></Style>

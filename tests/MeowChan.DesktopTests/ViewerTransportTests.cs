@@ -197,7 +197,7 @@ public sealed class ViewerTransportTests : IDisposable
     {
         EffectiveShortcutBindings bindings = EffectiveShortcutBindings.Build(null, ShortcutPlatform.Linux);
         Assert.Contains(bindings.For("video.frame-step"), gesture => gesture.Key == "OemPeriod" && gesture.Modifiers.SequenceEqual(new[] { "Shift" }));
-        // The speed commands keep [ and ] only: no "<" / ">" alias, Shift+, and Shift+. are not speed keys any more.
+        // The speed commands have [ ] and X C (revision 14), never an alias: no "<" / ">" alias, Shift+, and Shift+. are not speed keys any more.
         Assert.DoesNotContain(bindings.For("video.speed-up"), gesture => gesture.Key == "OemPeriod");
         Assert.DoesNotContain(bindings.For("video.speed-down"), gesture => gesture.Key == "OemComma");
         Assert.DoesNotContain(CommandCatalog.All, command => bindings.For(command.Id)

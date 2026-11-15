@@ -27,6 +27,7 @@ public sealed class ReaderSettingsEditorTests : IDisposable
         (nameof(Config.ReaderPageSize), "settings.reader.pageSize", nameof(SettingsEditor.ReaderPageSizeMinimum), nameof(SettingsEditor.ReaderPageSizeMaximum), "SettingsReadingMediaPage"),
         (nameof(Config.ReaderThreadingDepth), "settings.reader.threadingDepth", nameof(SettingsEditor.ReaderThreadingDepthMinimum), nameof(SettingsEditor.ReaderThreadingDepthMaximum), "SettingsReadingMediaPage"),
         (nameof(Config.ReadingHistoryLimit), "settings.reader.historyLimit", nameof(SettingsEditor.ReadingHistoryLimitMinimum), nameof(SettingsEditor.ReadingHistoryLimitMaximum), "SettingsReadingMediaPage"),
+        (nameof(Config.ReadingHistoryMenuEntries), "settings.reader.historyMenuEntries", nameof(SettingsEditor.ReadingHistoryMenuEntriesMinimum), nameof(SettingsEditor.ReadingHistoryMenuEntriesMaximum), "SettingsReadingMediaPage"),
         (nameof(Config.ReaderTextlessMediaWidth), "settings.reader.textlessWidth", nameof(SettingsEditor.ReaderTextlessMediaWidthMinimum), nameof(SettingsEditor.ReaderTextlessMediaWidthMaximum), "SettingsReadingMediaPage"),
         (nameof(Config.ReaderFocusedMediaScalePercent), "settings.reader.focusedScale", nameof(SettingsEditor.ReaderFocusedMediaScalePercentMinimum), nameof(SettingsEditor.ReaderFocusedMediaScalePercentMaximum), "SettingsReadingMediaPage"),
         (nameof(Config.ReaderHoverEnlargeSize), "settings.reader.hoverSize", nameof(SettingsEditor.ReaderHoverEnlargeSizeMinimum), nameof(SettingsEditor.ReaderHoverEnlargeSizeMaximum), "SettingsReadingMediaPage"),
@@ -37,6 +38,8 @@ public sealed class ReaderSettingsEditorTests : IDisposable
         (nameof(Config.ReaderInlineVideoMaxFileMiB), "settings.reader.inlineVideoMaxFile", nameof(SettingsEditor.ReaderInlineVideoMaxFileMiBMinimum), nameof(SettingsEditor.ReaderInlineVideoMaxFileMiBMaximum), "SettingsReadingMediaPage"),
         (nameof(Config.ReaderMediaStripLimit), "settings.reader.mediaStripLimit", nameof(SettingsEditor.ReaderMediaStripLimitMinimum), nameof(SettingsEditor.ReaderMediaStripLimitMaximum), "SettingsReadingMediaPage"),
         (nameof(Config.ReaderMediaGridTextLimit), "settings.reader.mediaGridText", nameof(SettingsEditor.ReaderMediaGridTextLimitMinimum), nameof(SettingsEditor.ReaderMediaGridTextLimitMaximum), "SettingsReadingMediaPage"),
+        (nameof(Config.ReaderPreviewPrefetchPosts), "settings.reader.previewPrefetch", nameof(SettingsEditor.ReaderPreviewPrefetchPostsMinimum), nameof(SettingsEditor.ReaderPreviewPrefetchPostsMaximum), "SettingsReadingMediaPage"),
+        (nameof(Config.ReaderPreviewSizeMemory), "settings.reader.previewSizeMemory", nameof(SettingsEditor.ReaderPreviewSizeMemoryMinimum), nameof(SettingsEditor.ReaderPreviewSizeMemoryMaximum), "SettingsReadingMediaPage"),
         (nameof(Config.PostFilterRuleLimit), "settings.limits.postFilterRules", nameof(SettingsEditor.PostFilterRuleLimitMinimum), nameof(SettingsEditor.PostFilterRuleLimitMaximum), "SettingsWorkerBudgetsPage"),
         (nameof(Config.HiddenPostLimit), "settings.limits.hiddenPosts", nameof(SettingsEditor.HiddenPostLimitMinimum), nameof(SettingsEditor.HiddenPostLimitMaximum), "SettingsWorkerBudgetsPage"),
     };
@@ -61,8 +64,9 @@ public sealed class ReaderSettingsEditorTests : IDisposable
         XElement expander = Named(markup, "ReaderLongPostsSettings");
         Assert.Equal("False", (string?)expander.Attribute("IsExpanded"));
         Assert.Equal("{Binding ReaderLongPostsTitle}", (string?)expander.Attribute("Header"));
+        // SP1: the row only exists while the fit is limited (a conditional row under its parent), instead of a hidden container.
         Assert.Equal("{Binding IsGalleryFitLimited}", (string?)Named(markup, "GalleryFitMaxUpscalePercentInput")
-            .Ancestors().Select(ancestor => ancestor.Attribute("IsVisible")).First(attribute => attribute != null));
+            .Ancestors().Select(ancestor => ancestor.Attribute(XName.Get("SettingsConditional.When", "clr-namespace:MeowChan.Desktop"))).First(attribute => attribute != null));
         Assert.Equal("{Binding IsGalleryFitLimited}", (string?)Named(markup, "GalleryFitMaxUpscalePercentInput").Attribute("IsEnabled"));
     }
 

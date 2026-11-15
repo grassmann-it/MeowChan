@@ -5,7 +5,7 @@ using System.Linq;
 namespace MeowChan.Desktop;
 
 /// <summary>
-/// Playback speeds of the gallery transport. A click on the speed button and the [ ] keys step through
+/// Playback speeds of the gallery transport. A click on the speed button and the speed keys (video.speed-down / video.speed-up: [ ] and X C) step through
 /// <see cref="Cycle"/>; a right-click (or "Choose speed…") offers every entry of <see cref="Choices"/>, 0.25× to 4× in 0.25 steps.
 /// The range is a documented fixed ceiling of the backend's useful rates, not a setting.
 /// </summary>

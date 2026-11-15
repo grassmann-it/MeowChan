@@ -4,6 +4,7 @@ using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Layout;
+using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
@@ -52,7 +53,7 @@ public sealed partial class TaggingPage
         _selStamp.Click += (_, _) => _ = ExecuteRowCommandAsync(TaggingCommands.ApplyStamp);
         _selRemove.Click += (_, _) => _ = ExecuteRowCommandAsync(TaggingCommands.Remove);
         _selState.Click += (_, _) => _stateMenuHost?.Show(atPointer: false);
-        _stateMenuHost = new ContextMenuHost(_selState, ComposeStateMenu, fallbackFocus: () => FocusContent());
+        _stateMenuHost = new ContextMenuHost(_selState, ComposeStateMenu, fallbackFocus: () => FocusContent(), resolveOrigin: StateMenuOrigin);
         _selState.Content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { _selStateText, CommandBindings.NamedIcon("chevron-down", 12) } };
         _selClear.Click += (_, _) => ClearSelection();
         _selClear.HorizontalAlignment = HorizontalAlignment.Right;
@@ -110,6 +111,18 @@ public sealed partial class TaggingPage
         }
         return menu;
     }
+
+    /// <summary>
+    /// The control the state menu opens on: its own button while that is on the screen (on the bar, or in the open More list), else the
+    /// bar's More button (Barebones and Simple keep "Set state" under More; the host would open nothing on a hidden button), else the bar.
+    /// </summary>
+    // A button the toolbar moved into its closed More list is visible by its own flag but belongs to no visual tree (the popup is closed).
+    private static bool OnScreen(Control control) => control.IsAttachedToVisualTree() && control.IsEffectivelyVisible;
+
+    internal Control StateMenuOrigin() =>
+        OnScreen(_selState) ? _selState
+        : _selectionActions.More is { } more && OnScreen(more) ? more
+        : _selectionBar;
 
     /// <summary>The state menu of the bar as plain data (tests and smokes); null without a selection.</summary>
     internal ContextMenuModel? StateMenuModel() => ComposeStateMenu()?.ToModel();

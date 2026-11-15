@@ -123,12 +123,12 @@ internal sealed class ThemeRuntimeHost
 /// TH1: the app's runtime palette. At startup <see cref="Install"/> reads both built-in theme dictionaries of
 /// WorkspaceStyles.axaml from the loaded styles (they stay the source of truth and are never modified) and applies them
 /// through <see cref="ThemePalette"/> with no overrides, which reproduces them exactly. Afterwards
-/// <see cref="Apply(ThemeVariant, IReadOnlyDictionary{string, Color})"/> recolours the whole app live: the generated
+/// <see cref="ApplyOverrides"/> recolours the whole app live: the generated
 /// dictionaries sit in <c>Application.Resources</c>, which Avalonia consults before <c>Application.Styles</c>.
 /// <para>
 /// No configuration is read here; the window passes <c>Config.ThemeOverrides</c> to <see cref="ApplyOverrides"/> (TH2). The requested variant and <see cref="ThemeLogo"/>
 /// are untouched (the variants stay the built-in Light and Dark). If the base cannot be read, the XAML palette simply stays in
-/// charge and <see cref="Apply(ThemeVariant, IReadOnlyDictionary{string, Color})"/> reports that nothing was applied.
+/// charge and <see cref="ApplyOverrides"/> reports that nothing was applied.
 /// </para>
 /// Resources resolved once in code (a <c>TryFindResource</c> whose result is cached) or through <c>StaticResource</c> do not
 /// follow a later apply; colour resources in XAML use <c>DynamicResource</c>.
@@ -160,11 +160,13 @@ internal static class ThemeRuntime
     }
 
     /// <summary>
-    /// Applies <paramref name="overrides"/> (seed key → colour) on top of the built-in <paramref name="baseVariant"/>
+    /// Test seam (N9): applies raw <paramref name="overrides"/> (seed key → colour) on top of the built-in <paramref name="baseVariant"/>
     /// (Light, Dark or a variant inheriting one of them) and returns the palette now in use; null when the runtime palette is
-    /// not installed. An empty map restores the built-in palette of that base. Call on the UI thread.
+    /// not installed. An empty map restores the built-in palette of that base. It bypasses the contrast gate and the stored-override
+    /// bookkeeping on purpose, so production code must never call it: the one way to put colours on the window is <see cref="ApplyOverrides"/>
+    /// (a test pins that no source file under Desktop calls this). Call on the UI thread.
     /// </summary>
-    internal static ThemePalette? Apply(ThemeVariant baseVariant, IReadOnlyDictionary<string, Color> overrides)
+    internal static ThemePalette? ApplyForTests(ThemeVariant baseVariant, IReadOnlyDictionary<string, Color> overrides)
     {
         ArgumentNullException.ThrowIfNull(overrides);
         if (s_host == null) return null;

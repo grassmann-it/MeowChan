@@ -22,7 +22,7 @@ namespace MeowChan.Desktop.Commands;
 /// </summary>
 public sealed class ShortcutEditor : UserControl
 {
-    private readonly StackPanel _root = new() { Spacing = 12 };
+    private readonly StackPanel _root = new() { Spacing = 0 };
     private readonly TextBlock _heading = new() { Name = "SettingsShortcutsHeading" };
     public Control SectionHeading => _heading;
     // Counter, unsaved changes and issues sit in the settings group "More settings" (work views, WV8); hint, switch and
@@ -38,7 +38,8 @@ public sealed class ShortcutEditor : UserControl
     private readonly TextBlock _changes = new() { Name = "SettingsShortcutsChanges", TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _errors = new() { Name = "SettingsShortcutsErrors", TextWrapping = TextWrapping.Wrap };
     // WCAG 2.1.4: the standard single-character shortcuts can be switched off as a whole.
-    private readonly CheckBox _singleKeys = new() { Name = "SettingsShortcutsSingleKeys" };
+    private readonly ToggleSwitch _singleKeys = new() { Name = "SettingsShortcutsSingleKeys", OnContent = null, OffContent = null, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _singleKeysLabel = new() { Name = "SettingsShortcutsSingleKeysLabel", TextWrapping = TextWrapping.Wrap };
     private bool _syncingSingleKeys;
     private readonly List<Action> _frameTexts = new();
     private readonly Action _publishedObserver;
@@ -147,8 +148,8 @@ public sealed class ShortcutEditor : UserControl
     private void Localize()
     {
         _heading.Text = Texts.T("shortcuts.title");
-        _singleKeys.Content = Texts.T("settings.shortcutsEditor.singleKeys");
-        AutomationProperties.SetName(_singleKeys, _singleKeys.Content.ToString());
+        _singleKeysLabel.Text = Texts.T("settings.shortcutsEditor.singleKeys");
+        AutomationProperties.SetName(_singleKeys, _singleKeysLabel.Text);
         AutomationProperties.SetHelpText(_singleKeys, Texts.T("settings.shortcutsEditor.singleKeys.help"));
         _open.Content = Texts.T("shortcuts.card.open");
         AutomationProperties.SetName(_open, Texts.T("shortcuts.card.open"));
@@ -160,22 +161,26 @@ public sealed class ShortcutEditor : UserControl
 
     private void BuildFrame()
     {
-        // HB2: what makes two shortcuts conflict is a help popover next to the card heading, not a line of its own.
-        var headingRow = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 };
+        // HB2: what makes two shortcuts conflict is a help popover right after the card heading (SP1), not a line of its own.
         _heading.VerticalAlignment = VerticalAlignment.Center;
+        _heading.TextWrapping = TextWrapping.Wrap;
         var conflictHelp = new MeowChan.Desktop.Controls.HelpButton { Name = "SettingsShortcutsHelpButton", HelpKey = "help.shortcuts" };
-        Grid.SetColumn(conflictHelp, 1);
-        headingRow.Children.Add(_heading);
-        headingRow.Children.Add(conflictHelp);
+        var headingRow = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 12 };
+        headingRow.Classes.Add("settings-section-header");
+        headingRow.Children.Add(new MeowChan.Desktop.Controls.LabelHelpPanel { Spacing = 8, Children = { _heading, conflictHelp } });
         _root.Children.Add(headingRow);
+        // The window button is an action row: its description at the start, the button in the control column.
         var hint = LocalizedText(() => Texts.T("shortcuts.card.hint"));
         hint.Classes.Add("workspace-help");
-        _root.Children.Add(hint);
-        _root.Children.Add(_open);
-        _root.Children.Add(_singleKeys);
+        _open.HorizontalAlignment = HorizontalAlignment.Stretch;
+        _open.VerticalAlignment = VerticalAlignment.Center;
+        _root.Children.Add(SettingsRowFactory.Create(new Control[] { hint }, _open));
+        // The single-key switch is a yes/no row like every other one: label and description at the start, the switch at the end.
+        _singleKeysLabel.Classes.Add("workspace-field-label");
+        AutomationProperties.SetLabeledBy(_singleKeys, _singleKeysLabel);
         var singleKeysHelp = LocalizedText(() => Texts.T("settings.shortcutsEditor.singleKeys.help"));
         singleKeysHelp.Classes.Add("workspace-help");
-        _root.Children.Add(singleKeysHelp);
+        _root.Children.Add(SettingsRowFactory.Create(new Control[] { _singleKeysLabel, singleKeysHelp }, _singleKeys));
         _more.Content = _moreBody;
         WorkViewElement.SetId(_more, "settings.group.shortcuts");
         _root.Children.Add(_more);

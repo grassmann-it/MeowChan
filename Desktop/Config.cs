@@ -479,6 +479,11 @@ namespace MeowChan
         internal const int ReadingHistoryLimitDefault = ReaderDisplayPreferences.ReadingHistoryLimitDefault;
         internal const int ReadingHistoryLimitMinimum = ReaderDisplayPreferences.ReadingHistoryLimitMinimum;
         internal const int ReadingHistoryLimitMaximum = ReaderDisplayPreferences.ReadingHistoryLimitMaximum;
+        // RH1: threads listed by the right-click menu of "Continue reading" (never more than the history keeps).
+        public int ReadingHistoryMenuEntries { get; set; } = ReadingHistoryMenuEntriesDefault;
+        internal const int ReadingHistoryMenuEntriesDefault = ReaderDisplayPreferences.ReadingHistoryMenuEntriesDefault;
+        internal const int ReadingHistoryMenuEntriesMinimum = ReaderDisplayPreferences.ReadingHistoryMenuEntriesMinimum;
+        internal const int ReadingHistoryMenuEntriesMaximum = ReaderDisplayPreferences.ReadingHistoryMenuEntriesMaximum;
         public int ReaderTextlessMediaWidth { get; set; } = ReaderTextlessMediaWidthDefault;
         internal const int ReaderTextlessMediaWidthDefault = ReaderDisplayPreferences.TextlessMediaWidthDefault;
         internal const int ReaderTextlessMediaWidthMinimum = ReaderDisplayPreferences.TextlessMediaWidthMinimum;
@@ -540,6 +545,16 @@ namespace MeowChan
         internal const int ReaderMediaGridTextLimitDefault = ReaderDisplayPreferences.MediaGridTextLimitDefault;
         internal const int ReaderMediaGridTextLimitMinimum = ReaderDisplayPreferences.MediaGridTextLimitMinimum;
         internal const int ReaderMediaGridTextLimitMaximum = ReaderDisplayPreferences.MediaGridTextLimitMaximum;
+        /// <summary>Posts before and after the visible ones whose previews the reader decodes ahead; 0 turns preloading off.</summary>
+        public int ReaderPreviewPrefetchPosts { get; set; } = ReaderPreviewPrefetchPostsDefault;
+        internal const int ReaderPreviewPrefetchPostsDefault = ReaderPreviewReservation.PrefetchPostsDefault;
+        internal const int ReaderPreviewPrefetchPostsMinimum = ReaderPreviewReservation.PrefetchPostsMinimum;
+        internal const int ReaderPreviewPrefetchPostsMaximum = ReaderPreviewReservation.PrefetchPostsMaximum;
+        /// <summary>Preview sizes the reader remembers for this session, so posts are reserved at their final size at once.</summary>
+        public int ReaderPreviewSizeMemory { get; set; } = ReaderPreviewSizeMemoryDefault;
+        internal const int ReaderPreviewSizeMemoryDefault = ReaderPreviewReservation.SizeMemoryDefault;
+        internal const int ReaderPreviewSizeMemoryMinimum = ReaderPreviewReservation.SizeMemoryMinimum;
+        internal const int ReaderPreviewSizeMemoryMaximum = ReaderPreviewReservation.SizeMemoryMaximum;
         public int GalleryFitMaxUpscalePercent { get; set; } = GalleryFitMaxUpscalePercentDefault;
         internal const int GalleryFitMaxUpscalePercentDefault = GalleryFitPreferences.MaxUpscalePercentDefault;
         internal const int GalleryFitMaxUpscalePercentMinimum = GalleryFitPreferences.MaxUpscalePercentMinimum;
@@ -838,6 +853,7 @@ namespace MeowChan
             ReaderPageSize = Math.Clamp(ReaderPageSize, ReaderPageSizeMinimum, ReaderPageSizeMaximum);
             ReaderThreadingDepth = Math.Clamp(ReaderThreadingDepth, ReaderThreadingDepthMinimum, ReaderThreadingDepthMaximum);
             ReadingHistoryLimit = Math.Clamp(ReadingHistoryLimit, ReadingHistoryLimitMinimum, ReadingHistoryLimitMaximum);
+            ReadingHistoryMenuEntries = Math.Clamp(ReadingHistoryMenuEntries, ReadingHistoryMenuEntriesMinimum, ReadingHistoryMenuEntriesMaximum);
             ReaderTextlessMediaWidth = Math.Clamp(ReaderTextlessMediaWidth, ReaderTextlessMediaWidthMinimum, ReaderTextlessMediaWidthMaximum);
             ReaderHoverEnlargeSize = Math.Clamp(ReaderHoverEnlargeSize, ReaderHoverEnlargeSizeMinimum, ReaderHoverEnlargeSizeMaximum);
             ReaderHoverEnlargeDelayMs = Math.Clamp(ReaderHoverEnlargeDelayMs, ReaderHoverEnlargeDelayMsMinimum, ReaderHoverEnlargeDelayMsMaximum);
@@ -848,6 +864,8 @@ namespace MeowChan
             ReaderInlineVideoMaxFileMiB = Math.Clamp(ReaderInlineVideoMaxFileMiB, ReaderInlineVideoMaxFileMiBMinimum, ReaderInlineVideoMaxFileMiBMaximum);
             ReaderMediaStripLimit = Math.Clamp(ReaderMediaStripLimit, ReaderMediaStripLimitMinimum, ReaderMediaStripLimitMaximum);
             ReaderMediaGridTextLimit = Math.Clamp(ReaderMediaGridTextLimit, ReaderMediaGridTextLimitMinimum, ReaderMediaGridTextLimitMaximum);
+            ReaderPreviewPrefetchPosts = Math.Clamp(ReaderPreviewPrefetchPosts, ReaderPreviewPrefetchPostsMinimum, ReaderPreviewPrefetchPostsMaximum);
+            ReaderPreviewSizeMemory = Math.Clamp(ReaderPreviewSizeMemory, ReaderPreviewSizeMemoryMinimum, ReaderPreviewSizeMemoryMaximum);
             GalleryFitMaxUpscalePercent = Math.Clamp(GalleryFitMaxUpscalePercent, GalleryFitMaxUpscalePercentMinimum, GalleryFitMaxUpscalePercentMaximum);
             GalleryMaxZoomPercent = Math.Clamp(GalleryMaxZoomPercent, GalleryMaxZoomPercentMinimum, GalleryMaxZoomPercentMaximum);
             PostFilterRuleLimit = Math.Clamp(PostFilterRuleLimit, PostFilterRuleLimitMinimum, PostFilterRuleLimitMaximum);
@@ -864,6 +882,10 @@ namespace MeowChan
             UrlTextExportLimitMiB = Math.Clamp(UrlTextExportLimitMiB, UrlTextExportLimitMiBMinimum, UrlTextExportLimitMiBMaximum);
             SlashTagSuggestionCount = Math.Clamp(SlashTagSuggestionCount, SlashTagSuggestionCountMinimum, SlashTagSuggestionCountMaximum);
             GalleryVideoSeekStepSeconds = Math.Clamp(GalleryVideoSeekStepSeconds, GalleryVideoSeekStepSecondsMinimum, GalleryVideoSeekStepSecondsMaximum);
+            // A hand-edited file or a newer version with another range must not make the whole profile invalid (Validate throws): clamp like the seek step.
+            MediaBadgeCollapseBelow = Math.Clamp(MediaBadgeCollapseBelow, MediaBadgeCollapseBelowMinimum, MediaBadgeCollapseBelowMaximum);
+            MediaBadgeHideBelow = Math.Clamp(MediaBadgeHideBelow, MediaBadgeHideBelowMinimum, MediaBadgeHideBelowMaximum);
+            MediaBadgeMaxPerCorner = Math.Clamp(MediaBadgeMaxPerCorner, MediaBadgeMaxPerCornerMinimum, MediaBadgeMaxPerCornerMaximum);
 
             // The new profiles win even if a hand-edited file places legacy active
             // preference fields after LayoutProfiles.
@@ -919,6 +941,12 @@ namespace MeowChan
         /// </summary>
         [JsonIgnore]
         internal bool? SettingsBaselineGalleryFilmstrip { get; set; }
+        /// <summary>
+        /// Draft only: the settings page's tag list width as it was loaded (start, discard, after a save). The width is part of the media layout, which the
+        /// media page changes directly (the drag handle), so a draft takes over only a width the person changed in the box, never the rest of its layout (M1).
+        /// </summary>
+        [JsonIgnore]
+        internal int? SettingsBaselineMediaTagListWidth { get; set; }
 
         [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
         public bool ArchiveMediaTiles { get => ActiveProfile.ArchiveMediaTiles; set => ActiveProfile.ArchiveMediaTiles = value; }
@@ -1490,6 +1518,8 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(ReaderThreadingDepth), "ReaderThreadingDepth is outside its supported range.");
             if (ReadingHistoryLimit is < ReadingHistoryLimitMinimum or > ReadingHistoryLimitMaximum)
                 throw new ArgumentOutOfRangeException(nameof(ReadingHistoryLimit), "ReadingHistoryLimit is outside its supported range.");
+            if (ReadingHistoryMenuEntries is < ReadingHistoryMenuEntriesMinimum or > ReadingHistoryMenuEntriesMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ReadingHistoryMenuEntries), "ReadingHistoryMenuEntries is outside its supported range.");
             if (ReaderTextlessMediaWidth is < ReaderTextlessMediaWidthMinimum or > ReaderTextlessMediaWidthMaximum)
                 throw new ArgumentOutOfRangeException(nameof(ReaderTextlessMediaWidth), "ReaderTextlessMediaWidth is outside its supported range.");
             if (ReaderHoverEnlargeSize is < ReaderHoverEnlargeSizeMinimum or > ReaderHoverEnlargeSizeMaximum)
@@ -1510,6 +1540,10 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(ReaderMediaStripLimit), "ReaderMediaStripLimit is outside its supported range.");
             if (ReaderMediaGridTextLimit is < ReaderMediaGridTextLimitMinimum or > ReaderMediaGridTextLimitMaximum)
                 throw new ArgumentOutOfRangeException(nameof(ReaderMediaGridTextLimit), "ReaderMediaGridTextLimit is outside its supported range.");
+            if (ReaderPreviewPrefetchPosts is < ReaderPreviewPrefetchPostsMinimum or > ReaderPreviewPrefetchPostsMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ReaderPreviewPrefetchPosts), "ReaderPreviewPrefetchPosts is outside its supported range.");
+            if (ReaderPreviewSizeMemory is < ReaderPreviewSizeMemoryMinimum or > ReaderPreviewSizeMemoryMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ReaderPreviewSizeMemory), "ReaderPreviewSizeMemory is outside its supported range.");
             if (GalleryFitMaxUpscalePercent is < GalleryFitMaxUpscalePercentMinimum or > GalleryFitMaxUpscalePercentMaximum)
                 throw new ArgumentOutOfRangeException(nameof(GalleryFitMaxUpscalePercent), "GalleryFitMaxUpscalePercent is outside its supported range.");
             if (GalleryMaxZoomPercent is < GalleryMaxZoomPercentMinimum or > GalleryMaxZoomPercentMaximum)
@@ -1715,6 +1749,7 @@ namespace MeowChan
                 ReaderPageSize = ReaderPageSize,
                 ReaderThreadingDepth = ReaderThreadingDepth,
                 ReadingHistoryLimit = ReadingHistoryLimit,
+                ReadingHistoryMenuEntries = ReadingHistoryMenuEntries,
                 ReaderTextlessMediaWidth = ReaderTextlessMediaWidth,
                 ReaderHoverEnlargeSize = ReaderHoverEnlargeSize,
                 ReaderHoverEnlargeDelayMs = ReaderHoverEnlargeDelayMs,
@@ -1733,6 +1768,8 @@ namespace MeowChan
                 ReaderMediaStripLimit = ReaderMediaStripLimit,
                 ReaderMediaGrid = ReaderMediaGrid,
                 ReaderMediaGridTextLimit = ReaderMediaGridTextLimit,
+                ReaderPreviewPrefetchPosts = ReaderPreviewPrefetchPosts,
+                ReaderPreviewSizeMemory = ReaderPreviewSizeMemory,
                 GalleryFitMaxUpscalePercent = GalleryFitMaxUpscalePercent,
                 GalleryMaxZoomPercent = GalleryMaxZoomPercent,
                 PostFilterRuleLimit = PostFilterRuleLimit,
@@ -1773,6 +1810,7 @@ namespace MeowChan
                 SettingsBaselineWorkspaceMode = WorkspaceMode,
                 SettingsBaselineVideoVolume = VideoVolume,
                 SettingsBaselineGalleryFilmstrip = GalleryFilmstrip,
+                SettingsBaselineMediaTagListWidth = Desktop.MediaPageLayout.Parse(MediaLayout, MediaBooruMode).TagListWidth,
                 // A fresh draft captures the current normalized state. Session admission
                 // restores the editor's original baseline after freezing via Clone().
                 SettingsBaselineGalleryPlayback = GalleryPlaybackPreferences.FromConfig(this),
@@ -1956,6 +1994,7 @@ namespace MeowChan
             ReaderPageSize = source.ReaderPageSize;
             ReaderThreadingDepth = source.ReaderThreadingDepth;
             ReadingHistoryLimit = source.ReadingHistoryLimit;
+            ReadingHistoryMenuEntries = source.ReadingHistoryMenuEntries;
             ReaderTextlessMediaWidth = source.ReaderTextlessMediaWidth;
             ReaderHoverEnlargeSize = source.ReaderHoverEnlargeSize;
             ReaderHoverEnlargeDelayMs = source.ReaderHoverEnlargeDelayMs;
@@ -1974,6 +2013,8 @@ namespace MeowChan
             ReaderMediaStripLimit = source.ReaderMediaStripLimit;
             ReaderMediaGrid = source.ReaderMediaGrid;
             ReaderMediaGridTextLimit = source.ReaderMediaGridTextLimit;
+            ReaderPreviewPrefetchPosts = source.ReaderPreviewPrefetchPosts;
+            ReaderPreviewSizeMemory = source.ReaderPreviewSizeMemory;
             GalleryFitMaxUpscalePercent = source.GalleryFitMaxUpscalePercent;
             GalleryMaxZoomPercent = source.GalleryMaxZoomPercent;
             PostFilterRuleLimit = source.PostFilterRuleLimit;
@@ -2120,6 +2161,12 @@ namespace MeowChan
             GalleryFilmstripTileGap = source.GalleryFilmstripTileGap;
             GalleryFilmstripPreload = source.GalleryFilmstripPreload;
             GalleryVideoSeekStepSeconds = source.GalleryVideoSeekStepSeconds;
+            // M1: only the tag list width of the draft's media layout, and only when the box was changed against its baseline. The media page changes the
+            // rest of the layout (and the width, by its handle) directly; copying the layout as a whole would roll a dragged width back to a stale draft (H1).
+            int draftTagListWidth = Desktop.MediaPageLayout.Parse(source.MediaLayout, source.MediaBooruMode).TagListWidth;
+            Desktop.MediaPageLayout liveLayout = Desktop.MediaPageLayout.Parse(MediaLayout, MediaBooruMode);
+            if (draftTagListWidth != (source.SettingsBaselineMediaTagListWidth ?? liveLayout.TagListWidth) && draftTagListWidth != liveLayout.TagListWidth)
+                MediaLayout = (liveLayout with { TagListWidth = draftTagListWidth }).Format();
             MediaBadgeCollapseBelow = source.MediaBadgeCollapseBelow;
             MediaBadgeHideBelow = source.MediaBadgeHideBelow;
             MediaBadgeMaxPerCorner = source.MediaBadgeMaxPerCorner;
@@ -2165,6 +2212,7 @@ namespace MeowChan
             ReaderPageSize = source.ReaderPageSize;
             ReaderThreadingDepth = source.ReaderThreadingDepth;
             ReadingHistoryLimit = source.ReadingHistoryLimit;
+            ReadingHistoryMenuEntries = source.ReadingHistoryMenuEntries;
             ReaderTextlessMediaWidth = source.ReaderTextlessMediaWidth;
             ReaderHoverEnlargeSize = source.ReaderHoverEnlargeSize;
             ReaderHoverEnlargeDelayMs = source.ReaderHoverEnlargeDelayMs;
@@ -2183,6 +2231,8 @@ namespace MeowChan
             ReaderMediaStripLimit = source.ReaderMediaStripLimit;
             ReaderMediaGrid = source.ReaderMediaGrid;
             ReaderMediaGridTextLimit = source.ReaderMediaGridTextLimit;
+            ReaderPreviewPrefetchPosts = source.ReaderPreviewPrefetchPosts;
+            ReaderPreviewSizeMemory = source.ReaderPreviewSizeMemory;
             GalleryFitMaxUpscalePercent = source.GalleryFitMaxUpscalePercent;
             GalleryMaxZoomPercent = source.GalleryMaxZoomPercent;
             PostFilterRuleLimit = source.PostFilterRuleLimit;

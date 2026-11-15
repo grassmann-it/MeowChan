@@ -13,7 +13,7 @@ public sealed class SettingsHintLintTests
 {
     private static readonly XNamespace X = "http://schemas.microsoft.com/winfx/2006/xaml";
     private static readonly string[] InputKinds =
-        ["SettingsNumberInput", "ComboBox", "CheckBox", "TextBox", "AccessibleNumberInput"];
+        ["SettingsNumberInput", "ComboBox", "CheckBox", "ToggleSwitch", "TextBox", "AccessibleNumberInput"];
 
     // Debt at 744d9217bc10b7448b1d4b20f94fde145b2e9b13, NOT permission for new debt.
     // Only remove entries when adding attributable help or removing an input. Never
@@ -26,20 +26,20 @@ public sealed class SettingsHintLintTests
     [
         "ComboBox|name=LanguageInput|SelectedItem=SelectedLanguage",
         "ComboBox|name=ThemeInput|SelectedItem=SelectedTheme",
-        "CheckBox|name=CompactDensityInput|IsChecked=CompactDensity",
+        "ToggleSwitch|name=CompactDensityInput|IsChecked=CompactDensity",
         "ComboBox|name=ReadingFontSizeInput|SelectedItem=SelectedReadingFontSize",
-        "CheckBox|name=GalleryMediaFocusInput|IsChecked=GalleryMediaFocus",
-        "CheckBox|binding=VideoAutoplay|IsChecked=VideoAutoplay",
-        "CheckBox|binding=VideoStartMuted|IsChecked=VideoStartMuted",
-        "CheckBox|name=ShowShortcutHelpInput|IsChecked=ShowShortcutHelp",
-        "CheckBox|name=PrereleaseUpdatesInput|IsChecked=IncludePrereleaseUpdates",
-        "CheckBox|name=InformationNotificationsInput|IsChecked=ShowInformationNotifications",
-        "CheckBox|name=WarningNotificationsInput|IsChecked=ShowWarningNotifications",
-        "CheckBox|name=ErrorNotificationsInput|IsChecked=ShowErrorNotifications",
-        "CheckBox|name=BoardAdmissionWizardInput|IsChecked=ShowBoardAdmissionWizard",
-        "CheckBox|name=RestoreSessionInput|IsChecked=SaveUrlsOnExit",
-        "CheckBox|name=CloseToTrayInput|IsChecked=CloseToTray",
-        "CheckBox|name=MinimizeToTrayInput|IsChecked=MinimizeToTray",
+        "ToggleSwitch|name=GalleryMediaFocusInput|IsChecked=GalleryMediaFocus",
+        "ToggleSwitch|binding=VideoAutoplay|IsChecked=VideoAutoplay",
+        "ToggleSwitch|binding=VideoStartMuted|IsChecked=VideoStartMuted",
+        "ToggleSwitch|name=ShowShortcutHelpInput|IsChecked=ShowShortcutHelp",
+        "ToggleSwitch|name=PrereleaseUpdatesInput|IsChecked=IncludePrereleaseUpdates",
+        "ToggleSwitch|name=InformationNotificationsInput|IsChecked=ShowInformationNotifications",
+        "ToggleSwitch|name=WarningNotificationsInput|IsChecked=ShowWarningNotifications",
+        "ToggleSwitch|name=ErrorNotificationsInput|IsChecked=ShowErrorNotifications",
+        "ToggleSwitch|name=BoardAdmissionWizardInput|IsChecked=ShowBoardAdmissionWizard",
+        "ToggleSwitch|name=RestoreSessionInput|IsChecked=SaveUrlsOnExit",
+        "ToggleSwitch|name=CloseToTrayInput|IsChecked=CloseToTray",
+        "ToggleSwitch|name=MinimizeToTrayInput|IsChecked=MinimizeToTray",
     ];
 
     private sealed record Exclusion(string Identity, string Reason, Func<XElement, bool> StillNonEditable);
@@ -49,7 +49,7 @@ public sealed class SettingsHintLintTests
     // artifacts alone are excluded; changed shape or deletion requires review.
     private static readonly Exclusion[] NonEditableUi =
     [
-        new("CheckBox|name=GalleryAutoHideControlsInput|IsChecked=GalleryAutoHideControls",
+        new("ToggleSwitch|name=GalleryAutoHideControlsInput|IsChecked=GalleryAutoHideControls",
             "Hidden compatibility binding: overlay and auto-hide are one visible choice, not two inputs.",
             e => IsFalse(e, "IsVisible") && IsFalse(e, "IsTabStop")),
         new("TextBox|binding=ErrorDetails|Text=ErrorDetails",
@@ -69,9 +69,10 @@ public sealed class SettingsHintLintTests
     [InlineData("SettingsNumberInput", "Value")]
     [InlineData("ComboBox", "SelectedItem")]
     [InlineData("CheckBox", "IsChecked")]
+    [InlineData("ToggleSwitch", "IsChecked")]
     [InlineData("TextBox", "Text")]
     [InlineData("AccessibleNumberInput", "Value")]
-    public void AllFiveKindsAreLintedEvenWhenHiddenOrDisabled(string kind, string property)
+    public void AllKindsAreLintedEvenWhenHiddenOrDisabled(string kind, string property)
     {
         XDocument markup = Fixture($"<{kind} x:Name='FutureInput' {property}='{{Binding Future, Mode=TwoWay}}' IsVisible='False' IsEnabled='False' />");
         Assert.Contains(Problems(markup, [], []), p => p.StartsWith("Missing help: ", StringComparison.Ordinal));
@@ -124,6 +125,13 @@ public sealed class SettingsHintLintTests
         { "<TextBlock Classes='workspace-help' Text='{Binding FutureHint}' /><TextBox Text='{Binding Future}' />", false },
         { "<TextBox Text='{Binding Future}' /><TextBlock Text='Intervening row' /><TextBlock Classes='workspace-help' Text='{Binding FutureHint}' />", false },
         { "<Grid Classes='settings-row'><TextBox Text='{Binding Future}' /><CheckBox IsChecked='{Binding Other}' /><TextBlock Classes='workspace-help' Text='{Binding FutureHint}' /></Grid>", false },
+        // SP1: the description of the uniform row sits in its label cell, for the one input of the row.
+        { "<Grid Classes='settings-row'><StackPanel Classes='settings-label'><TextBlock Text='Label' /><TextBlock Classes='workspace-help' Text='{Binding FutureHint}' /></StackPanel><ToggleSwitch IsChecked='{Binding Future}' /></Grid>", true },
+        { "<Grid Classes='settings-row'><StackPanel Classes='settings-label'><TextBlock Text='Label' /><TextBlock Classes='workspace-help' Text='{Binding FutureHint}' /></StackPanel><TextBox Text='{Binding Future}' /></Grid>", true },
+        { "<Grid Classes='settings-row'><StackPanel Classes='settings-label'><TextBlock Classes='workspace-help' Text='{Binding OtherHint}' /></StackPanel><TextBox Text='{Binding Future}' /></Grid>", false },
+        { "<Grid Classes='settings-row'><StackPanel Classes='settings-label'><TextBlock Classes='workspace-help' Text='{Binding FutureHint}' IsVisible='False' /></StackPanel><TextBox Text='{Binding Future}' /></Grid>", false },
+        { "<Grid Classes='settings-row'><StackPanel><TextBlock Classes='workspace-help' Text='{Binding FutureHint}' /></StackPanel><TextBox Text='{Binding Future}' /></Grid>", false },
+        { "<Grid Classes='settings-row'><StackPanel Classes='settings-label'><TextBlock Classes='workspace-help' Text='{Binding FutureHint}' /></StackPanel><TextBox Text='{Binding Future}' /><ToggleSwitch IsChecked='{Binding Other}' /></Grid>", false },
         // Even a matching binding elsewhere in the category is not an owned line.
         { "<StackPanel><TextBox Text='{Binding Future}' /></StackPanel><TextBlock Classes='workspace-help' Text='{Binding FutureHint}' />", false },
         { "<Grid Classes='settings-row'><TextBox Text='{Binding Future}' /><StackPanel IsVisible='False'><TextBlock Classes='workspace-help' Text='{Binding FutureHint}' /></StackPanel></Grid>", false },
@@ -210,7 +218,7 @@ public sealed class SettingsHintLintTests
         XDocument markup = Markup();
         Named(markup, "GalleryAutoHideControlsInput").Remove();
         Assert.Contains(Problems(markup, MissingHelpBaseline, NonEditableUi),
-            p => p.StartsWith("Stale/ambiguous exclusion: CheckBox|name=GalleryAutoHideControlsInput|", StringComparison.Ordinal));
+            p => p.StartsWith("Stale/ambiguous exclusion: ToggleSwitch|name=GalleryAutoHideControlsInput|", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -300,6 +308,10 @@ public sealed class SettingsHintLintTests
         XElement? row = field.Ancestors().FirstOrDefault(e => HasClass(e, "settings-row") || HasClass(e, "workspace-field"));
         if (row == null || row.Descendants().Count(IsInput) != 1) return false;
         if (row.Descendants().SkipWhile(e => e != field).Skip(1).Any(e => AssignedLine(e, row))) return true;
+        // SP1: in the uniform row the description is in the label cell (start of the row), the control in the column after it.
+        // Still field ownership: the cell must be a direct child of the row, which holds exactly this one input.
+        if (HasClass(row, "settings-row") && row.Elements().Where(cell => HasClass(cell, "settings-label"))
+            .Any(cell => cell.Descendants().Any(e => AssignedLine(e, row)))) return true;
         XElement? followingRow = row.ElementsAfterSelf().FirstOrDefault();
         return followingRow != null && AssignedLine(followingRow, row.Parent!);
     }
@@ -316,7 +328,7 @@ public sealed class SettingsHintLintTests
     private static string EditProperty(XElement e) => e.Name.LocalName switch
     {
         "ComboBox" => "SelectedItem",
-        "CheckBox" => "IsChecked",
+        "CheckBox" or "ToggleSwitch" => "IsChecked",
         "TextBox" => "Text",
         _ => "Value",
     };

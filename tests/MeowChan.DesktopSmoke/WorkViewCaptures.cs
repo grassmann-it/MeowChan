@@ -87,6 +87,7 @@ internal static class WorkViewCaptures
                 await booru.InitializeAsync();
             }
             CheckRegistrations(window);
+            await TaggingRegistrationsAsync(window);
             await ShortcutProbeAsync(window);
             await ViewCycleProbeAsync(window);
             if (pages.Contains("dialogs")) await NoticeChecksAsync(window, output);
@@ -459,10 +460,11 @@ internal static class WorkViewCaptures
         if (stray.Length > 0) throw new InvalidOperationException($"{scene}: the app menu still lists {string.Join(", ", stray)}.");
         if (window.FindControl<CheckBox>("ShowBooruToolsToggle") != null)
             throw new InvalidOperationException($"{scene}: the footer still has the Show Booru check box.");
-        MenuItem group = window.FindControl<MenuItem>("WorkViewMenuItem")!;
+        // The view group and its entries are built in code (MainWindow.WorkViewMenu.cs) and carry no XAML name scope: find them under the ⋯ menu.
+        MenuItem group = appMenu.Items.OfType<MenuItem>().Single(item => item.Name == "WorkViewMenuItem");
         MenuItem[] radios = group.Items.OfType<MenuItem>().Where(item => item.ToggleType == MenuItemToggleType.Radio).ToArray();
         string checkedViews = string.Join(",", radios.Where(item => item.IsChecked).Select(item => item.Name));
-        if (radios.Length != 3 || checkedViews != view + "WorkViewMenuItem" || window.FindControl<MenuItem>("WorkViewCycleMenuItem") == null)
+        if (radios.Length != 3 || checkedViews != view + "WorkViewMenuItem" || !group.Items.OfType<MenuItem>().Any(item => item.Name == "WorkViewCycleMenuItem"))
             throw new InvalidOperationException($"{scene}: the view radio group shows {checkedViews} of {radios.Length} entries.");
         if (window.FindControl<ComboBox>("WorkspaceModeComboBox")!.SelectedItem is not ComboBoxItem { Tag: string footer } || footer != view)
             throw new InvalidOperationException($"{scene}: the footer selector disagrees with the work view.");
@@ -564,8 +566,10 @@ internal static class WorkViewCaptures
         MediaPage page = window.MediaPageForTests ?? throw new InvalidOperationException("media/" + view + ": the media page does not exist.");
         if (page.CurrentWorkView != workView)
             throw new InvalidOperationException($"media/{view}: the page applied {page.CurrentWorkView}.");
-        // Visibility of these follows page state or is derived from the lists below.
-        string[] derived = ["media.toolbar.more", "media.selection.more", "media.toolbar.shuffle", "media.status.untagged", "media.filter.more", "media.filter.add"];
+        // Visibility of these follows page state or is derived from the lists below. M5: the "all | any" switch shows only from two included
+        // tags on (or while it is set to "any"), whatever the view says about it; this fixture has no tag filter.
+        string[] derived = ["media.toolbar.more", "media.selection.more", "media.toolbar.shuffle", "media.status.untagged", "media.filter.more", "media.filter.add",
+            "media.filter.tag-mode"];
         Control[] controls = WorkViewElement.For(WorkViewPage.Media).Where(control => control.FindLogicalAncestorOfType<MediaPage>() == page).ToArray();
         foreach (Control control in controls)
         {
@@ -577,9 +581,15 @@ internal static class WorkViewCaptures
                 throw new InvalidOperationException($"media/{view}: {control.Name ?? id} is {(control.IsVisible ? "shown" : "hidden")} but {id} says {WorkViewPolicy.Resolve(id, workView)} at {page.ToolbarLevel}.");
         }
         // Since S3 the header holds export all and the ratings manager under More in every view; "show missing files" is a filter field.
-        string[] header = ["media.toolbar.tag-list", "media.toolbar.layout", "media.toolbar.focus", "media.toolbar.refresh", "media.toolbar.shuffle", "media.toolbar.export-all", "media.toolbar.manage-ratings"];
+        // MP3/MP4: the way into the tag queue walk, the way to the tagging page and the Booru launcher are under More in every view, but only
+        // while the page's own state wants them (a shell that wires the walk and the page, a Booru workbench that can open): their state flag says so.
+        string[] header = ["media.toolbar.tag-list", "media.toolbar.layout", "media.toolbar.focus", "media.toolbar.refresh", "media.toolbar.shuffle",
+            "media.toolbar.booru", "media.toolbar.queue-walk", "media.toolbar.tagging-page", "media.toolbar.export-all", "media.toolbar.manage-ratings"];
+        string[] stateGated = ["media.toolbar.booru", "media.toolbar.queue-walk", "media.toolbar.tagging-page"];
+        bool StateWants(string id) => !stateGated.Contains(id)
+            || controls.FirstOrDefault(control => WorkViewElement.GetId(control) == id) is { } owner && WorkViewElement.GetStateVisible(owner);
         string[] expectedMore = header.Where(id => (WorkViewPolicy.Resolve(id, workView) == Presence.Overflow || MediaToolbarLayout.IsMovedUnderMore(page.ToolbarLevel, id))
-                && (id != "media.toolbar.shuffle" || page.Sort == MediaLibrarySort.Random))
+                && (id != "media.toolbar.shuffle" || page.Sort == MediaLibrarySort.Random) && StateWants(id))
             .OrderBy(id => WorkViewPolicy.Get(id).OverflowOrder).ToArray();
         if (!page.HeaderMoreIds.SequenceEqual(expectedMore))
             throw new InvalidOperationException($"media/{view}: More holds [{string.Join(", ", page.HeaderMoreIds)}], the policy says [{string.Join(", ", expectedMore)}].");
@@ -589,9 +599,23 @@ internal static class WorkViewCaptures
         Console.WriteLine($"SMOKE work-views media: view={view}; More=[{string.Join(", ", page.HeaderMoreIds)}].");
     }
 
+    // The tagging page (tagging.* rows: progress, start, list, toolbar, selection bar, view toggle, help) exists only after the first visit. It is not
+    // a cell of the matrix (its presence is the tagging-page smoke's job), so the run enters it once through the footer and checks its rows.
+    private static async Task TaggingRegistrationsAsync(MainWindow window)
+    {
+        await LeaveAsync(window);
+        SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Tagging);
+        await Program.WaitUntilAsync(() => window.SelectedPage == MainWindow.WorkspacePage.Tagging && window.TaggingPage != null,
+            () => "the tagging page did not open, page " + window.SelectedPage);
+        CheckPageRegistrations(window, "tagging");
+        SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Downloads);
+        await Program.WaitUntilAsync(() => window.SelectedPage == MainWindow.WorkspacePage.Downloads);
+    }
+
     // Pages the window builds lazily (deferred batch or Booru navigation); check their rows after the visit.
     // The gallery viewer exists only while a gallery is open (WorkViewGalleryChecks.CheckRegistrations runs against it).
-    private static readonly HashSet<WorkViewPage> LazyPages = [WorkViewPage.Diagnostics, WorkViewPage.Statistics, WorkViewPage.Gallery, WorkViewPage.Booru];
+    // The tagging page is built on its first visit too (EnsureTaggingPage); TaggingRegistrationsAsync enters it once per run.
+    private static readonly HashSet<WorkViewPage> LazyPages = [WorkViewPage.Diagnostics, WorkViewPage.Statistics, WorkViewPage.Gallery, WorkViewPage.Booru, WorkViewPage.Tagging];
 
     private static void CheckPageRegistrations(MainWindow window, string page)
     {

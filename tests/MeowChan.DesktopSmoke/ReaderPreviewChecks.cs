@@ -108,6 +108,10 @@ internal static class ReaderPreviewChecks
             double before = PostTop(posts, "110125033");
             mediaGate.SetResult(); await page.MediaLoadTask;
             await WaitPreviewAsync(posts, "110125033"); await SmokeDispatcher.SettleAsync();
+            // Stable previews: the header pass reserves every post of the page at its picture's size (1800 x 1000), not only the visible ones.
+            await page.PreviewSizePassTask; await SmokeDispatcher.SettleAsync();
+            Require(PageAttachments(posts).All(row => row.KnownAspect is { } aspect && Math.Abs(aspect - 1.8) < 0.02),
+                "The header read did not reserve every preview of the page at the picture's size before it was shown.");
             Require(Math.Abs(PostTop(posts, "110125033") - before) <= 2,
                 $"Completing delayed previews moved the focused post: {before} → {PostTop(posts, "110125033")}.");
             ArchiveAttachmentView preview = posts.GetVisualDescendants().OfType<ArchiveAttachmentView>()
@@ -128,24 +132,72 @@ internal static class ReaderPreviewChecks
             await page.LoadThreadAsync(id, resetPage: false);
             Require((posts.SelectedItem as ArchivePostRow)?.Id == "110125033", "Same-thread refresh lost the selected post.");
             double refreshedTop = PostTop(posts, "110125033");
+            // Rebuilt rows take their sizes from the session's size memory before the list measures them.
+            Require(PageAttachments(posts).All(row => row.KnownAspect is { } aspect && Math.Abs(aspect - 1.8) < 0.02),
+                "Rebuilt reader rows were not reserved from the remembered preview sizes.");
+            double refreshedHeight = PostHeight(posts, "110125033");
             Console.WriteLine("SMOKE reader refresh anchor: " + refreshBefore);
             Console.WriteLine("SMOKE reader refresh anchor: " + DescribeRefreshAnchor("after", window, pane, page, posts, refreshedTop));
             Require(Math.Abs(refreshedTop - refreshTop) <= 2,
                 $"Same-thread refresh lost the scroll anchor before media completed: {refreshTop:R} → {refreshedTop:R}.");
             mediaGate.SetResult(); await page.MediaLoadTask; await WaitPreviewAsync(posts, "110125033"); await SmokeDispatcher.SettleAsync();
             Require(Math.Abs(PostTop(posts, "110125033") - refreshTop) <= 2, "Refreshed previews moved the retained post.");
+            Require(Math.Abs(PostHeight(posts, "110125033") - refreshedHeight) <= 0.5,
+                $"The post's height changed when its preview arrived: {refreshedHeight:R} → {PostHeight(posts, "110125033"):R}.");
             // Reparenting the same controls must resume visible thumbnails after detach cancellation.
             window.Content = null; await SmokeDispatcher.SettleAsync(); window.Content = pane;
             await WaitPreviewAsync(posts, "110125033");
             page.EndLifetime(); window.Content = null;
+            await CheckReservedHeightAsync(window);
             await CheckCancellationAndLateResultsAsync(window);
-            Console.WriteLine("SMOKE reader preview: five-post delayed images keep geometry/scroll; same-page focus retains loaders; refresh retains selection/anchor; detach/remount reloads; source cancellation/timeout terminate Loading and stale results cannot replace current pixels.");
+            Console.WriteLine("SMOKE reader preview: five-post delayed images keep geometry/scroll; header-read and remembered sizes keep the post height when the preview arrives; same-page focus retains loaders; refresh retains selection/anchor; detach/remount reloads; source cancellation/timeout terminate Loading and stale results cannot replace current pixels.");
         }
         finally
         {
             page?.EndLifetime(); if (window != null) { window.Content = null; window.Close(); }
             if (Directory.Exists(profile)) Directory.Delete(profile, true);
         }
+    }
+
+    // A preview whose size is known before its pixels (header read, size memory) is measured at its final height and does not move.
+    private static async Task CheckReservedHeightAsync(Window window)
+    {
+        ArchiveAttachmentView view = new();
+        window.Content = view;
+        TaskCompletionSource<Bitmap?> pixels = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        ArchiveAttachmentRow row = new(new CapturedAttachment(0, "local", OriginalFileName: "image.png")) { LoadThumbnail = _ => pixels.Task };
+        row.KnownAspect = 1.8; // what the header read finds in ImageBytes (1800 x 1000)
+        view.DataContext = row;
+        await SmokeDispatcher.SettleAsync();
+        double before = view.Bounds.Height;
+        Require(before > 0 && view.Thumbnail.Source == null, "The reserved preview was not laid out before its pixels.");
+        pixels.SetResult(NewBitmap());
+        await Program.WaitUntilAsync(() => view.Thumbnail.Source is Bitmap);
+        await SmokeDispatcher.SettleAsync();
+        Require(Math.Abs(view.Bounds.Height - before) <= 0.5 && row.KnownAspect == 1.8,
+            $"The preview's height changed when its pixels arrived although its size was known: {before:R} → {view.Bounds.Height:R}.");
+        // A size learned while the row is shown (a late header read) reserves the frame at once, before any pixels.
+        TaskCompletionSource<Bitmap?> later = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        ArchiveAttachmentRow unknown = new(new CapturedAttachment(0, "local-2", OriginalFileName: "image.png")) { LoadThumbnail = _ => later.Task };
+        view.DataContext = unknown;
+        await SmokeDispatcher.SettleAsync();
+        double wide = view.Bounds.Height;
+        unknown.KnownAspect = 0.5;
+        await SmokeDispatcher.SettleAsync();
+        Require(view.Bounds.Height > wide + 10 && view.Thumbnail.Source == null, "A size learned while the row was shown did not reserve the frame.");
+        later.SetResult(null);
+        window.Content = null; await SmokeDispatcher.SettleAsync();
+    }
+
+    private static IEnumerable<ArchiveAttachmentRow> PageAttachments(ListBox posts) =>
+        posts.ItemsSource!.Cast<ArchivePostRow>().SelectMany(post => post.Attachments);
+
+    private static double PostHeight(ListBox posts, string id)
+    {
+        ArchivePostRow row = posts.ItemsSource!.Cast<ArchivePostRow>().Single(row => row.Id == id);
+        posts.UpdateLayout();
+        return (posts.ContainerFromItem(row) as Control)?.Bounds.Height
+            ?? throw new InvalidOperationException("Target post has no realized container: " + id);
     }
 
     private static async Task CheckCancellationAndLateResultsAsync(Window window)

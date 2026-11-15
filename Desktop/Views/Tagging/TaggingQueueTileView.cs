@@ -48,7 +48,10 @@ internal sealed class TaggingQueueTileView : Border
         AutomationProperties.SetAccessibilityView(_number, AccessibilityView.Raw);
         // The badge view lies over the whole slot (the picture is letterboxed inside it): its corners are the slot's, so every tile carries them at one height.
         Grid picture = new() { Children = { _preview, _badges.View, _selected } };
-        _preview.PictureChanged += () => { _badges.Place(_preview.PictureSize, _preview.Bounds.Size); PlaceCheck(); };
+        _badges.View.PlanRefreshed += PlaceCheck; // other badge limits can move the badges, and the check keeps clear of them
+        _preview.PictureChanged += PlaceBadges;
+        // The slot's size is known only after the first layout and changes with the column width: the badges follow it (they hang on the slot, not on the picture).
+        _preview.SizeChanged += (_, _) => PlaceBadges();
         Grid cell = new() { Margin = new Thickness(8, 8, 8, 4), RowDefinitions = new RowDefinitions(PreviewHeight + ",Auto"), RowSpacing = 4 };
         cell.Children.Add(picture);
         Grid caption = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*") };
@@ -93,6 +96,12 @@ internal sealed class TaggingQueueTileView : Border
         string? name = row == null ? null : _badges.Description.Length == 0 ? row.AccessibleName : row.AccessibleName + ", " + _badges.Description;
         ToolTip.SetTip(this, name);
         AutomationProperties.SetName(this, name);
+    }
+
+    private void PlaceBadges()
+    {
+        _badges.Place(_preview.PictureSize, _preview.Bounds.Size);
+        PlaceCheck();
     }
 
     /// <summary>

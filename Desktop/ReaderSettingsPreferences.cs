@@ -24,5 +24,7 @@ internal static class ReaderSettingsPreferences
         reader.InlineReplyPageSize = config.ReaderReplyStep;
         reader.ReplyCardMaxLines = config.ReaderReplyLines;
         reader.ReaderMediaSidebarFit = Gallery(config);
+        ReaderPreviewAspectMemo.Shared.Capacity = config.ReaderPreviewSizeMemory;
+        reader.ReaderPreviewPrefetchPosts = config.ReaderPreviewPrefetchPosts;
     }
 }

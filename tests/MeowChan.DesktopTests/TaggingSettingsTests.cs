@@ -205,7 +205,8 @@ public sealed class TaggingSettingsTests : IDisposable
         }
         XElement start = Named("TaggingCardsDefaultInput");
         Assert.Equal("{Binding TaggingCardsDefault, Mode=TwoWay}", (string?)start.Attribute("IsChecked"));
-        Assert.Equal("{Binding TaggingCardsDefaultLabel}", (string?)start.Attribute("Content"));
+        Assert.Equal("{Binding TaggingCardsDefaultLabel}", (string?)Named("TaggingCardsDefaultFieldLabel").Attribute("Text"));
+        Assert.Equal("ToggleSwitch", start.Name.LocalName);
         for (int slot = 1; slot <= 5; slot++)
         {
             XElement combo = Named("TaggingCard" + slot + "Input");

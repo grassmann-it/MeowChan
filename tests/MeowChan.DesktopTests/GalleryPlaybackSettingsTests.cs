@@ -93,7 +93,7 @@ public sealed class GalleryPlaybackSettingsTests : IDisposable
     {
         XDocument markup = XDocument.Load(Path.Combine(RepositoryRoot(), "Desktop/Views/Settings/SettingsEditor.axaml"));
         XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
-        var controls = markup.Descendants().Where(element => element.Name.LocalName == "CheckBox")
+        var controls = markup.Descendants().Where(element => element.Name.LocalName == "ToggleSwitch")
             .ToDictionary(element => (string?)element.Attribute(x + "Name") ?? Guid.NewGuid().ToString());
         XElement visible = controls["GalleryOverlayControlsInput"];
         Assert.Null(visible.Attribute("IsVisible"));

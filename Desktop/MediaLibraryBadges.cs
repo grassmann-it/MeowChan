@@ -73,30 +73,3 @@ internal static class MediaLibraryBadges
     /// <summary>The space the check mark keeps from the tile's top-right edge, and from a badge beside it (dip).</summary>
     internal const double CornerInset = 2, CornerGap = 2;
 }
-
-/// <summary>
-/// The spoken sentence of one tile's badges (<see cref="MediaBadgeText.Describe(in MediaBadgeState, in MediaBadgeOptions)"/>), kept until the
-/// state or the language changes: a recycled tile whose state did not change builds no new string.
-/// </summary>
-internal struct MediaLibraryBadgeSentence
-{
-    private MediaBadgeState _state;
-    private MediaBadgeOptions _options;
-    private string? _language;
-    private string _text;
-    private bool _valid;
-
-    /// <summary>The sentence for this state on this surface.</summary>
-    internal string Get(in MediaBadgeState state, in MediaBadgeOptions options)
-    {
-        string language = Texts.Language;
-        if (_valid && state.Equals(_state) && options == _options && string.Equals(language, _language, StringComparison.Ordinal)) return _text;
-        _state = state; _options = options; _language = language;
-        _text = MediaBadgeText.Describe(state, options);
-        _valid = true;
-        return _text;
-    }
-
-    /// <summary>Forgets the sentence (nothing is shown any more).</summary>
-    internal void Reset() { this = default; _text = string.Empty; }
-}

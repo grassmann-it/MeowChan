@@ -98,6 +98,33 @@ public sealed class YieldingDefaultsTests
         }
     }
 
+    [Theory]
+    [InlineData("video.speed-down", "X", "OemOpenBrackets")]
+    [InlineData("video.speed-up", "C", "OemCloseBrackets")]
+    public void TheSpeedLettersOfRevision14YieldToASavedBindingOfAnotherCommandAndKeepTheBracket(string id, string letter, string bracket)
+    {
+        Assert.True(EffectiveShortcutBindings.DefaultsRevision >= 14);
+        Assert.Contains(id, EffectiveShortcutBindings.YieldingDefaultCommandIds);
+        foreach (ShortcutPlatform platform in new[] { ShortcutPlatform.Linux, ShortcutPlatform.Windows, ShortcutPlatform.MacOS })
+        {
+            // Defaults: bracket and letter, from a table whose bracket is the catalog key and whose letter is the revision-14 addition.
+            Assert.Equal(new[] { bracket, letter }, EffectiveShortcutBindings.Defaults(CommandCatalog.Get(id), platform).Select(g => g.Key).ToArray());
+            // A profile that saved the letter for another gallery command keeps it; the speed command keeps only its bracket; nothing blocks.
+            var section = new ShortcutBindingsSection().Set("gallery.slideshow-toggle", [ShortcutGesture.Parse(letter)]);
+            string before = section.Raw.GetRawText();
+            var bindings = EffectiveShortcutBindings.Build(section, platform);
+            Assert.Equal(new[] { letter }, bindings.For("gallery.slideshow-toggle").Select(g => g.Key).ToArray());
+            Assert.Equal(new[] { bracket }, bindings.For(id).Select(g => g.Key).ToArray());
+            Assert.DoesNotContain(bindings.Issues, issue => issue.BlocksSave);
+            Assert.Contains(bindings.Issues, issue => issue.CommandId == id && issue.OtherCommandId == "gallery.slideshow-toggle" && !issue.BlocksSave);
+            Assert.Equal(before, section.Raw.GetRawText());
+            // A profile that saved its own speed keys is left exactly as it is: no letter is added to an explicit list.
+            var own = EffectiveShortcutBindings.Build(new ShortcutBindingsSection().Set(id, [ShortcutGesture.Parse(bracket)]), platform);
+            Assert.Equal(new[] { bracket }, own.For(id).Select(g => g.Key).ToArray());
+            Assert.Empty(own.Issues);
+        }
+    }
+
     [Fact]
     public void AFrozenOverrideThatKeptAnOldDefaultAlongsideItsOwnGestureStillWinsAgainstTheNewDefault()
     {

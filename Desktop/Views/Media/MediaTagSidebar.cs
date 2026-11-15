@@ -125,7 +125,7 @@ internal sealed class MediaTagSidebar : UserControl
             _search.PlaceholderText = Texts.T("media.tags.search");
             AutomationProperties.SetName(_search, Texts.T("media.tags.search"));
             AutomationProperties.SetName(_list, Texts.T("media.tags.title"));
-            string hint = Texts.T("media.tags.hint");
+            string hint = Texts.T("media.tags.hint", PlatformKeyNames.Alt());
             AutomationProperties.SetHelpText(_list, hint);
             AutomationProperties.SetName(this, Texts.T("media.tags.title"));
         }

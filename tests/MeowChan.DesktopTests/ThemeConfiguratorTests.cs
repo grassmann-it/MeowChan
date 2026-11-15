@@ -300,7 +300,7 @@ public sealed class ThemeConfiguratorTests : IDisposable
         model.SetRole(ThemeTokenTheme.Dark, ThemeUserColors.Text, model.Preview(ThemeTokenTheme.Dark).Palette.Colors["Workspace.Panel"]);
         ThemeRoleView weak = model.Role(ThemeTokenTheme.Dark, ThemeUserColors.Text);
         Assert.Matches(@"^1,\d : 1 – zu schwach für Text$", ThemeColorsText.Contrast(weak));
-        Assert.Equal("Übernehmen nicht möglich: In „Dunkel“ ist die Farbe „Text“ zu schwach für Text.", ThemeColorsText.BlockText(model.Block));
+        Assert.Equal("Übernehmen geht noch nicht: In „Dunkel“ ist die Farbe „Text“ zu schwach für Text.", ThemeColorsText.BlockText(model.Block));
         Assert.Equal("4,8", ThemeColorsText.Ratio(4.87));
         Assert.Null(ThemeColorsText.BlockText(null));
     }
@@ -335,7 +335,7 @@ public sealed class ThemeConfiguratorTests : IDisposable
             foreach (string placeholder in new[] { "{0}", "{1}" })
                 Assert.Equal(english.Contains(placeholder), text.Contains(placeholder));
         }
-        Assert.Equal(55, ThemeColorsCatalog.Entries.Length);
+        Assert.Equal(57, ThemeColorsCatalog.Entries.Length); // TH5 added "Try in window" and its hint
     }
 
     [Fact]

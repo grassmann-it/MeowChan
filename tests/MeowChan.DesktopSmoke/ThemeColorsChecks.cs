@@ -66,6 +66,18 @@ internal static class ThemeColorsChecks
             Require(dialog.PresetButtons[3].IsChecked == true && dialog.ApplyButton.IsEnabled && dialog.ResetAllButton.IsEnabled, "The preset button or Apply/Reset all did not follow the draft.");
             Require(SmokeThemeResources.Color(window, "Workspace.Accent") == builtInAccent, "A draft reached the live window before Apply.");
 
+            // TH5: the round help button has its note, and "Try in window" shows the unsaved draft on the whole window and takes it back
+            // when switched off; it never saves anything.
+            Require(dialog.HelpButton.IsEffectivelyVisible && !string.IsNullOrEmpty(AutomationName(dialog.HelpButton)) && dialog.HelpButton.Resolve() is { Bullets.Count: 3 },
+                "The help button of the colour dialog is missing or has no note.");
+            Require(dialog.TryCheckBox.IsEffectivelyVisible && dialog.TryCheckBox.IsChecked != true && !string.IsNullOrEmpty(AutomationName(dialog.TryCheckBox)),
+                "Try in window is missing, on from the start or unnamed.");
+            dialog.TryCheckBox.IsChecked = true;
+            await Program.WaitUntilAsync(() => SmokeThemeResources.Color(window, "Workspace.Accent") == green, () => "Try in window did not put the draft on the window");
+            Require(host.Config.ThemeOverrides.Equals(original.ThemeOverrides), "Try in window saved the draft.");
+            dialog.TryCheckBox.IsChecked = false;
+            await Program.WaitUntilAsync(() => SmokeThemeResources.Color(window, "Workspace.Accent") == builtInAccent, () => "Switching Try in window off did not restore the saved colours");
+
             // A typed hex sets the accent and the preview follows; the swatch name stays; a non-colour is taken back.
             ThemeColorRow accent = dialog.Rows[0];
             accent.HexBox.Text = "#074E85";
@@ -126,6 +138,9 @@ internal static class ThemeColorsChecks
             dialog.ShowVariant(ThemeTokenTheme.Light);
             Click(dialog.Rows[0].ResetButton);
             Require(dialog.Model.IsDirty && dialog.ApplyButton.IsEnabled, "Resetting the accent did not make the draft dirty.");
+            dialog.TryCheckBox.IsChecked = true; // TH5: the trial shows the reset accent now; discarding must put the saved green back
+            await Program.WaitUntilAsync(() => SmokeThemeResources.Color(window, "Workspace.Accent") == dialog.Model.BuiltInAccent(ThemeTokenTheme.Light),
+                () => "Try in window did not show the reset accent");
             Click(dialog.CancelButton);
             await Program.WaitUntilAsync(() => dialog.IsAsking && dialog.OwnedWindows.Count == 1, () => "Cancel on a dirty draft did not ask");
             Window question = dialog.OwnedWindows.Single();

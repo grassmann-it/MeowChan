@@ -27,6 +27,7 @@ public sealed class HelpPlacesTests : IDisposable
         ("help.tagSuggestions", "Desktop/Controls/QuickTagSurface.cs"),
         ("help.taggingPage", "Desktop/Views/Tagging/TaggingPage.cs"),
         ("help.taggingStamp", "Desktop/Views/Tagging/TaggingPage.Stamp.cs"),
+        ("help.themeColors", "Desktop/Views/Settings/ThemeColorsDialog.cs"),
     ];
 
     /// <summary>A note is a title and a few lines; longer text belongs in Help.md. Counted in characters of the longest language.</summary>

@@ -258,7 +258,7 @@ public sealed class IconButtonConversionTests
         Assert.Equal("Previous post", BuiltInCatalog.English["reader.previousPost"]);
         Assert.Equal("Next thread", BuiltInCatalog.English["reader.nextThread"]);
         Assert.Equal("Voriger Thread", BuiltInCatalog.German["reader.previousThread"]);
-        Assert.Equal("Weiter", BuiltInCatalog.German["gallery.viewer2"]);
+        Assert.Equal("Nächstes Medium", BuiltInCatalog.German["gallery.viewer2"]);
     }
 
     private static void AssertNoEdgeArrow(string language, string key, string text)

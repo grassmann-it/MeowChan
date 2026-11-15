@@ -62,12 +62,12 @@ public sealed class MediaFocusFullscreenTests : IDisposable
     }
 
     [Fact]
-    public void TheSettingIsACheckBoxOfTheReadingAndMediaGroupWithAHelpTextAndAResetAndAnAlias()
+    public void TheSettingIsASwitchOfTheReadingAndMediaGroupWithAHelpTextAndAResetAndAnAlias()
     {
         XDocument markup = XDocument.Load(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(ThisFile())!, "../..", "Desktop/Views/Settings/SettingsEditor.axaml")));
         XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
         XElement input = Assert.Single(markup.Descendants(), element => (string?)element.Attribute(x + "Name") == "MediaFocusHidesHeaderInput");
-        Assert.Equal("CheckBox", input.Name.LocalName);
+        Assert.Equal("ToggleSwitch", input.Name.LocalName);
         Assert.Equal("{Binding MediaFocusHidesHeader, Mode=TwoWay}", (string?)input.Attribute("IsChecked"));
         Assert.Contains("MediaFocusHidesHeaderHint", (string?)input.Attributes().Single(a => a.Name.LocalName == "AutomationProperties.HelpText").Value);
         XElement group = Assert.Single(markup.Descendants(), element => (string?)element.Attribute(x + "Name") == "SettingsReadingMediaGroup");

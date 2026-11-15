@@ -535,6 +535,7 @@ public partial class ArchivePage : UserControl
                 _readerView.HideMedia, projection?.IsOrdered == true, IsDead);
             ArchivePostRow[] posts = projection == null ? Array.Empty<ArchivePostRow>()
                 : projection.Page(_postOffset, pageSize).Select(entry => BuildPostRow(entry, context)).ToArray();
+            ReservePreviewSizes(posts);
             ListBox postList = ArchivePosts;
             // A new page is a new index space. Do not carry its predecessor's
             // virtualized realization window and estimated item positions over.
@@ -545,7 +546,7 @@ public partial class ArchivePage : UserControl
             UpdateReaderNavigation();
             RefreshInlineReplies(posts);
         }
-        else { ArchivePosts.ItemsSource = null; CancelInlineReplies(); _unreadFirstNewId = null; }
+        else { CancelPreviewWork(); ArchivePosts.ItemsSource = null; CancelInlineReplies(); _unreadFirstNewId = null; }
         // No captured text, a view still being prepared, or a view nothing passes.
         string? noPosts = _thread == null ? null : _thread.PostCount == 0 ? "archive.noPosts"
             : projection == null ? "reader.view.preparing" : projection.Count == 0 ? "reader.view.empty" : null;
@@ -725,7 +726,8 @@ public partial class ArchivePage : UserControl
         ArchiveAttachmentRow row = new(attachment);
         // One decode at explicit bounds serves the ordinary preview, the enlarged focused card and the hover preview. Only the ordinary
         // size is kept by its bytes (a kept preview is leased at once, with no slot); the enlarged ones are held by their one view.
-        async Task<Bitmap?> Load(int maximumWidth, int maximumHeight, bool keep, CancellationToken cancellationToken, bool small = false)
+        async Task<Bitmap?> Load(int maximumWidth, int maximumHeight, bool keep, CancellationToken cancellationToken, bool small = false,
+            ThumbnailDecodePriority priority = ThumbnailDecodePriority.Image)
         {
             using CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
             IReadOnlyList<ArchiveAssetRow> assets = await ready.WaitAsync(loading.Token);
@@ -749,7 +751,7 @@ public partial class ArchivePage : UserControl
                 return await MediaTileThumbnails.LoadPosterAsync(match.Manifest, match.Asset,
                     Path.Combine(Config.GetConfigDirectory(), "cache", "video-posters-v1"),
                     maximumWidth, maximumHeight, key, loading.Token, _thumbnailGate).ConfigureAwait(false);
-            return await MediaTileThumbnails.KeepGatedAsync(_thumbnailGate, ThumbnailDecodePriority.Image, key,
+            return await MediaTileThumbnails.KeepGatedAsync(_thumbnailGate, priority, key,
                 () => Task.Run(() => DecodeThumbnailAsync(match, loading.Token,
                     maximumWidth, maximumHeight, MediaTileThumbnails.Verified), loading.Token), loading.Token).ConfigureAwait(false);
         }
@@ -761,6 +763,9 @@ public partial class ArchivePage : UserControl
             ThumbnailMaxHeight = widthOverride > 0
                 ? (int)Math.Round(thumbnailWidth * MediaFramePanel.MaximumHeight(large) / MediaFramePanel.MaximumWidth(large)) : 0,
             LoadThumbnail = cancellationToken => Load(bounds.MaximumWidth, bounds.MaximumHeight, keep: true, cancellationToken),
+            // Preloading (ArchivePage.PreviewReservation) never gets a slot before a visible image or poster; the large reader keeps no decodes to preload into.
+            PrefetchThumbnail = large ? null : cancellationToken => Load(bounds.MaximumWidth, bounds.MaximumHeight, keep: true, cancellationToken,
+                priority: ThumbnailDecodePriority.Prefetch),
             LoadSized = (maximumWidth, maximumHeight, cancellationToken) => Load(maximumWidth, maximumHeight, keep: false, cancellationToken),
             LoadStripThumbnail = (maximumWidth, maximumHeight, cancellationToken) => Load(maximumWidth, maximumHeight, keep: true, cancellationToken, small: true),
             ResolveEntry = async cancellationToken =>

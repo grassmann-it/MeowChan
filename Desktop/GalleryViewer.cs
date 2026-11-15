@@ -1123,7 +1123,7 @@ internal sealed partial class GalleryViewer : UserControl
         _favoriteKnown = _favoritePending = _favoriteSelected = false;
         UpdateFavorite();
         _ratingValue = null; _ratingError = null; _ratingAvailable = false;
-        _ratingStatus.Text = string.Empty; _ratingButton.IsEnabled = false;
+        _ratingStatus.Text = string.Empty; _ratingButton.IsEnabled = false; ClearRatingSaved();
         _status.Text = Texts.T("gallery.loading"); _quality.Text = string.Empty; UpdateContext();
         await gifRetired;
         if (request != _request || cancellationToken.IsCancellationRequested) return;

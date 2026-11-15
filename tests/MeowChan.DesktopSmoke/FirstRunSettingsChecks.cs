@@ -119,7 +119,7 @@ internal static class FirstRunSettingsChecks
             if (action == "accept")
             {
                 await SettingsSectionChecks.OpenAsync(eager, "settings.behavior");
-                CheckBox unrelated = eager.FindControl<CheckBox>("BoardAdmissionWizardInput")!;
+                ToggleSwitch unrelated = eager.FindControl<ToggleSwitch>("BoardAdmissionWizardInput")!;
                 bool changed = !(unrelated.IsChecked ?? false);
                 unrelated.IsChecked = changed;
                 savedUnrelated = changed;

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Threading;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
@@ -10,6 +11,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
+using Avalonia.Threading;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using SkiaSharp;
@@ -135,8 +137,26 @@ internal sealed record MediaBadgeLimits(int CollapseBelow, int HideBelow, int Ma
 
     internal static void Configure(Config config) => Configure(config.MediaBadgeCollapseBelow, config.MediaBadgeHideBelow, config.MediaBadgeMaxPerCorner);
 
-    internal static void Configure(int collapseBelow, int hideBelow, int maxPerCorner) =>
-        _current = new MediaBadgeLimits(collapseBelow, hideBelow, maxPerCorner).Normalize();
+    /// <summary>
+    /// Raised after <see cref="Configure(int, int, int)"/> put other limits in force (never for the same values again). Badge views that are
+    /// on screen follow it by themselves, so a settings change reaches the tiles that are already drawn, not only the ones scrolled in later.
+    /// </summary>
+    internal static event Action? Changed;
+
+    private static int s_generation;
+
+    /// <summary>Counts how often other limits were put in force (tests and smokes); a view that drew an older generation draws again.</summary>
+    internal static int Generation => Volatile.Read(ref s_generation);
+
+    internal static void Configure(int collapseBelow, int hideBelow, int maxPerCorner)
+    {
+        MediaBadgeLimits next = new MediaBadgeLimits(collapseBelow, hideBelow, maxPerCorner).Normalize();
+        // The same values keep the instance in force: the views compare by reference, so applying a profile again redraws nothing.
+        if (next == _current) return;
+        _current = next;
+        Interlocked.Increment(ref s_generation);
+        Changed?.Invoke();
+    }
 
     /// <summary>Every value inside its range, and the hide limit never above the collapse limit (a picture is hidden only below where it would be dots).</summary>
     internal MediaBadgeLimits Normalize()
@@ -448,6 +468,44 @@ internal static class MediaBadgeText
 }
 
 /// <summary>
+/// The one cache of badge sentences every surface shares (media page, archive, tagging grid): the sentence of a state on a surface, built once and
+/// handed out again until the language changes. A recycled tile, a tile's container name and its own name all get the same string instance, so
+/// binding a tile whose state did not change allocates nothing. The output is exactly <see cref="MediaBadgeText.Describe(in MediaBadgeState, in MediaBadgeOptions)"/>.
+/// </summary>
+internal static class MediaBadgeSentences
+{
+    /// <summary>
+    /// The most sentences kept at once (an internal ceiling, not a user setting: it only decides how much memory this cache may hold, never what a
+    /// sentence says). A video's length is part of the key, so the cache has to be bounded; it starts afresh when it is full, and a few hundred
+    /// sentences cover the tiles of a window many times over. 512 sentences are a few tens of KiB.
+    /// </summary>
+    internal const int CapacityLimit = 512;
+
+    private static readonly Dictionary<(MediaBadgeState, MediaBadgeOptions), string> Entries = new();
+    private static string? s_language;
+    private static readonly object Gate = new();
+
+    /// <summary>The sentences kept now (tests).</summary>
+    internal static int Count { get { lock (Gate) return Entries.Count; } }
+
+    /// <summary>The sentence of <paramref name="state"/> on a surface with <paramref name="options"/> in the language in force; the same instance while it is kept.</summary>
+    internal static string Get(in MediaBadgeState state, in MediaBadgeOptions options)
+    {
+        string language = Texts.Language;
+        (MediaBadgeState, MediaBadgeOptions) key = (state, options);
+        lock (Gate)
+        {
+            if (!string.Equals(language, s_language, StringComparison.Ordinal)) { Entries.Clear(); s_language = language; }
+            if (Entries.TryGetValue(key, out string? text)) return text;
+            text = MediaBadgeText.Describe(state, options);
+            if (Entries.Count >= CapacityLimit) Entries.Clear();
+            Entries[key] = text;
+            return text;
+        }
+    }
+}
+
+/// <summary>
 /// The white copies of the badge masks the view draws with, made once per icon from the catalog's masks (black with an alpha channel) and kept for
 /// the life of the process: a drawn bitmap is much cheaper than a mask layer on every tile. Needs the platform; the view calls it while it draws.
 /// </summary>
@@ -486,6 +544,9 @@ internal sealed class MediaBadgeView : Control
 {
     private static readonly Pen Ring = new(VideoPlayMark.RingBrush, 1);
     private static Geometry? s_triangle, s_untagged;
+    // The strokes of the "no tags" mark: its width follows the unit (12 to 20, even), so there are at most five; kept instead of one pen per tile and frame.
+    private static readonly Dictionary<double, Pen> UntaggedPens = new();
+    private const int UntaggedPenLimit = 8;
 
     private MediaBadgeState _state;
     private Size _picture, _slot;
@@ -494,6 +555,8 @@ internal sealed class MediaBadgeView : Control
     private bool _applied;
     private MediaBadgePlan _plan = MediaBadgePlan.Empty;
     private FormattedText?[]? _texts;
+    private readonly Action _limitsChanged;
+    private bool _following;
 
     internal MediaBadgeView()
     {
@@ -503,6 +566,40 @@ internal sealed class MediaBadgeView : Control
         HorizontalAlignment = HorizontalAlignment.Center;
         VerticalAlignment = VerticalAlignment.Center;
         AutomationProperties.SetAccessibilityView(this, AccessibilityView.Raw);
+        _limitsChanged = OnLimitsChanged;
+    }
+
+    /// <summary>
+    /// Raised after a change of the badge limits made this view draw its badges again (the plan, and with it the corner a selection check keeps
+    /// clear of, may be another): the owner places what depends on <see cref="Plan"/> anew.
+    /// </summary>
+    internal event Action? PlanRefreshed;
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        if (!_following) { _following = true; MediaBadgeLimits.Changed += _limitsChanged; }
+        RefreshForLimits(); // limits that changed while this view was off screen
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+        if (_following) { _following = false; MediaBadgeLimits.Changed -= _limitsChanged; }
+    }
+
+    // The limits are one process-wide value; the event may come from any thread (a settings apply), the drawing is the UI thread's.
+    private void OnLimitsChanged()
+    {
+        if (Dispatcher.UIThread.CheckAccess()) RefreshForLimits(); else Dispatcher.UIThread.Post(RefreshForLimits);
+    }
+
+    /// <summary>Draws again when the limits in force are not the ones that were drawn (what the limits event triggers; tests call it directly, a headless view has no tree to attach to).</summary>
+    internal void RefreshForLimits()
+    {
+        if (!_applied || ReferenceEquals(_limits, MediaBadgeLimits.Current)) return;
+        Apply(_state, _picture, _slot, _options);
+        PlanRefreshed?.Invoke();
     }
 
     /// <summary>What this surface shows of the badges; used by the next <see cref="Apply(in MediaBadgeState, Size)"/>.</summary>
@@ -558,7 +655,7 @@ internal sealed class MediaBadgeView : Control
     {
         PlacedBadge[] badges = _plan.Badges;
         if (badges.Length == 0) return;
-        Typeface typeface = new(TextElement.GetFontFamily(this), FontStyle.Normal, FontWeight.SemiBold);
+        Typeface typeface = new(TextElement.GetFontFamily(this), FontStyle.Normal, FontWeight.SemiBold); // a struct: nothing on the heap
         for (int index = 0; index < badges.Length; index++)
         {
             PlacedBadge placed = badges[index];
@@ -615,7 +712,12 @@ internal sealed class MediaBadgeView : Control
         // The existing drawn mark of an untagged medium (a tag outline with a slash, 12 x 12), stroked in white.
         s_untagged ??= Geometry.Parse(WorkspaceChips.MarkUntagged);
         double scale = target.Width / 12;
-        Pen pen = new(VideoPlayMark.GlyphBrush, Math.Max(1, 1.5 * scale), lineCap: PenLineCap.Round, lineJoin: PenLineJoin.Round);
+        double width = Math.Max(1, 1.5 * scale);
+        if (!UntaggedPens.TryGetValue(width, out Pen? pen))
+        {
+            pen = new Pen(VideoPlayMark.GlyphBrush, width, lineCap: PenLineCap.Round, lineJoin: PenLineJoin.Round);
+            if (UntaggedPens.Count < UntaggedPenLimit) UntaggedPens.Add(width, pen); // an unexpected size is drawn with a pen of its own, not kept
+        }
         Matrix place = Matrix.CreateScale(scale, scale) * Matrix.CreateTranslation(target.X, target.Y);
         using (context.PushTransform(place)) context.DrawGeometry(null, pen, s_untagged);
     }

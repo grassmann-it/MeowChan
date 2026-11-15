@@ -57,6 +57,7 @@ public partial class SettingsEditor
     // MP5: the width (dip) of the tag list. It lives in the saved media layout (MediaLayout), next to the other parts of that layout; this field
     // reads and rewrites only its width, the drag handle on the list's edge sets the same value.
     private decimal? _mediaTagListWidth;
+    private int _initialMediaTagListWidth = Config.MediaTagListWidthDefault; // as loaded (start, discard, after a save): the merge compares the box with it (M1)
     public decimal? MediaTagListWidth { get => _mediaTagListWidth; set => SetField(ref _mediaTagListWidth, value, nameof(MediaTagListWidth)); }
     public string MediaTagListWidthLabel => Texts.T("settings.limits.mediaTagListWidth");
     public string MediaTagListWidthHint => Texts.T("settings.limits.mediaTagListWidth.hint") + " " + Texts.T("settings.reader.range", Config.MediaTagListWidthMinimum, Config.MediaTagListWidthMaximum);
@@ -74,7 +75,7 @@ public partial class SettingsEditor
         ResetNumber(TagQueueConfirmAboveInput, TagQueueConfirmAbove.Value);
         MediaTagListTop = config.MediaTagListTop;
         ResetNumber(MediaTagListTopInput, MediaTagListTop.Value);
-        MediaTagListWidth = MediaPageLayout.Parse(config.MediaLayout, config.MediaBooruMode).TagListWidth;
+        MediaTagListWidth = _initialMediaTagListWidth = MediaPageLayout.Parse(config.MediaLayout, config.MediaBooruMode).TagListWidth;
         ResetNumber(MediaTagListWidthInput, MediaTagListWidth.Value);
         LoadTaggingDraft(config);
     }
@@ -88,6 +89,7 @@ public partial class SettingsEditor
         candidate.MediaTagListTop = GetInteger(MediaTagListTop, MediaTagListTopLabel, Config.MediaTagListTopMinimum, Config.MediaTagListTopMaximum);
         int tagListWidth = GetInteger(MediaTagListWidth, MediaTagListWidthLabel, Config.MediaTagListWidthMinimum, Config.MediaTagListWidthMaximum);
         candidate.MediaLayout = (MediaPageLayout.Parse(candidate.MediaLayout, candidate.MediaBooruMode) with { TagListWidth = tagListWidth }).Format();
+        candidate.SettingsBaselineMediaTagListWidth = _initialMediaTagListWidth;
         ApplyTaggingDraft(candidate);
     }
 

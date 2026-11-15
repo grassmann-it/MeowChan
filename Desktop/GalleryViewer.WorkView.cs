@@ -123,6 +123,7 @@ internal sealed partial class GalleryViewer
         WorkViewElement.SetId(_fileOnlyPlate, "gallery.status.file-only"); Mark(_fileOnlyPlate);
         WorkViewElement.SetId(_favoriteError, "gallery.status.favorite-error"); Mark(_favoriteError);
         WorkViewElement.SetId(_ratingStatus, "gallery.status.rating"); Mark(_ratingStatus);
+        WorkViewElement.SetId(_ratingSaved, "gallery.status.rating-saved"); Mark(_ratingSaved);
         WorkViewElement.SetId(_slideshowStatus, "gallery.status.slideshow"); Mark(_slideshowStatus);
         WorkViewElement.SetId(_overlayFallbackNotice, "gallery.status.overlay-fallback"); Mark(_overlayFallbackNotice);
         WorkViewElement.SetId(_favoriteConfirmPanel, "gallery.favorite.confirm"); Mark(_favoriteConfirmPanel);

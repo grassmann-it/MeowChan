@@ -25,7 +25,6 @@ public sealed class ArchiveMediaTileView : UserControl
     private readonly ArchiveFavoriteButton _favorite = new() { HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom,
         Classes = { MeowChan.Desktop.Controls.WorkspaceChips.FavoriteToggleClass, QuietFavoriteClass }, Margin = new Thickness(0, 0, 2, 2) };
     private readonly MediaBadgeView _badges = new() { Name = "ArchiveMediaBadges", Options = MediaBadgeOptions.ArchiveTile };
-    private ArchiveBadgeDescription _badgeText;
     private bool _missing;
     private readonly StackPanel _topRight = new() { Orientation = Orientation.Horizontal, Spacing = 4, HorizontalAlignment = HorizontalAlignment.Right,
         VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 2, 2, 0) };
@@ -61,7 +60,7 @@ public sealed class ArchiveMediaTileView : UserControl
     /// <summary>The shared badge view over the shown picture (tests and smokes read its state and plan).</summary>
     internal MediaBadgeView Badges => _badges;
     /// <summary>The badge sentence in the tile's name (empty when the tile has no badge).</summary>
-    internal string BadgeDescription => DataContext is ArchiveAssetRow ? _badgeText.Get(_badges.State, _badges.Options) : string.Empty;
+    internal string BadgeDescription => DataContext is ArchiveAssetRow ? MediaBadgeSentences.Get(_badges.State, _badges.Options) : string.Empty;
     /// <summary>Where the picture is drawn, in the preview's coordinates (the picture's own mark sits on it; badge, star and check mark are on the slot corners).</summary>
     internal Rect PictureBounds => _preview.PictureBounds;
     internal static bool UsesVideoPoster(ArchiveAssetRow row) =>
@@ -93,6 +92,7 @@ public sealed class ArchiveMediaTileView : UserControl
         // slot's corners, not on the picture's, so a portrait and a landscape tile carry them at the same height.
         LetterboxPanel preview = _preview; preview.Height = 125; preview.MaxWidth = 170; preview.MarksOnSlot = true;
         _topRight.Children.Add(_selectedMark);
+        _badges.PlanRefreshed += UpdateTopRightInset; // other badge limits can move the badges, and the check keeps clear of them
         preview.Children.Add(_image); preview.Children.Add(_message); preview.Children.Add(_badges); preview.Children.Add(_topRight); preview.Children.Add(_favorite);
         Grid grid = new() { Margin = new Thickness(8), RowDefinitions = new RowDefinitions("125,Auto,Auto,*"), RowSpacing = 4 };
         grid.Children.Add(preview); grid.Children.Add(_title); Grid.SetRow(_title, 1);
@@ -162,8 +162,13 @@ public sealed class ArchiveMediaTileView : UserControl
     // panel repeats that on every layout. Nothing is allocated when the state did not change (the view compares, the sentence is cached).
     private void UpdateBadges(ArchiveAssetRow? row)
     {
-        if (row == null) { _badges.Clear(); _badgeText.Reset(); }
+        if (row == null) _badges.Clear();
         else _badges.Apply(ArchiveMediaBadges.ForAsset(row, _missing), _preview.PictureBounds.Size, _preview.Bounds.Size);
+        UpdateTopRightInset();
+    }
+
+    private void UpdateTopRightInset()
+    {
         // The selection check keeps clear of a badge in the same corner (a missing file is a safety fact and is never covered). The check and the
         // badges share the slot's corner, so the badges' reach into the slot is the inset.
         double inset = CornerInset + TopRightExtent(_badges.Plan, _preview.MarksBounds.Width);
@@ -244,7 +249,7 @@ public sealed class ArchiveMediaTileView : UserControl
         // GIF and video are said by the badges' sentence ("Video", "Animated image"); only "file" (neither a picture nor a video) is added here.
         string kind = row != null && MeowChan.Gallery.SavedMediaTypes.Classify(row.Asset.OriginalFileName ?? row.Asset.Path)
             is not (MeowChan.Gallery.SavedMediaKind.Image or MeowChan.Gallery.SavedMediaKind.Video) ? KindLabel(row) : string.Empty;
-        string badges = row == null ? string.Empty : _badgeText.Get(_badges.State, _badges.Options);
+        string badges = row == null ? string.Empty : MediaBadgeSentences.Get(_badges.State, _badges.Options);
         string description = string.Join(Environment.NewLine, new[] { _title.Text, kind, badges, _status.Text, _rating.Text, _message.Text }.Where(part => !string.IsNullOrEmpty(part)));
         ToolTip.SetTip(this, description);
         AutomationProperties.SetName(this, description);

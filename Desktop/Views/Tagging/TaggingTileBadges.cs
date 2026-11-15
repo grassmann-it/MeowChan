@@ -12,18 +12,15 @@ namespace MeowChan.Desktop;
 /// The badges of one grid tile of the tagging page (TG1), kept apart from the tile on purpose: the tile only lays <see cref="View"/> over its
 /// picture and hands it the row. Since MB1b the drawing is the shared <see cref="MediaBadgeView"/> with <see cref="MediaBadgeOptions.TaggingGrid"/>
 /// (the tagging state finished or skipped, the video mark and length, the number of own tags or the no-tags mark, the booru globe); this class
-/// only turns a queue entry into the shared <see cref="MediaBadgeState"/> and keeps the spoken sentence of that state. The entry's number and
+/// only turns a queue entry into the shared <see cref="MediaBadgeState"/> and asks the shared cache for the spoken sentence of that state. The entry's number and
 /// the walk marker are not badges: they are the caption under the tile.
-/// Recycle-safe: one view per tile, nothing is rebuilt; an unchanged state, picture and language allocate nothing.
+/// Recycle-safe: one view per tile, nothing is rebuilt; an unchanged state, picture and language allocate nothing, and the container's name and the tile's own name share one sentence.
 /// </summary>
 internal sealed class TaggingTileBadges
 {
     private readonly MediaBadgeView _view = new() { Name = "TaggingTileBadges", Options = MediaBadgeOptions.TaggingGrid };
     private MediaBadgeState _state;
     private bool _hasRow;
-    private string? _language;
-    private string _description = string.Empty;
-    private bool _described;
 
     /// <summary>The shared badge view the tile lays over its slot (not hit-testable, not part of the accessibility tree); its corners are the slot's.</summary>
     internal MediaBadgeView View => _view;
@@ -32,22 +29,10 @@ internal sealed class TaggingTileBadges
     internal MediaBadgeState State => _state;
 
     /// <summary>
-    /// The badge sentence of the shown state ("Video · Tagging done · 3 tags"), kept until the state or the language changes; empty when there
-    /// is no row or no badge. It is part of the tile's accessible name and tooltip.
+    /// The badge sentence of the shown state ("Video · Tagging done · 3 tags"), from the shared sentence cache (<see cref="MediaBadgeSentences"/>); empty
+    /// when there is no row or no badge. It is part of the tile's accessible name and tooltip.
     /// </summary>
-    internal string Description
-    {
-        get
-        {
-            if (!_hasRow) return string.Empty;
-            string language = Texts.Language;
-            if (_described && string.Equals(language, _language, StringComparison.Ordinal)) return _description;
-            _language = language;
-            _description = MediaBadgeText.Describe(_state, _view.Options);
-            _described = true;
-            return _description;
-        }
-    }
+    internal string Description => _hasRow ? MediaBadgeSentences.Get(_state, _view.Options) : string.Empty;
 
     /// <summary>
     /// The badges of a queue entry: the tagging state, a video (its length is not recorded in the queue), the number of own tags (null: not read
@@ -70,7 +55,7 @@ internal sealed class TaggingTileBadges
 
     /// <summary>The sentence a tile's name carries for this entry: the state's badges on the tagging grid (empty when there is none).</summary>
     internal static string DescribeOf(TaggingQueueRow row, int? tagCount) =>
-        MediaBadgeText.Describe(StateOf(row, tagCount), MediaBadgeOptions.TaggingGrid);
+        MediaBadgeSentences.Get(StateOf(row, tagCount), MediaBadgeOptions.TaggingGrid);
 
     /// <summary>
     /// Shows the badges of <paramref name="row"/> in a slot, over a picture of this shown size (the picture only places the play mark: the corners
@@ -80,7 +65,6 @@ internal sealed class TaggingTileBadges
     {
         if (row == null) { _hasRow = false; _state = default; _view.Clear(); return; }
         MediaBadgeState state = StateOf(row, tagCount);
-        if (!_hasRow || !state.Equals(_state)) _described = false;
         _hasRow = true;
         _state = state;
         _view.Apply(state, picture, slot);

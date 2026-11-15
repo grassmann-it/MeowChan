@@ -107,11 +107,23 @@ internal static class TaggingPageChecks
             MeowChan.Desktop.Controls.ContextMenuModel stateMenu = tagging.StateMenuModel() ?? throw new InvalidOperationException("No state menu for a selection.");
             Require(stateMenu.Entries.Select(item => item.Label).SequenceEqual(new[] { "Mark as finished", "Mark as open", "Mark as skipped" }),
                 "State menu: " + string.Join(" | ", stateMenu.Entries.Select(item => item.Label)));
+            // "Set state" (tagging.selection.state) sits on the bar in Advanced only; Barebones and Simple keep it under More, so the menu has no
+            // button to open under there. Open it in Advanced and return to the work view the run started in.
+            if (mode != "Advanced")
+            {
+                await PresentationChecks.SwitchModeAsync(window, "Advanced");
+                await SettleAsync(window);
+            }
             tagging.ShowStateMenu();
             await SettleAsync(window);
             Require(tagging.OpenStateMenu is { IsOpen: true }, "The state menu did not open under its button.");
             tagging.OpenStateMenu!.Close();
             await SettleAsync(window);
+            if (mode != "Advanced")
+            {
+                await PresentationChecks.SwitchModeAsync(window, mode);
+                await SettleAsync(window);
+            }
             tagging.SetViewMode(TaggingViewMode.Grid, save: true);
             await SettleAsync(window);
             Require(tagging.ViewMode == TaggingViewMode.Grid && tagging.TileGrid.IsVisible && !tagging.List.IsVisible && tagging.ViewToggle.SelectedIndex == 1,

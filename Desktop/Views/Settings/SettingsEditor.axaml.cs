@@ -1036,15 +1036,19 @@ namespace MeowChan
             SettingsContent.Width = width;
             if (presentationChanged && navigationFocus && focusOwner != null)
                 QueueSectionNavigationFocus(focusOwner, focusOrigin, categories, selectedSection);
+            ApplyHeaderLayout(SettingsHeaderLayout.IsStacked(e.NewSize.Width));
             bool narrow = width < 700;
             foreach (Grid row in SettingsContent.GetLogicalDescendants().OfType<Grid>().Where(row => row.Classes.Contains("settings-row")))
             {
-                row.ColumnDefinitions[1].Width = new GridLength(narrow ? 0 : 280);
-                row.RowSpacing = narrow ? 6 : 0;
-                row.ColumnSpacing = narrow ? 0 : 24;
                 Control editor = row.Children[1];
-                Grid.SetColumn(editor, narrow ? 0 : 1);
-                Grid.SetRow(editor, narrow ? 1 : 0);
+                // A switch stays at the end of its row, also in a narrow page; every other control goes under the label.
+                bool inline = editor is ToggleSwitch;
+                bool below = narrow && !inline;
+                row.ColumnDefinitions[1].Width = below ? new GridLength(0) : inline && narrow ? GridLength.Auto : new GridLength(280);
+                row.RowSpacing = below ? 6 : 0;
+                row.ColumnSpacing = below ? 0 : narrow ? 12 : 24;
+                Grid.SetColumn(editor, below ? 0 : 1);
+                Grid.SetRow(editor, below ? 1 : 0);
                 row.ColumnDefinitions[0].Width = new GridLength(1, GridUnitType.Star);
             }
             Grid.SetColumn(SettingsFooterActions, narrow ? 0 : 1);

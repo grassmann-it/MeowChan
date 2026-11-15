@@ -24,10 +24,9 @@ public partial class MainWindow
     {
         _postBookmarksMenu = CommandBindings.CreateMenuItem("post-bookmarks.open-manager",
             async () => await ShowPostBookmarksAsync(), () => CanOpenPostBookmarks);
-        // Tools group: behind Continue reading when that entry exists, else at the start of the menu (MenuToolsAnchor).
-        int anchor = _resumeReadingMenu is null ? -1 : WorkspaceMenuItem.Items.IndexOf(_resumeReadingMenu);
-        if (anchor < 0) anchor = MenuToolsAnchor;
-        WorkspaceMenuItem.Items.Insert(anchor + 1, _postBookmarksMenu);
+        // Tools group: behind Continue reading and its reading-history submenu (which sits directly behind it) when they exist,
+        // else at the start of the menu (MenuToolsAnchor).
+        WorkspaceMenuItem.Items.Insert(InsertIndexBehind(WorkspaceMenuItem.Items, MenuToolsAnchor, _readingHistoryMenu, _resumeReadingMenu), _postBookmarksMenu);
         ArchivePage.EditPostBookmark = EditPostBookmarkAsync;
         ArchivePage.OpenPostBookmarks = async () => await ShowPostBookmarksAsync();
         Closed += (_, _) =>
@@ -36,6 +35,17 @@ public partial class MainWindow
             _postBookmarksDialog?.CloseForProfileEnd();
             _postBookmarkEditor?.CloseForProfileEnd();
         };
+    }
+
+    /// <summary>The index behind the first of <paramref name="anchors"/> that is in <paramref name="items"/>, else behind <paramref name="fallbackAnchor"/>.</summary>
+    internal static int InsertIndexBehind(System.Collections.IList items, int fallbackAnchor, params object?[] anchors)
+    {
+        foreach (object? anchor in anchors)
+        {
+            int index = anchor is null ? -1 : items.IndexOf(anchor);
+            if (index >= 0) return index + 1;
+        }
+        return fallbackAnchor + 1;
     }
 
     // W17 calls after W13 creates _shortcutRouter and workspace pages are available.

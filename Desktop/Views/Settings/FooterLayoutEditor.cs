@@ -15,11 +15,12 @@ using MeowChan.Desktop.Localization;
 namespace MeowChan.Desktop;
 
 /// <summary>
-/// The list of Settings › Appearance › Footer (F1): every main page with a check box "show directly in the footer" and the buttons that move it
-/// one place up or down, plus "Reset to default". It edits a draft <see cref="FooterLayout"/> only; the settings page saves it with
-/// everything else. Every control is a plain focusable control with an automation name, so the list works from the keyboard (Tab, Space on the
-/// check box, Enter or Space on a move button); after a move the focus stays on the same kind of button of the page that moved. The heading and the
-/// explanation belong to the settings page (they are found by its search). Downloads is always shown (its check box is on and disabled).
+/// The list of Settings › Appearance › Footer (F1): every main page with its name, a switch "show directly in the footer" (a switch at the end of
+/// the row like every yes/no setting of the page, SP1) and the buttons that move it one place up or down, plus "Reset to default". It edits a draft
+/// <see cref="FooterLayout"/> only; the settings page saves it with everything else. Every control is a plain focusable control with an automation name,
+/// so the list works from the keyboard (Tab, Space on the switch, Enter or Space on a move button); after a move the focus stays on the same kind of
+/// button of the page that moved, after a toggle on the switch. The heading and the explanation belong to the settings page (they are found by its search). Downloads is always
+/// shown (its switch is on and disabled).
 /// </summary>
 internal sealed class FooterLayoutEditor : UserControl
 {
@@ -52,6 +53,9 @@ internal sealed class FooterLayoutEditor : UserControl
     internal Button ResetButton => _reset;
     internal TextBlock StatusText => _status;
 
+    /// <summary>The control of the last rebuild that takes the keyboard focus back (null when nothing had it); for tests and smokes.</summary>
+    internal Control? FocusTarget { get; private set; }
+
     /// <summary>Replaces the draft (the saved layout, or the default after a reset of the page). Raises nothing.</summary>
     internal void Load(FooterLayout layout)
     {
@@ -60,8 +64,8 @@ internal sealed class FooterLayoutEditor : UserControl
         Render(null, null);
     }
 
-    /// <summary>The check box of a page, for tests and smokes.</summary>
-    internal CheckBox? CheckBoxOf(string commandId) => _rows.Children.OfType<Grid>().FirstOrDefault(row => row.Tag as string == commandId)?.Children.OfType<CheckBox>().FirstOrDefault();
+    /// <summary>The "show in the footer" switch of a page, for tests and smokes.</summary>
+    internal ToggleSwitch? SwitchOf(string commandId) => _rows.Children.OfType<Grid>().FirstOrDefault(row => row.Tag as string == commandId)?.Children.OfType<ToggleSwitch>().FirstOrDefault();
     internal Button? MoveButtonOf(string commandId, bool up) => _rows.Children.OfType<Grid>().FirstOrDefault(row => row.Tag as string == commandId)
         ?.Children.OfType<Button>().FirstOrDefault(button => button.Name == (up ? "FooterMoveUp" : "FooterMoveDown"));
 
@@ -81,24 +85,28 @@ internal sealed class FooterLayoutEditor : UserControl
         LayoutChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    // Rebuilds the rows from the draft. focusPage/focusUp name the move button that had the focus: the same page's button takes it again,
-    // or its sibling when the page reached the edge and the button is disabled now.
+    // Rebuilds the rows from the draft. focusPage/focusUp name the control that had the focus: with focusUp null the check box of that page,
+    // otherwise its move button (the same one takes the focus again, or its sibling when the page reached the edge and the button is disabled now).
     private void Render(string? focusPage, bool? focusUp)
     {
         _rows.Children.Clear();
         IReadOnlyList<string> numbering = _layout.Numbering;
-        Button? focusTarget = null;
+        Control? focusTarget = null;
         IReadOnlyList<string> order = _layout.Order;
         for (int index = 0; index < order.Count; index++)
         {
             string id = order[index];
             string label = CommandCatalog.Label(id);
             bool pinned = !MainPageOrder.CanHideFromFooter(id);
-            var row = new Grid { Tag = id, ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto,Auto"), ColumnSpacing = Space(8) };
-            var check = new CheckBox
+            var row = new Grid { Tag = id, ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto,Auto,Auto"), ColumnSpacing = Space(8) };
+            row.Classes.Add("footer-layout-row");
+            var title = new TextBlock { Name = "FooterPageLabel" + MainPageOrder.ControlStem(id), Text = label, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap };
+            title.Classes.Add("workspace-field-label");
+            row.Children.Add(title);
+            var check = new ToggleSwitch
             {
-                Name = "FooterShow" + MainPageOrder.ControlStem(id), Content = label, IsChecked = _layout.IsVisible(id), IsEnabled = !pinned,
-                VerticalAlignment = VerticalAlignment.Center
+                Name = "FooterShow" + MainPageOrder.ControlStem(id), OnContent = null, OffContent = null, IsChecked = _layout.IsVisible(id), IsEnabled = !pinned,
+                VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right
             };
             string hint = pinned ? Texts.T("settings.footer.always") : Texts.T("settings.footer.show");
             AutomationProperties.SetName(check, label + ": " + Texts.T("settings.footer.show"));
@@ -109,8 +117,10 @@ internal sealed class FooterLayoutEditor : UserControl
             {
                 bool shown = check.IsChecked == true;
                 if (shown == _layout.IsVisible(captured)) return;
-                Change(_layout.WithVisible(captured, shown), null, null, announce: false);
+                // The rows are rebuilt (the digits of the other pages move), so the focus is handed to the new switch of this page.
+                Change(_layout.WithVisible(captured, shown), captured, null, announce: false);
             };
+            Grid.SetColumn(check, 4);
             row.Children.Add(check);
 
             int digit = numbering.ToList().IndexOf(id) + 1;
@@ -132,10 +142,13 @@ internal sealed class FooterLayoutEditor : UserControl
             row.Children.Add(up);
             row.Children.Add(down);
             _rows.Children.Add(row);
-            if (id == focusPage) focusTarget = focusUp == true ? (up.IsEnabled ? up : down) : (down.IsEnabled ? down : up);
+            if (id == focusPage)
+                focusTarget = focusUp == null ? (check.IsEnabled ? check : null)
+                    : focusUp == true ? (up.IsEnabled ? up : down) : (down.IsEnabled ? down : up);
         }
         _reset.Content = Texts.T("settings.footer.reset");
         AutomationProperties.SetName(_reset, Texts.T("settings.footer.reset"));
+        FocusTarget = focusTarget;
         if (focusTarget != null) FocusLater(focusTarget);
     }
 
@@ -146,8 +159,8 @@ internal sealed class FooterLayoutEditor : UserControl
         return button;
     }
 
-    private static void FocusLater(Button button) => Dispatcher.UIThread.Post(() =>
+    private static void FocusLater(Control control) => Dispatcher.UIThread.Post(() =>
     {
-        if (button.IsEffectivelyVisible && button.IsEffectivelyEnabled) button.Focus(NavigationMethod.Tab);
+        if (control.IsEffectivelyVisible && control.IsEffectivelyEnabled) control.Focus(NavigationMethod.Tab);
     }, DispatcherPriority.Loaded);
 }
