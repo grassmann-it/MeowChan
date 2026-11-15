@@ -142,6 +142,8 @@ internal readonly record struct ReaderMediaPreferences(bool TextlessLarge, int T
 
     /// <summary>The media sidebar of the large reader (R8) presents the focused post's media in its own column; on by default.</summary>
     internal bool Sidebar { get; init; } = true;
+    /// <summary>The switched-on sidebar shows also beside the posts of the archive view, not only in the large reader (Off / Large reader only / Always).</summary>
+    internal bool SidebarAlways { get; init; }
     /// <summary>The sidebar sits right of the posts instead of left.</summary>
     internal bool SidebarRight { get; init; }
     internal int SidebarWidth { get; init; } = ReaderDisplayPreferences.MediaSidebarWidthDefault;
@@ -161,6 +163,7 @@ internal readonly record struct ReaderMediaPreferences(bool TextlessLarge, int T
         config.ReaderHoverEnlargeDelayMs)
     {
         Sidebar = config.ReaderMediaSidebar,
+        SidebarAlways = config.ReaderMediaSidebarScope == Config.ReaderMediaSidebarScopeAlways,
         SidebarRight = config.ReaderMediaSidebarSide == Config.ReaderMediaSidebarSideRight,
         SidebarWidth = config.ReaderMediaSidebarWidth,
         SidebarMinimumReaderWidth = config.ReaderMediaSidebarMinimumWidth,

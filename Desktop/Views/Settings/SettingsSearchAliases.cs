@@ -46,6 +46,7 @@ internal static class SettingsSearchAliases
         ["ReaderNavigationMode"] = "navigation arrows next previous thread post bar hide always show off keyboard only pfeile weiter zurück nächster voriger navigationsleiste ausblenden immer anzeigen aus nur tastatur",
         ["ReaderNavigationShowPosition"] = "navigation counter position number thread post bar x of y zähler position nummer navigationsleiste von",
         ["ReaderMediaSidebar"] = "sidebar side panel column media large full height focused post leiste seitenleiste medien groß volle höhe markiert",
+        ["ReaderMediaSidebarScope"] = "sidebar archive view large reader always where scope leiste seitenleiste archivansicht großer reader immer wo",
         ["ReaderMediaSidebarSide"] = "sidebar side left right position leiste seitenleiste links rechts seite",
         ["ReaderMediaSidebarWidth"] = "sidebar width splitter divider column leiste seitenleiste breite trennlinie",
         ["ReaderMediaSidebarMinimumWidth"] = "sidebar narrow window hide collapse width leiste seitenleiste schmal fenster ausblenden breite",

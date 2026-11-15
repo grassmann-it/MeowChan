@@ -466,6 +466,17 @@
                             <Border Classes="settings-divider">
                                 <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
                                     <StackPanel VerticalAlignment="Center" Spacing="{StaticResource Workspace.Space.4}" Classes="settings-label">
+                                        <TextBlock x:Name="ReaderMediaSidebarScopeFieldLabel" Text="{Binding ReaderMediaSidebarScopeLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                        <TextBlock Text="{Binding ReaderMediaSidebarScopeHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <ComboBox x:Name="ReaderMediaSidebarScopeInput" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Stretch" ItemsSource="{Binding ReaderMediaSidebarScopeChoices}" SelectedItem="{Binding SelectedReaderMediaSidebarScope, Mode=TwoWay}" AutomationProperties.LabeledBy="{Binding ElementName=ReaderMediaSidebarScopeFieldLabel}" AutomationProperties.Name="{Binding ReaderMediaSidebarScopeLabel}" AutomationProperties.HelpText="{Binding ReaderMediaSidebarScopeHint}">
+                                    <ComboBox.ItemTemplate><DataTemplate x:DataType="local:SettingsChoice"><TextBlock Text="{Binding Label}" TextWrapping="Wrap" /></DataTemplate></ComboBox.ItemTemplate>
+                                </ComboBox>
+                                </Grid>
+                            </Border>
+                            <Border Classes="settings-divider">
+                                <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                                    <StackPanel VerticalAlignment="Center" Spacing="{StaticResource Workspace.Space.4}" Classes="settings-label">
                                         <TextBlock x:Name="ReaderMediaSidebarSideFieldLabel" Text="{Binding ReaderMediaSidebarSideLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
                                         <TextBlock Text="{Binding ReaderMediaSidebarSideHint}" Classes="workspace-help" TextWrapping="Wrap" />
                                     </StackPanel>

@@ -536,6 +536,17 @@ namespace MeowChan
             set => _readerMediaSidebarSide = string.Equals(value?.Trim(), ReaderMediaSidebarSideRight, StringComparison.OrdinalIgnoreCase)
                 ? ReaderMediaSidebarSideRight : ReaderMediaSidebarSideLeft;
         }
+        // Where the switched-on sidebar shows (15.11.2026): only in the large reader (default, the behaviour before this choice existed) or also
+        // beside the posts of the archive view. With ReaderMediaSidebar it is the one choice Off / Large reader only / Always.
+        private string _readerMediaSidebarScope = ReaderMediaSidebarScopeLargeReader;
+        internal const string ReaderMediaSidebarScopeLargeReader = "LargeReader", ReaderMediaSidebarScopeAlways = "Always";
+        [JsonConverter(typeof(DesktopPreferenceStringConverter))]
+        public string ReaderMediaSidebarScope
+        {
+            get => _readerMediaSidebarScope;
+            set => _readerMediaSidebarScope = string.Equals(value?.Trim(), ReaderMediaSidebarScopeAlways, StringComparison.OrdinalIgnoreCase)
+                ? ReaderMediaSidebarScopeAlways : ReaderMediaSidebarScopeLargeReader;
+        }
         public int ReaderMediaSidebarWidth { get; set; } = ReaderMediaSidebarWidthDefault;
         internal const int ReaderMediaSidebarWidthDefault = ReaderDisplayPreferences.MediaSidebarWidthDefault;
         internal const int ReaderMediaSidebarWidthMinimum = ReaderDisplayPreferences.MediaSidebarWidthMinimum;
@@ -1833,6 +1844,7 @@ namespace MeowChan
                 ReaderFocusedMediaEnlarge = ReaderFocusedMediaEnlarge,
                 ReaderMediaSidebar = ReaderMediaSidebar,
                 ReaderMediaSidebarSide = ReaderMediaSidebarSide,
+                ReaderMediaSidebarScope = ReaderMediaSidebarScope,
                 ReaderMediaSidebarWidth = ReaderMediaSidebarWidth,
                 ReaderMediaSidebarMinimumWidth = ReaderMediaSidebarMinimumWidth,
                 ReaderInlineVideo = ReaderInlineVideo,
@@ -2086,6 +2098,7 @@ namespace MeowChan
             ReaderFocusedMediaEnlarge = source.ReaderFocusedMediaEnlarge;
             ReaderMediaSidebar = source.ReaderMediaSidebar;
             ReaderMediaSidebarSide = source.ReaderMediaSidebarSide;
+            ReaderMediaSidebarScope = source.ReaderMediaSidebarScope;
             ReaderMediaSidebarWidth = source.ReaderMediaSidebarWidth;
             ReaderMediaSidebarMinimumWidth = source.ReaderMediaSidebarMinimumWidth;
             ReaderInlineVideo = source.ReaderInlineVideo;
@@ -2316,6 +2329,7 @@ namespace MeowChan
             ReaderFocusedMediaEnlarge = source.ReaderFocusedMediaEnlarge;
             ReaderMediaSidebar = source.ReaderMediaSidebar;
             ReaderMediaSidebarSide = source.ReaderMediaSidebarSide;
+            ReaderMediaSidebarScope = source.ReaderMediaSidebarScope;
             ReaderMediaSidebarWidth = source.ReaderMediaSidebarWidth;
             ReaderMediaSidebarMinimumWidth = source.ReaderMediaSidebarMinimumWidth;
             ReaderInlineVideo = source.ReaderInlineVideo;

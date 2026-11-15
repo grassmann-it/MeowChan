@@ -166,7 +166,46 @@ internal static class ReaderMediaSidebarChecks
         await Program.WaitUntilAsync(() => !host.IsVisible);
         Require(pane.Parent == page.FindControl<Grid>("ArchiveSplit") && Grid.GetColumn(pane) == embeddedColumn,
             "The pane did not return to its archive split column.");
-        Console.WriteLine("SMOKE reader media sidebar: on by default, compact header with the gallery button, no overlay arrows or counter (strip for several media), framed large reader, View-menu switch, follow with throttle, live region, several-file strip with counter, grid layout, discovery hint, right side, width collapse, Escape and return passed.");
+        await CheckArchiveViewAsync(page, pane, posts);
+        Console.WriteLine("SMOKE reader media sidebar: on by default, compact header with the gallery button, no overlay arrows or counter (strip for several media), framed large reader, View-menu switch, follow with throttle, live region, several-file strip with counter, grid layout, discovery hint, right side, width collapse, Escape and return, archive view (Always) passed.");
+    }
+
+    // "Always": the archive view shows the sidebar beside the posts card (below the header row) with the same following and width rules;
+    // its switch there chooses Always or Large reader only, and a reader narrower than the setting hides it again.
+    private static async Task CheckArchiveViewAsync(ArchivePage page, Grid pane, ListBox posts)
+    {
+        Border content = page.FindControl<Border>("ArchiveReaderContent")!;
+        ReaderMediaPreferences before = page.ReaderMedia;
+        try
+        {
+            // The window's reader is narrower than the default reader width here; the threshold logic itself is checked below.
+            page.ApplyReaderMediaPreferences(page.ReaderMedia with { SidebarMinimumReaderWidth = ReaderDisplayPreferences.MediaSidebarReaderWidthMinimum });
+            Require(!page.IsMediaSidebarShown, "The archive view showed the sidebar while it is set to the large reader only.");
+            page.ToggleMediaSidebar();
+            await Program.WaitUntilAsync(() => page.IsMediaSidebarShown && page.IsMediaSidebarInArchiveView && page.MediaSidebar!.IsEffectivelyVisible);
+            ReaderMediaSidebar sidebar = page.MediaSidebar!;
+            Require(page.ReaderMedia.Sidebar && page.ReaderMedia.SidebarAlways, "The archive view's switch did not choose Always.");
+            Require(sidebar.Parent == pane && Grid.GetRow(sidebar) == 1 && Grid.GetColumn(sidebar) == (page.ReaderMedia.SidebarRight ? 2 : 0)
+                && Grid.GetColumn(content) == (page.ReaderMedia.SidebarRight ? 0 : 2), "The sidebar does not sit beside the posts card of the archive view.");
+            Require(page.FocusedMediaPresentedElsewhere, "The inline enlargement did not step back for the archive view's sidebar.");
+            if (posts.Items.OfType<ArchivePostRow>().FirstOrDefault(row => row.ShowsMedia) is { } withMedia)
+            {
+                posts.SelectedItem = withMedia;
+                await Task.Delay(ReaderMediaSidebarRules.FollowIntervalMs * 2);
+                await page.MediaSidebarTask;
+                await Program.WaitUntilAsync(() => sidebar.LiveText.Contains(withMedia.Id, StringComparison.Ordinal));
+            }
+            page.ApplyReaderMediaPreferences(page.ReaderMedia with { SidebarMinimumReaderWidth = ReaderDisplayPreferences.MediaSidebarReaderWidthMaximum });
+            await Program.WaitUntilAsync(() => !page.IsMediaSidebarShown);
+            Require(!sidebar.IsVisible && Grid.GetColumn(content) == 0 && pane.ColumnDefinitions[0].Width.IsStar,
+                "A narrow archive view did not give the posts card its whole width back.");
+            page.ApplyReaderMediaPreferences(page.ReaderMedia with { SidebarMinimumReaderWidth = ReaderDisplayPreferences.MediaSidebarReaderWidthMinimum });
+            await Program.WaitUntilAsync(() => page.IsMediaSidebarShown);
+            page.ToggleMediaSidebar();
+            await Program.WaitUntilAsync(() => !page.IsMediaSidebarShown);
+            Require(page.ReaderMedia.Sidebar && !page.ReaderMedia.SidebarAlways, "Hiding the archive view's sidebar took it from the large reader.");
+        }
+        finally { page.ApplyReaderMediaPreferences(page.ReaderMedia with { SidebarMinimumReaderWidth = before.SidebarMinimumReaderWidth }); }
     }
 
     // The sidebar has no arrows and no counter over the medium (named controls of the old overlay).

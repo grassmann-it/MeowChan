@@ -341,6 +341,7 @@ public sealed class ReaderSettingsEditorTests : IDisposable
         Config saved = Get<Config>(editor, "_config");
         saved.ReaderMediaSidebar = true;
         saved.ReaderMediaSidebarSide = Config.ReaderMediaSidebarSideRight;
+        saved.ReaderMediaSidebarScope = Config.ReaderMediaSidebarScopeAlways;
         saved.ReaderMediaSidebarWidth = 760;
         saved.ReaderMediaClick = ReaderMediaClickRules.PostKey;
         saved.ReaderInlineVideoAutoplayMuted = false;
@@ -350,11 +351,12 @@ public sealed class ReaderSettingsEditorTests : IDisposable
         editor.ReaderFoldLines = null;
         GetInput(editor, nameof(Config.ReaderFoldLines)).Text = "unfinished draft";
 
-        editor.RefreshConfirmedSettings(new[] { SettingsFieldId.ReaderMediaSidebar, SettingsFieldId.ReaderMediaSidebarSide,
+        editor.RefreshConfirmedSettings(new[] { SettingsFieldId.ReaderMediaSidebar, SettingsFieldId.ReaderMediaSidebarScope, SettingsFieldId.ReaderMediaSidebarSide,
             SettingsFieldId.ReaderMediaSidebarWidth, SettingsFieldId.ReaderMediaClick, SettingsFieldId.ReaderInlineVideoAutoplayMuted });
 
         Assert.True(editor.ReaderMediaSidebar);
         Assert.Equal(Config.ReaderMediaSidebarSideRight, editor.SelectedReaderMediaSidebarSide!.Value);
+        Assert.Equal(Config.ReaderMediaSidebarScopeAlways, editor.SelectedReaderMediaSidebarScope!.Value);
         Assert.Equal(760m, editor.ReaderMediaSidebarWidth);
         Assert.Equal("760", GetInput(editor, nameof(Config.ReaderMediaSidebarWidth)).Text);
         Assert.Equal(ReaderMediaClickRules.PostKey, editor.SelectedReaderMediaClick!.Value);

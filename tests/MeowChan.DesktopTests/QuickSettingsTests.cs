@@ -33,7 +33,7 @@ public sealed class QuickSettingsTests : IDisposable
         // the sidebar widths, the video players and the multi-file settings are on the settings page only.
         Assert.Equal(new[]
         {
-            ReaderQuickSettings.MediaClickFieldId, SettingsFieldId.ReaderMediaSidebar, SettingsFieldId.ReaderMediaSidebarSide,
+            ReaderQuickSettings.MediaClickFieldId, SettingsFieldId.ReaderMediaSidebar, SettingsFieldId.ReaderMediaSidebarScope, SettingsFieldId.ReaderMediaSidebarSide,
             SettingsFieldId.ReaderTextlessLargeImages, SettingsFieldId.ReaderTextlessMediaWidth,
             SettingsFieldId.ReaderFocusedMediaEnlarge, SettingsFieldId.ReaderFocusedMediaScalePercent, SettingsFieldId.ReaderHoverEnlarge,
             SettingsFieldId.ReaderThumbnailWidth,

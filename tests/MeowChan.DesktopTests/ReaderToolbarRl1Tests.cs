@@ -206,7 +206,8 @@ public sealed class ReaderToolbarRl1Tests : IDisposable
     {
         IReadOnlyList<QuickSettingsEntry> layout = ReaderQuickSettings.Layout;
         QuickSettingsFieldEntry[] conditional = layout.OfType<QuickSettingsFieldEntry>().Where(entry => entry.WhenFieldId != null).ToArray();
-        Assert.Equal([(SettingsFieldId.ReaderMediaSidebarSide, SettingsFieldId.ReaderMediaSidebar),
+        Assert.Equal([(SettingsFieldId.ReaderMediaSidebarScope, SettingsFieldId.ReaderMediaSidebar),
+            (SettingsFieldId.ReaderMediaSidebarSide, SettingsFieldId.ReaderMediaSidebar),
             (SettingsFieldId.ReaderTextlessMediaWidth, SettingsFieldId.ReaderTextlessLargeImages),
             (SettingsFieldId.ReaderFocusedMediaScalePercent, SettingsFieldId.ReaderFocusedMediaEnlarge)],
             conditional.Select(entry => (entry.Field.Id, entry.WhenFieldId!)));

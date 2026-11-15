@@ -38,11 +38,34 @@ internal static class ReaderMediaSidebarRules
     internal const double SplitterWidth = 6;
 
     /// <summary>
-    /// Shown only in the large reader, only when chosen, and only while the reader is at least the configured width. An unknown
+    /// The archive view keeps a gap of this width on each side of the splitter beside the posts card (as the archive split does between
+    /// the thread list and the reader); the large reader's frame has none. Layout constant.
+    /// </summary>
+    internal const double ArchiveViewGap = 6;
+
+    /// <summary>
+    /// Switched on for this view: the large reader shows the sidebar when it is on (Large reader only or Always), the archive view only
+    /// with Always.
+    /// </summary>
+    internal static bool IsOn(ReaderMediaPreferences media, bool largeReader) => media.Sidebar && (largeReader || media.SidebarAlways);
+
+    /// <summary>
+    /// Shown when switched on for this view (<see cref="IsOn"/>) and only while the reader is at least the configured width. An unknown
     /// width (not laid out yet) counts as wide enough, so opening the reader does not lay the posts out twice.
     /// </summary>
     internal static bool IsShown(ReaderMediaPreferences media, bool largeReader, double readerWidth) =>
-        media.Sidebar && largeReader && !IsCollapsedByWidth(media, readerWidth);
+        IsOn(media, largeReader) && !IsCollapsedByWidth(media, readerWidth);
+
+    /// <summary>
+    /// The sidebar switch (View option, Primary+Shift+M, × and Escape in the sidebar) acts on the view it is used in: in the large reader it
+    /// turns the sidebar on or off (the archive-view choice is kept for the next time it is on); in the archive view it chooses between
+    /// Always (on, also here) and Large reader only, so hiding it beside the posts never takes it from the large reader.
+    /// </summary>
+    internal static ReaderMediaPreferences Toggled(ReaderMediaPreferences media, bool largeReader)
+    {
+        if (largeReader) return media with { Sidebar = !media.Sidebar };
+        return IsOn(media, largeReader: false) ? media with { SidebarAlways = false } : media with { Sidebar = true, SidebarAlways = true };
+    }
 
     /// <summary>Chosen, but hidden because the reader is narrower than the setting.</summary>
     internal static bool IsCollapsedByWidth(ReaderMediaPreferences media, double readerWidth) =>
@@ -53,12 +76,13 @@ internal static class ReaderMediaSidebarRules
         ? (int)Math.Clamp(Math.Round(width), ReaderDisplayPreferences.MediaSidebarWidthMinimum, ReaderDisplayPreferences.MediaSidebarWidthMaximum)
         : ReaderDisplayPreferences.MediaSidebarWidthDefault;
 
-    /// <summary>The width the sidebar gets in a reader this wide: the setting, but never so wide that the posts drop below their minimum.</summary>
-    internal static double EffectiveWidth(int configured, double readerWidth)
+    /// <summary>The width the sidebar gets in a reader this wide: the setting, but never so wide that the posts drop below their minimum
+    /// (<paramref name="gaps"/>: the room the archive view keeps beside the splitter).</summary>
+    internal static double EffectiveWidth(int configured, double readerWidth, double gaps = 0)
     {
         double width = ClampWidth(configured);
         if (!double.IsFinite(readerWidth) || readerWidth <= 0) return width;
-        double room = readerWidth - SplitterWidth - PostsMinimumWidth;
+        double room = readerWidth - SplitterWidth - Math.Max(0, gaps) - PostsMinimumWidth;
         return Math.Max(ReaderDisplayPreferences.MediaSidebarWidthMinimum, Math.Min(width, room));
     }
 
