@@ -58,10 +58,9 @@ public sealed class ReaderPageDeadAffordanceTests
         Assert.Contains("ArchiveMediaGrid.AddHandler(PointerPressedEvent, OnMediaTableMiddlePressed", keys);
         Assert.Contains("ArchiveReaderPane.AddHandler(PointerPressedEvent, OnPostMediumMiddlePressed", keys);
         Assert.Contains("ArchiveReaderPane.AddHandler(PointerReleasedEvent, OnPostMediumMiddleReleased", keys);
-        Assert.Contains("MediaMenuSurface.ArchiveInline", keys);
-        Assert.Contains("MediaMenuSurface.ArchiveTable", keys);
-        // The one action stays the media menu's own "Show in folder", under its own availability.
-        Assert.Contains("MediaFolderCommandId = \"media.show-in-folder\"", keys);
+        // The one action is the media menu's "Show in folder" under its availability (a saved file, a host that opens folders), run without building the menu.
+        Assert.Contains("OpenMediaFolderByMiddleClick(null, attachment, postId);", keys);
+        Assert.Contains("OpenMediaFolderByMiddleClick(asset);", keys);
         // The large reader's frame is not under the page: the sidebar watches its own picture, and the pane's handler leaves the sidebar's subtree to it.
         string sidebar = Source("Desktop/Views/Archive/ArchivePage.MediaSidebar.cs");
         Assert.Contains("sidebar.AddHandler(PointerPressedEvent, OnSidebarMiddlePressed, RoutingStrategies.Tunnel, handledEventsToo: true)", sidebar);

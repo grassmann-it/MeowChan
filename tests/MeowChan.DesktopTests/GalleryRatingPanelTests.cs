@@ -259,6 +259,9 @@ public sealed class GalleryRatingPanelTests : IDisposable
         Assert.Contains("return _postDecision is { } row && row.FocusRating();", post);
         Assert.DoesNotContain("BuildRatingMenu", post + Source("Desktop", "MediaActions", "MediaMenuBuilder.cs"));
         Assert.DoesNotContain("ShowRatingMenu", viewer + post);
+        // R opening the Post segment is an explicit open: the saved panel-open preference follows (notify), as with the Post toggle.
+        Assert.Contains("if (!_contextOpen) SetContextOpen(true);", post);
+        Assert.DoesNotContain("SetContextOpen(true, notify: false);", post);
         Fixture h = new(); // no rating available: R has nothing to focus
         Assert.False(h.Viewer.FocusRatingStars());
         Assert.False(h.Viewer.CanRateAndTag);

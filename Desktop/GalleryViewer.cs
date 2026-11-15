@@ -802,7 +802,7 @@ internal sealed partial class GalleryViewer : UserControl
             || expectedRequestGeneration is int expected && expected != _request) return Task.CompletedTask;
         int failureRequest = ++_request;
         CancelLoads(); UnbindVideoPlaybackSignals();
-        _mediaFailed = true; _navigationPending = false;
+        _mediaFailed = true; _navigationPending = false; _browseQueue.Clear();
         _imageReadyRequest = _videoReadyRequest = -1;
         SetImageCommands(false); _exportOriginal.IsEnabled = false; _saveFrame.IsEnabled = false;
         _info = null; ClearBitmaps();
@@ -1447,6 +1447,7 @@ internal sealed partial class GalleryViewer : UserControl
     private void Move(int delta)
     {
         if (!(delta < 0 ? _previous.IsEnabled : _next.IsEnabled)) return;
+        _browseQueue.Clear(); // an explicit move supersedes wheel turns still waiting
         _navigationPending = true; // No old-media timer while the shell resolves the next entry.
         MoveRequested?.Invoke(delta);
     }

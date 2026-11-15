@@ -3,6 +3,7 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
+using Avalonia.Threading;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 
@@ -16,6 +17,7 @@ internal sealed partial class GalleryViewer
 {
     private string _wheelMode = Config.GalleryWheelModeZoom;
     private readonly WheelSteps _browseWheel = new();
+    private readonly WheelBrowseQueue _browseQueue = new();
     private readonly ToggleButton _wheelBrowseToggle = new() { Name = "GalleryWheelBrowseToggle" };
 
     /// <summary>The mouse wheel setting the viewer works with ("Zoom" or "Browse").</summary>
@@ -56,10 +58,31 @@ internal sealed partial class GalleryViewer
     /// <summary>The action of a wheel turn over the picture with these modifiers (the setting, inverted by Ctrl).</summary>
     private GalleryWheelAction WheelActionFor(KeyModifiers modifiers) => GalleryWheel.Resolve(_wheelMode, modifiers);
 
-    /// <summary>Browse: a wheel turn goes to the previous (up) or next (down) medium, like the arrow keys; a touchpad's small deltas add up to one step.</summary>
+    /// <summary>
+    /// Browse: a wheel turn goes to the previous (up) or next (down) medium, like the arrow keys; a touchpad's small deltas add up to one step. While the
+    /// shell is still moving to the previous one, further turns only add up (WheelBrowseQueue) and go as one move when it has landed, so a spinning wheel
+    /// does not start a decode per event.
+    /// </summary>
     private void BrowseByWheel(double deltaY)
     {
-        int direction = GalleryWheel.BrowseDelta(_browseWheel.Add(deltaY, DateTime.UtcNow));
-        if (direction != 0) Move(direction);
+        DateTime now = DateTime.UtcNow;
+        int direction = GalleryWheel.BrowseDelta(_browseWheel.Add(deltaY, now));
+        if (direction == 0) return;
+        if (_navigationPending) _browseQueue.Add(direction, now);
+        else Move(direction);
+    }
+
+    // The navigation has landed (BeginSlideshowMedia): the steps collected meanwhile go as one move, after the current show has run through.
+    private void ScheduleQueuedBrowse()
+    {
+        if (_browseQueue.HasSteps) Dispatcher.UIThread.Post(MoveQueuedBrowse, DispatcherPriority.Input);
+    }
+
+    /// <summary>Sends the collected wheel steps as one move (the shell clamps it at the ends); nothing while another navigation is pending.</summary>
+    internal void MoveQueuedBrowse()
+    {
+        if (_navigationPending || _terminalRetirement || _viewerInteractionStopped || !_interactionAvailable) return;
+        int steps = _browseQueue.Take();
+        if (steps != 0) Move(steps);
     }
 }

@@ -99,7 +99,7 @@ public partial class ArchivePage
         ArchiveAssetRow? asset = MiddleClickTracker.RowAt<ArchiveAssetRow>(e.Source, ArchiveMediaGrid);
         if (!_mediaTableMiddleClick.Released(asset) || asset == null) return;
         e.Handled = true;
-        OpenMediaFolderByMiddleClick(asset, MediaMenuSurface.ArchiveTable, ArchiveMediaGrid);
+        OpenMediaFolderByMiddleClick(asset);
     }
 
     // The thumbnail of a post's medium (not its file line, star or video controls; not the sidebar, which has its own handlers in either host).
@@ -125,7 +125,7 @@ public partial class ArchivePage
         if (!_postMediumMiddleClick.Released(view) || view?.DataContext is not ArchiveAttachmentRow attachment) return;
         e.Handled = true;
         string? postId = view.GetSelfAndVisualAncestors().Select(node => node.DataContext).OfType<ArchivePostRow>().FirstOrDefault()?.Id;
-        OpenMediaFolderByMiddleClick(null, attachment, postId, MediaMenuSurface.ArchiveInline, view, null);
+        OpenMediaFolderByMiddleClick(null, attachment, postId);
     }
 
     // The picture of the media sidebar (its frame, a video's play surface included; not the header or the video row), in either host.
@@ -141,34 +141,35 @@ public partial class ArchivePage
         if (!_sidebarMiddleClick.Released(InSidebarFrame(e.Source, sidebar) ? sidebar.FrameArea : null)) return;
         e.Handled = true;
         if (!_mediaSidebarShown || ArchivePosts.SelectedItem is not ArchivePostRow post || CurrentSidebarAttachment() is not { } attachment) return;
-        OpenMediaFolderByMiddleClick(null, attachment, post.Id, MediaMenuSurface.ArchiveInline, sidebar.FrameArea, null);
+        OpenMediaFolderByMiddleClick(null, attachment, post.Id);
     }
 
     private static bool InSidebarFrame(object? source, ReaderMediaSidebar sidebar) =>
         source is Visual visual && visual.GetSelfAndVisualAncestors().Any(node => ReferenceEquals(node, sidebar.FrameArea));
 
     /// <summary>
-    /// The folder of a medium's file, through the media menu of that tile: the menu entry's own availability decides (the host can open folders, the file is
-    /// saved), exactly as for the "Show in folder" key. False when the page is not ready or the entry is not available.
+    /// The folder of a medium's file, with the availability of the media menu's "Show in folder" entry (the host can open folders, the file is saved), exactly as
+    /// for its key, but without building that menu: the click needs the one action, not a menu to look it up in. False when the page is not ready or the entry
+    /// would not be available.
     /// </summary>
-    internal bool OpenMediaFolderByMiddleClick(ArchiveAssetRow asset) => OpenMediaFolderByMiddleClick(asset, MediaMenuSurface.ArchiveTiles, ArchiveMediaTiles);
-
-    private bool OpenMediaFolderByMiddleClick(ArchiveAssetRow asset, MediaMenuSurface surface, Control origin) =>
-        OpenMediaFolderByMiddleClick(asset, null, null, surface, origin, null);
+    internal bool OpenMediaFolderByMiddleClick(ArchiveAssetRow asset) => OpenMediaFolderByMiddleClick(asset, null, null);
 
     // The same through a post's medium (its attachment, as the post's thumbnail and the sidebar show it): the file it resolves to, when it is saved.
-    private bool OpenMediaFolderByMiddleClick(ArchiveAssetRow? asset, ArchiveAttachmentRow? attachment, string? postId, MediaMenuSurface surface, Control origin,
-        ReaderInlineVideoSlot? playback)
+    private bool OpenMediaFolderByMiddleClick(ArchiveAssetRow? asset, ArchiveAttachmentRow? attachment, string? postId)
     {
         if (_ended || !_available || _busy || _thread == null || _selectedThread == null || IsReaderDialogOpen) return false;
         if (attachment != null) asset = postId == null ? null : FindMatchingAsset(_selectedThread, postId, attachment.Attachment, _assets);
-        if (asset == null && attachment == null) return false;
-        ContextMenu menu = BuildArchiveMediaMenu(asset, attachment, origin, postId, surface, null, playback).Menu;
-        MenuItem? folder = menu.Items.OfType<MenuItem>().FirstOrDefault(item => CommandBindings.ActionId(item) == MediaFolderCommandId);
-        if (folder is not { IsEnabled: true }) return false;
-        CommandBindings.InvokeAction(folder);
-        return true;
+        if (asset == null) return false;
+        Action<string> reportError = CaptureActionErrorReporter();
+        try { return TryShowMediaInFolder(asset.Asset); }
+        catch (Exception error) { reportError(error.Message); return true; }
     }
 
-    internal const string MediaFolderCommandId = "media.show-in-folder";
+    /// <summary>The one "Show in folder" of the media menu's entry and of the middle click: the file's folder, when the host can open folders and the file has one. False when not available.</summary>
+    private bool TryShowMediaInFolder(MeowChan.Storage.MediaAssetReference? asset)
+    {
+        if (asset == null || _openFolder == null || System.IO.Path.GetDirectoryName(asset.Path) is not string directory) return false;
+        _openFolder(directory);
+        return true;
+    }
 }

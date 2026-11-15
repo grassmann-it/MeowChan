@@ -165,7 +165,7 @@ internal sealed partial class GalleryViewer
     {
         if (_entry == null || _terminalRetirement || !_ratingAvailable) return false;
         if (_tagPanelOpen && _decisionRow is { } tagsRow) return _contextOpen && tagsRow.FocusRating();
-        if (!_contextOpen) SetContextOpen(true, notify: false);
+        if (!_contextOpen) SetContextOpen(true); // notify: R is an explicit open, the saved panel-open preference follows like the Post toggle
         if (!_contextOpen || _tagPanelOpen) return false;
         EnsureContextCurrent();
         return _postDecision is { } row && row.FocusRating();

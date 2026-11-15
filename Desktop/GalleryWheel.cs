@@ -1,3 +1,4 @@
+using System;
 using Avalonia.Input;
 using MeowChan.Desktop.Controls;
 
@@ -35,4 +36,37 @@ internal static class GalleryWheel
     /// goes on (+1), the same direction as the filmstrip's wheel. Several steps of one event still move by one medium, as a key does.
     /// </summary>
     internal static int BrowseDelta(int wheelSteps) => wheelSteps > 0 ? -1 : wheelSteps < 0 ? 1 : 0;
+}
+
+/// <summary>
+/// The wheel steps that arrive while the shell is still moving to the previous one (Browse mode): a spinning wheel raised one move per event and
+/// each started its own decode. They add up here, and the viewer sends the net sum as one move when the navigation has landed, so the latest
+/// target wins and one navigation is in flight at a time. A turn the other way drops what was collected; so does a pause (<see cref="WheelSteps.Pause"/>).
+/// </summary>
+internal sealed class WheelBrowseQueue
+{
+    private int _steps;
+    private DateTime _last = DateTime.MinValue;
+
+    /// <summary>Whether steps wait for the navigation to land.</summary>
+    internal bool HasSteps => _steps != 0;
+
+    /// <summary>Adds one step in <paramref name="direction"/> (-1 back, +1 on), at <paramref name="now"/>.</summary>
+    internal void Add(int direction, DateTime now)
+    {
+        if (direction == 0) return;
+        if (now - _last > WheelSteps.Pause || Math.Sign(_steps) != Math.Sign(direction)) _steps = 0;
+        _last = now;
+        _steps = (int)Math.Clamp((long)_steps + Math.Sign(direction), int.MinValue / 2, int.MaxValue / 2);
+    }
+
+    /// <summary>The net steps (negative: back); the queue is empty afterwards.</summary>
+    internal int Take()
+    {
+        int steps = _steps;
+        _steps = 0;
+        return steps;
+    }
+
+    internal void Clear() => _steps = 0;
 }
