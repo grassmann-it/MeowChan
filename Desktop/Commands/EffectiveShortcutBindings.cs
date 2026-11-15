@@ -45,7 +45,7 @@ public sealed record ShortcutGesture(string Key, IReadOnlyList<string> Modifiers
             "OemComma" => ",", "OemPeriod" => ".", "OemPlus" => "+", "OemMinus" => "−", "Apps" => "Menu",
             "OemOpenBrackets" => "[", "OemCloseBrackets" => "]", _ => KeyNames.Localized(key) ?? key
         };
-        // Key names follow the interface language (German: Strg, Umschalt); the stored gesture stays unchanged.
+        // Key names follow the interface language (German: Strg, Umschalt, Entf, Pfeil hoch, Num 0; KeyNames); the stored gesture stays unchanged.
         return Array.AsReadOnly(Modifiers.Select(m => m is "Primary" or "Control" or "Ctrl" ? Texts.T("key.ctrl")
             : m == "Shift" ? Texts.T("key.shift") : m).Append(Symbol ?? key).ToArray());
     }
@@ -115,7 +115,7 @@ public sealed class EffectiveShortcutBindings
     private static long _nextVersion;
     /// <summary>Revision of the default table. Raise it, and list the command in
     /// <see cref="DefaultChangedInRevision"/>, whenever a default gesture is added to or changed on a command.</summary>
-    public const int DefaultsRevision = 14;
+    public const int DefaultsRevision = 18;
     /// <summary>Commands whose default gesture set was introduced or changed after profiles with saved
     /// bindings may already exist, with the revision that did it. A new default on such a command yields to
     /// a saved binding of another command instead of silencing both; entries are never removed because a
@@ -123,7 +123,7 @@ public sealed class EffectiveShortcutBindings
     private static readonly IReadOnlyDictionary<string, int> DefaultChangedInRevision = new Dictionary<string, int>(StringComparer.Ordinal)
     {
         ["video.volume-up"] = 1, ["video.volume-down"] = 1, ["favorites.add"] = 1, ["favorites.remove"] = 1,
-        ["navigation.media"] = 2, ["navigation.rules"] = 2, ["navigation.sources"] = 2,
+        // (navigation.media, rules and sources: revision 2, now listed with revision 15 below.)
         ["navigation.statistics"] = 2, ["input.focus-media-search"] = 2, ["input.focus-settings-search"] = 2, ["input.focus-diagnostics-search"] = 2,
         ["thread.favorite-toggle"] = 2, ["thread.tags"] = 2,
         ["archive.filters-toggle"] = 2, ["board.filters"] = 2, ["media.select-all"] = 2, ["menu.context-open"] = 2,
@@ -159,10 +159,10 @@ public sealed class EffectiveShortcutBindings
         // New in revision 7: Diagnostics and Statistics are segments of one Status page (MainPageOrder). Status takes Primary+7 and
         // yields to a saved binding of another command; Diagnostics and Statistics lose their digits (Primary+8 is free) and
         // keep any binding the user saved for them.
-        ["navigation.status"] = 7,
+        // (navigation.status: revision 7, now listed with revision 15 below.)
         // New in revision 8: the own Booru page takes the previously free Primary+6. A persisted
         // navigation.plugins=Primary+6 override therefore keeps winning over the new default.
-        ["navigation.booru"] = 8,
+        // (navigation.booru: revision 8, now listed with revision 15 below.)
         // New in revision 9 (wave3: V1, V3, PT6, R8, M4 and PT3 each raised the table in their own branch; Status took 7, the Booru page 8): the video transport row
         // (A–B loop, next frame).
         ["video.ab-loop"] = 9,
@@ -196,7 +196,7 @@ public sealed class EffectiveShortcutBindings
         // New in revision 11 (F1, footer setting): Ctrl/Cmd+1, 2, 3 ... follow the footer buttons the person chose, from left to right, then the hidden
         // pages (MainPageOrder.Numbering). Every main page can therefore get another digit than before, so each default yields to a saved binding
         // of another command (media, booru, rules, sources and status are listed above from earlier revisions).
-        ["navigation.downloads"] = 11, ["navigation.archive"] = 11, ["navigation.tagging"] = 11,
+        // (navigation.downloads, archive and tagging: revision 11, now listed with revision 15 below.)
         // TG1: Alt+Home and Alt+End send the selected entry of the tagging page to the start or the end of the queue (context "tagging").
         // The wave-6 integration puts them into revision 11 (F1's), the first one after wave 5's 10; they yield like every new default.
         ["tagging.move-first"] = 11, ["tagging.move-last"] = 11,
@@ -215,6 +215,24 @@ public sealed class EffectiveShortcutBindings
         // German and French layouts and Ctrl+Alt is not a valid gesture. [ ] and Backspace (normal speed) stay. Both commands are listed since revision 5;
         // the entry now says that a saved binding of another command on X or C also wins over the new key (the key alone yields, [ or ] stay).
         ["video.speed-down"] = 14, ["video.speed-up"] = 14,
+        // Revision 15 (Tom's decision of 15.11.2026): every main page gets a fixed Ctrl/Cmd+Shift+letter next to its footer digit (PageKeyScheme: Downloads D, Archive A,
+        // Media E, Tagging K, Booru B, Rules U, Plugins X, Status S). The ids are listed since revision 11 (the digits); the entry now also says that a saved binding
+        // of another command on the letter wins over the new default (the letter alone yields, the digit stays). A page whose own gestures the person saved keeps them.
+        ["navigation.downloads"] = 15, ["navigation.archive"] = 15, ["navigation.media"] = 15, ["navigation.tagging"] = 15,
+        ["navigation.booru"] = 15, ["navigation.rules"] = 15, ["navigation.sources"] = 15, ["navigation.status"] = 15,
+        // Revision 16 (interaction audit 1.1.0; revision 15 belongs to the overlay keys of feature/overlay-close-page-keys): Ctrl/Cmd+Plus and
+        // Ctrl/Cmd+Minus step the media page's tile size (Ctrl+wheel does the same), Ctrl/Cmd+C copies the selected row of the Diagnostics and the
+        // Statistics table (the context menu's "Copy details" / "Copy row"). All four yield to a saved binding of another command like every new default.
+        ["media.tile-size.larger"] = 16, ["media.tile-size.smaller"] = 16, ["diagnostics.copy"] = 16, ["statistics.copy-row"] = 16,
+        // Revision 17 (reader video keys): the gallery's play / pause, mute, repeat, seek step, speed and next frame keys also run in the reader on the selected
+        // post's video (scope Reader added, no new gesture). Their gestures now share the reader's context, so a saved binding of a reader command on one of
+        // them wins over the video key (play / pause is new in this table; the others are listed from earlier revisions).
+        ["video.play-pause"] = 17,
+        // Revision 18 (the Media page's media panel): the same nine video keys also run on the panel's video (scope Media added, no new gesture; their entries
+        // above keep the revision that introduced them). On the Media page they give way to its own commands (ConflictContexts, MediaPanelKeys.Route), so a
+        // saved Media binding on one of them neither silences the key in the gallery and the reader nor conflicts with it. New: Primary+Shift+M turns the
+        // panel on or off, like the reader's media sidebar; it yields to a saved binding of another command like every new default.
+        ["media.panel.toggle"] = 18,
     };
     public static IReadOnlyCollection<string> YieldingDefaultCommandIds => DefaultChangedInRevision.Keys.ToArray();
     // Commands whose default changed only in the macOS table: on Windows and Linux their gesture is the old stable one
@@ -254,7 +272,12 @@ public sealed class EffectiveShortcutBindings
         if (platform == ShortcutPlatform.MacOS && MacDefaults(command.Id) is { } mac) return mac;
         var list = new List<ShortcutGesture>();
         // A main page's digit follows the footer (MainPageOrder.Numbering), not a fixed slot of the catalog.
-        if (MainPageOrder.Contains(command.Id)) { if (MainPageOrder.Digit(command.Id) is int digit) list.Add(ShortcutGesture.Parse("Primary+" + digit)); }
+        // Revision 15 adds the page's fixed letter (PageKeyScheme: Ctrl/Cmd+Shift+letter) behind the digit, so the digit stays the first gesture.
+        if (MainPageOrder.Contains(command.Id))
+        {
+            if (MainPageOrder.Digit(command.Id) is int digit) list.Add(ShortcutGesture.Parse("Primary+" + digit));
+            if (PageKeyScheme.Gesture(command.Id) is { } letter) list.Add(letter);
+        }
         else if (command.Shortcut is not null && command.Shortcut != "Escape") list.Add(ShortcutGesture.Parse(command.Shortcut));
         switch (command.Id)
         {
@@ -262,6 +285,8 @@ public sealed class EffectiveShortcutBindings
             case "gallery.actual-size": list.Add(ShortcutGesture.Parse("NumPad1")); break;
             case "gallery.zoom-in": list.Add(ShortcutGesture.Parse("Add")); list.Add(ShortcutGesture.Parse("Shift+OemPlus")); break;
             case "gallery.zoom-out": list.Add(ShortcutGesture.Parse("Subtract")); break;
+            case "media.tile-size.larger": list.Add(ShortcutGesture.Parse("Primary+Add")); break;
+            case "media.tile-size.smaller": list.Add(ShortcutGesture.Parse("Primary+Subtract")); break;
             case "viewer.shortcut-help": list.Add(new("OemQuestion", new[] { "Shift" }, "?")); break;
             case "menu.context-open": list.Add(ShortcutGesture.Parse("Apps")); break;
             case "reader.find-next": list.Add(ShortcutGesture.Parse("Primary+G")); break;
@@ -443,10 +468,26 @@ public sealed class EffectiveShortcutBindings
     { var x = a.Resolve(platform); var y = b.Resolve(platform); return x.KeyModifiers == y.KeyModifiers && (x.Key == y.Key || a.Symbol != null && a.Symbol == b.Symbol); }
     public static bool ContextsOverlap(string first, string second)
     {
-        var a = ExecutionContexts(first); var b = ExecutionContexts(second);
+        var a = ConflictContexts(first); var b = ConflictContexts(second);
         static bool OnlyModal(IReadOnlyList<string> contexts) => contexts.All(c => c.StartsWith("dialog:", StringComparison.Ordinal));
         return a.Contains("shell") && !OnlyModal(b) || b.Contains("shell") && !OnlyModal(a) || a.Intersect(b).Any();
     }
+    /// <summary>The presentation context of the video keys that the Media page routes to its media panel (CommandDefinition.Contexts).</summary>
+    public const string MediaPanelVideoKeys = "media-video-keys";
+
+    /// <summary>
+    /// The contexts in which a gesture of <paramref name="id"/> competes with other commands: its <see cref="ExecutionContexts"/>, except the Media page for
+    /// the video keys of its media panel. The page routes them only after its own commands (MediaPanelKeys.Route), so there a Media command on the same
+    /// gesture simply wins: it neither conflicts with the video key nor makes it yield, which would silence it in the gallery and the reader as well
+    /// (the defaults are per command, not per context).
+    /// </summary>
+    public static IReadOnlyList<string> ConflictContexts(string id)
+    {
+        IReadOnlyList<string> contexts = ExecutionContexts(id);
+        return CommandCatalog.Get(id).Contexts.Contains(MediaPanelVideoKeys, StringComparer.Ordinal) && contexts.Contains("media", StringComparer.Ordinal)
+            ? contexts.Where(context => context != "media").ToArray() : contexts;
+    }
+
     public static IReadOnlyList<string> ExecutionContexts(string id)
     {
         var c = CommandCatalog.Get(id);

@@ -46,4 +46,18 @@ internal static class ReaderPlaybackMenu
             return ids;
         }
     }
+
+    /// <summary>The playback group as menu items for a reader or Media-page video slot.</summary>
+    internal static List<Control>? MenuItems(ReaderInlineVideoSlot? slot, MediaMenuSession session, Func<Func<Task>, Task> run)
+    {
+        if (slot is not { IsOffered: true }) return null;
+        List<Control> items = new();
+        foreach (Entry entry in Entries(slot.IsLive, slot.IsPlaying, slot.Player?.Muted == true, slot.Player?.LoopEnabled == true))
+        {
+            ReaderVideoAction action = entry.Action;
+            items.Add(MediaMenuBuilder.ContextCommandItem(session, entry.CommandId, () => slot.ExecuteAsync(action), () => entry.Available, run,
+                MediaMenuReasons.Unavailable, entry.Label));
+        }
+        return items;
+    }
 }

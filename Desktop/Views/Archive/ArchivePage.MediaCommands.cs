@@ -192,13 +192,8 @@ public partial class ArchivePage
     }
 
     // The playback group of a video that plays in the reader: Play / Pause, Mute / Unmute, Repeat on / off, with the bindings' shortcuts.
-    private static List<Control>? PlaybackMenuItems(ReaderInlineVideoSlot? slot, MediaMenuSession session, Func<Func<Task>, Task> run)
-    {
-        if (slot is not { IsOffered: true }) return null;
-        return MediaMenuBuilder.PlaybackGroup(session,
-            ReaderPlaybackMenu.Entries(slot.IsLive, slot.IsPlaying, slot.Player?.Muted == true, slot.Player?.LoopEnabled == true),
-            action => slot.ExecuteAsync(action), run);
-    }
+    private static List<Control>? PlaybackMenuItems(ReaderInlineVideoSlot? slot, MediaMenuSession session, Func<Func<Task>, Task> run) =>
+        ReaderPlaybackMenu.MenuItems(slot, session, run);
 
     private (ContextMenu Menu, MediaMenuSession Session) BuildArchiveMediaMenu(ArchiveAssetRow? asset, ArchiveAttachmentRow? attachment,
         Control origin, string? postId, MediaMenuSurface surface, ArchiveAssetRow[]? selection = null, ReaderInlineVideoSlot? playback = null)
