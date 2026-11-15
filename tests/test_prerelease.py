@@ -528,17 +528,25 @@ class CandidateWorkflowFixtures(unittest.TestCase):
             'Exercise real OS media input (not synthetic routed keys)',
             'Exercise tray lifecycle separately on the disposable runner',
             'Check native Linux tray host lifecycle on private DBus',
+            'Exercise selected 1.1 registry workflows on Linux x64',
         }
         linux_only = {
             'Exercise explicit bundled new-selection confirmation on the actual platform',
             'Check native Linux tray host lifecycle on private DBus',
+            'Exercise selected 1.1 registry workflows on Linux x64',
         }
+        candidate_only = {'Exercise selected 1.1 registry workflows on Linux x64'}
         for os in ('Windows', 'Linux', 'macOS'):
             for scenario in ('all', 'gui-only', 'selection', *selectors):
                 for name, body in scenes.items():
                     condition = re.search(r'^        if: (.+)$', body, re.M)
                     expression = condition.group(1) if condition else 'True'
                     expression = expression.replace('runner.os', repr(os))
+                    # The registry smoke is a candidate-only Linux-x64 step.  The
+                    # candidate matrix separately rejects non-`all` scenarios, so
+                    # model its valid dispatch with the candidate mode here.
+                    expression = expression.replace('runner.arch', repr('X64'))
+                    mode = 'prerelease-candidate' if name in candidate_only and scenario == 'all' else 'validate'
                     if scenario in selectors:
                         expected = name == selectors[scenario]
                     elif scenario == 'selection':
@@ -548,10 +556,13 @@ class CandidateWorkflowFixtures(unittest.TestCase):
                         if name in linux_only:
                             expected = expected and os == 'Linux'
                     with self.subTest(os=os, scenario=scenario, scene=name):
-                        self.assertEqual(expected, self.evaluate(expression, scenario=scenario))
+                        self.assertEqual(expected, self.evaluate(expression, mode=mode, scenario=scenario))
+                        push_expected = name not in linux_only or os == 'Linux'
+                        if name in candidate_only:
+                            push_expected = False
                         self.assertEqual(
-                            name not in linux_only or os == 'Linux',
-                            self.evaluate(expression, event='push'))
+                            push_expected,
+                            self.evaluate(expression, mode='prerelease-candidate' if name in candidate_only else 'validate', event='push'))
         for name in ('Record SDK and source commit',
                      'Restore graphical harness with reviewed dependencies',
                      'Retain exact graphical harness dependency graph',

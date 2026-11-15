@@ -314,7 +314,7 @@ jobs:
             --only settings-reader-display \
             --timeout 300 \
             --output artifacts/desktop-smoke-1.1-registry
-      - name: Exercise the released 1.0.2 fixture against the current source
+      - name: Replay genuine 1.0.0 and 1.0.1 profiles with confirmed new selections
         id: upgrade_replay
         # Keep independent checks running so one failure yields a complete evidence set.
         continue-on-error: true
@@ -329,6 +329,14 @@ jobs:
           done
           python -c 'import pathlib,xml.etree.ElementTree as E; files=list(pathlib.Path("artifacts/upgrade-results").glob("upgrade-*.trx")); assert len(files)==2; rows=[E.parse(f).getroot().findall(".//{*}UnitTestResult") for f in files]; assert all(len(r)==1 and r[0].get("outcome")=="Passed" for r in rows), "Genuine upgrade tests must actually execute and pass"'
 
+      - name: Exercise the released 1.0.2 fixture against the current source
+        id: upgrade_102_replay
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
+        if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all'
+        shell: bash
+        run: |
+          set -euo pipefail
           # The current-side consumer must use the same Debug configuration as
           # the AP04 test assembly. Mixing Debug and Release changes the
           # MeowChan.dll byte identity and is rejected by the provenance control.
@@ -583,7 +591,7 @@ jobs:
           # recorded failure, but retain their intentionally skipped checks.
           required=(record_source)
           if [[ "${{ inputs.mode }}" == prerelease-candidate || "${{ inputs.mode }}" == stable-candidate ]]; then
-            required=(candidate_matrix record_source public_api dev_build restore_release retain_release_assets build_all package_fixtures local_package smoke_runner_contract smoke_restore smoke_assets smoke_build plugin_delivery smoke_normal upgrade_replay first_run preference_startup scoped_diagnostics gif_playback gallery_errors reader_media gallery_features media_input tray_lifecycle)
+            required=(candidate_matrix record_source public_api dev_build restore_release retain_release_assets build_all package_fixtures local_package smoke_runner_contract smoke_restore smoke_assets smoke_build plugin_delivery smoke_normal upgrade_replay upgrade_102_replay first_run preference_startup scoped_diagnostics gif_playback gallery_errors reader_media gallery_features media_input tray_lifecycle)
             if [[ "$RUNNER_OS" == Linux ]]; then
               required+=(linux_setup tray_host core_tests smoke_plugins)
               if [[ "$RUNNER_ARCH" == X64 ]]; then
