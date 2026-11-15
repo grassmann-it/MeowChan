@@ -59,10 +59,16 @@ public sealed class GalleryMediaActionsTests : IDisposable
             CommandDefinition command = CommandCatalog.Get(id);
             Assert.True(command.IsImplemented, id);
             Assert.Equal(CommandAvailability.Contextual, command.Availability);
-            // The shortcut concept assigns keys; this package only adds the commands.
-            Assert.Empty(EffectiveShortcutBindings.Build().For(id));
-            Assert.Null(command.Shortcut);
         }
+        // The shortcut concept assigns keys; this package only added the commands. Revision 19 (decision #125) gave three of them a key,
+        // the two text copies stay without one (Ctrl/Cmd+C is the selected text).
+        foreach (string id in new[] { "post.copy-text", "post.copy-number" })
+        {
+            Assert.Empty(EffectiveShortcutBindings.Build().For(id));
+            Assert.Null(CommandCatalog.Get(id).Shortcut);
+        }
+        foreach (string id in new[] { "media.open-external", "media.copy-path", "post.copy-link" })
+            Assert.Contains(id, EffectiveShortcutBindings.YieldingDefaultCommandIds);
         Assert.Equal(new[] { "gallery" }, CommandCatalog.Get("media.open-external").ExecutionContexts);
         Assert.Equal(new[] { "reader" }, CommandCatalog.Get("post.copy-text").ExecutionContexts);
         // The remaining placeholder stays one.

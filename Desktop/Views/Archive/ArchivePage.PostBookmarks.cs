@@ -79,6 +79,19 @@ public partial class ArchivePage
         return builder.Build()!;
     }
 
+    /// <summary>
+    /// "Copy post link" by key (revision 19: Primary+Shift+C) for the selected post, in both readers. A medium inside the post that has the focus
+    /// takes the same key first for its file path (TryRouteArchiveMediaShortcut); a post whose source has no known address scheme copies nothing.
+    /// </summary>
+    private void OnPostCopyLinkKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Handled || ShortcutService.IsCapturing || IsReaderDialogOpen || _ended || _thread == null
+            || ArchivePosts.SelectedItem is not ArchivePostRow row || _thread.FindPostIndex(row.Id) < 0
+            || !CommandBindings.Matches(e, "post.copy-link")) return;
+        e.Handled = true;
+        if (PostMenuText.Link(_thread.Summary.Id, _thread.Summary.Url, row.Id) is { } link) _ = CopyPostTextAsync(link, "post.copy.linkDone");
+    }
+
     /// <summary>Test seam: receives the copied text instead of the clipboard.</summary>
     internal Func<string, Task>? CopyTextForTests { get; set; }
 

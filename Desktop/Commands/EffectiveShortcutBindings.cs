@@ -115,7 +115,7 @@ public sealed class EffectiveShortcutBindings
     private static long _nextVersion;
     /// <summary>Revision of the default table. Raise it, and list the command in
     /// <see cref="DefaultChangedInRevision"/>, whenever a default gesture is added to or changed on a command.</summary>
-    public const int DefaultsRevision = 18;
+    public const int DefaultsRevision = 19;
     /// <summary>Commands whose default gesture set was introduced or changed after profiles with saved
     /// bindings may already exist, with the revision that did it. A new default on such a command yields to
     /// a saved binding of another command instead of silencing both; entries are never removed because a
@@ -233,6 +233,13 @@ public sealed class EffectiveShortcutBindings
         // saved Media binding on one of them neither silences the key in the gallery and the reader nor conflicts with it. New: Primary+Shift+M turns the
         // panel on or off, like the reader's media sidebar; it yields to a saved binding of another command like every new default.
         ["media.panel.toggle"] = 18,
+        // Revision 19 (Tom's decision #125 of 15.11.2026, from the menu audit): frequent menu actions get a key. The tagging list marks done with D and
+        // skipped with S; the reader hides the selected post with H and copies its link with Primary+Shift+C; Primary+Shift+C also copies a medium's file path
+        // (media page, gallery, tagging list); Alt+M shows a thread or a tagging entry in Media; Primary+Enter opens the embedded reader's thread in the large
+        // reader; Primary+Shift+O opens the gallery's medium with the default program (next to Primary+O, the folder). All of them yield to a saved binding of
+        // another command, like every new default.
+        ["tagging.mark-done"] = 19, ["tagging.mark-skipped"] = 19, ["post.hide"] = 19, ["post.copy-link"] = 19, ["media.copy-path"] = 19,
+        ["thread.show-in-media"] = 19, ["tagging.show-in-media"] = 19, ["reader.expand"] = 19, ["media.open-external"] = 19,
     };
     public static IReadOnlyCollection<string> YieldingDefaultCommandIds => DefaultChangedInRevision.Keys.ToArray();
     // Commands whose default changed only in the macOS table: on Windows and Linux their gesture is the old stable one

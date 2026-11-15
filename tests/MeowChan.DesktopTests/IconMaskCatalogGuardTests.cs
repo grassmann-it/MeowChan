@@ -95,6 +95,24 @@ public sealed class IconMaskCatalogGuardTests
         Assert.True(File.Exists(Root("Assets/icons/feather/" + icon + ".svg")), icon + ".svg original is missing");
     }
 
+    // The rating's half star (decision #126): a hand-written SVG in Feather's stroke style next to star.svg, rendered to the same 48 px RGBA mask.
+    [Fact]
+    public void TheRatingHalfStarIsAFeatherStyleSvgWithA48PixelMask()
+    {
+        TheChevronMasksExistAndAreTransparent48PixelPngs("star-half");
+        string svg = File.ReadAllText(Root("Assets/icons/feather/star-half.svg"));
+        string star = File.ReadAllText(Root("Assets/icons/feather/star.svg"));
+        foreach (string attribute in new[] { "viewBox=\"0 0 24 24\"", "fill=\"none\"", "stroke=\"currentColor\"", "stroke-width=\"2\"",
+            "stroke-linecap=\"round\"", "stroke-linejoin=\"round\"" })
+        {
+            Assert.Contains(attribute, star, StringComparison.Ordinal);
+            Assert.Contains(attribute, svg, StringComparison.Ordinal);
+        }
+        // The outline is the star's own polygon; the filled half is its left side.
+        Assert.Contains(Regex.Match(star, "<polygon points=\"[^\"]+\"/>").Value, svg, StringComparison.Ordinal);
+        Assert.Contains("fill=\"currentColor\"", svg, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void ThePageThatCrashedUsesTheMaskThatNowExists() =>
         Assert.Contains("NamedIcon(\"chevron-down\", 12)", File.ReadAllText(Root("Desktop/Views/Tagging/TaggingPage.Selection.cs")), StringComparison.Ordinal);

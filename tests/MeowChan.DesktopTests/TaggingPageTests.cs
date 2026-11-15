@@ -146,7 +146,9 @@ public sealed class TaggingPageTests : IDisposable
         Assert.Equal("Tagging", navigation.Label);
         foreach (string id in new[] { "tagging.start", "tagging.mark-done", "tagging.mark-open", "tagging.mark-skipped", "tagging.add", "tagging.clear-done", "tagging.clear" })
         {
-            Assert.Empty(EffectiveShortcutBindings.Defaults(CommandCatalog.Get(id)));
+            // Revision 19 (decision #125): D marks done and S skipped in the queue list; the other page commands stay without a key.
+            string[] expected = id switch { "tagging.mark-done" => ["D"], "tagging.mark-skipped" => ["S"], _ => [] };
+            Assert.Equal(expected, EffectiveShortcutBindings.Defaults(CommandCatalog.Get(id)).Select(g => g.Key));
             Assert.Equal(new[] { "tagging" }, CommandCatalog.Get(id).ExecutionContexts);
         }
     }

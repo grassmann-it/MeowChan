@@ -19,6 +19,9 @@ same release with the same renderer and size; `rotate-cw` (rotate 90°) likewise
 style, written as SVG and rendered with the same renderer and size; Feather's own chevrons-up/down use the same two polylines.
 `chevron-down` and `chevron-up` (the open/closed state arrow of the tagging selection state) are the single-polyline mirrors of `chevron-left`,
 written as SVG in the same stroke style and rendered with the same renderer and size (rsvg-convert 2.62.3; the same call reproduces `chevron-left.png` byte for byte).
+`star-half` (the media rating: edit, set, remove and manage ratings, so a rating no longer shares the favourite's star) is `star.svg`'s outline with
+its left half filled (the left points of the same polygon with `fill="currentColor"`), written as SVG in the same stroke style and rendered with the
+same renderer and size (`rsvg-convert -w 48 -h 48`).
 
 These are prepared assets, not a record of completed UI integration. The local
 0.9.0 architecture handoff contains the action map, source and derivative SHA-256

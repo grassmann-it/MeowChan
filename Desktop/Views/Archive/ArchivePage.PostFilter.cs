@@ -59,6 +59,7 @@ public partial class ArchivePage
     {
         RegisterPostClassifier(_postFilter);
         ArchiveReaderPane.AddHandler(KeyDownEvent, OnPostFilterKeyDown, RoutingStrategies.Bubble);
+        ArchiveReaderPane.AddHandler(KeyDownEvent, OnPostCopyLinkKeyDown, RoutingStrategies.Bubble);
     }
 
     private void OnPostFiltersChanged(object? sender, EventArgs e)

@@ -79,6 +79,15 @@ public sealed class MenuIconAuditTests : IDisposable
         Assert.Equal("link", CommandCatalog.Get("selection.copy-links").Icon);
         Assert.Equal(CommandCatalog.Get("post.copy-link").Icon, CommandCatalog.Get("selection.copy-links").Icon);
         Assert.Equal("more-horizontal", CommandCatalog.Get("navigation.tools-menu").Icon);
+        // Decision #126: the rating family has its own half star; the favourite keeps the star (and star-filled when marked).
+        foreach (string id in CommandCatalog.All.Select(command => command.Id).Where(id => id.StartsWith("media.rating.", StringComparison.Ordinal)))
+            Assert.True(CommandCatalog.Get(id).Icon == "star-half", id);
+        foreach (string id in new[] { "favorites.toggle", "favorites.add", "favorites.filter", "favorites.open", "thread.favorite-toggle" })
+            Assert.True(CommandCatalog.Get(id).Icon == "star", id);
+        Assert.Equal("star-filled", CommandCatalog.IconForState("favorites.toggle", "marked"));
+        Assert.NotEqual(CommandCatalog.Get("favorites.toggle").Icon, CommandCatalog.Get("media.rating.edit").Icon);
+        // The gallery's rating button shows the command's icon, not a star of its own.
+        Assert.Contains("NamedIcon(CommandCatalog.Get(\"media.rating.edit\").Icon, 16)", File.ReadAllText(Root("Desktop/GalleryViewer.cs")), StringComparison.Ordinal);
         // Deleting (not removing from a list) is the circled cross everywhere.
         foreach (string id in new[] { "archive.delete-permanently", "reader-groups.delete", "archive.saved-searches.delete", "rules.delete", "rules.template-delete" })
             Assert.True(CommandCatalog.Get(id).Icon == "x-circle", id);

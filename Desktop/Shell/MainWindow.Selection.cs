@@ -260,6 +260,9 @@ public partial class MainWindow
         { e.Handled = true; await RemoveDownloadSelectionAsync(boards); return; }
         if (CommandBindings.Matches(e, "thread.details"))
         { e.Handled = true; OpenWorkspaceDetails(); return; }
+        // Revision 19: "Show in Media" (Alt+M) for the lead thread, like the thread menu entry; boards have no media of their own.
+        if (!boards && CommandBindings.Matches(e, "thread.show-in-media"))
+        { e.Handled = true; if (LeadThread is ThreadRow row) ShowThreadInMedia(row.Snapshot.Id, row.Title); return; }
         if (CommandBindings.Matches(e, "thread.read") || CommandBindings.Matches(e, "gallery.open"))
         {
             e.Handled = true;
