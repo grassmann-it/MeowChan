@@ -449,6 +449,12 @@ internal static partial class GalleryPlaybackFeatureChecks
         await native.ClickAsync(Find<Button>(viewer, "GallerySlideshowToggle"));
         await UntilAsync(() => Running(viewer), "Could not restart automation before menu intent check.");
         ComboBox mode = Find<ComboBox>(viewer, "GalleryPlaybackModeSelector");
+        // The playback settings stay in the shared overflow panel while the slideshow
+        // toggle moves between the toolbar and its menu row. After the native start click
+        // Avalonia can retain the selector for one layout turn with visible-but-detached
+        // bounds. Do not pass that stale target to OS input; wait for its current hit root.
+        await UntilAsync(() => MediaInteractionSmokeHelpers.IsPointerTargetReady(mode),
+            "Playback mode setup never became a current native pointer target.");
         using var menuTrace = new ModeMenuInputTrace(fixture.Window, viewer, mode);
         menuTrace.Record("before-click");
         await native.ClickAsync(mode);
