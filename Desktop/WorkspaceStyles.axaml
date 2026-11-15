@@ -1924,6 +1924,10 @@
         <Setter Property="BorderThickness" Value="1" /><Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Control}" />
         <Setter Property="Padding" Value="{StaticResource Workspace.Inset.Card}" />
     </Style>
+    <!-- A card the keyboard reaches (Booru hit): the shared double focus ring, drawn only for keyboard focus (Avalonia shows the adorner for Tab and arrow focus). -->
+    <Style Selector="Border.workspace-card-focusable">
+        <Setter Property="FocusAdorner" Value="{StaticResource Workspace.FocusAdorner}" />
+    </Style>
     <Style Selector="Border.workspace-card.workspace-card-active">
         <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
         <Setter Property="BorderThickness" Value="3,1,1,1" />

@@ -124,6 +124,9 @@ internal static class BooruUiCatalog
 
         ("booru.ui.load", "Load original", "Original laden"),
         ("booru.ui.loadFor", "Load original of post {0}", "Original von Post {0} laden"),
+        ("booru.ui.result.hitName", "Post #{0}, rating {1}, local copy: {2}", "Post #{0}, Einstufung {1}, lokale Kopie: {2}"),
+        ("booru.ui.result.localYes", "yes", "ja"),
+        ("booru.ui.result.localNo", "no", "nein"),
         ("booru.ui.load.Handing", "Handing over to the download queue…", "Übergabe an die Downloadwarteschlange…"),
         ("booru.ui.load.Queued", "Added to the download queue.", "Zur Downloadwarteschlange hinzugefügt."),
         ("booru.ui.load.AlreadyQueued", "Already in the download queue.", "Bereits in der Downloadwarteschlange."),

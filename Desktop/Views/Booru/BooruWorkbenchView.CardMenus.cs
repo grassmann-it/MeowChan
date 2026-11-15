@@ -14,8 +14,8 @@ namespace MeowChan.Desktop.Booru;
 // watcher check now, pause or resume, restart from now, the same links for its latest post and, last, remove. The menu holds no logic of its own:
 // every entry presses the card's button of the same action, so it does exactly that, is available exactly when that button is and gives the same
 // reason when it is not. The entries are composed when the menu opens, from the buttons the card has then. Icons are those of the matching
-// commands (the media menu's post links, "Check now", "Show in Media", "Remove from watch list"); the card is no keyboard stop, so the keys
-// work from the buttons inside it.
+// commands (the media menu's post links, "Check now", "Show in Media", "Remove from watch list"). A result card is a keyboard stop of its own
+// (BooruWorkbenchView.Hits.cs), so the keys also work on the focused card; a watcher card's keys work from the buttons inside it.
 internal sealed partial class BooruWorkbenchView
 {
     internal const string MenuLoad = "booru.menu.load";
@@ -31,8 +31,10 @@ internal sealed partial class BooruWorkbenchView
     // The icons of entries that are no catalog commands: the same masks as the command or the button that does the same thing.
     private const string LoadIcon = "download-cloud", CancelIcon = "x", RetryIcon = "refresh-cw", PauseIcon = "pause", ResumeIcon = "play", RestartIcon = "rotate-ccw";
 
-    /// <summary>Gives a card its context menu; <paramref name="compose"/> is called at every opening, so the entries are current.</summary>
-    private static void AttachCardMenu(Border card, Func<ContextMenuBuilder?> compose) => _ = new ContextMenuHost(card, compose);
+    /// <summary>Gives a card its context menu; <paramref name="compose"/> is called at every opening, so the entries are current. <paramref name="fallbackFocus"/>
+    /// takes the focus when an entry rebuilt the cards (the hit's own card again).</summary>
+    private static void AttachCardMenu(Border card, Func<ContextMenuBuilder?> compose, Action? fallbackFocus = null) =>
+        _ = new ContextMenuHost(card, compose, fallbackFocus);
 
     private ContextMenuBuilder? ComposeResultMenu(Border card, string postId)
     {
