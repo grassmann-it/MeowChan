@@ -106,7 +106,8 @@ internal sealed record MediaFilterQueryApplication(IReadOnlyList<MediaFilterTerm
 /// <c>sound:with|none</c>, <c>source:4chan</c>, <c>board:g</c> or <c>board:4chan/g</c>, <c>rating:&gt;=3</c>, <c>thread:1234</c>, <c>name:x</c>;</item>
 /// <item>the bare flags <c>fav</c>, <c>missing</c>, <c>untagged</c> and <c>queue</c> (their aliases too; only <c>-queue</c> may exclude);
 /// <c>queue:yes|no</c> and the provider's tags <c>booru:name</c>, <c>-booru:name</c>;</item>
-/// <item>free text, which stays the file name text. A value in double quotes may hold spaces (<c>tag:"two words"</c>; inside quotes
+/// <item>free text, which stays the search text: every word of it must occur in the file name, the thread title, the board or the source
+/// (<see cref="MediaLibraryFilter.TextWords"/>); slashes are ordinary characters, so a title pseudo-tag such as <c>/kot/</c> is free text. A value in double quotes may hold spaces (<c>tag:"two words"</c>; inside quotes
 /// <c>\"</c> and <c>\\</c> are escapes); a bare quoted phrase is free text, and quoting a token (<c>"type:video"</c>) keeps it free text.</item>
 /// </list>
 /// A token that looks like a field but is not understood (unknown field or value, nothing after the colon, an exclusion of a field that

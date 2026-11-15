@@ -51,6 +51,49 @@ public sealed class MediaFilterQueryTests : IDisposable
         Assert.Empty(result.Problems);
     }
 
+    // Review 15.11.2026: "/kot/" is a pseudo-tag in thread titles, not a board shorthand. It stays free text, slashes included, and the
+    // free text searches file names, thread titles, boards and sources (MediaLibraryFilter.TextWords).
+    [Fact]
+    public void ASlashedTitleTagIsLiteralFreeTextNextToFilterTokens()
+    {
+        MediaFilterQueryResult alone = Parse("/kot/");
+        Assert.Empty(alone.Terms);
+        Assert.Empty(alone.Problems);
+        Assert.Equal("/kot/", alone.FreeText);
+        Assert.Equal("/kot/", Assert.Single(alone.Tokens).Text);
+
+        MediaFilterQueryResult mixed = Parse("/kot/ type:video foo");
+        Assert.Equal([Type(MediaLibraryKindFilter.Video)], mixed.Terms);
+        Assert.Empty(mixed.Problems);
+        Assert.Equal("/kot/ foo", mixed.FreeText);
+        // "/g/" names a board that exists, and still is not a board term.
+        Assert.Equal("/g/", Parse("/g/").FreeText);
+        Assert.Empty(Parse("/g/ -/b/ 4chan/g/").Terms);
+        // Enter keeps the text for the field and adds only the term.
+        MediaFilterQueryApplication applied = MediaFilterQuery.Apply([], mixed, (_, _) => null);
+        Assert.Equal([Type(MediaLibraryKindFilter.Video)], applied.Terms);
+        Assert.Equal("/kot/ foo", applied.Remainder);
+        // The text reaches the filter as its words, slashes included.
+        Assert.Equal(new[] { "/kot/", "foo" }, MediaFilterTerms.ToFilter(applied.Terms.Append(MediaFilterTerm.Name(applied.Remainder))).TextWords);
+    }
+
+    [Fact]
+    public void QuotedFreeTextWithSpacesAndTheOtherTokensStillParse()
+    {
+        MediaFilterQueryResult result = Parse("\"/kot/ general\" board:b tag:\"two words\" -type:gif fav rating:>=3 thread:99 bar");
+        Assert.Equal([MediaFilterTerm.Board("4chan", "b"), MediaFilterTerm.Tag(Two), Type(MediaLibraryKindFilter.Gif, exclude: true),
+            MediaFilterTerm.Flag(MediaFilterField.Favorite), MediaFilterTerm.Rating(3), MediaFilterTerm.InThread(new ResourceId("4chan", "b", "99"))], result.Terms);
+        Assert.Empty(result.Problems);
+        Assert.Equal("/kot/ general bar", result.FreeText);
+        // In the live field (before Enter) the quoted run is one word of the text filter.
+        Assert.Equal(new[] { "/kot/ general", "bar" }, new MediaLibraryFilter(nameContains: "\"/kot/ general\" bar").TextWords);
+        // The way back: the text is written as free text and reads back as the same terms.
+        IReadOnlyList<MediaFilterTerm> terms = [MediaFilterTerm.Board("4chan", "b"), MediaFilterTerm.Name("/kot/ foo")];
+        string text = MediaFilterQuery.Serialize(terms, Vocab());
+        Assert.Equal("board:b /kot/ foo", text);
+        Assert.Equal(terms, Parse(text).AllTerms);
+    }
+
     [Fact]
     public void EveryFieldReadsItsValue()
     {

@@ -290,6 +290,45 @@ public sealed class MediaLibraryFilterTests
         Assert.Null(MediaLibraryUntagged.Of(all, MediaLibraryUserData.Unavailable));
     }
 
+    // Review 15.11.2026: free text is not limited to the file name. "/kot/" is a pseudo-tag people write into thread titles: it is found
+    // literally (slashes included) in the title; every word may match a different field, each word must match one of them.
+    [Fact]
+    public void FreeTextMatchesFileNameThreadTitleBoardAndSource()
+    {
+        MediaLibraryEntry kot = Entry("a", "1", 'a', name: "img.png") with { ThreadTitle = "/kot/ general: cats" },
+            kotVideo = Entry("a", "2", 'b', name: "clip.webm", kind: SavedMediaKind.Video) with { ThreadTitle = "/kot/ general: cats" },
+            wsg = Entry("b", "1", 'c', name: "dance.gif", board: "wsg") with { ThreadTitle = "Dance thread" },
+            other = Entry("c", "1", 'd', name: "kotlin.png", source: "8kun") with { ThreadTitle = "Programming" },
+            slashless = Entry("d", "1", 'e', name: "x.png") with { ThreadTitle = "kot without slashes" };
+        MediaLibraryEntry[] all = [kot, kotVideo, wsg, other, slashless];
+        MediaLibraryUserData data = MediaLibraryUserData.Unavailable;
+        string[] Find(string text, MediaLibraryKindFilter kind = MediaLibraryKindFilter.Any) =>
+            Posts(MediaLibraryFilterEngine.Apply(all, new(nameContains: text, kind: kind), data));
+
+        Assert.Equal(new[] { "a:1", "a:2" }, Find("/kot/")); // the title, literally: "kotlin.png" and "kot without slashes" do not match
+        Assert.Equal(new[] { "a:1", "a:2" }, Find("/KOT/")); // case is ignored
+        Assert.Equal(new[] { "a:2" }, Find("/kot/", MediaLibraryKindFilter.Video)); // "/kot/ type:video"
+        Assert.Equal(new[] { "a:1", "a:2", "c:1", "d:1" }, Find("kot")); // title or file name
+        Assert.Equal(new[] { "b:1" }, Find("wsg")); // the board
+        Assert.Equal(new[] { "c:1" }, Find("8kun")); // the source
+        Assert.Equal(new[] { "a:2" }, Find("/kot/ clip")); // words AND, each in any field (title + file name)
+        Assert.Equal(new[] { "b:1" }, Find("wsg dance.gif"));
+        Assert.Empty(Find("/kot/ dance"));
+        Assert.Equal(new[] { "a:1", "a:2" }, Find("\"general: cats\"")); // a quoted phrase is one word, spaces included
+        Assert.Empty(Find("\"cats general\""));
+        Assert.Equal(new[] { "a:1", "a:2" }, Find("cats general")); // unquoted, the order of the words does not matter
+        Assert.Equal(new[] { "/kot/", "general: cats", "a\"b" }, new MediaLibraryFilter(nameContains: "/kot/ \"general: cats\" \"a\\\"b\" /KOT/").TextWords);
+    }
+
+    [Fact]
+    public void FreeTextThreadAnswersAreNotReusedForAnotherTitleOfTheSameThread()
+    {
+        // One thread seen with two titles (e.g. a partial index): each occurrence is judged by its own title.
+        MediaLibraryEntry before = Entry("a", "1", 'a') with { ThreadTitle = "Old title" }, after = Entry("a", "2", 'b') with { ThreadTitle = "/kot/ new" };
+        Assert.Equal(new[] { "a:2" }, Posts(MediaLibraryFilterEngine.Apply([before, after], new(nameContains: "/kot/"), MediaLibraryUserData.Unavailable)));
+        Assert.Equal(new[] { "a:1" }, Posts(MediaLibraryFilterEngine.Apply([after, before], new(nameContains: "old"), MediaLibraryUserData.Unavailable)));
+    }
+
     [Fact]
     public void UntaggedCountIsTheTileCountTheFilterWouldShowAndIsBuiltOncePerIndexAndTagState()
     {

@@ -25,6 +25,8 @@ public enum SearchScope
     FileName,
     /// <summary>Exact SHA-256 of the saved files of the open thread's media inventory.</summary>
     Sha256,
+    /// <summary>The Media page's free text: file names, thread titles, boards and sources of the media library ("All").</summary>
+    Media,
 }
 
 /// <summary>A "search elsewhere" entry of the scope chip menu, e.g. "Search “lamp” in Media".</summary>
@@ -86,7 +88,7 @@ public sealed class SearchScopeChip : Button
     public event EventHandler? ScopeChanged;
 
     /// <summary>The scopes this field offers, in menu order (default: Text, File name, SHA-256). A page with one engine
-    /// (Media: file names) offers one scope, so every search field shows the same chip and menu.</summary>
+    /// (Media: <see cref="SearchScope.Media"/>) offers one scope, so every search field shows the same chip and menu.</summary>
     public IReadOnlyList<SearchScope> Scopes
     {
         get => _scopes;
@@ -128,6 +130,7 @@ public sealed class SearchScopeChip : Button
     {
         SearchScope.FileName => "search.scope.filename",
         SearchScope.Sha256 => "search.scope.hash",
+        SearchScope.Media => "search.scope.media",
         _ => "search.scope.text"
     });
 

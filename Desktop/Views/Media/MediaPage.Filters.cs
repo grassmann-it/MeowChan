@@ -37,7 +37,7 @@ public sealed partial class MediaPage
     private int _searchImmediateEntries = 2000;
     internal int SearchImmediateEntries { get => _searchImmediateEntries; set { _searchImmediateEntries = value; UpdateSearchResult(); } }
     private readonly SearchBox _nameFilter = new() { Name = "MediaNameFilter", MinWidth = 180, MaxLength = MediaLibraryFilter.MaximumNameLength };
-    private readonly SearchScopeChip _searchScope = new() { Name = "MediaSearchScope", Scopes = new[] { SearchScope.FileName } };
+    private readonly SearchScopeChip _searchScope = new() { Name = "MediaSearchScope", Scopes = new[] { SearchScope.Media } };
     private readonly SearchCarryOffer _searchCarryOffer = new() { Name = "MediaSearchCarryOffer" };
     private readonly ComboBox _kindFilter = new() { Name = "MediaKindFilter" };
     private readonly ComboBox _sourceFilter = new() { Name = "MediaSourceFilter" };

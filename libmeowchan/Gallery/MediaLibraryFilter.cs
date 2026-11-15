@@ -3,6 +3,7 @@ using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using MeowChan.Archive;
 using MeowChan.Favorites;
 using MeowChan.Ratings;
@@ -63,6 +64,7 @@ internal sealed record MediaLibraryFilter
         Source = string.IsNullOrEmpty(source) ? null : source;
         Board = string.IsNullOrEmpty(board) ? null : board;
         NameContains = name;
+        TextWords = name == null ? [] : WordsOf(name);
         Thread = thread;
         Sound = sound;
         WithoutMediaTags = withoutMediaTags;
@@ -95,6 +97,34 @@ internal sealed record MediaLibraryFilter
 
     private static readonly FrozenSet<MediaLibraryKindFilter> Unrestricted = FrozenSet<MediaLibraryKindFilter>.Empty;
 
+    /// <summary>The words of a free text (see <see cref="TextWords"/>); linear in its length.</summary>
+    internal static string[] WordsOf(string text)
+    {
+        List<string> words = [];
+        StringBuilder word = new();
+        bool inQuote = false;
+        for (int i = 0; i < text.Length; i++)
+        {
+            char c = text[i];
+            if (inQuote)
+            {
+                if (c == '\\' && i + 1 < text.Length && text[i + 1] is '"' or '\\') { word.Append(text[++i]); continue; }
+                if (c == '"') { inQuote = false; continue; }
+                word.Append(c);
+                continue;
+            }
+            if (c == '"') { inQuote = true; continue; }
+            if (char.IsWhiteSpace(c))
+            {
+                if (word.Length > 0) { words.Add(word.ToString()); word.Clear(); }
+                continue;
+            }
+            word.Append(c);
+        }
+        if (word.Length > 0) words.Add(word.ToString());
+        return [.. words.Distinct(StringComparer.OrdinalIgnoreCase)];
+    }
+
     internal static MediaLibraryFilter None { get; } = new();
 
     /// <summary>Every concrete type except the given ones: the set for "without type X". All four given is refused (nothing would be left).</summary>
@@ -117,7 +147,16 @@ internal sealed record MediaLibraryFilter
     internal IReadOnlySet<string> ExcludeSources { get; }
     /// <summary>Boards (with their source) whose media is not shown (empty: none).</summary>
     internal IReadOnlySet<MediaLibraryBoardKey> ExcludeBoards { get; }
+    /// <summary>
+    /// The free text of the search field (trimmed; null: none). Despite the historical name it is not limited to the file name: every word of
+    /// it (<see cref="TextWords"/>) must occur, ignoring case, in the file name, the thread title, the board or the source of the occurrence.
+    /// </summary>
     internal string? NameContains { get; }
+    /// <summary>
+    /// The words of <see cref="NameContains"/>: split at white space outside double quotes; a quoted run is one word without its quotes
+    /// (<c>\"</c> and <c>\\</c> escape inside them, as in the query syntax). Slashes and every other character are literal ("/kot/").
+    /// </summary>
+    internal IReadOnlyList<string> TextWords { get; }
     /// <summary>The thread as a meta tag: only media of exactly this thread.</summary>
     internal ResourceId? Thread { get; }
     /// <summary>With or without sound; videos whose sound is not known are shown for neither choice.</summary>
@@ -318,8 +357,9 @@ internal static class MediaLibraryFilterEngine
         Validate(filter, data);
         List<MediaLibraryEntry> passing = new();
         HashSet<string> unknown = new(StringComparer.Ordinal);
+        TextMatch? text = filter.TextWords.Count > 0 ? new TextMatch(filter.TextWords) : null;
         foreach (MediaLibraryEntry entry in entries)
-            switch (Verdict(entry, filter, data, audio))
+            switch (Verdict(entry, filter, data, audio, text))
             {
                 case Judgement.Pass: passing.Add(entry); break;
                 case Judgement.SoundUnknown: unknown.Add(MediaAudioMap.KeyOf(entry)!); break;
@@ -345,9 +385,10 @@ internal static class MediaLibraryFilterEngine
 
     private enum Judgement { Fail, Pass, SoundUnknown }
 
-    private static Judgement Verdict(MediaLibraryEntry entry, MediaLibraryFilter filter, MediaLibraryUserData data, MediaAudioMap? audio)
+    private static Judgement Verdict(MediaLibraryEntry entry, MediaLibraryFilter filter, MediaLibraryUserData data, MediaAudioMap? audio,
+        TextMatch? text)
     {
-        if (!Matches(entry, filter, data)) return Judgement.Fail;
+        if (!Matches(entry, filter, data, text)) return Judgement.Fail;
         if (filter.Sound == MediaLibrarySoundFilter.Any) return Judgement.Pass;
         // Sound is a property of saved videos only; the type check is part of "implies videos".
         if (KindOf(entry) != MediaLibraryKindFilter.Video || !MediaLibraryAudioScanner.IsProbeable(entry)) return Judgement.Fail;
@@ -359,7 +400,7 @@ internal static class MediaLibraryFilterEngine
         };
     }
 
-    private static bool Matches(MediaLibraryEntry entry, MediaLibraryFilter filter, MediaLibraryUserData data)
+    private static bool Matches(MediaLibraryEntry entry, MediaLibraryFilter filter, MediaLibraryUserData data, TextMatch? text)
     {
         if (filter.Thread != null && entry.Thread != filter.Thread) return false;
         if (filter.Source != null && !string.Equals(entry.Thread.Source, filter.Source, StringComparison.Ordinal)) return false;
@@ -367,8 +408,7 @@ internal static class MediaLibraryFilterEngine
         if (filter.ExcludeSources.Count > 0 && filter.ExcludeSources.Contains(entry.Thread.Source)) return false;
         if (filter.ExcludeBoards.Count > 0 && filter.ExcludeBoards.Contains(new MediaLibraryBoardKey(entry.Thread.Source, entry.Thread.Board))) return false;
         if (filter.Kinds.Count > 0 && !filter.Kinds.Contains(KindOf(entry))) return false;
-        if (filter.NameContains != null && (entry.Name == null
-            || entry.Name.IndexOf(filter.NameContains, StringComparison.OrdinalIgnoreCase) < 0)) return false;
+        if (text != null && !text.Matches(entry)) return false;
         if (filter.FavoritesOnly && !data.IsFavorite(entry)) return false;
         if (filter.MinimumRating is int minimum && !(data.RatingOf(entry) >= minimum)) return false;
         if (filter.WithoutMediaTags && !data.LacksMediaTags(entry)) return false;
@@ -380,6 +420,42 @@ internal static class MediaLibraryFilterEngine
                 return false;
         }
         return true;
+    }
+
+    /// <summary>
+    /// The free text part of one evaluation: every word must occur (ignoring case) in the file name, the thread title, the board or the
+    /// source. The three thread fields are the same for every occurrence of a thread, so they are searched once per thread (a large library
+    /// has many files in few threads) and the answer is kept for this evaluation only; the file name is searched per occurrence.
+    /// </summary>
+    private sealed class TextMatch(IReadOnlyList<string> words)
+    {
+        private readonly Dictionary<ResourceId, (string Title, bool[] Hits)> _threads = new();
+
+        internal bool Matches(MediaLibraryEntry entry)
+        {
+            bool[]? thread = null;
+            for (int i = 0; i < words.Count; i++)
+            {
+                if (entry.Name != null && entry.Name.Contains(words[i], StringComparison.OrdinalIgnoreCase)) continue;
+                thread ??= ThreadHits(entry);
+                if (!thread[i]) return false;
+            }
+            return true;
+        }
+
+        private bool[] ThreadHits(MediaLibraryEntry entry)
+        {
+            // Keyed by the thread; the title is compared too, so an index that carries two titles for one thread is never answered wrongly.
+            if (_threads.TryGetValue(entry.Thread, out (string Title, bool[] Hits) known) && string.Equals(known.Title, entry.ThreadTitle, StringComparison.Ordinal))
+                return known.Hits;
+            bool[] hits = new bool[words.Count];
+            for (int i = 0; i < words.Count; i++)
+                hits[i] = Contains(entry.ThreadTitle, words[i]) || Contains(entry.Thread.Board, words[i]) || Contains(entry.Thread.Source, words[i]);
+            _threads[entry.Thread] = (entry.ThreadTitle, hits);
+            return hits;
+        }
+
+        private static bool Contains(string? field, string word) => field != null && field.Contains(word, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>Type for the filter. GIF only by the .gif ending; unknown kinds count as other.</summary>

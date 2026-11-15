@@ -164,6 +164,31 @@ public sealed class MediaScaleBenchmarkTests(ITestOutputHelper output)
         });
     }
 
+    // Review 15.11.2026: the free text searches file names, thread titles, boards and sources. The thread fields are searched once per
+    // thread per evaluation, so a title word costs about what a file name word costs. Built in memory (no fixture files).
+    [MediaScaleBenchmarkFact]
+    [Trait("Category", "MediaScaleBenchmark")]
+    public void FreeTextFilterOverFileNamesAndThreadTitles()
+    {
+        MediaScaleTier tier = MediaScaleTier.FromEnvironment();
+        using TempDirectory directory = new();
+        IReadOnlyList<MediaLibraryEntry> all = SyntheticSnapshot(directory.Path, tier).Entries;
+        MediaLibraryUserData data = MediaLibraryUserData.Unavailable;
+        Dictionary<string, Sample> present = new(StringComparer.Ordinal);
+        Dictionary<string, int> hits = new(StringComparer.Ordinal);
+        foreach (string text in new[] { "img-001", "thread 0042", "\"thread 0042\"", "scale", "danbooru", "/kot/", "scale img-00", "\"scale thread 01\"" })
+        {
+            IReadOnlyList<MediaLibraryEntry> passing = [];
+            MediaLibraryFilterEngine.Evaluate(all, new MediaLibraryFilter(nameContains: text), data); // JIT
+            present["text." + text] = Measure(() => passing = MediaLibraryFilterEngine.Evaluate(all, new MediaLibraryFilter(nameContains: text), data).Passing);
+            hits[text] = passing.Count;
+        }
+        Assert.Equal(tier.MediaPerThread, hits["\"thread 0042\""]); // every file of that one thread, found by its title
+        Assert.Equal(tier.Media, hits["scale"]); // every chan thread title says "Scale thread"
+        Assert.Equal(0, hits["/kot/"]);
+        Report("free-text", tier, new { entries = all.Count, hits, present });
+    }
+
     // Entries as the builder produces them for the fixture layout, without writing any file.
     private static MediaLibrarySnapshot SyntheticSnapshot(string profile, MediaScaleTier tier)
     {
