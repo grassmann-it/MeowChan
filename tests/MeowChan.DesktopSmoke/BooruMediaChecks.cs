@@ -555,6 +555,7 @@ internal static class BooruMediaChecks
         host.BooruServices = harness.Services;
         BooruMediaDetailsDialog? dialog = null;
         bool visible = host.Config.ShowBooruTools;
+        Exception? failureBeforeCleanup = null;
         try
         {
             Require(visible, phase + ": the tools-off fixture must start with the presentation enabled.");
@@ -586,14 +587,18 @@ internal static class BooruMediaChecks
             RequireBooruPresentation(shell, visible: true, selected: MainWindow.WorkspacePage.Media,
                 pageHostVisible: false, pageRetained: true, phase + " / restored presentation");
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            dialog?.Close();
-            shell.CopyTextForTests = null;
-            if (dialog != null) await UntilAsync(() => shell.BooruDetailsWindow == null);
-            if (host.BooruServices != null && host.Config.ShowBooruTools != visible)
-                await SetBooruToolsViaShellAsync(shell, host, visible, phase + " / restore shell presentation");
-            host.BooruServices = null;
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                dialog?.Close();
+                shell.CopyTextForTests = null;
+                if (dialog != null) await UntilAsync(() => shell.BooruDetailsWindow == null);
+                if (host.BooruServices != null && host.Config.ShowBooruTools != visible)
+                    await SetBooruToolsViaShellAsync(shell, host, visible, phase + " / restore shell presentation");
+                host.BooruServices = null;
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in BooruMediaChecks (" + phase + "): " + exception));
         }
         await UntilAsync(() => shell.BooruDetailsWindow == null);
     }

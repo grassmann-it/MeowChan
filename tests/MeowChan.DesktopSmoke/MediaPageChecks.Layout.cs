@@ -31,6 +31,12 @@ internal static partial class MediaPageChecks
         page.SaveLayoutAsync = layout => { saved.Add(layout); return Task.CompletedTask; };
         Require(page.PageLayout == MediaPageLayout.Standard && page.LayoutButton.IsEffectivelyVisible && !page.IsBooruMode && page.TileAppearance == MediaTileMetrics.Standard,
             state + ": the page must start with the standard layout and its Layout button on the toolbar.");
+        // The standard layout has the media panel on (right of the grid); on this wide page it is on screen, and every step below keeps it.
+        await UntilAsync(() => page.IsPanelShown && page.Panel is { IsEffectivelyVisible: true });
+        Control panel = page.Panel!;
+        double X(Control control) => control.TranslatePoint(default, page)!.Value.X;
+        Require(X(panel) > X(surface) && Math.Abs(panel.Bounds.Width - page.PageLayout.PanelWidth) < 0.5,
+            state + ": the standard page must show the media panel right of the grid at its width: " + panel.Bounds + " / " + surface.Bounds);
         Require(ToolTip.GetTip(page.LayoutButton) as string == Texts.T("media.layout.tip") && page.LayoutButton.Flyout == page.LayoutFlyout, state + ": the button must explain itself and open a menu.");
         int presents = page.PresentCount, counts = page.TagCountRuns, tiles = page.Tiles.Count;
         MediaLibraryTileView[] Realized() => page.Grid.GetVisualDescendants().OfType<MediaLibraryTileView>().ToArray();
@@ -65,16 +71,22 @@ internal static partial class MediaPageChecks
             state + ": the realized tiles must be small with the tag count only.");
         Require(page.PresentCount == presents && page.Tiles.Count == tiles, state + ": a layout must not present the grid again.");
         Require(saved.Count == 1 && saved[0].TagList && saved[0].TileSize == MediaTileSize.Small, state + ": the layout must be saved once.");
+        Require(page.IsPanelShown && X(panel) > X(surface), state + ": the Booru view keeps the media panel right of the grid (the list on the left).");
         TilePanelHeightMatches(page, state);
 
-        // The right side, a wider list within its range, then the width setting is brought into the range.
+        // The right side, a wider list within its range, then the width setting is brought into the range. The panel is on the right too:
+        // the list stands outermost, the panel between it and the grid; both fit beside the grid at this width (the panel keeps its own width).
         page.ApplyLayout(page.PageLayout with { TagListSide = MediaTagListSide.Right, TagListWidth = 400 });
         await UntilAsync(() => sidebar.TranslatePoint(default, page)!.Value.X > surface.TranslatePoint(default, page)!.Value.X);
         Require(Math.Abs(sidebar.Bounds.Width - 400) < 0.5, state + ": the list must be 400 dip wide on the right: " + sidebar.Bounds);
+        Require(page.IsPanelShown && X(surface) < X(panel) && X(panel) < X(sidebar),
+            state + ": with both on the right the order must be grid, panel, tag list: " + X(surface) + " / " + X(panel) + " / " + X(sidebar));
         page.ApplyLayout(page.PageLayout with { TagListWidth = int.MaxValue });
         await UntilAsync(() => sidebar.Bounds.Width > 400);
         Require(Math.Abs(sidebar.Bounds.Width - Config.MediaTagListWidthMaximum) < 0.5 && page.PageLayout.TagListWidth == Config.MediaTagListWidthMaximum,
             state + ": the width must stop at its maximum: " + sidebar.Bounds.Width);
+        Require(page.IsPanelShown && Math.Abs(panel.Bounds.Width - page.PageLayout.PanelWidth) < 0.5,
+            state + ": the widest list must leave the media panel its width: " + panel.Bounds.Width);
         page.ApplyLayout(page.PageLayout with { TagListWidth = 256, TagListSide = MediaTagListSide.Left });
 
         // The focus mode keeps working: the rows go, the list and the tiles stay as chosen, and the rows come back as chosen.
@@ -89,11 +101,13 @@ internal static partial class MediaPageChecks
         Require(!statusRow.IsVisible && chipRow.IsVisible, state + ": the rows must come back as the layout chose.");
 
         // Grid only: nothing but the toolbar and the tiles; a status line that carries a problem would still show (plan contract, tested as a unit).
+        // The media panel is the user's own measure like the list's width: a preset keeps it as chosen (MediaPageLayout.For), here on.
         page.ApplyLayout(MediaPageLayout.For(MediaLayoutPreset.GridOnly, page.PageLayout));
         await UntilAsync(() => !sidebar.IsVisible);
         int stopped = page.TagCountRuns;
         Require(!page.IsBooruMode && !chipRow.IsVisible && !statusRow.IsVisible && !subtitle.IsVisible && !page.TagListHandle.IsVisible && page.TileAppearance.Caption == MediaTileCaption.None
             && Realized().All(tile => tile.Badges.State.TagCount is null or 0 && !tile.Badges.State.Queued), state + ": grid only must show the toolbar and the tiles.");
+        Require(page.PageLayout.Panel && page.IsPanelShown, state + ": the Grid only preset must keep the media panel as chosen.");
         Require(page.Grid.Bounds.Height > 100 && page.PresentCount == presents, state + ": the grid keeps its room and is not presented again.");
         page.ApplyLayout(page.PageLayout with { TileSize = MediaTileSize.Large });
         await UntilAsync(() => page.TileAppearance.CellWidth == MediaTileMetrics.LargeCellWidth);
