@@ -68,7 +68,9 @@ public sealed class ArchiveThreadRowTagTests : IDisposable
         string tags = Source("Desktop/Views/Archive/ArchivePage.Tags.cs");
         Assert.Contains("ResourceId thread = _thread!.Summary.Id; // Frozen target", tags);
         Assert.DoesNotContain("ShowDialog", tags);
-        Assert.DoesNotContain("CommandCatalog", tags);
+        // The inline bar remains non-modal; its chip menu may use the shared command catalog
+        // for the copy action without introducing a global shortcut or dialog.
+        Assert.Contains("CommandCatalog.Label(\"tags.copy-name\")", tags);
     }
 
     private static string Source(string relative, [System.Runtime.CompilerServices.CallerFilePath] string path = "") =>
