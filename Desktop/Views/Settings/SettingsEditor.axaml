@@ -215,9 +215,15 @@
                             </ComboBox>
                         </Grid>
                     </Border>
-                    <CheckBox x:Name="StatsHeaderMonitorInput" IsChecked="{Binding StatsHeaderMonitorShown, Mode=TwoWay}" AutomationProperties.Name="{Binding StatsHeaderMonitorLabel}" Click="OnHeaderMonitorClick">
-                        <TextBlock Text="{Binding StatsHeaderMonitorLabel}" TextWrapping="Wrap" />
-                    </CheckBox>
+                    <Border x:Name="StatsHeaderMonitorRow" Classes="settings-divider">
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                            <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                <TextBlock x:Name="StatsHeaderMonitorFieldLabel" Text="{Binding StatsHeaderMonitorLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding StatsHeaderMonitorHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <ToggleSwitch x:Name="StatsHeaderMonitorInput" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center" IsChecked="{Binding StatsHeaderMonitorShown, Mode=TwoWay}" AutomationProperties.LabeledBy="{Binding ElementName=StatsHeaderMonitorFieldLabel}" AutomationProperties.Name="{Binding StatsHeaderMonitorLabel}" AutomationProperties.HelpText="{Binding StatsHeaderMonitorHint}" ToolTip.Tip="{Binding StatsHeaderMonitorHint}" OnContent="{x:Null}" OffContent="{x:Null}" Click="OnHeaderMonitorClick" />
+                        </Grid>
+                    </Border>
                         </StackPanel>
                     </Expander>
                     <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Header="{Binding LanguagePacksLabel}" Margin="0,4,0,0">
@@ -1414,26 +1420,30 @@
                             </StackPanel>
                         </Grid>
                     </Border>
-                    <StackPanel Spacing="{StaticResource Workspace.Space.4}">
-                        <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="{StaticResource Workspace.Space.24}">
-                            <TextBlock x:Name="TagQueueGroupLimitFieldLabel" Text="{Binding TagQueueGroupLimitLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                    <Border Classes="settings-divider">
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                            <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                <TextBlock x:Name="TagQueueGroupLimitFieldLabel" Text="{Binding TagQueueGroupLimitLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding TagQueueGroupLimitHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
                             <StackPanel Grid.Column="1" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="TagQueueGroupLimitInput" Value="{Binding TagQueueGroupLimit, Mode=TwoWay}" Minimum="{Binding TagQueueGroupLimitMinimum}" Maximum="{Binding TagQueueGroupLimitMaximum}" Increment="10" AutomationProperties.LabeledBy="{Binding ElementName=TagQueueGroupLimitFieldLabel}" AutomationProperties.Name="{Binding TagQueueGroupLimitLabel}" AutomationProperties.HelpText="{Binding TagQueueGroupLimitHelp}" />
                                 <TextBlock x:Name="TagQueueGroupLimitInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                         </Grid>
-                        <TextBlock Text="{Binding TagQueueGroupLimitHint}" Classes="workspace-help" TextWrapping="Wrap" />
-                    </StackPanel>
-                    <StackPanel Spacing="{StaticResource Workspace.Space.4}">
-                        <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="{StaticResource Workspace.Space.24}">
-                            <TextBlock x:Name="TagQueueGroupNameLimitFieldLabel" Text="{Binding TagQueueGroupNameLimitLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                    </Border>
+                    <Border Classes="settings-divider">
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                            <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                <TextBlock x:Name="TagQueueGroupNameLimitFieldLabel" Text="{Binding TagQueueGroupNameLimitLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding TagQueueGroupNameLimitHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
                             <StackPanel Grid.Column="1" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="TagQueueGroupNameLimitInput" Value="{Binding TagQueueGroupNameLimit, Mode=TwoWay}" Minimum="{Binding TagQueueGroupNameLimitMinimum}" Maximum="{Binding TagQueueGroupNameLimitMaximum}" Increment="8" AutomationProperties.LabeledBy="{Binding ElementName=TagQueueGroupNameLimitFieldLabel}" AutomationProperties.Name="{Binding TagQueueGroupNameLimitLabel}" AutomationProperties.HelpText="{Binding TagQueueGroupNameLimitHelp}" />
                                 <TextBlock x:Name="TagQueueGroupNameLimitInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                         </Grid>
-                        <TextBlock Text="{Binding TagQueueGroupNameLimitHint}" Classes="workspace-help" TextWrapping="Wrap" />
-                    </StackPanel>
+                    </Border>
                     <Border Classes="settings-divider">
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
                             <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">

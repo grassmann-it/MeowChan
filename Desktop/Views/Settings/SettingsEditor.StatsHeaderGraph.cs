@@ -25,6 +25,8 @@ public partial class SettingsEditor
     public event Action<bool>? HeaderMonitorToggled;
 
     public string StatsHeaderMonitorLabel => Texts.T("stats.headerMonitor.show");
+    /// <summary>Shared help for the monitor switch and its header-graph choice, so both controls describe one persisted setting.</summary>
+    public string StatsHeaderMonitorHint => StatsHeaderGraphHint;
     public bool StatsHeaderMonitorShown
     {
         get => _statsHeaderMonitorShown;
@@ -80,7 +82,7 @@ public partial class SettingsEditor
             new(IoStatsDisplay.HeaderGraphText, Texts.T("stats.headerGraph.text")),
             new(IoStatsDisplay.HeaderGraphOff, Texts.T("stats.headerGraph.off"))
         };
-        foreach (string property in new[] { nameof(StatsHeaderMonitorLabel), nameof(StatsHeaderGraphLabel), nameof(StatsHeaderGraphHint), nameof(StatsHeaderGraphChoices), nameof(StatsHeaderIconsLabel), nameof(StatsHeaderIconsHint) })
+        foreach (string property in new[] { nameof(StatsHeaderMonitorLabel), nameof(StatsHeaderMonitorHint), nameof(StatsHeaderGraphLabel), nameof(StatsHeaderGraphHint), nameof(StatsHeaderGraphChoices), nameof(StatsHeaderIconsLabel), nameof(StatsHeaderIconsHint) })
             RaiseStatsHeaderGraphChanged(property);
         string normalized = IoStatsDisplay.NormalizeHeaderGraph(value);
         SelectedStatsHeaderGraph = StatsHeaderGraphChoices.First(item => item.Value == normalized);
