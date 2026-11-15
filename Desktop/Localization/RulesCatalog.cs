@@ -146,6 +146,7 @@ internal static class RulesCatalog
         ("rules.wizard.review", "Review", "Prüfen"),
         ("rules.wizard.back", "Back", "Zurück"),
         ("rules.wizard.toOverview", "Back to rules", "Zurück zu Regeln"),
-        ("rules.wizard.closeName", "Close editor and return to the rule overview", "Editor schließen und zur Regelübersicht zurückkehren")
+        ("rules.wizard.closeName", "Close editor and return to the rule overview", "Editor schließen und zur Regelübersicht zurückkehren"),
+        ("rules.wizard.scopeExists", "A rule for this scope already exists. Next opens it for editing.", "Für diesen Bereich gibt es schon eine Regel. Weiter öffnet sie zum Bearbeiten.")
     };
 }

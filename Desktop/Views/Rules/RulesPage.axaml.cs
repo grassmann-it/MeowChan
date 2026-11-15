@@ -61,6 +61,7 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
         InitializeComponent();
         InitializeWorkViewPresentation();
         InitializeRuleSuggestions();
+        InitializeRuleRowEdges();
         _drafts.Add(_draft.Scope, _draft);
         RuleExtensionsInput.Edited += DraftChanged;
         // The empty state is placed in the scroll viewport's free height; the viewport changes with the window and the footer bar.
@@ -111,8 +112,9 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
     public string? ErrorMessage => _operationErrorKey == null ? null : Texts.T(_operationErrorKey, _operationErrorDetail);
     public bool HasError => ErrorMessage != null;
     public bool HasStatus => !HasError;
-    // Step 1 of a new rule has no draft yet, so the footer keeps the overview's line instead of a draft state.
-    public string StatusMessage => !_wizard.IsOpen || !_wizard.HasScope ? OverviewStatusMessage
+    public string StatusMessage => !_wizard.IsOpen ? OverviewStatusMessage
+        // Step 1 has no draft yet; its saved-rules count lives in "Rules and drafts", so the footer only speaks for unavailable or saving.
+        : !_wizard.HasScope ? (!_available || !_hasConfirmed ? Texts.T("rules.unavailable") : _busy ? Texts.T("rules.saving") : string.Empty)
         : SaveRejected && InvalidFieldLabel is { } invalid ? Texts.T("rules.saveRejected", invalid)
         : Texts.T(!_available || !_hasConfirmed ? "rules.unavailable" : _busy ? "rules.saving"
         : _draft.Stale ? "rules.stale" : _statusKey ?? (_draft.Dirty ? "rules.unsaved" :
@@ -143,11 +145,37 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
     public int NewScopeKind
     {
         get => _newScopeKind;
-        set { if (_refreshingChoiceLabels || value < 0 || value > 3 || _newScopeKind == value) return; _newScopeKind = value; RaiseAll(); }
+        set { if (_refreshingChoiceLabels || value < 0 || value > 3 || _newScopeKind == value) return; _newScopeKind = value; ClearInvalidScopeParts(); RaiseAll(); }
     }
-    public string NewSourceId { get => _newSourceId; set { _newSourceId = value ?? string.Empty; Raise(nameof(NewSourceId)); } }
-    public string NewBoardId { get => _newBoardId; set { _newBoardId = value ?? string.Empty; Raise(nameof(NewBoardId)); } }
-    public string NewThreadId { get => _newThreadId; set { _newThreadId = value ?? string.Empty; Raise(nameof(NewThreadId)); } }
+    public string NewSourceId { get => _newSourceId; set { _newSourceId = value ?? string.Empty; NewScopePartChanged(NewRuleSourceInput, nameof(NewSourceId)); } }
+    public string NewBoardId { get => _newBoardId; set { _newBoardId = value ?? string.Empty; NewScopePartChanged(NewRuleBoardInput, nameof(NewBoardId)); } }
+    public string NewThreadId { get => _newThreadId; set { _newThreadId = value ?? string.Empty; NewScopePartChanged(NewRuleThreadInput, nameof(NewThreadId)); } }
+
+    /// <summary>
+    /// One rule per scope: Next on a scope that already has a saved rule opens that rule for editing. Step 1 says so while the
+    /// entered scope (complete and valid) matches a saved rule, before Next is pressed.
+    /// </summary>
+    public bool HasExistingScopeRule => _wizard.IsOpen && !_wizard.HasScope && TryEnteredScope(out MediaRuleScope? scope) && FindRule(_confirmed, scope!) != null;
+    public string ExistingScopeRuleNote => Texts.T("rules.wizard.scopeExists");
+
+    private void NewScopePartChanged(Control? input, string property)
+    {
+        // Typing into a field marked by a refused Next clears its mark; the footer error stays until the next attempt.
+        input?.Classes.Remove(InvalidClass);
+        Raise(property);
+        Raise(nameof(HasExistingScopeRule));
+    }
+
+    /// <summary>The scope the step-1 fields describe, when every needed part is present and valid (no exception, no side effects).</summary>
+    private bool TryEnteredScope(out MediaRuleScope? scope)
+    {
+        scope = null;
+        string source = _newSourceId.Trim(), board = _newBoardId.Trim(), thread = _newThreadId.Trim();
+        if ((NeedsSource && InvalidScopePart(source)) || (NeedsBoard && InvalidScopePart(board)) || (NeedsThread && InvalidScopePart(thread))) return false;
+        try { scope = new MediaRuleScope((MediaRuleScopeKind)_newScopeKind, NeedsSource ? source : null, NeedsBoard ? board : null, NeedsThread ? thread : null); }
+        catch (ArgumentException) { return false; }
+        return true;
+    }
     public bool NeedsSource => NewScopeKind >= 1;
     public bool NeedsBoard => NewScopeKind >= 2;
     public bool NeedsThread => NewScopeKind >= 3;
@@ -507,6 +535,28 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
     {
         if (IsEditable && _selectedScope != null) OpenRuleFromOverview(_selectedScope.Scope);
     }
+    private const string InvalidClass = "workspace-invalid";
+
+    private void ClearInvalidScopeParts()
+    {
+        foreach (Control? input in new Control?[] { NewRuleSourceInput, NewRuleBoardInput, NewRuleThreadInput }) input?.Classes.Remove(InvalidClass);
+    }
+
+    /// <summary>A refused Next marks each missing or invalid ID field and moves focus to the first; the footer names the problem.</summary>
+    private void MarkInvalidScopeParts()
+    {
+        (bool Needed, string Value, Control Input)[] parts =
+        {
+            (NeedsSource, _newSourceId.Trim(), NewRuleSourceInput), (NeedsBoard, _newBoardId.Trim(), NewRuleBoardInput),
+            (NeedsThread, _newThreadId.Trim(), NewRuleThreadInput)
+        };
+        Control[] invalid = parts.Where(part => part.Needed && InvalidScopePart(part.Value)).Select(part => part.Input).ToArray();
+        // A part the scope itself refused (no single field to blame) marks every needed field.
+        if (invalid.Length == 0) invalid = parts.Where(part => part.Needed).Select(part => part.Input).ToArray();
+        foreach (var (_, _, input) in parts) input.Classes.Set(InvalidClass, invalid.Contains(input));
+        if (invalid.Length > 0) FocusTemplateControl(invalid[0], () => _wizard.IsOpen && _wizard.Step == RuleWizardStep.Scope);
+    }
+
     private void OnOpenNewScope(object? sender, RoutedEventArgs e)
     {
         if (!IsEditable) return;
@@ -519,13 +569,14 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
                 throw new ArgumentException();
             MediaRuleScope scope = new MediaRuleScope((MediaRuleScopeKind)_newScopeKind,
                 NeedsSource ? source : null, NeedsBoard ? board : null, NeedsThread ? thread : null);
+            ClearInvalidScopeParts();
             EditScope(scope);
             if (_draft.Scope != scope) return;
             _wizardReturnScope = scope;
             if (FindRule(_confirmed, scope) == null) DraftChanged();
             FocusFirstWizardField();
         }
-        catch (ArgumentException) { _operationErrorKey = "rules.invalidScope"; _operationErrorDetail = null; RaiseAll(); }
+        catch (ArgumentException) { _operationErrorKey = "rules.invalidScope"; _operationErrorDetail = null; RaiseAll(); MarkInvalidScopeParts(); }
     }
 
     private static bool InvalidScopePart(string value) => string.IsNullOrWhiteSpace(value) || value.Contains("://", StringComparison.Ordinal)
@@ -631,20 +682,60 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
     }
 
     private bool _narrowRules;
+
+    // The rows of the scope and settings cards come and go with the scope kind and the modes; the last visible one carries no divider.
+    private void InitializeRuleRowEdges()
+    {
+        foreach (StackPanel rows in new[] { NewRuleScopeRows, RuleSettingsRows })
+            foreach (Control row in rows.Children)
+                row.PropertyChanged += (_, e) => { if (e.Property == IsVisibleProperty) MarkLastRuleRows(rows); };
+        MarkLastRuleRows(NewRuleScopeRows);
+        MarkLastRuleRows(RuleSettingsRows);
+    }
+
+    private static void MarkLastRuleRows(StackPanel rows)
+    {
+        Control? last = rows.Children.LastOrDefault(child => child.IsVisible);
+        foreach (Control row in rows.Children) row.Classes.Set("rule-row-last", ReferenceEquals(row, last));
+    }
     // Rows inside a folded block exist only once it opened, so this also runs when a block opens.
     private void ApplyRuleRowLayout()
     {
         if (_ended) return;
-        bool narrow = _narrowRules;
         foreach (Grid row in RulesContent.GetVisualDescendants().OfType<Grid>().Where(row => row.Classes.Contains("rule-row")))
-        {
-            row.ColumnDefinitions[1].Width = new GridLength(narrow ? 0 : 280);
-            row.ColumnSpacing = narrow ? 0 : 32;
-            row.RowSpacing = narrow ? 6 : 0;
-            Control editor = row.Children[1];
-            Grid.SetColumn(editor, narrow ? 0 : 1);
-            Grid.SetRow(editor, narrow ? 1 : 0);
-        }
+            ApplyRuleRowLayout(row);
+    }
+
+    // The wide row keeps the Settings form gap (Workspace.Form.Gap, 24 dip) between label and control; the stacked row puts the
+    // label (and its hint) 8 dip above the control, the gap between a label and its field.
+    private void ApplyRuleRowLayout(Grid row)
+    {
+        bool narrow = _narrowRules;
+        double gap = this.TryFindResource("Workspace.Form.Gap", out object? token) && token is double value ? value : 24;
+        row.ColumnDefinitions[1].Width = new GridLength(narrow ? 0 : 280);
+        row.ColumnSpacing = narrow ? 0 : gap;
+        row.RowSpacing = narrow ? 8 : 0;
+        row.Classes.Set("rule-row-stacked", narrow);
+        Control editor = row.Children[1];
+        Grid.SetColumn(editor, narrow ? 0 : 1);
+        Grid.SetRow(editor, narrow ? 1 : 0);
+    }
+
+    /// <summary>
+    /// The code-built twin of a rule row in the markup (folded blocks build their content in code): the label cell on the left,
+    /// <paramref name="editor"/> in the 280 dip control column, laid out for the current width.
+    /// </summary>
+    private Grid RuleRow(Control editor, params Control[] labelCell)
+    {
+        StackPanel cell = new();
+        cell.Classes.Add("rule-label");
+        foreach (Control child in labelCell) cell.Children.Add(child);
+        Grid row = new() { ColumnDefinitions = new ColumnDefinitions("*,280"), RowDefinitions = new RowDefinitions("Auto,Auto") };
+        row.Classes.Add("rule-row");
+        row.Children.Add(cell);
+        row.Children.Add(editor);
+        ApplyRuleRowLayout(row);
+        return row;
     }
 
     private void SetBusy(bool busy)

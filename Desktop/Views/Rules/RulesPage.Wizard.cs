@@ -43,6 +43,10 @@ public partial class RulesPage
         if (_ended || !IsEditable) return;
         DeactivateRuleDecisions();
         _wizardReturnScope = null;
+        // Create starts fresh (Global, empty IDs); editing a rule keeps its own scope. The fields are reset here, not on every
+        // return to step 1, so a scope typed in step 1 survives Back and page switches while that wizard stays open.
+        _newScopeKind = 0; _newSourceId = _newBoardId = _newThreadId = string.Empty;
+        ClearInvalidScopeParts();
         _wizard.OpenNew(revealTemplates);
         _statusKey = null; _overviewStatus = null;
         ClearOperationError();

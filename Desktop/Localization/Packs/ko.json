@@ -3942,6 +3942,7 @@
     "rules.wizard.back": "뒤로",
     "rules.wizard.toOverview": "규칙으로 돌아가기",
     "rules.wizard.closeName": "편집기를 닫고 규칙 개요로 돌아가기",
+    "rules.wizard.scopeExists": "이 범위의 규칙이 이미 있습니다. 다음을 누르면 그 규칙을 편집합니다.",
     "tags.quick.heading": "태그",
     "tags.quick.title": "태그 · {0}",
     "tags.quick.name": "{0}의 태그",

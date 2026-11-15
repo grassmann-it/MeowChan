@@ -223,6 +223,7 @@ internal static partial class SmokeScenarios
         Root("settings-statistics", "MEOWCHAN_SETTINGS_STATISTICS_ONLY", "settings statistics: nine rows with ranges, switch dependencies, refusal outside the ranges, save/reload/discard through the production path and hub options, EN/DE light/dark captures"),
         Root("settings-lifetime", "MEOWCHAN_SETTINGS_LIFETIME_ONLY"),
         Root("rules-settings-captures", "MEOWCHAN_RULES_SETTINGS_CAPTURES_ONLY", "rules and settings pages: evidence-only captures of the Rules overview (empty and filled at 760/1380/1920 dip, Light/Dark), the Rules page and every Settings category in Light/Dark, EN/DE at 1440 and 900 dip; nothing is saved"),
+        Root("rules-walkthrough-captures", "MEOWCHAN_RULES_WALKTHROUGH_CAPTURES_ONLY", "rules walkthrough: evidence-only captures of every Rules page state (overview empty/filled/draft, wizard steps 1-3 for each scope kind, invalid scope and values, save, edit, delete) in EN/DE, Light/Dark at 1440 and 900 dip, with logged row geometry; throw-away profile"),
         Root("path-input", "MEOWCHAN_PATH_INPUT_ONLY"),
         Root("numeric-focus", "MEOWCHAN_NUMERIC_FOCUS_ONLY"),
         Root("media-performance", "MEOWCHAN_MEDIA_PERFORMANCE_ONLY"),

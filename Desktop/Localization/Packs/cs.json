@@ -4037,6 +4037,7 @@
     "rules.wizard.back": "Zpět",
     "rules.wizard.toOverview": "Zpět na pravidla",
     "rules.wizard.closeName": "Zavřít editor a vrátit se k přehledu pravidel",
+    "rules.wizard.scopeExists": "Pro tento rozsah už pravidlo existuje. Tlačítko Další ho otevře k úpravě.",
     "tags.quick.heading": "Štítky",
     "tags.quick.title": "Štítky · {0}",
     "tags.quick.name": "Štítky pro {0}",

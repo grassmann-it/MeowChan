@@ -225,6 +225,7 @@ internal static partial class SmokeScenarios
         ["settings-search"] = new(SmokeStage.AfterCommandRefresh, mainWindow => SettingsSearchChecks.RunAsync(mainWindow)),
         ["settings-statistics"] = new(SmokeStage.AfterCommandRefresh, mainWindow => StatisticsSettingsChecks.RunAsync(mainWindow)),
         ["rules-settings-captures"] = new(SmokeStage.AfterCommandRefresh, mainWindow => RulesSettingsCaptureChecks.RunAsync(mainWindow)),
+        ["rules-walkthrough-captures"] = new(SmokeStage.AfterCommandRefresh, mainWindow => RulesWalkthroughCaptures.RunAsync(mainWindow)),
         ["settings-lifetime"] = new(SmokeStage.AfterCommandRefresh, mainWindow => SettingsPageChecks.RunLateSaveFailureAsync(mainWindow)),
         ["path-input"] = new(SmokeStage.AfterCommandRefresh, mainWindow => SettingsPathInputChecks.RunAsync(mainWindow)),
         ["numeric-focus"] = new(SmokeStage.AfterCommandRefresh, async mainWindow =>

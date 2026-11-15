@@ -3985,6 +3985,7 @@
     "rules.wizard.back": "Voltar",
     "rules.wizard.toOverview": "Voltar às regras",
     "rules.wizard.closeName": "Fechar o editor e voltar à visão geral das regras",
+    "rules.wizard.scopeExists": "Já existe uma regra para este escopo. Avançar abre a regra para edição.",
     "tags.quick.heading": "Tags",
     "tags.quick.title": "Tags · {0}",
     "tags.quick.name": "Tags de {0}",

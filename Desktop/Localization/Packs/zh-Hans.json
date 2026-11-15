@@ -3962,6 +3962,7 @@
     "rules.wizard.back": "上一步",
     "rules.wizard.toOverview": "返回规则",
     "rules.wizard.closeName": "关闭编辑器并返回规则概览",
+    "rules.wizard.scopeExists": "此范围已有规则。点击“下一步”将编辑该规则。",
     "tags.quick.heading": "标签",
     "tags.quick.title": "标签 · {0}",
     "tags.quick.name": "{0} 的标签",

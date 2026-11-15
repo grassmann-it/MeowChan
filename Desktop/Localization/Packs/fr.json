@@ -3982,6 +3982,7 @@
     "rules.wizard.back": "Retour",
     "rules.wizard.toOverview": "Retour aux règles",
     "rules.wizard.closeName": "Fermer l’éditeur et revenir à la vue d’ensemble des règles",
+    "rules.wizard.scopeExists": "Une règle existe déjà pour ce périmètre. Suivant l’ouvre pour la modifier.",
     "tags.quick.heading": "Étiquettes",
     "tags.quick.title": "Étiquettes · {0}",
     "tags.quick.name": "Étiquettes de {0}",

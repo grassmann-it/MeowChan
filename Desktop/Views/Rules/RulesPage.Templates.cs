@@ -147,15 +147,11 @@ public partial class RulesPage
             // Replacing focused controls here used to strand keyboard focus on a detached element.
             if (_templateList == null)
             {
-                // The title is the header of the block's expander (RuleTemplatesHeader); its hint sits left, the Reload action on
-                // the right instead of a row of its own.
+                // The title is the header of the block's expander (RuleTemplatesHeader). Like the rows above the block, its hint is
+                // the label cell on the left and the list with its actions sits in the 280 dip control column (built below).
                 _templateHintView = TemplateText(string.Empty); _templateHintView.Classes.Add("workspace-help");
-                StackPanel head = new() { Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
-                head.Children.Add(_templateHintView);
-                Grid top = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 }; panel.Children.Add(top);
-                top.Children.Add(head);
-                _templateReloadButton = AddTemplateButton(top, "templates.reload", async () => await LoadTemplatesAsync(), icon: "refresh-cw");
-                Grid.SetColumn(_templateReloadButton, 1); _templateReloadButton.VerticalAlignment = VerticalAlignment.Top;
+                StackPanel column = new() { Spacing = 8 };
+                panel.Children.Add(RuleRow(column, _templateHintView));
                 _templateCatalogErrorView = TemplateText(string.Empty); _templateCatalogErrorView.Classes.Add("workspace-error"); _templateCatalogErrorView.Name = "RuleTemplateCatalogError";
                 _templateCatalogErrorView.Focusable = true; panel.Children.Add(_templateCatalogErrorView);
                 _templateCatalogWarningView = TemplateText(string.Empty); _templateCatalogWarningView.Classes.Add("workspace-warning"); panel.Children.Add(_templateCatalogWarningView);
@@ -167,15 +163,14 @@ public partial class RulesPage
                     _selectedTemplate = (_templateList.SelectedItem as TemplateChoice)?.Id;
                     _templatePreview = null; RefreshTemplatesPanel();
                 };
-                // Row 1: the list and the one action that needs no selection. Row 2 belongs to the selected template
-                // (preview first, then edit and delete) and appears only with a selection; undo only while it is available.
-                Grid pick = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 };
-                Grid.SetColumn(_templateList, 0); pick.Children.Add(_templateList);
-                _templateActionButtons.Add("create", AddTemplateButton(pick, "templates.create",
+                // The list, then the actions that need no selection (create, reload), then those of the selected template (preview
+                // first, then edit and delete), which appear only with a selection; undo only while it is available.
+                column.Children.Add(_templateList);
+                WrapPanel listActions = new() { ItemSpacing = 8, LineSpacing = 8 }; column.Children.Add(listActions);
+                _templateActionButtons.Add("create", AddTemplateButton(listActions, "templates.create",
                     async () => await ExecuteTemplateCommandAsync("rules.template-create")));
-                Grid.SetColumn(_templateActionButtons["create"], 1);
-                panel.Children.Add(pick);
-                _templateSelectionActions = new WrapPanel { ItemSpacing = 8, LineSpacing = 8 }; panel.Children.Add(_templateSelectionActions);
+                _templateReloadButton = AddTemplateButton(listActions, "templates.reload", async () => await LoadTemplatesAsync(), icon: "refresh-cw");
+                _templateSelectionActions = new WrapPanel { ItemSpacing = 8, LineSpacing = 8 }; column.Children.Add(_templateSelectionActions);
                 foreach (string id in new[] { "preview", "edit", "delete", "undo-apply" })
                 {
                     string command = "rules.template-" + id;

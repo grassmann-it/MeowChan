@@ -3942,6 +3942,7 @@
     "rules.wizard.back": "戻る",
     "rules.wizard.toOverview": "ルールに戻る",
     "rules.wizard.closeName": "エディターを閉じてルールの一覧に戻る",
+    "rules.wizard.scopeExists": "この範囲のルールはすでにあります。「次へ」でそのルールを編集します。",
     "tags.quick.heading": "タグ",
     "tags.quick.title": "タグ · {0}",
     "tags.quick.name": "{0}のタグ",
