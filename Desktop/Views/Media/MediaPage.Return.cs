@@ -199,6 +199,7 @@ public sealed partial class MediaPage
         }
         finally { _restoring = false; }
         UpdateSelectionBar();
+        SyncPanelToRows(); // the panel shows the tile the gallery was opened on
         if (match.Anchor >= 0) TilePanel()?.RestoreAnchor(match.Anchor, match.AnchorOffset);
         ShowSelectionNote(match.Target < 0 ? Texts.T("media.return.missing", point.Occurrence.Name) : null);
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Loaded);

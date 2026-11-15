@@ -340,6 +340,7 @@ public sealed class MediaPageLayoutTests : IDisposable
         Assert.Equal(
         [
             MediaLayoutMenu.TagListId, MediaLayoutMenu.SideLeftId, MediaLayoutMenu.SideRightId,
+            MediaLayoutMenu.PanelId, MediaLayoutMenu.PanelSideLeftId, MediaLayoutMenu.PanelSideRightId,
             MediaLayoutMenu.ChipsId, MediaLayoutMenu.StatusId, MediaLayoutMenu.SubtitleId,
             MediaLayoutMenu.CaptionNameId, MediaLayoutMenu.CaptionTagsId, MediaLayoutMenu.CaptionQueueId, MediaLayoutMenu.CaptionSourceId,
             MediaLayoutMenu.SizeSmallId, MediaLayoutMenu.SizeMediumId, MediaLayoutMenu.SizeLargeId,
@@ -466,8 +467,8 @@ public sealed class MediaPageLayoutTests : IDisposable
     {
         string layout = Read("Desktop/Views/Media/MediaPage.Layout.cs"), page = Read("Desktop/Views/Media/MediaPage.cs"), view = Read("Desktop/Views/Media/MediaPage.WorkView.cs");
         // C15: one description (MediaLayoutMenu.Rows / Apply), three forms: the flyout's LayoutMenuPanel, the submenu and the context menu.
-        Assert.Contains("new LayoutMenuPanel(\"MediaLayoutMenu\", () => MediaLayoutMenu.Rows(_layout), ApplyLayoutRow);", layout);
-        Assert.Contains("LayoutMenuBuilder.ToContextMenu(MediaLayoutMenu.Rows(_layout), ApplyLayoutRow, MediaLayoutMenu.MenuName)", layout);
+        Assert.Contains("new LayoutMenuPanel(\"MediaLayoutMenu\", () => MediaLayoutMenu.Rows(_layout, PanelHint()), ApplyLayoutRow);", layout);
+        Assert.Contains("LayoutMenuBuilder.ToContextMenu(MediaLayoutMenu.Rows(_layout, PanelHint()), ApplyLayoutRow, MediaLayoutMenu.MenuName)", layout);
         Assert.Contains("ItemsSource = LayoutMenuItems()", layout);
         // The flyout keeps the keyboard behaviour of a menu: Escape closes (handled), the arrows move, the focus returns to the button.
         Assert.Contains("if (_layoutPanel.HandleMenuKey(e)) e.Handled = true;", layout);
@@ -504,7 +505,7 @@ public sealed class MediaPageLayoutTests : IDisposable
     {
         string editor = Read("Desktop/Views/Settings/SettingsEditor.TagQueue.cs"), axaml = Read("Desktop/Views/Settings/SettingsEditor.axaml");
         Assert.Contains("Config.MediaTagListWidthMinimum, Config.MediaTagListWidthMaximum", editor);
-        Assert.Contains("with { TagListWidth = tagListWidth }", editor);
+        Assert.Contains("with { TagListWidth = tagListWidth, PanelWidth = panelWidth }", editor);
         Assert.Contains("MediaTagListWidthInput, MediaTagListWidth,", editor); // part of the numeric validation list
         Assert.Contains("x:Name=\"MediaTagListWidthInput\"", axaml);
         Assert.True(axaml.IndexOf("MediaTagListTopInput", StringComparison.Ordinal) < axaml.IndexOf("MediaTagListWidthInput", StringComparison.Ordinal));

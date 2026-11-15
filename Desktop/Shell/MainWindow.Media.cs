@@ -28,13 +28,23 @@ public partial class MainWindow
 
     private int ConfiguredMediaTagListWidth() => MediaPageLayout.Parse(_session.Config.MediaLayout, _session.Config.MediaBooruMode).TagListWidth;
 
-    // M1: the settings page saved another tag list width; the page shows it now (nothing is saved again). A save that left the width alone changes nothing:
-    // the page keeps the width the person dragged it to.
+    private int ConfiguredMediaPanelWidth() => MediaPageLayout.Parse(_session.Config.MediaLayout, _session.Config.MediaBooruMode).PanelWidth;
+
+    // M1: the settings page saved another tag list width (or media panel width); the page shows it now (nothing is saved again). A save that left the
+    // width alone changes nothing: the page keeps the width the person dragged it to. The panel's video options and fit follow the settings too.
     private void ApplyMediaTagListWidthAfterSettings(int widthBefore)
     {
         int width = ConfiguredMediaTagListWidth();
         if (width != widthBefore) _mediaPage?.ApplySavedTagListWidth(width);
+        // A save that left the panel width alone still lays the page out again: the page width below which the panel hides may have changed.
+        _mediaPage?.ApplySavedPanelWidth(ConfiguredMediaPanelWidth());
+        ConfigureMediaPanel();
     }
+
+    // The media panel plays inline always (it is the panel's own control): the gallery's volume, start-muted choice and seek step, the reader's player
+    // and file limits, and the gallery's fit limit for its picture.
+    private void ConfigureMediaPanel() => _mediaPage?.ConfigurePanel(ReaderInlineVideoOptions.From(_session.Config) with { Enabled = true },
+        ReaderSettingsPreferences.Gallery(_session.Config));
 
     private void InitializeMediaPage()
     {
@@ -89,7 +99,8 @@ public partial class MainWindow
                 if (NavigateWorkspace(WorkspacePage.Archive))
                     _archivePage?.ReceiveCarriedSearch(MeowChan.Desktop.Controls.SearchScope.FileName, query, Texts.T("nav.media"));
             },
-            ManageMediaRatingsAsync = ManageMediaRatingsAsync
+            ManageMediaRatingsAsync = ManageMediaRatingsAsync,
+            PanelMinimumPageWidthSource = () => _session.Config.MediaPanelMinimumPageWidth
         };
         // The order the user chose last visit; the random order is not kept, the last other choice stays (MediaSortPreference.Remember).
         // Every later choice is saved as a direct preference.
@@ -105,6 +116,7 @@ public partial class MainWindow
         // MP5: the rest of the page's layout (side, width, chips, status line, subtitle, tile caption and size) is the profile's view preference too;
         // the tag list switch stays in its own key (MediaBooruMode), so both ways of switching it write the same state.
         _mediaPage.RestoreLayout(MediaPageLayout.Parse(_session.Config.MediaLayout, _session.Config.MediaBooruMode));
+        ConfigureMediaPanel();
         _mediaPage.SaveLayoutAsync = layout => _session.SaveViewPreferencesAsync(config => { config.MediaBooruMode = layout.TagList; config.MediaLayout = layout.Format(); });
         _session.StateChanged += OnMediaTagQueueChanged;
         Closed += (_, _) => _session.StateChanged -= OnMediaTagQueueChanged;

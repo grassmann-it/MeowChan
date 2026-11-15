@@ -40,14 +40,15 @@ public sealed partial class MediaPage
     private bool _layoutMenuHadFocus, _layoutMenuKeyboard;
     private readonly TextBlock _layoutLabel = new() { Name = "MediaLayoutLabel", VerticalAlignment = VerticalAlignment.Center };
     private readonly GridSplitter _tagHandle = new() { Name = "MediaTagListHandle", IsVisible = false };
+    private readonly GridSplitter _panelHandle = new() { Name = "MediaPanelHandle", IsVisible = false };
     private MediaPageLayout _layout = MediaPageLayout.Standard;
     private MediaPageLayoutPlan? _plan;
     private MediaTileAppearance _tileAppearance = MediaTileMetrics.Standard;
-    private Grid? _bodyRow;
+    private Grid? _bodyRow, _contentGrid;
     private Border? _bodySurface;
     private Control? _chipRow, _statusRow;
     private bool _layoutInstalled, _statusAttention;
-    private double _appliedTagListWidth;
+    private double _appliedTagListWidth, _appliedPanelWidth, _panelEdge = SidebarMargin;
 
     /// <summary>Saves the layout of the profile (the tag list switch and the rest); null: nothing is saved.</summary>
     internal Func<MediaPageLayout, Task>? SaveLayoutAsync { get; set; }
@@ -76,7 +77,7 @@ public sealed partial class MediaPage
         chevron.AttachedToVisualTree += (_, _) => chevron.Data ??= Geometry.Parse("M 1,1 L 5,5 L 9,1");
         AutomationProperties.SetAccessibilityView(chevron, AccessibilityView.Raw);
         _layoutButton.Content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { _layoutLabel, chevron } };
-        _layoutPanel = new LayoutMenuPanel("MediaLayoutMenu", () => MediaLayoutMenu.Rows(_layout), ApplyLayoutRow);
+        _layoutPanel = new LayoutMenuPanel("MediaLayoutMenu", () => MediaLayoutMenu.Rows(_layout, PanelHint()), ApplyLayoutRow);
         _layoutPanel.CloseRequested += () => _layoutFlyout.Hide();
         _layoutFlyout.FlyoutPresenterClasses.Add("gallery-overflow");
         _layoutFlyout.Content = new ScrollViewer
@@ -116,7 +117,7 @@ public sealed partial class MediaPage
 
     // The same rows as menu items (new at every call: a control has one parent, the submenu under More and the context menu each take their own).
     internal IReadOnlyList<Control> LayoutMenuItems() =>
-        ContextMenuBuilder.Build(LayoutMenuBuilder.ToContextMenu(MediaLayoutMenu.Rows(_layout), ApplyLayoutRow, MediaLayoutMenu.MenuName).ToModel())?.ItemsSource
+        ContextMenuBuilder.Build(LayoutMenuBuilder.ToContextMenu(MediaLayoutMenu.Rows(_layout, PanelHint()), ApplyLayoutRow, MediaLayoutMenu.MenuName).ToModel())?.ItemsSource
             is IEnumerable<Control> items ? items.ToArray() : [];
 
     // The entries of the layout menu as a submenu of the toolbar's More ("Layout" while the view or the width keeps the button under it).
@@ -140,18 +141,29 @@ public sealed partial class MediaPage
         ToolTip.SetTip(_tagHandle, resize);
     }
 
-    // The body row: the tag list column, the drag handle and the grid column; the side and the width come from the plan (LayoutTagList).
+    // The Layout menu's panel row says why a chosen panel is not on screen: the page is narrower than the setting.
+    private string? PanelHint() => _panelCollapsed ? Texts.T("media.layout.panel.collapsed", PanelMinimumPageWidth) : null;
+
+    // The body row: the tag list column, its drag handle and the content column. The content column is a grid of its own: the media panel, its drag
+    // handle and the grid surface (the panel sits on the left or the right of the grid, the tag list beside both on its own side).
+    // Sides, widths and margins come from the plan (LayoutBody).
     private Grid CreateBodyRow(Control tagList, Border surface)
     {
+        Grid content = _contentGrid = new() { Name = "MediaContentRow", ColumnDefinitions = new ColumnDefinitions("*,0,0") };
+        content.Children.Add(surface); content.Children.Add(_panelHandle);
         Grid row = new() { Name = "MediaBodyRow", ColumnDefinitions = new ColumnDefinitions("0,0,*") };
-        row.Children.Add(tagList); row.Children.Add(_tagHandle); row.Children.Add(surface);
+        row.Children.Add(tagList); row.Children.Add(_tagHandle); row.Children.Add(content);
         _bodyRow = row;
         _bodySurface = surface;
         // The direction sets the resize cursor, which needs the platform: it is set once the handle is shown.
         _tagHandle.AttachedToVisualTree += (_, _) => _tagHandle.ResizeDirection = GridResizeDirection.Columns;
         _tagHandle.DragCompleted += (_, _) => CommitTagListWidth();
         _tagHandle.KeyUp += (_, _) => CommitTagListWidth();
-        row.SizeChanged += (_, e) => { if (e.WidthChanged && _plan is { TagList: true } plan) LayoutTagList(plan); };
+        _panelHandle.Width = HandleWidth;
+        _panelHandle.AttachedToVisualTree += (_, _) => _panelHandle.ResizeDirection = GridResizeDirection.Columns;
+        _panelHandle.DragCompleted += (_, _) => CommitPanelWidth();
+        _panelHandle.KeyUp += (_, _) => CommitPanelWidth();
+        row.SizeChanged += (_, e) => { if (e.WidthChanged && _plan is { } plan) LayoutBody(plan); };
         return row;
     }
 
@@ -191,6 +203,13 @@ public sealed partial class MediaPage
     /// <summary>The tag list width that the settings page saved (M1): shown now, nothing saved again. The rest of the layout stays as the page has it.</summary>
     internal void ApplySavedTagListWidth(int width) => ApplyLayout(_layout with { TagListWidth = width }, save: false);
 
+    /// <summary>The media panel width that the settings page saved (M1): shown now, nothing saved again. The page width below which the panel hides is read again too.</summary>
+    internal void ApplySavedPanelWidth(int width)
+    {
+        if (_layout.PanelWidth != width) ApplyLayout(_layout with { PanelWidth = width }, save: false);
+        else ApplyLayoutPlan();
+    }
+
     private void SaveLayout()
     {
         if (SaveLayoutAsync is not { } saveLayout || _lifetime.IsCancellationRequested) return;
@@ -209,37 +228,77 @@ public sealed partial class MediaPage
         _subtitle.IsVisible = plan.Subtitle;
         _chipRow!.IsVisible = plan.FilterChips;
         _statusRow!.IsVisible = plan.StatusLine;
-        LayoutTagList(plan);
+        LayoutBody(plan);
         if (before == null || before.Tiles != plan.Tiles) ApplyTileAppearance(plan.Tiles);
         if (focusLost) FocusGrid();
     }
 
-    // The side, the width and the margins of the tag list and its handle. The list column is its width plus the page margin, the handle sits between
-    // the list and the grid (it takes the place of half the gap the grid kept before).
-    private void LayoutTagList(MediaPageLayoutPlan plan)
+    // The body row of this plan: the sides, widths and margins of the tag list and the media panel with their handles. The tag list column is its width
+    // plus the page margin, a handle sits between each block and the grid (it takes the place of half the gap the grid kept before). MediaPanelColumns
+    // (pure) decides the widths and whether the panel shows: it hides on a narrow page and keeps the choice; the grid keeps the rest.
+    private void LayoutBody(MediaPageLayoutPlan plan)
     {
-        if (_bodyRow is not { } row || _bodySurface is not { } surface) return;
+        if (_bodyRow is not { } row || _bodySurface is not { } surface || _contentGrid is not { } content) return;
+        double bodyWidth = row.Bounds.Width;
+        MediaPanelColumns panelColumns = MediaPanelColumns.Of(_layout, bodyWidth, PanelMinimumPageWidth);
         bool right = plan.TagListSide == MediaTagListSide.Right, shown = plan.TagList;
-        int listColumn = right ? 2 : 0, gridColumn = right ? 0 : 2;
+        int listColumn = right ? 2 : 0, contentColumn = right ? 0 : 2;
         Avalonia.Controls.Grid.SetColumn(_tagSidebar, listColumn);
         Avalonia.Controls.Grid.SetColumn(_tagHandle, 1);
-        Avalonia.Controls.Grid.SetColumn(surface, gridColumn);
-        double width = MediaPageLayoutPlan.EffectiveTagListWidth(plan.TagListWidth, row.Bounds.Width);
+        Avalonia.Controls.Grid.SetColumn(content, contentColumn);
+        double width = shown ? panelColumns.TagListWidth : MediaPageLayoutPlan.EffectiveTagListWidth(plan.TagListWidth, bodyWidth);
         _appliedTagListWidth = width;
         ColumnDefinitions columns = row.ColumnDefinitions;
         columns[listColumn].MinWidth = shown ? Math.Min(MeowChan.Config.MediaTagListWidthMinimum, width) + SidebarMargin : 0;
-        columns[listColumn].MaxWidth = shown ? MediaPageLayoutPlan.EffectiveTagListMaximum(row.Bounds.Width) + SidebarMargin : double.PositiveInfinity;
+        columns[listColumn].MaxWidth = shown ? MediaPanelColumns.MaximumTagListWidth(bodyWidth, panelColumns.PanelShown, panelColumns.PanelWidth) + SidebarMargin : double.PositiveInfinity;
         columns[listColumn].Width = new GridLength(shown ? width + SidebarMargin : 0);
         columns[1].Width = new GridLength(shown ? HandleWidth : 0);
-        columns[gridColumn].MinWidth = 0;
-        columns[gridColumn].MaxWidth = double.PositiveInfinity;
-        columns[gridColumn].Width = new GridLength(1, GridUnitType.Star);
+        columns[contentColumn].MinWidth = 0;
+        columns[contentColumn].MaxWidth = double.PositiveInfinity;
+        columns[contentColumn].Width = new GridLength(1, GridUnitType.Star);
         _tagHandle.IsVisible = shown;
         _tagSidebar.Margin = right ? new Thickness(0, 0, SidebarMargin, 8) : new Thickness(SidebarMargin, 0, 0, 8);
-        surface.Margin = !shown ? new Thickness(12, 0, 12, 8) : right ? new Thickness(12, 0, 8, 8) : new Thickness(8, 0, 12, 8);
+
+        // The content column: the panel on its side, then its handle, then the grid.
+        bool panelRight = plan.PanelSide == MediaPanelSide.Right, panelShown = panelColumns.PanelShown;
+        int panelColumn = panelRight ? 2 : 0, surfaceColumn = panelRight ? 0 : 2;
+        // The panel's outer edge keeps the page margin, or the smaller gap beside the tag list's handle when the list is on the same side.
+        double edge = shown && right == panelRight ? 8 : SidebarMargin;
+        _panelEdge = edge;
+        _appliedPanelWidth = panelShown ? panelColumns.PanelWidth : plan.PanelWidth;
+        ColumnDefinitions inner = content.ColumnDefinitions;
+        Avalonia.Controls.Grid.SetColumn(surface, surfaceColumn);
+        Avalonia.Controls.Grid.SetColumn(_panelHandle, 1);
+        inner[panelColumn].MinWidth = panelShown ? Math.Min(MeowChan.Config.MediaPanelWidthMinimum, panelColumns.PanelWidth) + edge : 0;
+        inner[panelColumn].MaxWidth = panelShown ? MediaPanelColumns.MaximumPanelWidth(_layout, bodyWidth) + edge : double.PositiveInfinity;
+        inner[panelColumn].Width = new GridLength(panelShown ? panelColumns.PanelWidth + edge : 0);
+        inner[1].Width = new GridLength(panelShown ? HandleWidth : 0);
+        inner[surfaceColumn].MinWidth = 0;
+        inner[surfaceColumn].MaxWidth = double.PositiveInfinity;
+        inner[surfaceColumn].Width = new GridLength(1, GridUnitType.Star);
+        _panelHandle.IsVisible = panelShown;
+        // The surface keeps the page margin on a side where nothing is shown, the smaller gap beside a handle.
+        bool leftBlock = shown && !right || panelShown && !panelRight, rightBlock = shown && right || panelShown && panelRight;
+        surface.Margin = new Thickness(leftBlock ? 8 : 12, 0, rightBlock ? 8 : 12, 8);
+        _panelCollapsed = panelColumns.CollapsedByWidth;
+        bool focusLost = !panelShown && _panelShown && _panel?.IsKeyboardFocusWithin == true;
+        if (panelShown) { ReaderMediaSidebar created = EnsurePanel(); if (!content.Children.Contains(created)) content.Children.Add(created); }
+        if (_panel is { } panel)
+        {
+            Avalonia.Controls.Grid.SetColumn(panel, panelColumn);
+            panel.Margin = panelRight ? new Thickness(0, 0, edge, 8) : new Thickness(edge, 0, 0, 8);
+            panel.BorderThickness = new Thickness(panelRight ? 1 : 0, 0, panelRight ? 0 : 1, 0);
+            panel.IsVisible = panelShown;
+        }
+        if (panelShown != _panelShown)
+        {
+            _panelShown = panelShown;
+            OnPanelShownChanged(panelShown);
+        }
+        if (focusLost) FocusGrid();
     }
 
-    // The drag (or the arrow keys) on the handle ended: the width of the list as it is now becomes the saved width (one save).
+    // The drag (or the arrow keys) on the tag list's handle ended: the width of the list as it is now becomes the saved width (one save).
     private void CommitTagListWidth()
     {
         if (_plan is not { TagList: true } plan || _bodyRow is not { } row || _lifetime.IsCancellationRequested) return;
@@ -248,6 +307,17 @@ public sealed partial class MediaPage
         int width = (int)Math.Round(actual);
         if (Math.Abs(width - _appliedTagListWidth) < 1) return;
         ApplyLayout(_layout with { TagListWidth = width });
+    }
+
+    // The same for the media panel's handle.
+    private void CommitPanelWidth()
+    {
+        if (!_panelShown || _contentGrid is not { } content || _plan is not { } plan || _lifetime.IsCancellationRequested) return;
+        double actual = content.ColumnDefinitions[plan.PanelSide == MediaPanelSide.Right ? 2 : 0].ActualWidth - _panelEdge;
+        if (!double.IsFinite(actual) || actual <= 0) return;
+        int width = Math.Clamp((int)Math.Round(actual), MeowChan.Config.MediaPanelWidthMinimum, MeowChan.Config.MediaPanelWidthMaximum);
+        if (Math.Abs(width - _appliedPanelWidth) < 1) return;
+        ApplyLayout(_layout with { PanelWidth = width });
     }
 
     // The realized tiles change their own size and parts, the panel its cell; the rows, the selection and the previews stay.

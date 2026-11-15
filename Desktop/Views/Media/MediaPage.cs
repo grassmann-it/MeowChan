@@ -225,7 +225,7 @@ public sealed partial class MediaPage : UserControl
         InstallTileInteraction(); // double click on a tile, Ctrl+wheel and Ctrl+Plus/Minus for the tile size (MediaPage.Interaction.cs)
         _grid.KeyDown += OnGridKeyDown;
         _grid.AddHandler(KeyDownEvent, OnSelectAllWhilePresenting, RoutingStrategies.Tunnel);
-        _grid.SelectionChanged += (_, _) => { if (_restoring) return; _selectionStamp++; ShowSelectionNote(null); UpdateSelectionBar(); };
+        _grid.SelectionChanged += (_, e) => { if (_restoring) return; _selectionStamp++; ShowSelectionNote(null); UpdateSelectionBar(); OnPanelSelectionChanged(e); };
         InstallReturnInterruption();
         RegisterWorkViewIds();
         Texts.Changed += OnLanguageChanged;
@@ -586,6 +586,7 @@ public sealed partial class MediaPage : UserControl
         UpdateSortDirection();
         UpdateStatus();
         RefreshTagSidebar(); // MP4: the tag list counts the tiles now shown
+        SyncPanelToRows(); // the media panel keeps its medium (by its key) or follows the restored selection
     }
 
     private void UpdateStatus()
@@ -671,11 +672,15 @@ public sealed partial class MediaPage : UserControl
 
     private MediaLibraryTileRow? SelectedRow => _grid.SelectedItem as MediaLibraryTileRow;
 
-    internal async Task OpenSelectedAsync()
+    internal Task OpenSelectedAsync() => SelectedRow is { } row ? OpenRowAsync(row) : Task.CompletedTask;
+
+    // The gallery around one tile (Enter, double click, the media panel's "open in gallery"): a playing panel video pauses first.
+    private async Task OpenRowAsync(MediaLibraryTileRow row)
     {
-        if (SelectedRow is not { } row || OpenGallery == null) return;
+        if (OpenGallery == null) return;
         (IReadOnlyList<MediaLibraryEntry> window, int start) = MediaLibraryView.GalleryWindow(_shown, PresentPositions, row.Index);
         if (start < 0) return;
+        _ = PausePanelVideo();
         await OpenGallery(window, start);
     }
 
@@ -977,7 +982,7 @@ public sealed partial class MediaPage : UserControl
         e.Handled = true;
     }
 
-    private void OpenSharedMediaMenu(MediaLibraryTileRow? row, Control origin)
+    private void OpenSharedMediaMenu(MediaLibraryTileRow? row, Control origin, ReaderInlineVideoSlot? playback = null)
     {
         if (_lifetime.IsCancellationRequested || !IsEffectivelyVisible) return;
         long revision = _mediaMenuRevision;
@@ -1091,7 +1096,8 @@ public sealed partial class MediaPage : UserControl
         IReadOnlyList<MediaLibraryEntry> queueEntries = queueTiles is { Count: > 1 }
             ? queueTiles.Select(tileEntry => tileEntry.Entry).ToArray() : new[] { entry };
         if (QueueGroupMenu(session, queueEntries, Run) is { } groups) context.Add(groups);
-        ContextMenu menu = MediaMenuBuilder.Build(session, model, handlers, Run, context, ShowSelectionNote);
+        // The media panel's menu of a video starts with the playback group (play / pause, mute, repeat), as the reader's menu of a video does.
+        ContextMenu menu = MediaMenuBuilder.Build(session, model, handlers, Run, context, ShowSelectionNote, ReaderPlaybackMenu.MenuItems(playback, session, Run));
         _mediaMenuPresenter.Show(menu, session, origin, attachToOrigin: true, fallbackFocus: () => FocusGrid(Current));
     }
 
@@ -1118,9 +1124,13 @@ public sealed partial class MediaPage : UserControl
     private readonly MediaMenuPresenter _mediaMenuPresenter = new();
 
     private Task OpenMediaMenuAsync(MediaLibraryEntry entry, IReadOnlyList<MediaLibraryEntry> galleryWindow,
-        int galleryStart, Func<bool> current) => ExecuteMediaMenuActionAsync != null
+        int galleryStart, Func<bool> current)
+    {
+        _ = PausePanelVideo();
+        return ExecuteMediaMenuActionAsync != null
             ? ExecuteMediaMenuActionAsync("media.open", entry, current)
             : OpenGallery?.Invoke(galleryWindow, galleryStart) ?? Task.CompletedTask;
+    }
 
     private async Task ExecuteMediaActionAsync(string id, MediaLibraryEntry entry, Func<bool> current)
     {
@@ -1156,6 +1166,7 @@ public sealed partial class MediaPage : UserControl
         LocalizeFocus();
         LocalizeBooruMode();
         LocalizeLayout();
+        LocalizePanel();
         LocalizeQueueTools();
         LocalizeWorkView();
         CommandBindings.Apply(_manageRatings, "media.rating.manage");
@@ -1182,5 +1193,11 @@ public sealed partial class MediaPage : UserControl
         Texts.Changed -= OnLanguageChanged;
         _occurrences?.Close();
         _selectionTag?.CloseForLifetime();
+        _panelFollowTimer?.Stop();
+        _panelAnnounceTimer?.Stop();
+        _panelPlaceholderTimer?.Stop();
+        CancelPanelLoad();
+        _ = ReleasePanelVideos();
+        _panel?.ReleasePicture();
     }
 }

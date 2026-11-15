@@ -189,6 +189,7 @@ public sealed partial class MediaPage
         ShowSelectionNote(notSaved == 0 ? null : entries.Count == 0 ? Texts.T("media.selection.note.noneSaved")
             : Texts.Count("media.selection.note.galleryPartial", entries.Count, entries.Count, notSaved));
         if (entries.Count == 0) return;
+        _ = PausePanelVideo();
         await OpenGallery(entries, 0);
     }
 
