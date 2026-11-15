@@ -488,13 +488,22 @@ public sealed class GalleryFilmstripTests : IDisposable
     }
 
     [Fact]
-    public void TheViewerClearsAndPublishesTheSelectedVideoDurationToTheStrip()
+    public void VideoLengthFlowsFromThePlayerToTheSelectedFilmstripSlot()
     {
+        string player = Source("Desktop/GalleryVideoPlayer.cs");
         string filmstrip = Source("Desktop/GalleryViewer.Filmstrip.cs");
         string viewer = Source("Desktop/GalleryViewer.cs");
+
+        // Contract: the verified player's generation-fenced LengthChanged callback publishes a duration,
+        // the viewer subscribes once, and the selected filmstrip slot receives both reset and value.
+        Assert.Contains("internal event Action<TimeSpan?>? DurationChanged;", player);
+        Assert.Contains("_length = 0; DurationChanged?.Invoke(null); UpdateTime(0);", player);
+        Assert.Contains("DurationChanged?.Invoke(TimeSpan.FromMilliseconds(args.Length));", player);
+        Assert.Contains("_video.DurationChanged += OnVideoDurationChanged;", viewer);
         Assert.Contains("_filmstrip.SetDuration(index, null);", filmstrip);
         Assert.Contains("_filmstrip.SetDuration(_filmstrip.CurrentIndex, duration);", filmstrip);
-        Assert.Contains("_video.DurationChanged += OnVideoDurationChanged;", viewer);
+        Assert.True(filmstrip.IndexOf("_filmstrip.SetDuration(index, null);", StringComparison.Ordinal)
+            < filmstrip.IndexOf("_filmstrip.SetDuration(_filmstrip.CurrentIndex, duration);", StringComparison.Ordinal));
     }
 
     [Fact]
