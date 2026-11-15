@@ -5,6 +5,7 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
+using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
@@ -96,6 +97,8 @@ public sealed partial class MediaPage
             // Availability may change without a view switch. Keep the count and menu in the same projection.
             RefreshWorkView();
             FillMore((MenuFlyout)_more.Flyout!, HeaderOverflow());
+            // Never an empty menu (a bare 10 dip frame under the button): with nothing under More the button is gone and the menu closes again.
+            if (((MenuFlyout)_more.Flyout!).Items.Count == 0) Dispatcher.UIThread.Post(() => _more.Flyout?.Hide());
         };
         ((MenuFlyout)_selMore.Flyout!).Opening += (_, _) => FillMore((MenuFlyout)_selMore.Flyout!, SelectionOverflow());
         _moreFilters.IsCheckedChanged += (_, _) => { if (!_localizing) RefreshWorkView(); };
@@ -180,7 +183,9 @@ public sealed partial class MediaPage
     }
 
     // The tools of the header a view moved under More, in policy order, with their own state still wanting them (R6 raised the rest).
-    private List<Control> HeaderOverflow() => Overflowed(_booruMode, _layoutButton, _focus, _refresh, _shuffle, _exportAll, _manageRatings, _booruOpen, _queueWalk, _taggingPageOpen, _queueAll, _mediaFolders);
+    // A tool the view leaves out of every surface (Hidden) is in no menu, so it neither fills More nor keeps its button alive (MediaToolbarLayout.IsUnderMore).
+    private List<Control> HeaderOverflow() => Overflowed(_booruMode, _layoutButton, _focus, _refresh, _shuffle, _exportAll, _manageRatings, _booruOpen, _queueWalk, _taggingPageOpen, _queueAll, _mediaFolders)
+        .Where(control => MediaToolbarLayout.IsUnderMore(_toolbarLevel, WorkViewElement.GetId(control), WorkViewPolicy.Resolve(WorkViewElement.GetId(control)!, _workView))).ToList();
 
     private List<Control> SelectionOverflow() => Overflowed(_selTag, _selQueue, _selExport);
 

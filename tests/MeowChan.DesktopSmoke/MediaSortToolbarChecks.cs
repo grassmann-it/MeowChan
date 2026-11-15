@@ -68,6 +68,8 @@ internal static partial class MediaPageChecks
             Require(!C<Button>(page, "MediaExportAll").IsVisible && !C<Button>(page, "MediaManageRatings").IsVisible
                 && page.HeaderMoreIds.SequenceEqual(["media.toolbar.export-all", "media.toolbar.manage-ratings"]),
                 "Export all and the ratings manager belong under More in every view: " + string.Join(",", page.HeaderMoreIds));
+            // Tom 15.11.: More is shown exactly while something sits under it, and its menu is filled from that same list.
+            Require(more.IsVisible == page.HeaderMoreIds.Count > 0 && more.IsVisible, "More must be shown while Export all and the ratings manager sit under it.");
             Require(sort.ItemCount == Enum.GetValues<MediaLibrarySort>().Length, "The criterion box must offer every sort criterion.");
 
             // Direction: off for the shuffle, and Reversed is the exact mirror of the default order.
@@ -147,6 +149,7 @@ internal static partial class MediaPageChecks
             window.Width = 1100;
             await UntilAsync(() => page.ToolbarLevel == MediaToolbarLayout.Level.Wide);
             Require(refresh.IsVisible && page.HeaderMoreIds.SequenceEqual(["media.toolbar.export-all", "media.toolbar.manage-ratings"]), "A wide page must show Refresh again: " + string.Join(",", page.HeaderMoreIds));
+            Require(more.IsVisible == page.HeaderMoreIds.Count > 0, "More must follow its entries when the page is wide again: visible=" + more.IsVisible + ", entries=" + page.HeaderMoreIds.Count);
 
             // The stage constants are row widths, not window widths. Resize the real page until its measured toolbar row is just above/below
             // each boundary; this proves the Layout button follows the same stage and cannot remain stranded on the row when it moves under More.

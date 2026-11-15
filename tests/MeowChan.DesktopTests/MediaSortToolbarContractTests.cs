@@ -1,6 +1,7 @@
 using System.Text.Json;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.WorkViews;
 using MeowChan.Gallery;
 
 namespace MeowChan.DesktopTests;
@@ -175,6 +176,66 @@ public sealed class MediaSortToolbarContractTests
             Assert.Equal(Desktop.WorkViews.WorkViewPage.Media, entry.Page);
             Assert.True(entry.OverflowOrder > 0);
         });
+    }
+
+    // Tom (15.11.2026): More is shown only while something sits under it, and its menu holds exactly those tools. Export all and the saved-ratings
+    // manager are under More in every view, so the standard page keeps the button at every width; a tool the view leaves out is in no menu.
+    [Theory]
+    [InlineData("Wide", false)]
+    [InlineData("Reduced", true)]
+    [InlineData("Compact", true)]
+    public void AToolOfTheRowSitsUnderMoreWhenTheViewOrTheWidthPutsItThere(string levelName, bool movedByWidth)
+    {
+        MediaToolbarLayout.Level level = Enum.Parse<MediaToolbarLayout.Level>(levelName);
+        // A button the view shows directly leaves the row only with the width.
+        Assert.Equal(movedByWidth, MediaToolbarLayout.IsUnderMore(level, "media.toolbar.focus", Presence.Direct));
+        // The view's own overflow is under More at every width; a tool the view leaves out entirely is under it at none.
+        Assert.True(MediaToolbarLayout.IsUnderMore(level, "media.toolbar.export-all", Presence.Overflow));
+        Assert.False(MediaToolbarLayout.IsUnderMore(level, "media.toolbar.focus", Presence.Hidden));
+        Assert.False(MediaToolbarLayout.IsUnderMore(level, "media.toolbar.export-all", Presence.Hidden));
+        // The order, the search and the filter toggle are never under More.
+        foreach (string kept in new[] { "media.sort", "media.search", "media.filter.toggle" })
+            Assert.False(MediaToolbarLayout.IsUnderMore(level, kept, Presence.Required), kept);
+    }
+
+    [Fact]
+    public void MoreIsEmptyOnlyWhenNoToolIsUnderItAtTheWidthAndInTheView()
+    {
+        string[] header = ["media.toolbar.tag-list", "media.toolbar.layout", "media.toolbar.focus", "media.toolbar.refresh", "media.toolbar.shuffle",
+            "media.toolbar.booru", "media.toolbar.queue-walk", "media.toolbar.tagging-page", "media.toolbar.queue-all", "media.toolbar.folders",
+            "media.toolbar.export-all", "media.toolbar.manage-ratings"];
+        string[] Under(MediaToolbarLayout.Level level, WorkView view) => header
+            .Where(id => MediaToolbarLayout.IsUnderMore(level, id, WorkViewPolicy.Resolve(id, view))).ToArray();
+        foreach (WorkView view in WorkViewSetting.All)
+        {
+            // The standard tool set: the two entries that live under More in every view keep the button at every width ...
+            foreach (MediaToolbarLayout.Level level in Enum.GetValues<MediaToolbarLayout.Level>())
+                Assert.Contains("media.toolbar.export-all", Under(level, view));
+            // ... and the width adds the tools of its stage on top of what the view holds back, never fewer.
+            foreach (string moved in MediaToolbarLayout.MovedUnderMore(MediaToolbarLayout.Level.Reduced))
+                Assert.Contains(moved, Under(MediaToolbarLayout.Level.Reduced, view));
+            foreach (string moved in MediaToolbarLayout.MovedUnderMore(MediaToolbarLayout.Level.Compact))
+                Assert.Contains(moved, Under(MediaToolbarLayout.Level.Compact, view));
+            Assert.True(Under(MediaToolbarLayout.Level.Wide, view).Length <= Under(MediaToolbarLayout.Level.Reduced, view).Length);
+            Assert.True(Under(MediaToolbarLayout.Level.Reduced, view).Length <= Under(MediaToolbarLayout.Level.Compact, view).Length);
+        }
+        // A tool set whose entries the view shows directly or leaves out has nothing under More on a wide row: the button is not shown there,
+        // and it appears with the first tool the width moves.
+        Assert.False(header.Any(id => MediaToolbarLayout.IsUnderMore(MediaToolbarLayout.Level.Wide, id, Presence.Direct)));
+        Assert.False(header.Any(id => MediaToolbarLayout.IsUnderMore(MediaToolbarLayout.Level.Compact, id, Presence.Hidden)));
+        Assert.True(header.Any(id => MediaToolbarLayout.IsUnderMore(MediaToolbarLayout.Level.Reduced, id, Presence.Direct)));
+    }
+
+    // The button is shown from the same list its menu is filled from; opening it with nothing in it closes the bare frame again.
+    [Fact]
+    public void TheMoreButtonAndItsMenuComeFromOneListAndNoEmptyMenuStaysOpen()
+    {
+        string view = Source("Desktop/Views/Media/MediaPage.WorkView.cs");
+        Assert.Contains("MediaToolbarLayout.IsUnderMore(_toolbarLevel,", view);
+        Assert.Contains("UpdateMore(_more, HeaderOverflow())", view);
+        Assert.Contains("FillMore((MenuFlyout)_more.Flyout!, HeaderOverflow())", view);
+        Assert.Contains("more.IsVisible = items.Count > 0;", view);
+        Assert.Contains("if (((MenuFlyout)_more.Flyout!).Items.Count == 0) Dispatcher.UIThread.Post(() => _more.Flyout?.Hide());", view);
     }
 
     [Fact]
