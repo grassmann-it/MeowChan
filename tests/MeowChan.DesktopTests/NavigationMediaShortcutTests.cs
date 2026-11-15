@@ -108,9 +108,9 @@ public sealed class NavigationMediaShortcutTests : IDisposable
     }
 
     [Theory]
-    [InlineData("en", "Media", "Ctrl", "Shift")]
-    [InlineData("de", "Medien", "Strg", "Umschalt")]
-    public void TheFooterButtonTooltipNamesTheShortcutAndFollowsRebinding(string language, string label, string ctrl, string shift)
+    [InlineData("en", "Media")]
+    [InlineData("de", "Medien")]
+    public void TheFooterButtonTooltipNamesTheShortcutAndFollowsRebinding(string language, string label)
     {
         // ToolTip.SetTip verifies the process-primary UIThread, which may belong to another xunit worker ("Localization" is non-parallel).
         OwnedUiDispatcher.Run(() =>
@@ -120,16 +120,22 @@ public sealed class NavigationMediaShortcutTests : IDisposable
             Button footer = new();
             CommandBindings.Apply(footer, "navigation.media");
             string initial = Assert.IsType<string>(ToolTip.GetTip(footer));
-            Assert.StartsWith(label + " · " + ctrl + "+3", initial);
+            string initialShortcut = CommandCatalog.ShortcutDisplay("navigation.media") ?? throw new InvalidOperationException("Media should have a default shortcut.");
+            Assert.StartsWith(label + " · " + initialShortcut, initial);
             Assert.Equal(CommandBindings.Tooltip("navigation.media"), initial);
 
             Rebind(new ShortcutBindingsSection().Set("navigation.media", [ShortcutGesture.Parse("Primary+Shift+M")]));
             string moved = Assert.IsType<string>(ToolTip.GetTip(footer));
-            Assert.StartsWith(label + " · " + ctrl + "+" + shift + "+M", moved);
-            Assert.DoesNotContain(ctrl + "+3", moved);
+            string movedShortcut = CommandCatalog.ShortcutDisplay("navigation.media") ?? throw new InvalidOperationException("Media should retain the rebound shortcut.");
+            Assert.StartsWith(label + " · " + movedShortcut, moved);
+            Assert.NotEqual(initialShortcut, movedShortcut);
+            Assert.DoesNotContain(initialShortcut, moved);
 
             Rebind(new ShortcutBindingsSection().Set("navigation.media", []));
-            Assert.DoesNotContain(ctrl, Assert.IsType<string>(ToolTip.GetTip(footer)));
+            string unbound = Assert.IsType<string>(ToolTip.GetTip(footer));
+            Assert.StartsWith(label, unbound);
+            Assert.DoesNotContain(initialShortcut, unbound);
+            Assert.DoesNotContain(movedShortcut, unbound);
         });
     }
 
@@ -143,7 +149,7 @@ public sealed class NavigationMediaShortcutTests : IDisposable
             {
                 Button footer = new();
                 CommandBindings.Apply(footer, page);
-                Assert.Contains(CommandCatalog.ShortcutDisplay(page, false)!, Assert.IsType<string>(ToolTip.GetTip(footer)));
+                Assert.Contains(CommandCatalog.ShortcutDisplay(page)!, Assert.IsType<string>(ToolTip.GetTip(footer)));
             }
         });
     }

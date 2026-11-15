@@ -1,8 +1,10 @@
+using System.Reflection;
 using Avalonia.Input;
 using MeowChan.Desktop.Commands;
 
 namespace MeowChan.DesktopTests;
 
+[Collection("Localization")]
 public sealed class PowerUserCommandTests
 {
     [Theory]
@@ -68,26 +70,36 @@ public sealed class PowerUserCommandTests
     [Fact]
     public void ContextGesturesKeepDistinctActionsAndScopes()
     {
-        Assert.Equal("Shift+P", CommandCatalog.Get("gallery.context-toggle").Shortcut);
-        // Shift+P is the context toggle since the gallery key scheme (revision 13, it was P; V-06); the jump into the thread has its own key since MEDIA103-NAV (user decision 11.11.2026).
-        Assert.Equal("T", CommandCatalog.Get("gallery.show-in-thread").Shortcut);
-        Assert.True(CommandBindings.Matches(new KeyEventArgs { Key = Key.T }, "gallery.show-in-thread"));
-        Assert.False(CommandBindings.Matches(new KeyEventArgs { Key = Key.P }, "gallery.show-in-thread"));
-        Assert.Equal(CommandScope.Reader, CommandCatalog.Get("media.return").Scope);
-        Assert.Equal("Alt+Left", CommandCatalog.ShortcutDisplay("media.return", false));
-        Assert.True(CommandBindings.Matches(new KeyEventArgs { Key = Key.Left, KeyModifiers = KeyModifiers.Alt }, "media.return"));
-        Assert.False(CommandBindings.Matches(new KeyEventArgs { Key = Key.Left }, "media.return"));
-        // One Back gesture for three commands that never apply together (their execution contexts differ).
-        Assert.Equal(CommandCatalog.Get("media.return").Shortcut, CommandCatalog.Get("reader.history-back").Shortcut);
-        Assert.Equal(CommandCatalog.Get("media.return").Shortcut, CommandCatalog.Get("gallery.return").Shortcut);
-        Assert.Equal(CommandScope.Downloads, CommandCatalog.Get("input.focus-download-search").Scope);
-        Assert.Equal(CommandScope.Archive, CommandCatalog.Get("archive.previous-page").Scope);
-        Assert.Equal(CommandScope.Archive, CommandCatalog.Get("archive.next-page").Scope);
-        Assert.Equal("⌥⇞", CommandCatalog.ShortcutDisplay("archive.previous-page", true));
-        Assert.Equal("Alt+PageDown", CommandCatalog.ShortcutDisplay("archive.next-page", false));
-        Assert.False(CommandBindings.Matches(new KeyEventArgs { Key = Key.PageDown }, "archive.next-page"));
-        Assert.Null(CommandCatalog.Get("export.open-all-results-html-dialog").Shortcut);
-        Assert.NotNull(CommandCatalog.ScopeHint("export.open-html-dialog", CommandScope.Reader));
-        Assert.Null(CommandCatalog.ScopeHint("export.open-html-dialog", CommandScope.Archive));
+        // This contract uses the Linux defaults below. Do not let the process-wide service snapshot select macOS defaults on a Mac runner.
+        EffectiveShortcutBindings original = ShortcutService.Current;
+        SetBindings(EffectiveShortcutBindings.Build(platform: ShortcutPlatform.Linux));
+        try
+        {
+            Assert.Equal("Shift+P", CommandCatalog.Get("gallery.context-toggle").Shortcut);
+            // Shift+P is the context toggle since the gallery key scheme (revision 13, it was P; V-06); the jump into the thread has its own key since MEDIA103-NAV (user decision 11.11.2026).
+            Assert.Equal("T", CommandCatalog.Get("gallery.show-in-thread").Shortcut);
+            Assert.True(CommandBindings.Matches(new KeyEventArgs { Key = Key.T }, "gallery.show-in-thread"));
+            Assert.False(CommandBindings.Matches(new KeyEventArgs { Key = Key.P }, "gallery.show-in-thread"));
+            Assert.Equal(CommandScope.Reader, CommandCatalog.Get("media.return").Scope);
+            Assert.Equal("Alt+Left", CommandCatalog.ShortcutDisplay("media.return", false));
+            Assert.True(CommandBindings.Matches(new KeyEventArgs { Key = Key.Left, KeyModifiers = KeyModifiers.Alt }, "media.return"));
+            Assert.False(CommandBindings.Matches(new KeyEventArgs { Key = Key.Left }, "media.return"));
+            // One Back gesture for three commands that never apply together (their execution contexts differ).
+            Assert.Equal(CommandCatalog.Get("media.return").Shortcut, CommandCatalog.Get("reader.history-back").Shortcut);
+            Assert.Equal(CommandCatalog.Get("media.return").Shortcut, CommandCatalog.Get("gallery.return").Shortcut);
+            Assert.Equal(CommandScope.Downloads, CommandCatalog.Get("input.focus-download-search").Scope);
+            Assert.Equal(CommandScope.Archive, CommandCatalog.Get("archive.previous-page").Scope);
+            Assert.Equal(CommandScope.Archive, CommandCatalog.Get("archive.next-page").Scope);
+            Assert.Equal("⌥⇞", CommandCatalog.ShortcutDisplay("archive.previous-page", true));
+            Assert.Equal("Alt+PageDown", CommandCatalog.ShortcutDisplay("archive.next-page", false));
+            Assert.False(CommandBindings.Matches(new KeyEventArgs { Key = Key.PageDown }, "archive.next-page"));
+            Assert.Null(CommandCatalog.Get("export.open-all-results-html-dialog").Shortcut);
+            Assert.NotNull(CommandCatalog.ScopeHint("export.open-html-dialog", CommandScope.Reader));
+            Assert.Null(CommandCatalog.ScopeHint("export.open-html-dialog", CommandScope.Archive));
+        }
+        finally { SetBindings(original); }
     }
+
+    private static void SetBindings(EffectiveShortcutBindings value) =>
+        typeof(ShortcutService).GetField("_current", BindingFlags.Static | BindingFlags.NonPublic)!.SetValue(null, value);
 }
