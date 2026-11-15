@@ -92,7 +92,7 @@ public partial class SourcesPage
     private void BuildWatchContextMenu(ListBox grid)
     {
         ContextMenu menu = grid.ContextMenu!;
-        if (grid.SelectedItem is not SourceWatchRow frozen || _ended) { menu.Items.Clear(); menu.Close(); return; }
+        if (grid.SelectedItem is not SourceWatchRow frozen || _ended) { ContextMenuBuilder.Clear(menu); menu.Close(); return; }
         bool Ready() => !_ended && _available && !IsBusy && _openWatch != null;
         string reason = UnavailableReason();
         ContextMenuBuilder builder = new ContextMenuBuilder().Named(Texts.T("sources.watches"));

@@ -99,7 +99,8 @@ public sealed class SmokeDeterminismTests
             "selection.copy-links", "location.open-folder", "location.open-source", "watch.check", "watch.retry-media",
             "rules.edit-scope", "watch.remove", "archive.delete-permanently"
         }, batch);
-        Assert.Matches("if \\(ids.Length == 1\\)\\s*\\{\\s*Add\\(\"export.open-urltext-dialog\"", source);
+        // Since the ContextMenuBuilder refactor the guarded statement has no braces; either form keeps the single-thread-only rule.
+        Assert.Matches("if \\(ids.Length == 1\\)\\s*(\\{\\s*)?Add\\(\"export.open-urltext-dialog\"", source);
         // Own thread tags are single-thread only as well: nested, so the batch order above stays exact.
         Assert.Matches("if \\(ids.Length == 1\\)\\s*Add\\(\"thread.tags\"", source);
         // Do not remove the feature to make the batch-order regression pass.

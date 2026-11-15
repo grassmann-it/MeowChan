@@ -158,8 +158,6 @@ public partial class ArchivePage
     private void UpdateArchiveSelectionActions()
     {
         RefreshArchiveSelectionContext();
-        if (this.FindControl<MenuItem>("ArchiveTableRemoveMenu") is MenuItem remove)
-            remove.IsEnabled = _available && !_busy && FrozenArchiveSelection().Any(id => CanRemoveWatch?.Invoke(id) == true);
     }
 
     private void OnArchiveListPointerPressed(object? sender, PointerPressedEventArgs e)

@@ -107,4 +107,44 @@ public sealed class ContextMenuBuilderTests : IDisposable
         Assert.Equal((1, 1, 10), (chosen, switched, ran));
         Assert.Equal("Test menu", Avalonia.Automation.AutomationProperties.GetName(menu));
     }
+    [Fact]
+    public void ContextMenusThatAreFilledByTheBuilderCarryNoStaticXamlItems()
+    {
+        // One mechanism per menu: a popup whose Opening handler builds it with ContextMenuBuilder.Populate is an empty <ContextMenu/> in XAML
+        // (static children plus the ItemsSource threw "Items collection must be empty before using ItemsSource").
+        List<string> offenders = [];
+        foreach (string file in Directory.EnumerateFiles(Path.Combine(RepositoryRoot(), "Desktop"), "*.axaml", SearchOption.AllDirectories))
+        {
+            System.Xml.Linq.XDocument document = System.Xml.Linq.XDocument.Load(file, System.Xml.Linq.LoadOptions.SetLineInfo);
+            foreach (System.Xml.Linq.XElement menu in document.Descendants().Where(element => element.Name.LocalName == "ContextMenu"))
+                if (menu.Elements().Any(child => child.Name.LocalName is "MenuItem" or "Separator"))
+                    offenders.Add(Path.GetRelativePath(RepositoryRoot(), file) + ": ContextMenu at line " + ((System.Xml.IXmlLineInfo)menu).LineNumber);
+        }
+        Assert.Empty(offenders);
+    }
+
+    [Fact]
+    public void NoSourceChangesTheItemsOfAMenuTheBuilderHasFilled()
+    {
+        // Source contract: Build/Populate give the popup an ItemsSource, which makes Items read-only ("Operation is not valid while ItemsSource is in
+        // use") and refuses an ItemsSource over static items. Rows go in through ContextMenuBuilder.Append, a popup is emptied with
+        // ContextMenuBuilder.Clear, and the builder itself never uses another mechanism.
+        System.Text.RegularExpressions.Regex mutation = new(@"\b(menu|ContextMenu!?|_moreMenu)\.Items\.(Add|Insert|Remove|RemoveAt|Clear)\(");
+        List<string> offenders = [];
+        foreach (string file in Directory.EnumerateFiles(Path.Combine(RepositoryRoot(), "Desktop"), "*.cs", SearchOption.AllDirectories))
+        {
+            string text = File.ReadAllText(file);
+            if (!text.Contains("ContextMenuBuilder", StringComparison.Ordinal) || file.EndsWith("ContextMenuBuilder.cs", StringComparison.Ordinal)) continue;
+            string[] lines = text.Split('\n');
+            for (int index = 0; index < lines.Length; index++)
+                if (!lines[index].TrimStart().StartsWith("//", StringComparison.Ordinal) && mutation.IsMatch(lines[index]))
+                    offenders.Add(Path.GetRelativePath(RepositoryRoot(), file) + ":" + (index + 1) + " " + lines[index].Trim());
+        }
+        Assert.Empty(offenders);
+        string builder = File.ReadAllText(Path.Combine(RepositoryRoot(), "Desktop/Controls/ContextMenuBuilder.cs"));
+        Assert.DoesNotMatch(@"(?m)^\s*(?!//)[^/\n]*\.Items\.(Add|Insert)\(", builder);
+    }
+
+    private static string RepositoryRoot([System.Runtime.CompilerServices.CallerFilePath] string file = "") =>
+        Path.GetFullPath(Path.Combine(Path.GetDirectoryName(file)!, "../.."));
 }

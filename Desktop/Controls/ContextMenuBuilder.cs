@@ -21,6 +21,7 @@ internal sealed class ContextMenuBuilder
 {
     private readonly List<List<ContextMenuEntry>> _sections = [[]];
     private readonly HashSet<string> _ids = new(StringComparer.Ordinal);
+    private readonly List<Control> _appended = [];
     private string? _name;
 
     /// <summary>The accessible name of the menu (what a screen reader announces when it opens).</summary>
@@ -103,27 +104,60 @@ internal sealed class ContextMenuBuilder
     internal ContextMenuModel ToModel() =>
         new(_sections.Where(section => section.Count > 0).Select(section => (IReadOnlyList<ContextMenuEntry>)section.ToArray()).ToArray());
 
+    /// <summary>
+    /// Rich rows that are not entries (an explanation, a count, a submenu with its own items) after the sections. The menu is one
+    /// <c>ItemsSource</c>, which makes <see cref="ContextMenu.Items"/> read-only: such rows are appended here, before <see cref="Build()"/> or
+    /// <see cref="Populate"/>, never with <c>menu.Items.Add</c> afterwards.
+    /// </summary>
+    internal ContextMenuBuilder Append(params Control[] rows)
+    {
+        ArgumentNullException.ThrowIfNull(rows);
+        _appended.AddRange(rows);
+        return this;
+    }
+
     /// <summary>The Avalonia menu; null when nothing was added.</summary>
     internal ContextMenu? Build()
     {
-        ContextMenu? menu = Build(ToModel());
-        if (menu != null && !string.IsNullOrEmpty(_name)) AutomationProperties.SetName(menu, _name);
+        IReadOnlyList<Control> items = ComposeItems();
+        if (items.Count == 0) return null;
+        ContextMenu menu = new() { ItemsSource = items };
+        if (!string.IsNullOrEmpty(_name)) AutomationProperties.SetName(menu, _name);
         return menu;
     }
 
-    /// <summary>Replaces the items of an existing popup while retaining its opening/closing handlers.</summary>
+    /// <summary>
+    /// Replaces the items of an existing popup while retaining its opening/closing handlers. It first empties the popup the right way
+    /// (<see cref="Clear"/>): an <c>ItemsSource</c> is refused while the popup still holds items of its own (static XAML children),
+    /// and <c>Items.Clear()</c> is refused while an <c>ItemsSource</c> is set.
+    /// </summary>
     internal bool Populate(ContextMenu menu)
     {
         ArgumentNullException.ThrowIfNull(menu);
-        ContextMenu? built = Build();
-        if (built == null)
-        {
-            menu.Items.Clear();
-            return false;
-        }
-        menu.ItemsSource = built.ItemsSource;
+        IReadOnlyList<Control> items = ComposeItems();
+        Clear(menu);
+        if (items.Count == 0) return false;
+        menu.ItemsSource = items;
         if (!string.IsNullOrEmpty(_name)) AutomationProperties.SetName(menu, _name);
         return menu.ItemCount > 0;
+    }
+
+    /// <summary>
+    /// Empties a popup that <see cref="Populate"/> fills: drops the <c>ItemsSource</c> it set and any item the popup holds itself.
+    /// Use this, not <c>menu.Items.Clear()</c>, which throws while an <c>ItemsSource</c> is in use.
+    /// </summary>
+    internal static void Clear(ContextMenu menu)
+    {
+        ArgumentNullException.ThrowIfNull(menu);
+        if (menu.ItemsSource != null) menu.ItemsSource = null;
+        if (menu.ItemCount > 0) menu.Items.Clear();
+    }
+
+    private IReadOnlyList<Control> ComposeItems()
+    {
+        List<Control> items = [.. BuildItems(ToModel())];
+        items.AddRange(_appended);
+        return items;
     }
 
     /// <summary>Creates the persistent empty popup used by controls whose entries are frozen at opening time.</summary>

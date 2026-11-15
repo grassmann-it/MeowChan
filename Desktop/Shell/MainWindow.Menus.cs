@@ -44,7 +44,7 @@ public partial class MainWindow
     private void BuildDownloadMenu(DataGrid grid, ContextMenu menu)
     {
         DownloadMenuTarget? frozen = CaptureDownloadMenu(ReferenceEquals(grid, DownloadList(true)));
-        if (frozen == null) { menu.Items.Clear(); menu.Close(); return; }
+        if (frozen == null) { ContextMenuBuilder.Clear(menu); menu.Close(); return; }
         bool ready = _restoreCompleted && !RowCommandBusy && !_selectionCommandRunning;
         string Unavailable(string id) => Texts.T(!ready
             ? RowCommandBusy || _selectionCommandRunning ? "menu.unavailable.busy"

@@ -303,6 +303,11 @@ public partial class PluginsPage
             if (view.Filters.Count > 0) Add("plugins.show-grants");
             Add("plugins.show-developer-tools");
         }
+        if (sources.Count > 0 && PluginActionUnavailableReason(CapturePluginActionInvocation("plugins.watches", target)) is { } watchesWhy)
+            reasons.Add(CommandCatalog.Label("plugins.watches") + ": " + watchesWhy);
+        // Information and reasons are appended through the builder: Build makes the menu one ItemsSource, so menu.Items.Add afterwards would throw.
+        if (_drafts.Values.Any(draft => draft.Dirty)) builder.Append(PluginMenuInformation(Texts.T("plugins.actionsDirtyHint")));
+        builder.Append(PluginMenuReasons(reasons));
         ContextMenu menu = builder.Build()!;
         if (sources.Count > 1 && menu.Items.OfType<MenuItem>().FirstOrDefault(item => Equals(item.Tag, "plugins.watches")) is { } watches)
         {
@@ -313,10 +318,6 @@ public partial class PluginsPage
                 watches.Items.Add(CreatePluginSourceMenuItem(action, origin, source.Name + " · " + source.SourceId));
             }
         }
-        if (sources.Count > 0 && PluginActionUnavailableReason(CapturePluginActionInvocation("plugins.watches", target)) is { } watchesWhy)
-            reasons.Add(CommandCatalog.Label("plugins.watches") + ": " + watchesWhy);
-        if (_drafts.Values.Any(draft => draft.Dirty)) AddPluginMenuInformation(menu, Texts.T("plugins.actionsDirtyHint"));
-        AddPluginMenuReasons(menu, reasons);
         OpenPreparedPluginMenu(menu, target, origin, anchor);
 
         void Add(string id)
@@ -369,24 +370,6 @@ public partial class PluginsPage
         return item;
     }
 
-    private void AddWatches(ContextMenu menu, PluginActionTarget target, Control origin, List<string> reasons)
-    {
-        var action = CapturePluginActionInvocation("plugins.watches", target);
-        MenuItem item = CreatePluginActionMenuItem(action, origin);
-        var sources = PluginEntryPresentation.Create(PluginActionEntry(target)!).Sources;
-        if (sources.Count > 1)
-        {
-            item.Command = null;
-            foreach (var source in sources)
-            {
-                MenuItem choice = CreatePluginSourceMenuItem(action with { SourceId = source.SourceId }, origin, source.Name + " · " + source.SourceId);
-                item.Items.Add(choice);
-            }
-        }
-        menu.Items.Add(item);
-        if (PluginActionUnavailableReason(action) is { } why) reasons.Add(CommandCatalog.Label(action.CommandId) + ": " + why);
-    }
-
     private void OpenPluginSourcesMenu(PluginActionTarget target, Control origin)
     {
         ClosePluginActionMenu();
@@ -406,16 +389,16 @@ public partial class PluginsPage
         OpenPreparedPluginMenu(menu, target, origin);
     }
 
-    private static void AddPluginMenuInformation(ContextMenu menu, string text)
+    private static Control PluginMenuInformation(string text)
     {
         var item = new MenuItem { Header = new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap, MaxWidth = 320 } };
         AutomationProperties.SetName(item, text); AutomationProperties.SetHelpText(item, text);
-        menu.Items.Add(item);
+        return item;
     }
 
-    private static void AddPluginMenuReasons(ContextMenu menu, IReadOnlyList<string> reasons)
+    private static Control[] PluginMenuReasons(IReadOnlyList<string> reasons)
     {
-        if (reasons.Count == 0) return;
+        if (reasons.Count == 0) return [];
         var info = new MenuItem { Header = Texts.T("plugins.unavailableActions"), Icon = CommandBindings.Icon("thread.details") };
         AutomationProperties.SetName(info, Texts.T("plugins.unavailableActions"));
         AutomationProperties.SetHelpText(info, string.Join(Environment.NewLine, reasons));
@@ -424,7 +407,7 @@ public partial class PluginsPage
             var explanation = new MenuItem { Header = new TextBlock { Text = reason, TextWrapping = TextWrapping.Wrap, MaxWidth = 320 } };
             AutomationProperties.SetName(explanation, reason); info.Items.Add(explanation);
         }
-        menu.Items.Add(new Separator()); menu.Items.Add(info);
+        return [new Separator(), info];
     }
 
     private void OpenPreparedPluginMenu(ContextMenu menu, PluginActionTarget target, Control origin, Point? anchor = null)

@@ -112,7 +112,7 @@ public partial class ArchivePage
         }
         ArchiveThreadRow[] targets = ArchiveVisibleRows.Where(row => _archiveSelectionIds.Contains(row.Summary.Id)).ToArray();
         ArchiveThreadRow? lead = ArchiveLead;
-        if (targets.Length == 0 || lead == null) { menu.Items.Clear(); return; }
+        if (targets.Length == 0 || lead == null) { ContextMenuBuilder.Clear(menu); return; }
         Control origin = ArchiveSelectionList;
         ResourceId[] ids = targets.Select(row => row.Summary.Id).ToArray();
         string[] urls = targets.Select(row => row.Summary.Url).ToArray();
@@ -178,21 +178,14 @@ public partial class ArchivePage
             if (DeletePermanentlyRequested != null) await DeletePermanentlyRequested(ids, origin);
         }, () => DeletePermanentlyRequested != null, count: () => ids.Length);
 
-        builder.Populate(menu);
-        // The place of the thread is the continue entry's tooltip and help text (the builder gives enabled entries none).
-        if (continueTip != null && menu.ItemsSource?.OfType<MenuItem>().FirstOrDefault(item => Equals(item.Tag, "navigation.continue-reading")) is { } continueItem)
-        {
-            ToolTip.SetTip(continueItem, continueTip);
-            AutomationProperties.SetHelpText(continueItem, continueTip);
-        }
         if (ids.Length > 1)
         {
             string count = Texts.Count("archive.command.selectionCount", ids.Length);
-            menu.Items.Add(new Separator());
             MenuItem info = new() { Header = new TextBlock { Text = count, TextWrapping = TextWrapping.Wrap, MaxWidth = 280 }, Icon = CommandBindings.Icon("thread.details") };
             info.Click += (_, _) => Message(count);
             AutomationProperties.SetName(info, count);
-            menu.Items.Add(info);
+            // Appended through the builder: Populate makes the menu one ItemsSource, so Items.Add afterwards would throw.
+            builder.Append(new Separator(), info);
         }
         string explanation = string.Empty;
         MenuItem unavailable = new() { Header = Texts.T("archive.command.unavailable"), Icon = CommandBindings.Icon("thread.details") };
@@ -205,8 +198,15 @@ public partial class ArchivePage
             AutomationProperties.SetHelpText(unavailable, explanation);
         }
         unavailable.Click += (_, _) => Message(explanation);
-        menu.Items.Add(unavailable);
+        builder.Append(unavailable);
         UpdateExplanation();
+        builder.Populate(menu);
+        // The place of the thread is the continue entry's tooltip and help text (the builder gives enabled entries none).
+        if (continueTip != null && menu.Items.OfType<MenuItem>().FirstOrDefault(item => Equals(item.Tag, "navigation.continue-reading")) is { } continueItem)
+        {
+            ToolTip.SetTip(continueItem, continueTip);
+            AutomationProperties.SetHelpText(continueItem, continueTip);
+        }
         DispatcherTimer refresh = new() { Interval = TimeSpan.FromMilliseconds(250) };
         refresh.Tick += (_, _) =>
         {

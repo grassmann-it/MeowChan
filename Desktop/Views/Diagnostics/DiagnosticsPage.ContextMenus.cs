@@ -77,7 +77,7 @@ public partial class DiagnosticsPage
     {
         ContextMenu menu = grid.ContextMenu!;
         DiagnosticEntry? frozen = lead ?? grid.SelectedItem as DiagnosticEntry;
-        if (frozen == null || _ended) { menu.Items.Clear(); menu.Close(); return; }
+        if (frozen == null || _ended) { ContextMenuBuilder.Clear(menu); menu.Close(); return; }
         string unavailable = Texts.T("menu.unavailable.target");
         ContextMenuBuilder builder = new ContextMenuBuilder().Named(Texts.T("nav.diagnostics"));
         void Add(string id, Action execute, bool available)

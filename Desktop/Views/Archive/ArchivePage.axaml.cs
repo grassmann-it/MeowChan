@@ -1151,9 +1151,6 @@ public partial class ArchivePage : UserControl
         finally { _localizingMediaChoices = false; }
         LocalizeMediaRatings();
         LocalizeMediaSelection();
-        if (this.FindControl<MenuItem>("ArchiveTableGalleryMenu") is MenuItem gallery) gallery.Header = Texts.T("gallery.open");
-        if (this.FindControl<MenuItem>("ArchiveTableReadMenu") is MenuItem read) read.Header = Texts.T("gallery.read");
-        if (this.FindControl<MenuItem>("ArchiveTableExportMenu") is MenuItem export) export.Header = Texts.T("gallery.export");
         DataGrid media = ArchiveMediaGrid;
         media.Columns[0].Header = Texts.T("archive.name"); media.Columns[1].Header = Texts.T("archive.size"); media.Columns[2].Header = Texts.T("archive.version");
         UpdateActions();
