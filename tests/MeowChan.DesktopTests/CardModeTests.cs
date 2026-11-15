@@ -314,11 +314,11 @@ public sealed class CardModeTests : IDisposable
             Assert.True(undo.QueueIsNewest);
 
             // Newest first: medium 2 done, its rating, medium 1 done, its favorite.
-            Assert.Equal("Undone: “file-2.png” is open again.", await undo.UndoAsync());
+            Assert.Equal("Taken back: “file-2.png” is open again.", await undo.UndoAsync());
             Assert.Equal(1, returned[^1].Index);
             Assert.False(undo.QueueIsNewest);
             Assert.Equal("Undone: rating change.", await undo.UndoAsync());
-            Assert.Equal("Undone: “file-1.png” is open again.", await undo.UndoAsync());
+            Assert.Equal("Taken back: “file-1.png” is open again.", await undo.UndoAsync());
             Assert.Equal(0, returned[^1].Index);
             Assert.Equal(TagQueueState.Open, walk.StateOf(0));
             Assert.Equal("Undone: favorite change.", await undo.UndoAsync());
@@ -340,7 +340,7 @@ public sealed class CardModeTests : IDisposable
             Assert.Equal(2, walk.Steps);
             TaggingUndoResult? back = await walk.UndoAsync();   // the Back card
             Assert.Equal((1, TagQueueState.Open), (back!.Index, back.State));
-            Assert.Equal("Undone: “file-2.png” is open again.", TaggingModeText.Undone(back));
+            Assert.Equal("Taken back: “file-2.png” is open again.", TaggingModeText.Undone(back));
             Assert.Equal(1, walk.Steps);
         }
     }

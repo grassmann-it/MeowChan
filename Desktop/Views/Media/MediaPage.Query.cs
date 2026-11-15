@@ -110,6 +110,11 @@ public sealed partial class MediaPage
     private MediaFilterQueryProblem? AdmitQueryTerm(IReadOnlyList<MediaFilterTerm> terms, MediaFilterTerm term)
     {
         IReadOnlyList<MediaFilterTerm> next = MediaFilterTermSet.With(terms, term);
+        // Queue/source-tag terms are applied by MediaPage after the core filter. Their local-read
+        // availability is deliberately handled by Present, not by query admission; they do not make
+        // an otherwise empty own-tag filter invalid.
+        if (SourceTagRefusal(term, terms) != null) return MediaFilterQueryProblem.TooManyTags; // MP4: the same tags-per-list limit
+        if (MediaFilterTerms.IsPageTerm(term)) return null;
         // SP5: the configured tags-per-list limit is checked only for the list the term grows; the ceiling guards the filter itself.
         if (term.Field == MediaFilterField.Tag && TagTermCount(next, term.Exclude) > Math.Max(TagTermCount(terms, term.Exclude), ArchiveTagFilterTagsPerListPreference))
             return MediaFilterQueryProblem.TooManyTags;
@@ -120,10 +125,6 @@ public sealed partial class MediaPage
                 ArchiveTagMatch.All, ArchiveTagFilter.MaximumConfigurableTagsPerList);
         }
         catch (ArgumentException) { return MediaFilterQueryProblem.TooManyTags; }
-        if (SourceTagRefusal(term, terms) != null) return MediaFilterQueryProblem.TooManyTags; // MP4: the same tags-per-list limit
-        // Queue/source-tag terms are applied by MediaPage after the core filter. Their local-read
-        // availability is deliberately handled by Present, not by query admission.
-        if (MediaFilterTerms.IsPageTerm(term)) return null;
         return IsValidFilter(next) ? null : MediaFilterQueryProblem.Refused;
     }
 

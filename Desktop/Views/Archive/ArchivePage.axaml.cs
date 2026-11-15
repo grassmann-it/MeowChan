@@ -775,7 +775,7 @@ public partial class ArchivePage : UserControl
                 return match == null ? null : new GalleryEntry(new GalleryAssetKey(resource, match.Manifest.Directory, match.Asset.AssetId),
                     match.Manifest, match.Asset, null, null, !match.Asset.IsCurrent, true);
             },
-            OpenPreview = async () =>
+            OpenPreview = () => OpenActions.Start(async () =>
             {
                 if (_ended || _lifetime.IsCancellationRequested || IsReaderDialogOpen || _busy || !_available || !ready.IsCompletedSuccessfully) return;
                 ArchiveAssetRow? match = FindMatchingAsset(resource, postId, attachment, ready.Result);
@@ -784,7 +784,7 @@ public partial class ArchivePage : UserControl
                         new GalleryAssetKey(resource, match.Manifest.Directory, match.Asset.AssetId),
                         postId, attachment.Position), this);
                 else Message(Texts.T("archive.notSaved"));
-            }
+            }, "archive.attachment.preview")
         };
         return row;
     }
@@ -797,10 +797,7 @@ public partial class ArchivePage : UserControl
         {
             Compact = true,
             LoadThumbnail = token => LoadListThumbnailAsync(summary, postId, attachment, binding => row.Binding = binding, token),
-            OpenPreview = async () =>
-            {
-                await OpenThreadGalleryAsync(summary.Id, null, this);
-            }
+            OpenPreview = () => OpenActions.Start(() => OpenThreadGalleryAsync(summary.Id, null, this), "archive.attachment.preview")
         };
         return row;
     }
