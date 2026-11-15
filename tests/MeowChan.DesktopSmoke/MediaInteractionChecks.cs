@@ -519,7 +519,19 @@ internal static class MediaInteractionChecks
             foreach (string panel in new[] { "GalleryToggleContext", "GalleryHelp" })
             {
                 if (expected == "Playing") await SeekClickAsync(.05);
-                await native.ClickAsync(Named<Button>(panel));
+                if (panel == "GalleryHelp")
+                {
+                    // GalleryHelp is an overflow row, not a hidden toolbar button. Open More through
+                    // the OS first, then require the row to be a real hit target before clicking it.
+                    await native.ClickAsync(viewer!.OverflowButton);
+                    Button help = Named<Button>(panel);
+                    await Program.WaitUntilAsync(
+                        () => viewer.IsOverflowOpen && MediaInteractionSmokeHelpers.IsPointerTargetReady(help),
+                        () => "GalleryHelp did not become a visible native overflow target.");
+                    await native.ClickAsync(help);
+                }
+                else
+                    await native.ClickAsync(Named<Button>(panel));
                 // The Help tool opens the one modeless shortcuts window (KS3); the context panel stays in the gallery.
                 if (panel == "GalleryHelp") await Program.WaitUntilAsync(() => MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.For(window) is { IsVisible: true });
                 Require(panel == "GalleryHelp" ? MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.For(window) is { IsVisible: true } : viewer!.CaptureState().ContextOpen,
