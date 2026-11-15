@@ -58,9 +58,26 @@ public sealed class GalleryPlaybackPreferenceTests
         Assert.Equal("Manual", config.GalleryPlaybackMode);
         Assert.Equal(expected, config.GallerySlideshowSeconds);
         Assert.False(config.GalleryMediaFocus);
-        Assert.False(config.GalleryOverlayControls);
-        Assert.False(config.GalleryAutoHideControls);
+        Assert.True(config.GalleryOverlayControls); // damaged reads as the default, which is on
+        Assert.True(config.GalleryAutoHideControls);
         Assert.False(config.GalleryOverlayPostContext);
+    }
+
+    [Fact]
+    public void ControlsOverlayIsOnByDefaultAndAnExplicitlySavedChoiceIsKept()
+    {
+        Assert.True(new Config().GalleryOverlayControls);
+        Assert.True(new Config().GalleryAutoHideControls);
+        Assert.True(new GalleryPlaybackPreferences().OverlayControls);
+        using Profile profile = new();
+        Assert.True(GalleryPlaybackPreferences.FromConfig(Config.LoadConfig(profile.Path)).OverlayControls); // no profile: the default
+        File.WriteAllText(Path.Combine(profile.Path, "settings.json"), "{\"VideoVolume\":29}");
+        Assert.True(Config.LoadConfig(profile.Path).GalleryOverlayControls); // a profile without the key: the default
+        File.WriteAllText(Path.Combine(profile.Path, "settings.json"), "{\"GalleryOverlayControls\":false,\"GalleryAutoHideControls\":false}");
+        Config saved = Config.LoadConfig(profile.Path);
+        Assert.False(saved.GalleryOverlayControls); // a saved off stays off
+        Assert.False(saved.GalleryAutoHideControls);
+        Assert.False(GalleryPlaybackPreferences.FromConfig(saved).OverlayControls);
     }
 
     [Fact]
@@ -198,14 +215,14 @@ public sealed class GalleryPlaybackPreferenceTests
     [InlineData("true", "false", true)]
     [InlineData("false", "false", false)]
     [InlineData("true", "true", true)]
-    [InlineData(null, "true", false)]
+    [InlineData(null, "true", true)]
     [InlineData("true", null, true)]
-    [InlineData(null, null, false)]
-    [InlineData("null", "true", false)]
-    [InlineData("{}", "true", false)]
-    [InlineData("[]", "true", false)]
-    [InlineData("\"true\"", "true", false)]
-    [InlineData("42", "true", false)]
+    [InlineData(null, null, true)]
+    [InlineData("null", "true", true)]
+    [InlineData("{}", "true", true)]
+    [InlineData("[]", "true", true)]
+    [InlineData("\"true\"", "true", true)]
+    [InlineData("42", "true", true)]
     [InlineData("true", "null", true)]
     [InlineData("true", "[]", true)]
     [InlineData("true", "{}", true)]

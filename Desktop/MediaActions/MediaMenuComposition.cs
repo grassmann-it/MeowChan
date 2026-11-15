@@ -120,6 +120,14 @@ internal sealed record MediaMenuItemModel(MediaMenuAction Action, string? Comman
 {
     /// <summary>The identity used as the menu item's tag and by the keyboard router.</summary>
     internal string Id => CommandId ?? TextKey ?? Action.ToString();
+    /// <summary>The icon of an entry without a catalog command (a command brings its own): the provider post entries take the icons of
+    /// "Open post on source" and "Copy post link", so the menu's icon column has no gap.</summary>
+    internal string? Icon => CommandId != null ? null : Action switch
+    {
+        MediaMenuAction.OpenProviderPost => CommandCatalog.Get("post.open-source").Icon,
+        MediaMenuAction.CopyProviderPost => CommandCatalog.Get("post.copy-link").Icon,
+        _ => null
+    };
     /// <summary>Open and show-in-thread group the first section, the file actions the second, the post actions the third.</summary>
     internal int Group => Action switch
     {

@@ -52,13 +52,16 @@ internal sealed class ContextMenuBuilder
         return Add(new(ContextMenuEntryKind.Command, entryId ?? commandId, label ?? CommandCatalog.Label(commandId), commandId, null, false, available, reason, invoke, showShortcut, availableWhen, reasonWhen, labelWhen));
     }
 
-    /// <summary>An action that is not a catalog command.</summary>
+    /// <summary>
+    /// An action that is not a catalog command. <paramref name="icon"/> is a catalog mask (e.g. <c>eye-off</c>) for an entry whose siblings
+    /// are commands with icons; the same action shows the same icon as its command elsewhere.
+    /// </summary>
     internal ContextMenuBuilder Item(string id, string label, Action invoke, bool available = true, string? reason = null,
-        Func<bool>? availableWhen = null, Func<string?>? reasonWhen = null, Func<string>? labelWhen = null)
+        Func<bool>? availableWhen = null, Func<string?>? reasonWhen = null, Func<string>? labelWhen = null, string? icon = null)
     {
         ArgumentNullException.ThrowIfNull(invoke);
         return Add(new(ContextMenuEntryKind.Command, id, label, null, null, false, available, reason, invoke, true,
-            availableWhen, reasonWhen, labelWhen));
+            availableWhen, reasonWhen, labelWhen, Icon: icon));
     }
 
     /// <summary>
@@ -82,11 +85,12 @@ internal sealed class ContextMenuBuilder
     }
 
     /// <summary>A submenu whose children are composed with the same section and availability rules.</summary>
-    internal ContextMenuBuilder Submenu(string id, string label, ContextMenuModel children, bool available = true, string? reason = null)
+    internal ContextMenuBuilder Submenu(string id, string label, ContextMenuModel children, bool available = true, string? reason = null,
+        string? icon = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
         ArgumentNullException.ThrowIfNull(children);
-        return Add(new(ContextMenuEntryKind.Submenu, id, label, null, null, false, available, reason, null, Children: children.Sections));
+        return Add(new(ContextMenuEntryKind.Submenu, id, label, null, null, false, available, reason, null, Children: children.Sections, Icon: icon));
     }
 
     /// <summary>A disabled explanatory sentence.</summary>
@@ -195,6 +199,7 @@ internal sealed class ContextMenuBuilder
         {
             MenuItem submenu = new() { Header = entry.Label, IsEnabled = entry.Available, ItemsSource = Items(entry.Children ?? Array.Empty<IReadOnlyList<ContextMenuEntry>>()) };
             AutomationProperties.SetName(submenu, entry.Label);
+            if (entry.Icon != null) submenu.Icon = CommandBindings.IconFromKey(entry.Icon);
             submenu.Tag = entry.Id;
             return submenu;
         }
@@ -208,6 +213,7 @@ internal sealed class ContextMenuBuilder
         else
         {
             item = new MenuItem { Header = Label(), Command = new DelegateCommand(invoke, Available), IsEnabled = Available() };
+            if (entry.Icon != null) item.Icon = CommandBindings.IconFromKey(entry.Icon);
             AutomationProperties.SetName(item, Label());
             if (!Available() && Reason() != null)
             {

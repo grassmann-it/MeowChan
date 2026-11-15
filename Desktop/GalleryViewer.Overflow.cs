@@ -48,8 +48,16 @@ internal sealed partial class GalleryViewer
     private readonly Button _overflowButton = new() { Name = "GalleryMore", Classes = { "command-icon" } };
     private readonly Flyout _overflowFlyout = new() { Placement = PlacementMode.TopEdgeAlignedRight };
     private readonly List<Button> _overflowButtons = new();
-    private readonly TextBlock _modeCaption = new() { Classes = { "workspace-meta" }, Margin = new Thickness(12, 8, 12, 0) };
-    private readonly TextBlock _secondsCaption = new() { Classes = { "workspace-meta" }, Margin = new Thickness(12, 8, 12, 0), IsVisible = false };
+    // One layout for every row of the menu (the context-menu layout, CM1): a row is 16 dip in from the edge (Workspace.Inset.MenuItem 15,6 plus
+    // the 1-px row edge) with the lead column (20) at that edge, so the choice boxes and captions between the rows start and end where
+    // the lead marks and shortcuts do. A caption has Space.8 above it and sits Space.4 (2 panel spacing + 2) over its box; a box leaves
+    // Space.4 under it; a separator has Space.8 at the sides and Space.4 above and below.
+    internal const double RowInset = 16;
+    internal static readonly Thickness OverflowCaptionMargin = new(RowInset, 8, RowInset, 2);
+    internal static readonly Thickness OverflowChoiceMargin = new(RowInset, 0, RowInset, 4);
+    internal static readonly Thickness OverflowNoteMargin = new(RowInset, 0, RowInset, 4);
+    private readonly TextBlock _modeCaption = new() { Classes = { "workspace-meta" }, Margin = OverflowCaptionMargin };
+    private readonly TextBlock _secondsCaption = new() { Classes = { "workspace-meta" }, Margin = OverflowCaptionMargin, IsVisible = false };
     private StackPanel _focusTools = null!;
     private StackPanel _slideshowHome = null!;
     private bool _compactToolbar;
@@ -140,6 +148,7 @@ internal sealed partial class GalleryViewer
             // A drawn check (P6: not the font's tick), shown while the toggle is on; it follows the row's foreground.
             mark = MeowChan.Desktop.Controls.WorkspaceIcons.Create(MeowChan.Desktop.Controls.WorkspaceIcons.Check);
             mark.Opacity = 0;
+            mark.HorizontalAlignment = HorizontalAlignment.Center; // the check and the icons share the lead column's centre
             lead = mark;
         }
         else
@@ -161,10 +170,19 @@ internal sealed partial class GalleryViewer
         StyleAsOverflowRow(button, true);
         button.Content = root;
         text.Text = label?.Invoke() ?? button.Content as string ?? AutomationProperties.GetName(button) ?? string.Empty;
-        gesture.Text = CommandCatalog.ShortcutDisplay(id) ?? string.Empty;
+        SetGesture(gesture, CommandCatalog.ShortcutDisplay(id));
         _overflowButtons.Add(button);
         (host ?? _overflowPanel).Children.Add(button);
         return button;
+    }
+
+    // The shortcut is the right-aligned last column of every row; a row with one keeps the menu's minimum room before it (24 dip with the
+    // column spacing), a row without one gives that room to its label.
+    private static void SetGesture(TextBlock gesture, string? shortcut)
+    {
+        gesture.Text = shortcut ?? string.Empty;
+        gesture.HorizontalAlignment = HorizontalAlignment.Right;
+        gesture.Margin = string.IsNullOrEmpty(shortcut) ? default : new Thickness(MeowChan.Desktop.Controls.MenuLayout.MinimumShortcutGap - 8, 0, 0, 0);
     }
 
     private static void StyleAsOverflowRow(Button button, bool row)
@@ -187,7 +205,7 @@ internal sealed partial class GalleryViewer
         {
             if (button.Tag is not OverflowItem item) continue;
             if (item.LabelSource != null) item.Label.Text = item.LabelSource();
-            item.Gesture.Text = CommandCatalog.ShortcutDisplay(item.Id) ?? string.Empty;
+            SetGesture(item.Gesture, CommandCatalog.ShortcutDisplay(item.Id));
             if (item.Check != null) item.Check.Opacity = (button as ToggleButton)?.IsChecked == true ? 1 : 0;
             // A command presenter (shortcut or language change) may have replaced the row with plain text.
             if (!ReferenceEquals(button.Content, item.Root)) button.Content = item.Root;

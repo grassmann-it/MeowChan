@@ -91,8 +91,8 @@ internal static partial class GalleryPlaybackFeatureChecks
     private static void CheckPairedPreferenceNormalization()
     {
         GalleryPlaybackPreferences defaults = new();
-        Require(!defaults.OverlayControls && !defaults.AutoHideControls,
-            "The DTO default is not coherent docked/auto-hide OFF.");
+        Require(defaults.OverlayControls && defaults.AutoHideControls,
+            "The DTO default is not coherent overlay/auto-hide ON.");
         foreach (bool overlay in new[] { false, true })
         foreach (bool autoHide in new[] { false, true })
         {
@@ -161,7 +161,7 @@ internal static partial class GalleryPlaybackFeatureChecks
             await fixture.ReadyAsync();
             int notifications = 0;
             fixture.Viewer.PlaybackPreferencesChanged += preferences => { notifications++; changed = preferences; };
-            fixture.Viewer.ConfigurePlayback(new(ImageSeconds: 1));
+            fixture.Viewer.ConfigurePlayback(new(ImageSeconds: 1, OverlayControls: false, AutoHideControls: false)); // the scenario starts docked
             Require(notifications == 0, "Applying stored preferences emitted a user-change/save event.");
             await fixture.ShowAsync(image);
             try

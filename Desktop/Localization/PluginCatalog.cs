@@ -244,7 +244,7 @@ internal static class PluginCatalog
         ("plugins.disable", "Disable plugin", "Plugin deaktivieren"),
         ("plugins.selectCandidate", "Use this build next start", "Diese Fassung beim nächsten Start verwenden"),
         ("plugins.rollback", "Use last good saved build next start", "Letzte gute gespeicherte Fassung beim nächsten Start verwenden"),
-        ("plugins.watches", "Show source", "Quelle anzeigen"),
+        ("plugins.watches", "Show in Plugins", "In Plugins zeigen"),
         ("plugins.pluginSettings", "Plugin settings", "Plugineinstellungen"),
         ("plugins.sourceSettings", "Source settings · {0}", "Quelleinstellungen · {0}"),
         ("plugins.noSettings", "No settings provided.", "Keine Einstellungen vorhanden."),

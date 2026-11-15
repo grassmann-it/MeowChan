@@ -42,7 +42,7 @@ public static class CommandCatalog
         // TG1: the rest of the entry menu (list and grid). Tag…, the stamp, the gallery, the thread, the folder and the file path are the
         // existing commands of the media page and the gallery (one id, one key, one binding); these have no counterpart there.
         new("tagging.tag-together", "command.tagging.tag-together", "Tag together…", "Gemeinsam taggen…", "tag", null, CommandScope.Media, new[] { "tagging-list-menu" }, new[] { "tagging" }),
-        new("tagging.show-in-media", "command.tagging.show-in-media", "Show in Media", "In Medien zeigen", "crosshair", null, CommandScope.Media, new[] { "tagging-list-menu" }, new[] { "tagging" }),
+        new("tagging.show-in-media", "command.tagging.show-in-media", "Show in Media", "In Medien zeigen", "grid", null, CommandScope.Media, new[] { "tagging-list-menu" }, new[] { "tagging" }),
         new("tagging.move-first", "command.tagging.move-first", "Move to the start", "An den Anfang", "chevrons-up", "Alt+Home", CommandScope.Media, new[] { "tagging-list-menu" }, new[] { "tagging" }),
         new("tagging.move-last", "command.tagging.move-last", "Move to the end", "Ans Ende", "chevrons-down", "Alt+End", CommandScope.Media, new[] { "tagging-list-menu" }, new[] { "tagging" }),
         new("tagging.add", "command.tagging.add", "Add…", "Hinzufügen…", "plus", null, CommandScope.Media, new[] { "tagging-page" }, new[] { "tagging" }),
@@ -93,7 +93,7 @@ public static class CommandCatalog
         new("plugins.disable", "plugins.disable", "Disable plugin", "Plugin deaktivieren", "power", null, CommandScope.Settings, new[] { "plugins" }),
         new("plugins.details", "plugins.details", "Show details", "Details anzeigen", "info", null, CommandScope.Settings, new[] { "plugins" }),
         new("plugins.show-settings", "plugins.showSettings", "Open settings", "Einstellungen öffnen", "sliders", null, CommandScope.Settings, new[] { "plugins" }),
-        new("plugins.watches", "plugins.watches", "Show in Sources", "In Quellen anzeigen", "list", null, CommandScope.Settings, new[] { "plugins" }),
+        new("plugins.watches", "plugins.watches", "Show in Plugins", "In Plugins zeigen", "list", null, CommandScope.Settings, new[] { "plugins" }),
         new("plugins.select-candidate", "plugins.selectCandidate", "Use this version next start", "Diese Fassung beim nächsten Start verwenden", "check", null, CommandScope.Settings, new[] { "plugins" }),
         new("plugins.rollback", "plugins.rollback", "Use last good saved build next start", "Letzte gute gespeicherte Fassung beim nächsten Start verwenden", "rotate-ccw", null, CommandScope.Settings, new[] { "plugins" }),
         new("plugins.show-grants", "plugins.showGrants", "View permissions", "Zugriffsrechte ansehen", "sliders", null, CommandScope.Settings, new[] { "plugins" }),
@@ -107,7 +107,7 @@ public static class CommandCatalog
         new("booru.open", "booru.ui.command.open", "Danbooru search and watchers…", "Danbooru-Suche und Suchbeobachtungen…", "search", null, CommandScope.Application, new[] { "app-menu", "tools-menu" }),
         new("navigation.settings", "command.navigation.settings", "Settings", "Einstellungen", "settings", "Primary+,", CommandScope.Application, new[] { "footer", "app-menu" }),
         new("navigation.about", "command.navigation.about", "About MeowChan", "Über MeowChan", "info", null, CommandScope.Settings | CommandScope.Application, new[] { "app-menu", "settings:planned" }),
-        new("navigation.tools-menu", "command.navigation.tools-menu", "More", "Mehr", "tool", null, CommandScope.Application, new[] { "footer" }),
+        new("navigation.tools-menu", "command.navigation.tools-menu", "More", "Mehr", "more-horizontal", null, CommandScope.Application, new[] { "footer" }),
         // R8 of the work-view plan: switches Minimal -> Simple -> Advanced -> Minimal. No default gesture (it would collide with a
         // profile's own bindings); the user assigns one under Shortcuts. The app menu carries it in every view.
         new("workspace.view-cycle", "workview.viewCycle", "Switch work view", "Arbeitsansicht wechseln", "eye", null, CommandScope.Application, new[] { "app-menu" }),
@@ -117,7 +117,7 @@ public static class CommandCatalog
         new("session.pause", "command.session.pause", "Pause / resume downloads and checks", "Downloads und Prüfungen pausieren / fortsetzen", "pause", "Primary+Shift+P", CommandScope.Application, new[] { "header", "app-menu", "workspace-keyboard", "tray" }),
         new("appearance.theme", "command.appearance.theme", "Change theme", "Farbschema wechseln", "moon", null, CommandScope.Settings | CommandScope.Application, new[] { "header", "settings", "app-menu" }),
         new("window.minimize", "command.window.minimize", "Minimize window", "Fenster minimieren", "minus", null, CommandScope.Application, new[] { "window-caption" }),
-        new("window.maximize", "command.window.maximize", "Maximize / Restore window", "Fenster maximieren / wiederherstellen", "square", null, CommandScope.Application, new[] { "window-caption", "titlebar-double-click" }),
+        new("window.maximize", "command.window.maximize", "Maximize / restore window", "Fenster maximieren / wiederherstellen", "square", null, CommandScope.Application, new[] { "window-caption", "titlebar-double-click" }),
         new("window.close", "command.window.close", "Close window", "Fenster schließen", "x", null, CommandScope.Application, new[] { "window-caption" }),
         new("input.focus-url", "command.input.focus-url", "Focus URL input", "URL-Eingabe fokussieren", "link", "Primary+L", CommandScope.Application, new[] { "workspace", "sources-details" }),
         new("watch.add-url", "command.watch.add-url", "Add URL", "URL hinzufügen", "plus", null, CommandScope.Downloads, new[] { "downloads-url-bar" }),
@@ -146,7 +146,7 @@ public static class CommandCatalog
         new("board.filters", "command.board.filters", "Thread filters…", "Threadfilter…", "filter", "Primary+Shift+F", CommandScope.Downloads, new[] { "downloads-board-menu" }),
         new("location.open-folder", "command.location.open-folder", "Open folder", "Ordner öffnen", "folder", "Primary+O", CommandScope.Archive | CommandScope.Media | CommandScope.Dialog | CommandScope.Downloads, new[] { "downloads-thread-menu", "downloads-board-menu", "downloads-inspector", "archive-card-menu", "archive-table-menu", "media-preview", "export-result", "tray", "reader-thread-menu" }),
         new("location.open-source", "command.location.open-source", "Open source in browser", "Quelle im Browser öffnen", "external-link", "Primary+Shift+O", CommandScope.Archive | CommandScope.Sources | CommandScope.Downloads, new[] { "downloads-thread-menu", "downloads-board-menu", "downloads-inspector", "archive-card-menu", "archive-table-menu", "sources", "reader-thread-menu" }),
-        new("selection.copy-links", "command.selection.copy-links", "Copy link(s)", "Link(s) kopieren", "copy", "Primary+C", CommandScope.Archive | CommandScope.Downloads, new[] { "downloads-thread-menu", "downloads-board-menu", "downloads-inspector", "archive-card-menu", "archive-table-menu", "reader-thread-menu" }),
+        new("selection.copy-links", "command.selection.copy-links", "Copy link(s)", "Link(s) kopieren", "link", "Primary+C", CommandScope.Archive | CommandScope.Downloads, new[] { "downloads-thread-menu", "downloads-board-menu", "downloads-inspector", "archive-card-menu", "archive-table-menu", "reader-thread-menu" }),
         new("watch.copy-all-links", "command.watch.copy-all-links", "Copy all URLs", "Alle URLs kopieren", "copy", null, CommandScope.Downloads | CommandScope.Application, new[] { "downloads-footer" }),
         new("watch.remove", "command.watch.remove", "Remove from watch list", "Aus Beobachtung entfernen", "eye-off", "Delete", CommandScope.Archive | CommandScope.Downloads, new[] { "downloads-thread-menu", "downloads-board-menu", "downloads-inspector", "archive-card-menu", "archive-table-menu", "reader-thread-menu" }),
         new("archive.delete-permanently", "command.archive.delete-permanently", "Delete permanently…", "Dauerhaft löschen…", "x-circle", "Shift+Delete", CommandScope.Archive, new[] { "archive-card-menu", "archive-table-menu" }),
@@ -227,7 +227,7 @@ public static class CommandCatalog
         new("rules.discard", "command.rules.discard", "Discard draft", "Entwurf verwerfen", "rotate-ccw", null, CommandScope.Application, new[] { "rules-footer" }),
         new("rules.template-create", "templates.create", "Create template", "Vorlage erstellen", "plus", null, CommandScope.Application, new[] { "rules-page" }),
         new("rules.template-edit", "templates.edit", "Edit template", "Vorlage bearbeiten", "edit-2", null, CommandScope.Application, new[] { "rules-page" }),
-        new("rules.template-delete", "templates.delete", "Delete template", "Vorlage löschen", "x", null, CommandScope.Application, new[] { "rules-page" }),
+        new("rules.template-delete", "templates.delete", "Delete template", "Vorlage löschen", "x-circle", null, CommandScope.Application, new[] { "rules-page" }),
         new("rules.template-preview", "templates.preview", "Preview template", "Vorlage ansehen", "eye", null, CommandScope.Application, new[] { "rules-page" }),
         new("rules.template-apply", "templates.apply", "Copy into draft", "In Entwurf übernehmen", "copy", null, CommandScope.Dialog, new[] { "rules-page" }),
         new("rules.template-undo-apply", "templates.undo-apply", "Undo template copy", "Übernahme rückgängig", "rotate-ccw", null, CommandScope.Application, new[] { "rules-page" }),
@@ -347,14 +347,14 @@ public static class CommandCatalog
         new("post.copy-number", "command.post.copy-number", "Copy post number", "Post-Nummer kopieren", "copy", null, CommandScope.Reader, new[] { "reader-post-menu" }),
         new("video.play-pause", "command.video.play-pause", "Play / pause", "Wiedergabe / Pause", "play", "Space", CommandScope.Gallery | CommandScope.Reader | CommandScope.Media, new[] { "gallery-video-surface", "gallery-video-controls", "reader-video-keys", "media-video-keys" }),
         new("video.volume-up", "command.video.volume-up", "Increase video volume", "Videolautstärke erhöhen", "volume-2", "Up", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
-        new("video.volume-down", "command.video.volume-down", "Decrease video volume", "Videolautstärke verringern", "volume-x", "Down", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
+        new("video.volume-down", "command.video.volume-down", "Decrease video volume", "Videolautstärke verringern", "volume-2", "Down", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
         // Gallery key scheme (revision 13, GalleryShortcutScheme): plain letters are playback actions, so M mutes (it was Shift+M); "Add favorite" moved from M to B (Bookmark; F still toggles, U removes).
         new("video.mute", "command.video.mute", "Mute / unmute", "Ton aus / an", "volume-2", "M", CommandScope.Gallery | CommandScope.Reader | CommandScope.Media, new[] { "gallery-video-controls", "reader-video-keys", "media-video-keys" }),
         // L repeats the shown video (the filmstrip toggle moved to Shift+L for it; both are gallery commands, so they may not share a key).
-        new("video.loop", "command.video.loop", "Repeat video", "Video wiederholen", "refresh-cw", "L", CommandScope.Gallery | CommandScope.Reader | CommandScope.Media, new[] { "gallery-video-controls", "gallery-keyboard", "reader-video-keys", "media-video-keys" }),
+        new("video.loop", "command.video.loop", "Repeat video", "Video wiederholen", "repeat", "L", CommandScope.Gallery | CommandScope.Reader | CommandScope.Media, new[] { "gallery-video-controls", "gallery-keyboard", "reader-video-keys", "media-video-keys" }),
         // Left/Right stay previous/next medium; seeking takes Ctrl (⌘) with the arrows, far seeking adds Shift.
         new("video.seek-back", "command.video.seek-back", "Back 5 seconds", "5 Sekunden zurück", "rotate-ccw", "Primary+Left", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
-        new("video.seek-forward", "command.video.seek-forward", "Forward 5 seconds", "5 Sekunden vor", "refresh-cw", "Primary+Right", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
+        new("video.seek-forward", "command.video.seek-forward", "Forward 5 seconds", "5 Sekunden vor", "rotate-cw", "Primary+Right", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
         new("video.seek-back-far", "command.video.seek-back-far", "Back 30 seconds", "30 Sekunden zurück", "chevron-left", "Primary+Shift+Left", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
         new("video.seek-forward-far", "command.video.seek-forward-far", "Forward 30 seconds", "30 Sekunden vor", "chevron-right", "Primary+Shift+Right", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
         // "," and "." jump back and forward by the seek step setting (5 seconds by default, 1 to 60); they act only while a video is shown.
@@ -377,7 +377,7 @@ public static class CommandCatalog
         new("about.show-licenses", "command.about.show-licenses", "Licenses", "Lizenzen", "file-text", null, CommandScope.About, new[] { "about-navigation" }),
         new("export.start-originals", "command.export.start-originals", "Export originals", "Originale exportieren", "download", null, CommandScope.Dialog, new[] { "original-export-dialog" }),
         new("rules.toggle-enabled", "command.rules.toggle-enabled", "Enable or disable rule", "Regel aktivieren oder deaktivieren", "power", null, CommandScope.Application, new[] { "rules-overview-row" }),
-        new("rules.delete", "command.rules.delete", "Delete rule…", "Regel löschen…", "x", null, CommandScope.Application, new[] { "rules-overview-row" }),
+        new("rules.delete", "command.rules.delete", "Delete rule…", "Regel löschen…", "x-circle", null, CommandScope.Application, new[] { "rules-overview-row" }),
         new("rules.copy-summary", "command.rules.copy-summary", "Copy rule summary", "Regelzusammenfassung kopieren", "copy", null, CommandScope.Application, new[] { "rules-overview-row" }),
         new("statistics.copy-row", "command.statistics.copy-row", "Copy row", "Zeile kopieren", "copy", "Primary+C", CommandScope.Application, new[] { "statistics-table" }, new[] { "statistics" }),
         new("statistics.copy-source", "command.statistics.copy-source", "Copy source name", "Quellennamen kopieren", "copy", null, CommandScope.Application, new[] { "statistics-table" }, new[] { "statistics" }),

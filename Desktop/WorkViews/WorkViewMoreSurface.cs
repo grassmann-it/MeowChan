@@ -16,8 +16,9 @@ namespace MeowChan.Desktop.WorkViews;
 /// </summary>
 public static class WorkViewMoreSurface
 {
-    /// <summary>One entry under More: a catalog command id for label, icon and shortcut text, or none for a plain label.</summary>
-    public sealed record Entry(int Order, string? CommandId, Func<string> Label, Action Run, Func<bool> CanRun);
+    /// <summary>One entry under More: a catalog command id for label, icon and shortcut text, or none for a plain label; then
+    /// <paramref name="Icon"/> is the catalog icon the moved button shows, so the entry looks like the button it stands for.</summary>
+    public sealed record Entry(int Order, string? CommandId, Func<string> Label, Action Run, Func<bool> CanRun, string? Icon = null);
 
     /// <summary>Entries for the buttons the policy puts under More in <paramref name="view"/> (state-hidden buttons are skipped).</summary>
     public static IEnumerable<Entry> ForButtons(IEnumerable<Button> buttons, WorkView view) => buttons
@@ -26,7 +27,8 @@ public static class WorkViewMoreSurface
         .Select(item => (item.Button, Entry: WorkViewPolicy.Get(item.Id!)))
         .Where(item => item.Entry.For(view) == Presence.Overflow)
         .Select(item => new Entry(item.Entry.OverflowOrder, item.Entry.CommandId, () => LabelOf(item.Button),
-            () => WorkViewActionStateGuard.Invoke(item.Button), () => WorkViewActionStateGuard.CanInvoke(item.Button)));
+            () => WorkViewActionStateGuard.Invoke(item.Button), () => WorkViewActionStateGuard.CanInvoke(item.Button),
+            IconButtons.KeyOf(item.Button)));
 
     /// <summary>
     /// The one way every page builds its "More" button: the drawn <see cref="WorkspaceIcons.More"/> icon in the icon-only square
@@ -63,7 +65,7 @@ public static class WorkViewMoreSurface
             if (entry.CommandId != null)
                 builder.Command(entry.CommandId, entry.Run, CanRun(), label: label, availableWhen: CanRun);
             else
-                builder.Item("workview.more." + index, label, entry.Run, CanRun(), availableWhen: CanRun);
+                builder.Item("workview.more." + index, label, entry.Run, CanRun(), availableWhen: CanRun, icon: entry.Icon);
         }
         ContextMenu menu = builder.Build()!;
         foreach (int index in Enumerable.Range(0, ordered.Length))

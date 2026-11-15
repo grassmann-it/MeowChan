@@ -37,6 +37,7 @@ internal static class TaggingPageCatalog
         ("tagging.page.group.manage", "Manage groups", "Gruppen verwalten"),
         ("tagging.page.group.name", "Group name", "Gruppenname"),
         ("tagging.page.group.new", "New group", "Neue Gruppe"),
+        ("tagging.page.group.newMenu", "New group…", "Neue Gruppe…"),
         ("tagging.page.group.rename", "Rename", "Umbenennen"),
         ("tagging.page.group.delete", "Delete", "Löschen"),
         ("tagging.page.group.delete.ask", "Delete group “{0}”? Its entries stay in the queue without a group.", "Gruppe „{0}“ löschen? Die Einträge bleiben ohne Gruppe in der Warteschlange."),

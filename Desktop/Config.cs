@@ -1144,12 +1144,16 @@ namespace MeowChan
         [JsonIgnore] internal bool GalleryLayoutResetRequested { get; set; }
         [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
         public bool GalleryMediaFocus { get; set; }
-        [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
-        public bool GalleryOverlayControls { get; set; }
+        /// <summary>
+        /// The gallery's controls overlay (auto-hides, revealed at the bottom edge). Default on; a profile that has the key keeps its value,
+        /// on or off, and a missing or damaged value reads as the default (on).
+        /// </summary>
+        [JsonConverter(typeof(DesktopPreferenceTrueBooleanConverter))]
+        public bool GalleryOverlayControls { get; set; } = true;
         // Keep both serialized keys for older profiles; explicit actions use
         // GalleryPlaybackPreferences.WithControlsOverlay rather than coupled setters.
-        [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
-        public bool GalleryAutoHideControls { get; set; }
+        [JsonConverter(typeof(DesktopPreferenceTrueBooleanConverter))]
+        public bool GalleryAutoHideControls { get; set; } = true;
         [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
         public bool GalleryOverlayPostContext { get; set; }
 

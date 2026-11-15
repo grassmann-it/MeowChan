@@ -1009,9 +1009,9 @@ public sealed partial class MediaPage : UserControl
             // MP5: empty grid space offers the layout entries (the same as the toolbar's Layout menu) below the two actions on the whole grid.
             List<Control> blankItems = new()
             {
-                MediaMenuBuilder.ContextItem(blank, "media.exportAll", ExportAllAsync, () => _exportAll.IsEnabled, RunBlank),
+                MediaMenuBuilder.ContextItem(blank, "media.exportAll", ExportAllAsync, () => _exportAll.IsEnabled, RunBlank, icon: MenuIcon("export.open-all-results-html-dialog")),
                 MediaMenuBuilder.ContextItem(blank, "media.queue.all", AddAllShownToQueueAsync, () => AddToTagQueue != null && _tiles.Count > 0, RunBlank,
-                    MediaMenuReasons.Unavailable),
+                    MediaMenuReasons.Unavailable, MenuIcon("media.queue.all")),
                 new Separator()
             };
             blankItems.AddRange(LayoutMenuItems());
@@ -1082,24 +1082,25 @@ public sealed partial class MediaPage : UserControl
         if (selectedCount > 0 && !(selectedCount == 1 && ReferenceEquals(SelectedRow, row)))
             context.Add(MediaMenuBuilder.Note(Texts.T("media.menu.note.selection", selectedCount)));
         context.Add(MediaMenuBuilder.ContextItem(session, "media.filter.onlyThread", () => { FilterToThread(entry); return Task.CompletedTask; },
-            () => !several, Run, MediaMenuReasons.SeveralSelected));
+            () => !several, Run, MediaMenuReasons.SeveralSelected, MenuIcon("tags.filter-only")));
         context.Add(MediaMenuBuilder.ContextItem(session, "media.occurrences", () => { ShowOccurrences(tile); return Task.CompletedTask; },
-            () => tile.IsGroup, Run, MediaMenuReasons.Unavailable));
+            () => tile.IsGroup, Run, MediaMenuReasons.Unavailable, "list"));
         context.Add(MediaMenuBuilder.ContextCommandItem(session, "rules.edit-scope", () => { EditThreadRules?.Invoke(entry); return Task.CompletedTask; },
             () => EditThreadRules != null && HasThreadRules(entry), Run, Texts.T("media.rulesThreadUnavailable"), Texts.T("rules.thisThread")));
-        foreach ((Button action, string key) in new[] { (_selTag, "media.selection.tag"),
-            (_selGallery, "media.selection.gallery"), (_selExport, "media.selection.export") })
+        foreach ((Button action, string key, string icon) in new[] { (_selTag, "media.selection.tag", MenuIcon("tagging.tag-together")),
+            (_selGallery, "media.selection.gallery", MenuIcon("gallery.open")), (_selExport, "media.selection.export", MenuIcon("media.export-original")) })
         {
             Button selectedAction = action;
             context.Add(MediaMenuBuilder.ContextItem(session, key, () =>
             {
                 selectedAction.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 return Task.CompletedTask;
-            }, () => selectedAction.IsEnabled, Run, ToolTip.GetTip(selectedAction) as string ?? MediaMenuReasons.Unavailable));
+            }, () => selectedAction.IsEnabled, Run, ToolTip.GetTip(selectedAction) as string ?? MediaMenuReasons.Unavailable, icon));
         }
-        context.Add(MediaMenuBuilder.ContextItem(session, "media.exportAll", ExportAllAsync, () => _exportAll.IsEnabled, Run));
+        context.Add(MediaMenuBuilder.ContextItem(session, "media.exportAll", ExportAllAsync, () => _exportAll.IsEnabled, Run,
+            icon: MenuIcon("export.open-all-results-html-dialog")));
         context.Add(MediaMenuBuilder.ContextItem(session, "media.queue.all", AddAllShownToQueueAsync, () => AddToTagQueue != null && _tiles.Count > 0, Run,
-            MediaMenuReasons.Unavailable));
+            MediaMenuReasons.Unavailable, MenuIcon("media.queue.all")));
         IReadOnlyList<MediaLibraryEntry> queueEntries = queueTiles is { Count: > 1 }
             ? queueTiles.Select(tileEntry => tileEntry.Entry).ToArray() : new[] { entry };
         if (QueueGroupMenu(session, queueEntries, Run) is { } groups) context.Add(groups);
@@ -1125,8 +1126,11 @@ public sealed partial class MediaPage : UserControl
                 () => AddToTagQueueInGroup != null && !_selectionBusy,
                 run, MediaMenuReasons.Unavailable));
         }
-        return MediaMenuBuilder.Submenu(session, "media.queue.group", Texts.T("media.queue.group"), choices);
+        return MediaMenuBuilder.Submenu(session, "media.queue.group", Texts.T("media.queue.group"), choices, icon: MenuIcon("media.queue.add"));
     }
+
+    // The page's own menu entries take the icon of the command that does the same elsewhere (the menu's icon column stays filled).
+    private static string MenuIcon(string commandId) => CommandCatalog.Get(commandId).Icon;
 
     private readonly MediaMenuPresenter _mediaMenuPresenter = new();
 

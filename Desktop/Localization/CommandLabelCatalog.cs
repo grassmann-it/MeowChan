@@ -48,7 +48,7 @@ internal static class CommandLabelCatalog
         ("command.session.pause", "Pause / resume downloads and checks", "Downloads und Prüfungen pausieren / fortsetzen"),
         ("command.appearance.theme", "Change theme", "Farbschema wechseln"),
         ("command.window.minimize", "Minimize window", "Fenster minimieren"),
-        ("command.window.maximize", "Maximize / Restore window", "Fenster maximieren / wiederherstellen"),
+        ("command.window.maximize", "Maximize / restore window", "Fenster maximieren / wiederherstellen"),
         ("command.window.close", "Close window", "Fenster schließen"),
         ("command.input.focus-url", "Focus URL input", "URL-Eingabe fokussieren"),
         ("command.watch.add-url", "Add URL", "URL hinzufügen"),

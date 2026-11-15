@@ -934,6 +934,9 @@ public partial class MainWindow : Window
         _trayMenuIcons.Clear();
     }
 
+    internal static string? TrayShortcut(string command) =>
+        EffectiveShortcutBindings.ExecutionContexts(command).Contains("shell") ? CommandCatalog.ShortcutDisplay(command) : null;
+
     private NativeMenuItem CreateTrayCommandItem(string command)
     {
         NativeMenuItem item = new();
@@ -944,7 +947,9 @@ public partial class MainWindow : Window
     private void ApplyTrayCommandItem(NativeMenuItem item, string command, string? icon = null)
     {
         // A state-dependent entry (pause) sets its own header; the command binding would reset it.
-        if (icon == null) CommandBindings.Apply(item, command);
+        // The header names a shortcut only when it works from the whole window (shell): "Open folder" of the tray opens the download
+        // folder, while Ctrl/Cmd+O opens the selected thread's folder, and the clipboard import key acts in the Downloads list only.
+        if (icon == null) CommandBindings.Apply(item, command, shortcut: () => TrayShortcut(command));
         // Native menu exporters require actual tinted pixels, rather than an Avalonia mask.
         // The icon cache may share one instance between several native menu items.
         // Dispose only a temporary bitmap made by CommandBindings.Apply; cached

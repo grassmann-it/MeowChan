@@ -102,7 +102,7 @@ public partial class ArchivePage
             available: CanChangePostFilters, availableWhen: () => CanChangePostFilters);
         menu.Item("post.hide-replies", Texts.T("postFilter.hideWithReplies"),
             () => { if (CanChangePostFilters) PostFilterTask = HidePostAsync(thread, post, replies: true); },
-            available: CanChangePostFilters, availableWhen: () => CanChangePostFilters);
+            available: CanChangePostFilters, availableWhen: () => CanChangePostFilters, icon: CommandCatalog.Get("post.hide").Icon);
     }
 
     private void OnPostFilterKeyDown(object? sender, KeyEventArgs e)

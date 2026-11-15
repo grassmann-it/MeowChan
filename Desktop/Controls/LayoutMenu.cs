@@ -216,7 +216,7 @@ internal sealed class LayoutMenuPanel : StackPanel
 
     private TextBlock TitleBlock(string text)
     {
-        TextBlock block = new() { Text = text, TextWrapping = Avalonia.Media.TextWrapping.Wrap, Margin = new Thickness(12, 8, 12, 4), IsVisible = text.Length > 0 };
+        TextBlock block = new() { Text = text, TextWrapping = Avalonia.Media.TextWrapping.Wrap, Margin = new Thickness(16, 8, 16, 4), IsVisible = text.Length > 0 };
         block.Classes.Add("workspace-meta");
         AutomationProperties.SetName(block, text);
         return block;
@@ -233,7 +233,7 @@ internal sealed class LayoutMenuPanel : StackPanel
                     [!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.Border")
                 });
             case LayoutMenuRowKind.Note:
-                TextBlock note = new() { Text = row.Label, TextWrapping = Avalonia.Media.TextWrapping.Wrap, Margin = new Thickness(12, 4) };
+                TextBlock note = new() { Text = row.Label, TextWrapping = Avalonia.Media.TextWrapping.Wrap, Margin = new Thickness(16, 4) };
                 note.Classes.Add("workspace-meta");
                 return new RowView(row, null, null, note, null, null, note);
         }

@@ -104,7 +104,7 @@ internal static class GalleryMutePersistenceChecks
             await window.OpenGalleryAsync(VideoGalleryChecks.Id);
             viewer = (GalleryViewer)window.FindControl<ContentControl>("GalleryHost")!.Content!;
             Require(viewer.CaptureState().PostId == "2000", "Mute fixture must start at video A.");
-            viewer.ConfigurePlayback(new GalleryPlaybackPreferences()); // Docked, no hidden native input targets.
+            viewer.ConfigurePlayback(new GalleryPlaybackPreferences().WithControlsOverlay(false)); // Docked, no hidden native input targets.
             await WaitAsync(p => p.HasPlayback);
             // Fixture setup only: saved autoplay may be off; make audio readiness observable.
             await Player().PlayAsync();
