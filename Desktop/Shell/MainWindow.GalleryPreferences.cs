@@ -156,6 +156,8 @@ public partial class MainWindow
         try
         {
             await write;
+            // The gallery's volume reaches the Media page's panel (its next player) now, not only after the settings were saved.
+            if (!_isClosing) ConfigureMediaPanel();
             if (_pendingGalleryContext == null && _desiredGalleryContext == _config.GalleryContextOpen)
                 _desiredGalleryContext = null;
             if (_pendingGalleryVolume == null && _desiredGalleryVolume == _config.VideoVolume)

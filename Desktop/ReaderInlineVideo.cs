@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Input;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 
@@ -147,6 +148,27 @@ internal static class ReaderVideoKeys
             if (matches(id)) return action;
         return ReaderVideoAction.None;
     }
+
+    /// <summary>
+    /// <see cref="Classify"/> for the reader: a key that one of the reader's own commands also has (a binding the person saved for it) is that command's, not the
+    /// video's. On the reader the video keys give way instead of conflicting (EffectiveShortcutBindings.ConflictContexts), so the gallery keeps them.
+    /// </summary>
+    internal static ReaderVideoAction ClassifyUnclaimed(Func<string, bool> matches) => ReaderClaims(matches) ? ReaderVideoAction.None : Classify(matches);
+
+    /// <summary>Whether one of the reader's own commands (not a video key) has the key.</summary>
+    internal static bool ReaderClaims(Func<string, bool> matches)
+    {
+        ArgumentNullException.ThrowIfNull(matches);
+        foreach (string id in ReaderCommands.Value)
+            if (matches(id)) return true;
+        return false;
+    }
+
+    // Every command that runs in the reader and competes there for its gestures: not the video keys themselves (they give way).
+    private static readonly Lazy<string[]> ReaderCommands = new(() => CommandCatalog.All
+        .Where(command => command.IsImplemented && !IsVideoCommand(command.Id)
+            && EffectiveShortcutBindings.ConflictContexts(command.Id).Contains("reader", StringComparer.Ordinal))
+        .Select(command => command.Id).ToArray());
 
     /// <summary>Enter on the selected post's video: a fixed content key (no command) that plays or pauses.</summary>
     internal static bool IsEnterToggle(Key key, KeyModifiers modifiers) => key == Key.Enter && modifiers == KeyModifiers.None;

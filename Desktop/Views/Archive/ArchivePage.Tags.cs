@@ -198,7 +198,7 @@ public partial class ArchivePage
 
     internal void OpenThreadTagsByShortcut()
     {
-        if (ThreadTagsShortcutTarget is ResourceId id) _ = OpenThreadTagsAsync(id);
+        if (ThreadTagsShortcutTarget is ResourceId id) OpenActions.Start(() => OpenThreadTagsAsync(id), "archive.threadTags.open");
     }
 
     private void OnCloseThreadTags(object? sender, RoutedEventArgs e) => CloseTagBar(focusOpen: true);

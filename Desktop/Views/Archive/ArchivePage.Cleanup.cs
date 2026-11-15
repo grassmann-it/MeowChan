@@ -29,7 +29,7 @@ public partial class ArchivePage
             _cleanupRouter.Register(new("archive.cleanup", this,
                 // The page, not the button: a view may keep the button under the header's More, and the shortcut must still work.
                 () => !_ended && IsEffectivelyVisible,
-                CanOpenArchiveCleanup, () => _ = OpenArchiveCleanupAsync(), Priority: 100));
+                CanOpenArchiveCleanup, () => OpenActions.Start(OpenArchiveCleanupAsync, "archive.cleanup.open"), Priority: 100));
             AddHandler(KeyDownEvent, RouteArchiveCleanupCommand, RoutingStrategies.Bubble);
         }
         UpdateArchiveCleanupAction();

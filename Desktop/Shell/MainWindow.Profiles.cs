@@ -34,9 +34,9 @@ public partial class MainWindow
     {
         if (_profileMenu != null) return;
         _profileMenu = new MenuItem { Name = "ProfileMenuItem" };
-        MenuItem create = CommandBindings.CreateMenuItem("profile.new", () => _ = OpenNewProfileDialogAsync(), () => CanUseProfiles);
+        MenuItem create = CommandBindings.CreateMenuItem("profile.new", () => OpenActions.Start(OpenNewProfileDialogAsync, "profile.new"), () => CanUseProfiles);
         create.Name = "ProfileNewMenuItem";
-        MenuItem change = CommandBindings.CreateMenuItem("profile.switch", () => _ = OpenSwitchProfileDialogAsync(), () => CanUseProfiles);
+        MenuItem change = CommandBindings.CreateMenuItem("profile.switch", () => OpenActions.Start(OpenSwitchProfileDialogAsync, "profile.switch"), () => CanUseProfiles);
         change.Name = "ProfileSwitchMenuItem";
         MenuItem folder = CommandBindings.CreateMenuItem("profile.open-folder", OpenProfileFolder, () => !_isClosing);
         folder.Name = "ProfileFolderMenuItem";
@@ -55,8 +55,8 @@ public partial class MainWindow
                 item.IsEnabled = item.Command?.CanExecute(null) ?? true;
             }
         };
-        _shortcutRouter?.Register(new CommandRegistration("profile.new", this, () => true, () => CanUseProfiles, () => _ = OpenNewProfileDialogAsync()));
-        _shortcutRouter?.Register(new CommandRegistration("profile.switch", this, () => true, () => CanUseProfiles, () => _ = OpenSwitchProfileDialogAsync()));
+        _shortcutRouter?.Register(new CommandRegistration("profile.new", this, () => true, () => CanUseProfiles, () => OpenActions.Start(OpenNewProfileDialogAsync, "profile.new")));
+        _shortcutRouter?.Register(new CommandRegistration("profile.switch", this, () => true, () => CanUseProfiles, () => OpenActions.Start(OpenSwitchProfileDialogAsync, "profile.switch")));
         _shortcutRouter?.Register(new CommandRegistration("profile.open-folder", this, () => true, () => !_isClosing, OpenProfileFolder));
         Texts.Changed += OnProfileMenuLanguageChanged;
         Closed += (_, _) => Texts.Changed -= OnProfileMenuLanguageChanged;
