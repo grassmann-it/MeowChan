@@ -37,5 +37,14 @@ internal static class MediaFocusMode
 
     /// <summary>The filter chips as the list the focus row shows on demand, one per line; the chip keys carry the label after \u0001.</summary>
     internal static string FilterList(System.Collections.Generic.IEnumerable<string> renderedChips) =>
-        string.Join("\n", System.Linq.Enumerable.Select(renderedChips, chip => chip.Substring(chip.IndexOf('\u0001') + 1)));
+        string.Join("\n", System.Linq.Enumerable.Select(renderedChips, RenderedChipLabel));
+
+    private static string RenderedChipLabel(string renderedChip)
+    {
+        int start = renderedChip.IndexOf('\u0001');
+        if (start < 0) return renderedChip;
+        start++;
+        int end = renderedChip.IndexOf('\u0001', start);
+        return renderedChip[start..(end < 0 ? renderedChip.Length : end)];
+    }
 }

@@ -511,8 +511,12 @@ public partial class ArchivePage
             // acts on the whole selection, frozen now, exactly like the media page.
             context.Add(MediaMenuBuilder.Note(Texts.T("media.menu.note.selection", selection.Length)));
             string unavailable = Texts.T("media.selection.reason.unavailable");
-            // The selection entries take the icons of the commands that do the same for one file (the menu's icon column stays filled).
+            // Keep the menu selection actions in the same order as the selection bar. The tag action uses the same
+            // frozen rows/entries and opens the same quick-tag session as the visible button; it must not fall back
+            // to the single file's Rate-and-tag action.
             static string Icon(string commandId) => CommandCatalog.Get(commandId).Icon;
+            context.Add(MediaMenuBuilder.ContextItem(session, "media.selection.tag", () => TagMediaSelectionAsync(thread, selection, entries, origin),
+                () => MediaTagServices != null && !_mediaSelectionBusy, Run, unavailable, Icon("media.rating.edit")));
             context.Add(MediaMenuBuilder.ContextItem(session, "media.selection.queue", () => AddMediaSelectionToQueueAsync(thread, selection, entries),
                 () => AddToTagQueue != null && !_mediaSelectionBusy, Run, unavailable, Icon("media.queue.add")));
             context.Add(MediaMenuBuilder.ContextItem(session, "media.selection.gallery", () => OpenMediaSelectionGalleryAsync(thread, selection, entries, origin),
