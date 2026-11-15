@@ -136,11 +136,12 @@ internal static partial class GalleryToolbarLayoutChecks
                     await LayoutAsync(window);
                     Require(chrome.IsVisualAncestorOf(slideshow) && slideshow.IsEffectivelyVisible,
                         "The slideshow control did not move onto the toolbar for a chosen slideshow.");
-                    // G2: the control is one split button: the toggle and a 24 dip menu button in one group; the menu button opens the settings
+                    // G2: the control is one split button: the toggle and a Workspace.Size.Control square menu button, as high as the toggle, in one group; the menu button opens the settings
                     // (the panel of "⋯" is lent to the flyout), Escape closes it, the panel is back under "⋯" and the focus on the menu button.
                     Button splitMenu = Find<Button>(viewer, "GallerySlideshowMenu");
-                    Require(splitMenu.IsEffectivelyVisible && ReferenceEquals(splitMenu.Parent, slideshow.Parent) && Math.Abs(splitMenu.Bounds.Width - 24) < 0.5,
-                        "The slideshow menu button is not a 24 dip part of the slideshow control.");
+                    Require(splitMenu.IsEffectivelyVisible && ReferenceEquals(splitMenu.Parent, slideshow.Parent)
+                        && Math.Abs(splitMenu.Bounds.Width - 32) < 0.5 && Math.Abs(splitMenu.Bounds.Height - slideshow.Bounds.Height) < 0.5,
+                        "The slideshow menu button is not a 32 dip square as high as the toggle in the slideshow control.");
                     Panel settings = viewer.SlideshowSettingsPanel;
                     Require(((Panel)viewer.OverflowMenuContent).Children.Contains(settings), "The slideshow settings are not under the menu before the flyout opens.");
                     splitMenu.Focus();

@@ -25,16 +25,18 @@ internal sealed partial class GalleryViewer
         // The top left edge belongs to the way back; the passive persisted-state badge sits directly right of it as a pair
         // (UpdateFavoriteIndicators), so neither is painted over by the post panel, which starts below this row where it reaches it.
         VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(12),
+        // As high as the way back beside it (Workspace.Size.Control, see ControlSized) and a square for the star alone; the content is centred.
         Padding = new Thickness(8, 4),
         Background = new SolidColorBrush(Color.FromArgb(210, 24, 26, 31)),
         IsHitTestVisible = false, Focusable = false, IsVisible = false, ZIndex = 16,
         // A drawn star (outline: not saved, filled gold: saved) and, while a write is pending, a trailing "…" (P6: no font glyphs).
         Child = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, IsHitTestVisible = false,
+            HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
             Children = { WorkspaceIcons.Create(WorkspaceIcons.Star, inheritForeground: false), new TextBlock { Name = "GalleryFavoritePending", Text = "…",
                 Foreground = Brushes.White, IsVisible = false, VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false }.SubtitleText(),
                 // A Border, a StackPanel and a Path have no automation peer: the saved / saving state is also a hidden text (content view), so a screen reader reads it.
                 new TextBlock { Name = "GalleryFavoriteStateText", Classes = { "visually-hidden" } } } }
-    }.BadgeCorners();
+    }.ControlSized();
 
     /// <summary>The state a favourite badge shows: saved (filled star) and pending (trailing "…"). Tests and the refresh read it back.</summary>
     internal static (bool Saved, bool Pending) FavoriteBadgeState(Border badge)

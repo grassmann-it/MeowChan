@@ -10,7 +10,7 @@ using MeowChan.Desktop.WorkViews;
 namespace MeowChan.DesktopTests;
 
 /// <summary>
-/// G2: the slideshow is one split control. The main part toggles, the 24 dip menu button (or the context request of the toggle) opens a
+/// G2: the slideshow is one split control. The main part toggles, the menu button, a Workspace.Size.Control square joined to it (or the context request of the toggle) opens a
 /// flyout with the settings; the settings panel is lent from the "⋯" menu while the flyout is open and goes back when it closes.
 /// </summary>
 [Collection("Localization")]
@@ -114,7 +114,8 @@ public sealed class GallerySlideshowSplitTests : IDisposable
     public void TheMenuButtonIsOneTabStopRightOfTheToggleInOneSplitGroup()
     {
         string menu = ReadSource("Desktop/GalleryViewer.SlideshowMenu.cs");
-        Assert.Contains("Width = 24", menu);
+        Assert.Contains("Classes = { \"split-menu\" }", menu); // size, edge and corners come from the shared style, no literal width here
+        Assert.DoesNotContain("Width = 24", menu);
         Assert.Contains("_slideshowSplit.Children.Add(_slideshowMenuButton);", menu);
         Assert.Contains("_slideshowMenuButton.Flyout = _slideshowFlyout;", menu); // a click, Enter or Space opens it; HasGalleryPopup sees it
         string overflow = ReadSource("Desktop/GalleryViewer.Overflow.cs");
@@ -122,6 +123,28 @@ public sealed class GallerySlideshowSplitTests : IDisposable
         Assert.Contains("_focusTools.Children.Insert(0, _slideshowSplit);", overflow);
         // The toggle leaves the bar: the menu button goes with it, the borrowed rows go back first.
         Assert.Contains("if (!inline) CloseSlideshowMenu();", overflow);
+    }
+
+    // Tom's review of 15.11.: the menu button was shorter than "Start slideshow" and too small. Both halves are Workspace.Size.Control high, the menu
+    // half is a square of that size, they share one 1-px edge (-1 overlap) and the radius only on the outer corners; the toggle carries the main class
+    // while it is on the bar and not while it is a row of "⋯".
+    [Fact]
+    public void BothHalvesOfTheSplitButtonShareTheControlHeightTheEdgeAndTheOuterCorners()
+    {
+        System.Xml.Linq.XNamespace a = "https://github.com/avaloniaui", x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        System.Xml.Linq.XElement[] styles = System.Xml.Linq.XDocument.Parse(ReadSource("Desktop/WorkspaceStyles.axaml")).Root!.Elements(a + "Style").ToArray();
+        string? Setting(string selector, string property) => (string?)styles.Single(style => (string?)style.Attribute("Selector") == selector).Elements(a + "Setter")
+            .Single(setter => (string?)setter.Attribute("Property") == property).Attribute("Value");
+        const string Shared = "Button.split-main, ToggleButton.split-main, Button.split-menu";
+        Assert.Equal("{StaticResource Workspace.Size.Control}", Setting(Shared, "Height"));
+        Assert.Equal("{DynamicResource Workspace.ControlBorder}", Setting(Shared, "BorderBrush"));
+        Assert.Equal("{StaticResource Workspace.Size.Control}", Setting("Button.split-menu", "Width"));
+        Assert.Equal("-1,0,0,0", Setting("Button.split-menu", "Margin"));
+        Assert.Equal("5,0,0,5", Setting("Button.split-main, ToggleButton.split-main", "CornerRadius"));
+        Assert.Equal("0,5,5,0", Setting("Button.split-menu", "CornerRadius"));
+        string overflow = ReadSource("Desktop/GalleryViewer.Overflow.cs");
+        Assert.Contains("_slideshowToggle.Classes.Set(\"split-main\", true);", overflow);
+        Assert.Contains("_slideshowToggle.Classes.Set(\"split-main\", false);", overflow);
     }
 
     [Fact]

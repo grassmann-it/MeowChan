@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Controls.Documents;
+using Avalonia.Layout;
 using Avalonia.Markup.Xaml.MarkupExtensions;
 
 namespace MeowChan.Desktop;
@@ -15,6 +16,8 @@ internal static class WorkspaceTokens
     internal const string TextSubtitle = "Workspace.Text.Subtitle";
     internal const string TextTitle = "Workspace.Text.Title";
     internal const string RadiusBadge = "Workspace.Radius.Badge";
+    internal const string RadiusControl = "Workspace.Radius.Control";
+    internal const string SizeControl = "Workspace.Size.Control";
 
     /// <summary>Caption size (Workspace.Text.Caption, 11) for a text block or a button.</summary>
     internal static T CaptionText<T>(this T control) where T : Control
@@ -42,6 +45,18 @@ internal static class WorkspaceTokens
     internal static Border BadgeCorners(this Border border)
     {
         border[!Border.CornerRadiusProperty] = new DynamicResourceExtension(RadiusBadge);
+        return border;
+    }
+
+    /// <summary>
+    /// The size of a button for a passive mark that stands beside buttons (Workspace.Size.Control, 32): at least a square of that size, exactly that high,
+    /// with the control corners (Workspace.Radius.Control). The mark then lines up with the buttons next to it instead of being a smaller badge.
+    /// </summary>
+    internal static Border ControlSized(this Border border)
+    {
+        border[!Layoutable.HeightProperty] = new DynamicResourceExtension(SizeControl);
+        border[!Layoutable.MinWidthProperty] = new DynamicResourceExtension(SizeControl);
+        border[!Border.CornerRadiusProperty] = new DynamicResourceExtension(RadiusControl);
         return border;
     }
 }

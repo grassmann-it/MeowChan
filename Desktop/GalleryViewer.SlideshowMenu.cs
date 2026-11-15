@@ -13,7 +13,7 @@ using MeowChan.Desktop.Localization;
 namespace MeowChan.Desktop;
 
 // G2 (PLAN-TAGGING-GALERIE-UX-1.1 §3.2, §6): the slideshow is one split control on the bar. The main part (the toggle) starts and pauses;
-// the 24 dip menu button beside it - or the context request of the toggle (right click, long press, the menu key) - opens a flyout with the
+// the menu button beside it (a Workspace.Size.Control square, joined to it) - or the context request of the toggle (right click, long press, the menu key) - opens a flyout with the
 // slideshow's settings: the playback mode, the seconds per image (with its caption), the rule for videos and the reduced-motion note.
 //
 // One panel, two ways: the settings are the rows of _slideshowHome, which sit under "⋯" as before. While the flyout is open it borrows the
@@ -23,8 +23,8 @@ internal sealed partial class GalleryViewer
 {
     private readonly SplitMenuButton _slideshowMenuButton = new()
     {
-        Name = "GallerySlideshowMenu", Width = 24, MinWidth = 24, MinHeight = 32, Padding = new Thickness(0),
-        HorizontalContentAlignment = HorizontalAlignment.Center, VerticalContentAlignment = VerticalAlignment.Center
+        // Size, edge and corners come from the shared split-button style (WorkspaceStyles.axaml: Workspace.Size.Control square, joined to the toggle).
+        Name = "GallerySlideshowMenu", Classes = { "split-menu" }
     };
     // The toggle and its menu button in one group without a gap (the toggle is inserted by PlaceSlideshowToggle).
     private readonly StackPanel _slideshowSplit = new()
@@ -113,7 +113,7 @@ internal sealed partial class GalleryViewer
     private static Control ChevronDown()
     {
         var icon = MeowChan.Desktop.Controls.WorkspaceIcons.Create(MeowChan.Desktop.Controls.WorkspaceIcons.ChevronDown);
-        icon.Width = 12; icon.Height = 12;
+        icon.Width = 16; icon.Height = 16; // the 16 dip icon size of the bar's other tools
         return icon;
     }
 
