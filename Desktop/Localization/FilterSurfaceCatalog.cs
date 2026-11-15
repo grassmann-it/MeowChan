@@ -49,7 +49,7 @@ internal static class FilterSurfaceCatalog
         ("media.query.reason.ambiguous", "ambiguous, name the source and board", "mehrdeutig, Quelle und Board nennen"),
         ("media.query.reason.refused", "does not fit the other filters", "passt nicht zu den anderen Filtern"),
         ("media.query.reason.tooManyTags", "too many tags", "zu viele Tags"),
-        ("media.query.tip", "Media filters:\ntype:video, -tag:name, sound:none\nsource:4chan, board:g, rating:>=3\nfav, missing, untagged, thread:1234,\nqueue:yes, queue:no, booru:tag, -booru:tag, tag:\"x\" keeps spaces.", "Medienfilter:\ntype:video, -tag:name, sound:none\nsource:4chan, board:g, rating:>=3\nfav, missing, untagged, thread:1234,\nqueue:yes, queue:no, booru:tag, -booru:tag, tag:\"x\" hält Leerzeichen zusammen."),
+        ("media.query.tip", "Words: file name, thread, board, source.\ntype:video, -tag:name, sound:none\nsource:4chan, board:g, rating:>=3\nfav, missing, untagged, thread:1234,\nqueue:yes, queue:no, booru:tag, -booru:tag, tag:\"x\" keeps spaces.", "Wörter: Dateiname, Thread, Board, Quelle.\ntype:video, -tag:name, sound:none\nsource:4chan, board:g, rating:>=3\nfav, missing, untagged, thread:1234,\nqueue:yes, queue:no, booru:tag, -booru:tag, tag:\"x\" hält Leerzeichen zusammen."),
         ("media.query.copied", "Filters copied as text", "Filter als Text kopiert"),
         ("media.query.copiedLong", "Filters copied as text. The text is longer than the search field takes (character limit: {0}).", "Filter als Text kopiert. Der Text ist länger, als das Suchfeld aufnimmt (Zeichengrenze: {0})."),
         ("media.query.copyFailed", "The filters could not be copied: the clipboard is not available.", "Die Filter konnten nicht kopiert werden: Die Zwischenablage ist nicht verfügbar."),

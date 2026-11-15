@@ -15,7 +15,8 @@ using MeowChan.Tags;
 
 namespace MeowChan;
 
-// M3: the query syntax of the media search field (Desktop/MediaFilterQuery.cs). The text of the field stays a live file name filter;
+// M3: the query syntax of the media search field (Desktop/MediaFilterQuery.cs). The text of the field stays a live text filter (file name,
+// thread title, board and source; MediaLibraryFilter.TextWords);
 // Enter turns the recognized "field:value" tokens into filter terms (chips) and leaves the rest in the field. A token that is not
 // understood is never dropped: it stays in the field and a hint below the chips says why. "Copy filters as text" (the chips' menu and
 // the row's menu) writes the term set back as a query. The conversion and the copy are announced through the hint (a polite live region).

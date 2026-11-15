@@ -256,6 +256,7 @@ public sealed class MediaSortToolbarContractTests
 
     // The search tooltip was one 240 character run that wrapped to six or more lines at the 360 dip tooltip width (WorkspaceStyles: ToolTip MaxWidth,
     // wrapping TextBlock) and reached into the selection bar. Now the heading, the syntax in three short lines and one closing sentence: five lines.
+    // The heading names what free words search (file name, thread, board, source; review 15.11.2026) and fits one tooltip line.
     [Fact]
     public void TheSearchTooltipListsTheFilterSyntaxInThreeShortLinesInEveryLanguage()
     {
@@ -274,7 +275,8 @@ public sealed class MediaSortToolbarContractTests
             string syntax = string.Join(" ", lines[1..4]);
             foreach (string token in new[] { "type:video", "sound:none", "source:4chan", "board:g", "rating:>=3", "fav", "missing", "untagged", "thread:1234" })
                 Assert.Contains(token, syntax);
-            Assert.True(tip.Length <= 205, code + ": the tooltip must stay short: " + tip.Length);
+            Assert.True(lines[0].Length <= 42, code + ": the heading must fit one tooltip line: " + lines[0]);
+            Assert.True(tip.Length <= 230, code + ": the tooltip must stay short: " + tip.Length);
             Assert.DoesNotContain("  ", tip);
         }
         string styles = Source("Desktop/WorkspaceStyles.axaml");

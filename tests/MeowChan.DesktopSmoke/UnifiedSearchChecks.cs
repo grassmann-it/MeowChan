@@ -259,8 +259,8 @@ internal static class UnifiedSearchChecks
         MediaPage media = owner.MediaPageForTests ?? throw new InvalidOperationException("No media page.");
         SearchBox name = media.NameFilter;
         SearchScopeChip mediaChip = media.SearchScopeChip;
-        Require(mediaChip.Scopes.SequenceEqual(new[] { SearchScope.FileName }) && mediaChip.Scope == SearchScope.FileName
-            && ReferenceEquals(name.ScopeChip, mediaChip), "Media chip is not the one-scope file name chip inside the field.");
+        Require(mediaChip.Scopes.SequenceEqual(new[] { SearchScope.Media }) && mediaChip.Scope == SearchScope.Media
+            && ReferenceEquals(name.ScopeChip, mediaChip), "Media chip is not the one-scope media search chip inside the field.");
         string before = name.Text ?? "";
         name.Text = "";
         archive.SearchInMediaRequested!("lamp_1");
