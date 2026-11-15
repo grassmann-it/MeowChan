@@ -309,13 +309,26 @@ internal static class MediaInteractionChecks
         }
         async Task<T> NativeTargetAsync<T>(string name) where T : Control
         {
-            // macOS can expose the retained transport while GalleryControlTransfer is
-            // between visual roots. PointToScreen rejects that detached target; wait for
-            // the real hit-testable control instead of constructing a synthetic event.
-            T target = Named<T>(name);
-            await Program.WaitUntilAsync(() => MediaInteractionSmokeHelpers.IsPointerTargetReady(target),
-                () => $"The {name} control did not settle as a native hit target.");
-            return target;
+            // A native overlay/control transfer can replace the retained instance between
+            // two dispatcher turns. Resolve the current visual-tree target on every probe;
+            // waiting on the first instance leaves SendInput pointed at a retired root.
+            T? target = null;
+            await Program.WaitUntilAsync(() =>
+            {
+                try
+                {
+                    target = Named<T>(name);
+                    return MediaInteractionSmokeHelpers.IsPointerTargetReady(target);
+                }
+                catch (InvalidOperationException)
+                {
+                    // During reparenting there can briefly be zero or multiple named
+                    // controls. That is a target transition, not a smoke assertion.
+                    target = null;
+                    return false;
+                }
+            }, () => $"The {name} control did not settle as a native hit target.");
+            return target!;
         }
         async Task<Button> NativeOverflowTargetAsync(string name)
         {
@@ -335,8 +348,14 @@ internal static class MediaInteractionChecks
                 target = viewer.OverflowMenuContent.GetVisualDescendants()
                     .OfType<Button>()
                     .FirstOrDefault(control => control.Name == name);
-                return target is not null
-                    && target.IsAttachedToVisualTree()
+                if (target is null) return false;
+
+                // The row can be current and attached while still outside the visible
+                // ScrollViewer viewport. Bring this current instance into view before
+                // asking for screen geometry; a retained row from a previous popup must
+                // never be reused for native input.
+                target.BringIntoView();
+                return target.IsAttachedToVisualTree()
                     && MediaInteractionSmokeHelpers.IsNativeGeometryReady(target);
             }, () => $"The {name} control did not settle as a native popup target.");
             return target!;
@@ -378,19 +397,40 @@ internal static class MediaInteractionChecks
         }
         async Task DismissTransientNativeRootsAsync()
         {
+            GalleryVideoPlayer? player = viewer?.GetGalleryVisualDescendants()
+                .OfType<GalleryVideoPlayer>().SingleOrDefault();
+            bool volumePopupOpen = player?.IsVolumePopupOpen == true;
             bool popupOpen = viewer?.IsOverflowOpen == true;
             bool galleryOverlayOpen = viewer?.IsOverlayOpen == true;
             bool helpWindowOpen = MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.For(window) is { IsVisible: true };
-            if (!popupOpen && !galleryOverlayOpen && !helpWindowOpen) return;
+            if (!popupOpen && !galleryOverlayOpen && !helpWindowOpen && !volumePopupOpen) return;
 
+            // Volume is a retained popup in the native transport root, not an Avalonia
+            // Flyout, so checking IsOverflowOpen/IsOverlayOpen alone misses it. Close it
+            // explicitly before dismissing a possibly focused overflow PopupRoot.
+            player?.SetVolumePopupOpen(false);
             // A failed popup-target assertion must not leave its native light-dismiss
             // root over the next stage. One real Escape dismisses the currently focused
             // root; the wait below proves that cleanup completed before clicking Close.
-            await native!.KeyAsync(MediaNativeInput.Escape);
+            if (popupOpen || galleryOverlayOpen || helpWindowOpen)
+                await native!.KeyAsync(MediaNativeInput.Escape);
             await Program.WaitUntilAsync(() => viewer?.IsOverflowOpen != true
                 && viewer?.IsOverlayOpen != true
-                && MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.For(window) == null,
+                && MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.For(window) == null
+                && player?.IsVolumePopupOpen != true,
                 () => "The previous native media popup/overlay did not dismiss during stage setup.");
+        }
+        async Task CloseVolumePopupAsync()
+        {
+            GalleryVideoPlayer player = Player();
+            if (!player.IsVolumePopupOpen) return;
+            // Leave the slider's native hit target before forcing the retained popup shut;
+            // otherwise its hover callback can reopen it on the next layout turn.
+            GalleryViewer current = viewer!;
+            await native!.MoveAsync(current, new Point(current.Bounds.Width / 2, current.Bounds.Height / 2));
+            player.SetVolumePopupOpen(false);
+            await Program.WaitUntilAsync(() => !player.IsVolumePopupOpen,
+                () => "The native volume popup did not close after its target was abandoned.");
         }
         async Task FreshVideoAsync()
         {
@@ -530,6 +570,7 @@ internal static class MediaInteractionChecks
                 await native.ButtonAsync(true);
                 await native.ButtonAsync(false);
                 await MediaInteractionSmokeHelpers.HoldStateAsync(Player(), expected, "Disabled volume pointer click");
+                await CloseVolumePopupAsync();
                 var after = await SampleAsync("disabled-volume-after-click");
                 Require(ProvesNativeUnavailable(after) && after.Volume == before.Volume
                     && after.Muted == before.Muted && after.State == before.State
@@ -567,6 +608,7 @@ internal static class MediaInteractionChecks
                 Console.WriteLine("SMOKE functional-audio-positive media volume: " + JsonSerializer.Serialize(new
                 { expected, before = volumeEvidence, after = await SampleAsync("functional-audio-positive-volume") }));
             }
+            await CloseVolumePopupAsync();
             foreach (string panel in new[] { "GalleryToggleContext", "GalleryHelp" })
             {
                 if (expected == "Playing") await SeekClickAsync(.05);
