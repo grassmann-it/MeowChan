@@ -75,9 +75,11 @@ public partial class MainWindow
             SaveStampBlock = state => _ = _session.SaveViewPreferencesAsync(config => config.TaggingStampBlock = state.ToString()),
             SaveViewMode = mode => _ = _session.SaveViewPreferencesAsync(config => config.TaggingPageView = mode.ToString()),
             SavePreviewColumn = visible => _ = _session.SaveViewPreferencesAsync(config => config.TaggingPreviewColumn = visible),
-            ReadMediaTileAppearance = () => MediaTileMetrics.For(
-                MediaPageLayout.Parse(_session.Config.MediaLayout, _session.Config.MediaBooruMode).TileSize,
-                MediaPageLayout.Parse(_session.Config.MediaLayout, _session.Config.MediaBooruMode).Caption)
+            ReadMediaTileAppearance = () =>
+            {
+                MediaPageLayout layout = MediaPageLayout.Parse(_session.Config.MediaLayout, _session.Config.MediaBooruMode);
+                return MediaTileMetrics.For(layout.TileSize, layout.Caption);
+            }
         };
         _taggingPage.RestoreViewMode(TaggingViewModes.Parse(_session.Config.TaggingPageView));
         _taggingPage.RestorePreviewColumn(_session.Config.TaggingPreviewColumn);
