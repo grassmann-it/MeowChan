@@ -131,8 +131,8 @@ public sealed class MediaBooruModeTests : IDisposable
         string host = Read("Desktop/Shell/MainWindow.Media.cs");
         Assert.Contains("AddToTagQueue = AddMediaToTagQueueAsync,", host);
         Assert.Contains("if (added > 0 && !_isClosing)", host);
-        Assert.Contains("new FeedbackToastAction(Texts.T(\"media.queue.walkNow\"), OpenTagQueueGalleryAsync)", host);
+        Assert.Contains("new[] { new FeedbackToastAction(Texts.T(\"media.queue.walkNow\"), () => OpenTagQueueGalleryAsync(groupId)) }", host);
         Assert.Contains("OpenTaggingPage = ShowTaggingPage,", host);
-        Assert.Contains("OpenTagQueueWalk = OpenTagQueueGalleryAsync,", host);
+        Assert.Contains("OpenTagQueueWalk = () => OpenTagQueueGalleryAsync(),", host);
     }
 }
