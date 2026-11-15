@@ -358,6 +358,15 @@
                             <Border Classes="settings-divider">
                                 <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
                                     <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                        <TextBlock x:Name="ReaderExpandRepliesFieldLabel" Text="{Binding ReaderExpandRepliesLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                        <TextBlock Text="{Binding ReaderExpandRepliesHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <ToggleSwitch x:Name="ReaderExpandRepliesInput" IsChecked="{Binding ReaderExpandReplies, Mode=TwoWay}" AutomationProperties.HelpText="{Binding ReaderExpandRepliesHint}" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center" OnContent="{x:Null}" OffContent="{x:Null}" AutomationProperties.LabeledBy="{Binding ElementName=ReaderExpandRepliesFieldLabel}" AutomationProperties.Name="{Binding ReaderExpandRepliesLabel}" />
+                                </Grid>
+                            </Border>
+                            <Border Classes="settings-divider">
+                                <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                                    <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
                                         <TextBlock x:Name="ReaderPageSizeFieldLabel" Text="{Binding ReaderPageSizeLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
                                         <TextBlock Text="{Binding ReaderPageSizeHint}" Classes="workspace-help" TextWrapping="Wrap" />
                                     </StackPanel>

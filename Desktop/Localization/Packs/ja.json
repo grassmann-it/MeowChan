@@ -1936,6 +1936,8 @@
     "settings.reader.replyStep.hint": "「返信をさらに表示」ではこの枚数のカードを追加します。",
     "settings.reader.replyLines": "返信カードあたりの行数",
     "settings.reader.replyLines.hint": "各返信カードのテキスト抜粋を制限します。",
+    "settings.reader.expandReplies": "返信を自動的に展開",
+    "settings.reader.expandReplies.hint": "各投稿が表示されたらすぐに返信カードを開き、画像だけの投稿でもコメントがすぐ見えるようにします。手動で閉じた投稿は、スレッドを開いている間は閉じたままです。",
     "settings.reader.pageSize": "リーダーページあたりの投稿数",
     "settings.reader.pageSize.hint": "変更後も現在の読書位置が表示されます。",
     "settings.reader.threadingDepth": "会話の最大インデント深度",

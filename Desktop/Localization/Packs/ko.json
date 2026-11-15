@@ -1936,6 +1936,8 @@
     "settings.reader.replyStep.hint": "“답글 더 보기”를 누르면 이만큼의 카드를 추가합니다.",
     "settings.reader.replyLines": "답글 카드당 줄 수",
     "settings.reader.replyLines.hint": "각 답글 카드의 텍스트 발췌를 제한합니다.",
+    "settings.reader.expandReplies": "답글 자동 펼치기",
+    "settings.reader.expandReplies.hint": "각 게시물이 표시되는 즉시 답글 카드를 열어, 이미지만 있는 게시물도 댓글을 바로 볼 수 있게 합니다. 직접 접은 게시물은 스레드가 열려 있는 동안 접힌 상태로 유지됩니다.",
     "settings.reader.pageSize": "리더 페이지당 게시물 수",
     "settings.reader.pageSize.hint": "변경해도 현재 읽기 위치가 화면에 유지됩니다.",
     "settings.reader.threadingDepth": "대화 최대 들여쓰기 깊이",

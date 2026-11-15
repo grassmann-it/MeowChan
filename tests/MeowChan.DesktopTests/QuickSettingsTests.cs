@@ -38,7 +38,7 @@ public sealed class QuickSettingsTests : IDisposable
             SettingsFieldId.ReaderFocusedMediaEnlarge, SettingsFieldId.ReaderFocusedMediaScalePercent, SettingsFieldId.ReaderHoverEnlarge,
             SettingsFieldId.ReaderThumbnailWidth,
             SettingsFieldId.ReaderPostWidth, SettingsFieldId.ReadingFontSize, SettingsFieldId.ReaderDateStyle, SettingsFieldId.ReaderSpoilers,
-            SettingsFieldId.ReaderPageSize
+            SettingsFieldId.ReaderPageSize, SettingsFieldId.ReaderExpandReplies
         }, Reader.Fields.Select(field => field.Id));
         foreach (string moved in new[] { SettingsFieldId.ReadingHistoryLimit, SettingsFieldId.ReadingHistoryMenuEntries, SettingsFieldId.ReaderHoverEnlargeSize,
             SettingsFieldId.ReaderHoverEnlargeDelayMs, SettingsFieldId.ReaderMediaSidebarWidth, SettingsFieldId.ReaderMediaSidebarMinimumWidth,

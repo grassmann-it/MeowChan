@@ -1636,6 +1636,8 @@
     "settings.reader.replyStep.hint": "„Zobrazit další odpovědi“ přidá tento počet karet.",
     "settings.reader.replyLines": "Řádků na kartu odpovědi",
     "settings.reader.replyLines.hint": "Omezuje textový úryvek v každé kartě odpovědi.",
+    "settings.reader.expandReplies": "Automaticky rozbalovat odpovědi",
+    "settings.reader.expandReplies.hint": "Otevře karty odpovědí pod každým příspěvkem hned po jeho zobrazení, takže příspěvky jen s obrázky ihned ukážou komentáře. Příspěvek, který ručně sbalíte, zůstane sbalený, dokud je vlákno otevřené.",
     "settings.reader.pageSize": "Příspěvků na stránku čtečky",
     "settings.reader.pageSize.hint": "Změna zachová aktuální pozici čtení v zobrazení.",
     "settings.reader.threadingDepth": "Maximální hloubka odsazení konverzace",

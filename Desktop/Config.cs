@@ -488,6 +488,8 @@ namespace MeowChan
         internal const int ReaderReplyLinesDefault = ReaderDisplayLimits.ReplyLinesDefault;
         internal const int ReaderReplyLinesMinimum = ReaderDisplayLimits.ReplyLinesMinimum;
         internal const int ReaderReplyLinesMaximum = ReaderDisplayLimits.ReplyLinesMaximum;
+        /// <summary>Open the nested reply cards of every post as soon as its card is shown (default off); a post the reader collapsed by hand stays collapsed for the open thread.</summary>
+        public bool ReaderExpandReplies { get; set; } = false;
         public int ReaderPageSize { get; set; } = ReaderPageSizeDefault;
         internal const int ReaderPageSizeDefault = ArchivePage.ReaderPageSizeDefault;
         internal const int ReaderPageSizeMinimum = ArchivePage.ReaderPageSizeMinimum;
@@ -1859,6 +1861,7 @@ namespace MeowChan
                 ReaderPreviewDelayMs = ReaderPreviewDelayMs,
                 ReaderReplyStep = ReaderReplyStep,
                 ReaderReplyLines = ReaderReplyLines,
+                ReaderExpandReplies = ReaderExpandReplies,
                 ReaderPageSize = ReaderPageSize,
                 ReaderThreadingDepth = ReaderThreadingDepth,
                 ReadingHistoryLimit = ReadingHistoryLimit,
@@ -2114,6 +2117,7 @@ namespace MeowChan
             ReaderPreviewDelayMs = source.ReaderPreviewDelayMs;
             ReaderReplyStep = source.ReaderReplyStep;
             ReaderReplyLines = source.ReaderReplyLines;
+            ReaderExpandReplies = source.ReaderExpandReplies;
             ReaderPageSize = source.ReaderPageSize;
             ReaderThreadingDepth = source.ReaderThreadingDepth;
             ReadingHistoryLimit = source.ReadingHistoryLimit;
@@ -2346,6 +2350,7 @@ namespace MeowChan
             ReaderPreviewDelayMs = source.ReaderPreviewDelayMs;
             ReaderReplyStep = source.ReaderReplyStep;
             ReaderReplyLines = source.ReaderReplyLines;
+            ReaderExpandReplies = source.ReaderExpandReplies;
             ReaderPageSize = source.ReaderPageSize;
             ReaderThreadingDepth = source.ReaderThreadingDepth;
             ReadingHistoryLimit = source.ReadingHistoryLimit;

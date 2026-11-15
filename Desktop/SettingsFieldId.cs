@@ -15,6 +15,7 @@ internal static class SettingsFieldId
     internal const string ReaderDateStyle = nameof(ReaderDateStyle);
     internal const string ReaderSpoilers = nameof(ReaderSpoilers);
     internal const string ReaderPageSize = nameof(ReaderPageSize);
+    internal const string ReaderExpandReplies = nameof(ReaderExpandReplies);
     internal const string ReadingHistoryLimit = nameof(ReadingHistoryLimit);
     internal const string ReadingHistoryMenuEntries = nameof(ReadingHistoryMenuEntries);
     internal const string ReaderTextlessLargeImages = nameof(ReaderTextlessLargeImages);
