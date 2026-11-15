@@ -335,6 +335,8 @@ internal static partial class UiCatalogChecks
         await Enter(w, "settings");
         SettingsEditor editor = w.SettingsEditor;
         await PageAsync(w, "page-settings", "Settings page, first category", reenter: () => Enter(w, "settings"));
+        if (SettingsCategoryIds.Length != 9 || SettingsCategoryIds[^1] != "settings.shortcuts")
+            throw new InvalidOperationException("FP4 expects nine Settings categories, ending with shortcuts.");
         foreach (string id in SettingsCategoryIds)
         {
             string key = "page-" + id.Replace('.', '-');

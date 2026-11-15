@@ -481,9 +481,13 @@ internal static class ArchivePageChecks
             ContextMenu menu = editor.ContextMenu
                 ?? throw new InvalidOperationException("The thread Columns command did not create its menu.");
             Require(menu.IsOpen, "The thread Columns command did not open its menu.");
-            Require(menu.Items.OfType<MenuItem>().Count() == 9 &&
-                menu.Items.OfType<MenuItem>().First().ToggleType == MenuItemToggleType.CheckBox,
-                "The thread Columns editor lacks keyboard-friendly checked items and reset.");
+            Require(menu.Items.Count >= 4 && menu.Items[0] is MenuItem fit &&
+                (string?)fit.Tag == "archive.columnsFitAll" &&
+                menu.Items[1] is Separator && menu.Items[2] is MenuItem firstColumn &&
+                firstColumn.ToggleType == MenuItemToggleType.CheckBox &&
+                menu.Items[^1] is MenuItem resetItem && (string?)resetItem.Tag == "archive.columnsReset" &&
+                menu.Items[^2] is Separator && menu.Items.OfType<MenuItem>().Count() == 12,
+                "The thread Columns menu must expose Fit all, separators, nine checked columns and Reset.");
             MenuItem reset = menu.Items.OfType<MenuItem>().Last();
             reset.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
             await Program.WaitUntilAsync(() => !page.ArchiveColumnVisibilityPreference.Keys.Any(
