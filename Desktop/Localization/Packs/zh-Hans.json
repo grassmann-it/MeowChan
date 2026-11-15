@@ -4111,6 +4111,7 @@
     "media.selection.queue": "加入标签队列",
     "media.selection.queue.hint": "将所选媒体文件加入标签队列。加入本身不会打任何标签。",
     "media.queue.all": "将显示的全部内容加入标签队列…",
+    "media.queue.group": "加入组标签队列",
     "command.media.queue.add": "加入标签队列",
     "command.media.queue.open": "逐个浏览标签队列",
     "queue.title": "标签队列",

@@ -4194,6 +4194,7 @@
     "media.selection.queue": "Dodaj do kolejki tagowania",
     "media.selection.queue.hint": "Dodaje zaznaczone pliki multimedialne do kolejki tagowania. Samo dodanie niczego nie taguje.",
     "media.queue.all": "Dodaj wszystkie pokazane do kolejki tagowania…",
+    "media.queue.group": "Dodaj do kolejki tagowania w grupie",
     "command.media.queue.add": "Dodaj do kolejki tagowania",
     "command.media.queue.open": "Przejdź przez kolejkę tagowania",
     "queue.title": "Kolejka tagowania",

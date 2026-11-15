@@ -4149,6 +4149,7 @@
     "media.selection.queue": "Añadir a la cola de etiquetado",
     "media.selection.queue.hint": "Añade los archivos multimedia seleccionados a la cola de etiquetado. Añadirlos no etiqueta nada.",
     "media.queue.all": "Añadir todo lo mostrado a la cola de etiquetado…",
+    "media.queue.group": "Añadir a la cola de etiquetado en un grupo",
     "command.media.queue.add": "Añadir a la cola de etiquetado",
     "command.media.queue.open": "Recorrer la cola de etiquetado",
     "queue.title": "Cola de etiquetado",

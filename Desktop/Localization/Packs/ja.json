@@ -4111,6 +4111,7 @@
     "media.selection.queue": "タグ付けキューに追加",
     "media.selection.queue.hint": "選択したメディアファイルをタグ付けキューに追加します。追加しただけではタグは付きません。",
     "media.queue.all": "表示中のものをすべてタグ付けキューに追加…",
+    "media.queue.group": "グループのタグ付けキューに追加",
     "command.media.queue.add": "タグ付けキューに追加",
     "command.media.queue.open": "タグ付けキューを順に見る",
     "queue.title": "タグ付けキュー",

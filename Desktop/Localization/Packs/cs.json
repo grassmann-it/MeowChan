@@ -4188,6 +4188,7 @@
     "media.selection.queue": "Přidat do fronty štítkování",
     "media.selection.queue.hint": "Přidá vybrané mediální soubory do fronty štítkování. Přidáním se nic neoznačí.",
     "media.queue.all": "Přidat všechny zobrazené do fronty štítkování…",
+    "media.queue.group": "Přidat do fronty štítkování ve skupině",
     "command.media.queue.add": "Přidat do fronty štítkování",
     "command.media.queue.open": "Projít frontu štítkování",
     "queue.title": "Fronta štítkování",

@@ -4149,6 +4149,7 @@
     "media.selection.queue": "Ajouter à la file d’étiquetage",
     "media.selection.queue.hint": "Ajoute les fichiers multimédias sélectionnés à la file d’étiquetage. L’ajout n’étiquette rien.",
     "media.queue.all": "Ajouter tout ce qui est affiché à la file d’étiquetage…",
+    "media.queue.group": "Ajouter à la file d’étiquetage dans un groupe",
     "command.media.queue.add": "Ajouter à la file d’étiquetage",
     "command.media.queue.open": "Parcourir la file d’étiquetage",
     "queue.title": "File d’étiquetage",

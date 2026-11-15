@@ -4155,6 +4155,7 @@
     "media.selection.queue": "Aggiungi alla coda di tagging",
     "media.selection.queue.hint": "Aggiunge i file multimediali selezionati alla coda di tagging. L’aggiunta non assegna alcun tag.",
     "media.queue.all": "Aggiungi tutti i file mostrati alla coda di tagging…",
+    "media.queue.group": "Aggiungi alla coda di tagging in un gruppo",
     "command.media.queue.add": "Aggiungi alla coda di tagging",
     "command.media.queue.open": "Percorri la coda di tagging",
     "queue.title": "Coda di tagging",

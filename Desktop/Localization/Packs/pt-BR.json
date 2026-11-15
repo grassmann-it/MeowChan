@@ -4155,6 +4155,7 @@
     "media.selection.queue": "Adicionar à fila de tags",
     "media.selection.queue.hint": "Adiciona os arquivos de mídia selecionados à fila de tags. Adicionar não aplica nenhuma tag.",
     "media.queue.all": "Adicionar tudo o que está exibido à fila de tags…",
+    "media.queue.group": "Adicionar à fila de tags no grupo",
     "command.media.queue.add": "Adicionar à fila de tags",
     "command.media.queue.open": "Percorrer a fila de tags",
     "queue.title": "Fila de tags",

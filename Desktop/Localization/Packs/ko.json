@@ -4111,6 +4111,7 @@
     "media.selection.queue": "태그 지정 대기열에 추가",
     "media.selection.queue.hint": "선택한 미디어 파일을 태그 지정 대기열에 추가합니다. 추가만으로는 태그가 지정되지 않습니다.",
     "media.queue.all": "표시된 항목 모두를 태그 지정 대기열에 추가…",
+    "media.queue.group": "그룹 태그 지정 대기열에 추가",
     "command.media.queue.add": "태그 지정 대기열에 추가",
     "command.media.queue.open": "태그 지정 대기열 둘러보기",
     "queue.title": "태그 지정 대기열",
