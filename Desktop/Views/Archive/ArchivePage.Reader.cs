@@ -373,14 +373,18 @@ public partial class ArchivePage
         bool confirmed = false;
         double? requestedOffset = null;
         ArchivePostRow? targetRow = null;
-        // Focus must not cause a second competing BringIntoView request.
+        // Focus must not cause a second competing BringIntoView request: the list's scroll viewer does not bring a focused card
+        // into view (BringIntoViewOnFocusChange is off in the XAML), so the card is focused as soon as it is realized in pass 0 and
+        // the focus ring moves with the selection; the alignment below stays the only scroll of the jump.
+        void FocusTarget(Control container)
+        {
+            if (!restoreFocus || container.IsFocused) return;
+            if (focusIntent != null) focusIntent.Restore(container);
+            else container.Focus();
+        }
         void Finish(Control? container)
         {
-            if (restoreFocus && container != null)
-            {
-                if (focusIntent != null) focusIntent.Restore(container);
-                else container.Focus();
-            }
+            if (container != null) FocusTarget(container);
             ReaderPositionChanged(deliberate: !interactionRevision.HasValue);
         }
         for (int pass = 0; pass < 8; pass++)
@@ -403,6 +407,7 @@ public partial class ArchivePage
             if (pass == 0 || offsetLost || posts.ContainerFromItem(row) == null) posts.ScrollIntoView(row);
             posts.UpdateLayout();
             if (posts.ContainerFromItem(row) is not Control container) continue;
+            FocusTarget(container);
             ScrollViewer? scroll = posts.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
             ScrollContentPresenter? viewport = scroll?.GetVisualDescendants().OfType<ScrollContentPresenter>().FirstOrDefault();
             if (viewport == null || container.TranslatePoint(default, viewport) is not Point position) continue;
