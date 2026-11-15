@@ -198,6 +198,7 @@ public static class SettingsTransfer
             ReaderHoverEnlargeSize = source.ReaderHoverEnlargeSize,
             ReaderMediaSidebar = source.ReaderMediaSidebar,
             ReaderMediaSidebarMinimumWidth = source.ReaderMediaSidebarMinimumWidth,
+            ReaderMediaSidebarScope = source.ReaderMediaSidebarScope,
             ReaderMediaSidebarSide = source.ReaderMediaSidebarSide,
             ReaderMediaSidebarWidth = source.ReaderMediaSidebarWidth,
             ReaderTextlessLargeImages = source.ReaderTextlessLargeImages,

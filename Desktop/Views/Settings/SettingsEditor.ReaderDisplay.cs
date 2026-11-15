@@ -173,6 +173,15 @@ public partial class SettingsEditor
     public bool ReaderMediaSidebar { get => _readerMediaSidebar; set => SetField(ref _readerMediaSidebar, value, nameof(ReaderMediaSidebar)); }
     public string ReaderMediaSidebarLabel => Texts.T("settings.reader.mediaSidebar");
     public string ReaderMediaSidebarHint => Texts.T("settings.reader.mediaSidebar.hint");
+    private SettingsChoice? _selectedReaderMediaSidebarScope;
+    public SettingsChoice? SelectedReaderMediaSidebarScope
+    {
+        get => _selectedReaderMediaSidebarScope;
+        set => SetField(ref _selectedReaderMediaSidebarScope, value, nameof(SelectedReaderMediaSidebarScope));
+    }
+    public IReadOnlyList<SettingsChoice> ReaderMediaSidebarScopeChoices { get; private set; } = Array.Empty<SettingsChoice>();
+    public string ReaderMediaSidebarScopeLabel => Texts.T("settings.reader.mediaSidebarScope");
+    public string ReaderMediaSidebarScopeHint => Texts.T("settings.reader.mediaSidebarScope.hint");
     private SettingsChoice? _selectedReaderMediaSidebarSide;
     public SettingsChoice? SelectedReaderMediaSidebarSide
     {
@@ -256,6 +265,17 @@ public partial class SettingsEditor
         SelectedReaderMediaClick = ReaderMediaClickChoices.FirstOrDefault(item => item.Value == click) ?? ReaderMediaClickChoices[0];
     }
 
+    private void RefreshMediaSidebarScopeChoices(string scope)
+    {
+        ReaderMediaSidebarScopeChoices = new SettingsChoice[]
+        {
+            new(Config.ReaderMediaSidebarScopeLargeReader, Texts.T("settings.reader.mediaSidebarScope.large")),
+            new(Config.ReaderMediaSidebarScopeAlways, Texts.T("settings.reader.mediaSidebarScope.always"))
+        };
+        Raise(new[] { nameof(ReaderMediaSidebarScopeChoices) });
+        SelectedReaderMediaSidebarScope = ReaderMediaSidebarScopeChoices.FirstOrDefault(item => item.Value == scope) ?? ReaderMediaSidebarScopeChoices[0];
+    }
+
     private void RefreshMediaSidebarSideChoices(string side)
     {
         ReaderMediaSidebarSideChoices = new SettingsChoice[]
@@ -328,6 +348,7 @@ public partial class SettingsEditor
         string upscale = SelectedGalleryFitUpscale?.Value ?? (_config.GalleryFitUpscaleLimited ? "Limited" : "Unlimited");
         RefreshReaderChoices(date, spoilers, upscale);
         RefreshMediaSidebarSideChoices(SelectedReaderMediaSidebarSide?.Value ?? _config.ReaderMediaSidebarSide);
+        RefreshMediaSidebarScopeChoices(SelectedReaderMediaSidebarScope?.Value ?? _config.ReaderMediaSidebarScope);
         RefreshMediaClickChoices(SelectedReaderMediaClick?.Value ?? ReaderMediaClickRules.ToKey(_config.EffectiveReaderMediaClick));
     }
 
@@ -394,6 +415,7 @@ public partial class SettingsEditor
         ResetNumber(ReaderPreviewSizeMemoryInput, ReaderPreviewSizeMemory.Value);
         RefreshReaderChoices(config.ReaderDateStyle, config.ReaderSpoilers, config.GalleryFitUpscaleLimited ? "Limited" : "Unlimited");
         RefreshMediaSidebarSideChoices(config.ReaderMediaSidebarSide);
+        RefreshMediaSidebarScopeChoices(config.ReaderMediaSidebarScope);
     }
 
     /// <summary>
@@ -408,6 +430,8 @@ public partial class SettingsEditor
         ReaderHoverEnlarge = _config.ReaderHoverEnlarge;
         // The media sidebar's switch (View menu) and its dragged width (splitter in the reader).
         ReaderMediaSidebar = _config.ReaderMediaSidebar;
+        // The archive view's switch chooses Always or Large reader only.
+        if (SelectedReaderMediaSidebarScope?.Value != _config.ReaderMediaSidebarScope) RefreshMediaSidebarScopeChoices(_config.ReaderMediaSidebarScope);
         if (ReaderMediaSidebarWidth != _config.ReaderMediaSidebarWidth)
         {
             ReaderMediaSidebarWidth = _config.ReaderMediaSidebarWidth;
@@ -439,6 +463,7 @@ public partial class SettingsEditor
         candidate.ReaderFocusedMediaEnlarge = ReaderFocusedMediaEnlarge;
         candidate.ReaderHoverEnlarge = ReaderHoverEnlarge;
         candidate.ReaderMediaSidebar = ReaderMediaSidebar;
+        candidate.ReaderMediaSidebarScope = SelectedReaderMediaSidebarScope?.Value ?? _config.ReaderMediaSidebarScope;
         candidate.ReaderMediaSidebarSide = SelectedReaderMediaSidebarSide?.Value ?? _config.ReaderMediaSidebarSide;
         candidate.ReaderMediaSidebarWidth = GetInteger(ReaderMediaSidebarWidth, ReaderMediaSidebarWidthLabel, Config.ReaderMediaSidebarWidthMinimum, Config.ReaderMediaSidebarWidthMaximum);
         candidate.ReaderMediaSidebarMinimumWidth = GetInteger(ReaderMediaSidebarMinimumWidth, ReaderMediaSidebarMinimumWidthLabel, Config.ReaderMediaSidebarMinimumWidthMinimum, Config.ReaderMediaSidebarMinimumWidthMaximum);
@@ -568,6 +593,9 @@ public partial class SettingsEditor
                 case SettingsFieldId.ReaderMediaSidebar:
                     ReaderMediaSidebar = _config.ReaderMediaSidebar;
                     break;
+                case SettingsFieldId.ReaderMediaSidebarScope:
+                    RefreshMediaSidebarScopeChoices(_config.ReaderMediaSidebarScope);
+                    break;
                 case SettingsFieldId.ReaderMediaSidebarSide:
                     RefreshMediaSidebarSideChoices(_config.ReaderMediaSidebarSide);
                     break;
@@ -637,6 +665,7 @@ public partial class SettingsEditor
         nameof(ReaderFocusedMediaEnlargeLabel), nameof(ReaderFocusedMediaEnlargeHint),
         nameof(ReaderHoverEnlargeLabel), nameof(ReaderHoverEnlargeHint),
         nameof(ReaderMediaSidebarLabel), nameof(ReaderMediaSidebarHint),
+        nameof(ReaderMediaSidebarScopeLabel), nameof(ReaderMediaSidebarScopeHint),
         nameof(ReaderMediaSidebarSideLabel), nameof(ReaderMediaSidebarSideHint),
         nameof(ReaderMediaSidebarWidthLabel), nameof(ReaderMediaSidebarWidthHint), nameof(ReaderMediaSidebarWidthHelp),
         nameof(ReaderMediaSidebarMinimumWidthLabel), nameof(ReaderMediaSidebarMinimumWidthHint), nameof(ReaderMediaSidebarMinimumWidthHelp),

@@ -310,7 +310,6 @@ public sealed partial class MediaPage
         if (_panel is { } panel)
         {
             Avalonia.Controls.Grid.SetColumn(panel, panelColumn);
-            panel.Margin = panelRight ? new Thickness(0, 0, edge, 8) : new Thickness(edge, 0, 0, 8);
             panel.BorderThickness = new Thickness(panelRight ? 1 : 0, 0, panelRight ? 0 : 1, 0);
             panel.IsVisible = panelShown;
         }
@@ -318,6 +317,14 @@ public sealed partial class MediaPage
         {
             _panelShown = panelShown;
             OnPanelShownChanged(panelShown);
+        }
+        if (_panel is { } aligned)
+        {
+            // The room the header's last line keeps for the lifted panel header: the panel's column and handle, plus the tag list's when it is on
+            // the same side, less the page margin the header already has, plus the grid's gap (MediaPage.PanelAlignment.cs).
+            double reserve = inner[panelColumn].Width.Value + HandleWidth + 8 - SidebarMargin
+                + (shown && right == panelRight ? columns[listColumn].Width.Value + HandleWidth : 0);
+            AlignPanel(aligned, panelRight, edge, reserve);
         }
         if (focusLost) FocusGrid();
     }

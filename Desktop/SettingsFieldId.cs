@@ -25,6 +25,7 @@ internal static class SettingsFieldId
     internal const string ReaderHoverEnlargeSize = nameof(ReaderHoverEnlargeSize);
     internal const string ReaderHoverEnlargeDelayMs = nameof(ReaderHoverEnlargeDelayMs);
     internal const string ReaderMediaSidebar = nameof(ReaderMediaSidebar);
+    internal const string ReaderMediaSidebarScope = nameof(ReaderMediaSidebarScope);
     internal const string ReaderMediaSidebarSide = nameof(ReaderMediaSidebarSide);
     internal const string ReaderMediaSidebarWidth = nameof(ReaderMediaSidebarWidth);
     internal const string ReaderMediaSidebarMinimumWidth = nameof(ReaderMediaSidebarMinimumWidth);

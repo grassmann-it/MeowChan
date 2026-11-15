@@ -30,6 +30,11 @@ public sealed class ReaderMediaSidebarTests : IDisposable
         Assert.Equal(ReaderMediaPreferences.Default.Video, media.Video);
         Assert.Equal(ReaderMediaPreferences.Default, media);
         Assert.True(ReaderMediaSidebarRules.IsShown(media, largeReader: true, 1920));
+        // "Large reader only" by default (the behaviour before the archive view could show it): existing and new installs alike.
+        Assert.Equal(Config.ReaderMediaSidebarScopeLargeReader, config.ReaderMediaSidebarScope);
+        Assert.False(media.SidebarAlways);
+        Assert.False(ReaderMediaSidebarRules.IsShown(media, largeReader: false, 1920));
+        Assert.Equal(Config.ReaderMediaSidebarScopeLargeReader, JsonSerializer.Deserialize<Config>("{\"ReaderMediaSidebar\":true}")!.ReaderMediaSidebarScope);
         // A saved choice stays: a config that stored "off" (or "on") keeps it.
         Assert.False(JsonSerializer.Deserialize<Config>("{\"ReaderMediaSidebar\":false}")!.ReaderMediaSidebar);
         Assert.True(JsonSerializer.Deserialize<Config>("{\"ReaderMediaSidebar\":true}")!.ReaderMediaSidebar);
@@ -38,7 +43,7 @@ public sealed class ReaderMediaSidebarTests : IDisposable
     [Fact]
     public void CloneAndBothCopiesKeepEverySidebarValue()
     {
-        Config source = new() { ReaderMediaSidebar = true, ReaderMediaSidebarSide = "Right", ReaderMediaSidebarWidth = 700, ReaderMediaSidebarMinimumWidth = 1600 };
+        Config source = new() { ReaderMediaSidebar = true, ReaderMediaSidebarScope = "Always", ReaderMediaSidebarSide = "Right", ReaderMediaSidebarWidth = 700, ReaderMediaSidebarMinimumWidth = 1600 };
         Config clone = source.Clone(), copy = new(), settings = new();
         copy.CopyFrom(source);
         settings.CopySettingsFieldsFrom(source);
@@ -47,6 +52,7 @@ public sealed class ReaderMediaSidebarTests : IDisposable
             ReaderMediaPreferences media = ReaderMediaPreferences.From(config);
             Assert.True(media.Sidebar);
             Assert.True(media.SidebarRight);
+            Assert.True(media.SidebarAlways);
             Assert.Equal(700, media.SidebarWidth);
             Assert.Equal(1600, media.SidebarMinimumReaderWidth);
         }
@@ -63,6 +69,56 @@ public sealed class ReaderMediaSidebarTests : IDisposable
         Assert.Equal(expected, new Config { ReaderMediaSidebarSide = stored }.ReaderMediaSidebarSide);
         Config loaded = JsonSerializer.Deserialize<Config>("{\"ReaderMediaSidebarSide\":" + JsonSerializer.Serialize(stored) + "}")!;
         Assert.Equal(expected, loaded.ReaderMediaSidebarSide);
+    }
+
+    [Theory]
+    [InlineData("Always", "Always")]
+    [InlineData(" always ", "Always")]
+    [InlineData("LargeReader", "LargeReader")]
+    [InlineData("everywhere", "LargeReader")]
+    [InlineData("", "LargeReader")]
+    public void TheScopeIsLargeReaderUnlessItIsAlways(string stored, string expected)
+    {
+        Assert.Equal(expected, new Config { ReaderMediaSidebarScope = stored }.ReaderMediaSidebarScope);
+        Config loaded = JsonSerializer.Deserialize<Config>("{\"ReaderMediaSidebarScope\":" + JsonSerializer.Serialize(stored) + "}")!;
+        Assert.Equal(expected, loaded.ReaderMediaSidebarScope);
+    }
+
+    [Theory]
+    [InlineData(false, false, true, 1920, false)] // off: nowhere
+    [InlineData(true, false, true, 1920, true)]   // Large reader only
+    [InlineData(true, false, false, 1920, false)]
+    [InlineData(true, true, false, 1920, true)]   // Always: also the archive view
+    [InlineData(true, true, true, 1920, true)]
+    [InlineData(true, true, false, 1279, false)]  // the archive view gives way to the posts below the reader width, like the large reader
+    [InlineData(true, true, false, 0, true)]      // not laid out yet
+    public void TheArchiveViewShowsItOnlyWithAlways(bool on, bool always, bool large, double width, bool shown)
+    {
+        ReaderMediaPreferences media = On() with { Sidebar = on, SidebarAlways = always };
+        Assert.Equal(shown, ReaderMediaSidebarRules.IsShown(media, large, width));
+    }
+
+    [Fact]
+    public void TheSwitchActsOnTheViewItIsUsedIn()
+    {
+        ReaderMediaPreferences largeOnly = On(), always = On() with { SidebarAlways = true }, off = On() with { Sidebar = false };
+        // The large reader: on or off; the archive-view choice is kept for the next time it is on.
+        Assert.Equal(always with { Sidebar = false }, ReaderMediaSidebarRules.Toggled(always, largeReader: true));
+        Assert.Equal(largeOnly, ReaderMediaSidebarRules.Toggled(off, largeReader: true));
+        // The archive view: Always or Large reader only; hiding it here never takes it from the large reader.
+        Assert.Equal(always, ReaderMediaSidebarRules.Toggled(largeOnly, largeReader: false));
+        Assert.Equal(always, ReaderMediaSidebarRules.Toggled(off, largeReader: false));
+        Assert.Equal(largeOnly, ReaderMediaSidebarRules.Toggled(always, largeReader: false));
+        Assert.True(ReaderMediaSidebarRules.IsOn(ReaderMediaSidebarRules.Toggled(always, false), largeReader: true));
+    }
+
+    [Fact]
+    public void TheArchiveViewKeepsItsGapsOutOfThePostsMinimum()
+    {
+        double gaps = 2 * ReaderMediaSidebarRules.ArchiveViewGap;
+        Assert.Equal(480, ReaderMediaSidebarRules.EffectiveWidth(480, 1920, gaps));
+        Assert.Equal(1300 - ReaderMediaSidebarRules.SplitterWidth - gaps - ReaderMediaSidebarRules.PostsMinimumWidth,
+            ReaderMediaSidebarRules.EffectiveWidth(1200, 1300, gaps));
     }
 
     [Fact]
@@ -194,5 +250,15 @@ public sealed class ReaderMediaSidebarTests : IDisposable
                 Assert.NotEmpty(EffectiveShortcutBindings.Build(null, platform).For(id));
         }
         Assert.Contains("reader-settings", CommandCatalog.Get("reader.sidebar.toggle").Contexts);
+    }
+
+    [Fact]
+    public void TheMediaPanelHeaderStandsOnThePageHeadersLastLine()
+    {
+        // The panel's header line is lifted by the line height and the header's bottom margin: it then covers exactly the 32 dip line above the
+        // grid, and the card below it starts at the grid card's top edge.
+        // The card (medium, strip, video controls inside one edge) is laid out in the media-panel smoke (a control needs the platform here).
+        Assert.Equal(32, MediaPage.PanelHeaderLineHeight);
+        Assert.Equal(8, ReaderMediaSidebar.HeaderGap);
     }
 }

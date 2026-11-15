@@ -38,11 +38,34 @@ internal static class ReaderMediaSidebarRules
     internal const double SplitterWidth = 6;
 
     /// <summary>
-    /// Shown only in the large reader, only when chosen, and only while the reader is at least the configured width. An unknown
+    /// The archive view keeps a gap of this width on each side of the splitter beside the posts card (as the archive split does between
+    /// the thread list and the reader); the large reader's frame has none. Layout constant.
+    /// </summary>
+    internal const double ArchiveViewGap = 6;
+
+    /// <summary>
+    /// Switched on for this view: the large reader shows the sidebar when it is on (Large reader only or Always), the archive view only
+    /// with Always.
+    /// </summary>
+    internal static bool IsOn(ReaderMediaPreferences media, bool largeReader) => media.Sidebar && (largeReader || media.SidebarAlways);
+
+    /// <summary>
+    /// Shown when switched on for this view (<see cref="IsOn"/>) and only while the reader is at least the configured width. An unknown
     /// width (not laid out yet) counts as wide enough, so opening the reader does not lay the posts out twice.
     /// </summary>
     internal static bool IsShown(ReaderMediaPreferences media, bool largeReader, double readerWidth) =>
-        media.Sidebar && largeReader && !IsCollapsedByWidth(media, readerWidth);
+        IsOn(media, largeReader) && !IsCollapsedByWidth(media, readerWidth);
+
+    /// <summary>
+    /// The sidebar switch (View option, Primary+Shift+M, × and Escape in the sidebar) acts on the view it is used in: in the large reader it
+    /// turns the sidebar on or off (the archive-view choice is kept for the next time it is on); in the archive view it chooses between
+    /// Always (on, also here) and Large reader only, so hiding it beside the posts never takes it from the large reader.
+    /// </summary>
+    internal static ReaderMediaPreferences Toggled(ReaderMediaPreferences media, bool largeReader)
+    {
+        if (largeReader) return media with { Sidebar = !media.Sidebar };
+        return IsOn(media, largeReader: false) ? media with { SidebarAlways = false } : media with { Sidebar = true, SidebarAlways = true };
+    }
 
     /// <summary>Chosen, but hidden because the reader is narrower than the setting.</summary>
     internal static bool IsCollapsedByWidth(ReaderMediaPreferences media, double readerWidth) =>
@@ -53,12 +76,13 @@ internal static class ReaderMediaSidebarRules
         ? (int)Math.Clamp(Math.Round(width), ReaderDisplayPreferences.MediaSidebarWidthMinimum, ReaderDisplayPreferences.MediaSidebarWidthMaximum)
         : ReaderDisplayPreferences.MediaSidebarWidthDefault;
 
-    /// <summary>The width the sidebar gets in a reader this wide: the setting, but never so wide that the posts drop below their minimum.</summary>
-    internal static double EffectiveWidth(int configured, double readerWidth)
+    /// <summary>The width the sidebar gets in a reader this wide: the setting, but never so wide that the posts drop below their minimum
+    /// (<paramref name="gaps"/>: the room the archive view keeps beside the splitter).</summary>
+    internal static double EffectiveWidth(int configured, double readerWidth, double gaps = 0)
     {
         double width = ClampWidth(configured);
         if (!double.IsFinite(readerWidth) || readerWidth <= 0) return width;
-        double room = readerWidth - SplitterWidth - PostsMinimumWidth;
+        double room = readerWidth - SplitterWidth - Math.Max(0, gaps) - PostsMinimumWidth;
         return Math.Max(ReaderDisplayPreferences.MediaSidebarWidthMinimum, Math.Min(width, room));
     }
 
@@ -222,7 +246,11 @@ internal sealed class ReaderMediaSidebar : Border
     private bool _badgesOn, _playable;
     private readonly Border _edge = ReaderFocusedMedia.CreateFrameEdge();
     // R10: the row under the picture for an inline video's transport, error line and live region (empty unless a video plays here).
-    private readonly Panel _videoRow = new() { Name = "ReaderMediaSidebarVideoRow" };
+    private readonly Panel _videoRow = new() { Name = "ReaderMediaSidebarVideoRow", IsVisible = false };
+    // The card (Tom, 15.11.2026): the medium with, inside the same edge, the strip of a post with several files and the video's controls.
+    // The medium fills what the rows below it leave; nothing under the card keeps space, so a host can make it flush with a neighbour card.
+    private readonly Grid _card = new() { Name = "ReaderMediaSidebarCard", RowDefinitions = new RowDefinitions("*,Auto,Auto") };
+    private readonly Grid _header = new() { Name = "ReaderMediaSidebarHeaderRow", ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto,Auto"), ColumnSpacing = 8 };
     // Polite live region: the page sets its text once the selection rested (AnnounceDelayMs).
     private readonly TextBlock _live = new() { Name = "ReaderMediaSidebarLive", Opacity = 0, IsHitTestVisible = false, Height = 0 };
     private readonly ArchiveFavoriteButton _favorite = new() { VerticalAlignment = VerticalAlignment.Center };
@@ -274,6 +302,14 @@ internal sealed class ReaderMediaSidebar : Border
     internal Panel FrameArea => _frame;
     /// <summary>The row under the picture for the inline video's transport (R10).</summary>
     internal Panel VideoRow => _videoRow;
+    /// <summary>The card: the medium, the strip and the video's controls inside one edge (smoke seam for flush layouts).</summary>
+    internal Control Card => _card;
+    /// <summary>The header line above the card (post, file, size and its buttons).</summary>
+    internal Control HeaderRow => _header;
+    /// <summary>The space between the header line and the card (a host that lifts the header out of its own row needs it).</summary>
+    internal const double HeaderGap = 8;
+    /// <summary>A fixed height for the header line (NaN: its content's), so a host can centre it on a line of its own.</summary>
+    internal double HeaderHeight { get => _header.Height; set => _header.Height = value; }
     internal Image Picture => _image;
     internal Bitmap? Shown => _bitmap;
     internal string LiveText => _live.Text ?? string.Empty;
@@ -302,6 +338,14 @@ internal sealed class ReaderMediaSidebar : Border
     /// <summary>A thumbnail was opened by a double click (interaction audit 1.1.0): the page shows it and opens it in the gallery.</summary>
     internal event EventHandler<int>? StripActivated;
 
+    // The rows under the medium: the video row shows while one of its parts does; each shown row keeps 8 dip from the medium and the edge.
+    private void UpdateCardRows()
+    {
+        _videoRow.IsVisible = _videoRow.Children.Any(child => child.IsVisible);
+        _stripRow.Margin = new Thickness(8, 8, 8, _videoRow.IsVisible ? 0 : 8);
+        _videoRow.Margin = new Thickness(8, 8, 8, 8);
+    }
+
     internal ReaderMediaSidebar()
     {
         Name = "ReaderMediaSidebar";
@@ -313,7 +357,6 @@ internal sealed class ReaderMediaSidebar : Border
         _edge.IsVisible = false;
         _frame.Children.Add(_placeholder);
         _frame.Children.Add(_image);
-        _frame.Children.Add(_edge);
         _frame.Children.Add(_play);
         _frame.Children.Add(_badges);
         _frame.Children.Add(_status);
@@ -336,7 +379,7 @@ internal sealed class ReaderMediaSidebar : Border
         Close.Content = CommandBindings.NamedIcon("x");
         Close.Opacity = 0; // shown on hover and keyboard focus, like the reader's navigation cross (edge rule: top right)
         // One compact row: the info line, the favourite star, "Open in gallery" and the cross. It replaces the title and the info box.
-        Grid header = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto,Auto"), ColumnSpacing = 8 };
+        Grid header = _header;
         header.Children.Add(_title);
         Grid.SetColumn(_favorite, 1); header.Children.Add(_favorite);
         Grid.SetColumn(Open, 2); header.Children.Add(Open);
@@ -360,14 +403,25 @@ internal sealed class ReaderMediaSidebar : Border
         _stripCounter.IsVisible = false;
         _stripRow.Children.Add(_stripCounter);
 
-        // Header, the medium, the strip of a post with several files, and under the medium the video's controls (empty for an image).
-        // No row that is not needed takes space (an empty row has no height).
-        Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*,Auto,Auto,Auto"), RowSpacing = 8 };
+        // The header, then the card: the medium, the strip of a post with several files and under the medium the video's controls (empty for
+        // an image), all inside the card's edge. A hidden row takes no space; the last shown row keeps a gap to the card's bottom edge. The
+        // live region has no height and shares the header's cell.
+        _card.Children.Add(_frame);
+        Grid.SetRow(_stripRow, 1); _card.Children.Add(_stripRow);
+        Grid.SetRow(_videoRow, 2); _card.Children.Add(_videoRow);
+        Grid.SetRowSpan(_edge, 3); _edge.ZIndex = 1; _card.Children.Add(_edge);
+        _stripRow.PropertyChanged += (_, e) => { if (e.Property == IsVisibleProperty) UpdateCardRows(); };
+        _videoRow.Children.CollectionChanged += (_, e) =>
+        {
+            foreach (Control added in e.NewItems?.OfType<Control>() ?? Enumerable.Empty<Control>())
+                added.PropertyChanged += (_, change) => { if (change.Property == IsVisibleProperty) UpdateCardRows(); };
+            UpdateCardRows();
+        };
+        UpdateCardRows();
+        Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*"), RowSpacing = HeaderGap };
         layout.Children.Add(header);
-        Grid.SetRow(_frame, 1); layout.Children.Add(_frame);
-        Grid.SetRow(_stripRow, 2); layout.Children.Add(_stripRow);
-        Grid.SetRow(_videoRow, 3); layout.Children.Add(_videoRow);
-        Grid.SetRow(_live, 4); layout.Children.Add(_live);
+        layout.Children.Add(_live);
+        Grid.SetRow(_card, 1); layout.Children.Add(_card);
         Child = layout;
         KeyboardNavigation.SetTabNavigation(this, KeyboardNavigationMode.Continue);
         AutomationProperties.SetLiveSetting(_live, AutomationLiveSetting.Polite);

@@ -20,17 +20,21 @@ using MeowChan.Gallery;
 
 namespace MeowChan;
 
-// The media sidebar of the large reader (R8). The detached reader pane sits in a frame grid with the sidebar and a splitter beside
-// it (left or right). The sidebar follows the selected post (throttled while ↑/↓ is held), decodes through the gallery's decode API
-// and cache (GalleryImageCache: no second decoder, no memory outside its budget; posters through the reader's ThumbnailDecodeGate),
-// preloads the neighbouring posts in the background and announces the medium politely. While it is shown, it is the one surface that
-// presents the focused media enlarged (FocusedMediaPresentedElsewhere), so the inline enlargement of the card steps back.
+// The media sidebar of the large reader (R8) and, when chosen ("Always"), of the archive view. In the large reader the detached reader
+// pane sits in a frame grid with the sidebar and a splitter beside it (left or right); in the archive view the reader pane itself holds
+// them beside its posts card (the header row spans all three columns). One sidebar moves between the two hosts, always while hidden. It
+// follows the selected post (throttled while ↑/↓ is held), decodes through the gallery's decode API and cache (GalleryImageCache: no
+// second decoder, no memory outside its budget; posters through the reader's ThumbnailDecodeGate), preloads the neighbouring posts in
+// the background and announces the medium politely. While it is shown, it is the one surface that presents the focused media enlarged
+// (FocusedMediaPresentedElsewhere), so the inline enlargement of the card steps back.
 public partial class ArchivePage
 {
     private Grid? _largeReaderFrame;
     private ReaderMediaSidebar? _mediaSidebar;
     private GridSplitter? _mediaSidebarSplitter;
-    private bool _mediaSidebarShown, _mediaSidebarRight, _mediaSidebarDirty;
+    // Where the sidebar sits now: the large reader's frame or the archive view's reader pane (null until it was first needed).
+    private Grid? _mediaSidebarHost;
+    private bool _mediaSidebarShown, _mediaSidebarRight, _mediaSidebarDirty, _movingMediaSidebar;
     private double _mediaSidebarAppliedWidth = double.NaN;
     private int _paneSplitColumn = 2;
     private IDisposable? _frameTabScope;
@@ -59,10 +63,12 @@ public partial class ArchivePage
         }
     }
 
-    /// <summary>The sidebar view (smoke seam); null until the large reader was opened once.</summary>
+    /// <summary>The sidebar view (smoke seam); null until the large reader was opened once or the archive view showed it.</summary>
     internal ReaderMediaSidebar? MediaSidebar => _mediaSidebar;
-    /// <summary>Whether the sidebar is on screen now (chosen, large reader, reader wide enough).</summary>
+    /// <summary>Whether the sidebar is on screen now (switched on for this view, the reader wide enough).</summary>
     internal bool IsMediaSidebarShown => _mediaSidebarShown;
+    /// <summary>Whether the sidebar sits in the archive view's reader pane (smoke seam; false in the large reader).</summary>
+    internal bool IsMediaSidebarInArchiveView => _mediaSidebarHost != null && ReferenceEquals(_mediaSidebarHost, ArchiveReaderPane);
     /// <summary>The latest sidebar load (smoke seam).</summary>
     internal Task MediaSidebarTask { get; private set; } = Task.CompletedTask;
     /// <summary>The latest load of the strip's thumbnails (smoke seam).</summary>
@@ -72,16 +78,26 @@ public partial class ArchivePage
 
     private void InitializeMediaSidebar()
     {
-        RegisterViewOption("reader.sidebar.toggle", () => ReaderMedia.Sidebar, ToggleMediaSidebar, note: MediaSidebarHint);
+        RegisterViewOption("reader.sidebar.toggle", () => ReaderMediaSidebarRules.IsOn(ReaderMedia, _largeReader), ToggleMediaSidebar, note: MediaSidebarHint);
         ArchivePosts.SelectionChanged += (_, _) => OnMediaSidebarSelectionChanged();
+        // The archive view: the reader pane gets the sidebar's columns (posts card, splitter, sidebar); its header row spans all three.
+        // A hidden sidebar leaves the posts card alone in the first, star column.
+        Grid pane = ArchiveReaderPane;
+        pane.ColumnDefinitions = new ColumnDefinitions("*,0,0");
+        foreach (Control child in pane.Children)
+            if (!ReferenceEquals(child, ArchiveReaderContent)) Grid.SetColumnSpan(child, 3);
+        pane.SizeChanged += (_, _) => { if (!_largeReader) LayoutMediaSidebar(); };
+        pane.PropertyChanged += (_, e) => { if (e.Property == IsVisibleProperty && !_largeReader) LayoutMediaSidebar(); };
     }
 
-    // ---- frame ---------------------------------------------------------------------------------------------------------------
+    // ---- hosts ---------------------------------------------------------------------------------------------------------------
 
     /// <summary>The large reader's content: the pane in the frame with the (possibly hidden) sidebar.</summary>
     private Control WrapLargeReader(Grid pane)
     {
         Grid frame = _largeReaderFrame ??= CreateLargeReaderFrame();
+        // From the archive view's pane (hidden first); the pane's columns give the posts card its whole width back.
+        MoveMediaSidebarTo(frame);
         _paneSplitColumn = Grid.GetColumn(pane); // the embedded reader's column in ArchiveSplit, restored on the way back
         frame.Children.Add(pane);
         _mediaSidebarAppliedWidth = double.NaN;
@@ -89,7 +105,7 @@ public partial class ArchivePage
         return frame;
     }
 
-    /// <summary>Takes the pane out of the frame again; the sidebar gives its picture back.</summary>
+    /// <summary>Takes the pane out of the frame again; the sidebar gives its picture back (the archive view lays it out once the pane is back).</summary>
     private Grid UnwrapLargeReader(Control content)
     {
         Grid pane = ArchiveReaderPane;
@@ -101,6 +117,7 @@ public partial class ArchivePage
             _frameTabScope = null;
             _tabScopeOnFrame = false;
             if (_mediaSidebarShown) SetMediaSidebarShown(false);
+            Dispatcher.UIThread.Post(() => { if (!_ended && !_largeReader) LayoutMediaSidebar(force: true); }, DispatcherPriority.Loaded);
         }
         return pane;
     }
@@ -108,6 +125,13 @@ public partial class ArchivePage
     private Grid CreateLargeReaderFrame()
     {
         Grid frame = new() { Name = "ReaderLargeFrame", ColumnDefinitions = new ColumnDefinitions("0,0,*") };
+        frame.SizeChanged += (_, _) => { if (_largeReader) LayoutMediaSidebar(); };
+        return frame;
+    }
+
+    private ReaderMediaSidebar EnsureMediaSidebar()
+    {
+        if (_mediaSidebar is { } existing) return existing;
         ReaderMediaSidebar sidebar = _mediaSidebar = new ReaderMediaSidebar { IsVisible = false };
         GridSplitter splitter = _mediaSidebarSplitter = new GridSplitter
         {
@@ -117,9 +141,6 @@ public partial class ArchivePage
         Avalonia.Automation.AutomationProperties.SetName(splitter, Texts.T("reader.sidebar.splitter"));
         splitter.DragCompleted += (_, _) => SaveMediaSidebarWidth();
         splitter.KeyUp += (_, _) => SaveMediaSidebarWidth();
-        frame.Children.Add(sidebar);
-        frame.Children.Add(splitter);
-        frame.SizeChanged += (_, _) => LayoutMediaSidebar();
         sidebar.Frame.SizeChanged += (_, _) => OnMediaSidebarFrameResized();
         sidebar.Open.Click += (_, e) => { e.Handled = true; OpenMediaSidebarMedia(); };
         sidebar.StripSelected += (_, index) => SelectMediaSidebarIndex(index);
@@ -128,44 +149,119 @@ public partial class ArchivePage
         sidebar.GalleryRequested += (_, _) => OpenMediaSidebarMedia();
         CreateSidebarVideo(sidebar);
         sidebar.Close.Click += (_, e) => { e.Handled = true; CloseMediaSidebar(); };
-        // The sidebar's keys reach the pane's View-menu shortcuts too (the toggle, the reader's other switches).
-        frame.AddHandler(KeyDownEvent, (_, e) =>
-        {
-            if (e.Source is Visual source && source.GetSelfAndVisualAncestors().Contains(sidebar) && !TryRouteSidebarVideoKey(e)) OnReaderViewKeyDown(sidebar, e);
-        }, RoutingStrategies.Bubble);
-        return frame;
+        // The sidebar's keys reach the reader's view shortcuts too (the toggle, the reader's other switches), in either host.
+        sidebar.AddHandler(KeyDownEvent, (_, e) => { if (!TryRouteSidebarVideoKey(e)) OnReaderViewKeyDown(sidebar, e); }, RoutingStrategies.Bubble);
+        return sidebar;
     }
 
-    // Columns, side, width, visibility and the Tab scope from the preferences and the reader's width.
+    // Puts the (hidden) sidebar and its splitter into the large reader's frame or the archive view's pane. The archive view shows it as a
+    // card beside the posts card, below the header row; in the large reader it runs the full height and one edge faces the posts.
+    private void MoveMediaSidebarTo(Grid host)
+    {
+        ReaderMediaSidebar sidebar = EnsureMediaSidebar();
+        GridSplitter splitter = _mediaSidebarSplitter!;
+        if (ReferenceEquals(_mediaSidebarHost, host)) return;
+        _movingMediaSidebar = true;
+        try
+        {
+            if (_mediaSidebarShown) SetMediaSidebarShown(false);
+            Grid pane = ArchiveReaderPane;
+            if (_mediaSidebarHost is { } previous)
+            {
+                previous.Children.Remove(splitter);
+                previous.Children.Remove(sidebar);
+                if (ReferenceEquals(previous, pane)) CollapseArchiveViewColumns();
+            }
+            bool archiveView = ReferenceEquals(host, pane);
+            sidebar.IsVisible = splitter.IsVisible = false;
+            Grid.SetRow(sidebar, archiveView ? 1 : 0);
+            Grid.SetRow(splitter, archiveView ? 1 : 0);
+            if (archiveView)
+            {
+                sidebar.Classes.Add("workspace-section-flush");
+                sidebar.ClearValue(Border.BorderThicknessProperty);
+                sidebar.ClearValue(Border.BorderBrushProperty);
+            }
+            else
+            {
+                sidebar.Classes.Remove("workspace-section-flush");
+                sidebar[!Border.BorderBrushProperty] = new Avalonia.Markup.Xaml.MarkupExtensions.DynamicResourceExtension("Workspace.CardEdge");
+            }
+            host.Children.Add(sidebar);
+            host.Children.Add(splitter);
+            _mediaSidebarHost = host;
+            _mediaSidebarAppliedWidth = double.NaN;
+        }
+        finally { _movingMediaSidebar = false; }
+    }
+
+    // The page's first media options apply before InitializeMediaSidebar gave the pane its three columns.
+    private bool HasArchiveViewColumns => ArchiveReaderPane.ColumnDefinitions.Count == 3;
+
+    // The archive view without the sidebar: the posts card alone in the pane's first (star) column, no gaps. The large reader's export
+    // dialog, which joins the pane while it is detached, lands in that column too.
+    private void CollapseArchiveViewColumns()
+    {
+        if (!HasArchiveViewColumns) return;
+        Grid pane = ArchiveReaderPane;
+        ColumnDefinitions columns = pane.ColumnDefinitions;
+        columns[0].Width = new GridLength(1, GridUnitType.Star);
+        columns[1].Width = columns[2].Width = new GridLength(0);
+        foreach (ColumnDefinition column in columns) { column.MinWidth = 0; column.MaxWidth = double.PositiveInfinity; }
+        pane.ColumnSpacing = 0;
+        Grid.SetColumn(ArchiveReaderContent, 0);
+    }
+
+    // Columns, side, width, visibility and the Tab scope from the preferences and the reader's width, in the host of the current view.
     private void LayoutMediaSidebar(bool force = false)
     {
-        if (_largeReaderFrame is not { } frame || _mediaSidebar is not { } sidebar || _mediaSidebarSplitter is not { } splitter) return;
+        if (_movingMediaSidebar) return;
+        Grid pane = ArchiveReaderPane;
+        bool large = _largeReader;
+        if ((large ? _largeReaderFrame : pane) is not { } host || !HasArchiveViewColumns) return;
         ReaderMediaPreferences media = ReaderMedia;
-        double readerWidth = frame.Bounds.Width > 0 ? frame.Bounds.Width : TopLevel.GetTopLevel(this)?.ClientSize.Width ?? 0;
-        bool shown = _largeReader && frame.Children.Contains(ArchiveReaderPane) && ReaderMediaSidebarRules.IsShown(media, _largeReader, readerWidth);
-        double width = ReaderMediaSidebarRules.EffectiveWidth(media.SidebarWidth, readerWidth);
+        // The archive view's pane hosts it only while it sits in the archive split and is on screen (not on its way to or from the large reader).
+        bool ready = large ? host.Children.Contains(pane) : ReferenceEquals(pane.Parent, ArchiveSplit) && pane.IsVisible;
+        double readerWidth = host.Bounds.Width > 0 ? host.Bounds.Width : large ? TopLevel.GetTopLevel(this)?.ClientSize.Width ?? 0 : 0;
+        bool shown = ready && ReaderMediaSidebarRules.IsShown(media, large, readerWidth);
+        if (!ReferenceEquals(_mediaSidebarHost, host))
+        {
+            // It moves into this view's host only when this view shows it; until then it waits, hidden, where it is.
+            if (!shown) return;
+            MoveMediaSidebarTo(host);
+            force = true;
+        }
+        if (_mediaSidebar is not { } sidebar || _mediaSidebarSplitter is not { } splitter) return;
+        double gaps = large ? 0 : 2 * ReaderMediaSidebarRules.ArchiveViewGap;
+        double width = ReaderMediaSidebarRules.EffectiveWidth(media.SidebarWidth, readerWidth, gaps);
         if (!force && shown == _mediaSidebarShown && media.SidebarRight == _mediaSidebarRight && (!shown || width == _mediaSidebarAppliedWidth)) return;
         _mediaSidebarRight = media.SidebarRight;
         _mediaSidebarAppliedWidth = width;
-        Grid pane = ArchiveReaderPane;
-        int sidebarColumn = _mediaSidebarRight ? 2 : 0, paneColumn = _mediaSidebarRight ? 0 : 2;
-        Grid.SetColumn(sidebar, sidebarColumn);
-        Grid.SetColumn(splitter, 1);
-        Grid.SetColumn(pane, paneColumn);
-        ColumnDefinitions columns = frame.ColumnDefinitions;
-        ColumnDefinition side = columns[sidebarColumn], posts = columns[paneColumn];
-        side.Width = shown ? new GridLength(width) : new GridLength(0);
-        side.MinWidth = shown ? ReaderDisplayPreferences.MediaSidebarWidthMinimum : 0;
-        side.MaxWidth = shown ? ReaderDisplayPreferences.MediaSidebarWidthMaximum : double.PositiveInfinity;
-        posts.Width = new GridLength(1, GridUnitType.Star);
-        posts.MinWidth = shown ? ReaderMediaSidebarRules.PostsMinimumWidth : 0;
-        posts.MaxWidth = double.PositiveInfinity;
-        columns[1].Width = shown ? new GridLength(ReaderMediaSidebarRules.SplitterWidth) : new GridLength(0);
+        if (!large && !shown) CollapseArchiveViewColumns();
+        else
+        {
+            // The posts: the whole pane in the large reader's frame, the posts card in the archive view.
+            Control posts = large ? pane : ArchiveReaderContent;
+            int sidebarColumn = _mediaSidebarRight ? 2 : 0, postsColumn = _mediaSidebarRight ? 0 : 2;
+            Grid.SetColumn(sidebar, sidebarColumn);
+            Grid.SetColumn(splitter, 1);
+            Grid.SetColumn(posts, postsColumn);
+            ColumnDefinitions columns = host.ColumnDefinitions;
+            ColumnDefinition side = columns[sidebarColumn], postsTrack = columns[postsColumn];
+            side.Width = shown ? new GridLength(width) : new GridLength(0);
+            side.MinWidth = shown ? ReaderDisplayPreferences.MediaSidebarWidthMinimum : 0;
+            side.MaxWidth = shown ? ReaderDisplayPreferences.MediaSidebarWidthMaximum : double.PositiveInfinity;
+            postsTrack.Width = new GridLength(1, GridUnitType.Star);
+            postsTrack.MinWidth = shown ? ReaderMediaSidebarRules.PostsMinimumWidth : 0;
+            postsTrack.MaxWidth = double.PositiveInfinity;
+            columns[1].Width = shown ? new GridLength(ReaderMediaSidebarRules.SplitterWidth) : new GridLength(0);
+            // The archive view keeps the archive split's gap on both sides of the splitter.
+            if (!large) host.ColumnSpacing = shown ? ReaderMediaSidebarRules.ArchiveViewGap : 0;
+        }
         splitter.IsVisible = shown;
         sidebar.IsVisible = shown;
-        // The sidebar's border faces the posts.
-        sidebar.BorderThickness = new Thickness(_mediaSidebarRight ? 1 : 0, 0, _mediaSidebarRight ? 0 : 1, 0);
-        sidebar[!Border.BorderBrushProperty] = new Avalonia.Markup.Xaml.MarkupExtensions.DynamicResourceExtension("Workspace.CardEdge");
+        // In the large reader the sidebar's border faces the posts; in the archive view it is a card of its own.
+        if (large) sidebar.BorderThickness = new Thickness(_mediaSidebarRight ? 1 : 0, 0, _mediaSidebarRight ? 0 : 1, 0);
         UpdateLargeReaderTabScope(shown);
         if (shown != _mediaSidebarShown) SetMediaSidebarShown(shown);
     }
@@ -218,14 +314,15 @@ public partial class ArchivePage
 
     private void SaveMediaSidebarWidth()
     {
-        if (_ended || !_mediaSidebarShown || _largeReaderFrame is not { } frame) return;
-        double actual = frame.ColumnDefinitions[_mediaSidebarRight ? 2 : 0].ActualWidth;
+        if (_ended || !_mediaSidebarShown || _mediaSidebarHost is not { } host) return;
+        double actual = host.ColumnDefinitions[_mediaSidebarRight ? 2 : 0].ActualWidth;
         if (actual <= 0) return;
         int width = ReaderMediaSidebarRules.ClampWidth(actual);
         if (width == ReaderMedia.SidebarWidth) return;
         // Kept without a re-layout (the column already has this width) and written alone, like the View menu's switches.
         _readerDisplayPreferences.Media = ReaderMedia with { SidebarWidth = width };
-        _mediaSidebarAppliedWidth = ReaderMediaSidebarRules.EffectiveWidth(width, frame.Bounds.Width);
+        double gaps = ReferenceEquals(host, ArchiveReaderPane) ? 2 * ReaderMediaSidebarRules.ArchiveViewGap : 0;
+        _mediaSidebarAppliedWidth = ReaderMediaSidebarRules.EffectiveWidth(width, host.Bounds.Width, gaps);
         if (SaveReaderMediaSwitches is { } save) _ = SaveMediaSwitchAsync(save(config => config.ReaderMediaSidebarWidth = width));
     }
 
@@ -233,29 +330,43 @@ public partial class ArchivePage
 
     private string? MediaSidebarHint()
     {
-        if (!_largeReader) return Texts.T("reader.sidebar.largeOnly");
-        double width = _largeReaderFrame?.Bounds.Width ?? 0;
-        if (ReaderMediaSidebarRules.IsCollapsedByWidth(ReaderMedia, width))
-            return Texts.T("reader.sidebar.collapsed", ReaderMedia.Clamped().SidebarMinimumReaderWidth);
+        ReaderMediaPreferences media = ReaderMedia;
+        double width = (_largeReader ? _largeReaderFrame?.Bounds.Width : ArchiveReaderPane.Bounds.Width) ?? 0;
+        bool on = ReaderMediaSidebarRules.IsOn(media, _largeReader);
+        if (on && ReaderMediaSidebarRules.IsCollapsedByWidth(media, width))
+            return Texts.T("reader.sidebar.collapsed", media.Clamped().SidebarMinimumReaderWidth);
+        // The archive view while the sidebar shows only in the large reader: it says where it is (the switch shows it here too).
+        if (!_largeReader && media.Sidebar && !on) return Texts.T("reader.sidebar.largeOnly");
         // Off and wide enough: the entry says what it does and which shortcut turns it on (nothing turns on by itself).
-        return ReaderMediaMultiRules.DiscoveryHint(ReaderMedia, _largeReader, width, CommandCatalog.ShortcutDisplay("reader.sidebar.toggle"));
+        return ReaderMediaMultiRules.DiscoveryHint(media with { Sidebar = on }, largeReader: true, width, CommandCatalog.ShortcutDisplay("reader.sidebar.toggle"));
     }
 
     internal bool CanToggleMediaSidebar => !_ended && !IsFilenameSearchOpen && !IsReaderDialogOpen;
 
-    /// <summary>The View menu switch and Primary+Shift+M: turns the sidebar on or off and stores the choice.</summary>
+    /// <summary>
+    /// The View option and Primary+Shift+M: switches the sidebar of the view it is used in and stores the choice (large reader: on or off;
+    /// archive view: Always or Large reader only, see <see cref="ReaderMediaSidebarRules.Toggled"/>).
+    /// </summary>
     internal void ToggleMediaSidebar()
     {
-        if (!CanToggleMediaSidebar) return;
-        bool focusInside = _mediaSidebar?.IsKeyboardFocusWithin == true;
-        if (focusInside && ReaderMedia.Sidebar) FocusSelectedPostOrList();
-        ToggleMediaSwitch(media => media.Sidebar, (media, on) => media with { Sidebar = on }, (config, on) => config.ReaderMediaSidebar = on);
+        if (!CanToggleMediaSidebar || _ended) return;
+        ReaderMediaPreferences media = ReaderMedia;
+        if (_mediaSidebar?.IsKeyboardFocusWithin == true && ReaderMediaSidebarRules.IsOn(media, _largeReader)) FocusSelectedPostOrList();
+        ReaderMediaPreferences next = ReaderMediaSidebarRules.Toggled(media, _largeReader);
+        ApplyReaderMediaPreferences(next);
+        // Only what the switch decides is written: another setting changed meanwhile (a width in Settings) is not overwritten.
+        if (SaveReaderMediaSwitches is { } save)
+            _ = SaveMediaSwitchAsync(save(config =>
+            {
+                config.ReaderMediaSidebar = next.Sidebar;
+                config.ReaderMediaSidebarScope = next.SidebarAlways ? Config.ReaderMediaSidebarScopeAlways : Config.ReaderMediaSidebarScopeLargeReader;
+            }));
     }
 
-    /// <summary>× and Escape inside the sidebar: turn it off, the focus goes back to the selected post.</summary>
+    /// <summary>× and Escape inside the sidebar: turn it off for this view, the focus goes back to the selected post.</summary>
     internal void CloseMediaSidebar()
     {
-        if (!ReaderMedia.Sidebar) return;
+        if (!ReaderMediaSidebarRules.IsOn(ReaderMedia, _largeReader)) return;
         FocusSelectedPostOrList();
         ToggleMediaSidebar();
     }
