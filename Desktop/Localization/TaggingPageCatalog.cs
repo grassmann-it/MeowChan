@@ -34,6 +34,7 @@ internal static class TaggingPageCatalog
         ("tagging.page.group.all", "All entries", "Alle Einträge"),
         ("tagging.page.group.ungrouped", "Without group", "Ohne Gruppe"),
         ("tagging.page.group.named", "Group: {0}", "Gruppe: {0}"),
+        ("tagging.page.group.manage", "Manage groups", "Gruppen verwalten"),
         ("tagging.page.group.name", "Group name", "Gruppenname"),
         ("tagging.page.group.new", "New group", "Neue Gruppe"),
         ("tagging.page.group.rename", "Rename", "Umbenennen"),

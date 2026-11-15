@@ -4800,6 +4800,7 @@
     "tagging.page.group.delete": "Supprimer",
     "tagging.page.group.delete.ask": "Supprimer {0} ? Les entrées existantes resteront sans groupe.",
     "tagging.page.group.deleted": "Groupe supprimé : les entrées sont maintenant sans groupe.",
+    "tagging.page.group.manage": "Gérer les groupes",
     "tagging.page.group.name": "Nom du groupe",
     "tagging.page.group.named": "Groupe: {0}",
     "tagging.page.group.new": "Nouveau groupe",

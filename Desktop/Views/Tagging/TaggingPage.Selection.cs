@@ -20,7 +20,7 @@ namespace MeowChan;
 // cross clears the selection. What the work view reduces moves under the bar's own "More".
 public sealed partial class TaggingPage
 {
-    private readonly Border _selectionBar = new() { Name = "TaggingSelectionBar", Classes = { "workspace-info" }, IsVisible = false, Padding = new Thickness(8, 4),
+    private readonly Border _selectionBar = new() { Name = "TaggingSelectionBar", Classes = { "workspace-info" }, IsVisible = false, Padding = new Thickness(12, 6),
         Margin = new Thickness(0, 0, 0, 8) };
     private readonly TextBlock _selectionText = new() { Name = "TaggingSelectionStatus", Classes = { "tnum" }, VerticalAlignment = VerticalAlignment.Center };
     private readonly ActionToolBar _selectionActions = new() { Name = "TaggingSelectionActions", HorizontalAlignment = HorizontalAlignment.Stretch };
@@ -30,6 +30,7 @@ public sealed partial class TaggingPage
     private readonly Button _selGroup = new() { Name = "TaggingSelectionGroup" };
     private readonly Button _selRemove = new() { Name = "TaggingSelectionRemove" };
     private readonly TextBlock _selStateText = new() { VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _selGroupText = new() { VerticalAlignment = VerticalAlignment.Center };
     private readonly Button _selClear = new() { Name = "TaggingSelectionClear" };
     private ContextMenuHost? _stateMenuHost;
     private ContextMenuHost? _groupMenuHost;
@@ -50,6 +51,9 @@ public sealed partial class TaggingPage
         foreach (Button button in new[] { _selTag, _selStamp, _selState, _selGroup, _selRemove })
         {
             ToolBar.SetOverflowMode(button, OverflowMode.AsNeeded);
+            // Outlined like the selection row of the media page, so a disabled action still looks like a button (WorkspaceStyles.axaml;
+            // the outline only applies on the bar itself, an item under "More" keeps the popup's plain rows).
+            button.Classes.Add("bar-button");
             _selectionActions.Items.Add(button);
         }
         _selTag.Click += (_, _) => _ = ExecuteSelectionAsync(Selected.Count > 1 ? TaggingCommands.TagTogether : TaggingCommands.Tag, _selTag);
@@ -59,11 +63,13 @@ public sealed partial class TaggingPage
         _selGroup.Click += (_, _) => _groupMenuHost?.Show(atPointer: false);
         _stateMenuHost = new ContextMenuHost(_selState, ComposeStateMenu, fallbackFocus: () => FocusContent(), resolveOrigin: StateMenuOrigin);
         _groupMenuHost = new ContextMenuHost(_selGroup, ComposeGroupMenu, fallbackFocus: () => FocusContent());
-        _selGroup.Content = Texts.T("tagging.page.group.assign");
+        _selGroupText.Text = Texts.T("tagging.page.group.assign");
+        _selGroup.Content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { _selGroupText, CommandBindings.NamedIcon("chevron-down", 12) } };
         _selState.Content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { _selStateText, CommandBindings.NamedIcon("chevron-down", 12) } };
         _selClear.Click += (_, _) => ClearSelection();
         _selClear.HorizontalAlignment = HorizontalAlignment.Right;
         _selClear.Classes.Add("command-icon");
+        _selClear.Classes.Add("bar-button");
 
         Grid bar = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"), ColumnSpacing = 12 };
         bar.Children.Add(_selectionText);
@@ -155,7 +161,7 @@ public sealed partial class TaggingPage
         ToolTip.SetShowOnDisabled(_selState, true);
         AutomationProperties.SetName(_selState, stateText);
         AutomationProperties.SetHelpText(_selState, stateTip);
-        _selGroup.Content = Texts.T("tagging.page.group.assign");
+        _selGroupText.Text = Texts.T("tagging.page.group.assign");
         _selGroup.IsEnabled = count > 0 && CanChange && _queueWork.Queue.Groups.Count > 0;
         AutomationProperties.SetName(_selGroup, Texts.T("tagging.page.group.assign"));
         WorkViewGate.Apply(_selectionBar, _workView, stateVisible: count > 0);

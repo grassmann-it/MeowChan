@@ -4806,6 +4806,7 @@
     "tagging.page.group.delete": "Excluir",
     "tagging.page.group.delete.ask": "Excluir {0}? As entradas existentes permanecerão sem grupo.",
     "tagging.page.group.deleted": "Grupo excluído: as entradas agora estão sem grupo.",
+    "tagging.page.group.manage": "Gerenciar grupos",
     "tagging.page.group.name": "Nome do grupo",
     "tagging.page.group.named": "Grupo: {0}",
     "tagging.page.group.new": "Novo grupo",

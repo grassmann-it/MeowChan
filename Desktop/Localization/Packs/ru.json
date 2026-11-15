@@ -4822,6 +4822,7 @@
     "tagging.page.group.delete": "Удалить",
     "tagging.page.group.delete.ask": "Удалить {0}? Существующие записи останутся без группы.",
     "tagging.page.group.deleted": "Группа удалена: записи теперь без группы.",
+    "tagging.page.group.manage": "Управление группами",
     "tagging.page.group.name": "Название группы",
     "tagging.page.group.named": "Группа: {0}",
     "tagging.page.group.new": "Новая группа",

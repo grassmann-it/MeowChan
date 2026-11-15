@@ -17,9 +17,37 @@ namespace MeowChan.Desktop;
 /// </summary>
 internal sealed class TaggingQueueRowView : Grid
 {
-    /// <summary>The shared column widths of the header and the rows: # · preview · type · file · thread or source · group · tags · state.</summary>
-    internal const string Columns = "56,56,72,*,220,120,56,112";
-    internal static string ColumnsFor(bool showPreview) => showPreview ? Columns : "56,0,72,*,220,120,56,112";
+    /// <summary>The gap between two columns, in the header and in every row, with or without the preview column.</summary>
+    internal const double ColumnGap = 12;
+    /// <summary>Layout limits of the table's columns (the file and source widths stand in a 3 : 2 ratio between them).</summary>
+    internal const double FileMinWidth = 160, SourceMinWidth = 120, SourceMaxWidth = 420;
+
+    /// <summary>
+    /// The one definition of the columns of the header and of the rows: # · preview (0 wide when hidden) · type · file (3*) · thread or
+    /// source (2*, at most <see cref="SourceMaxWidth"/>) · group · tags · state. A fresh set per call (a definition belongs to one grid).
+    /// Both grids use these same widths and the same <see cref="ColumnGap"/>, so a scroll bar that narrows the rows moves nothing apart.
+    /// </summary>
+    internal static ColumnDefinitions BuildColumns(bool showPreview) => new()
+    {
+        // A grid puts its gap on both sides of a 0 wide column: without the preview the number column is one gap shorter and its cell
+        // reaches into that gap (NumberMargin), so the type column still stands one ColumnGap after the number.
+        new ColumnDefinition(showPreview ? NumberWidth : NumberWidth - ColumnGap, GridUnitType.Pixel),
+        new ColumnDefinition(showPreview ? 56 : 0, GridUnitType.Pixel),
+        new ColumnDefinition(64, GridUnitType.Pixel),
+        new ColumnDefinition(3, GridUnitType.Star) { MinWidth = FileMinWidth },
+        new ColumnDefinition(2, GridUnitType.Star) { MinWidth = SourceMinWidth, MaxWidth = SourceMaxWidth },
+        new ColumnDefinition(132, GridUnitType.Pixel),
+        new ColumnDefinition(72, GridUnitType.Pixel),
+        new ColumnDefinition(128, GridUnitType.Pixel)
+    };
+
+    private const double NumberWidth = 48;
+
+    /// <summary>The margin of the number cell (header and rows): it reaches into the gap that the hidden preview column would double.</summary>
+    internal static Thickness NumberMargin(bool showPreview) => new(0, 0, showPreview ? 0 : -ColumnGap, 0);
+
+    /// <summary>The state cell keeps this much air to its left, so the right-aligned tag count and the state never touch.</summary>
+    internal static Thickness StateMargin => new(ColumnGap, 0, 0, 0);
     internal const double RowHeight = WorkspaceMetrics.NormalRowHeight;
     internal const double CompactHeight = WorkspaceMetrics.CompactRowHeight;
     /// <summary>The preview's edge in the normal and in the compact density (inside the row's own padding).</summary>
@@ -42,8 +70,8 @@ internal sealed class TaggingQueueRowView : Grid
     internal TaggingQueueRowView(TaggingThumbnails? thumbnails = null, Func<TagQueueItem, int?>? tagCount = null, bool compact = false, bool showPreview = true)
     {
         _tagCount = tagCount;
-        ColumnDefinitions = new ColumnDefinitions(ColumnsFor(showPreview));
-        ColumnSpacing = showPreview ? 8 : 0;
+        ColumnDefinitions = BuildColumns(showPreview);
+        ColumnSpacing = ColumnGap;
         MinHeight = compact ? CompactHeight : RowHeight;
         double size = compact ? CompactPreviewSize : PreviewSize;
         _preview = new TaggingThumbnail(showText: false) { Source = thumbnails, Width = size, Height = size, IsVisible = showPreview, HorizontalAlignment = HorizontalAlignment.Left,
@@ -52,9 +80,10 @@ internal sealed class TaggingQueueRowView : Grid
         StackPanel number = new() { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Children = { _next, _number } };
         AutomationProperties.SetAccessibilityView(_next, AccessibilityView.Raw);
         AutomationProperties.SetAccessibilityView(_stateIcon, AccessibilityView.Raw);
+        number.Margin = NumberMargin(showPreview);
         Children.Add(number);
         Add(_preview, 1); Add(_kind, 2); Add(_name, 3); Add(_source, 4); Add(_group, 5); Add(_tags, 6);
-        Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center, Children = { _stateIcon, _state } }, 7);
+        Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = StateMargin, VerticalAlignment = VerticalAlignment.Center, Children = { _stateIcon, _state } }, 7);
         _number.Classes.Add("tnum");
         _tags.Classes.Add("tnum");
     }

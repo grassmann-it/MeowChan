@@ -22,18 +22,21 @@ namespace MeowChan;
 // The size limit is the stamp size setting (TagStampSize, PT7).
 public sealed partial class TaggingPage
 {
-    private readonly StackPanel _stampPanel = new() { Name = "TaggingStamp", Spacing = 8 };
-    // The block's head: a toggle (turning arrow, title with the number of stamp tags) and the help; the body holds chips, the field and
-    // the add button in one row.
-    private readonly ToggleButton _stampToggle = new() { Name = "TaggingStampToggle", Classes = { "subtle" }, HorizontalAlignment = HorizontalAlignment.Left };
+    // Head and body share one line while they fit (a short stamp on a wide page); a long stamp or a narrow page puts the body below the head.
+    private readonly WrapPanel _stampPanel = new() { Name = "TaggingStamp", ItemSpacing = 16, LineSpacing = 8 };
+    // The block's head: a quiet disclosure (turning arrow, title with the number of stamp tags) and, right after it, the help of the
+    // block; the body holds the chips, the field, the add button and the hint in one wrapping row.
+    private readonly ToggleButton _stampToggle = new() { Name = "TaggingStampToggle", Classes = { "disclosure" }, HorizontalAlignment = HorizontalAlignment.Left,
+        VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBlock _stampHeading = new() { Name = "TaggingStampHeading", Classes = { "section-title" }, VerticalAlignment = VerticalAlignment.Center };
     private readonly ContentControl _stampArrow = new() { VerticalAlignment = VerticalAlignment.Center, Focusable = false, RenderTransformOrigin = new RelativePoint(0.5, 0.5, RelativeUnit.Relative) };
     private readonly HelpButton _stampHelp = new() { Name = "TaggingStampHelp", HelpKey = "help.taggingStamp" };
-    private readonly Grid _stampBody = new() { Name = "TaggingStampBody", ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto"), ColumnSpacing = 8 };
+    private readonly WrapPanel _stampBody = new() { Name = "TaggingStampBody", ItemSpacing = 8, LineSpacing = 8, VerticalAlignment = VerticalAlignment.Center };
     private readonly WrapPanel _stampChips = new() { Name = "TaggingStampChips", ItemSpacing = 8, LineSpacing = 8, VerticalAlignment = VerticalAlignment.Center };
-    private readonly TextBlock _stampEmpty = new() { Name = "TaggingStampEmpty", Classes = { "workspace-help" }, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
-    private readonly TextBox _stampInput = new() { Name = "TaggingStampInput", MinWidth = 200, MaxWidth = 320 };
-    private readonly Button _stampAdd = new() { Name = "TaggingStampAdd" };
+    private readonly TextBlock _stampEmpty = new() { Name = "TaggingStampEmpty", Classes = { "workspace-help" }, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center,
+        MaxWidth = HelpPopover.MaxContentWidth }; // Workspace.Size.ReadingWidth: the one reading column
+    private readonly TextBox _stampInput = new() { Name = "TaggingStampInput", Width = 240, VerticalAlignment = VerticalAlignment.Center };
+    private readonly Button _stampAdd = new() { Name = "TaggingStampAdd", VerticalAlignment = VerticalAlignment.Center };
     private TaggingStampBlockState _stampBlock = TaggingStampBlockState.Auto;
     private int _stampCapacity = QuickTagOptions.DefaultStampSize;
 
@@ -68,16 +71,15 @@ public sealed partial class TaggingPage
     {
         WorkViewElement.SetId(_stampPanel, "tagging.stamp");
         _stampToggle.Content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { _stampArrow, _stampHeading } };
-        Grid head = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 };
+        // The help stands directly after the title it explains, not at the far edge of the page.
+        Grid head = new() { ColumnDefinitions = new ColumnDefinitions("Auto,Auto"), ColumnSpacing = 8, VerticalAlignment = VerticalAlignment.Center };
         head.Children.Add(_stampToggle);
         Grid.SetColumn(_stampHelp, 1);
         head.Children.Add(_stampHelp);
         _stampBody.Children.Add(_stampChips);
-        _stampBody.Children.Add(_stampEmpty);
-        Grid.SetColumn(_stampInput, 1);
         _stampBody.Children.Add(_stampInput);
-        Grid.SetColumn(_stampAdd, 2);
         _stampBody.Children.Add(_stampAdd);
+        _stampBody.Children.Add(_stampEmpty);
         _stampPanel.Children.Add(head);
         _stampPanel.Children.Add(_stampBody);
         return _stampPanel;
