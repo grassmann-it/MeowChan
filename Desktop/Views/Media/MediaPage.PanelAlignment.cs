@@ -9,14 +9,17 @@ namespace MeowChan;
 // line, centred on it. The header is lifted out of the body row by a negative top margin; the line keeps the panel's room free on its side.
 // It is lifted only while that line is the last one of the header: an open filter section, a confirmation or a note under the selection row
 // keeps the header inside the body row (the card then starts one header line lower and still ends with the grid).
+// The summary and the selection actions are one swapping 32 dip line (MediaPage.Layout.cs): the summary hides while tiles are selected, unless it
+// reports a read problem, and then the selection row under it is the last line. Only that visible last line keeps the panel's room free.
 public sealed partial class MediaPage
 {
-    /// <summary>The height of the page header's last line (the 32 dip line of the selection row and the summary) and of the panel's header line.</summary>
+    /// <summary>The height of the page header's last line (the 32 dip line of the selection row and the summary, Workspace.Size.Control) and of the panel's header line.</summary>
     internal const double PanelHeaderLineHeight = 32;
     /// <summary>The page header's bottom margin, the space between its last line and the grid card (MediaPage's header margin).</summary>
     private const double HeaderBottomMargin = 8;
 
     private bool _panelAlignmentInstalled, _panelHeaderLifted;
+    private Control? _panelHeaderLine;
 
     /// <summary>Whether the panel's header line stands on the page header's last line now (tests and smokes).</summary>
     internal bool IsPanelHeaderLifted => _panelHeaderLifted;
@@ -25,7 +28,10 @@ public sealed partial class MediaPage
     private Control?[] PanelAlignmentRows => new Control?[] { _filterSurface, _exportAllAsk, _selectionNote, _queueAsk, _selectionRow, _statusRow };
 
     private bool PanelHeaderCanLift => !_focusMode && _filterSurface is not { IsVisible: true } && !_exportAllAsk.IsVisible
-        && !_selectionNote.IsVisible && !_queueAsk.IsVisible && (_selectionRow.IsVisible || _statusRow?.IsVisible == true);
+        && !_selectionNote.IsVisible && !_queueAsk.IsVisible && PanelHeaderLine != null;
+
+    // The header's visible last line: the selection row while it shows (it stands under the summary), else the summary line.
+    private Control? PanelHeaderLine => _selectionRow.IsVisible ? _selectionRow : _statusRow is { IsVisible: true } status ? status : null;
 
     // The panel's margins and the room the header's last line keeps for it; LayoutBody calls this with the column it laid out.
     private void AlignPanel(ReaderMediaSidebar panel, bool panelRight, double edge, double reserve)
@@ -40,15 +46,18 @@ public sealed partial class MediaPage
         _panelHeaderLifted = lift;
         double top = lift ? -(PanelHeaderLineHeight + HeaderBottomMargin) : 0;
         panel.Margin = panelRight ? new Thickness(0, top, edge, 8) : new Thickness(edge, top, 0, 8);
-        Thickness room = lift ? (panelRight ? new Thickness(0, 0, reserve, 0) : new Thickness(reserve, 0, 0, 0)) : default;
-        _selectionRow.Margin = room;
-        if (_statusRow != null) _statusRow.Margin = room;
+        Thickness room = panelRight ? new Thickness(0, 0, reserve, 0) : new Thickness(reserve, 0, 0, 0);
+        _panelHeaderLine = lift ? PanelHeaderLine : null;
+        _selectionRow.Margin = ReferenceEquals(_panelHeaderLine, _selectionRow) ? room : default;
+        if (_statusRow != null) _statusRow.Margin = ReferenceEquals(_panelHeaderLine, _statusRow) ? room : default;
     }
 
-    // A row above the grid appeared or went away: the header's last line may have changed.
+    // A row above the grid appeared or went away: the header's last line may have changed (or the summary and the selection row swapped).
     private bool RealignPanel()
     {
-        if (_panel is not { } panel || _plan is not { } plan || !_panelShown || _panelHeaderLifted == PanelHeaderCanLift) return false;
+        if (_panel is null || _plan is not { } plan || !_panelShown) return false;
+        bool lift = PanelHeaderCanLift;
+        if (_panelHeaderLifted == lift && (!lift || ReferenceEquals(_panelHeaderLine, PanelHeaderLine))) return false;
         LayoutBody(plan);
         return true;
     }
