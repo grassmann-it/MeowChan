@@ -4782,6 +4782,7 @@
     "tagging.menu.reason.edge": "A entrada não pode ir mais longe nessa direção.",
     "tagging.menu.reason.noThread": "Esta mídia não vem de um tópico.",
     "tagging.menu.reason.notReady": "Não disponível aqui agora.",
+    "tagging.page.col.group": "Grupo",
     "tagging.page.col.preview": "Prévia",
     "tagging.page.col.tags": "Tags",
     "tagging.page.stamp.title": "Tags do carimbo ({0})",

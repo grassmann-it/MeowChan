@@ -4824,6 +4824,7 @@
     "tagging.menu.reason.edge": "Wpisu nie można przesunąć dalej w tym kierunku.",
     "tagging.menu.reason.noThread": "To medium nie pochodzi z wątku.",
     "tagging.menu.reason.notReady": "Teraz niedostępne w tym miejscu.",
+    "tagging.page.col.group": "Grupa",
     "tagging.page.col.preview": "Podgląd",
     "tagging.page.col.tags": "Tagi",
     "tagging.page.stamp.title": "Tagi stempla ({0})",

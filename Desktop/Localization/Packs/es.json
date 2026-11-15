@@ -4776,6 +4776,7 @@
     "tagging.menu.reason.edge": "La entrada no puede moverse más en esa dirección.",
     "tagging.menu.reason.noThread": "Este medio no procede de un hilo.",
     "tagging.menu.reason.notReady": "Ahora no está disponible aquí.",
+    "tagging.page.col.group": "Grupo",
     "tagging.page.col.preview": "Vista previa",
     "tagging.page.col.tags": "Etiquetas",
     "tagging.page.stamp.title": "Etiquetas del sello ({0})",

@@ -4688,6 +4688,7 @@
     "tagging.menu.reason.edge": "この方向にはこれ以上移動できません。",
     "tagging.menu.reason.noThread": "このメディアはスレッド由来ではありません。",
     "tagging.menu.reason.notReady": "今ここでは利用できません。",
+    "tagging.page.col.group": "グループ",
     "tagging.page.col.preview": "プレビュー",
     "tagging.page.col.tags": "タグ",
     "tagging.page.stamp.title": "スタンプのタグ（{0}）",

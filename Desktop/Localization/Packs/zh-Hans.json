@@ -4688,6 +4688,7 @@
     "tagging.menu.reason.edge": "该条目无法再朝这个方向移动。",
     "tagging.menu.reason.noThread": "此媒体并非来自某个串。",
     "tagging.menu.reason.notReady": "目前在此处不可用。",
+    "tagging.page.col.group": "分组",
     "tagging.page.col.preview": "预览",
     "tagging.page.col.tags": "标签",
     "tagging.page.stamp.title": "印章标签（{0}）",

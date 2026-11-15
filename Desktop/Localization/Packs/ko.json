@@ -4688,6 +4688,7 @@
     "tagging.menu.reason.edge": "이 방향으로는 더 이동할 수 없습니다.",
     "tagging.menu.reason.noThread": "이 미디어는 스레드에서 온 것이 아닙니다.",
     "tagging.menu.reason.notReady": "지금 여기서는 사용할 수 없습니다.",
+    "tagging.page.col.group": "그룹",
     "tagging.page.col.preview": "미리보기",
     "tagging.page.col.tags": "태그",
     "tagging.page.stamp.title": "스탬프 태그({0})",

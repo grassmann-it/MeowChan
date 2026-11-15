@@ -4776,6 +4776,7 @@
     "tagging.menu.reason.edge": "L’entrée ne peut pas aller plus loin dans cette direction.",
     "tagging.menu.reason.noThread": "Ce média ne provient pas d’un fil.",
     "tagging.menu.reason.notReady": "Pas disponible ici pour le moment.",
+    "tagging.page.col.group": "Groupe",
     "tagging.page.col.preview": "Aperçu",
     "tagging.page.col.tags": "Étiquettes",
     "tagging.page.stamp.title": "Étiquettes du tampon ({0})",

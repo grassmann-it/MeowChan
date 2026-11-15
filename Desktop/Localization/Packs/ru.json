@@ -4798,6 +4798,7 @@
     "tagging.menu.reason.edge": "Запись нельзя переместить дальше в этом направлении.",
     "tagging.menu.reason.noThread": "Это медиа не из треда.",
     "tagging.menu.reason.notReady": "Сейчас здесь недоступно.",
+    "tagging.page.col.group": "Группа",
     "tagging.page.col.preview": "Предпросмотр",
     "tagging.page.col.tags": "Теги",
     "tagging.page.stamp.title": "Теги штампа ({0})",

@@ -4782,6 +4782,7 @@
     "tagging.menu.reason.edge": "La voce non può spostarsi oltre in questa direzione.",
     "tagging.menu.reason.noThread": "Questo media non proviene da un thread.",
     "tagging.menu.reason.notReady": "Al momento non disponibile qui.",
+    "tagging.page.col.group": "Gruppo",
     "tagging.page.col.preview": "Anteprima",
     "tagging.page.col.tags": "Tag",
     "tagging.page.stamp.title": "Tag del timbro ({0})",

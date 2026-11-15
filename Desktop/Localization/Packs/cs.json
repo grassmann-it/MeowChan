@@ -4821,6 +4821,7 @@
     "tagging.menu.reason.edge": "Položku už nelze tímto směrem posunout dál.",
     "tagging.menu.reason.noThread": "Toto médium nepochází z vlákna.",
     "tagging.menu.reason.notReady": "Teď tady není k dispozici.",
+    "tagging.page.col.group": "Skupina",
     "tagging.page.col.preview": "Náhled",
     "tagging.page.col.tags": "Štítky",
     "tagging.page.stamp.title": "Štítky razítka ({0})",
