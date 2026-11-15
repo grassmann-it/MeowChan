@@ -85,8 +85,9 @@ internal static partial class MediaPageChecks
         Require(Math.Abs(page.FocusRow.Bounds.Height - 32) < 0.6 && text.Text == MediaFocusMode.Line(C<TextBlock>(page, "MediaStatus").Text)
             && text.Text!.StartsWith(Texts.T("media.focus.label"), StringComparison.Ordinal),
             state + ": the focus row must be 32 dip and show the live counter: " + page.FocusRow.Bounds.Height + " / " + text.Text);
-        Require(exit.IsEffectivelyVisible && page.FocusExitLabel.Text == Texts.T("media.focus.exit") && exit.Bounds.X < 1.5
-            && text.Bounds.X > exit.Bounds.X + exit.Bounds.Width && Avalonia.Automation.AutomationProperties.GetName(exit) == Texts.T("media.focus.exit"),
+        double FocusRowX(Control control) => control.TranslatePoint(default, page.FocusRow)!.Value.X;
+        Require(exit.IsEffectivelyVisible && page.FocusExitLabel.Text == Texts.T("media.focus.exit") && FocusRowX(exit) < 1.5
+            && FocusRowX(text) > FocusRowX(exit) + exit.Bounds.Width && Avalonia.Automation.AutomationProperties.GetName(exit) == Texts.T("media.focus.exit"),
             state + ": 'Exit focus' (icon plus text) must sit alone at the far left, before the counter: " + exit.Bounds + " in " + page.FocusRow.Bounds);
         Require(filtersButton.IsEffectivelyVisible && filtersButton.Content as string == Texts.T("media.filters.count", 1)
             && ToolTip.GetTip(filtersButton)?.ToString() == Texts.T("tags.filter.includeChip", "surface"), state + ": the active filter must be counted with its chips as the tooltip.");

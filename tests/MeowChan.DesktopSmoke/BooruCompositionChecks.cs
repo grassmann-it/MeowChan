@@ -24,6 +24,12 @@ namespace MeowChan.DesktopSmoke;
 // No socket is opened; the stub refuses every host except danbooru.donmai.us and cdn.donmai.us.
 internal static class BooruCompositionChecks
 {
+    private static Button ResultAction(Control root, string postId) => root.GetVisualDescendants().OfType<Button>()
+        .SingleOrDefault(button => button.Name == BooruWorkbenchView.LoadPrefix + postId
+            || button.Name == BooruWorkbenchView.CancelLoadPrefix + postId
+            || button.Name == BooruWorkbenchView.RetryLoadPrefix + postId)
+        ?? throw new InvalidOperationException("Result action not found: " + postId);
+
     private static readonly TimeSpan Wait = TimeSpan.FromSeconds(60);
 
     internal static async Task RunAsync(MainWindow owner)
@@ -208,7 +214,9 @@ internal static class BooruCompositionChecks
             Click(Find<Button>(page, BooruWorkbenchView.LoadPrefix + "8004"));
             await Program.WaitUntilAsync(() => Text(page).Contains("Added to the download queue."), () => "queued notice missing");
             Require(host.BooruComposition.Originals.ActiveCount == 1, "Load original did not admit exactly one queue job.");
-            Require(!Find<Button>(page, BooruWorkbenchView.LoadPrefix + "8004").IsEnabled, "Load original stayed enabled after queuing.");
+            Button queuedAction = ResultAction(page, "8004");
+            Require(queuedAction.Name == BooruWorkbenchView.CancelLoadPrefix + "8004" || !queuedAction.IsEnabled,
+                "The result action did not enter its queued/cancelled state after loading.");
             BooruPostRecord queued = host.BooruComposition.Catalog.Read().Posts.Single(post => post.PostId == "8004");
             Require(queued.OriginalIntent == BooruOriginalIntent.Requested && queued.Findings.Any(finding => finding.Kind == BooruFindingKind.Search),
                 "The catalog does not record the requested original with its search finding.");

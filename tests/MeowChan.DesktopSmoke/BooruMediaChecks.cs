@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Avalonia;
@@ -548,11 +549,19 @@ internal static class BooruMediaChecks
     // Settings > Appearance > Footer "Show Booru actions" (F1; the footer check box is gone), not by writing the preference behind the shell's back. The
     // modal details window is closed before the setting is restored because its owner is not a
     // user-reachable surface while ShowDialog is active.
+    private static readonly MethodInfo ReconcileBooruChanged = typeof(MainWindow).GetMethod("OnBooruChanged",
+        BindingFlags.Instance | BindingFlags.NonPublic)
+        ?? throw new InvalidOperationException("The Booru shell composition callback is missing.");
+
+    private static void ReconcileBooruPresentation(MainWindow shell) => ReconcileBooruChanged.Invoke(shell, null);
+
     private static async Task SearchToolsOffAsync(MainWindow shell, MediaPage media, MediaLibraryTileRow row,
         DesktopSessionHost host, string phase)
     {
         BooruUiHarness harness = new();
         host.BooruServices = harness.Services;
+        ReconcileBooruPresentation(shell);
+        await UntilAsync(() => shell.BooruPageForTests is null);
         BooruMediaDetailsDialog? dialog = null;
         bool visible = host.Config.ShowBooruTools;
         Exception? failureBeforeCleanup = null;

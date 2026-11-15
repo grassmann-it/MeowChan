@@ -21,6 +21,8 @@ public static partial class WorkViewPolicy
         Same("booru.search.status", WorkViewPage.Booru, WorkViewKind.Element, Required, safety: true),
         Same("booru.results", WorkViewPage.Booru, WorkViewKind.Element, Required, safety: true),
         new("booru.result.load", WorkViewPage.Booru, WorkViewKind.Action, Direct, Direct, Direct),
+        new("booru.result.cancel", WorkViewPage.Booru, WorkViewKind.Action, Direct, Direct, Direct),
+        new("booru.result.retry", WorkViewPage.Booru, WorkViewKind.Action, Direct, Direct, Direct),
         new("booru.result.open", WorkViewPage.Booru, WorkViewKind.Action, Overflow, Direct, Direct),
         new("booru.result.copy-link", WorkViewPage.Booru, WorkViewKind.Action, Overflow, Direct, Direct),
         Same("booru.result.details", WorkViewPage.Booru, WorkViewKind.Element, Direct),

@@ -175,7 +175,9 @@ internal static partial class BooruWorkbenchChecks
             Click(Find<Button>(page, BooruWorkbenchView.LoadPrefix + "101"));
             await Program.WaitUntilAsync(() => Text(page).Contains("Added to the download queue."), () => "queued state not shown");
             Require(h.Queue.Loads.Count == 1 && h.Queue.Loads[0] == ("101", BooruLoadOrigin.Search), "Load original did not hand over exactly once.");
-            Require(!Find<Button>(page, BooruWorkbenchView.LoadPrefix + "101").IsEnabled, "Load original stayed enabled after queuing.");
+            Button queuedAction = ResultAction(page, "101");
+            Require(queuedAction.Name == BooruWorkbenchView.CancelLoadPrefix + "101" || !queuedAction.IsEnabled,
+                "The result action did not enter its queued/cancelled state after loading.");
             await CheckResultAnnouncementsAsync(page);
 
             // ---- a non-loadable original is explained and disabled ----------------------------------------------------
@@ -411,6 +413,12 @@ internal static partial class BooruWorkbenchChecks
             }, failure => Console.Error.WriteLine("Booru workbench cleanup: " + failure));
         }
     }
+
+    private static Button ResultAction(Control root, string postId) => root.GetVisualDescendants().OfType<Button>()
+        .SingleOrDefault(button => button.Name == BooruWorkbenchView.LoadPrefix + postId
+            || button.Name == BooruWorkbenchView.CancelLoadPrefix + postId
+            || button.Name == BooruWorkbenchView.RetryLoadPrefix + postId)
+        ?? throw new InvalidOperationException("Result action not found: " + postId);
 
     private static async Task CheckMenuHiddenWithoutPortsAsync(MainWindow owner, MenuItem menu)
     {

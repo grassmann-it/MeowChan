@@ -52,9 +52,11 @@ internal static class TaggingPageChecks
                 && page.Rows.Count == 3, () => "page " + window.SelectedPage + ", rows " + window.TaggingPage?.Rows.Count);
             TaggingPage tagging = window.TaggingPage!;
             await SettleAsync(window);
-            Require(tagging.ProgressText.Text == "Open: 3 · Done: 0 · Skipped: 0", "Progress: " + tagging.ProgressText.Text);
-            Require(tagging.StartButton.IsEffectivelyEnabled && Avalonia.Automation.AutomationProperties.GetName(tagging.StartButton) == "Start tagging",
-                "The start button is not offered for a fresh queue.");
+            Require(tagging.ProgressText.Text == Texts.T("tagging.page.progress", 3, 0, 0), "Progress: " + tagging.ProgressText.Text);
+            await Program.WaitUntilAsync(() => tagging.StartButton.IsEffectivelyEnabled
+                && Avalonia.Automation.AutomationProperties.GetName(tagging.StartButton) == Texts.T("command.tagging.start"),
+                () => "start enabled=" + tagging.StartButton.IsEffectivelyEnabled + ", name='"
+                    + Avalonia.Automation.AutomationProperties.GetName(tagging.StartButton) + "', host=" + window.SessionHost.State);
             Program.CaptureWindow(window, "smoke-tagging-page-light-en.png");
 
             // Delete from the list removes the selected entry; Alt+Down moves the lead entry one place down.
@@ -179,7 +181,7 @@ internal static class TaggingPageChecks
             // Mark one finished, filter by state, then the work views.
             SelectOnly(tagging, tagging.Rows[0]);
             await tagging.ExecuteRowCommandAsync("tagging.mark-done");
-            Require(tagging.ProgressText.Text == "Open: 1 · Done: 1 · Skipped: 0", "Progress after a decision: " + tagging.ProgressText.Text);
+            Require(tagging.ProgressText.Text == Texts.T("tagging.page.progress", 1, 1, 0), "Progress after a decision: " + tagging.ProgressText.Text);
             tagging.Filter = TaggingQueueFilter.Skipped;
             await SettleAsync(window);
             Require(tagging.Rows.Count == 0, "The Skipped filter still lists entries.");
@@ -194,7 +196,7 @@ internal static class TaggingPageChecks
             await SetThemeAsync(window, "Dark");
             await FooterNavigationChecks.PersistLanguageAsync(window, "de");
             await ReopenAsync(window, tagging);
-            Require(tagging.ProgressText.Text == "Offen: 1 · Erledigt: 1 · Übersprungen: 0", "German progress: " + tagging.ProgressText.Text);
+            Require(tagging.ProgressText.Text == Texts.T("tagging.page.progress", 1, 1, 0), "German progress: " + tagging.ProgressText.Text);
             Program.CaptureWindow(window, "smoke-tagging-page-dark-de.png");
             await SetThemeAsync(window, "Light");
             await FooterNavigationChecks.PersistLanguageAsync(window, "en");
