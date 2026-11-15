@@ -335,7 +335,7 @@ public sealed class ThemeConfiguratorTests : IDisposable
             foreach (string placeholder in new[] { "{0}", "{1}" })
                 Assert.Equal(english.Contains(placeholder), text.Contains(placeholder));
         }
-        Assert.Equal(57, ThemeColorsCatalog.Entries.Length); // TH5 added "Try in window" and its hint
+        Assert.Equal(58, ThemeColorsCatalog.Entries.Length); // Current catalog includes the live-preview reset hint.
     }
 
     [Fact]
