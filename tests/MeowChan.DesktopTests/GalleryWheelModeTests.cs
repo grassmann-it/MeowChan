@@ -10,6 +10,8 @@ using Avalonia.LogicalTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
+using MeowChan.Favorites;
+using MeowChan.Gallery;
 
 namespace MeowChan.DesktopTests;
 
@@ -156,6 +158,13 @@ public sealed class GalleryWheelModeTests : IDisposable
         body(viewer, viewport, moves);
     });
 
+    // The shell's answer landed (the viewer began the new medium): the move is no longer pending and the collected steps go.
+    private static void Land(GalleryViewer viewer)
+    {
+        typeof(GalleryViewer).GetField("_navigationPending", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(viewer, false);
+        viewer.MoveQueuedBrowse();
+    }
+
     private static PointerWheelEventArgs Wheel(Control target, double deltaY, KeyModifiers modifiers = KeyModifiers.None) =>
         new(target, new Avalonia.Input.Pointer(Avalonia.Input.Pointer.GetNextFreeId(), PointerType.Mouse, true), target, new Point(5, 5), 0,
             new PointerPointProperties(), modifiers, new Vector(0, deltaY)) { RoutedEvent = InputElement.PointerWheelChangedEvent };
@@ -169,6 +178,7 @@ public sealed class GalleryWheelModeTests : IDisposable
         Assert.True(plain.Handled);       // the wheel is the picture's, as it always was
         Assert.Empty(moves);
         viewport.RaiseEvent(Wheel(viewport, 1, KeyModifiers.Control));
+        Land(viewer);
         viewport.RaiseEvent(Wheel(viewport, -1, KeyModifiers.Control));
         Assert.Equal(new[] { -1, 1 }, moves);
     });
@@ -180,6 +190,7 @@ public sealed class GalleryWheelModeTests : IDisposable
         Assert.Equal("Browse", viewer.WheelMode);
         PointerWheelEventArgs up = Wheel(viewport, 1);
         viewport.RaiseEvent(up);
+        Land(viewer);
         PointerWheelEventArgs down = Wheel(viewport, -1);
         viewport.RaiseEvent(down);
         Assert.True(up.Handled && down.Handled);
@@ -192,6 +203,83 @@ public sealed class GalleryWheelModeTests : IDisposable
     });
 
     [Fact]
+    public void ASpinningWheelSendsOneMoveForTheStepsThatArrivedWhileTheShellWasMoving() => WithViewer((viewer, viewport, moves) =>
+    {
+        viewer.ConfigureWheelMode("Browse");
+        for (int i = 0; i < 10; i++) viewport.RaiseEvent(Wheel(viewport, -1));   // ten notches while the first move is still on its way
+        Assert.Equal(new[] { 1 }, moves);                                        // only the first went at once
+        viewer.MoveQueuedBrowse();
+        Assert.Equal(new[] { 1 }, moves);                                        // not while that navigation has not landed
+        Land(viewer);
+        Assert.Equal(new[] { 1, 9 }, moves);                                     // the rest is one move, no step lost
+        Land(viewer);
+        Assert.Equal(new[] { 1, 9 }, moves);                                     // and nothing is sent twice
+    });
+
+    [Fact]
+    public void ATurnTheOtherWayDropsTheCollectedStepsAndTheLatestDirectionWins() => WithViewer((viewer, viewport, moves) =>
+    {
+        viewer.ConfigureWheelMode("Browse");
+        viewport.RaiseEvent(Wheel(viewport, -1));
+        for (int i = 0; i < 5; i++) viewport.RaiseEvent(Wheel(viewport, -1));
+        viewport.RaiseEvent(Wheel(viewport, 1));
+        Land(viewer);
+        Assert.Equal(new[] { 1, -1 }, moves);
+    });
+
+    [Fact]
+    public void AnEndOfTheListStopsTheCollectedStepsLikeASingleOne() => WithViewer((viewer, viewport, moves) =>
+    {
+        viewer.ConfigureWheelMode("Browse");
+        viewport.RaiseEvent(Wheel(viewport, -1));
+        viewport.RaiseEvent(Wheel(viewport, -1));
+        viewport.RaiseEvent(Wheel(viewport, -1));
+        viewer.SetPosition("3 / 3", true, false);                                // the shell shows the last medium: no next one
+        Land(viewer);
+        Assert.Equal(new[] { 1 }, moves);
+        // The shell clamps what is left to the list (not before the first entry, not past the place that loads the next thread).
+        string shell = Source("Desktop/Shell/MainWindow.Gallery.cs");
+        Assert.Contains("Math.Max(0, _galleryIndex + delta)", shell);
+        Assert.Contains("Math.Min(_galleryIndex + delta, Math.Max(_galleryEntries.Count, _galleryIndex + 1))", shell);
+    });
+
+    [Fact]
+    public void TheQueueSumsStepsDropsThemOnReversalAndOnAPauseAndNeverWraps()
+    {
+        WheelBrowseQueue queue = new();
+        DateTime now = DateTime.UtcNow;
+        Assert.False(queue.HasSteps);
+        queue.Add(1, now); queue.Add(1, now.AddMilliseconds(10)); queue.Add(1, now.AddMilliseconds(20));
+        Assert.Equal(3, queue.Take());
+        Assert.Equal(0, queue.Take());
+        queue.Add(1, now); queue.Add(1, now); queue.Add(-1, now.AddMilliseconds(5));
+        Assert.Equal(-1, queue.Take());                                           // the other way: what was collected goes, the latest turn stays
+        queue.Add(1, now); queue.Add(1, now.AddMilliseconds(10));
+        queue.Add(1, now.AddMilliseconds(10) + WheelSteps.Pause + TimeSpan.FromMilliseconds(1));
+        Assert.Equal(1, queue.Take());                                            // a pause starts a new gesture
+        queue.Add(0, now);
+        Assert.False(queue.HasSteps);
+        queue.Add(-1, now); queue.Clear();
+        Assert.Equal(0, queue.Take());
+    }
+
+    [Fact]
+    public void RFocusingTheStarsOpensThePostPanelAsAnExplicitOpenTheSavedPreferenceFollows() => WithViewer((viewer, viewport, moves) =>
+    {
+        BindingFlags instance = BindingFlags.Instance | BindingFlags.NonPublic;
+        typeof(GalleryViewer).GetField("_ratingAvailable", instance)!.SetValue(viewer, true);
+        typeof(GalleryViewer).GetField("_entry", instance)!.SetValue(viewer, new GalleryEntry(
+            new GalleryAssetKey(new ResourceId("source", "b", "42"), "dir", "asset"),
+            new MeowChan.Storage.MediaAssetSnapshot("dir", MeowChan.Storage.MediaManifestStatus.Available, 1, "generation", []),
+            new MeowChan.Storage.MediaAssetReference("asset", "image", "original", "a.png", "a.png", 7, new string('a', 64), "https://fixture.invalid/a.png", "a.png", true),
+            null, null, false, false));
+        List<bool> saved = new();
+        viewer.ContextOpenChanged += saved.Add;
+        viewer.FocusRatingStars();
+        Assert.Equal(new[] { true }, saved);                                     // the panel-open preference is told, not left behind
+    });
+
+    [Fact]
     public void BrowsingStopsAtTheEndsLikeTheArrowKeys() => WithViewer((viewer, viewport, moves) =>
     {
         viewer.ConfigureWheelMode("Browse");
@@ -201,6 +289,7 @@ public sealed class GalleryWheelModeTests : IDisposable
         viewport.RaiseEvent(Wheel(viewport, -1));
         Assert.Equal(new[] { 1 }, moves);
         moves.Clear();
+        Land(viewer);
         viewer.SetPosition("3 / 3", true, false);
         viewport.RaiseEvent(Wheel(viewport, -1));   // no next medium
         Assert.Empty(moves);

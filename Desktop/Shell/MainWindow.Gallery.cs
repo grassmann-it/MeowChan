@@ -406,7 +406,8 @@ public partial class MainWindow
     {
         if (_gallery == null || _galleryCancellation == null || _galleryResolvingRequest == _galleryRequest) return;
         if (delta < 0 && _galleryIndex == 0) return;
-        _galleryIndex += delta;
+        // A sum of wheel steps never overshoots the ends: not before the first entry, not past the one-past-the-last place that loads the next thread.
+        _galleryIndex = delta < 0 ? Math.Max(0, _galleryIndex + delta) : Math.Min(_galleryIndex + delta, Math.Max(_galleryEntries.Count, _galleryIndex + 1));
         if (_galleryIndex >= _galleryEntries.Count) await ResolveNextGalleryEntryAsync(_galleryRequest);
         else await ShowGalleryEntryAsync();
     }

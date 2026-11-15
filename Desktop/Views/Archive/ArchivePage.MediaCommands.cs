@@ -342,7 +342,7 @@ public partial class ArchivePage
             },
             [MediaMenuAction.ShowInFolder] = () =>
             {
-                if (target != null && Path.GetDirectoryName(target.Asset.Path) is string directory) _openFolder?.Invoke(directory);
+                TryShowMediaInFolder(target?.Asset);
                 return Task.CompletedTask;
             },
             [MediaMenuAction.CopyPath] = async () =>

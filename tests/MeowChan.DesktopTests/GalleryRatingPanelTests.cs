@@ -249,6 +249,9 @@ public sealed class GalleryRatingPanelTests : IDisposable
         // Route 1: the Tags segment is open: its row's stars take the focus. Route 2: the Post segment (opened first when closed). Route 3: the menu.
         Assert.Contains("if (_tagPanelOpen && _decisionRow is { } tagsRow) return _contextOpen && tagsRow.FocusRating();", post);
         Assert.Contains("return _postDecision is { } row && row.FocusRating();", post);
+        // R opening the Post segment is an explicit open: the saved panel-open preference follows (notify), as with the Post toggle.
+        Assert.Contains("if (!_contextOpen) SetContextOpen(true);", post);
+        Assert.DoesNotContain("SetContextOpen(true, notify: false);", post);
         Assert.Contains("MediaMenuBuilder.BuildRatingMenu(", post);
         Fixture h = new(); // no rating available: R has nothing to focus
         Assert.False(h.Viewer.FocusRatingStars());

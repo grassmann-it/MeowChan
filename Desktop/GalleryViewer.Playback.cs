@@ -472,6 +472,7 @@ internal sealed partial class GalleryViewer
         UnbindVideoPlaybackSignals();
         _navigationPending = false; _mediaFailed = false; _selectionVideoPaused = false;
         _imageReadyRequest = _videoReadyRequest = -1;
+        ScheduleQueuedBrowse(); // Browse wheel turns of the navigation just landed
         ApplySlideshowVideoRule(); // The reduced-motion answer may have changed since the last medium.
         _slideshow.BeginMedia(++_slideshowGeneration, entry.Kind == SavedMediaKind.Video, _next.IsEnabled);
         // Readiness may arrive before the next interaction tick while a panel is open.
