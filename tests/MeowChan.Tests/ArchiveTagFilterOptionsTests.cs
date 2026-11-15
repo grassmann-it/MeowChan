@@ -108,7 +108,7 @@ public sealed class ArchiveTagFilterOptionsTests
         // Eight is an admission limit for new growth only; reconstructing the stored definition uses the technical cap.
         Assert.Throws<ArgumentException>(() => new ArchiveTagFilter(restored.Tags!.Include, restored.Tags.Exclude,
             restored.Tags.Match, ArchiveTagFilter.MinimumTagsPerList));
-        ArchiveTagFilter reopened = new(restored.Tags.Include, restored.Tags.Exclude, restored.Tags.Match,
+        ArchiveTagFilter reopened = new(restored.Tags!.Include, restored.Tags.Exclude, restored.Tags.Match,
             ArchiveTagFilter.MaximumConfigurableTagsPerList);
         Assert.Equal(saved.Tags, reopened);
     }
