@@ -319,16 +319,27 @@ internal static class MediaInteractionChecks
         }
         async Task<Button> NativeOverflowTargetAsync(string name)
         {
-            Button target = Named<Button>(name);
-            await Program.WaitUntilAsync(() => viewer!.IsOverflowOpen
-                && viewer.OverflowMenuContent.IsAttachedToVisualTree()
-                && viewer.OverflowMenuContent.IsEffectivelyVisible
-                && viewer.OverflowMenuContent.Bounds.Width > 0
-                && viewer.OverflowMenuContent.Bounds.Height > 0
-                && target.IsAttachedToVisualTree()
-                && MediaInteractionSmokeHelpers.IsNativeGeometryReady(target),
-                () => $"The {name} control did not settle as a native popup target.");
-            return target;
+            // Opening the overflow menu reparents its rows into the popup. Do not keep
+            // the pre-open control returned by Named<T>: it may be the retained template
+            // row and never become a valid native target after the reparenting turn.
+            Button? target = null;
+            await Program.WaitUntilAsync(() =>
+            {
+                if (viewer is not { IsOverflowOpen: true }
+                    || !viewer.OverflowMenuContent.IsAttachedToVisualTree()
+                    || !viewer.OverflowMenuContent.IsEffectivelyVisible
+                    || viewer.OverflowMenuContent.Bounds.Width <= 0
+                    || viewer.OverflowMenuContent.Bounds.Height <= 0)
+                    return false;
+
+                target = viewer.OverflowMenuContent.GetVisualDescendants()
+                    .OfType<Button>()
+                    .FirstOrDefault(control => control.Name == name);
+                return target is not null
+                    && target.IsAttachedToVisualTree()
+                    && MediaInteractionSmokeHelpers.IsNativeGeometryReady(target);
+            }, () => $"The {name} control did not settle as a native popup target.");
+            return target!;
         }
         Slider Seek() => Named<Slider>("GalleryVideoSeek");
         GalleryVideoPlayer Player()
