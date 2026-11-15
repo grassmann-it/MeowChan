@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using MeowChan.Archive;
 using MeowChan.Booru;
@@ -622,7 +623,15 @@ public sealed class BooruPortAvailabilityTests
                 if (HoldPreviews) await ReleasePreviews.Task; // deliberate non-cooperative completion
             }
             else Interlocked.Increment(ref _originals);
-            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(Image), RequestMessage = request };
+            // Original downloads are MIME-validated before the queue publishes the verified asset.
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new ByteArrayContent(Image)
+                {
+                    Headers = { ContentType = new MediaTypeHeaderValue("image/jpeg") }
+                },
+                RequestMessage = request
+            };
         }
     }
 
