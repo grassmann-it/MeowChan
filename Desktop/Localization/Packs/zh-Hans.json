@@ -4843,6 +4843,24 @@
     "media.query.scope.alias.title": "标题 串标题",
     "media.query.scope.alias.board": "版块",
     "media.query.scope.alias.source": "来源",
-    "media.query.scope.alias.tag": "标签"
+    "media.query.scope.alias.tag": "标签",
+    "media.breakdown.name": "“{0}”的出现位置",
+    "media.breakdown.all": "全部 {0}",
+    "media.breakdown.field.name": "{0} 个在文件名中",
+    "media.breakdown.field.title": "{0} 个在串标题中",
+    "media.breakdown.field.board": "{0} 个在版块中",
+    "media.breakdown.field.source": "{0} 个在来源中",
+    "media.breakdown.field.tag": "{0} 个作为标签",
+    "media.breakdown.across": "这些词只分散在多个字段中才能匹配。",
+    "media.breakdown.elsewhere": "{0}中没有 · 其他位置有 {1} 个",
+    "media.breakdown.everywhere": "在所有位置搜索",
+    "media.breakdown.summary": "{0}: {1}",
+    "media.filter.nameChipScoped": "“{0}”在{1}",
+    "media.scope.name": "文件名",
+    "media.scope.title": "串标题",
+    "media.scope.board": "版块",
+    "media.scope.source": "来源",
+    "media.scope.tag": "标签",
+    "search.scope.media.some": "{0} 个字段"
   }
 }

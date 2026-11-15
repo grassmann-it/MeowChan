@@ -1096,6 +1096,42 @@
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
     </Style>
+    <!-- The parts of the "where was it found" row under the Media search (MediaTextBreakdownRow): separate toggle chips of the control height
+         with the frame and states of the segments; on = accent surface. -->
+    <Style Selector="ToggleButton.breakdown-chip">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Raised}" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="MinHeight" Value="{StaticResource Workspace.Size.Chip}" />
+        <Setter Property="Padding" Value="10,0" />
+        <Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Chip}" />
+        <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Body}" />
+        <Setter Property="FontWeight" Value="Normal" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="ToggleButton.breakdown-chip:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Hover}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+    </Style>
+    <!-- One style per template selector: a template selector must not share a comma list with another (AVLN2000). -->
+    <Style Selector="ToggleButton.breakdown-chip:checked /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+    </Style>
+    <Style Selector="ToggleButton.breakdown-chip:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+    </Style>
+    <Style Selector="ToggleButton.breakdown-chip:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+    </Style>
     <!-- Split button (the gallery slideshow: toggle + menu button): both halves are exactly Workspace.Size.Control high and share one 1-px edge
          (the menu half overlaps it by 1) and the control radius on the outer corners only; the menu half is a square of that size. A half in
          hover, focus or press lifts above its neighbour so its edge is not cut. States follow the segment buttons. -->

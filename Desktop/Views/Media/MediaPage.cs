@@ -374,11 +374,13 @@ public sealed partial class MediaPage : UserControl
         internal MediaPageTermFilter? PageTerms { get; init; }
         internal IReadOnlySet<TagQueueKey>? Queue { get; init; }
         internal Func<MediaSourceTagIndex?>? SourceTags { get; init; }
+        /// <summary>The search text this presentation was made for; the row where it was found names it.</summary>
+        internal string? SearchText { get; init; }
     }
 
     private sealed record PresentResult(IReadOnlyList<MediaLibraryTile> Tiles, MediaLibraryEntry[] Shown, int[] PresentPositions,
         MediaLibraryTileRow[] Rows, int ShownMissing, int Unfiltered, bool FilterActive, string? ErrorKey, int AudioUnknown,
-        int? UntaggedTiles, MediaLibraryUntagged? Untagged, IReadOnlyList<int> Restored, MediaLibraryUserOrder? UserOrder);
+        int? UntaggedTiles, MediaLibraryUntagged? Untagged, IReadOnlyList<int> Restored, MediaLibraryUserOrder? UserOrder, MediaTextCounts? Breakdown = null);
 
     private void Present()
     {
@@ -446,6 +448,7 @@ public sealed partial class MediaPage : UserControl
             _audio, _untagged, _tiles, _grid.Selection.SelectedIndexes.ToArray(), _selectionStamp)
         {
             PageTerms = pageTerms,
+            SearchText = _nameFilter.Text,
             Queue = pageTerms?.NeedsQueue == true ? _queueKeys : null,
             SourceTags = pageTerms?.NeedsSourceTags != true ? null : () =>
             {
@@ -464,6 +467,7 @@ public sealed partial class MediaPage : UserControl
         int audioUnknown = 0;
         int? untaggedTiles = null;
         bool filterActive = false;
+        IReadOnlyList<MediaTextTally>? tally = null; // where the words were found, for the media that pass every other filter
         MediaLibraryUntagged? untagged = input.Untagged;
         if (input.InvalidFilter)
         {
@@ -480,7 +484,14 @@ public sealed partial class MediaPage : UserControl
                 MediaLibraryFilterResult result = MediaLibraryFilterEngine.Evaluate(all, filter, input.UserData, input.Audio);
                 passing = result.Passing;
                 // MP1/MP4: the tagging queue and the source tags narrow what the core filter let through.
-                if (input.PageTerms is { } pageTerms) passing = pageTerms.Apply(passing, input.Queue, input.SourceTags?.Invoke());
+                tally = result.TextTally;
+                if (input.PageTerms is { } pageTerms)
+                {
+                    MediaSourceTagIndex? sourceTags = input.SourceTags?.Invoke();
+                    passing = pageTerms.Apply(passing, input.Queue, sourceTags);
+                    // The row counts after the page-side terms too, so its numbers are exact with a queue or source tag term active.
+                    if (tally != null) tally = KeepTallied(tally, pageTerms.Apply(tally.Select(item => item.Entry).ToArray(), input.Queue, sourceTags));
+                }
                 audioUnknown = result.UnknownSoundVideos;
                 if (!filter.WithoutMediaTags)
                 {
@@ -490,6 +501,7 @@ public sealed partial class MediaPage : UserControl
             }
             catch (MediaLibraryFilterException exception)
             {
+                tally = null;
                 errorKey = exception.Error switch
                 {
                     MediaLibraryFilterError.UnknownTag => "media.filter.error.unknownTag",
@@ -537,8 +549,26 @@ public sealed partial class MediaPage : UserControl
         MediaLibraryTileRow[] rows = new MediaLibraryTileRow[tiles.Count];
         for (int i = 0; i < rows.Length; i++) rows[i] = new MediaLibraryTileRow(tiles[i], i, state);
         IReadOnlyList<int> restored = RestoredSelection(input, tiles);
+        // errorKey is null here exactly when the filter ran; with a text it also tallied. The tiles the scope shows are the grid's own.
+        MediaTextCounts? breakdown = tally == null || errorKey != null ? null
+            : MediaTextCounts.Of(tally, input.IncludeMissing, input.Filter!.TextFields, shown.Length);
         return new PresentResult(tiles, shown, MediaLibraryView.PresentIndex(shown), rows, missing, unfiltered, filterActive, errorKey,
-            audioUnknown, untaggedTiles, untagged, restored, userOrder ?? input.UserOrder);
+            audioUnknown, untaggedTiles, untagged, restored, userOrder ?? input.UserOrder, breakdown);
+    }
+
+    // The entries of the tally the page-side terms kept. Both lists follow the order of the index (the terms only remove), so one pass pairs them.
+    private static IReadOnlyList<MediaTextTally> KeepTallied(IReadOnlyList<MediaTextTally> tally, IReadOnlyList<MediaLibraryEntry> kept)
+    {
+        List<MediaTextTally> result = new(kept.Count);
+        int next = 0;
+        foreach (MediaTextTally item in tally)
+        {
+            if (next == kept.Count) break;
+            if (!ReferenceEquals(item.Entry, kept[next])) continue;
+            result.Add(item);
+            next++;
+        }
+        return result;
     }
 
     private static IReadOnlyList<int> RestoredSelection(PresentInputs input, IReadOnlyList<MediaLibraryTile> tiles)
@@ -580,6 +610,8 @@ public sealed partial class MediaPage : UserControl
         PresentPositions = result.PresentPositions;
         _shownMissing = result.ShownMissing;
         _unfiltered = result.Unfiltered;
+        _breakdownCounts = result.Breakdown;
+        _breakdownText = input.SearchText ?? string.Empty;
         _restoring = true;
         try
         {
@@ -615,7 +647,7 @@ public sealed partial class MediaPage : UserControl
         _emptyReset.IsVisible = _filterActive;
         // AP2/A6: a file name that matches nothing here can be tried in Archive in one step.
         string name = _nameFilter.Text ?? string.Empty;
-        _emptySearchInArchive.IsVisible = showEmpty && _filterActive && name.Length > 0 && SearchInArchiveRequested != null;
+        _emptySearchInArchive.IsVisible = showEmpty && _filterActive && MediaLibraryFilter.HasText(name) && SearchInArchiveRequested != null;
         if (_emptySearchInArchive.IsVisible)
         {
             _emptySearchInArchive.Content = Texts.T("search.carry.toArchive", name);

@@ -11,6 +11,7 @@ using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.MediaActions;
+using MeowChan.Gallery;
 using Ursa.Controls;
 
 namespace MeowChan;
@@ -145,7 +146,12 @@ public sealed partial class MediaPage
                 // Reached from the status line while the filter fields are closed, so it is removable without opening them.
                 return (Texts.T("media.filter.withoutTags"), null);
             case MediaFilterField.Name:
-                return (Texts.T("media.filter.nameChip", term.Value.Trim()), null);
+                // A narrowed scope says where the words are looked for: "“cat” in tags, thread titles".
+                return (_textScope == MediaTextFields.All ? Texts.T("media.filter.nameChip", term.Value.Trim())
+                    : Texts.T("media.filter.nameChipScoped", term.Value.Trim(), TextScopeNames(_textScope)), null);
+            case MediaFilterField.In:
+                // The scope of the text has no chip of its own: it is the wording of the name chip ("“cat” in tags") and the scope chip's label.
+                return null;
             case MediaFilterField.Type when MediaFilterTerm.TypeOf(term.Value) is { } kind:
                 return (Texts.T(term.Exclude ? "media.filter.kindExcludeChip" : "media.filter.kindChip", KindLabel(kind)), KindLabel(kind));
             case MediaFilterField.Sound:
@@ -175,6 +181,7 @@ public sealed partial class MediaPage
 
     private void RenderFilterChips()
     {
+        UpdateScopeChip(); // the chip in the search field names the scope of the text (MediaPage.Breakdown.cs)
         _filterResetAll.Content = Texts.T("media.filter.resetAll");
         ToolTip.SetTip(_filterResetAll, Texts.T("media.filter.resetAllHint"));
         AutomationProperties.SetName(_filterResetAll, Texts.T("media.filter.resetAllHint"));

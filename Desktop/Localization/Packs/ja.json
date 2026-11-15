@@ -4843,6 +4843,24 @@
     "media.query.scope.alias.title": "タイトル スレッド",
     "media.query.scope.alias.board": "板",
     "media.query.scope.alias.source": "ソース",
-    "media.query.scope.alias.tag": "タグ"
+    "media.query.scope.alias.tag": "タグ",
+    "media.breakdown.name": "「{0}」が見つかった場所",
+    "media.breakdown.all": "すべて {0}",
+    "media.breakdown.field.name": "ファイル名に {0} 件",
+    "media.breakdown.field.title": "スレッドタイトルに {0} 件",
+    "media.breakdown.field.board": "板に {0} 件",
+    "media.breakdown.field.source": "ソースに {0} 件",
+    "media.breakdown.field.tag": "タグとして {0} 件",
+    "media.breakdown.across": "語は複数の項目に分かれてのみ一致します。",
+    "media.breakdown.elsewhere": "{0}には該当なし · 他に {1} 件",
+    "media.breakdown.everywhere": "すべての項目で検索",
+    "media.breakdown.summary": "{0}: {1}",
+    "media.filter.nameChipScoped": "「{0}」: {1}",
+    "media.scope.name": "ファイル名",
+    "media.scope.title": "スレッドタイトル",
+    "media.scope.board": "板",
+    "media.scope.source": "ソース",
+    "media.scope.tag": "タグ",
+    "search.scope.media.some": "{0} 項目"
   }
 }
