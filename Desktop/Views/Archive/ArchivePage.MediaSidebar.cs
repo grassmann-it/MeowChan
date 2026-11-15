@@ -150,7 +150,8 @@ public partial class ArchivePage
         CreateSidebarVideo(sidebar);
         sidebar.Close.Click += (_, e) => { e.Handled = true; CloseMediaSidebar(); };
         // The sidebar's keys reach the reader's view shortcuts too (the toggle, the reader's other switches), in either host.
-        sidebar.AddHandler(KeyDownEvent, (_, e) => { if (!TryRouteSidebarVideoKey(e)) OnReaderViewKeyDown(sidebar, e); }, RoutingStrategies.Bubble);
+        // M / U / F act on the medium it shows (revision 20), like the stars of its header.
+        sidebar.AddHandler(KeyDownEvent, (_, e) => { if (!TryRouteSidebarVideoKey(e) && !TryRouteFavoriteKey(sidebar, e)) OnReaderViewKeyDown(sidebar, e); }, RoutingStrategies.Bubble);
         sidebar.AddHandler(KeyDownEvent, OnSidebarNavigationKey, RoutingStrategies.Bubble);
         // The large reader's frame is not under the page (the shell hosts it), so the page's and the pane's media menu never see the sidebar: it opens the same
         // menu itself, on a right click anywhere in it (its picture also while a video plays, the header line, the card's edge), the Menu key and Shift+F10.

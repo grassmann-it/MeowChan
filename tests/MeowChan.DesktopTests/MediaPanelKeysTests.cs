@@ -59,10 +59,10 @@ public sealed class MediaPanelKeysTests : IDisposable
     [Theory, MemberData(nameof(Platforms))]
     public void AGalleryBindingStillMakesTheVideoKeyYield(ShortcutPlatform platform)
     {
-        // The yield of a changed default is unchanged where the gesture really competes: the gallery (here the slideshow on M).
-        var section = new ShortcutBindingsSection().Set("gallery.slideshow-toggle", [ShortcutGesture.Parse("M")]);
+        // The yield of a changed default is unchanged where the gesture really competes: the gallery (here the slideshow on Shift+M, mute's key since revision 20).
+        var section = new ShortcutBindingsSection().Set("gallery.slideshow-toggle", [ShortcutGesture.Parse("Shift+M")]);
         EffectiveShortcutBindings bindings = EffectiveShortcutBindings.Build(section, platform);
-        Assert.False(Has(bindings, "video.mute", ShortcutGesture.Parse("M")));
+        Assert.False(Has(bindings, "video.mute", ShortcutGesture.Parse("Shift+M")));
         Assert.Contains(bindings.Issues, issue => issue.CommandId == "video.mute" && issue.OtherCommandId == "gallery.slideshow-toggle" && !issue.BlocksSave);
     }
 

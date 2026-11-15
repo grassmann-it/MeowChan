@@ -28,9 +28,11 @@ public sealed class GalleryShortcutSchemeTests : IDisposable
         ("gallery.tools-toggle", "Shift+H"), ("gallery.overlay-toggle", "Shift+O"), ("tags.queue.cards", "Shift+K"),
         ("gallery.overlay-autohide-toggle", null), ("gallery.post-overlay-toggle", null),
         // Plain letters: playback and the older actions.
-        ("video.loop", "L"), ("video.mute", "M"), ("video.snapshot", "S"), ("video.ab-loop", "A"), ("gallery.slideshow-toggle", "D"),
-        ("favorites.toggle", "F"), ("favorites.add", "B"), ("favorites.remove", "U"), ("media.details", "I"), ("media.queue.add", "Q"),
+        ("video.loop", "L"), ("video.snapshot", "S"), ("video.ab-loop", "A"), ("gallery.slideshow-toggle", "D"),
+        ("favorites.toggle", "F"), ("favorites.remove", "U"), ("media.details", "I"), ("media.queue.add", "Q"),
         ("media.rating.edit", "R"), ("gallery.show-in-thread", "T"),
+        // Revision 20: mute is Shift+M (M adds a favourite; "Add favorite" also keeps B, see TheFavoriteKeysAreMAndUAndMuteIsShiftM).
+        ("video.mute", "Shift+M"),
     };
 
     private static IEnumerable<CommandDefinition> InGallery(IEnumerable<string>? contexts = null) =>
@@ -62,7 +64,8 @@ public sealed class GalleryShortcutSchemeTests : IDisposable
         Assert.Equal("Shift+H", EffectiveShortcutBindings.Build(null, ShortcutPlatform.Linux).Display("gallery.tools-toggle"));
         Assert.Equal("⇧P", EffectiveShortcutBindings.Build(null, ShortcutPlatform.MacOS).Display("gallery.context-toggle"));
         Assert.Equal("⇧O", EffectiveShortcutBindings.Build(null, ShortcutPlatform.MacOS).Display("gallery.overlay-toggle"));
-        Assert.Equal("M", EffectiveShortcutBindings.Build(null, ShortcutPlatform.MacOS).Display("video.mute"));
+        Assert.Equal("⇧M", EffectiveShortcutBindings.Build(null, ShortcutPlatform.MacOS).Display("video.mute"));
+        Assert.Equal("M / B", EffectiveShortcutBindings.Build(null, ShortcutPlatform.MacOS).Display("favorites.add"));
         Texts.SetLanguage("de");
         Assert.Equal("Umschalt+P", EffectiveShortcutBindings.Build(null, ShortcutPlatform.Windows).Display("gallery.context-toggle"));
         Assert.Equal("Umschalt+L", EffectiveShortcutBindings.Build(null, ShortcutPlatform.Linux).Display("gallery.filmstrip-toggle"));
@@ -102,8 +105,9 @@ public sealed class GalleryShortcutSchemeTests : IDisposable
         Assert.Equal(new Dictionary<string, string>
         {
             // Revision 14: X slower and C faster (next to [ and ], which need AltGr on DE/FR), plain letters like the other playback keys.
+            // Revision 20: M adds a favourite (B stays its second key), U removes, F toggles.
             ["A"] = "video.ab-loop", ["B"] = "favorites.add", ["C"] = "video.speed-up", ["D"] = "gallery.slideshow-toggle", ["F"] = "favorites.toggle", ["I"] = "media.details",
-            ["L"] = "video.loop", ["M"] = "video.mute", ["Q"] = "media.queue.add", ["R"] = "media.rating.edit", ["S"] = "video.snapshot",
+            ["L"] = "video.loop", ["M"] = "favorites.add", ["Q"] = "media.queue.add", ["R"] = "media.rating.edit", ["S"] = "video.snapshot",
             ["T"] = "gallery.show-in-thread", ["U"] = "favorites.remove", ["X"] = "video.speed-down"
         }.OrderBy(pair => pair.Key), letters.ToDictionary(pair => pair.Key, pair => pair.Value[0]).OrderBy(pair => pair.Key));
         // The playback letters of the scheme are among them.
@@ -112,7 +116,7 @@ public sealed class GalleryShortcutSchemeTests : IDisposable
     }
 
     [Theory, MemberData(nameof(Platforms))]
-    public void TheShiftLettersOfTheGalleryAreTheSwitchesAndRotate(ShortcutPlatform platform)
+    public void TheShiftLettersOfTheGalleryAreTheSwitchesRotateAndMute(ShortcutPlatform platform)
     {
         Dictionary<string, string> shifted = new(StringComparer.Ordinal);
         foreach (CommandDefinition command in InGallery())
@@ -121,9 +125,58 @@ public sealed class GalleryShortcutSchemeTests : IDisposable
         Assert.Equal(new Dictionary<string, string>
         {
             // GL3's layout rows are registered in wave 6, so Shift+I (info line) and Shift+N (hints) are live defaults.
+            // Revision 20: Shift+M mutes (an action on the shown medium, like Shift+R: GalleryShortcutScheme.ShiftLetterActionIds).
             ["H"] = "gallery.tools-toggle", ["I"] = "gallery.layout.info", ["K"] = "tags.queue.cards", ["L"] = "gallery.filmstrip-toggle",
-            ["N"] = "gallery.layout.hints", ["O"] = "gallery.overlay-toggle", ["P"] = "gallery.context-toggle", ["R"] = "gallery.rotate", ["T"] = "gallery.mode-toggle"
+            ["M"] = "video.mute", ["N"] = "gallery.layout.hints", ["O"] = "gallery.overlay-toggle", ["P"] = "gallery.context-toggle", ["R"] = "gallery.rotate", ["T"] = "gallery.mode-toggle"
         }.OrderBy(pair => pair.Key), shifted.OrderBy(pair => pair.Key));
+        // Every Shift letter that is no show / hide switch is one of the scheme's listed actions.
+        Assert.Equal(GalleryShortcutScheme.ShiftLetterActionIds.Order(StringComparer.Ordinal),
+            shifted.Values.Except(GalleryShortcutScheme.PanelToggleIds).Order(StringComparer.Ordinal));
+    }
+
+    [Theory, MemberData(nameof(Platforms))]
+    public void TheFavoriteKeysAreMAndUAndMuteIsShiftMInEveryScope(ShortcutPlatform platform)
+    {
+        // Tom's decision of 15.11.2026 (revision 20): M adds, U removes, F toggles in the reader, the archive's media, the Media page and the gallery.
+        EffectiveShortcutBindings bindings = EffectiveShortcutBindings.Build(null, platform);
+        Assert.Empty(bindings.Issues);
+        Assert.Equal(new[] { "M", "B" }, bindings.For("favorites.add").Select(Identity).ToArray());
+        Assert.Equal(new[] { "U" }, bindings.For("favorites.remove").Select(Identity).ToArray());
+        Assert.Equal(new[] { "F" }, bindings.For("favorites.toggle").Select(Identity).ToArray());
+        Assert.Equal(new[] { "Shift+M" }, bindings.For("video.mute").Select(Identity).ToArray());
+        foreach (string id in GalleryShortcutScheme.FavoriteKeyIds)
+            Assert.Equal(new[] { "archive", "gallery", "media", "reader" }, CommandCatalog.Get(id).ExecutionContexts.Order(StringComparer.Ordinal));
+        Assert.Equal(new[] { "gallery", "media", "reader" }, CommandCatalog.Get("video.mute").ExecutionContexts.Order(StringComparer.Ordinal));
+        // No other command of any context has plain M, U or B, nor Shift+M.
+        foreach ((string key, string[] modifiers, string[] owners) in new[]
+        {
+            ("M", Array.Empty<string>(), new[] { "favorites.add" }), ("B", Array.Empty<string>(), new[] { "favorites.add" }),
+            ("U", Array.Empty<string>(), new[] { "favorites.remove" }), ("M", new[] { "Shift" }, new[] { "video.mute" }),
+        })
+            Assert.Equal(owners, CommandCatalog.All.Where(command => bindings.For(command.Id)
+                .Any(g => g.Key == key && g.Modifiers.OrderBy(m => m).SequenceEqual(modifiers))).Select(command => command.Id).ToArray());
+        // All four yield to a saved binding of another command (revision 20 lists them).
+        foreach (string id in new[] { "favorites.add", "favorites.remove", "favorites.toggle", "video.mute" })
+            Assert.True(EffectiveShortcutBindings.YieldsOn(id, platform), id);
+    }
+
+    [Theory, MemberData(nameof(Platforms))]
+    public void ASavedMuteOnMStaysAndTheNewAddKeyStepsAside(ShortcutPlatform platform)
+    {
+        // A profile that saved mute on M (revision 13's key, frozen by "add another shortcut"): it keeps M; "Add favorite" keeps B only.
+        ShortcutBindingsSection section = new ShortcutBindingsSection().Set("video.mute", [ShortcutGesture.Parse("M")]);
+        string before = section.Raw.GetRawText();
+        EffectiveShortcutBindings bindings = EffectiveShortcutBindings.Build(section, platform);
+        Assert.Equal(new[] { "M" }, bindings.For("video.mute").Select(Identity).ToArray());
+        Assert.Equal(new[] { "B" }, bindings.For("favorites.add").Select(Identity).ToArray());
+        Assert.Contains(bindings.Issues, issue => issue.CommandId == "favorites.add" && issue.OtherCommandId == "video.mute" && !issue.BlocksSave);
+        Assert.DoesNotContain(bindings.Issues, issue => issue.BlocksSave);
+        Assert.Equal(before, section.Raw.GetRawText());
+        // A reader command saved on M wins there as well; the gallery's add key keeps B.
+        EffectiveShortcutBindings reader = EffectiveShortcutBindings.Build(new ShortcutBindingsSection().Set("post.hide", [ShortcutGesture.Parse("M")]), platform);
+        Assert.Equal(new[] { "M" }, reader.For("post.hide").Select(Identity).ToArray());
+        Assert.Equal(new[] { "B" }, reader.For("favorites.add").Select(Identity).ToArray());
+        Assert.DoesNotContain(reader.Issues, issue => issue.BlocksSave);
     }
 
     [Theory, MemberData(nameof(Platforms))]
@@ -245,7 +298,7 @@ public sealed class GalleryShortcutSchemeTests : IDisposable
             "gallery.tools-toggle", "gallery.overlay-toggle", "tags.queue.cards", "gallery.filmstrip-toggle", "gallery.layout.info", "gallery.layout.hints" })
             Assert.Contains(id, EffectiveShortcutBindings.YieldingDefaultCommandIds);
         foreach ((string id, string? text) in Table.Where(entry => entry.Gesture != null && entry.Id is "gallery.context-toggle" or "gallery.slideshow-toggle"
-            or "video.mute" or "video.snapshot" or "favorites.add" or "gallery.tools-toggle" or "gallery.overlay-toggle" or "tags.queue.cards"))
+            or "video.mute" or "video.snapshot" or "gallery.tools-toggle" or "gallery.overlay-toggle" or "tags.queue.cards"))
         {
             // Another command of the same context was saved on the key the new default wants: it keeps it, the new default stays away,
             // nothing blocks the save and the saved list is not rewritten.
@@ -276,7 +329,7 @@ public sealed class GalleryShortcutSchemeTests : IDisposable
         Assert.Equal("S", bindings.For("gallery.slideshow-toggle").Single().Key);
         Assert.Equal(new[] { "Shift" }, bindings.For("video.mute").Single().Modifiers);
         Assert.Equal("S", bindings.For("video.snapshot").Single().Key);
-        Assert.Equal("M", bindings.For("favorites.add").Single().Key);
+        Assert.Equal("M", bindings.For("favorites.add").Single().Key); // the saved list replaces both default keys (M and B)
         Assert.DoesNotContain(bindings.Issues, issue => issue.BlocksSave);
         // The new defaults that found no saved key are all there.
         Assert.Equal("H", bindings.For("gallery.tools-toggle").Single().Key);

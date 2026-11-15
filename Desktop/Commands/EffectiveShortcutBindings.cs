@@ -129,7 +129,8 @@ public sealed class EffectiveShortcutBindings
     /// saved binding can date from any earlier revision (including frozen "add another shortcut" lists).</summary>
     private static readonly IReadOnlyDictionary<string, int> DefaultChangedInRevision = new Dictionary<string, int>(StringComparer.Ordinal)
     {
-        ["video.volume-up"] = 1, ["video.volume-down"] = 1, ["favorites.add"] = 1, ["favorites.remove"] = 1,
+        ["video.volume-up"] = 1, ["video.volume-down"] = 1,
+        // (favorites.add and favorites.remove: revision 1, now listed with revision 20 below.)
         // (navigation.media, rules and sources: revision 2, now listed with revision 15 below.)
         ["navigation.statistics"] = 2, ["input.focus-media-search"] = 2, ["input.focus-settings-search"] = 2, ["input.focus-diagnostics-search"] = 2,
         ["thread.favorite-toggle"] = 2, ["thread.tags"] = 2,
@@ -153,7 +154,8 @@ public sealed class EffectiveShortcutBindings
         // Primary+T to Primary+Shift+T (thread tags keep Primary+T). Both yield to a saved binding of another command, like every changed default.
         ["navigation.plugins"] = 4, ["navigation.diagnostics"] = 4, ["media.tags.edit"] = 4,
         // New in revision 5: viewer quick wins (seek, mute, speed, frame snapshot).
-        ["video.mute"] = 5, ["video.seek-back"] = 5, ["video.seek-forward"] = 5, ["video.seek-back-far"] = 5,
+        // (video.mute: revision 5, now listed with revision 20 below.)
+        ["video.seek-back"] = 5, ["video.seek-forward"] = 5, ["video.seek-back-far"] = 5,
         ["video.seek-forward-far"] = 5, ["video.speed-reset"] = 5,
         ["video.snapshot"] = 5,
         // New in revision 6: quick tagging in the gallery tag panel and the tag popover (QuickTagCommands). Not yet wired
@@ -215,7 +217,7 @@ public sealed class EffectiveShortcutBindings
         // gallery.slideshow-toggle are in the table since revisions 2 and 5; their entries stay). New: Shift+H hides the tools, Shift+O switches the
         // controls overlay, and Shift+I / Shift+N show the info line and the hint row of the Layout menu (GL3, applied when those commands exist). The card mode of the tagging
         // mode moved from K to Shift+K (the cards are a block).
-        // "Add favorite" moved from M (now mute) to B; a binding saved for any of them stays untouched.
+        // "Add favorite" moved from M (now mute) to B; a binding saved for any of them stays untouched. (Revision 20 gave M back to "Add favorite", below.)
         ["gallery.context-toggle"] = 13, ["gallery.tools-toggle"] = 13, ["gallery.overlay-toggle"] = 13,
         ["gallery.layout.info"] = 13, ["gallery.layout.hints"] = 13,
         // Revision 14 (Tom's decision of 15.11.2026): video speed gets the extra keys X (slower) and C (faster), because [ and ] sit behind AltGr on
@@ -262,6 +264,13 @@ public sealed class EffectiveShortcutBindings
         //   media.tile-size.reset is new; media.tile-size.larger/.smaller, revision 16, now also act in the context "tagging"), and the archive's media
         //   tiles get the same three keys for a size of their own (archive.media-tile-size.*, context "archive").
         ["media.tile-size.reset"] = 20, ["archive.media-tile-size.larger"] = 20, ["archive.media-tile-size.smaller"] = 20, ["archive.media-tile-size.reset"] = 20,
+        // - favourites everywhere (Tom's decision of 15.11.2026): M adds and U removes a favourite, F toggles, uniformly in the reader (the medium of the
+        //   shared resolver), its media sidebar, the archive's media, the Media page's grid and panel and the gallery (scopes Reader, Media, Archive and
+        //   Gallery). B stays a second key of "Add favorite" (revision 13's). Mute moved from M to Shift+M in every scope (Shift+M was free in all of them).
+        //   The revision is extended rather than raised (20 is not released): the three ids only move here, so a saved binding of another command on M,
+        //   Shift+M, U or B still wins over the new key, and a saved binding of one of them (a mute on M, say) stays exactly as it was.
+        //   F (favorites.toggle) reaches the archive's media for the first time, so it yields there too.
+        ["favorites.add"] = 20, ["favorites.remove"] = 20, ["favorites.toggle"] = 20, ["video.mute"] = 20,
     };
     public static IReadOnlyCollection<string> YieldingDefaultCommandIds => DefaultChangedInRevision.Keys.ToArray();
     // Commands whose default changed only in the macOS table: on Windows and Linux their gesture is the old stable one
@@ -333,6 +342,8 @@ public sealed class EffectiveShortcutBindings
             // (no previous frame) and Shift+. is the next frame, so no "<" / ">" alias.
             case "video.speed-down": list.Add(ShortcutGesture.Parse("X")); break;
             case "video.speed-up": list.Add(ShortcutGesture.Parse("C")); break;
+            // Revision 20: M adds a favourite everywhere (the catalog's key); B, the gallery's "add" key of revision 13, stays as a second key.
+            case "favorites.add": list.Add(ShortcutGesture.Parse("B")); break;
             default: list.AddRange(GalleryShortcutScheme.LayoutDefault(command.Id)); break;
         }
         return list.AsReadOnly();

@@ -65,7 +65,7 @@ internal static class GalleryFavoriteChecks
             RequireBadge(false);
             Program.CaptureWindow(window, "smoke-favorite-unmarked-hidden.png");
             hold = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-            Press(Key.B); Press(Key.B); Press(Key.B);
+            Press(Key.M); Press(Key.M); Press(Key.M);
             Require(writes == 1 && queue.IsPending(FavoriteAssetKey.From(entry.Key.Thread, entry.Asset)),
                 "Repeated explicit marks created parallel saves.");
             RequireBadge(false, pending: true); // persisted state, NOT optimistic success
@@ -76,10 +76,10 @@ internal static class GalleryFavoriteChecks
             Require(savedIntents.SequenceEqual(new[] { true, false }) && !window.SessionHost.IsFavorite(entry),
                 "Unmark during a pending mark was lost or inverted.");
             HideControls(); RequireBadge(false);
-            Press(Key.B); await latest;
+            Press(Key.M); await latest;
             HideControls(); RequireBadge(true);
             Program.CaptureWindow(window, "smoke-favorite-marked-hidden.png");
-            Press(Key.B); await latest; RequireBadge(true); // idempotent repeat
+            Press(Key.M); await latest; RequireBadge(true); // idempotent repeat
             Press(Key.U); await latest; RequireBadge(false);
             Press(Key.F); await latest; RequireBadge(true); // F on a non-favorite adds (set-true, no question)
 
@@ -102,7 +102,7 @@ internal static class GalleryFavoriteChecks
             Require(writes == baseline + 1 && savedIntents[^1] == false && !window.SessionHost.IsFavorite(entry)
                 && !viewer.IsFavoriteConfirmOpen, "U in the confirmation did not remove exactly once.");
             RequireBadge(false);
-            Press(Key.B); await latest; RequireBadge(true);
+            Press(Key.B); await latest; RequireBadge(true); // B, the second key of "Add favorite" (revision 20: M first)
 
             failNext = true;
             Press(Key.U);

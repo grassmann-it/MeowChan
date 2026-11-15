@@ -89,7 +89,8 @@ internal sealed partial class GalleryViewer
         // The name is the thing ("Favorite"), the toggle state says saved or not; a pending write adds " · saving".
         string label = Texts.T("gallery.decision.favorite");
         if (_favoritePending) label += " · " + Texts.T("gallery.saving");
-        string tip = CommandBindings.Tooltip("favorites.toggle");
+        // The keys of every favourite star (F toggles, M adds, U removes: FavoriteKeys.Tooltip).
+        string tip = FavoriteKeys.Tooltip(_favoriteSelected);
         foreach (ToggleButton badge in new[] { _favoriteIndicator, _nativeFavoriteIndicator })
         {
             ShowFavoriteBadgeState(badge, _favoriteSelected, _favoritePending, label, tip);

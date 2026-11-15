@@ -535,7 +535,7 @@ public sealed class ArchiveAttachmentView : UserControl
     internal void RefreshFavorite()
     {
         ArchiveAttachmentRow? row = DataContext as ArchiveAttachmentRow;
-        _favorite.Configure(row?.FavoriteAvailable, row?.IsFavorite, row?.ToggleFavoriteAsync, row?.FavoriteError);
+        _favorite.Configure(row);
         UpdateBadges(row);
         UpdateButtonName(row);
     }
@@ -559,7 +559,7 @@ public sealed class ArchiveAttachmentView : UserControl
     private void UpdateLabel()
     {
         ArchiveAttachmentRow? row = DataContext as ArchiveAttachmentRow;
-        _favorite.Configure(row?.FavoriteAvailable, row?.IsFavorite, row?.ToggleFavoriteAsync, row?.FavoriteError);
+        _favorite.Configure(row);
         bool large = row?.LargePreview == true;
         ApplyFrameLimits(row, large);
         SetFrame(large, row?.KnownAspect);

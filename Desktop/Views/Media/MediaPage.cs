@@ -867,6 +867,8 @@ public sealed partial class MediaPage : UserControl
                 await RemoveSelectionFromQueueAsync();
                 return;
             }
+            // M / U / F: every selected tile (revision 20, MediaPage.FavoriteKeys).
+            if (TryRouteGridFavoriteKey(e)) return;
             // Rating, details, export, folder and file path of the medium (menu commands): the same actions and gates as the tile menu.
             foreach (string id in MediaShortcutCommands)
                 if (CommandBindings.Matches(e, id))

@@ -253,7 +253,8 @@ public partial class ArchivePage
             if (e.Property == Visual.IsVisibleProperty) CancelReaderMediaActivation();
         };
         ArchiveContentTabs.SelectionChanged += (_, _) => CancelReaderMediaActivation();
-        posts.AddHandler(KeyDownEvent, (_, e) => TryRouteArchiveMediaShortcut(posts, e), RoutingStrategies.Bubble);
+        // M / U / F on the selected post's medium (the shared resolver) first, then the media menu's other keys.
+        posts.AddHandler(KeyDownEvent, (_, e) => { if (!TryRouteFavoriteKey(posts, e)) TryRouteArchiveMediaShortcut(posts, e); }, RoutingStrategies.Bubble);
         posts.AddHandler(PointerWheelChangedEvent, (_, _) => ++_readerInteractionRevision, RoutingStrategies.Tunnel, handledEventsToo: true);
         posts.AddHandler(PointerPressedEvent, (_, _) => ++_readerInteractionRevision, RoutingStrategies.Tunnel, handledEventsToo: true);
         posts.AddHandler(KeyDownEvent, (_, e) =>

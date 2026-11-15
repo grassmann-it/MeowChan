@@ -531,6 +531,8 @@ public sealed partial class MediaPage
     private bool TryRoutePanelKey(KeyEventArgs e, bool fromPanel)
     {
         if (e.Handled || !_panelShown || _lifetime.IsCancellationRequested) return false;
+        // With the focus in the panel, M / U / F act on the medium it shows (in the grid they act on the selection: OnGridKeyDown).
+        if (fromPanel && TryRoutePanelFavoriteKey(e)) return true;
         MediaPanelKeyRoute route = MediaPanelKeys.Route(e.Key, e.KeyModifiers, id => CommandBindings.Matches(e, id), _panelShown,
             _panelVideo is { IsOffered: true }, CommandRouter.IsNativeInput(e.Source, e.Key), fromPanel);
         switch (route.Kind)

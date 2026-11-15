@@ -15,23 +15,29 @@ public sealed class GalleryFavoriteShortcutTests : IDisposable
     [InlineData(ShortcutPlatform.Linux)]
     [InlineData(ShortcutPlatform.Windows)]
     [InlineData(ShortcutPlatform.MacOS)]
-    public void FavoriteDefaultsAreImplementedGalleryOnlyAndConflictFree(ShortcutPlatform platform)
+    public void FavoriteDefaultsAreImplementedEverywhereAMediumIsShownAndConflictFree(ShortcutPlatform platform)
     {
         var add = CommandCatalog.Get("favorites.add");
         var remove = CommandCatalog.Get("favorites.remove");
         Assert.True(add.IsImplemented);
         Assert.True(remove.IsImplemented);
-        Assert.Equal(CommandScope.Gallery, add.Scope);
-        Assert.Equal(CommandScope.Gallery, remove.Scope);
-        Assert.Equal(new[] { "gallery" }, add.ExecutionContexts);
-        Assert.Equal(new[] { "gallery" }, remove.ExecutionContexts);
+        // Revision 20 (Tom's decision of 15.11.2026): the same keys in the reader, the archive's media, the Media page and the gallery.
+        CommandScope everywhere = CommandScope.Reader | CommandScope.Media | CommandScope.Archive | CommandScope.Gallery;
+        Assert.Equal(everywhere, add.Scope);
+        Assert.Equal(everywhere, remove.Scope);
+        Assert.Equal(everywhere, CommandCatalog.Get("favorites.toggle").Scope);
+        string[] contexts = { "archive", "gallery", "media", "reader" };
+        Assert.Equal(contexts, add.ExecutionContexts.Order(StringComparer.Ordinal));
+        Assert.Equal(contexts, remove.ExecutionContexts.Order(StringComparer.Ordinal));
 
         var bindings = EffectiveShortcutBindings.Build(new(), platform);
         Assert.Empty(bindings.Issues);
-        // Revision 13 (gallery key scheme): M mutes the video, so "Add favorite" moved to B (Bookmark); F still toggles, U removes.
+        // M adds, U removes, F toggles; B (revision 13's "add") stays a second key; mute moved to Shift+M.
+        Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.M }, "favorites.add"));
         Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.B }, "favorites.add"));
-        Assert.False(bindings.Matches(new KeyEventArgs { Key = Key.M }, "favorites.add"));
-        Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.M }, "video.mute"));
+        Assert.False(bindings.Matches(new KeyEventArgs { Key = Key.M }, "video.mute"));
+        Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.M, KeyModifiers = KeyModifiers.Shift }, "video.mute"));
+        Assert.False(bindings.Matches(new KeyEventArgs { Key = Key.M, KeyModifiers = KeyModifiers.Shift }, "favorites.add"));
         Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.U }, "favorites.remove"));
         Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.F }, "favorites.toggle"));
         Assert.False(bindings.Matches(new KeyEventArgs { Key = Key.M }, "favorites.toggle"));
@@ -44,12 +50,14 @@ public sealed class GalleryFavoriteShortcutTests : IDisposable
     public void NewFavoriteDefaultsYieldToSavedExplicitGalleryBindings(ShortcutPlatform platform)
     {
         var section = new ShortcutBindingsSection()
-            .Set("gallery.context-toggle", [ShortcutGesture.Parse("B")])
+            .Set("gallery.context-toggle", [ShortcutGesture.Parse("M")])
+            .Set("gallery.slideshow-toggle", [ShortcutGesture.Parse("B")])
             .Set("gallery.close", [ShortcutGesture.Parse("U")]);
         string before = section.Raw.GetRawText();
         var bindings = EffectiveShortcutBindings.Build(section, platform);
 
-        Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.B }, "gallery.context-toggle"));
+        Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.M }, "gallery.context-toggle"));
+        Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.B }, "gallery.slideshow-toggle"));
         Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.U }, "gallery.close"));
         Assert.Empty(bindings.For("favorites.add"));
         Assert.Empty(bindings.For("favorites.remove"));
@@ -64,11 +72,13 @@ public sealed class GalleryFavoriteShortcutTests : IDisposable
     [Fact]
     public void NewAddDefaultAlsoYieldsToASavedFavoriteToggleOverride()
     {
+        // Both keys of "Add favorite" (M and B) step aside for a toggle the person saved on them.
         var section = new ShortcutBindingsSection()
-            .Set("favorites.toggle", [ShortcutGesture.Parse("B")]);
+            .Set("favorites.toggle", [ShortcutGesture.Parse("B"), ShortcutGesture.Parse("M")]);
         var bindings = EffectiveShortcutBindings.Build(section, ShortcutPlatform.Linux);
 
         Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.B }, "favorites.toggle"));
+        Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.M }, "favorites.toggle"));
         Assert.False(bindings.Matches(new KeyEventArgs { Key = Key.F }, "favorites.toggle"));
         Assert.Empty(bindings.For("favorites.add"));
         Assert.Contains(bindings.Issues, issue => issue.CommandId == "favorites.add"
@@ -108,7 +118,7 @@ public sealed class GalleryFavoriteShortcutTests : IDisposable
         var section = new ShortcutBindingsSection()
             .Set("favorites.add", [ShortcutGesture.Parse("Control+Shift+F9")])
             .Set("favorites.remove", [])
-            .Set("favorites.toggle", [ShortcutGesture.Parse("Primary+Shift+F")]);
+            .Set("favorites.toggle", [ShortcutGesture.Parse("Primary+Shift+F8")]);
         var bindings = EffectiveShortcutBindings.Build(section, ShortcutPlatform.Linux);
 
         Assert.Empty(bindings.Issues);
@@ -123,7 +133,7 @@ public sealed class GalleryFavoriteShortcutTests : IDisposable
         Assert.False(bindings.Matches(new KeyEventArgs { Key = Key.F }, "favorites.toggle"));
         Assert.True(bindings.Matches(new KeyEventArgs
         {
-            Key = Key.F,
+            Key = Key.F8,
             KeyModifiers = KeyModifiers.Control | KeyModifiers.Shift
         }, "favorites.toggle"));
     }

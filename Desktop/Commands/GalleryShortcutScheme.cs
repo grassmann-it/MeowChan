@@ -10,9 +10,13 @@ namespace MeowChan.Desktop.Commands;
 /// <list type="bullet">
 /// <item><b>Shift + letter</b> shows or hides a panel or block: <c>Shift+H</c> tools, <c>Shift+I</c> info line, <c>Shift+K</c> cards of the tagging mode, <c>Shift+N</c> hint row,
 /// <c>Shift+L</c> filmstrip, <c>Shift+O</c> controls overlay, <c>Shift+P</c> post panel, <c>Shift+T</c> view / tag mode.</item>
-/// <item><b>Plain letters</b> act on what plays: <c>L</c> repeat, <c>M</c> mute, <c>S</c> save frame, <c>A</c> the A–B loop, <c>D</c> the
-/// slideshow. The older plain letters of the gallery (<c>F</c> toggles, <c>B</c> adds (it was <c>M</c>) and <c>U</c> removes a favourite, <c>I</c> details, <c>Q</c> queue, <c>R</c> rating,
+/// <item><b>Plain letters</b> act on what plays: <c>L</c> repeat, <c>S</c> save frame, <c>A</c> the A–B loop, <c>D</c> the
+/// slideshow. The older plain letters of the gallery (<c>F</c> toggles a favourite, <c>I</c> details, <c>Q</c> queue, <c>R</c> rating,
 /// <c>T</c> show in thread) stay.</item>
+/// <item><b>Favourites, uniformly everywhere</b> (Tom's decision of 15.11.2026, revision 20): <c>M</c> adds, <c>U</c> removes and <c>F</c> toggles, in the gallery as in
+/// the reader, its media sidebar, the archive's media and the Media page's grid and panel. <c>B</c> (revision 13's "add") stays a second key of "add".</item>
+/// <item><b>Exceptions to the Shift rule</b>: <c>Shift+M</c> mutes (revision 20; <c>M</c> is "add favourite") and <c>Shift+R</c> turns the medium. Both act on the
+/// shown medium rather than showing or hiding a block (<see cref="ShiftLetterActionIds"/>).</item>
 /// <item><b>Ctrl (⌘)</b> stays for commands of the whole application; ⌘ is never used for panels (macOS owns ⌘H, ⌘M, ⌘Q, ⌘W).</item>
 /// </list>
 /// The defaults themselves live in <see cref="CommandCatalog"/> (and <see cref="EffectiveShortcutBindings.Defaults(CommandDefinition, ShortcutPlatform)"/>);
@@ -34,8 +38,14 @@ public static class GalleryShortcutScheme
     /// <summary>The plain-letter defaults that act on the shown medium's playback.</summary>
     public static IReadOnlyList<string> PlaybackLetterIds { get; } = Array.AsReadOnly(new[]
     {
-        "video.loop", "video.mute", "video.snapshot", "video.ab-loop", "gallery.slideshow-toggle"
+        "video.loop", "video.snapshot", "video.ab-loop", "gallery.slideshow-toggle"
     });
+
+    /// <summary>The Shift-letter defaults that act on the shown medium instead of showing or hiding a block: mute (Shift+M, revision 20) and rotate (Shift+R).</summary>
+    public static IReadOnlyList<string> ShiftLetterActionIds { get; } = Array.AsReadOnly(new[] { "video.mute", "gallery.rotate" });
+
+    /// <summary>The favourite keys (revision 20), the same on every surface that shows or selects a medium: M adds, U removes, F toggles.</summary>
+    public static IReadOnlyList<string> FavoriteKeyIds { get; } = Array.AsReadOnly(new[] { "favorites.add", "favorites.remove", "favorites.toggle" });
 
     /// <summary>
     /// Defaults of show / hide commands that exist only on the Layout menu branch (GL3) and have no shortcut in their catalog line there:

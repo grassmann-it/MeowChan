@@ -37,6 +37,7 @@ internal sealed class ArchiveFavoriteButton : ToggleButton
             _error = null;
             IsChecked = _marked?.Invoke() == true;
             _running = true; IsEnabled = false;
+            Refresh(); // pending: disabled, named "… · saving" until the write returns
             try { await _toggle(); }
             catch (Exception error) { _error = error.Message; }
             finally { _running = false; Refresh(); }
@@ -45,6 +46,31 @@ internal sealed class ArchiveFavoriteButton : ToggleButton
 
     internal void Configure(Func<bool>? available, Func<bool>? marked, Func<Task>? toggle, Func<string?>? error = null)
     { _available = available; _marked = marked; _toggle = toggle; _errorSource = error; Refresh(); }
+
+    /// <summary>
+    /// The star of a reader attachment. It asks the row each time instead of keeping the callbacks the row has now: the page wires (and rewires) a row's
+    /// favourite once its saved files are known, often after the star was shown, and a star with copied callbacks then stayed disabled or pointed at
+    /// an earlier scan (the "star that does nothing" of the media sidebar, review 15.11.2026).
+    /// </summary>
+    internal void Configure(ArchiveAttachmentRow? row)
+    {
+        if (row == null) { Configure(null, null, null); return; }
+        var (available, marked, toggle, error) = Callbacks(row);
+        Configure(available, marked, toggle, error);
+    }
+
+    /// <summary>The star of an archive media tile, read from the row the same way as <see cref="Configure(ArchiveAttachmentRow?)"/>.</summary>
+    internal void Configure(ArchiveAssetRow? row)
+    {
+        if (row == null) { Configure(null, null, null); return; }
+        Configure(() => row.FavoriteAvailable?.Invoke() == true, () => row.IsFavorite?.Invoke() == true,
+            () => row.ToggleFavoriteAsync?.Invoke() ?? Task.CompletedTask, () => row.FavoriteError?.Invoke());
+    }
+
+    /// <summary>The star's callbacks for a reader attachment: each asks the row's callback of the moment (tests read them without a control).</summary>
+    internal static (Func<bool> Available, Func<bool> Marked, Func<Task> Toggle, Func<string?> Error) Callbacks(ArchiveAttachmentRow row) =>
+        (() => row.FavoriteAvailable?.Invoke() == true, () => row.IsFavorite?.Invoke() == true,
+            () => row.ToggleFavoriteAsync?.Invoke() ?? Task.CompletedTask, () => row.FavoriteError?.Invoke());
 
     // Availability also owns the callbacks' lifetime: a queued layout or toggle completion
     // may refresh a control after its page has ended and released the session.
@@ -77,12 +103,16 @@ internal sealed class ArchiveFavoriteButton : ToggleButton
             }
             else { ClearValue(BorderBrushProperty); ClearValue(BorderThicknessProperty); }
         }
+        // The name says what a click does; the tooltip adds the keys (F toggles, M adds, U removes: FavoriteKeys.Tooltip). A write in flight
+        // ("saving") and a medium that is not saved say so instead of the keys.
         string label = Texts.T(marked ? "viewer.favorite.remove" : "viewer.favorite.add");
-        string description = _error == null ? (IsEnabled ? label : Texts.T("archive.notSaved")) : label + ": " + _error;
+        string description = _error != null ? label + ": " + _error : _running ? label + " · " + Texts.T("gallery.saving")
+            : IsEnabled ? label : Texts.T("archive.notSaved");
+        string tip = _error == null && IsEnabled ? FavoriteKeys.Tooltip(marked) : description;
         ToolTip.SetShowOnDisabled(this, true);
-        ToolTip.SetTip(this, description);
+        ToolTip.SetTip(this, tip);
         AutomationProperties.SetName(this, description);
-        AutomationProperties.SetHelpText(this, description);
+        AutomationProperties.SetHelpText(this, tip);
         if (_error != null && !string.Equals(_error, _shownError, StringComparison.Ordinal))
         {
             _shownError = _error;
