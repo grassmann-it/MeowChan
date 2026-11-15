@@ -236,7 +236,7 @@ internal sealed partial class GalleryViewer : UserControl
         _ratingButton.Content = new StackPanel
         {
             Orientation = Orientation.Horizontal, Spacing = 4, VerticalAlignment = VerticalAlignment.Center,
-            Children = { CommandBindings.NamedIcon("star", 16), value }
+            Children = { CommandBindings.NamedIcon(CommandCatalog.Get("media.rating.edit").Icon, 16), value }
         };
         string keys = RatingKeysText();
         string tip = CommandBindings.Tooltip("media.rating.edit") + (keys.Length > 0 ? " · " + keys : string.Empty);

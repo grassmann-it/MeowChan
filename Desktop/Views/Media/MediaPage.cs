@@ -828,7 +828,7 @@ public sealed partial class MediaPage : UserControl
                 if (_grid.Selection.Count > 0 && _building == null) await AddSelectionToQueueAsync();
                 return;
             }
-            // Rating, details, export and folder of the medium (menu commands): the same actions and gates as the tile menu.
+            // Rating, details, export, folder and file path of the medium (menu commands): the same actions and gates as the tile menu.
             foreach (string id in MediaShortcutCommands)
                 if (CommandBindings.Matches(e, id))
                 {
@@ -883,7 +883,7 @@ public sealed partial class MediaPage : UserControl
         else await ExecuteMediaActionAsync("media.tags.edit", entry, current);
     }
 
-    private static readonly string[] MediaShortcutCommands = { "media.rating.edit", "media.details", "media.export-original", "media.show-in-folder" };
+    private static readonly string[] MediaShortcutCommands = { "media.rating.edit", "media.details", "media.export-original", "media.show-in-folder", "media.copy-path" };
 
     /// <summary>The shortcut for a menu command of one medium. Export with several selected tiles exports the selection;
     /// the others need exactly one saved tile, like the menu entries they stand for.</summary>

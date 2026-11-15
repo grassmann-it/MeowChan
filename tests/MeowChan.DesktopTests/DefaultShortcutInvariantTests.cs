@@ -36,7 +36,10 @@ public sealed class DefaultShortcutInvariantTests
         // Revision 13: Shift+H hides the tools, Shift+O switches the controls overlay (Shift+P shows the post, Shift+L the filmstrip).
         "gallery.tools-toggle", "gallery.overlay-toggle",
         // Revision 13 with GL3's layout rows registered: Shift+I shows or hides the info line, Shift+N the hint row.
-        "gallery.layout.info", "gallery.layout.hints"
+        "gallery.layout.info", "gallery.layout.hints",
+        // Revision 19 (decision #125): D and S mark the selected tagging entries done or skipped (the tagging page's queue list only), H hides the
+        // selected post in the reader (its post list; a text field keeps the letter, CommandBindings.Matches).
+        "tagging.mark-done", "tagging.mark-skipped", "post.hide"
     };
 
     [Theory, MemberData(nameof(Platforms))]
