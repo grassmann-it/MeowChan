@@ -286,8 +286,9 @@ internal static partial class BooruWorkbenchChecks
             // a paused watcher: one explicit check, it stays paused
             int pausedChecks = h.Watchers.Checks;
             Click(Find<Button>(page, BooruWorkbenchView.CheckPrefix + "w-paused"));
-            await Program.WaitUntilAsync(() => h.Watchers.Checks == pausedChecks + 1 && Text(page).Contains("One-time check finished: 2 new posts")
-                && Text(page).Contains("The watcher is still paused."), () => "one-time check result missing");
+            string expectedPausedCheck = Texts.T("booru.ui.watcher.msg.checkedPaused", 2, 2);
+            await Program.WaitUntilAsync(() => h.Watchers.Checks == pausedChecks + 1 && Text(page).Contains(expectedPausedCheck),
+                () => "one-time check result missing: " + Text(page));
             Require(Exists(page, BooruWorkbenchView.ResumePrefix + "w-paused") && !Exists(page, BooruWorkbenchView.PausePrefix + "w-paused"),
                 "The paused watcher did not stay paused after the one-time check.");
             Require(h.Watchers.Calls.Count(call => call == "check:w-paused") == 1 && !h.Watchers.Calls.Contains("resume:w-paused"),
@@ -296,8 +297,10 @@ internal static partial class BooruWorkbenchChecks
             // check now / pause / resume
             int checks = h.Watchers.Checks;
             Click(Find<Button>(page, BooruWorkbenchView.CheckPrefix + "w-active"));
-            await Program.WaitUntilAsync(() => h.Watchers.Checks == checks + 1 && Text(page).Contains("Check finished: 2 new posts"), () => "check result missing");
-            await Program.WaitUntilAsync(() => Find<TextBlock>(page, BooruWorkbenchView.WatcherNoticeName).Text?.StartsWith("cat blue_eyes: Check finished: 2 new posts", StringComparison.Ordinal) == true
+            string expectedCheck = Texts.T("booru.ui.watcher.msg.checked", 2, 2);
+            await Program.WaitUntilAsync(() => h.Watchers.Checks == checks + 1 && Text(page).Contains(expectedCheck),
+                () => "check result missing: " + Text(page));
+            await Program.WaitUntilAsync(() => Find<TextBlock>(page, BooruWorkbenchView.WatcherNoticeName).Text?.StartsWith("cat blue_eyes: " + expectedCheck, StringComparison.Ordinal) == true
                     && Find<TextBlock>(page, BooruWorkbenchView.WatcherNoticeName).IsEffectivelyVisible,
                 () => "watcher notice line does not repeat the check result: " + Find<TextBlock>(page, BooruWorkbenchView.WatcherNoticeName).Text);
             Require(AutomationProperties.GetLiveSetting(Find<TextBlock>(page, BooruWorkbenchView.WatcherNoticeName)) == AutomationLiveSetting.Polite,

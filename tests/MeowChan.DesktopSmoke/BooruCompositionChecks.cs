@@ -323,8 +323,13 @@ internal static class BooruCompositionChecks
     // Types into the Add line and presses Add, then waits until the busy state is over.
     private static async Task SubmitAddLineAsync(MainWindow shell, string text)
     {
+        // The Add line belongs to Downloads. Return there before every submission so this helper never
+        // races a hidden shell control while the hosted Booru page is selected.
+        await SmokeNavigation.GoToAsync(shell, MainWindow.WorkspacePage.Downloads);
         shell.FindControl<TextBox>("UrlInput")!.Text = text;
         Button add = shell.FindControl<Button>("AddUrlButton")!;
+        await Program.WaitUntilAsync(() => add.IsEffectivelyVisible && add.IsEffectivelyEnabled,
+            () => "Add is not ready: visible=" + add.IsEffectivelyVisible + ", enabled=" + add.IsEnabled);
         Click(add);
         await Program.WaitUntilAsync(() => !add.IsEnabled || shell.FindControl<Border>("AdmissionResultsPanel")!.IsVisible
             || (shell.SelectedPage == MainWindow.WorkspacePage.Booru && shell.BooruPageForTests is not null), () => "Add did not start");
