@@ -404,7 +404,9 @@ public sealed class FolderSourceTests
         Task<FolderSourceHashResult> view = hasher.HashAsync(items[2].Id, FolderSourceHashPriority.View);
         Task<FolderSourceHashResult> user = hasher.HashAsync(items[3].Id, FolderSourceHashPriority.UserAction);
         Task<FolderSourceHashResult> shared = hasher.HashAsync(items[3].Id, FolderSourceHashPriority.View);
-        await Task.Delay(50);
+        // HashAsync starts jobs on the thread pool. Wait until every queued request has reached the
+        // priority queue before releasing the first job; a fixed delay races with slower Windows runners.
+        await TestWait.UntilAsync(() => hasher.WaitingForSlot == 3);
         release.SetResult();
         await Task.WhenAll(first, background, view, user, shared);
         Assert.Equal(new[] { "0.png", "3.png", "2.png", "1.png" }, order);

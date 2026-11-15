@@ -190,8 +190,8 @@ internal sealed class FolderSourceCatalog
     /// <summary>Fixed ceiling: characters of a relative path and of a root path.</summary>
     internal const int MaximumPathLength = 1024;
     internal const int MaximumNameLength = 120;
-    /// <summary>Rows written per transaction by a scan.</summary>
-    internal const int WriteBatchSize = 2_000;
+    /// <summary>Rows written per transaction by a scan; large enough that Windows full-sync commit latency does not dominate large scans.</summary>
+    internal const int WriteBatchSize = 20_000;
 
     internal const int DefaultMaxFiles = 200_000, MinimumMaxFiles = 1_000, MaxFilesCeiling = 2_000_000;
     internal const int DefaultMaxRoots = 8, MinimumMaxRoots = 1, MaxRootsCeiling = 64;

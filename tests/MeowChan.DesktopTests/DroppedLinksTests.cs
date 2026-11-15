@@ -85,10 +85,13 @@ public sealed class DroppedLinksTests
     }
 
     [Fact]
-    public void AnExistingAbsolutePathAsTextIsAFileButAMissingOneIsNot()
+    public void AnExistingAbsolutePathAsTextIsAFile()
     {
         string file = Path.Combine(Path.GetTempPath(), "dropped-" + Guid.NewGuid().ToString("N") + ".png");
-        Assert.Equal(DroppedContentKind.Links, DroppedLinks.Classify(file, []).Kind);
+        // A Windows drive path is recognized from its syntax even if the source disappears before
+        // the drop handler runs. POSIX absolute text is classified as a file only once it exists.
+        if (!OperatingSystem.IsWindows())
+            Assert.Equal(DroppedContentKind.Links, DroppedLinks.Classify(file, []).Kind);
         File.WriteAllText(file, "x");
         try
         {
