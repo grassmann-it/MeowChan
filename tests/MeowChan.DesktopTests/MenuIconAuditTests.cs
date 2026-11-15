@@ -71,9 +71,54 @@ public sealed class MenuIconAuditTests : IDisposable
         // Seeking back and forward are mirror images, like the seek step.
         Assert.Equal(("rotate-ccw", "rotate-cw"), (CommandCatalog.Get("video.seek-back").Icon, CommandCatalog.Get("video.seek-forward").Icon));
         Assert.Equal(("rotate-ccw", "rotate-cw"), (CommandCatalog.Get("video.step-back").Icon, CommandCatalog.Get("video.step-forward").Icon));
+        // Follow-ups: volume down stays in the volume family (no volume-1 mask; volume-x is the muted state), "Repeat video" is the repeat icon,
+        // both "copy link" actions are the link icon, and the footer "More" is the same ⋯ as the other More menus.
+        Assert.Equal("volume-2", CommandCatalog.Get("video.volume-down").Icon);
+        Assert.Equal(CommandCatalog.Get("video.volume-up").Icon, CommandCatalog.Get("video.volume-down").Icon);
+        Assert.Equal("repeat", CommandCatalog.Get("video.loop").Icon);
+        Assert.Equal("link", CommandCatalog.Get("selection.copy-links").Icon);
+        Assert.Equal(CommandCatalog.Get("post.copy-link").Icon, CommandCatalog.Get("selection.copy-links").Icon);
+        Assert.Equal("more-horizontal", CommandCatalog.Get("navigation.tools-menu").Icon);
         // Deleting (not removing from a list) is the circled cross everywhere.
         foreach (string id in new[] { "archive.delete-permanently", "reader-groups.delete", "archive.saved-searches.delete", "rules.delete", "rules.template-delete" })
             Assert.True(CommandCatalog.Get(id).Icon == "x-circle", id);
+    }
+
+    [Fact]
+    public void ShowInPluginsNamesThePageAndNewGroupHasAMenuLabelWithAnEllipsis()
+    {
+        Texts.SetLanguage("en");
+        Assert.Equal("Show in Plugins", CommandCatalog.Label("plugins.watches"));
+        Assert.Equal("New group…", Texts.T("tagging.page.group.newMenu"));
+        Assert.Equal("New group", Texts.T("tagging.page.group.new")); // the dialog title and the button name keep the plain label
+        Texts.SetLanguage("de");
+        Assert.Equal("In Plugins zeigen", CommandCatalog.Label("plugins.watches"));
+        Assert.Equal("Neue Gruppe…", Texts.T("tagging.page.group.newMenu"));
+        Assert.Equal("Neue Gruppe", Texts.T("tagging.page.group.new"));
+        foreach (string code in Texts.BundledPackCodes())
+        {
+            Texts.SetLanguage(code);
+            string plain = Texts.T("tagging.page.group.new");
+            Assert.True(Texts.T("tagging.page.group.newMenu") == plain + "…", code + ": " + Texts.T("tagging.page.group.newMenu"));
+            Assert.NotEqual("plugins.watches", Texts.T("plugins.watches"));
+            Assert.NotEqual(Texts.T("command.navigation.tools-menu"), Texts.T("plugins.watches"));
+        }
+    }
+
+    [Fact]
+    public void TheNewGroupMenuEntriesUseTheMenuLabel()
+    {
+        TagQueueItem item = new(Thread, "/media/123", "asset-1", "1" + new string('a', 63), 101, "media-1", "original",
+            "p1", null, null, null, false, null, "file-1.png", SavedMediaKind.Image, TagQueueState.Open, DateTimeOffset.UnixEpoch);
+        TagQueueSnapshot queue = new(1, 0, Array.Empty<string>(), new[] { item }, TagQueueLoadState.Ready);
+        TaggingQueueRow[] rows = TaggingQueueView.Rows(queue, TaggingQueueFilter.All).ToArray();
+        TaggingCommandContext context = new(queue, TaggingQueueFilter.All, rows, rows[0], new(true, true, true, true, true, true, true, true, true));
+        ContextMenuEntry group = TaggingQueueMenu.Compose(context, _ => () => { }).ToModel().Entries.Single(entry => entry.Id == TaggingCommands.GroupMenu);
+        Assert.Equal("New group…", group.Children!.SelectMany(section => section).Single(entry => entry.Id == TaggingCommands.GroupNew).Label);
+        // The selection bar's group menu is built in TaggingPage.Groups.cs; the dialog title and the button name keep the plain key.
+        string groups = File.ReadAllText(Root("Desktop/Views/Tagging/TaggingPage.Groups.cs"));
+        Assert.Contains("menu.Item(TaggingCommands.GroupNew, Texts.T(\"tagging.page.group.newMenu\")", groups, StringComparison.Ordinal);
+        Assert.Contains("GroupNameDialog.ShowAsync(this, Texts.T(\"tagging.page.group.new\")", groups, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -188,7 +188,7 @@ internal static class TaggingQueueMenu
             {
                 menu.Section();
                 ContextMenuBuilder groups = new ContextMenuBuilder().Named(Texts.T("tagging.page.group.assign"));
-                groups.Item(TaggingCommands.GroupNew, Texts.T("tagging.page.group.new"), action(TaggingCommands.GroupNew), context.Capabilities.CanChange,
+                groups.Item(TaggingCommands.GroupNew, Texts.T("tagging.page.group.newMenu"), action(TaggingCommands.GroupNew), context.Capabilities.CanChange,
                     icon: TaggingCommands.GroupNewIcon);
                 foreach (TagQueueGroup group in context.Queue.Groups)
                 {

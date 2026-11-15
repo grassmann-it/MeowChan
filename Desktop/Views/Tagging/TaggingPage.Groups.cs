@@ -140,7 +140,7 @@ public sealed partial class TaggingPage
     {
         if (SelectedCount == 0) return null;
         ContextMenuBuilder menu = new ContextMenuBuilder().Named(Texts.T("tagging.page.group.assign"));
-        menu.Item(TaggingCommands.GroupNew, Texts.T("tagging.page.group.new"), () => _ = CreateGroupDialogAsync(), CanChange,
+        menu.Item(TaggingCommands.GroupNew, Texts.T("tagging.page.group.newMenu"), () => _ = CreateGroupDialogAsync(), CanChange,
             icon: TaggingCommands.GroupNewIcon);
         foreach (TagQueueGroup group in _queueWork.Queue.Groups)
         {

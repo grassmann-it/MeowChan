@@ -354,7 +354,7 @@ catalog](../../Desktop/Localization/SourcesCatalog.cs).
 | Copy technical details | Technische Details kopieren |
 | Open plugin folder | Pluginordner öffnen |
 | Show plugin | Plugin anzeigen |
-| Show in Sources | In Quellen anzeigen |
+| Show in Plugins | In Plugins zeigen |
 | Source, editor and test | Source, Editor und Test |
 | Open in editor | Im Editor öffnen |
 | Build and test | Bauen und testen |

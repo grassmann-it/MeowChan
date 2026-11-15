@@ -93,7 +93,7 @@ public static class CommandCatalog
         new("plugins.disable", "plugins.disable", "Disable plugin", "Plugin deaktivieren", "power", null, CommandScope.Settings, new[] { "plugins" }),
         new("plugins.details", "plugins.details", "Show details", "Details anzeigen", "info", null, CommandScope.Settings, new[] { "plugins" }),
         new("plugins.show-settings", "plugins.showSettings", "Open settings", "Einstellungen öffnen", "sliders", null, CommandScope.Settings, new[] { "plugins" }),
-        new("plugins.watches", "plugins.watches", "Show in Sources", "In Quellen anzeigen", "list", null, CommandScope.Settings, new[] { "plugins" }),
+        new("plugins.watches", "plugins.watches", "Show in Plugins", "In Plugins zeigen", "list", null, CommandScope.Settings, new[] { "plugins" }),
         new("plugins.select-candidate", "plugins.selectCandidate", "Use this version next start", "Diese Fassung beim nächsten Start verwenden", "check", null, CommandScope.Settings, new[] { "plugins" }),
         new("plugins.rollback", "plugins.rollback", "Use last good saved build next start", "Letzte gute gespeicherte Fassung beim nächsten Start verwenden", "rotate-ccw", null, CommandScope.Settings, new[] { "plugins" }),
         new("plugins.show-grants", "plugins.showGrants", "View permissions", "Zugriffsrechte ansehen", "sliders", null, CommandScope.Settings, new[] { "plugins" }),
@@ -107,7 +107,7 @@ public static class CommandCatalog
         new("booru.open", "booru.ui.command.open", "Danbooru search and watchers…", "Danbooru-Suche und Suchbeobachtungen…", "search", null, CommandScope.Application, new[] { "app-menu", "tools-menu" }),
         new("navigation.settings", "command.navigation.settings", "Settings", "Einstellungen", "settings", "Primary+,", CommandScope.Application, new[] { "footer", "app-menu" }),
         new("navigation.about", "command.navigation.about", "About MeowChan", "Über MeowChan", "info", null, CommandScope.Settings | CommandScope.Application, new[] { "app-menu", "settings:planned" }),
-        new("navigation.tools-menu", "command.navigation.tools-menu", "More", "Mehr", "tool", null, CommandScope.Application, new[] { "footer" }),
+        new("navigation.tools-menu", "command.navigation.tools-menu", "More", "Mehr", "more-horizontal", null, CommandScope.Application, new[] { "footer" }),
         // R8 of the work-view plan: switches Minimal -> Simple -> Advanced -> Minimal. No default gesture (it would collide with a
         // profile's own bindings); the user assigns one under Shortcuts. The app menu carries it in every view.
         new("workspace.view-cycle", "workview.viewCycle", "Switch work view", "Arbeitsansicht wechseln", "eye", null, CommandScope.Application, new[] { "app-menu" }),
@@ -146,7 +146,7 @@ public static class CommandCatalog
         new("board.filters", "command.board.filters", "Thread filters…", "Threadfilter…", "filter", "Primary+Shift+F", CommandScope.Downloads, new[] { "downloads-board-menu" }),
         new("location.open-folder", "command.location.open-folder", "Open folder", "Ordner öffnen", "folder", "Primary+O", CommandScope.Archive | CommandScope.Media | CommandScope.Dialog | CommandScope.Downloads, new[] { "downloads-thread-menu", "downloads-board-menu", "downloads-inspector", "archive-card-menu", "archive-table-menu", "media-preview", "export-result", "tray", "reader-thread-menu" }),
         new("location.open-source", "command.location.open-source", "Open source in browser", "Quelle im Browser öffnen", "external-link", "Primary+Shift+O", CommandScope.Archive | CommandScope.Sources | CommandScope.Downloads, new[] { "downloads-thread-menu", "downloads-board-menu", "downloads-inspector", "archive-card-menu", "archive-table-menu", "sources", "reader-thread-menu" }),
-        new("selection.copy-links", "command.selection.copy-links", "Copy link(s)", "Link(s) kopieren", "copy", "Primary+C", CommandScope.Archive | CommandScope.Downloads, new[] { "downloads-thread-menu", "downloads-board-menu", "downloads-inspector", "archive-card-menu", "archive-table-menu", "reader-thread-menu" }),
+        new("selection.copy-links", "command.selection.copy-links", "Copy link(s)", "Link(s) kopieren", "link", "Primary+C", CommandScope.Archive | CommandScope.Downloads, new[] { "downloads-thread-menu", "downloads-board-menu", "downloads-inspector", "archive-card-menu", "archive-table-menu", "reader-thread-menu" }),
         new("watch.copy-all-links", "command.watch.copy-all-links", "Copy all URLs", "Alle URLs kopieren", "copy", null, CommandScope.Downloads | CommandScope.Application, new[] { "downloads-footer" }),
         new("watch.remove", "command.watch.remove", "Remove from watch list", "Aus Beobachtung entfernen", "eye-off", "Delete", CommandScope.Archive | CommandScope.Downloads, new[] { "downloads-thread-menu", "downloads-board-menu", "downloads-inspector", "archive-card-menu", "archive-table-menu", "reader-thread-menu" }),
         new("archive.delete-permanently", "command.archive.delete-permanently", "Delete permanently…", "Dauerhaft löschen…", "x-circle", "Shift+Delete", CommandScope.Archive, new[] { "archive-card-menu", "archive-table-menu" }),
@@ -347,11 +347,11 @@ public static class CommandCatalog
         new("post.copy-number", "command.post.copy-number", "Copy post number", "Post-Nummer kopieren", "copy", null, CommandScope.Reader, new[] { "reader-post-menu" }),
         new("video.play-pause", "command.video.play-pause", "Play / pause", "Wiedergabe / Pause", "play", "Space", CommandScope.Gallery | CommandScope.Reader | CommandScope.Media, new[] { "gallery-video-surface", "gallery-video-controls", "reader-video-keys", "media-video-keys" }),
         new("video.volume-up", "command.video.volume-up", "Increase video volume", "Videolautstärke erhöhen", "volume-2", "Up", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
-        new("video.volume-down", "command.video.volume-down", "Decrease video volume", "Videolautstärke verringern", "volume-x", "Down", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
+        new("video.volume-down", "command.video.volume-down", "Decrease video volume", "Videolautstärke verringern", "volume-2", "Down", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
         // Gallery key scheme (revision 13, GalleryShortcutScheme): plain letters are playback actions, so M mutes (it was Shift+M); "Add favorite" moved from M to B (Bookmark; F still toggles, U removes).
         new("video.mute", "command.video.mute", "Mute / unmute", "Ton aus / an", "volume-2", "M", CommandScope.Gallery | CommandScope.Reader | CommandScope.Media, new[] { "gallery-video-controls", "reader-video-keys", "media-video-keys" }),
         // L repeats the shown video (the filmstrip toggle moved to Shift+L for it; both are gallery commands, so they may not share a key).
-        new("video.loop", "command.video.loop", "Repeat video", "Video wiederholen", "refresh-cw", "L", CommandScope.Gallery | CommandScope.Reader | CommandScope.Media, new[] { "gallery-video-controls", "gallery-keyboard", "reader-video-keys", "media-video-keys" }),
+        new("video.loop", "command.video.loop", "Repeat video", "Video wiederholen", "repeat", "L", CommandScope.Gallery | CommandScope.Reader | CommandScope.Media, new[] { "gallery-video-controls", "gallery-keyboard", "reader-video-keys", "media-video-keys" }),
         // Left/Right stay previous/next medium; seeking takes Ctrl (⌘) with the arrows, far seeking adds Shift.
         new("video.seek-back", "command.video.seek-back", "Back 5 seconds", "5 Sekunden zurück", "rotate-ccw", "Primary+Left", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
         new("video.seek-forward", "command.video.seek-forward", "Forward 5 seconds", "5 Sekunden vor", "rotate-cw", "Primary+Right", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
