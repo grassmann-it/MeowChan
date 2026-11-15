@@ -258,6 +258,10 @@ public sealed class EffectiveShortcutBindings
         // - reader Space and Enter on the selected post's medium: Enter, until now a fixed content key, is the command "Open medium of the post" (what a click
         //   on the medium does by the choice "Clicking a medium"). Space stays the video's play / pause.
         ["reader.media.activate"] = 20,
+        // - tile sizes: Ctrl/Cmd+0 sets the medium tile size where Ctrl/Cmd+Plus and Minus step it (media page and the tagging grid, one setting:
+        //   media.tile-size.reset is new; media.tile-size.larger/.smaller, revision 16, now also act in the context "tagging"), and the archive's media
+        //   tiles get the same three keys for a size of their own (archive.media-tile-size.*, context "archive").
+        ["media.tile-size.reset"] = 20, ["archive.media-tile-size.larger"] = 20, ["archive.media-tile-size.smaller"] = 20, ["archive.media-tile-size.reset"] = 20,
     };
     public static IReadOnlyCollection<string> YieldingDefaultCommandIds => DefaultChangedInRevision.Keys.ToArray();
     // Commands whose default changed only in the macOS table: on Windows and Linux their gesture is the old stable one
@@ -317,6 +321,10 @@ public sealed class EffectiveShortcutBindings
             case "reader.font-size.larger": list.Add(ShortcutGesture.Parse("Primary+Add")); break;
             case "reader.font-size.smaller": list.Add(ShortcutGesture.Parse("Primary+Subtract")); break;
             case "reader.font-size.reset": list.Add(ShortcutGesture.Parse("Primary+NumPad0")); break;
+            case "archive.media-tile-size.larger": list.Add(ShortcutGesture.Parse("Primary+Add")); break;
+            case "archive.media-tile-size.smaller": list.Add(ShortcutGesture.Parse("Primary+Subtract")); break;
+            case "media.tile-size.reset":
+            case "archive.media-tile-size.reset": list.Add(ShortcutGesture.Parse("Primary+NumPad0")); break;
             case "viewer.shortcut-help": list.Add(new("OemQuestion", new[] { "Shift" }, "?")); break;
             case "menu.context-open": list.Add(ShortcutGesture.Parse("Apps")); break;
             case "reader.find-next": list.Add(ShortcutGesture.Parse("Primary+G")); break;

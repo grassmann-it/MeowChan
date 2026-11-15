@@ -34,6 +34,8 @@ public sealed class ArchiveMediaTileView : UserControl
     private IDisposable? _selection;
     private readonly Image _image = new() { Stretch = Stretch.Uniform, MaxWidth = 170, MaxHeight = 125 };
     private readonly LetterboxPanel _preview = new();
+    private readonly Grid _cell = new() { Margin = new Thickness(8), RowSpacing = 4 };
+    private ArchiveTileAppearance _appearance;
     private readonly TextBlock _rating = new TextBlock().CaptionText();
     private readonly TextBlock _title = new() { MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis };
     private readonly TextBlock _status = new TextBlock { MaxLines = 2, TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis }.CaptionText();
@@ -56,6 +58,16 @@ public sealed class ArchiveMediaTileView : UserControl
     internal const string QuietFavoriteClass = "tile-favorite-quiet";
     /// <summary>The space the check mark keeps from the tile's top-right edge (dip).</summary>
     internal const double CornerInset = 2, CornerGap = 2;
+    /// <summary>
+    /// The tile size of the surface a tile stands on: set it on the tile list (the reader's Media tab) and every tile in it, realized or made later,
+    /// follows (the value is inherited down the tree). Medium is the tile as it always was.
+    /// </summary>
+    internal static readonly AttachedProperty<MediaTileSize> TileSizeProperty =
+        AvaloniaProperty.RegisterAttached<ArchiveMediaTileView, Control, MediaTileSize>("TileSize", MediaTileSize.Medium, inherits: true);
+    internal static MediaTileSize GetTileSize(Control control) => control.GetValue(TileSizeProperty);
+    internal static void SetTileSize(Control control, MediaTileSize size) => control.SetValue(TileSizeProperty, size);
+    /// <summary>The measures this tile has now (smokes and tests).</summary>
+    internal ArchiveTileAppearance Appearance => _appearance;
     internal bool HasThumbnail => _bitmap != null;
     /// <summary>The shared badge view over the shown picture (tests and smokes read its state and plan).</summary>
     internal MediaBadgeView Badges => _badges;
@@ -87,17 +99,17 @@ public sealed class ArchiveMediaTileView : UserControl
 
     public ArchiveMediaTileView()
     {
-        MaxWidth = 190; Height = 210;
         // The cell stays uniform (the tile grid is regular); the picture is letterboxed in it. The badges, star and check mark are arranged on the
         // slot's corners, not on the picture's, so a portrait and a landscape tile carry them at the same height.
-        LetterboxPanel preview = _preview; preview.Height = 125; preview.MaxWidth = 170; preview.MarksOnSlot = true;
+        LetterboxPanel preview = _preview; preview.MarksOnSlot = true;
         _topRight.Children.Add(_selectedMark);
         _badges.PlanRefreshed += UpdateTopRightInset; // other badge limits can move the badges, and the check keeps clear of them
         preview.Children.Add(_image); preview.Children.Add(_message); preview.Children.Add(_badges); preview.Children.Add(_topRight); preview.Children.Add(_favorite);
-        Grid grid = new() { Margin = new Thickness(8), RowDefinitions = new RowDefinitions("125,Auto,Auto,*"), RowSpacing = 4 };
+        Grid grid = _cell;
         grid.Children.Add(preview); grid.Children.Add(_title); Grid.SetRow(_title, 1);
         grid.Children.Add(_rating); Grid.SetRow(_rating, 2);
         grid.Children.Add(_status); Grid.SetRow(_status, 3); Content = grid;
+        ApplyAppearance(ArchiveTileMetrics.Standard);
         DataContextChanged += (_, _) =>
         {
             _missing = false;
@@ -130,6 +142,27 @@ public sealed class ArchiveMediaTileView : UserControl
             _visible = false; Reset();
             _selection?.Dispose(); _selection = null; _selectedMark.IsVisible = false;
         };
+    }
+
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+        if (change.Property == TileSizeProperty) ApplyAppearance(ArchiveTileMetrics.For(change.GetNewValue<MediaTileSize>()));
+    }
+
+    // The tile keeps its parts and its aspect at every size: only the cell, the picture slot and the longest side of the picture change, so the
+    // letterboxed picture, the badges on the slot's corners, the star and the selection check stay where they were (they hang on the slot).
+    private void ApplyAppearance(ArchiveTileAppearance appearance)
+    {
+        if (appearance == _appearance) return;
+        _appearance = appearance;
+        MaxWidth = appearance.CellWidth;
+        Height = appearance.CellHeight;
+        _preview.Height = appearance.PreviewHeight;
+        _preview.MaxWidth = appearance.PictureWidth;
+        _image.MaxWidth = appearance.PictureWidth;
+        _image.MaxHeight = appearance.PreviewHeight;
+        _cell.RowDefinitions = new RowDefinitions(appearance.PreviewHeight.ToString(System.Globalization.CultureInfo.InvariantCulture) + ",Auto,Auto,*");
     }
 
     private void OnAncestorVisibilityChanged(object? sender, AvaloniaPropertyChangedEventArgs e)

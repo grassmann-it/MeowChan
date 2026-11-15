@@ -20,7 +20,8 @@ namespace MeowChan;
 
 // The second view of the tagging page (TG1): the same entries as a grid of thumbnails next to the list. Both are multi-select ListBoxes
 // over the same rows and answer the same commands (menu, keys, selection bar); only one is bound and shown at a time. The switch is
-// "List | Grid" in the toolbar and is saved per profile. The grid's panel and cell width are the media page's (one tile size).
+// "List | Grid" in the toolbar and is saved per profile. The grid's panel and cell width are the media page's (one tile size): Ctrl+wheel and
+// Ctrl+Plus / Minus / 0 over the grid change that one setting (the same input as on the media page), so both pages always show the same size.
 public sealed partial class TaggingPage
 {
     private readonly ListBox _grid = new() { Name = "TaggingGrid", SelectionMode = SelectionMode.Multiple, Classes = { "workspace-selection-bar" }, IsVisible = false };
@@ -29,10 +30,19 @@ public sealed partial class TaggingPage
     private ContextMenuHost? _gridMenuHost;
     private bool _syncingView, _rendering;
     private MediaTileAppearance _tileAppearance = MediaTileMetrics.Standard;
+    private MediaTileSize _currentTileSize = MediaTileSize.Medium;
 
     /// <summary>Reads the media page's active tile metrics; the default keeps the page usable in tests and before the shell wires it.</summary>
     internal Func<MediaTileAppearance>? ReadMediaTileAppearance { get; set; }
     internal MediaTileAppearance TileAppearance => _tileAppearance;
+
+    /// <summary>The tile size both pages share (the media page's setting); the default keeps the page usable in tests and before the shell wires it.</summary>
+    internal Func<MediaTileSize>? ReadMediaTileSize { get; set; }
+    /// <summary>Applies and saves a tile size the person chose over the grid (the shell: the media page's setting); false when it was not taken.</summary>
+    internal Func<MediaTileSize, bool>? ChooseMediaTileSize { get; set; }
+    private TileSizeInput? _tileSizeInput;
+    /// <summary>The grid's tile size input (tests and smokes).</summary>
+    internal TileSizeInput? MediaTileSizeInput => _tileSizeInput;
 
     /// <summary>The view the person picked: the shell saves it for the profile.</summary>
     internal Action<TaggingViewMode>? SaveViewMode { get; set; }
@@ -72,6 +82,14 @@ public sealed partial class TaggingPage
                 OpenActions.Start(() => ExecuteRowCommandAsync(TaggingCommands.ContinueHere), "tagging.grid.doubleClick");
         };
         _grid.SelectionChanged += OnSelectionChanged;
+        _tileSizeInput = TileSizeInput.Install(_grid, TileSizeCommands.Media, () => ReadMediaTileSize?.Invoke() ?? _currentTileSize,
+            size =>
+            {
+                if (ChooseMediaTileSize?.Invoke(size) != true) return false;
+                _currentTileSize = size;
+                ApplyTileAppearance();
+                return true;
+            });
         _viewToggle.SelectionChanged += (_, _) =>
         {
             if (_syncingView || _localizing) return;
@@ -85,6 +103,8 @@ public sealed partial class TaggingPage
         MediaTileAppearance next = ReadMediaTileAppearance?.Invoke() ?? MediaTileMetrics.Standard;
         if (next.CellWidth < 1 || next.CellHeight < 1 || next.PreviewHeight < 1) next = MediaTileMetrics.Standard;
         if (!force && next == _tileAppearance) return;
+        // The row at the top of the view stays at the top of the view while the cells grow or shrink (the panel and the tiles are made again).
+        (int Index, double Offset)? anchor = force ? null : _grid.GetVisualDescendants().OfType<MediaTilePanel>().FirstOrDefault()?.CaptureAnchor();
         _tileAppearance = next;
         _grid.ItemsPanel = new FuncTemplate<Panel?>(() => new MediaTilePanel
         {
@@ -93,6 +113,13 @@ public sealed partial class TaggingPage
         });
         _grid.ItemTemplate = new FuncDataTemplate<TaggingQueueRow>((_, _) => new TaggingQueueTileView(_thumbnails, TagCountOf, _tileAppearance));
         _grid.InvalidateMeasure();
+        if (anchor is { } kept)
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (_queueWork.Ended) return;
+                _grid.GetVisualDescendants().OfType<MediaTilePanel>().FirstOrDefault()
+                    ?.RestoreAnchor(kept.Index, -Math.Min(-kept.Offset, _tileAppearance.CellHeight - 1));
+            }, DispatcherPriority.Background);
     }
 
     private void LocalizeView()

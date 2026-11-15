@@ -138,9 +138,16 @@ public static class CommandCatalog
         new("media.folders", "command.media.folders", "Media folders…", "Medienordner…", "folder", null, CommandScope.Media, new[] { "media-page" }),
         new("media.focus-mode", "command.media.focus-mode", "Focus mode", "Fokusmodus", "maximize", "Shift+F", CommandScope.Media, new[] { "media-toolbar", "media-tiles" }, new[] { "media" }),
         new("media.select-all", "command.media.select-all", "Select all media", "Alle Medien auswählen", "check-square", "Primary+A", CommandScope.Media, new[] { "media-tiles" }),
-        // Interaction audit 1.1.0: the Layout menu tile-size steps also have direct Ctrl/Cmd bindings.
-        new("media.tile-size.larger", "command.media.tile-size.larger", "Larger tiles", "Größere Kacheln", "zoom-in", "Primary+Plus", CommandScope.Media, new[] { "media-tiles" }),
-        new("media.tile-size.smaller", "command.media.tile-size.smaller", "Smaller tiles", "Kleinere Kacheln", "zoom-out", "Primary+Minus", CommandScope.Media, new[] { "media-tiles" }),
+        // Interaction audit 1.1.0: the Layout menu tile-size steps also have direct Ctrl/Cmd bindings. The tagging page's grid shares the media page's
+        // tile size (it is one setting), so these commands also run there (the "tagging" context); the reset key (Ctrl/Cmd+0) is new in revision 20.
+        new("media.tile-size.larger", "command.media.tile-size.larger", "Larger tiles", "Größere Kacheln", "zoom-in", "Primary+Plus", CommandScope.Media, new[] { "media-tiles", "tagging-grid" }, new[] { "media", "tagging" }),
+        new("media.tile-size.smaller", "command.media.tile-size.smaller", "Smaller tiles", "Kleinere Kacheln", "zoom-out", "Primary+Minus", CommandScope.Media, new[] { "media-tiles", "tagging-grid" }, new[] { "media", "tagging" }),
+        new("media.tile-size.reset", "command.media.tile-size.reset", "Medium tiles", "Mittlere Kacheln", "grid", "Primary+0", CommandScope.Media, new[] { "media-tiles", "tagging-grid" }, new[] { "media", "tagging" }),
+        // DefaultsRevision 20: the archive's media tiles (the reader's Media tab, tile view) have a size of their own. Their own context ("archive") keeps
+        // Ctrl/Cmd+Plus, Minus and 0 apart from the reader's font size keys (context "reader"): each runs only while its own list has the focus.
+        new("archive.media-tile-size.larger", "command.archive.media-tile-size.larger", "Larger tiles", "Größere Kacheln", "zoom-in", "Primary+Plus", CommandScope.Archive, new[] { "archive-media-tiles" }, new[] { "archive" }),
+        new("archive.media-tile-size.smaller", "command.archive.media-tile-size.smaller", "Smaller tiles", "Kleinere Kacheln", "zoom-out", "Primary+Minus", CommandScope.Archive, new[] { "archive-media-tiles" }, new[] { "archive" }),
+        new("archive.media-tile-size.reset", "command.archive.media-tile-size.reset", "Medium tiles", "Mittlere Kacheln", "grid", "Primary+0", CommandScope.Archive, new[] { "archive-media-tiles" }, new[] { "archive" }),
         new("gallery.open-results", "command.gallery.open-results", "Media from matching threads", "Medien der Treffer", "image", null, CommandScope.Archive, new[] { "archive-results-toolbar" }),
         new("archive.open-results-in-media", "command.archive.open-results-in-media", "Open in Media", "In Medien öffnen", "grid", null, CommandScope.Archive, new[] { "archive-results-toolbar" }),
         new("thread.show-in-media", "command.thread.show-in-media", "Show in Media", "In Medien zeigen", "grid", "Alt+M", CommandScope.Archive | CommandScope.Reader | CommandScope.Downloads, new[] { "downloads-thread-menu", "archive-card-menu", "archive-table-menu", "reader-thread-menu" }),

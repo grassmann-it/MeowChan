@@ -13,6 +13,7 @@ using Avalonia.Input;
 using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Stats;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Booru;
@@ -141,6 +142,9 @@ public partial class MainWindow
             string mode = _config.WorkspaceMode;
             return _session.SaveViewPreferencesAsync(current => current.GetLayoutProfile(mode).ArchiveMediaTiles = tiles);
         };
+        // The tile size of the saved-media tiles is a view preference of the profile (not of the work view): one size for every mode.
+        _archivePage.MediaTileSizePreference = MediaTileSizes.Parse(_config.ArchiveMediaTileSize);
+        _archivePage.SaveMediaTileSize = size => _session.SaveViewPreferencesAsync(current => current.ArchiveMediaTileSize = size.ToString());
         // The reader's quick media switches (View menu) write only the switch that was flipped; Settings shows the confirmed value again.
         _archivePage.SaveReaderMediaSwitches = async change =>
         {

@@ -652,7 +652,7 @@
                                         </DataGrid>
                                         <ListBox x:Name="ArchiveMediaTiles" Classes="workspace-selection-bar" IsVisible="False" SelectionMode="Multiple" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto" SelectionChanged="OnMediaSelected" DoubleTapped="OnMediaDoubleTapped">
                                             <ListBox.Styles><Style Selector="ListBoxItem"><Setter Property="Padding" Value="0" /><Setter Property="Margin" Value="0" /><Setter Property="HorizontalContentAlignment" Value="Stretch" /><Setter Property="VerticalContentAlignment" Value="Stretch" /></Style></ListBox.Styles>
-                                            <ListBox.ItemsPanel><ItemsPanelTemplate><desktop:MediaTilePanel /></ItemsPanelTemplate></ListBox.ItemsPanel>
+                                            <!-- The tile panel is made in code (ArchivePage.TileSize.cs): its cell follows the tile size. -->
                                             <ListBox.ItemTemplate><DataTemplate x:DataType="desktop:ArchiveAssetRow">
                                                 <desktop:ArchiveMediaTileView />
                                             </DataTemplate></ListBox.ItemTemplate>

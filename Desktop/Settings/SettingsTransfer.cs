@@ -248,6 +248,7 @@ public static class SettingsTransfer
             MediaBooruMode = source.MediaBooruMode,
             MediaTagListSort = source.MediaTagListSort,
             MediaLayout = source.MediaLayout,
+            ArchiveMediaTileSize = source.ArchiveMediaTileSize,
             TaggingPageView = source.TaggingPageView,
             TaggingPreviewColumn = source.TaggingPreviewColumn,
             TaggingStampBlock = source.TaggingStampBlock,
