@@ -111,9 +111,12 @@ internal static partial class GalleryPlaybackFeatureChecks
                     Require(managedEdgeHintFallbackAllowed && !Visible(controls)
                         && !viewer.CaptureState().ContextOpen,
                         "Windows/macOS hover fallback changed the hidden first-key fixture state.");
-                    Require(MediaInteractionSmokeHelpers.IsPointerTargetReady(bottomHint)
-                        && MediaInteractionSmokeHelpers.IsPointerTargetReady(rightHint),
+                    Require(await ObserveManagedEdgeGeometryAsync(bottomHint, rightHint, viewer),
                         "Windows/macOS native hover was unavailable and managed edge-target geometry was not usable.");
+                    // Record the final cross-root layout evidence after the bounded wait. The
+                    // native key/navigation assertions below remain unchanged and mandatory.
+                    MediaInteractionSmokeHelpers.RequireEdgeTargetWithinViewer(bottomHint, viewer);
+                    MediaInteractionSmokeHelpers.RequireEdgeTargetWithinViewer(rightHint, viewer);
                 }
             }
             async Task FirstKeyAsync(bool next, string scenario)
@@ -460,6 +463,42 @@ internal static partial class GalleryPlaybackFeatureChecks
         return MediaInteractionSmokeHelpers.EdgeHintVisible(bottom)
             && MediaInteractionSmokeHelpers.EdgeHintVisible(right);
     }
+
+    private static async Task<bool> ObserveManagedEdgeGeometryAsync(Button bottom, Button right, GalleryViewer viewer)
+    {
+        System.Diagnostics.Stopwatch elapsed = System.Diagnostics.Stopwatch.StartNew();
+        while (elapsed.Elapsed < TimeSpan.FromSeconds(1))
+        {
+            if (ManagedEdgeGeometryReady(bottom, viewer) && ManagedEdgeGeometryReady(right, viewer)) return true;
+            await Task.Delay(25);
+        }
+        return ManagedEdgeGeometryReady(bottom, viewer) && ManagedEdgeGeometryReady(right, viewer);
+    }
+
+    private static bool ManagedEdgeGeometryReady(Button target, GalleryViewer viewer)
+    {
+        if (!target.IsAttachedToVisualTree() || !target.IsArrangeValid || !target.IsEffectivelyVisible
+            || !target.IsEffectivelyEnabled || !target.IsHitTestVisible || target.Bounds.Width < 16
+            || target.Bounds.Height < 16 || target.Parent is not Control host)
+            return false;
+        try
+        {
+            Rect mapped = MediaInteractionSmokeHelpers.ScreenBoundsIn(target, viewer);
+            Rect local = MediaInteractionSmokeHelpers.ScreenBoundsIn(target, host);
+            return Within(mapped, viewer.Bounds) && Within(local, host.Bounds);
+        }
+        catch (InvalidOperationException)
+        {
+            // Reparenting/layout migration can briefly leave screen geometry unavailable;
+            // the bounded observer retries instead of confusing that transient with a
+            // platform hover limitation.
+            return false;
+        }
+    }
+
+    private static bool Within(Rect actual, Rect owner) => actual.Width >= 16 && actual.Height >= 16
+        && actual.Left >= -1 && actual.Top >= -1
+        && actual.Right <= owner.Width + 1 && actual.Bottom <= owner.Height + 1;
 
     private static GalleryVideoPlayer Player(GalleryViewer viewer) => viewer.GetGalleryVisualDescendants().OfType<GalleryVideoPlayer>().Single();
     private static bool HasRealFrames(GalleryVideoPlayer.PlaybackEvidence evidence) => evidence.HasPlayback
