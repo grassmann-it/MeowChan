@@ -4,6 +4,7 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
+using Avalonia.Layout;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
@@ -534,7 +535,16 @@ internal static partial class GalleryPlaybackFeatureChecks
     private static Point SliderPoint(Slider slider, double fraction)
     {
         Track track = slider.GetVisualDescendants().OfType<Track>().Single();
-        double thumb = track.Thumb?.Bounds.Width ?? 12;
+        bool vertical = slider.Orientation == Orientation.Vertical;
+        double thumb = track.Thumb is { } trackThumb
+            ? vertical ? trackThumb.Bounds.Height : trackThumb.Bounds.Width
+            : 12;
+        if (vertical)
+        {
+            double y = track.Bounds.Height - (thumb / 2 + fraction * (track.Bounds.Height - thumb));
+            return track.TranslatePoint(new Point(track.Bounds.Width / 2, y), slider)
+                ?? throw new InvalidOperationException("Native slider track has no screen transform.");
+        }
         return track.TranslatePoint(new Point(thumb / 2 + fraction * (track.Bounds.Width - thumb), track.Bounds.Height / 2), slider)
             ?? throw new InvalidOperationException("Native slider track has no screen transform.");
     }
