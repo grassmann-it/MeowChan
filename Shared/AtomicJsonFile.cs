@@ -18,7 +18,10 @@ internal static class AtomicJsonFile
 
         try
         {
-            byte[] bytes = Encoding.UTF8.GetBytes(contents);
+            // Persist JSON with a platform-independent newline so byte-stable files remain
+            // interchangeable between Windows and Unix writers. Escaped JSON string newlines
+            // are backslash sequences, not affected by this normalization.
+            byte[] bytes = Encoding.UTF8.GetBytes(contents.Replace("\r\n", "\n", StringComparison.Ordinal));
             using (FileStream stream = new FileStream(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
             {
                 stream.Write(bytes);
