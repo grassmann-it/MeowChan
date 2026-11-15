@@ -11,6 +11,7 @@ import xml.etree.ElementTree as ET
 REVISION = 'eec6c0169f8d52f7481ea0bf7febfd20981e97c3'
 OVERLAY = 'tests/Upgrade102FixtureGenerator/'
 PNG = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl2nAAAAABJRU5ErkJggg==')
+PNG_SHA1 = base64.b64encode(hashlib.sha1(PNG).digest()).decode('ascii')
 URLS = {'https://boards.4chan.org/g/thread/123', 'https://8kun.top/g/res/123.html'}
 LEGACY_CHAN_STATES = {
     'meowchan.source.lainchan': False,
@@ -134,7 +135,8 @@ def main():
     require(len(threads) == 2 and {thread_id(t['Id']) for t in threads} == {'4chan', '8kun'}, 'thread set mismatch')
     for thread in threads:
         require(sorted(p['PostId'] for p in thread['Posts']) == ['123', '124'], 'post set mismatch')
-        require(thread['Asset']['Length'] == len(PNG) and thread['Asset']['Sha256'].lower() == digest(PNG), 'media identity mismatch')
+        require(thread['Asset']['Length'] == len(PNG) and thread['Asset']['Sha256'].lower() == digest(PNG) and
+                thread['Asset']['Sha1'] == PNG_SHA1, 'media integrity mismatch')
     legacy = receipt.get('LegacyChanPlugins')
     require(legacy == LEGACY_CHAN_STATES, 'legacy chan plugin state mismatch')
     inventory = receipt['Inventory']

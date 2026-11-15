@@ -71,8 +71,9 @@ await using (DesktopSessionHost host = new(profile, new IImageBoard[] { new Four
         ArchivedThreadView view = (await reader.ReadThreadAsync(id))!;
         MediaAssetReference asset = (await MediaAssetReader.OpenAsync(view.Summary.MediaDirectory)).GetPage().Single();
         if (asset.Length != Fixture.Bytes.Length ||
-            !string.Equals(asset.Sha256, Convert.ToHexString(SHA256.HashData(Fixture.Bytes)), StringComparison.OrdinalIgnoreCase))
-            throw new Exception("Fixture media bytes mismatch: " + source);
+            !string.Equals(asset.Sha256, Convert.ToHexString(SHA256.HashData(Fixture.Bytes)), StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(asset.Sha1, Convert.ToBase64String(SHA1.HashData(Fixture.Bytes)), StringComparison.Ordinal))
+            throw new Exception("Fixture media integrity mismatch: " + source);
         if (!view.GetPosts().Select(post => post.PostId).OrderBy(id => id, StringComparer.Ordinal).SequenceEqual(new[] { "123", "124" }))
             throw new Exception("Fixture post identities mismatch: " + source);
         FavoriteEntry favorite = new(FavoriteAssetKey.From(id, asset), asset.Length, asset.OriginalFileName);

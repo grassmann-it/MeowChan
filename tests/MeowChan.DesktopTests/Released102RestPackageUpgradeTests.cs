@@ -159,6 +159,9 @@ public sealed class Released102RestPackageUpgradeTests(ITestOutputHelper output)
             AssertJson(asset, bytes.GetProperty("Reference"), "complete manifest reference/asset identity");
             AssertJson(asset.GetProperty("Length"), bytes.GetProperty("Length"), "verified original length");
             Assert.Equal(asset.GetProperty("Sha256").GetString(), bytes.GetProperty("Sha256").GetString(), ignoreCase: true);
+            // C24: the release asset's optional local SHA-1 measurement must survive the
+            // upgrade and still match the bytes read from the current manifest.
+            Assert.Equal(asset.GetProperty("Sha1").GetString(), bytes.GetProperty("Sha1").GetString());
             JsonElement resource = Assert.Single(work.EnumerateArray(), w => w.GetProperty("Url").GetString() == thread.GetProperty("Url").GetString());
             JsonElement media = Assert.Single(resource.GetProperty("Media").EnumerateArray());
             AssertJson(asset.GetProperty("MediaIdentifier"), media.GetProperty("MediaIdentifier"), "work media identifier");

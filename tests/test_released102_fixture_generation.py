@@ -53,6 +53,16 @@ class Released102FixtureGenerationTests(unittest.TestCase):
         self.assertIn("LegacyChanPlugins = LegacyChanFixture.States", source)
         self.assertIn("legacyStore.SetEnabledAsync", source)
 
+    def test_release_media_sha1_is_seeded_and_checked_across_the_upgrade_fixture(self):
+        source = GENERATOR.read_text(encoding="utf-8")
+        checker = (ROOT / "tests/fixtures/upgrade-v1.0.2/check.py").read_text(encoding="utf-8")
+        current = (ROOT / "tests/fixtures/upgrade-v1.0.2/current/Program.cs").read_text(encoding="utf-8")
+        upgrade = (ROOT / "tests/MeowChan.DesktopTests/Released102RestPackageUpgradeTests.cs").read_text(encoding="utf-8")
+        self.assertIn("Convert.ToBase64String(SHA1.HashData(Fixture.Bytes))", source)
+        self.assertIn("PNG_SHA1 = base64.b64encode(hashlib.sha1(PNG).digest())", checker)
+        self.assertIn("string sha1 = Convert.ToBase64String(await SHA1.HashDataAsync(bytes));", current)
+        self.assertIn("asset.GetProperty(\"Sha1\").GetString(), bytes.GetProperty(\"Sha1\").GetString()", upgrade)
+
     def test_exports_are_created_only_after_the_first_ordinary_settings_save(self):
         save = "}.SaveConfig(profile);"
         self.assertEqual(1, self.setup.count(save))

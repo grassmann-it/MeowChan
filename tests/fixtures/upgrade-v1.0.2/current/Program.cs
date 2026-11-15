@@ -72,7 +72,10 @@ try
             foreach (MediaAssetReference asset in manifest.GetPage())
             {
                 await using Stream bytes = await manifest.OpenVerifiedReadAsync(asset.AssetId).WaitAsync(deadline);
-                assets.Add(new { Reference = asset, bytes.Length, Sha256 = Convert.ToHexString(await SHA256.HashDataAsync(bytes)) });
+                string sha256 = Convert.ToHexString(await SHA256.HashDataAsync(bytes));
+                bytes.Position = 0;
+                string sha1 = Convert.ToBase64String(await SHA1.HashDataAsync(bytes));
+                assets.Add(new { Reference = asset, bytes.Length, Sha256 = sha256, Sha1 = sha1 });
                 if (localObservation is null)
                     LocalMediaObservation.TryCreate(id, manifest.Directory, asset.RequestedFileName, asset.AssetId, asset.Length, asset.Sha256,
                         out localObservation);
