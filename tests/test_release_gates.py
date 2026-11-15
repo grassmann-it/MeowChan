@@ -78,8 +78,8 @@ class WorkflowContractTests(unittest.TestCase):
     def test_validation_keeps_parallel_diagnostics_and_uses_aggregator(self):
         self.assertIn("continue-on-error: true", self.workflow)
         self.assertIn("python3 scripts/aggregate-release-gates.py steps", self.workflow)
-        self.assertIn("required+=(linux_setup tray_host core_tests smoke_plugins)", self.workflow)
-        self.assertIn("required+=(prepare_desktop mac_tests)", self.workflow)
+        self.assertIn('required=("${full_required[@]}" linux_setup tray_host core_tests smoke_plugins)', self.workflow)
+        self.assertIn('required=("${full_required[@]}" prepare_desktop mac_tests)', self.workflow)
         gate = self.workflow.index("      - name: Fail validation after collecting all evidence")
         upload = self.workflow.index("      - name: Upload regression and graphical evidence")
         self.assertLess(gate, upload)
@@ -111,8 +111,8 @@ class WorkflowContractTests(unittest.TestCase):
         gate = self.workflow.split("      - name: Fail validation after collecting all evidence", 1)[1].split(
             "      - name: Upload regression and graphical evidence", 1
         )[0]
-        linux_required = gate.split("if [[ \"$RUNNER_OS\" == Linux ]]; then", 1)[1].split(
-            "elif [[ \"$RUNNER_OS\" == macOS ]]; then", 1
+        linux_required = gate.split('if [[ "${{ matrix.lane }}" == lane-a && "$RUNNER_OS" == Linux ]]; then', 1)[1].split(
+            'elif [[ "${{ matrix.lane }}" == lane-a && "$RUNNER_OS" == Windows ]]; then', 1
         )[0]
         self.assertIn('if [[ "$RUNNER_ARCH" == X64 ]]; then', linux_required)
         self.assertIn("required+=(smoke_1_1_registry)", linux_required)
