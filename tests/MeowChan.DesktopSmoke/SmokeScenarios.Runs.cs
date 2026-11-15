@@ -65,6 +65,11 @@ internal static partial class SmokeScenarios
             Seed = profile => { InterruptedStartupChecks.Seed(profile); return Task.CompletedTask; }
         },
         ["diagnostic-evidence"] = new(SmokeStage.Ready, mainWindow => DiagnosticEvidenceChecks.RunAsync(mainWindow)),
+        ["reader-post-star"] = new(SmokeStage.Ready, mainWindow => ReaderPostStarChecks.RunAsync(mainWindow))
+        {
+            Seed = ReaderPostStarChecks.SeedAsync,
+            Configure = config => { config.DownloadsPaused = true; config.SaveUrlsOnExit = false; }
+        },
         ["filename-search-large-reader"] = new(SmokeStage.Ready, mainWindow => FilenameSearchLargeReaderChecks.RunAsync(mainWindow)),
         ["local-search-language"] = new(SmokeStage.Ready, mainWindow => LocalSearchLanguageRefreshChecks.RunAsync(mainWindow)),
         ["media-page"] = new(SmokeStage.Ready, async mainWindow =>
