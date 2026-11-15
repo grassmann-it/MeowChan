@@ -78,7 +78,7 @@ class WorkflowContractTests(unittest.TestCase):
     def test_validation_keeps_parallel_diagnostics_and_uses_aggregator(self):
         self.assertIn("continue-on-error: true", self.workflow)
         self.assertIn("python3 scripts/aggregate-release-gates.py steps", self.workflow)
-        self.assertIn("required+=(linux_setup tray_host core_tests)", self.workflow)
+        self.assertIn("required+=(linux_setup tray_host core_tests smoke_plugins)", self.workflow)
         self.assertIn("required+=(prepare_desktop mac_tests)", self.workflow)
 
     def test_candidate_gate_waits_for_every_release_input_and_is_always_evaluated(self):
