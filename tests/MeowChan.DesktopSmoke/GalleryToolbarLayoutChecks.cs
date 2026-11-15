@@ -252,7 +252,8 @@ internal static partial class GalleryToolbarLayoutChecks
         PixelRect host = new(window.PointToScreen(default), new PixelSize((int)Math.Ceiling(window.Bounds.Width * window.RenderScaling),
             (int)Math.Ceiling(window.Bounds.Height * window.RenderScaling)));
         Require(host.Contains(origin) && origin.Y >= host.Y, $"The menu opened away from the window: {origin} outside {host}.");
-        foreach (Control row in viewer.OverflowItems)
+        // A row the viewer hides on purpose stays hidden (the slideshow-only "Pause when MeowChan loses focus" outside a chosen slideshow).
+        foreach (Control row in viewer.OverflowItems.Where(row => row.IsVisible))
             Require(row.IsEffectivelyVisible && row.Bounds.Height >= 28 && row.Bounds.Width >= 200, "Menu row not shown: " + row.Name);
         Require(Find<ComboBox>(viewer, "GalleryPlaybackModeSelector").IsEffectivelyVisible, "The playback choice is not shown in the menu.");
     }
