@@ -1,4 +1,5 @@
 using System;
+using Avalonia.Input;
 
 namespace MeowChan.Desktop;
 
@@ -39,6 +40,13 @@ internal sealed class ReaderScrollOwner
 
     /// <summary>Whether a pending re-fit may still move the list: inside the window, no jump owns the offset, the reader did not take over.</summary>
     internal bool MayRefit(long now, int interaction) => now <= _fitUntil && interaction == _fitInteraction && !JumpOwns(interaction);
+
+    /// <summary>
+    /// Whether a control inside a card that just took the focus may be scrolled into view: only keyboard navigation (Tab, arrows) does it,
+    /// and not while a jump owns the offset. A pointer press, a programmatic focus (the jump focusing its card) and a restore never scroll.
+    /// </summary>
+    internal bool FocusMayScroll(NavigationMethod method, int interaction) =>
+        method is NavigationMethod.Tab or NavigationMethod.Directional && !JumpOwns(interaction);
 
     internal readonly struct Jump : IDisposable
     {
