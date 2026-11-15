@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Xml.Linq;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
@@ -52,6 +53,21 @@ public sealed class TaggingSettingsTests : IDisposable
         // The card count is a tolerant preference: out of range is clamped, never refused.
         Assert.Equal(2, new Config { TaggingCardCount = 0 }.TaggingCardCount);
         Assert.Equal(5, new Config { TaggingCardCount = 99 }.TaggingCardCount);
+    }
+
+    [Fact]
+    public void CardCountRawDraftUsesVisibleNumericValidationWithoutChangingTolerantPersistence()
+    {
+        const decimal accepted = Config.TaggingCardCountDefault;
+        string? Validate(decimal raw) => SettingsEditor.NumericDraftError(raw.ToString(CultureInfo.InvariantCulture),
+            NumberStyles.Number, CultureInfo.InvariantCulture, hasBindingErrors: false, accepted,
+            Config.TaggingCardCountMinimum, Config.TaggingCardCountMaximum, integer: true);
+
+        Assert.Equal("settings.fieldInteger", Validate(Config.TaggingCardCountMinimum - 1));
+        Assert.Equal("settings.fieldInteger", Validate(Config.TaggingCardCountMaximum + 1));
+        Assert.Null(Validate(accepted));
+        Assert.Equal(Config.TaggingCardCountMinimum, new Config { TaggingCardCount = int.MinValue }.TaggingCardCount);
+        Assert.Equal(Config.TaggingCardCountMaximum, new Config { TaggingCardCount = int.MaxValue }.TaggingCardCount);
     }
 
     [Fact]
