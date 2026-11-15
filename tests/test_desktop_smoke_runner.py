@@ -130,6 +130,7 @@ class DesktopSmokeRunnerTests(unittest.TestCase):
         base.mkdir()
         return base
 
+    @unittest.skipIf(os.name == "nt", "POSIX /tmp socket-path fixture")
     def test_short_tmpdir_keeps_the_private_directory_where_tempfile_puts_it(self):
         short = Path(tempfile.mkdtemp(prefix="mcs-t-", dir=runner.SHORT_DIRECTORY_BASE))
         self.addCleanup(shutil.rmtree, short, ignore_errors=True)
@@ -139,6 +140,7 @@ class DesktopSmokeRunnerTests(unittest.TestCase):
             self.assertEqual(short, Path(directory.name).parent)
             self.assertTrue(runner.socket_paths_fit(directory.name))
 
+    @unittest.skipIf(os.name == "nt", "POSIX /tmp socket-path fixture")
     def test_long_tmpdir_moves_only_the_isolated_directory_to_a_short_base_and_cleans_it_up(self):
         base = self.long_temp_base()
         with mock.patch.dict(os.environ, {"TMPDIR": str(base)}), mock.patch.object(tempfile, "tempdir", None):
@@ -354,7 +356,8 @@ class DesktopSmokeRunnerTests(unittest.TestCase):
         repository = Path("/repo root")
         command = runner.registry_command(self.REGISTRY[1], self.assembly, self.output / "gallery-error", 300, "openbox", repository)
         self.assertEqual("env", command[0])
-        self.assertIn("MEOWCHAN_VIDEO_FIXTURE=/repo root/tests/Fixtures/gallery-playback-vp8.webm", command)
+        expected_fixture = "MEOWCHAN_VIDEO_FIXTURE=" + str(repository / "tests" / "Fixtures" / "gallery-playback-vp8.webm")
+        self.assertIn(expected_fixture, command)
         self.assertEqual("normal+MEOWCHAN_GALLERY_ERROR_ONLY", command[command.index("--expect-scenario") + 1])
         self.assertEqual("normal", command[command.index("--mode") + 1])
         audio = runner.registry_command(self.REGISTRY[2], self.assembly, self.output / "gallery-edge", 300, "openbox", repository)
@@ -435,6 +438,7 @@ class DesktopSmokeRunnerTests(unittest.TestCase):
             {"mode": "normal", "passed": False, "timed_out": True, "exit_code": 124, "scenario": None, "error": None}]}))
         self.assertEqual("timed out", runner.child_result(destination, "normal")["error"])
 
+    @unittest.skipUnless(hasattr(os, "getloadavg"), "host load average is unavailable on this platform")
     def test_results_record_host_load_and_a_timeout_on_an_overloaded_host_says_so(self):
         self.assertEqual({"loadavg_1m", "cpus"}, set(runner.host_load()))
         with mock.patch.object(runner.os, "getloadavg", return_value=(99.0, 1.0, 1.0)), \

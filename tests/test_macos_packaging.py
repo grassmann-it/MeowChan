@@ -39,6 +39,7 @@ def make_ico(png):
     return struct.pack("<HHHBBBBHHII", 0, 1, 1, 0, 0, 0, 0, 1, 32, len(png), 22) + png
 
 
+@unittest.skipIf(os.name == "nt", "macOS packaging fixture uses POSIX package-root semantics")
 class MacosPackagingTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory(prefix="meowchan packaging fixtures ")
