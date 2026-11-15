@@ -18,6 +18,14 @@ internal enum MediaLibraryKindFilter { Any, Image, Gif, Video, Other }
 /// <summary>Sound property of a video. A sound choice implies videos only; images and GIFs have no sound property.</summary>
 internal enum MediaLibrarySoundFilter { Any, WithSound, WithoutSound }
 
+/// <summary>
+/// The fields the free text of the media search is looked for in (<see cref="MediaLibraryFilter.TextFields"/>): the file name, the thread title,
+/// the board, the source, and the own tags of the file or its thread. <see cref="All"/> is every field (the default); the page narrows it
+/// with the <c>in:</c> token. <see cref="None"/> is no field and never a valid scope.
+/// </summary>
+[Flags]
+internal enum MediaTextFields { None = 0, Name = 1, Title = 2, Board = 4, Source = 8, Tag = 16, All = 31 }
+
 /// <summary>A board together with its source: board names are only unique within a source (used to exclude one board).</summary>
 internal readonly record struct MediaLibraryBoardKey(string Source, string Board);
 
@@ -45,11 +53,13 @@ internal sealed record MediaLibraryFilter
         bool favoritesOnly = false, int? minimumRating = null, string? source = null, string? board = null,
         string? nameContains = null, ResourceId? thread = null, MediaLibrarySoundFilter sound = MediaLibrarySoundFilter.Any,
         bool withoutMediaTags = false, IEnumerable<MediaLibraryKindFilter>? kinds = null,
-        IEnumerable<string>? excludeSources = null, IEnumerable<MediaLibraryBoardKey>? excludeBoards = null)
+        IEnumerable<string>? excludeSources = null, IEnumerable<MediaLibraryBoardKey>? excludeBoards = null,
+        MediaTextFields textFields = MediaTextFields.All)
     {
         if (!Enum.IsDefined(kind)) throw new ArgumentOutOfRangeException(nameof(kind));
         if (minimumRating is < 1 or > 5) throw new ArgumentOutOfRangeException(nameof(minimumRating), "Ratings are whole values from 1 to 5.");
         if (!Enum.IsDefined(sound)) throw new ArgumentOutOfRangeException(nameof(sound));
+        if (textFields == MediaTextFields.None || (textFields & ~MediaTextFields.All) != 0) throw new ArgumentOutOfRangeException(nameof(textFields));
         FrozenSet<MediaLibraryKindFilter> kindSet = CanonicalKinds(kind, kinds);
         // A sound filter concerns videos only: the type set must leave videos in (an empty set does).
         if (sound != MediaLibrarySoundFilter.Any && kindSet.Count > 0 && !kindSet.Contains(MediaLibraryKindFilter.Video))
@@ -68,6 +78,8 @@ internal sealed record MediaLibraryFilter
         Board = string.IsNullOrEmpty(board) ? null : board;
         NameContains = name;
         TextWords = words;
+        // Where to look means nothing without a word: such a filter is the same as no text, whatever scope was named.
+        TextFields = words.Length == 0 ? MediaTextFields.All : textFields;
         Thread = thread;
         Sound = sound;
         WithoutMediaTags = withoutMediaTags;
@@ -164,6 +176,11 @@ internal sealed record MediaLibraryFilter
     /// (<c>\"</c> and <c>\\</c> escape inside them, as in the query syntax). Slashes and every other character are literal ("/kot/").
     /// </summary>
     internal IReadOnlyList<string> TextWords { get; }
+    /// <summary>
+    /// The fields <see cref="TextWords"/> are looked for in (default <see cref="MediaTextFields.All"/>; always All without words). Every word
+    /// must hit in at least one of them. A scope that holds <see cref="MediaTextFields.Tag"/> needs the tag index (<see cref="MediaLibraryFilterEngine.Validate"/>).
+    /// </summary>
+    internal MediaTextFields TextFields { get; }
     /// <summary>The thread as a meta tag: only media of exactly this thread.</summary>
     internal ResourceId? Thread { get; }
     /// <summary>With or without sound; videos whose sound is not known are shown for neither choice.</summary>
@@ -179,13 +196,13 @@ internal sealed record MediaLibraryFilter
     public bool Equals(MediaLibraryFilter? other) => other != null && Equals(Tags, other.Tags) && Kinds.SetEquals(other.Kinds)
         && FavoritesOnly == other.FavoritesOnly && MinimumRating == other.MinimumRating && Source == other.Source && Board == other.Board
         && ExcludeSources.SetEquals(other.ExcludeSources) && ExcludeBoards.SetEquals(other.ExcludeBoards)
-        && NameContains == other.NameContains && Equals(Thread, other.Thread) && Sound == other.Sound && WithoutMediaTags == other.WithoutMediaTags;
+        && NameContains == other.NameContains && TextFields == other.TextFields && Equals(Thread, other.Thread) && Sound == other.Sound && WithoutMediaTags == other.WithoutMediaTags;
 
     public override int GetHashCode()
     {
         HashCode hash = new();
         hash.Add(Tags); hash.Add(FavoritesOnly); hash.Add(MinimumRating); hash.Add(Source); hash.Add(Board);
-        hash.Add(NameContains); hash.Add(Thread); hash.Add(Sound); hash.Add(WithoutMediaTags);
+        hash.Add(NameContains); hash.Add(TextFields); hash.Add(Thread); hash.Add(Sound); hash.Add(WithoutMediaTags);
         // Order-independent over the sets, so equal sets hash alike whatever their enumeration order.
         int kinds = 0, sources = 0, boards = 0;
         foreach (MediaLibraryKindFilter kind in Kinds) kinds ^= (int)kind * 397 + 17;
@@ -281,6 +298,18 @@ internal sealed class MediaLibraryUserData
         return result;
     }
 
+    /// <summary>
+    /// Whether the occurrence carries any of the given tags (its own, or those of its thread): the same tags as <see cref="TagsOf"/>, asked
+    /// without building the set. Requires available tags.
+    /// </summary>
+    internal bool CarriesAnyTag(MediaLibraryEntry entry, IReadOnlySet<Guid> wanted)
+    {
+        (HashSet<Guid>? threadTags, HashSet<Guid>? ownTags, _) = Carried(entry);
+        foreach (Guid tag in wanted)
+            if (threadTags?.Contains(tag) == true || ownTags?.Contains(tag) == true) return true;
+        return false;
+    }
+
     /// <summary>The number of tags <see cref="TagsOf"/> would hold, counted without building the set (the tag count sort asks for every entry).</summary>
     internal int TagCountOf(MediaLibraryEntry entry)
     {
@@ -334,10 +363,19 @@ internal sealed class MediaLibraryUserData
 }
 
 /// <summary>
+/// One occurrence of the text tally: it passes every part of the filter that is not the text, and every word of the text hits somewhere
+/// (the scope "All"). <paramref name="Fields"/> are the fields in which <i>every</i> word hits on its own; empty when the words only match
+/// spread over several fields.
+/// </summary>
+internal readonly record struct MediaTextTally(MediaLibraryEntry Entry, MediaTextFields Fields);
+
+/// <summary>
 /// Entries that passed a filter, and how many videos could not be judged for a sound filter because their
 /// sound is not known (not probed yet, or the headers did not tell). Those videos are in neither answer.
+/// <see cref="TextTally"/> (null without a text) lists the occurrences that pass everything but the text scope, whatever
+/// <see cref="MediaLibraryFilter.TextFields"/> says: the numbers of the page's "where was it found" row, which do not depend on the chosen scope.
 /// </summary>
-internal sealed record MediaLibraryFilterResult(IReadOnlyList<MediaLibraryEntry> Passing, int UnknownSoundVideos);
+internal sealed record MediaLibraryFilterResult(IReadOnlyList<MediaLibraryEntry> Passing, int UnknownSoundVideos, IReadOnlyList<MediaTextTally>? TextTally = null);
 
 /// <summary>Pure filter step of the media page; runs before sorting. No IO.</summary>
 internal static class MediaLibraryFilterEngine
@@ -353,6 +391,7 @@ internal static class MediaLibraryFilterEngine
     /// Like <see cref="Apply"/>, and counts the videos (distinct bytes) that pass every other part of the filter but
     /// whose sound is unknown, so the page can say how many it could not judge instead of counting them as silent.
     /// A video that is not saved has no file to look at and is neither shown nor counted for a sound filter.
+    /// With a text it also tallies, in the same pass, where the words were found (<see cref="MediaLibraryFilterResult.TextTally"/>).
     /// </summary>
     internal static MediaLibraryFilterResult Evaluate(IEnumerable<MediaLibraryEntry> entries, MediaLibraryFilter filter,
         MediaLibraryUserData data, MediaAudioMap? audio = null)
@@ -364,14 +403,15 @@ internal static class MediaLibraryFilterEngine
         Validate(filter, data);
         List<MediaLibraryEntry> passing = new();
         HashSet<string> unknown = new(StringComparer.Ordinal);
-        TextMatch? text = filter.TextWords.Count > 0 ? new TextMatch(filter.TextWords) : null;
+        TextMatch? text = filter.TextWords.Count > 0 ? new TextMatch(filter.TextWords, filter.TextFields, data) : null;
+        List<MediaTextTally>? tally = text == null ? null : new();
         foreach (MediaLibraryEntry entry in entries)
-            switch (Verdict(entry, filter, data, audio, text))
+            switch (Verdict(entry, filter, data, audio, text, tally))
             {
                 case Judgement.Pass: passing.Add(entry); break;
                 case Judgement.SoundUnknown: unknown.Add(MediaAudioMap.KeyOf(entry)!); break;
             }
-        return new(passing, unknown.Count);
+        return new(passing, unknown.Count, tally);
     }
 
     /// <summary>Checks that every store the filter needs is available and every tag still exists.</summary>
@@ -386,6 +426,10 @@ internal static class MediaLibraryFilterEngine
         }
         // "Without media tags" needs the tags as much as a tag filter: unavailable tags never read as "no tags".
         if (filter.WithoutMediaTags && data.TagSnapshot == null) throw new MediaLibraryFilterException(MediaLibraryFilterError.TagsUnavailable);
+        // A text that names the tags as a place to look (in:tag) needs them like a tag filter. The default scope (every field) does not:
+        // without tags the other four fields answer, and the page's tag part is left out quietly.
+        if (filter.TextWords.Count > 0 && filter.TextFields != MediaTextFields.All && (filter.TextFields & MediaTextFields.Tag) != 0 && data.TagSnapshot == null)
+            throw new MediaLibraryFilterException(MediaLibraryFilterError.TagsUnavailable);
         if (filter.FavoritesOnly && data.FavoriteSource == null) throw new MediaLibraryFilterException(MediaLibraryFilterError.FavoritesUnavailable);
         if (filter.MinimumRating != null && data.RatingSource == null) throw new MediaLibraryFilterException(MediaLibraryFilterError.RatingsUnavailable);
     }
@@ -393,9 +437,17 @@ internal static class MediaLibraryFilterEngine
     private enum Judgement { Fail, Pass, SoundUnknown }
 
     private static Judgement Verdict(MediaLibraryEntry entry, MediaLibraryFilter filter, MediaLibraryUserData data, MediaAudioMap? audio,
-        TextMatch? text)
+        TextMatch? text, List<MediaTextTally>? tally)
     {
-        if (!Matches(entry, filter, data, text)) return Judgement.Fail;
+        if (!Matches(entry, filter, data, text, out TextOutcome outcome)) return Judgement.Fail;
+        Judgement sound = SoundJudgement(entry, filter, audio);
+        // The tally holds what passes everything but the text scope: a video whose sound is unknown is in no answer, so it is not in it either.
+        if (tally != null && sound == Judgement.Pass) tally.Add(new MediaTextTally(entry, outcome.Fields));
+        return outcome.InScope ? sound : Judgement.Fail;
+    }
+
+    private static Judgement SoundJudgement(MediaLibraryEntry entry, MediaLibraryFilter filter, MediaAudioMap? audio)
+    {
         if (filter.Sound == MediaLibrarySoundFilter.Any) return Judgement.Pass;
         // Sound is a property of saved videos only; the type check is part of "implies videos".
         if (KindOf(entry) != MediaLibraryKindFilter.Video || !MediaLibraryAudioScanner.IsProbeable(entry)) return Judgement.Fail;
@@ -407,15 +459,24 @@ internal static class MediaLibraryFilterEngine
         };
     }
 
-    private static bool Matches(MediaLibraryEntry entry, MediaLibraryFilter filter, MediaLibraryUserData data, TextMatch? text)
+    /// <summary>
+    /// True when the entry passes every part of the filter but the text scope: the text must hit under "All" (every word in some field),
+    /// <paramref name="outcome"/> then says whether it also hits in the chosen scope and where every word hits on its own.
+    /// </summary>
+    private static bool Matches(MediaLibraryEntry entry, MediaLibraryFilter filter, MediaLibraryUserData data, TextMatch? text, out TextOutcome outcome)
     {
+        outcome = TextOutcome.NoText;
         if (filter.Thread != null && entry.Thread != filter.Thread) return false;
         if (filter.Source != null && !string.Equals(entry.Thread.Source, filter.Source, StringComparison.Ordinal)) return false;
         if (filter.Board != null && !string.Equals(entry.Thread.Board, filter.Board, StringComparison.Ordinal)) return false;
         if (filter.ExcludeSources.Count > 0 && filter.ExcludeSources.Contains(entry.Thread.Source)) return false;
         if (filter.ExcludeBoards.Count > 0 && filter.ExcludeBoards.Contains(new MediaLibraryBoardKey(entry.Thread.Source, entry.Thread.Board))) return false;
         if (filter.Kinds.Count > 0 && !filter.Kinds.Contains(KindOf(entry))) return false;
-        if (text != null && !text.Matches(entry)) return false;
+        if (text != null)
+        {
+            outcome = text.Evaluate(entry);
+            if (!outcome.UnderAll) return false;
+        }
         if (filter.FavoritesOnly && !data.IsFavorite(entry)) return false;
         if (filter.MinimumRating is int minimum && !(data.RatingOf(entry) >= minimum)) return false;
         if (filter.WithoutMediaTags && !data.LacksMediaTags(entry)) return false;
@@ -429,45 +490,102 @@ internal static class MediaLibraryFilterEngine
         return true;
     }
 
-    /// <summary>
-    /// The free text part of one evaluation: every word must occur (ignoring case) in the file name or the thread title, or be the board or the
-    /// source. The three thread fields are the same for every occurrence of a thread, so they are searched once per thread (a large library
-    /// has many files in few threads) and the answer is kept for this evaluation only; the file name is searched per occurrence.
-    /// </summary>
-    private sealed class TextMatch(IReadOnlyList<string> words)
+    /// <summary>What the text said about one entry: every word hits somewhere (<paramref name="UnderAll"/>), also in the chosen scope
+    /// (<paramref name="InScope"/>), and the fields in which every word hits on its own.</summary>
+    private readonly record struct TextOutcome(bool UnderAll, bool InScope, MediaTextFields Fields)
     {
-        private readonly Dictionary<ResourceId, (string Title, bool[] Hits)> _threads = new();
+        internal static readonly TextOutcome NoText = new(true, true, MediaTextFields.All);
+    }
 
-        internal bool Matches(MediaLibraryEntry entry)
+    /// <summary>Test seam: the number of thread searches of the text on the calling thread so far (see <see cref="TextMatch"/>).</summary>
+    internal static int ThreadSearchCount => TextMatch.ThreadSearches;
+
+    /// <summary>
+    /// Whether a word hits in one field of an entry: the one place that decides it, so the filter and the counts of the page agree.
+    /// File name and thread title are searched as text (ignoring case); the board and the source are identifiers and match as a whole
+    /// ("g" and "/g/" are the board g, "4chan" the source, "chan" none of them). The tag is no field of the entry itself: see <see cref="TextMatch"/>.
+    /// </summary>
+    internal static bool FieldHit(MediaTextFields field, MediaLibraryEntry entry, string word) => field switch
+    {
+        MediaTextFields.Name => Contains(entry.Name, word),
+        MediaTextFields.Title => Contains(entry.ThreadTitle, word),
+        MediaTextFields.Board => entry.Thread.Board is { } board && string.Equals(board, word.Trim('/'), StringComparison.OrdinalIgnoreCase),
+        MediaTextFields.Source => entry.Thread.Source is { } source && string.Equals(source, word, StringComparison.OrdinalIgnoreCase),
+        _ => false
+    };
+
+    private static bool Contains(string? field, string word) => field != null && field.Contains(word, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The free text part of one evaluation: every word must hit (ignoring case) in a field of the scope. The three thread fields (title,
+    /// board, source) are the same for every occurrence of a thread, so they are searched once per thread (a large library has many files
+    /// in few threads) and the answer is kept for this evaluation only; the file name is searched per occurrence. The tag field is the
+    /// own tags of the occurrence and its thread: the tags whose name contains a word are found once per evaluation, then each occurrence
+    /// asks for a set lookup. Without the tag index the tag field does not exist (the other fields answer).
+    /// </summary>
+    private sealed class TextMatch
+    {
+        private readonly IReadOnlyList<string> _words;
+        private readonly MediaTextFields _scope, _available;
+        private readonly MediaLibraryUserData _data;
+        private readonly HashSet<Guid>?[]? _tagIds;
+        private readonly Dictionary<ResourceId, (string? Title, MediaTextFields[] Hits)> _threads = new();
+
+        internal TextMatch(IReadOnlyList<string> words, MediaTextFields scope, MediaLibraryUserData data)
         {
-            bool[]? thread = null;
+            _words = words;
+            _scope = scope;
+            _data = data;
+            bool tags = data.TagSnapshot != null;
+            _available = tags ? MediaTextFields.All : MediaTextFields.All & ~MediaTextFields.Tag;
+            if (!tags) return;
+            _tagIds = new HashSet<Guid>?[words.Count];
             for (int i = 0; i < words.Count; i++)
             {
-                if (entry.Name != null && entry.Name.Contains(words[i], StringComparison.OrdinalIgnoreCase)) continue;
-                thread ??= ThreadHits(entry);
-                if (!thread[i]) return false;
+                HashSet<Guid> ids = data.TagSnapshot!.Tags.Where(tag => Contains(tag.Name.Display, words[i])).Select(tag => tag.Id.Value).ToHashSet();
+                _tagIds[i] = ids.Count == 0 ? null : ids;
             }
-            return true;
         }
 
-        private bool[] ThreadHits(MediaLibraryEntry entry)
+        internal TextOutcome Evaluate(MediaLibraryEntry entry)
+        {
+            MediaTextFields common = _available; // the fields in which every word hits so far
+            bool inScope = true;
+            MediaTextFields[]? thread = null;
+            for (int i = 0; i < _words.Count; i++)
+            {
+                string word = _words[i];
+                thread ??= ThreadHits(entry);
+                MediaTextFields hits = thread[i];
+                if (FieldHit(MediaTextFields.Name, entry, word)) hits |= MediaTextFields.Name;
+                if (_tagIds?[i] is { } ids && _data.CarriesAnyTag(entry, ids)) hits |= MediaTextFields.Tag;
+                hits &= _available;
+                if (hits == MediaTextFields.None) return new TextOutcome(false, false, MediaTextFields.None); // a word nowhere: no scope can answer
+                common &= hits;
+                if ((hits & _scope) == MediaTextFields.None) inScope = false;
+            }
+            return new TextOutcome(true, inScope, common);
+        }
+
+        private MediaTextFields[] ThreadHits(MediaLibraryEntry entry)
         {
             // Keyed by the thread; the title is compared too, so an index that carries two titles for one thread is never answered wrongly.
-            if (_threads.TryGetValue(entry.Thread, out (string Title, bool[] Hits) known) && string.Equals(known.Title, entry.ThreadTitle, StringComparison.Ordinal))
+            if (_threads.TryGetValue(entry.Thread, out (string? Title, MediaTextFields[] Hits) known) && string.Equals(known.Title, entry.ThreadTitle, StringComparison.Ordinal))
                 return known.Hits;
-            bool[] hits = new bool[words.Count];
-            for (int i = 0; i < words.Count; i++)
-                hits[i] = Contains(entry.ThreadTitle, words[i]) || IsBoard(entry.Thread.Board, words[i]) || IsSource(entry.Thread.Source, words[i]);
+            MediaTextFields[] hits = new MediaTextFields[_words.Count];
+            for (int i = 0; i < hits.Length; i++)
+                foreach (MediaTextFields field in ThreadFields)
+                    if (FieldHit(field, entry, _words[i])) hits[i] |= field;
             _threads[entry.Thread] = (entry.ThreadTitle, hits);
+            _threadSearches++;
             return hits;
         }
 
-        private static bool Contains(string? field, string word) => field != null && field.Contains(word, StringComparison.OrdinalIgnoreCase);
+        // Test seam: how often a thread's own fields were searched on this thread (once per thread and evaluation, not once per file).
+        [ThreadStatic] private static int _threadSearches;
+        internal static int ThreadSearches => _threadSearches;
 
-        // Board and source are identifiers, not prose: a word names one as a whole ("g" and "/g/" the board g, "4chan" the source), so a
-        // short word such as "chan" or "4" does not hit every file of a source. The thread title and the file name stay substring searches.
-        private static bool IsBoard(string? board, string word) => board != null && string.Equals(board, word.Trim('/'), StringComparison.OrdinalIgnoreCase);
-        private static bool IsSource(string? source, string word) => source != null && string.Equals(source, word, StringComparison.OrdinalIgnoreCase);
+        private static readonly MediaTextFields[] ThreadFields = [MediaTextFields.Title, MediaTextFields.Board, MediaTextFields.Source];
     }
 
     /// <summary>Type for the filter. GIF only by the .gif ending; unknown kinds count as other.</summary>
