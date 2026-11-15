@@ -93,6 +93,22 @@ public sealed class ReaderMediaFitTests : IDisposable
         Assert.Equal(0, ReaderMediaFit.ScrollDelta(frameTop, frameTop + frame, viewport));
     }
 
+    // A5(a): a card that was not arranged yet caps its frame with the list's last measured chrome, not the fixed estimate.
+    [Fact]
+    public void ChromeMemoUsesTheLastMeasurementForACardNotArrangedYet()
+    {
+        ReaderMediaFit.ChromeMemo memo = new();
+        Assert.Equal(ReaderMediaFit.HeaderEstimate, memo.Header(double.NaN)); // nothing measured yet
+        Assert.Equal(ReaderMediaFit.HeaderEstimate, memo.Header(0));          // a layout at its card's origin is no measurement
+        Assert.Equal(41, memo.Header(41));
+        Assert.Equal(41, memo.Header(0));
+        Assert.Equal(41, memo.Header(double.NaN));
+        Assert.Equal(4, memo.Column(4, isMeasurement: false));  // before any measurement the caller's own value stays
+        Assert.Equal(24, memo.Column(24, isMeasurement: true));
+        Assert.Equal(24, memo.Column(4, isMeasurement: false));
+        Assert.Equal(30, memo.Column(30, isMeasurement: true));
+    }
+
     [Fact]
     public void UnusablePictureSizeIsReturnedUnchanged()
     {

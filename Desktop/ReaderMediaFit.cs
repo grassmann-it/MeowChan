@@ -28,6 +28,34 @@ internal static class ReaderMediaFit
     internal const double AlignedAir = AlignedTop + CardMarginBelow + ScrollMargin;
 
     /// <summary>
+    /// The last measured chrome of one reader list's cards. A card that was realized but not arranged yet cannot measure its header (its
+    /// layout reports no offset in its card) nor its file line; its cap then uses what the list's last arranged card measured instead of
+    /// a fixed estimate, so the enlarged frame has its final height in the first layout and is not shrunk once more after the jump.
+    /// </summary>
+    internal sealed class ChromeMemo
+    {
+        private double _header = HeaderEstimate;
+        private double _column = double.NaN;
+
+        /// <summary>The header height: <paramref name="measured"/> when it is a measurement (positive, finite), which is then remembered.</summary>
+        internal double Header(double measured)
+        {
+            if (double.IsFinite(measured) && measured > 0) _header = measured;
+            return _header;
+        }
+
+        /// <summary>
+        /// The height around the frame in the attachment column (file line, video row, provenance): <paramref name="measured"/> when the
+        /// column was measured, which is then remembered; otherwise the remembered value, or <paramref name="measured"/> before any.
+        /// </summary>
+        internal double Column(double measured, bool isMeasurement)
+        {
+            if (isMeasurement && double.IsFinite(measured)) return _column = measured;
+            return double.IsFinite(_column) ? _column : measured;
+        }
+    }
+
+    /// <summary>
     /// The height a medium's frame may use: the viewport minus <paramref name="chromeHeight"/> (header, file line, paddings) and minus
     /// <paramref name="air"/> (what the viewport keeps free around the card, <see cref="AlignedAir"/> in the reader). NaN when the viewport
     /// is not known (no cap then); never below one dip.
