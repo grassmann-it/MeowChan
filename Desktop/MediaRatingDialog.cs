@@ -108,7 +108,20 @@ internal sealed class MediaRatingDialog : Window
         Texts.Changed += OnLanguageChanged;
         ApplyTexts();
         Closing += (_, e) => e.Cancel = _busy;
-        Opened += (_, _) => { _rating.Value = _confirmed ?? 0; _rating.Focus(); };
+        // Review 15.11.: a dialog opened by a mouse click on the owner is not activated by every window manager, and a non-active dialog
+        // can end up below an active fullscreen owner (KWin's fullscreen layer). Activate it and put the focus on the stars, by any path.
+        Opened += (_, _) =>
+        {
+            _rating.Value = _confirmed ?? 0;
+            Activate();
+            _rating.Focus();
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (Volatile.Read(ref _closed) || !IsVisible) return;
+                if (!IsActive) Activate();
+                if (!_rating.IsKeyboardFocusWithin && !_busy) _rating.Focus();
+            }, DispatcherPriority.Loaded);
+        };
     }
     private void OnLanguageChanged(object? sender, EventArgs args)
     {

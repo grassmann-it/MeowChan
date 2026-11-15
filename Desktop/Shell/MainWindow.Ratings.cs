@@ -20,16 +20,20 @@ public partial class MainWindow
         if (_ratingChanges.Contains(key)) return;
         Control? origin = FocusManager?.GetFocusedElement() as Control;
         _ratingDialogOpen = true;
+        // Review 15.11.: opened over the gallery, the dialog pauses a playing video and a running slideshow; only those resume after it.
+        GalleryViewer? held = _gallery is { } shown && !_gallerySuspended ? shown : null;
         try
         {
             int? value = _session.GetMediaRating(key);
             MediaRatingDialog dialog = new(key, value, rating => SetMediaRatingAsync(key, rating));
+            held?.BeginDialogPlaybackHold();
             await dialog.ShowDialog(this);
         }
         catch (Exception) { RefreshGalleryRating(); throw; }
         finally
         {
             _ratingDialogOpen = false;
+            if (held != null && !_isClosing) await held.EndDialogPlaybackHoldAsync();
             if (_gallery != null && !_gallerySuspended)
             {
                 // A19: a rating action the view keeps under More returns focus to More, not to the closed menu's hidden row.

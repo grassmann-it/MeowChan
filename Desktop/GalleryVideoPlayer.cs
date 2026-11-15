@@ -227,6 +227,13 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
     }
     internal Task PlayAsync() => SetPlaybackModeAsync(VideoPlaybackMode.Playing);
     internal Task PauseAsync() => SetPlaybackModeAsync(VideoPlaybackMode.Paused);
+
+    /// <summary>The video is playing now (not paused, stopped or at its end).</summary>
+    internal bool IsPlayingNow => !_ended && _intent.Current.Mode == VideoPlaybackMode.Playing;
+
+    // A modal dialog over the gallery holds the video silently: it is no user Play/Pause, so the slideshow does not react to it.
+    internal Task PauseForDialogAsync() => SetPlaybackModeAsync(VideoPlaybackMode.Paused, notify: false);
+    internal Task ResumeAfterDialogAsync() => SetPlaybackModeAsync(VideoPlaybackMode.Playing, notify: false);
     internal Task StopPlaybackAsync() => SetPlaybackModeAsync(VideoPlaybackMode.Stopped);
 
     // Slideshow uses a silent, idempotent command: reflecting a user Play must not publish
