@@ -58,7 +58,8 @@ internal sealed partial class GalleryVideoPlayer
     private readonly Canvas _volumeCanvas = new();
     private readonly Border _volumePopup = new()
     {
-        Name = "GalleryVideoVolumePopup", IsVisible = false, Width = 32, Padding = new Thickness(0, 8), BorderThickness = new Thickness(1),
+        Name = "GalleryVideoVolumePopup", IsVisible = false, Width = 32, BorderThickness = new Thickness(1),
+        [!Border.PaddingProperty] = new DynamicResourceExtension("Workspace.Inset.VolumePopup"),
         [!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.Panel"),
         [!Border.BorderBrushProperty] = new DynamicResourceExtension("Workspace.ControlBorder"),
         [!Border.CornerRadiusProperty] = new DynamicResourceExtension("Workspace.Radius.Control")
@@ -194,6 +195,8 @@ internal sealed partial class GalleryVideoPlayer
         _volume.Width = popup ? 32 : 80;
         _volume.Height = popup ? 80 : 32;
         _volume.HorizontalAlignment = HorizontalAlignment.Center;
+        // The vertical track is 4 dip wide: an even width sits exactly on the middle of the 12 dip thumb and the box (3 left half a dip off).
+        _volume.Resources["SliderTrackWidth"] = popup ? 4d : 3d;
         if (popup) _volumePopup.Child = _volume;
         else
         {
