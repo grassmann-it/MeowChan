@@ -125,6 +125,8 @@
 - Raise the minimum height of the archive metadata, gallery details, media occurrences,
   reader-group prompt, saved searches, experimental activation and startup error windows so
   the footer stays visible below the title bar.
+- Widen the Archive list pane by default (270 to 330 dip, still 180 to 1200) so the whole search
+  placeholder fits next to the scope chip and the search button. A width you dragged to stays.
 - Add plugin SDK 1.1.0 (booru post search, blocked-declaration status), reviewed and
   moved to Shipped, with a one-time automatic transition for bundled plugins that only
   change the declared SDK version. The booru post identity is `BooruPostId` (renamed before

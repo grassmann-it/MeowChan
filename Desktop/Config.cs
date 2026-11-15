@@ -19,7 +19,7 @@ namespace MeowChan
         public bool ArchiveMediaTiles { get; set; } = true;
         public string ReadingFontSize { get; set; } = "Normal";
         public string ArchiveThreadLayout { get; set; } = "List";
-        public double ArchiveSplitWidth { get; set; } = 270;
+        public double ArchiveSplitWidth { get; set; } = Config.ArchiveSplitWidthDefault;
         [JsonConverter(typeof(DesktopPreferenceColumnWidthsConverter))]
         public Dictionary<string, double> ColumnWidths { get; set; } = new(StringComparer.Ordinal);
         public Dictionary<string, bool> ColumnVisibility { get; set; } = new(StringComparer.Ordinal);
@@ -959,7 +959,7 @@ namespace MeowChan
             result.ReadingFontSize = string.Equals(profile.ReadingFontSize?.Trim(), "Small", StringComparison.OrdinalIgnoreCase) ? "Small"
                 : string.Equals(profile.ReadingFontSize?.Trim(), "Large", StringComparison.OrdinalIgnoreCase) ? "Large" : "Normal";
             result.ArchiveThreadLayout = string.Equals(profile.ArchiveThreadLayout?.Trim(), "Table", StringComparison.OrdinalIgnoreCase) ? "Table" : "List";
-            result.ArchiveSplitWidth = double.IsFinite(profile.ArchiveSplitWidth) ? Math.Clamp(profile.ArchiveSplitWidth, 180, 1200) : 270;
+            result.ArchiveSplitWidth = NormalizeLoadedArchiveSplitWidth(profile.ArchiveSplitWidth);
             return result;
         }
 
@@ -1173,11 +1173,27 @@ namespace MeowChan
         /// ColumnWidths["gallery.panelWidth"]; outside the limits it is clamped.
         /// </summary>
         internal const int GalleryPanelWidthDefault = 320, GalleryPanelWidthMinimum = 280, GalleryPanelWidthMaximum = 480;
+        /// <summary>
+        /// Width of the archive list pane (left of the detail pane) in dip, dragged at the splitter; a view preference of the layout
+        /// profile. The default holds the complete English search placeholder next to the scope chip and the search button
+        /// (measured by ArchiveListWidthChecks); outside the limits a saved value is clamped.
+        /// </summary>
+        internal const double ArchiveSplitWidthDefault = 330, ArchiveSplitWidthMinimum = 180, ArchiveSplitWidthMaximum = 1200;
+        /// <summary>The default before the list pane was widened. Every profile saved so far holds it, whether dragged or never touched, so a loaded 270 reads as "never customised".</summary>
+        internal const double ArchiveSplitWidthPreviousDefault = 270;
+
+        internal static double NormalizeArchiveSplitWidth(double width) =>
+            double.IsFinite(width) ? Math.Clamp(width, ArchiveSplitWidthMinimum, ArchiveSplitWidthMaximum) : ArchiveSplitWidthDefault;
+
+        /// <summary>For a value read from a file or an import: the previous default moves to the new one, any other saved width stays.</summary>
+        internal static double NormalizeLoadedArchiveSplitWidth(double width) =>
+            width == ArchiveSplitWidthPreviousDefault ? ArchiveSplitWidthDefault : NormalizeArchiveSplitWidth(width);
+
         [JsonConverter(typeof(DesktopPreferenceSplitWidthConverter))]
         public double ArchiveSplitWidth
         {
             get => ActiveProfile.ArchiveSplitWidth;
-            set => ActiveProfile.ArchiveSplitWidth = double.IsFinite(value) ? Math.Clamp(value, 180, 1200) : 270;
+            set => ActiveProfile.ArchiveSplitWidth = NormalizeArchiveSplitWidth(value);
         }
 
         [JsonConverter(typeof(DesktopPreferenceWindowWidthConverter))]
@@ -2780,9 +2796,9 @@ namespace MeowChan
         public override double Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
             if (reader.TokenType == JsonTokenType.Number && reader.TryGetDouble(out double value) && double.IsFinite(value))
-                return Math.Clamp(value, 180, 1200);
+                return Config.NormalizeLoadedArchiveSplitWidth(value);
             reader.Skip();
-            return 270;
+            return Config.ArchiveSplitWidthDefault;
         }
         public override void Write(Utf8JsonWriter writer, double value, JsonSerializerOptions options) => writer.WriteNumberValue(value);
     }

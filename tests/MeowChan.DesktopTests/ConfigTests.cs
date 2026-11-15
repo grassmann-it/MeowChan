@@ -726,7 +726,7 @@ public sealed class ConfigTests
         Assert.True(loaded.ShowShortcutHelp);
         Assert.False(loaded.GalleryContextOpen);
         Assert.Equal("List", loaded.ArchiveThreadLayout);
-        Assert.Equal(270, loaded.ArchiveSplitWidth);
+        Assert.Equal(Config.ArchiveSplitWidthDefault, loaded.ArchiveSplitWidth);
 
         Config changed = loaded.Clone();
         changed.Theme = "System";
@@ -751,6 +751,40 @@ public sealed class ConfigTests
         Assert.Equal(360, roundTrip.ArchiveSplitWidth);
     }
 
+    [Theory]
+    [InlineData(270d, 330d)]     // the previous default reads as "never customised" and follows the new default
+    [InlineData(300d, 300d)]     // any other saved width stays
+    [InlineData(331d, 331d)]
+    [InlineData(100d, 180d)]     // outside the limits: clamped
+    [InlineData(5000d, 1200d)]
+    public void ASavedArchiveListWidthKeepsItsValueAndOnlyThePreviousDefaultMovesToTheNewOne(double saved, double expected)
+    {
+        Assert.Equal(330d, Config.ArchiveSplitWidthDefault);
+        Assert.Equal(180d, Config.ArchiveSplitWidthMinimum);
+        Assert.Equal(1200d, Config.ArchiveSplitWidthMaximum);
+        string width = saved.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        foreach (string json in new[]
+        {
+            "{\"ArchiveSplitWidth\":" + width + "}",
+            "{\"LayoutProfiles\":{\"Barebones\":{\"ArchiveSplitWidth\":" + width + "}}}",
+        })
+        {
+            using TempDirectory directory = new();
+            File.WriteAllText(SettingsPath(directory), json);
+            Assert.Equal(expected, Config.LoadConfig(directory.Path).ArchiveSplitWidth);
+        }
+    }
+
+    [Fact]
+    public void AnUnsavedArchiveListWidthIsTheNewDefaultAndAnExplicitChoiceOfThePreviousDefaultSurvivesTheSession()
+    {
+        using TempDirectory directory = new();
+        Config config = Config.LoadConfig(directory.Path);
+        Assert.Equal(Config.ArchiveSplitWidthDefault, config.ArchiveSplitWidth);
+        config.ArchiveSplitWidth = Config.ArchiveSplitWidthPreviousDefault;
+        Assert.Equal(Config.ArchiveSplitWidthPreviousDefault, config.ArchiveSplitWidth);
+    }
+
     [Fact]
     public void MalformedNewPresentationPreferencesDoNotDiscardDownloadSettings()
     {
@@ -766,7 +800,7 @@ public sealed class ConfigTests
         Assert.True(loaded.VideoAutoplay);
         Assert.True(loaded.ShowShortcutHelp);
         Assert.Equal(70, loaded.VideoVolume);
-        Assert.Equal(270, loaded.ArchiveSplitWidth);
+        Assert.Equal(Config.ArchiveSplitWidthDefault, loaded.ArchiveSplitWidth);
     }
 
     [Fact]
@@ -828,7 +862,7 @@ public sealed class ConfigTests
         Assert.Empty(config.ColumnVisibility);
         Assert.Empty(config.ColumnOrder);
         Assert.Equal("List", config.ArchiveThreadLayout);
-        Assert.Equal(270, config.ArchiveSplitWidth);
+        Assert.Equal(Config.ArchiveSplitWidthDefault, config.ArchiveSplitWidth);
         Assert.True(config.ArchiveMediaTiles);
         Assert.False(config.CompactDensity);
         Assert.Equal("Normal", config.ReadingFontSize);
