@@ -520,7 +520,10 @@ internal static class BooruMediaChecks
         await SmokeNavigation.GoToAsync(shell, MainWindow.WorkspacePage.Booru);
         ContentControl pageHost = shell.FindControl<ContentControl>("BooruPageHost")!;
         await UntilAsync(() => shell.SelectedPage == MainWindow.WorkspacePage.Booru
-            && pageHost.IsVisible && shell.BooruPageForTests is not null);
+            && pageHost.IsVisible
+            && shell.BooruPageForTests is { } candidate
+            && ReferenceEquals(pageHost.Content, candidate)
+            && TopLevel.GetTopLevel(candidate.View) == shell);
         BooruPage page = shell.BooruPageForTests!;
         Require(ReferenceEquals(pageHost.Content, page) && TopLevel.GetTopLevel(page.View) == shell,
             phase + ": the footer route did not open its own hosted Booru page.");

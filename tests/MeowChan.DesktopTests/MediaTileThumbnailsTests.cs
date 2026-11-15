@@ -108,8 +108,10 @@ public sealed class MediaTileThumbnailsTests
         VerifiedFileMemo memo = new();
         DateTime stamp = File.GetLastWriteTimeUtc(file);
         await using (await manifest.OpenSessionVerifiedReadAsync(entry.AssetId!, memo)) { }
-        Assert.Equal(1, memo.Count);
-        // Untouched: the remembered check stands.
+        // Unix reuses the identity memo; Windows deliberately hashes every session read because its change-time identity is
+        // not a reliable fence for a rapid same-length rewrite.
+        Assert.Equal(OperatingSystem.IsWindows() ? 0 : 1, memo.Count);
+        // Untouched: the remembered check stands on Unix; Windows repeats the safe full verification.
         await using (await manifest.OpenSessionVerifiedReadAsync(entry.AssetId!, memo)) { }
         // Same length, last write time restored (cp -p, rsync -a, a backup restore): the status-change time and the inode differ,
         // so the file is verified again and the changed bytes are refused.

@@ -81,9 +81,27 @@ internal static class TaggingPageChecks
             // says why it is off; for one selected entry "Tag together…" and the order of "Tag…" are as the spec lists them.
             MeowChan.Desktop.Controls.ContextMenuModel model = tagging.ListMenuModel() ?? throw new InvalidOperationException("No menu model for a selected entry.");
             string[] labels = model.Entries.Select(item => item.Label).ToArray();
-            Require(labels.SequenceEqual(new[] { "Continue tagging", "Edit tags…", "Tag together…", "Apply stamp", "Mark as done", "Mark as open",
-                "Mark as skipped", "Open in gallery", "Show in thread", "Show in Media", "Show in folder", "Copy file path", "Move up", "Move down",
-                "Move to the start", "Move to the end", "Remove from queue" }), "Context menu: " + string.Join(" | ", labels));
+            string[] expectedLabels =
+            {
+                MeowChan.Desktop.Commands.CommandCatalog.Label("tagging.continue-here"),
+                MeowChan.Desktop.Commands.CommandCatalog.Label("media.tags.edit"),
+                MeowChan.Desktop.Commands.CommandCatalog.Label("tagging.tag-together"),
+                MeowChan.Desktop.Commands.CommandCatalog.Label("tags.quick.stamp-apply"),
+                MeowChan.Desktop.Commands.CommandCatalog.Label("tagging.mark-done"),
+                MeowChan.Desktop.Commands.CommandCatalog.Label("tagging.mark-open"),
+                MeowChan.Desktop.Commands.CommandCatalog.Label("tagging.mark-skipped"),
+                MeowChan.Desktop.Commands.CommandCatalog.Label("gallery.open"),
+                MeowChan.Desktop.Commands.CommandCatalog.Label("gallery.show-in-thread"),
+                MeowChan.Desktop.Commands.CommandCatalog.Label("tagging.show-in-media"),
+                MeowChan.Desktop.Commands.CommandCatalog.Label("media.show-in-folder"),
+                MeowChan.Desktop.Commands.CommandCatalog.Label("media.copy-path"),
+                MeowChan.Desktop.Commands.CommandCatalog.Label("tagging.move-up"),
+                MeowChan.Desktop.Commands.CommandCatalog.Label("tagging.move-down"),
+                MeowChan.Desktop.Commands.CommandCatalog.Label("tagging.move-first"),
+                MeowChan.Desktop.Commands.CommandCatalog.Label("tagging.move-last"),
+                MeowChan.Desktop.Commands.CommandCatalog.Label("tagging.remove")
+            };
+            Require(labels.SequenceEqual(expectedLabels), "Context menu: " + string.Join(" | ", labels));
             Require(model.OversizedSections.Count == 0 && model.Entries.Where(item => !item.Available).All(item => !string.IsNullOrEmpty(item.Reason)),
                 "A disabled entry of the tagging menu has no reason, or a section is too long.");
             Require(!model.Entries.Single(item => item.Id == "tagging.tag-together").Available, "Tag together is on for a single entry.");
@@ -107,7 +125,12 @@ internal static class TaggingPageChecks
             Require(tagging.SelectionText.Text == "2 selected" && (string?)tagging.SelectionTagButton.Content == "Tag together…",
                 "Selection bar for two entries: '" + tagging.SelectionText.Text + "' / " + tagging.SelectionTagButton.Content);
             MeowChan.Desktop.Controls.ContextMenuModel stateMenu = tagging.StateMenuModel() ?? throw new InvalidOperationException("No state menu for a selection.");
-            Require(stateMenu.Entries.Select(item => item.Label).SequenceEqual(new[] { "Mark as done", "Mark as open", "Mark as skipped" }),
+            Require(stateMenu.Entries.Select(item => item.Label).SequenceEqual(new[]
+            {
+                MeowChan.Desktop.Commands.CommandCatalog.Label("tagging.mark-done"),
+                MeowChan.Desktop.Commands.CommandCatalog.Label("tagging.mark-open"),
+                MeowChan.Desktop.Commands.CommandCatalog.Label("tagging.mark-skipped")
+            }),
                 "State menu: " + string.Join(" | ", stateMenu.Entries.Select(item => item.Label)));
             // "Set state" (tagging.selection.state) sits on the bar in Advanced only; Barebones and Simple keep it under More, so the menu has no
             // button to open under there. Open it in Advanced and return to the work view the run started in.

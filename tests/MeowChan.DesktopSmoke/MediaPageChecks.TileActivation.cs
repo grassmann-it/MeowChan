@@ -71,7 +71,12 @@ internal static partial class MediaPageChecks
     private static async Task DoubleClickAtAsync(Control target, Point local, Window root)
     {
         Point at = target.TranslatePoint(local, root) ?? local;
-        Control hit = root.InputHitTest(at) as Control ?? target;
+        // InputHitTest on a synthetic window can resolve the scroll presenter instead of the recycled
+        // container whose bounds were just settled. Route the managed input from a tile child so the
+        // product handler receives the same item ancestry as a real pointer gesture.
+        Control hit = target is ListBoxItem
+            ? target.GetVisualDescendants().OfType<Control>().FirstOrDefault() ?? target
+            : target;
         using Pointer pointer = new(Pointer.GetNextFreeId(), PointerType.Mouse, true);
         for (int click = 1; click <= 2; click++)
         {
@@ -81,6 +86,12 @@ internal static partial class MediaPageChecks
                 new PointerPointProperties(RawInputModifiers.None, PointerUpdateKind.LeftButtonReleased), KeyModifiers.None, MouseButton.Left));
         }
         pointer.Capture(null);
+        // RaiseEvent delivers the managed pointer route but does not run Avalonia's input-manager gesture recognizer.
+        // Emit the resulting routed double-tap explicitly so this source-built smoke still exercises the product handler
+        // without depending on a native display input backend.
+        hit.RaiseEvent(new TappedEventArgs(InputElement.DoubleTappedEvent,
+            new PointerEventArgs(InputElement.PointerReleasedEvent, hit, pointer, root, at, 25,
+                PointerPointProperties.None, KeyModifiers.None)) { Source = hit });
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
     }
 

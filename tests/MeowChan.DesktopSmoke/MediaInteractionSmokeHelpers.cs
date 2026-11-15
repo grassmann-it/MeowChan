@@ -59,12 +59,31 @@ internal static class MediaInteractionSmokeHelpers
 
     internal static bool IsPointerTargetReady(Control target)
     {
-        if (!target.IsAttachedToVisualTree() || !target.IsArrangeValid || !target.IsEffectivelyVisible
-            || !target.IsEffectivelyEnabled || target.Bounds.Width <= 0 || target.Bounds.Height <= 0
-            || TopLevel.GetTopLevel(target) is not { } root) return false;
+        if (!IsNativeGeometryReady(target) || TopLevel.GetTopLevel(target) is not { } root) return false;
         PixelPoint pixel = target.PointToScreen(new Point(target.Bounds.Width / 2, target.Bounds.Height / 2));
         return root.InputHitTest(root.PointToClient(pixel)) is Visual hit
             && hit.GetSelfAndVisualAncestors().Contains(target);
+    }
+
+    /// <summary>Checks the current native popup-root geometry without trusting a stale cross-root hit-test cache.</summary>
+    internal static bool IsNativeGeometryReady(Control target)
+    {
+        if (!target.IsAttachedToVisualTree() || !target.IsArrangeValid || !target.IsEffectivelyVisible
+            || !target.IsEffectivelyEnabled || target.Bounds.Width <= 0 || target.Bounds.Height <= 0
+            || TopLevel.GetTopLevel(target) is not { IsVisible: true } root) return false;
+        try
+        {
+            PixelPoint pixel = target.PointToScreen(new Point(target.Bounds.Width / 2, target.Bounds.Height / 2));
+            Point local = root.PointToClient(pixel);
+            return new Rect(root.ClientSize).Contains(local);
+        }
+        catch (ArgumentException)
+        {
+            // Avalonia can retain a popup visual for one layout turn while its native
+            // root is being replaced. It is not a native target until the conversion
+            // succeeds; never synthesize a routed event for that interval.
+            return false;
+        }
     }
 
     /// <summary>Reveal an auto-hidden gallery transport, then wait for its current native hit geometry.</summary>
