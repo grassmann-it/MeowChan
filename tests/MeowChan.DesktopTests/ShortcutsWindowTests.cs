@@ -244,7 +244,10 @@ public sealed class ShortcutsWindowTests : IDisposable
             new[] { ShortcutGroups.Gallery, ShortcutGroups.TagPanel }));
         // The note of the former gallery help is no shortcut and stays reachable in the window.
         Assert.Contains(Texts.T("viewer.help.escape"), editor.PlainText);
-        Assert.Contains(Texts.T("viewer.help.escape"), ((TextBlock)Field(editor, "_notes")).Text!);
+        Assert.Contains(Texts.T("viewer.help.escape"), editor.NoteLines);
+        // The leading key of a hint is drawn as a keycap, like the keys in the table.
+        StackPanel notes = (StackPanel)Field(editor, "_notes");
+        Assert.Contains(notes.DescendantsOfType<Border>(), b => b.Classes.Contains("keycap") && ((TextBlock)b.Child!).Text == "Esc");
     }
 
     [Fact]
