@@ -2072,6 +2072,7 @@
     "command.reader.find-previous": "Najít předchozí",
     "command.reader.next-post": "Další příspěvek",
     "command.reader.open-quote": "Zobrazit citovaný příspěvek",
+    "command.reader.media.activate": "Otevřít médium příspěvku",
     "command.reader.show-replies": "Zobrazit odpovědi",
     "command.gallery.return": "Zpět do galerie",
     "command.media.return": "Zpět na média",

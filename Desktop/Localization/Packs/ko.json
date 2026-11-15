@@ -2282,6 +2282,7 @@
     "command.reader.find-previous": "이전 찾기",
     "command.reader.next-post": "다음 게시물",
     "command.reader.open-quote": "인용된 게시물 표시",
+    "command.reader.media.activate": "게시물의 미디어 열기",
     "command.reader.show-replies": "답글 표시",
     "command.gallery.return": "갤러리로 돌아가기",
     "command.media.return": "미디어로 돌아가기",

@@ -29,6 +29,7 @@ internal static class ReaderInteractionChecks
         try
         {
             await CheckReaderMediaActivationAsync(window, page);
+            await CheckSpaceOnSelectedPostAsync(window, page);
             await CheckPendingReaderMediaLifetimeAsync(window);
             await CheckNativeMediaKeysAsync(page);
         }
@@ -174,6 +175,45 @@ internal static class ReaderInteractionChecks
             page.BeforeReaderMediaActivationAsync = boundary;
             page.OpenGallery = open;
             page.IsAvailable = true;
+            await page.LoadThreadAsync(thread); await page.FocusPostAsync("1000"); await page.MediaLoadTask;
+        }
+    }
+
+    // Space on the selected post's medium under the gallery setting (compile-checked; run with the reader smokes): it opens the gallery at the post's first
+    // medium with an origin inside that post, so closing the gallery returns the focus to the same post; Down then moves on; a held Space acts once.
+    private static async Task CheckSpaceOnSelectedPostAsync(MainWindow window, ArchivePage page)
+    {
+        ResourceId thread = page.CurrentThread!.Summary.Id;
+        ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
+        var open = page.OpenGallery;
+        int opens = 0;
+        Control? origin = null;
+        try
+        {
+            page.OpenGallery = (_, _, from) => { opens++; origin = from; return Task.CompletedTask; };
+            window.Activate();
+            await Program.WaitUntilAsync(() => window.IsActive);
+            await page.FocusPostAsync("1001");
+            await page.MediaLoadTask;
+            await FlushAsync();
+            object? selected = posts.SelectedItem;
+            posts.Focus();
+            Press(posts, Key.Space);
+            await page.ReaderMediaActivationTask;
+            Require(opens == 1, "Space on the selected post did not open its medium in the gallery under the gallery setting.");
+            Require(origin != null && origin.GetSelfAndVisualAncestors().OfType<ListBoxItem>().Any(item => ReferenceEquals(item.DataContext, selected)),
+                "The gallery origin of Space is not inside the selected post, so closing the gallery could not return the focus to it.");
+            posts.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Space });
+            await page.ReaderMediaActivationTask;
+            Require(opens == 1, "A held Space opened the gallery twice.");
+            posts.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyUpEvent, Key = Key.Space });
+            Press(posts, Key.Down);
+            Require(!ReferenceEquals(posts.SelectedItem, selected), "Down did not move on from the post after Space.");
+            Console.WriteLine("SMOKE reader Space on the selected post: gallery setting, origin inside the post, held key and Down passed.");
+        }
+        finally
+        {
+            page.OpenGallery = open;
             await page.LoadThreadAsync(thread); await page.FocusPostAsync("1000"); await page.MediaLoadTask;
         }
     }

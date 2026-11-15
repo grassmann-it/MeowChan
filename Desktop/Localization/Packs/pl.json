@@ -2072,6 +2072,7 @@
     "command.reader.find-previous": "Znajdź poprzednie",
     "command.reader.next-post": "Następny post",
     "command.reader.open-quote": "Pokaż cytowany post",
+    "command.reader.media.activate": "Otwórz multimedia posta",
     "command.reader.show-replies": "Pokaż odpowiedzi",
     "command.gallery.return": "Wróć do galerii",
     "command.media.return": "Wróć do mediów",

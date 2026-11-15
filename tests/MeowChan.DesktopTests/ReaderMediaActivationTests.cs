@@ -148,11 +148,11 @@ public sealed class ReaderMediaActivationTests
         Assert.Null(ArchivePage.FindReaderMediaTarget(Thread, selected, Assets(bound)));
     }
 
-    [Theory]
-    [InlineData(Key.Enter)]
-    [InlineData(Key.Space)]
-    public void FixedContentGestureIsUnmodifiedOnlyAndPreservesEffectiveReaderAndShellRemaps(Key key)
+    // Space is the fixed content key (and the video's play / pause); Enter is the command "Open medium of the post", so its gesture is read from the bindings.
+    [Fact]
+    public void FixedContentGestureIsUnmodifiedOnlyAndPreservesEffectiveReaderAndShellRemaps()
     {
+        Key key = Key.Space;
         var e = new KeyEventArgs { Key = key };
         var defaults = EffectiveShortcutBindings.Build();
         Assert.True(ArchivePage.IsReaderMediaGesture(e, defaults)); // thread.read is an archive action.
@@ -172,6 +172,28 @@ public sealed class ReaderMediaActivationTests
         Assert.False(ArchivePage.IsReaderMediaGesture(e, shellBindings));
         // An unrelated gallery transport binding must not erase reader activation.
         Assert.True(ArchivePage.IsReaderMediaGesture(e, EffectiveShortcutBindings.Build(
+            new ShortcutBindingsSection().Set("gallery.next", [ShortcutGesture.Parse(key.ToString())]))));
+    }
+
+    [Theory]
+    [InlineData(Key.Enter)]
+    [InlineData(Key.Space)]
+    public void BothMediaKeysGiveWayToASavedReaderOrShellBindingOnTheSameGesture(Key key)
+    {
+        var e = new KeyEventArgs { Key = key };
+        var defaults = EffectiveShortcutBindings.Build();
+        Assert.False(ArchivePage.ClaimedByOtherReaderCommand(e, defaults));
+        // The command "Open medium of the post" has Enter by default and no other gesture.
+        Assert.Equal(key == Key.Enter, defaults.Matches(e, ArchivePage.ActivateMediumCommandId));
+        Assert.True(ReaderMediaActivation.IsMediaKey(key, KeyModifiers.None, defaults.Matches(e, ArchivePage.ActivateMediumCommandId), claimedByOtherCommand: false));
+        foreach (var modifier in new[] { KeyModifiers.Control, KeyModifiers.Meta, KeyModifiers.Shift, KeyModifiers.Alt })
+            Assert.False(ReaderMediaActivation.IsMediaKey(key, modifier, false, false)); // a modifier never activates a medium
+        var reader = EffectiveShortcutBindings.Build(new ShortcutBindingsSection().Set("thread.read", Array.Empty<ShortcutGesture>())
+            .Set("reader.next-post", [ShortcutGesture.Parse(key.ToString())]));
+        Assert.True(ArchivePage.ClaimedByOtherReaderCommand(e, reader));
+        Assert.False(ReaderMediaActivation.IsMediaKey(key, KeyModifiers.None, reader.Matches(e, ArchivePage.ActivateMediumCommandId), claimedByOtherCommand: true));
+        // An unrelated gallery binding changes nothing.
+        Assert.False(ArchivePage.ClaimedByOtherReaderCommand(e, EffectiveShortcutBindings.Build(
             new ShortcutBindingsSection().Set("gallery.next", [ShortcutGesture.Parse(key.ToString())]))));
     }
 

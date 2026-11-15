@@ -2062,6 +2062,7 @@
     "command.reader.find-previous": "Trova precedente",
     "command.reader.next-post": "Post successivo",
     "command.reader.open-quote": "Mostra post citato",
+    "command.reader.media.activate": "Apri il media del post",
     "command.reader.show-replies": "Mostra risposte",
     "command.gallery.return": "Torna alla galleria",
     "command.media.return": "Torna ai media",

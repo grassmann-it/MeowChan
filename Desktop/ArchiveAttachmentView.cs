@@ -312,6 +312,13 @@ public sealed class ArchiveAttachmentView : UserControl
         row.OpenPreview?.Invoke();
     }
 
+    /// <summary>A key (Space, Enter) plays or pauses this post's own video: the hover enlargement ends first, as with a click.</summary>
+    internal void ToggleInlineVideoByKey()
+    {
+        GetValue(HoverEnlargeProperty)?.Leave(this);
+        if (InlineVideoForKeys() is { } slot) _ = slot.IsLive ? slot.ToggleAsync() : slot.PlayAsync();
+    }
+
     // The focused card's picture is decoded again at its larger size, only for this card and only when the ordinary decode is smaller.
     // A failure keeps the ordinary picture: enlarging is never an error.
     private async Task EnlargeAsync()

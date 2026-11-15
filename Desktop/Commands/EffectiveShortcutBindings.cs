@@ -115,7 +115,7 @@ public sealed class EffectiveShortcutBindings
     private static long _nextVersion;
     /// <summary>Revision of the default table. Raise it, and list the command in
     /// <see cref="DefaultChangedInRevision"/>, whenever a default gesture is added to or changed on a command.</summary>
-    public const int DefaultsRevision = 19;
+    public const int DefaultsRevision = 20;
     /// <summary>Commands whose default gesture set was introduced or changed after profiles with saved
     /// bindings may already exist, with the revision that did it. A new default on such a command yields to
     /// a saved binding of another command instead of silencing both; entries are never removed because a
@@ -240,6 +240,9 @@ public sealed class EffectiveShortcutBindings
         // another command, like every new default.
         ["tagging.mark-done"] = 19, ["tagging.mark-skipped"] = 19, ["post.hide"] = 19, ["post.copy-link"] = 19, ["media.copy-path"] = 19,
         ["thread.show-in-media"] = 19, ["tagging.show-in-media"] = 19, ["reader.expand"] = 19, ["media.open-external"] = 19,
+        // Revision 20 (reader Space and Enter on the selected post's medium): Enter, until now a fixed content key, is the command "Open medium of the post" (what a click on the
+        // medium does by the choice "Clicking a medium"); it yields to a saved binding of another command like every new default. Space stays the video's play / pause.
+        ["reader.media.activate"] = 20,
     };
     public static IReadOnlyCollection<string> YieldingDefaultCommandIds => DefaultChangedInRevision.Keys.ToArray();
     // Commands whose default changed only in the macOS table: on Windows and Linux their gesture is the old stable one

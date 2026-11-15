@@ -2282,6 +2282,7 @@
     "command.reader.find-previous": "查找上一个",
     "command.reader.next-post": "下一个帖子",
     "command.reader.open-quote": "显示被引用的帖子",
+    "command.reader.media.activate": "打开帖子的媒体",
     "command.reader.show-replies": "显示回复",
     "command.gallery.return": "返回图库",
     "command.media.return": "返回媒体",

@@ -2432,6 +2432,7 @@
     "command.reader.find-previous": "Найти предыдущее",
     "command.reader.next-post": "Следующий пост",
     "command.reader.open-quote": "Показать цитируемый пост",
+    "command.reader.media.activate": "Открыть медиа поста",
     "command.reader.show-replies": "Показать ответы",
     "command.gallery.return": "Вернуться в галерею",
     "command.media.return": "Вернуться к медиа",

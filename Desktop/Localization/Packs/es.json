@@ -2428,6 +2428,7 @@
     "command.reader.find-previous": "Buscar anterior",
     "command.reader.next-post": "Publicación siguiente",
     "command.reader.open-quote": "Mostrar publicación citada",
+    "command.reader.media.activate": "Abrir el medio de la publicación",
     "command.reader.show-replies": "Mostrar respuestas",
     "command.gallery.return": "Volver a la galería",
     "command.media.return": "Volver a Medios",

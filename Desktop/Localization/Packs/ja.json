@@ -2282,6 +2282,7 @@
     "command.reader.find-previous": "前を検索",
     "command.reader.next-post": "次の投稿",
     "command.reader.open-quote": "引用元の投稿を表示",
+    "command.reader.media.activate": "投稿のメディアを開く",
     "command.reader.show-replies": "返信を表示",
     "command.gallery.return": "ギャラリーに戻る",
     "command.media.return": "メディアに戻る",
