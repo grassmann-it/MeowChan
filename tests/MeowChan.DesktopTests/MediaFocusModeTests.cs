@@ -31,14 +31,14 @@ public sealed class MediaFocusModeTests : IDisposable
     [InlineData(false, false, 2, "ClearSelection")]
     [InlineData(false, false, 0, "None")]
     public void EscapeEndsTheFocusModeFirstThenTheQuestionThenTheSelection(bool focus, bool ask, int selected, string expected) =>
-        Assert.Equal(Enum.Parse<MediaEscapeStep>(expected), MediaFocusMode.Escape(focus, ask, selected));
+        Assert.Equal(Enum.Parse<MediaEscapeStep>(expected), MediaFocusMode.Escape(focus, panelFocused: false, ask, selected));
 
     [Fact]
     public void EscapeWalksTheLevelsOneAtATimeUntilNothingIsLeft()
     {
         bool focus = true, ask = true; int selected = 3;
         List<MediaEscapeStep> steps = new();
-        for (MediaEscapeStep step = MediaFocusMode.Escape(focus, ask, selected); step != MediaEscapeStep.None; step = MediaFocusMode.Escape(focus, ask, selected))
+        for (MediaEscapeStep step = MediaFocusMode.Escape(focus, false, ask, selected); step != MediaEscapeStep.None; step = MediaFocusMode.Escape(focus, false, ask, selected))
         {
             steps.Add(step);
             if (step == MediaEscapeStep.ExitFocus) focus = false;
@@ -52,7 +52,7 @@ public sealed class MediaFocusModeTests : IDisposable
     public void ThePageAsksTheRuleForItsEscapeKeyAndAlsoEndsTheModeFromAnywhereOnThePage()
     {
         string selection = Source("Desktop/Views/Media/MediaPage.Selection.cs"), focus = Source(Focus);
-        Assert.Contains("MediaFocusMode.Escape(_focusMode, _exportAllAsk.IsVisible, _grid.Selection.Count)", selection);
+        Assert.Contains("MediaFocusMode.Escape(_focusMode, panelFocused: false, _exportAllAsk.IsVisible, _grid.Selection.Count)", selection);
         Assert.Contains("case MediaEscapeStep.ExitFocus: SetFocusMode(false); break;", selection);
         // The page-level handler: Escape on the exit button (or any other control of the page) that nothing handled ends the mode.
         Assert.Contains("AddHandler(KeyDownEvent, (_, e) => { if (!e.Handled) OnFocusEscape(e); }, RoutingStrategies.Bubble);", focus);

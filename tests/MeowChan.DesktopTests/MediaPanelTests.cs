@@ -177,16 +177,16 @@ public sealed class MediaPanelTests
     }
 
     [Fact]
-    public void EscapeInThePanelReturnsToTheGridAndNowhereElse()
+    public void EscapeIsNoPanelKeyButALevelOfThePage()
     {
-        Assert.Equal(MediaPanelKeyKind.ReturnToGrid, Route(null, Key.Escape, fromPanel: true).Kind);
-        Assert.Equal(MediaPanelKeyKind.ReturnToGrid, Route(null, Key.Escape, fromPanel: true, videoOffered: false).Kind);
+        // S-5: the page's ladder (MediaFocusMode.Escape, MediaPanelKeysTests) ends the focus mode before the panel hands the keyboard back.
+        Assert.Equal(MediaPanelKeyRoute.None, Route(null, Key.Escape, fromPanel: true));
+        Assert.Equal(MediaPanelKeyRoute.None, Route(null, Key.Escape, fromPanel: true, videoOffered: false));
         Assert.Equal(MediaPanelKeyRoute.None, Route(null, Key.Escape, fromPanel: false));
-        Assert.Equal(MediaPanelKeyRoute.None, Route(null, Key.Escape, KeyModifiers.Shift, fromPanel: true));
     }
 
     [Fact]
-    public void TheArrowCommandsComeBeforeTheVideoKeysAndAVideoKeyBeforeEscape()
+    public void TheArrowCommandsComeBeforeTheVideoKeys()
     {
         // A key rebound to both an arrow command and a video command steps while it can, else plays.
         Assert.Equal(MediaPanelKeyKind.Next, Route("media.panel.next", alsoMatched: "video.mute").Kind);

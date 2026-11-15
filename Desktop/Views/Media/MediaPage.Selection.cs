@@ -62,6 +62,8 @@ public sealed partial class MediaPage
         _selGallery.Click += (_, _) => OpenActions.Start(OpenSelectionGalleryAsync, "media.selection.gallery");
         _selExport.Click += async (_, _) => await ExportSelectionAsync();
         _selClear.Click += (_, _) => ClearSelection();
+        // Escape that left the media panel unhandled: its level of the page's ladder (after the focus mode, which MediaPage.Focus.cs ends here first).
+        AddHandler(KeyDownEvent, (_, e) => { if (!e.Handled) OnPanelEscape(e); }, Avalonia.Interactivity.RoutingStrategies.Bubble);
         return new StackPanel { Spacing = 2, Children = { _selectionRow, _selectionNote, BuildQueueAsk() } };
     }
 
@@ -78,7 +80,7 @@ public sealed partial class MediaPage
 
     internal void ClearSelection() => _grid.Selection.Clear();
 
-    // Escape (fixed) ends the focus mode, then dismisses the "export all" question, then clears; media.select-all (Ctrl/Cmd+A by default) selects every shown tile; clicks and Shift/Ctrl ranges are the ListBox's own.
+    // Escape (fixed) ends the focus mode, then dismisses the "export all" question, then clears (the panel's level is OnPanelEscape); media.select-all (Ctrl/Cmd+A by default) selects every shown tile; clicks and Shift/Ctrl ranges are the ListBox's own.
     private bool OnSelectionKey(KeyEventArgs e)
     {
         // PT1: a pending "add to tagging queue" question is dismissed before the levels below.
@@ -90,8 +92,8 @@ public sealed partial class MediaPage
         }
         if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None)
         {
-            // The levels in order (MediaFocusMode.Escape): the focus mode, a pending "export all" question, the selection.
-            switch (MediaFocusMode.Escape(_focusMode, _exportAllAsk.IsVisible, _grid.Selection.Count))
+            // The levels in order (MediaFocusMode.Escape): the focus mode, a pending "export all" question, the selection (the grid has the focus, not the panel).
+            switch (MediaFocusMode.Escape(_focusMode, panelFocused: false, _exportAllAsk.IsVisible, _grid.Selection.Count))
             {
                 case MediaEscapeStep.ExitFocus: SetFocusMode(false); break;
                 case MediaEscapeStep.DismissExportAll: DismissExportAllAsk(); break;
@@ -108,6 +110,17 @@ public sealed partial class MediaPage
             return true;
         }
         return false;
+    }
+
+    // Escape in the media panel: the focus mode ends first (its own page handler), then the keyboard goes back to the grid, whose handler takes the next
+    // levels (the question, the selection) with the following Escape. Anywhere else on the page this handler leaves Escape alone.
+    private bool OnPanelEscape(KeyEventArgs e)
+    {
+        if (e.Key != Key.Escape || e.KeyModifiers != KeyModifiers.None || !_panelShown || _panel?.IsKeyboardFocusWithin != true) return false;
+        if (MediaFocusMode.Escape(_focusMode, panelFocused: true, _exportAllAsk.IsVisible, _grid.Selection.Count) != MediaEscapeStep.ReturnToGrid) return false;
+        FocusGrid();
+        e.Handled = true;
+        return true;
     }
 
     // While rows are being replaced (a presentation runs in the background), Ctrl+A means every tile of the new rows: the grid
