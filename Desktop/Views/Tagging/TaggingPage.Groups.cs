@@ -23,9 +23,10 @@ public sealed partial class TaggingPage
     private readonly StackPanel _groupPanel = new() { Name = "TaggingGroupPanel", Orientation = Orientation.Horizontal, Spacing = 8 };
     private readonly TextBlock _groupLabel = new() { VerticalAlignment = VerticalAlignment.Center };
     private readonly ComboBox _group = new() { Name = "TaggingGroup", MinWidth = 170 };
-    private readonly Button _groupNew = new() { Name = "TaggingGroupNew" };
-    private readonly Button _groupRename = new() { Name = "TaggingGroupRename" };
-    private readonly Button _groupDelete = new() { Name = "TaggingGroupDelete" };
+    // One icon square after the group box opens "New group", "Rename" and "Delete" (instead of a second "+" and two long flat labels
+    // on the bar); the menu opens on this button itself, also when the group panel stands in the second toolbar row.
+    private readonly Button _groupManage = new() { Name = "TaggingGroupManage", VerticalAlignment = VerticalAlignment.Center };
+    private ContextMenuHost? _groupManageHost;
     private string? _selectedGroupId;
     private bool _ungroupedSelected;
     private bool _groupLocalizing;
@@ -34,9 +35,7 @@ public sealed partial class TaggingPage
     internal string? SelectedGroupId => _selectedGroupId;
     internal bool UngroupedGroupSelected => _ungroupedSelected;
     internal IReadOnlyList<TaggingGroupChoice> GroupChoices => TaggingQueueView.GroupChoices(_queueWork.Queue);
-    internal Button NewGroupButton => _groupNew;
-    internal Button RenameGroupButton => _groupRename;
-    internal Button DeleteGroupButton => _groupDelete;
+    internal Button GroupManageButton => _groupManage;
 
     private bool InSelectedGroup(TagQueueItem item) => TaggingQueueView.InGroup(item, _selectedGroupId, _ungroupedSelected);
     private Func<TagQueueItem, bool>? EffectiveScope => Scope == null && _selectedGroupId == null && !_ungroupedSelected
@@ -60,14 +59,12 @@ public sealed partial class TaggingPage
             Render();
             RefreshWorkView();
         };
-        _groupNew.Click += async (_, _) => await CreateGroupDialogAsync();
-        _groupRename.Click += async (_, _) => await RenameGroupDialogAsync();
-        _groupDelete.Click += async (_, _) => await DeleteGroupAsync();
+        _groupManage.Classes.Add("bar-button"); // outlined like the group box beside it, also inside the toolbar
+        _groupManageHost = new ContextMenuHost(_groupManage, ComposeGroupManageMenu, fallbackFocus: () => FocusContent());
+        _groupManage.Click += (_, _) => _groupManageHost?.Show(atPointer: false);
         _groupPanel.Children.Add(_groupLabel);
         _groupPanel.Children.Add(_group);
-        _groupPanel.Children.Add(_groupNew);
-        _groupPanel.Children.Add(_groupRename);
-        _groupPanel.Children.Add(_groupDelete);
+        _groupPanel.Children.Add(_groupManage);
         RenderGroups();
     }
 
@@ -86,21 +83,15 @@ public sealed partial class TaggingPage
             _group.SelectedItem = selected;
         }
         finally { _groupLocalizing = false; }
-        _groupRename.IsEnabled = _selectedGroupId != null && CanChange;
-        _groupDelete.IsEnabled = _selectedGroupId != null && CanChange;
-        _groupNew.IsEnabled = CanChange;
+        // The button stays usable while "New group" is: the entries inside the menu carry their own enabled rules.
+        _groupManage.IsEnabled = CanChange;
         AutomationProperties.SetName(_group, _groupLabel.Text ?? Texts.T("tagging.page.group"));
     }
 
     private void LocalizeGroups()
     {
         _groupLabel.Text = Texts.T("tagging.page.group");
-        _groupNew.Content = CommandBindings.NamedIcon("plus", 14);
-        _groupRename.Content = Texts.T("tagging.page.group.rename");
-        _groupDelete.Content = Texts.T("tagging.page.group.delete");
-        AutomationProperties.SetName(_groupNew, Texts.T("tagging.page.group.new"));
-        AutomationProperties.SetName(_groupRename, Texts.T("tagging.page.group.rename"));
-        AutomationProperties.SetName(_groupDelete, Texts.T("tagging.page.group.delete"));
+        WorkspaceIcons.MakeSquare(_groupManage, WorkspaceIcons.More, Texts.T("tagging.page.group.manage"));
         AutomationProperties.SetName(_group, Texts.T("tagging.page.group"));
         RenderGroups();
     }
@@ -137,6 +128,20 @@ public sealed partial class TaggingPage
         if (done) { _selectedGroupId = null; _ungroupedSelected = true; }
         Show();
         ShowStatus(_queueWork.Status);
+    }
+
+    /// <summary>The "Manage groups" menu as plain data (tests and smokes).</summary>
+    internal ContextMenuModel? GroupManageMenuModel() => ComposeGroupManageMenu().ToModel();
+
+    // New group, Rename and Delete as the three buttons were: the same handlers and the same enabled rules (RenameGroup and DeleteGroup
+    // need a named group to be selected).
+    private ContextMenuBuilder ComposeGroupManageMenu()
+    {
+        bool named = _selectedGroupId != null && CanChange;
+        return new ContextMenuBuilder().Named(Texts.T("tagging.page.group.manage"))
+            .Item("tagging.group.new", Texts.T("tagging.page.group.new"), () => _ = CreateGroupDialogAsync(), CanChange)
+            .Item("tagging.group.rename", Texts.T("tagging.page.group.rename"), () => _ = RenameGroupDialogAsync(), named)
+            .Item("tagging.group.delete", Texts.T("tagging.page.group.delete"), () => _ = DeleteGroupAsync(), named);
     }
 
     internal ContextMenuModel? GroupMenuModel() => ComposeGroupMenu()?.ToModel();

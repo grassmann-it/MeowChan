@@ -4712,6 +4712,7 @@
     "tagging.page.group.delete": "삭제",
     "tagging.page.group.delete.ask": "{0}을(를) 삭제할까요? 기존 항목은 그룹 없이 남습니다.",
     "tagging.page.group.deleted": "그룹 삭제: 항목은 이제 그룹이 없습니다.",
+    "tagging.page.group.manage": "그룹 관리",
     "tagging.page.group.name": "그룹 이름",
     "tagging.page.group.named": "그룹: {0}",
     "tagging.page.group.new": "새 그룹",

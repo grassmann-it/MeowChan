@@ -31,8 +31,6 @@ public sealed partial class TaggingPage
         WorkViewElement.SetId(_columnsButton, "tagging.columns");
         CommandBindings.Apply(_columnsButton, "table.choose-columns", iconWithLabel: true);
         _columnsButton.Click += (_, _) => _columnMenuHost?.Show(atPointer: false);
-        int beforeView = _actions.Items.IndexOf(_viewToggle);
-        _actions.Items.Insert(beforeView < 0 ? _actions.Items.Count : beforeView, _columnsButton);
         _columnMenuHost = new ContextMenuHost(_columnHeader, ComposeColumnMenu, fallbackFocus: () => FocusContent());
     }
 
@@ -75,12 +73,18 @@ public sealed partial class TaggingPage
         {
             _secondaryToolbar.Children.Remove(_groupPanel);
             _secondaryToolbar.Children.Remove(_filterPanel);
-            int beforeView = _actions.Items.IndexOf(_viewToggle);
-            if (!_actions.Items.Contains(_groupPanel)) _actions.Items.Insert(beforeView < 0 ? _actions.Items.Count : beforeView, _groupPanel);
-            beforeView = _actions.Items.IndexOf(_viewToggle);
-            if (!_actions.Items.Contains(_filterPanel)) _actions.Items.Insert(beforeView < 0 ? _actions.Items.Count : beforeView, _filterPanel);
+            // Back to their fixed place: the scope group stands between "Add…" and the view tools.
+            if (!_actions.Items.Contains(_groupPanel)) _actions.Items.Insert(ScopeInsertIndex(), _groupPanel);
+            if (!_actions.Items.Contains(_filterPanel)) _actions.Items.Insert(ScopeInsertIndex(), _filterPanel);
         }
         _secondaryToolbar.IsVisible = narrow;
+    }
+
+    // The scope group (group box, then the state filter) stands right before the columns button, the first item of the view group.
+    private int ScopeInsertIndex()
+    {
+        int at = _actions.Items.IndexOf(_columnsButton);
+        return at < 0 ? _actions.Items.Count : at;
     }
 
     private void EndColumns()

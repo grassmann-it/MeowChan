@@ -4848,6 +4848,7 @@
     "tagging.page.group.delete": "Usuń",
     "tagging.page.group.delete.ask": "Usunąć {0}? Istniejące wpisy pozostaną bez grupy.",
     "tagging.page.group.deleted": "Usunięto grupę: wpisy są teraz bez grupy.",
+    "tagging.page.group.manage": "Zarządzaj grupami",
     "tagging.page.group.name": "Nazwa grupy",
     "tagging.page.group.named": "Grupa: {0}",
     "tagging.page.group.new": "Nowa grupa",

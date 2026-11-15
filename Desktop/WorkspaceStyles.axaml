@@ -1422,6 +1422,30 @@
         <!-- The focus ring follows the circle (the shared ring is a rounded square that sat around the circle like a frame). -->
         <Setter Property="FocusAdorner" Value="{StaticResource Workspace.FocusAdorner.Round}" />
     </Style>
+    <!-- Tagging page (layout review 15.11.): the outlined button of a toolbar row. Ursa's ToolBar gives its buttons the borderless theme, so a
+         row of actions beside combo boxes read as flat labels and a disabled one as a dead grey word; bar-button keeps the standard button
+         theme (as help-round does), so the selection bar is outlined like the Media selection row. Only on the bar itself: an item that moved
+         under "More" (ActionToolBarPanel marks it :in-overflow) keeps the popup's plain rows. -->
+    <Style Selector="Button.bar-button:not(:in-overflow)">
+        <Setter Property="Theme" Value="{DynamicResource {x:Type Button}}" />
+    </Style>
+    <!-- A disclosure (Tagging stamp block): the quiet section head that opens and closes a block - the turning arrow and the title, no fill
+         and no outline at rest and when open (only the page's primary action is filled). Hover shows the Hover fill with the 1-px ControlBorder
+         edge (the fill alone is 1.37:1 on the page), keyboard focus keeps the shared ring. -->
+    <Style Selector="ToggleButton.disclosure">
+        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+        <Setter Property="Padding" Value="4,5" /><Setter Property="MinHeight" Value="{StaticResource Workspace.Size.Control}" />
+        <Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Control}" />
+    </Style>
+    <Style Selector="ToggleButton.disclosure /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.disclosure:checked /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+    </Style>
+    <Style Selector="ToggleButton.disclosure:pointerover /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.disclosure:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.disclosure:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Hover}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+    </Style>
     <!-- HB1 HelpPopover: a flyout with the popover inset (16), the control outline and the overlay radius; the column inside is
          Workspace.Size.ReadingWidth (400) at most, so MaxWidth here is 400 + 2 x 16 inset + 2 x 1 border. -->
     <Style Selector="FlyoutPresenter.help-popover">

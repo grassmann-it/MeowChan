@@ -40,8 +40,9 @@ public sealed partial class TaggingPage : UserControl
     private readonly TextBlock _errorText = new() { Name = "TaggingErrorText", TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _errorSource = new() { Name = "TaggingErrorSource", Classes = { "muted" }, TextWrapping = TextWrapping.Wrap };
     private readonly Button _retryLoad = new() { Name = "TaggingRetryLoad", Classes = { "subtle" } };
-    // The counters row: "Open n · Finished n · Skipped n", a 120 dip mini bar and the percentage; the "last shown" link sits at its end.
-    private readonly Grid _progress = new() { Name = "TaggingProgress", ColumnDefinitions = new ColumnDefinitions("Auto,*"), ColumnSpacing = 16 };
+    // The counters row: "Open n · Finished n · Skipped n", a 120 dip mini bar and the percentage; the "last shown" link follows them
+    // directly (it wraps below them on a narrow page instead of drifting to the far edge of a wide one).
+    private readonly WrapPanel _progress = new() { Name = "TaggingProgress", ItemSpacing = 16, LineSpacing = 4 };
     private readonly TextBlock _progressText = new() { Name = "TaggingProgressText", Classes = { "tnum" }, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
     internal const double MiniBarWidth = 120;
     private readonly ProgressBar _bar = new() { Name = "TaggingProgressBar", Minimum = 0, Maximum = 100, Width = MiniBarWidth, Height = 6, MinHeight = 0, MaxHeight = 6 };
@@ -50,12 +51,12 @@ public sealed partial class TaggingPage : UserControl
     // T1: "Last shown: file · position n of m"; the link continues exactly there (the same action as the start button, which stands at
     // the same entry).
     private readonly Button _lastShown = new() { Name = "TaggingLastShown", Classes = { "link", "tnum" }, Padding = new Thickness(0), MinHeight = 24,
-        HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center, IsVisible = false };
-    private readonly StackPanel _filterPanel = new() { Name = "TaggingFilterPanel", Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(16, 0, 0, 0) };
+        HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center, IsVisible = false };
+    private readonly StackPanel _filterPanel = new() { Name = "TaggingFilterPanel", Orientation = Orientation.Horizontal, Spacing = 8 };
     private readonly TextBlock _filterLabel = new() { VerticalAlignment = VerticalAlignment.Center };
     private readonly ComboBox _filter = new() { Name = "TaggingFilter", MinWidth = 160 };
     private readonly HelpButton _help = new() { Name = "TaggingHelp", HelpKey = "help.taggingPage" };
-    private readonly Grid _columnHeader = new() { Name = "TaggingColumns", ColumnDefinitions = new ColumnDefinitions(TaggingQueueRowView.Columns), ColumnSpacing = 8, Margin = new Thickness(12, 0, 12, 0) };
+    private readonly Grid _columnHeader = new() { Name = "TaggingColumns", ColumnDefinitions = TaggingQueueRowView.BuildColumns(true), ColumnSpacing = TaggingQueueRowView.ColumnGap, Margin = new Thickness(12, 0, 12, 0) };
     private readonly ListBox _list = new() { Name = "TaggingList", SelectionMode = SelectionMode.Multiple };
     private readonly TextBlock _empty = new() { Name = "TaggingEmpty" };
     private readonly WorkspaceEmptyState _emptyState = new() { Name = "TaggingEmptyState", IsVisible = false };
@@ -141,7 +142,6 @@ public sealed partial class TaggingPage : UserControl
         _bar.VerticalAlignment = VerticalAlignment.Center;
         StackPanel counters = new() { Orientation = Orientation.Horizontal, Spacing = 12, Children = { _progressText, _bar, _percent } };
         _progress.Children.Add(counters);
-        Grid.SetColumn(_lastShown, 1);
         _progress.Children.Add(_lastShown);
 
         _filterPanel.Children.Add(_filterLabel);
@@ -331,6 +331,9 @@ public sealed partial class TaggingPage : UserControl
         _list.IsVisible = !empty && _viewMode == TaggingViewMode.List;
         _grid.IsVisible = !empty && _viewMode == TaggingViewMode.Grid;
         _columnHeader.IsVisible = !empty && _viewMode == TaggingViewMode.List;
+        // "Choose columns…" only means something where there are columns: the list view (the work view still decides first, by the
+        // toolbar's own omission of the item; a hidden item takes no width and no group line).
+        _columnsButton.IsVisible = _viewMode == TaggingViewMode.List;
         RenderEmptyState(queue);
         _errorText.Text = _queueWork.ErrorText;
         _errorSource.Text = _queueWork.ErrorSource;
@@ -416,16 +419,21 @@ public sealed partial class TaggingPage : UserControl
 
     private void LocalizeColumns()
     {
-        _columnHeader.ColumnDefinitions = new ColumnDefinitions(TaggingQueueRowView.ColumnsFor(ShowPreviewColumn));
-        _columnHeader.ColumnSpacing = ShowPreviewColumn ? 8 : 0;
+        // The same helper as the rows, so header and rows stand on the same columns and the same gap (preview shown or not).
+        _columnHeader.ColumnDefinitions = TaggingQueueRowView.BuildColumns(ShowPreviewColumn);
+        _columnHeader.ColumnSpacing = TaggingQueueRowView.ColumnGap;
         _columnHeader.Children.Clear();
         string[] keys = { "", "tagging.page.col.preview", "tagging.page.col.kind", "tagging.page.col.name", "tagging.page.col.source", "tagging.page.col.group", "tagging.page.col.tags", "tagging.page.col.state" };
         for (int column = 0; column < keys.Length; column++)
         {
+            // The preview column has no header word: the picture needs none, and "Preview" / "Vorschau" does not fit 56 dip (the column
+            // menu keeps the word).
             TextBlock header = new()
             {
-                Text = column == 0 ? "#" : Texts.T(keys[column]), Classes = { "workspace-meta" },
-                TextAlignment = column is 0 or 6 ? TextAlignment.Right : TextAlignment.Left, TextTrimming = TextTrimming.CharacterEllipsis
+                Text = column switch { 0 => "#", 1 => string.Empty, _ => Texts.T(keys[column]) }, Classes = { "workspace-meta" },
+                TextAlignment = column is 0 or 6 ? TextAlignment.Right : TextAlignment.Left, TextTrimming = TextTrimming.CharacterEllipsis,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = column switch { 0 => TaggingQueueRowView.NumberMargin(ShowPreviewColumn), 7 => TaggingQueueRowView.StateMargin, _ => default }
             };
             header.IsVisible = column != 1 || ShowPreviewColumn;
             Grid.SetColumn(header, column);
@@ -446,6 +454,7 @@ public sealed partial class TaggingPage : UserControl
         EndColumns();
         _stateMenuHost?.Dispose();
         _groupMenuHost?.Dispose();
+        _groupManageHost?.Dispose();
         _lifetime.Cancel();
         Texts.Changed -= OnLanguageChanged;
         _host.StateChanged -= OnHostChanged;

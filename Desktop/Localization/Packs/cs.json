@@ -4845,6 +4845,7 @@
     "tagging.page.group.delete": "Smazat",
     "tagging.page.group.delete.ask": "Smazat {0}? Existující položky zůstanou bez skupiny.",
     "tagging.page.group.deleted": "Smazáno: položky jsou nyní bez skupiny.",
+    "tagging.page.group.manage": "Spravovat skupiny",
     "tagging.page.group.name": "Název skupiny",
     "tagging.page.group.named": "Skupina: {0}",
     "tagging.page.group.new": "Nová skupina",

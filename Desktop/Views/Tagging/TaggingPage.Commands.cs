@@ -64,9 +64,17 @@ public sealed partial class TaggingPage
         _clearDone.Command = new DelegateCommand(() => _ = ClearFinishedAsync(), () => CanChange && _queueWork.Queue.Done > 0);
         _clear.Command = new DelegateCommand(AskClear, () => !_queueWork.Ended && !_queueWork.Busy && !_queueWork.Loading && _queueWork.Loaded
             && (_queueWork.Queue.Count > 0 && _queueWork.Queue.CanWrite || _queueWork.LoadError != null));
-        foreach (Control item in new Control[] { _start, _add, _clearDone, _clear, _groupPanel, _filterPanel, _viewToggle, _help })
+        // The bar reads as four groups with the bar's own thin lines between them (RL1): what to do (continue, add), the scope (group,
+        // show), the view (columns, list or grid), and the rare end of the bar (cleanup, help). What does not fit moves under "More"
+        // from the end, so the help and the two cleanup icons go first.
+        (Control Item, int Group)[] items =
+        {
+            (_start, 0), (_add, 0), (_groupPanel, 1), (_filterPanel, 1), (_columnsButton, 2), (_viewToggle, 2), (_clearDone, 3), (_clear, 3), (_help, 3)
+        };
+        foreach ((Control item, int group) in items)
         {
             ToolBar.SetOverflowMode(item, OverflowMode.AsNeeded);
+            ActionToolBar.SetGroup(item, group);
             _actions.Items.Add(item);
         }
         _clearYes.Click += async (_, _) => await ClearAllAsync();
@@ -118,11 +126,13 @@ public sealed partial class TaggingPage
         _actions.RefreshOverflowLabel();
     }
 
-    // The three plain buttons are icon-only on the bar (label and key in tooltip and accessible name); a work view that moves one under
-    // "More" gives it its icon with the label, so the popup still reads as words.
+    // "Add…" always shows its icon with its word (it stands beside the primary button and is the one way to fill the queue). The two
+    // cleanup buttons are rare and destructive: icon-only at the end of the bar (label and key in tooltip and accessible name); a work
+    // view that moves one under "More" gives it its icon with the label, so the popup still reads as words.
     private void ApplyToolbarIcons()
     {
-        foreach ((Button button, string id) in new[] { (_add, "tagging.add"), (_clearDone, "tagging.clear-done"), (_clear, "tagging.clear") })
+        CommandBindings.Apply(_add, "tagging.add", iconWithLabel: true);
+        foreach ((Button button, string id) in new[] { (_clearDone, "tagging.clear-done"), (_clear, "tagging.clear") })
         {
             bool reduced = ToolBar.GetOverflowMode(button) == OverflowMode.Always;
             CommandBindings.Apply(button, id, iconOnly: !reduced, iconWithLabel: reduced);

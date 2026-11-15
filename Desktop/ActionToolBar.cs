@@ -135,6 +135,8 @@ public sealed class ActionToolBar : ToolBar
         {
             item.GotFocus += OnActionGotFocus;
             item.PropertyChanged += OnActionPropertyChanged;
+            // The popup was emptied above and the items stand on the bar again (the panel moves them back out on its next arrange).
+            ActionToolBarPanel.MarkReduced(item, false);
         }
         if (ownedFocus) QueueAvailableActionFocus(focused);
     }
@@ -326,6 +328,15 @@ public sealed class ActionToolBarPanel : StackPanel
     // must use that same axis, otherwise only the first action fits the clip.
     static ActionToolBarPanel() => OrientationProperty.OverrideDefaultValue<ActionToolBarPanel>(Orientation.Horizontal);
 
+    /// <summary>
+    /// Pseudo-class of an item that is not on the bar itself but under "More" (or left out). An item keeps the toolbar as its logical
+    /// parent wherever its panel is, so a style cannot tell the bar from the popup by ancestors: <c>:in-overflow</c> is what a style uses
+    /// to look different on the bar than in the popup (<c>Button.bar-button:not(:in-overflow)</c>).
+    /// </summary>
+    public const string ReducedPseudoClass = ":in-overflow";
+
+    internal static void MarkReduced(Control item, bool reduced) => ((IPseudoClasses)item.Classes).Set(ReducedPseudoClass, reduced);
+
     /// <summary>The width of the line between two groups (device-independent pixels).</summary>
     public const double GroupSeparatorThickness = 1;
     private const double GroupSeparatorHeight = 20;
@@ -416,6 +427,7 @@ public sealed class ActionToolBarPanel : StackPanel
                 owner.Moving(item, overflow || omitted);
                 Children.Remove(item); popup.Children.Remove(item); owner.OmittedHost.Children.Remove(item);
                 destination.Children.Insert(Math.Min(index, destination.Children.Count), item);
+                MarkReduced(item, overflow || omitted);
             }
         }
         Size arranged = base.ArrangeOverride(finalSize);
@@ -508,9 +520,9 @@ public sealed class ActionToolBarPanel : StackPanel
     {
         // Return popup children before a template or host is discarded.
         if (Owner?.OverflowHost is Panel popup)
-            foreach (Control item in popup.Children.ToArray()) { popup.Children.Remove(item); Children.Add(item); }
+            foreach (Control item in popup.Children.ToArray()) { popup.Children.Remove(item); Children.Add(item); MarkReduced(item, false); }
         if (Owner is { } owner)
-            foreach (Control item in owner.OmittedHost.Children.ToArray()) { owner.OmittedHost.Children.Remove(item); Children.Add(item); }
+            foreach (Control item in owner.OmittedHost.Children.ToArray()) { owner.OmittedHost.Children.Remove(item); Children.Add(item); MarkReduced(item, false); }
         base.OnDetachedFromVisualTree(e);
     }
 }
