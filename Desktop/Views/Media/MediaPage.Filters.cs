@@ -112,7 +112,7 @@ public sealed partial class MediaPage
     // Whether the set with the file name still makes one filter (ToFilter refuses e.g. every type excluded).
     private bool IsValidFilter(IEnumerable<MediaFilterTerm> terms)
     {
-        try { _ = MediaFilterTerms.ToFilter(terms.Concat(AllTerms().Where(term => term.Field == MediaFilterField.Name))); return true; }
+        try { _ = MediaFilterTerms.ToFilter(terms.Concat(AllTerms().Where(term => term.Field is MediaFilterField.Name or MediaFilterField.In))); return true; }
         catch (ArgumentException) { return false; }
     }
 
@@ -640,6 +640,7 @@ public sealed partial class MediaPage
         _filterRetry.Content = Texts.T("media.filter.retry");
         AutomationProperties.SetName(_filterRetry, Texts.T("media.filter.retry"));
         _queryAliases = null; // the aliases follow the language
+        _queryScopeAliases = null;
         _searchScope.FieldHelpNote = Texts.T("media.query.tip").Replace("\n", " "); // the tooltip lists the syntax in lines; the help text reads as one sentence run
         ClearQueryHint();
         _searchCarryOffer.Localize();

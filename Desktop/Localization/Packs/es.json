@@ -2855,7 +2855,7 @@
     "media.query.reason.ambiguous": "ambiguo, indique la fuente y el tablón",
     "media.query.reason.refused": "no encaja con los demás filtros",
     "media.query.reason.tooManyTags": "demasiadas etiquetas",
-    "media.query.tip": "Palabras: archivo, hilo, tablón, fuente.\ntype:video, -tag:name, sound:none\nsource:4chan, board:g, rating:>=3\nfav, missing, untagged, thread:1234,\nqueue:yes, queue:no, booru:tag, -booru:tag, tag:\"x\" conserva los espacios.",
+    "media.query.tip": "Palabras: archivo, hilo, tablón, fuente, etiqueta.\nin:tag,title busca solo en esos campos.\ntype:video, -tag:name, sound:none\nsource:4chan, board:g, rating:>=3\nfav, missing, untagged, thread:1234,\nqueue:yes, queue:no, booru:tag, -booru:tag, tag:\"x\" conserva los espacios.",
     "media.query.copied": "Filtros copiados como texto",
     "media.query.copiedLong": "Filtros copiados como texto. El texto es más largo de lo que admite el campo de búsqueda (límite de caracteres: {0}).",
     "media.query.copyFailed": "No se pudieron copiar los filtros: el portapapeles no está disponible.",
@@ -4926,6 +4926,12 @@
     "sources.stat.queued": "En cola",
     "sources.stat.threads": "Hilos",
     "stats.footer.tip": "{0}: {1}",
-    "theme.colors.resetAll.hint": "Devuelve todos los colores a los colores integrados."
+    "theme.colors.resetAll.hint": "Devuelve todos los colores a los colores integrados.",
+    "media.query.alias.in": "donde dentro",
+    "media.query.scope.alias.name": "archivo nombre archivos",
+    "media.query.scope.alias.title": "titulo título hilo hilos",
+    "media.query.scope.alias.board": "tablon tablón tablones",
+    "media.query.scope.alias.source": "fuente fuentes",
+    "media.query.scope.alias.tag": "etiqueta etiquetas"
   }
 }

@@ -26,6 +26,7 @@ public sealed partial class MediaPage
     private readonly TextBlock _queryProblem = new() { Name = "MediaQueryProblem", TextWrapping = Avalonia.Media.TextWrapping.Wrap, IsVisible = false, Classes = { "workspace-error" } };
     private readonly StackPanel _queryHint = new() { Name = "MediaQueryHint", Spacing = 2, IsVisible = false };
     private IReadOnlyDictionary<string, MediaFilterField>? _queryAliases;
+    private IReadOnlyDictionary<string, MediaTextFields>? _queryScopeAliases;
     private long _queryHintRevision;
 
     /// <summary>The note below the chips after a conversion or a copy (null when none), for tests and smokes.</summary>
@@ -157,6 +158,7 @@ public sealed partial class MediaPage
         return new MediaFilterQueryVocabulary
         {
             Aliases = _queryAliases ??= MediaFilterQueryVocabulary.AliasesFrom(key => Texts.T(key)),
+            ScopeAliases = _queryScopeAliases ??= MediaFilterQueryVocabulary.ScopeAliasesFrom(key => Texts.T(key)),
             FindTag = name =>
             {
                 if (tags == null) return null;

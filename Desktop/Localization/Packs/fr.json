@@ -2855,7 +2855,7 @@
     "media.query.reason.ambiguous": "ambigu, indiquez la source et le tableau",
     "media.query.reason.refused": "ne va pas avec les autres filtres",
     "media.query.reason.tooManyTags": "trop d’étiquettes",
-    "media.query.tip": "Mots : fichier, fil, tableau, source.\ntype:video, -tag:name, sound:none\nsource:4chan, board:g, rating:>=3\nfav, missing, untagged, thread:1234,\nqueue:yes, queue:no, booru:tag, -booru:tag, tag:\"x\" garde les espaces.",
+    "media.query.tip": "Mots : fichier, fil, tableau, source, étiquette.\nin:tag,title cherche seulement dans ces champs.\ntype:video, -tag:name, sound:none\nsource:4chan, board:g, rating:>=3\nfav, missing, untagged, thread:1234,\nqueue:yes, queue:no, booru:tag, -booru:tag, tag:\"x\" garde les espaces.",
     "media.query.copied": "Filtres copiés sous forme de texte",
     "media.query.copiedLong": "Filtres copiés sous forme de texte. Le texte est plus long que ce que le champ de recherche accepte (limite de caractères : {0}).",
     "media.query.copyFailed": "Impossible de copier les filtres : le presse-papiers n’est pas disponible.",
@@ -4926,6 +4926,12 @@
     "sources.stat.queued": "En attente",
     "sources.stat.threads": "Fils",
     "stats.footer.tip": "{0} : {1}",
-    "theme.colors.resetAll.hint": "Remet toutes les couleurs sur les couleurs intégrées."
+    "theme.colors.resetAll.hint": "Remet toutes les couleurs sur les couleurs intégrées.",
+    "media.query.alias.in": "dans où",
+    "media.query.scope.alias.name": "fichier nom fichiers",
+    "media.query.scope.alias.title": "titre titres fil",
+    "media.query.scope.alias.board": "tableau tableaux",
+    "media.query.scope.alias.source": "source sources",
+    "media.query.scope.alias.tag": "etiquette étiquette étiquettes"
   }
 }

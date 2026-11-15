@@ -2612,7 +2612,7 @@
     "media.query.reason.ambiguous": "ambíguo, informe a fonte e o board",
     "media.query.reason.refused": "não combina com os outros filtros",
     "media.query.reason.tooManyTags": "tags demais",
-    "media.query.tip": "Palavras: arquivo, tópico, board, fonte.\ntype:video, -tag:name, sound:none\nsource:4chan, board:g, rating:>=3\nfav, missing, untagged, thread:1234,\nqueue:yes, queue:no, booru:tag, -booru:tag, tag:\"x\" mantém os espaços.",
+    "media.query.tip": "Palavras: arquivo, tópico, board, fonte, tag.\nin:tag,title procura só nesses campos.\ntype:video, -tag:name, sound:none\nsource:4chan, board:g, rating:>=3\nfav, missing, untagged, thread:1234,\nqueue:yes, queue:no, booru:tag, -booru:tag, tag:\"x\" mantém os espaços.",
     "media.query.copied": "Filtros copiados como texto",
     "media.query.copiedLong": "Filtros copiados como texto. O texto é mais longo do que o campo de busca aceita (limite de caracteres: {0}).",
     "media.query.copyFailed": "Não foi possível copiar os filtros: a área de transferência não está disponível.",
@@ -4932,6 +4932,12 @@
     "sources.stat.queued": "Na fila",
     "sources.stat.threads": "Tópicos",
     "stats.footer.tip": "{0}: {1}",
-    "theme.colors.resetAll.hint": "Volta todas as cores às cores integradas."
+    "theme.colors.resetAll.hint": "Volta todas as cores às cores integradas.",
+    "media.query.alias.in": "onde dentro",
+    "media.query.scope.alias.name": "arquivo nome arquivos",
+    "media.query.scope.alias.title": "titulo título topico tópico",
+    "media.query.scope.alias.board": "boards",
+    "media.query.scope.alias.source": "fonte fontes",
+    "media.query.scope.alias.tag": "etiqueta etiquetas"
   }
 }

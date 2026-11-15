@@ -47,6 +47,11 @@ internal sealed class MediaFilterQueryVocabulary
 
     /// <summary>Alias (lower case, letters only) to field, besides the English names (<see cref="MediaFilterTerm.KeyOf"/>), which always work.</summary>
     internal IReadOnlyDictionary<string, MediaFilterField> Aliases { get; init; } = new Dictionary<string, MediaFilterField>();
+    /// <summary>
+    /// The localized names of the text fields for <c>in:</c> (lower case, letters only), besides the English keys and <c>all</c>, which always work
+    /// (<see cref="MediaFilterTerm.TextFieldKey"/>).
+    /// </summary>
+    internal IReadOnlyDictionary<string, MediaTextFields> ScopeAliases { get; init; } = new Dictionary<string, MediaTextFields>();
     /// <summary>The own tag with this name (compared the way tag names are), or null.</summary>
     internal Func<string, Guid?> FindTag { get; init; } = _ => null;
     /// <summary>The display name of an own tag, or null when it is unknown (the query then carries the id).</summary>
@@ -74,6 +79,27 @@ internal sealed class MediaFilterQueryVocabulary
             }
         return aliases;
     }
+
+    /// <summary>
+    /// Reads the names of the text fields of one language: each field has one text <c>media.query.scope.alias.{key}</c> holding its words
+    /// separated by commas or spaces. Words that are not lower-case letters, that are an English key of a field or <c>all</c>, or that another
+    /// field already owns, are left out.
+    /// </summary>
+    internal static IReadOnlyDictionary<string, MediaTextFields> ScopeAliasesFrom(Func<string, string?> text)
+    {
+        Dictionary<string, MediaTextFields> aliases = new(StringComparer.Ordinal);
+        foreach (MediaTextFields field in MediaFilterTerm.TextFieldOrder)
+            foreach (string word in (text("media.query.scope.alias." + MediaFilterTerm.TextFieldKey(field)) ?? string.Empty)
+                .Split([' ', ',', ';', '、'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                string alias = word.ToLowerInvariant();
+                if (MediaFilterQuery.IsFieldWord(alias) && alias != "all" && MediaFilterTerm.TextFieldsOf(alias) == null) aliases.TryAdd(alias, field);
+            }
+        return aliases;
+    }
+
+    /// <summary>The scope the value of an <c>in:</c> token stands for (English keys, <c>all</c> and this language's names), or null.</summary>
+    internal MediaTextFields? ScopeOf(string value) => MediaFilterTerm.TextFieldsOf(value, word => ScopeAliases.TryGetValue(word, out MediaTextFields field) ? field : null);
 
     internal MediaFilterField? FieldOf(string key)
     {
@@ -107,6 +133,9 @@ internal sealed record MediaFilterQueryApplication(IReadOnlyList<MediaFilterTerm
 /// <c>sound:with|none</c>, <c>source:4chan</c>, <c>board:g</c> or <c>board:4chan/g</c>, <c>rating:&gt;=3</c>, <c>thread:1234</c>, <c>name:x</c>;</item>
 /// <item>the bare flags <c>fav</c>, <c>missing</c>, <c>untagged</c> and <c>queue</c> (their aliases too; only <c>-queue</c> may exclude);
 /// <c>queue:yes|no</c> and the provider's tags <c>booru:name</c>, <c>-booru:name</c>;</item>
+/// <item><c>in:tag,title</c> says where the free text is looked for: the English keys <c>name</c>, <c>title</c>, <c>board</c>, <c>source</c>,
+/// <c>tag</c>, comma separated, or their localized names (<see cref="MediaFilterQueryVocabulary.ScopeAliases"/>); <c>in:all</c> and no token
+/// mean every field. It cannot exclude, there is one per query, and an unknown value stays text like any value that is not understood;</item>
 /// <item>free text, which stays the search text: every word of it must occur in the file name, the thread title, the board or the source
 /// (<see cref="MediaLibraryFilter.TextWords"/>); slashes are ordinary characters, so a title pseudo-tag such as <c>/kot/</c> is free text. A value in double quotes may hold spaces (<c>tag:"two words"</c>; inside quotes
 /// <c>\"</c> and <c>\\</c> are escapes); a bare quoted phrase is free text that stays one word (<c>"cat girl"</c> keeps its quotes in the text), and quoting a token (<c>"type:video"</c>) keeps it free text.</item>
@@ -249,6 +278,9 @@ internal static class MediaFilterQuery
                     ? Term(raw.Text, MediaFilterTerm.Flag(field)) : Problem(raw.Text, MediaFilterQueryProblem.UnknownValue);
             case MediaFilterField.Thread:
                 return ClassifyThread(raw.Text, value, vocabulary);
+            // "in:tag,title": where the free text is looked for (the exclusion was refused above: a place to look has no "not").
+            case MediaFilterField.In:
+                return vocabulary.ScopeOf(value) is { } scope ? Term(raw.Text, MediaFilterTerm.In(scope)) : Problem(raw.Text, MediaFilterQueryProblem.UnknownValue);
             // MP1: "queue:yes" / "queue:no" ("-queue:yes" is "queue:no").
             case MediaFilterField.Queue:
                 return value.ToLowerInvariant() switch
@@ -370,7 +402,7 @@ internal static class MediaFilterQuery
         MediaFilterQueryVocabulary vocab = vocabulary ?? MediaFilterQueryVocabulary.Empty;
         IReadOnlyList<MediaFilterTerm> all = terms.ToList();
         List<string> parts = [];
-        string? name = null;
+        string? name = null, scope = null;
         foreach (MediaFilterTerm term in all)
         {
             string minus = term.Exclude ? "-" : string.Empty;
@@ -407,8 +439,13 @@ internal static class MediaFilterQuery
                 case MediaFilterField.Name:
                     name = name == null ? term.Value : name + " " + term.Value;
                     break;
+                // The scope stands directly before the free text, wherever the set holds it; the default (every field) is not written.
+                case MediaFilterField.In:
+                    scope = MediaFilterTerm.TextFieldsOf(term.Value) is { } fields && fields != MediaTextFields.All ? key + ":" + MediaFilterTerm.TextFieldsValue(fields) : null;
+                    break;
             }
         }
+        if (scope != null) parts.Add(scope);
         if (!string.IsNullOrWhiteSpace(name)) parts.Add(NameText(name, vocab));
         return string.Join(' ', parts);
     }

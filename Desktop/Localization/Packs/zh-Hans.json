@@ -2679,7 +2679,7 @@
     "media.query.reason.ambiguous": "有歧义，请指明来源和版块",
     "media.query.reason.refused": "与其他过滤条件不兼容",
     "media.query.reason.tooManyTags": "标签过多",
-    "media.query.tip": "文字：文件名、串、版块、来源。\ntype:video, -tag:name, sound:none\nsource:4chan, board:g, rating:>=3\nfav, missing, untagged, thread:1234,\nqueue:yes, queue:no, booru:tag, -booru:tag, tag:\"x\" 会保留空格。",
+    "media.query.tip": "文字：文件名、串、版块、来源、标签。\nin:tag,title 只在这些字段中搜索。\ntype:video, -tag:name, sound:none\nsource:4chan, board:g, rating:>=3\nfav, missing, untagged, thread:1234,\nqueue:yes, queue:no, booru:tag, -booru:tag, tag:\"x\" 会保留空格。",
     "media.query.copied": "过滤条件已复制为文本",
     "media.query.copiedLong": "过滤条件已复制为文本。文本比搜索框可容纳的更长（{0} 个字符）。",
     "media.query.copyFailed": "无法复制过滤条件：剪贴板不可用。",
@@ -4837,6 +4837,12 @@
     "sources.stat.queued": "排队",
     "sources.stat.threads": "串",
     "stats.footer.tip": "{0}：{1}",
-    "theme.colors.resetAll.hint": "将所有颜色恢复为内置颜色。"
+    "theme.colors.resetAll.hint": "将所有颜色恢复为内置颜色。",
+    "media.query.alias.in": "位置",
+    "media.query.scope.alias.name": "文件名 文件",
+    "media.query.scope.alias.title": "标题 串标题",
+    "media.query.scope.alias.board": "版块",
+    "media.query.scope.alias.source": "来源",
+    "media.query.scope.alias.tag": "标签"
   }
 }

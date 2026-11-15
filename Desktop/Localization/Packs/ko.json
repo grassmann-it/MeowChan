@@ -2679,7 +2679,7 @@
     "media.query.reason.ambiguous": "모호합니다. 소스와 게시판을 지정하세요",
     "media.query.reason.refused": "다른 필터와 함께 쓸 수 없습니다",
     "media.query.reason.tooManyTags": "태그가 너무 많습니다",
-    "media.query.tip": "단어: 파일 이름, 스레드, 게시판, 소스\ntype:video, -tag:name, sound:none\nsource:4chan, board:g, rating:>=3\nfav, missing, untagged, thread:1234,\nqueue:yes, queue:no, booru:tag, -booru:tag, tag:\"x\" 공백도 유지합니다.",
+    "media.query.tip": "단어: 파일 이름, 스레드, 게시판, 소스, 태그\nin:tag,title는 해당 항목에서만 검색합니다.\ntype:video, -tag:name, sound:none\nsource:4chan, board:g, rating:>=3\nfav, missing, untagged, thread:1234,\nqueue:yes, queue:no, booru:tag, -booru:tag, tag:\"x\" 공백도 유지합니다.",
     "media.query.copied": "필터를 텍스트로 복사했습니다",
     "media.query.copiedLong": "필터를 텍스트로 복사했습니다. 텍스트가 검색창에 들어가는 길이보다 깁니다({0}자).",
     "media.query.copyFailed": "필터를 복사하지 못했습니다. 클립보드를 사용할 수 없습니다.",
@@ -4837,6 +4837,12 @@
     "sources.stat.queued": "대기 중",
     "sources.stat.threads": "스레드",
     "stats.footer.tip": "{0}: {1}",
-    "theme.colors.resetAll.hint": "모든 색상을 기본 제공 색상으로 되돌립니다."
+    "theme.colors.resetAll.hint": "모든 색상을 기본 제공 색상으로 되돌립니다.",
+    "media.query.alias.in": "위치",
+    "media.query.scope.alias.name": "파일 파일이름",
+    "media.query.scope.alias.title": "제목 스레드",
+    "media.query.scope.alias.board": "게시판",
+    "media.query.scope.alias.source": "소스",
+    "media.query.scope.alias.tag": "태그"
   }
 }

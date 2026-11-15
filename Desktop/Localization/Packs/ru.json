@@ -2859,7 +2859,7 @@
     "media.query.reason.ambiguous": "неоднозначно, укажите источник и доску",
     "media.query.reason.refused": "не сочетается с другими фильтрами",
     "media.query.reason.tooManyTags": "слишком много тегов",
-    "media.query.tip": "Слова: файл, тред, доска, источник.\ntype:video, -tag:name, sound:none\nsource:4chan, board:g, rating:>=3\nfav, missing, untagged, thread:1234,\nqueue:yes, queue:no, booru:tag, -booru:tag, tag:\"x\" сохраняет пробелы.",
+    "media.query.tip": "Слова: файл, тред, доска, источник, тег.\nin:tag,title ищет только в этих полях.\ntype:video, -tag:name, sound:none\nsource:4chan, board:g, rating:>=3\nfav, missing, untagged, thread:1234,\nqueue:yes, queue:no, booru:tag, -booru:tag, tag:\"x\" сохраняет пробелы.",
     "media.query.copied": "Фильтры скопированы как текст",
     "media.query.copiedLong": "Фильтры скопированы как текст. Текст длиннее, чем принимает поле поиска (лимит символов: {0}).",
     "media.query.copyFailed": "Не удалось скопировать фильтры: буфер обмена недоступен.",
@@ -4949,6 +4949,12 @@
     "sources.stat.queued": "В очереди",
     "sources.stat.threads": "Треды",
     "stats.footer.tip": "{0}: {1}",
-    "theme.colors.resetAll.hint": "Возвращает все цвета к встроенным."
+    "theme.colors.resetAll.hint": "Возвращает все цвета к встроенным.",
+    "media.query.alias.in": "где внутри",
+    "media.query.scope.alias.name": "файл имя файлы",
+    "media.query.scope.alias.title": "заголовок заголовки тред треды",
+    "media.query.scope.alias.board": "доска доски",
+    "media.query.scope.alias.source": "источник источники",
+    "media.query.scope.alias.tag": "тег теги метка"
   }
 }

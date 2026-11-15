@@ -223,7 +223,7 @@ internal class FilterTermPicker : Button
         MediaFilterField.Board => "media.filter.board",
         MediaFilterField.Rating => "media.filter.rating",
         MediaFilterField.Thread => "media.filter.onlyThread",
-        MediaFilterField.Name => "media.filter.name",
+        MediaFilterField.Name or MediaFilterField.In => "media.filter.name", // the picker offers neither: they live in the search field
         _ => "media.filter.group.flags"
     });
 

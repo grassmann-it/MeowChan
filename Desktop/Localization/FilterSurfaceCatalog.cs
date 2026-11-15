@@ -49,7 +49,7 @@ internal static class FilterSurfaceCatalog
         ("media.query.reason.ambiguous", "ambiguous, name the source and board", "mehrdeutig, Quelle und Board nennen"),
         ("media.query.reason.refused", "does not fit the other filters", "passt nicht zu den anderen Filtern"),
         ("media.query.reason.tooManyTags", "too many tags", "zu viele Tags"),
-        ("media.query.tip", "Words: file name, thread, board, source.\ntype:video, -tag:name, sound:none\nsource:4chan, board:g, rating:>=3\nfav, missing, untagged, thread:1234,\nqueue:yes, queue:no, booru:tag, -booru:tag, tag:\"x\" keeps spaces.", "Wörter: Dateiname, Thread, Board, Quelle.\ntype:video, -tag:name, sound:none\nsource:4chan, board:g, rating:>=3\nfav, missing, untagged, thread:1234,\nqueue:yes, queue:no, booru:tag, -booru:tag, tag:\"x\" hält Leerzeichen zusammen."),
+        ("media.query.tip", "Words: file name, thread, board, source, tag.\nin:tag,title looks only in those fields.\ntype:video, -tag:name, sound:none\nsource:4chan, board:g, rating:>=3\nfav, missing, untagged, thread:1234,\nqueue:yes, queue:no, booru:tag, -booru:tag, tag:\"x\" keeps spaces.", "Wörter: Dateiname, Thread, Board, Quelle, Tag.\nin:tag,title sucht nur in diesen Feldern.\ntype:video, -tag:name, sound:none\nsource:4chan, board:g, rating:>=3\nfav, missing, untagged, thread:1234,\nqueue:yes, queue:no, booru:tag, -booru:tag, tag:\"x\" hält Leerzeichen zusammen."),
         ("media.query.copied", "Filters copied as text", "Filter als Text kopiert"),
         ("media.query.copiedLong", "Filters copied as text. The text is longer than the search field takes (character limit: {0}).", "Filter als Text kopiert. Der Text ist länger, als das Suchfeld aufnimmt (Zeichengrenze: {0})."),
         ("media.query.copyFailed", "The filters could not be copied: the clipboard is not available.", "Die Filter konnten nicht kopiert werden: Die Zwischenablage ist nicht verfügbar."),
@@ -65,6 +65,13 @@ internal static class FilterSurfaceCatalog
         ("media.query.alias.untagged", "notags", "ungetaggt"),
         ("media.query.alias.thread", "threads", "threads faden"),
         ("media.query.alias.name", "file filename", "datei dateiname"),
+        // Where the free text is looked for (in:tag,title): the field's own names and the names of its values. The English keys always work.
+        ("media.query.alias.in", "within where", "in wo"),
+        ("media.query.scope.alias.name", "file filename files", "datei dateiname dateien"),
+        ("media.query.scope.alias.title", "titles thread threads", "titel threadtitel thread faden"),
+        ("media.query.scope.alias.board", "boards", "boards brett"),
+        ("media.query.scope.alias.source", "sources site", "quelle quellen"),
+        ("media.query.scope.alias.tag", "tags label", "tags schlagwort"),
         // M4: the focus mode of the media page (MediaPage.Focus.cs). The command label itself is command.media.focus-mode (CommandLabelCatalog).
         ("media.focus.label", "Focus", "Fokus"),
         ("media.focus.exit", "Exit focus", "Fokus beenden"),

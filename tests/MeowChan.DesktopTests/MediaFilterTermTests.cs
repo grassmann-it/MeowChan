@@ -43,7 +43,7 @@ public sealed class MediaFilterTermTests
             Assert.Equal(field, MediaFilterTerm.FieldOf(MediaFilterTerm.KeyOf(field)));
             Assert.Equal(field, MediaFilterTerm.FieldOf(" " + MediaFilterTerm.KeyOf(field).ToUpperInvariant() + " "));
         }
-        Assert.Equal(["tag", "type", "sound", "source", "board", "rating", "fav", "missing", "untagged", "thread", "name", "queue", "booru"], keys);
+        Assert.Equal(["tag", "type", "sound", "source", "board", "rating", "fav", "missing", "untagged", "thread", "name", "queue", "booru", "in"], keys);
         Assert.Null(MediaFilterTerm.FieldOf("typ"));
         Assert.Null(MediaFilterTerm.FieldOf(null));
     }
@@ -146,7 +146,9 @@ public sealed class MediaFilterTermTests
             new(kinds: [MediaLibraryKindFilter.Image, MediaLibraryKindFilter.Video], source: "4chan", excludeSources: ["danbooru"]),
             new(source: "4chan", board: "g", excludeBoards: [new MediaLibraryBoardKey("4chan", "wsg"), new MediaLibraryBoardKey("other", "g")], withoutMediaTags: true, thread: thread),
             new(kinds: MediaLibraryFilter.AllKindsExcept(MediaLibraryKindFilter.Image, MediaLibraryKindFilter.Gif)),
-            new(excludeSources: ["a", "b"], excludeBoards: [new MediaLibraryBoardKey("s", "x")])
+            new(excludeSources: ["a", "b"], excludeBoards: [new MediaLibraryBoardKey("s", "x")]),
+            new(nameContains: "cat girl", textFields: MediaTextFields.Tag | MediaTextFields.Title),
+            new(source: "4chan", nameContains: "\"cat girl\"", textFields: MediaTextFields.Name)
         ];
         foreach (MediaLibraryFilter filter in filters)
         {
@@ -163,4 +165,52 @@ public sealed class MediaFilterTermTests
             MediaFilterTerms.FromFilter(new MediaLibraryFilter(kinds: MediaLibraryFilter.AllKindsExcept(MediaLibraryKindFilter.Video))));
         Assert.Equal(2, MediaFilterTerms.FromFilter(new MediaLibraryFilter(kinds: [MediaLibraryKindFilter.Image, MediaLibraryKindFilter.Video])).Count);
     }
+
+    // The text scope (in:) is a term of its own: one per set, written before the name, the same filter back.
+    [Fact]
+    public void TheTextScopeIsOneTermThatReplacesItselfAndReachesTheFilter()
+    {
+        MediaFilterTerm tags = MediaFilterTerm.In(MediaTextFields.Tag), both = MediaFilterTerm.In(MediaTextFields.Tag | MediaTextFields.Title);
+        // The value is canonical: the English keys in the order of the fields, whatever order the flags were combined in.
+        Assert.Equal("title,tag", both.Value);
+        Assert.Equal(both, MediaFilterTerm.In(MediaTextFields.Title | MediaTextFields.Tag));
+        Assert.Equal("all", MediaFilterTerm.In(MediaTextFields.All).Value);
+        Assert.Equal("name,title,board,source,tag", string.Join(',', MediaFilterTerm.TextFieldOrder.Select(MediaFilterTerm.TextFieldKey)));
+        Assert.Throws<ArgumentOutOfRangeException>(() => MediaFilterTerm.In(MediaTextFields.None));
+        Assert.False(MediaFilterTerm.CanExclude(MediaFilterField.In));
+        Assert.Throws<ArgumentException>(() => MediaFilterTerms.ToFilter([tags with { Exclude = true }, MediaFilterTerm.Name("x")]));
+
+        // With keeps one scope, like the name.
+        Assert.Equal([both], MediaFilterTermSet.With([tags], both));
+        IReadOnlyList<MediaFilterTerm> set = MediaFilterTermSet.With(MediaFilterTermSet.With([MediaFilterTerm.Rating(2)], tags), both);
+        Assert.Equal([MediaFilterTerm.Rating(2), both], set);
+        Assert.Equal("in:title,tag", MediaFilterTermSet.IdentityKey(both));
+        // It stands beside the name in the chip order, before it, and keeps the set's order otherwise.
+        IReadOnlyList<MediaFilterTerm> ordered = MediaFilterTermSet.Ordered([MediaFilterTerm.Name("cat"), MediaFilterTerm.Rating(2), MediaFilterTerm.Type(MediaLibraryKindFilter.Video), both]);
+        Assert.Equal([MediaFilterTerm.Name("cat"), both, MediaFilterTerm.Type(MediaLibraryKindFilter.Video), MediaFilterTerm.Rating(2)], ordered);
+        Assert.Equal([both, MediaFilterTerm.Name("cat")], MediaFilterTermSet.Ordered([both, MediaFilterTerm.Name("cat")]));
+
+        // To the filter and back; "All" is the default and no term.
+        MediaLibraryFilter filter = MediaFilterTerms.ToFilter([both, MediaFilterTerm.Name("cat")]);
+        Assert.Equal(MediaTextFields.Title | MediaTextFields.Tag, filter.TextFields);
+        Assert.Equal([both, MediaFilterTerm.Name("cat")], MediaFilterTerms.FromFilter(filter));
+        Assert.Equal(MediaTextFields.All, MediaFilterTerms.ToFilter([MediaFilterTerm.In(MediaTextFields.All), MediaFilterTerm.Name("cat")]).TextFields);
+        Assert.Equal([MediaFilterTerm.Name("cat")], MediaFilterTerms.FromFilter(MediaFilterTerms.ToFilter([MediaFilterTerm.Name("cat")])));
+        // Without a word the scope is forgotten, as in the filter.
+        Assert.True(MediaFilterTerms.ToFilter([both]).IsEmpty);
+        Assert.Empty(MediaFilterTerms.FromFilter(MediaFilterTerms.ToFilter([both])));
+        // Two different scopes are no filter; an unreadable value is refused.
+        Assert.Throws<ArgumentException>(() => MediaFilterTerms.ToFilter([both, tags, MediaFilterTerm.Name("x")]));
+        Assert.Throws<ArgumentException>(() => MediaFilterTerms.ToFilter([new MediaFilterTerm(MediaFilterField.In, "bogus"), MediaFilterTerm.Name("x")]));
+        Assert.Equal(tags.Value, "tag");
+    }
+
+    [Theory]
+    [InlineData("tag", 16), InlineData("Tag,TITLE", 18), InlineData(" name , board ", 5)]
+    [InlineData("all", 31), InlineData("name,all", 31), InlineData("source,source", 8)]
+    public void ScopeValuesReadEnglishKeysInAnyOrderAndCase(string value, int expected) => Assert.Equal((MediaTextFields)expected, MediaFilterTerm.TextFieldsOf(value));
+
+    [Theory]
+    [InlineData(""), InlineData(" "), InlineData(","), InlineData("bogus"), InlineData("tag,bogus"), InlineData("none"), InlineData("tags")]
+    public void ScopeValuesThatAreNotKeysAreNone(string value) => Assert.Null(MediaFilterTerm.TextFieldsOf(value));
 }

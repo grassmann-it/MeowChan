@@ -2612,7 +2612,7 @@
     "media.query.reason.ambiguous": "ambiguo, indica la fonte e la board",
     "media.query.reason.refused": "non è compatibile con gli altri filtri",
     "media.query.reason.tooManyTags": "troppi tag",
-    "media.query.tip": "Parole: file, thread, board, fonte.\ntype:video, -tag:name, sound:none\nsource:4chan, board:g, rating:>=3\nfav, missing, untagged, thread:1234,\nqueue:yes, queue:no, booru:tag, -booru:tag, tag:\"x\" conserva gli spazi.",
+    "media.query.tip": "Parole: file, thread, board, fonte, tag.\nin:tag,title cerca solo in quei campi.\ntype:video, -tag:name, sound:none\nsource:4chan, board:g, rating:>=3\nfav, missing, untagged, thread:1234,\nqueue:yes, queue:no, booru:tag, -booru:tag, tag:\"x\" conserva gli spazi.",
     "media.query.copied": "Filtri copiati come testo",
     "media.query.copiedLong": "Filtri copiati come testo. Il testo è più lungo di quanto accetta il campo di ricerca (limite di caratteri: {0}).",
     "media.query.copyFailed": "Impossibile copiare i filtri: gli appunti non sono disponibili.",
@@ -4932,6 +4932,12 @@
     "sources.stat.queued": "In coda",
     "sources.stat.threads": "Thread",
     "stats.footer.tip": "{0}: {1}",
-    "theme.colors.resetAll.hint": "Riporta tutti i colori a quelli integrati."
+    "theme.colors.resetAll.hint": "Riporta tutti i colori a quelli integrati.",
+    "media.query.alias.in": "dove dentro",
+    "media.query.scope.alias.name": "file nome",
+    "media.query.scope.alias.title": "titolo titoli thread",
+    "media.query.scope.alias.board": "boards",
+    "media.query.scope.alias.source": "fonte fonti",
+    "media.query.scope.alias.tag": "etichetta etichette"
   }
 }
