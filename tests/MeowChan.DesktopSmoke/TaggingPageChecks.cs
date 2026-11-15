@@ -90,6 +90,7 @@ internal static class TaggingPageChecks
                 MeowChan.Desktop.Commands.CommandCatalog.Label("tagging.mark-done"),
                 MeowChan.Desktop.Commands.CommandCatalog.Label("tagging.mark-open"),
                 MeowChan.Desktop.Commands.CommandCatalog.Label("tagging.mark-skipped"),
+                Texts.T("tagging.page.group.assign"),
                 MeowChan.Desktop.Commands.CommandCatalog.Label("gallery.open"),
                 MeowChan.Desktop.Commands.CommandCatalog.Label("gallery.show-in-thread"),
                 MeowChan.Desktop.Commands.CommandCatalog.Label("tagging.show-in-media"),
@@ -179,7 +180,7 @@ internal static class TaggingPageChecks
                 }
                 if (gridTile.SelectedMark.IsVisible) Require(slot.Inflate(0.5).Contains(check), "The selection check " + check + " is outside the slot " + slot + ".");
             }
-            Require(tagging.ListMenuModel() is { } gridMenu && gridMenu.Entries.Count() == 17, "The grid has no context menu for its selection.");
+            Require(tagging.ListMenuModel() is { } gridMenu && gridMenu.Entries.Count() == 18, "The grid has no context menu for its selection.");
             await Program.WaitUntilAsync(() => Config.LoadConfig().TaggingPageView == "Grid", () => "saved view " + Config.LoadConfig().TaggingPageView);
             Program.CaptureWindow(window, "smoke-tagging-page-grid.png");
             Press((Control)tagging.TileGrid.ContainerFromIndex(0)!, Key.Escape);
