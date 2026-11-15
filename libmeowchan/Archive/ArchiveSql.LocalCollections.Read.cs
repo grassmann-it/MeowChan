@@ -15,7 +15,7 @@ internal static partial class ArchiveSql
     private static readonly UTF8Encoding LocalReadUtf8 = new(false, true);
 
     /// <summary>
-    /// Binds a read to the compatible v9/v10/v11 target, never to a legacy empty-result convention.
+    /// Binds a read to the compatible v9+ target, never to a legacy empty-result convention.
     /// No generation comparison: a historical receipt survives later content changes.
     /// </summary>
     internal static (string Instance, long Generation) RequireLocalTarget(
@@ -28,7 +28,8 @@ internal static partial class ArchiveSql
         try
         {
             // Check the header first. In particular v8 must not reach any local-table/fence read.
-            if (GetPragma(c, "user_version", tx) is not (9 or 10 or 11 or 12) || GetPragma(c, "application_id", tx) != ApplicationId)
+            int version = GetPragma(c, "user_version", tx);
+            if (version < 9 || version > SchemaVersion || GetPragma(c, "application_id", tx) != ApplicationId)
                 throw new LocalImportReadException(LocalImportError.TargetReplaced);
 
             // Bound and type-check BEFORE the shared schema validator's older fence decoder.
@@ -109,7 +110,7 @@ internal static partial class ArchiveSql
             if (!reader.Read())
             {
                 ct.ThrowIfCancellationRequested();
-                // Only this branch is absence: compatible, same-instance v9/v10/v11 in the same tx.
+                // Only this branch is absence: a compatible target in the same tx.
                 return null;
             }
             LocalCollectionImportReceipt receipt = DecodeLocalReceiptRow(reader, codec, ct);
@@ -347,7 +348,7 @@ internal static partial class ArchiveSql
     {
         ct.ThrowIfCancellationRequested();
         int version = GetPragma(c, "user_version", tx);
-        if (version is < 1 or > 12 || GetPragma(c, "application_id", tx) != ApplicationId)
+        if (version < 1 || version > SchemaVersion || GetPragma(c, "application_id", tx) != ApplicationId)
             throw LocalMetadataInvalid();
         if (version < 9)
         {

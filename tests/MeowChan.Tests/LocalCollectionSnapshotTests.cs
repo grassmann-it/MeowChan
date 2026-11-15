@@ -104,7 +104,7 @@ public sealed class LocalCollectionSnapshotTests
 
     [Theory]
     [InlineData("PRAGMA user_version=0")]
-    [InlineData("PRAGMA user_version=13")]
+    [InlineData("PRAGMA user_version=14")]
     [InlineData("ALTER TABLE archive_posts DROP COLUMN attachments_were_null; PRAGMA user_version=11")]
     [InlineData("PRAGMA application_id=1")]
     [InlineData("DROP TABLE local_import_receipts")]

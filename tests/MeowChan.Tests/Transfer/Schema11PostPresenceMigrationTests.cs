@@ -224,7 +224,7 @@ public sealed class Schema11PostPresenceMigrationTests
         string[] before;
         using (SqliteConnection connection = files.Open(SqliteOpenMode.ReadWrite))
         {
-            Execute(connection, "PRAGMA user_version=13");
+            Execute(connection, "PRAGMA user_version=14");
             before = CompleteSnapshot(connection);
             using (SqliteTransaction transaction = connection.BeginTransaction(deferred: false))
             {
@@ -235,7 +235,7 @@ public sealed class Schema11PostPresenceMigrationTests
         await Assert.ThrowsAsync<InvalidDataException>(() => files.OpenCatalogAsync());
         using SqliteConnection read = files.Open();
         Assert.Equal(before, CompleteSnapshot(read));
-        Assert.Equal(13, ArchiveSql.GetPragma(read, "user_version"));
+        Assert.Equal(14, ArchiveSql.GetPragma(read, "user_version"));
     }
 
     private static async Task AssertLegacyReadAsync(string profile)

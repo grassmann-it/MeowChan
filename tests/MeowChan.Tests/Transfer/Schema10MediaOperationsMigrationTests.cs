@@ -314,25 +314,25 @@ public sealed class Schema10MediaOperationsMigrationTests
     }
 
     [Fact]
-    public void UnknownV13IsRejectedWithoutMutation()
+    public void UnknownV14IsRejectedWithoutMutation()
     {
         using SyntheticDatabase database = new();
         using (SqliteConnection connection = database.Open(SqliteOpenMode.ReadWrite))
-            Execute(connection, "PRAGMA user_version=13");
+            Execute(connection, "PRAGMA user_version=14");
         byte[] beforeBytes = File.ReadAllBytes(database.Path);
 
         using (SqliteConnection connection = database.Open(SqliteOpenMode.ReadWrite))
         using (SqliteTransaction transaction = connection.BeginTransaction(deferred: false))
         {
             Assert.Throws<InvalidDataException>(() => ArchiveSql.ValidateSchema(connection, transaction));
-            Assert.Throws<InvalidDataException>(() => ArchiveSql.ValidateTargetSchema(connection, transaction, 13));
+            Assert.Throws<InvalidDataException>(() => ArchiveSql.ValidateTargetSchema(connection, transaction, 14));
             Assert.Throws<InvalidDataException>(() => ArchiveSql.MigrateMediaTransferSchema10(
                 connection, transaction, CancellationToken.None));
             transaction.Rollback();
         }
 
         Assert.Equal(beforeBytes, File.ReadAllBytes(database.Path));
-        Assert.Equal(13, Pragma(database, "user_version"));
+        Assert.Equal(14, Pragma(database, "user_version"));
     }
 
     [Fact]
