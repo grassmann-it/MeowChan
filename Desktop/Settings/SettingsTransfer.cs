@@ -163,6 +163,7 @@ public static class SettingsTransfer
             PostFilterRuleLimit = source.PostFilterRuleLimit,
             HiddenPostLimit = source.HiddenPostLimit,
             QuickTagSuggestionCount = source.QuickTagSuggestionCount,
+            QuickTagPanelSuggestionLimit = source.QuickTagPanelSuggestionLimit,
             QuickTagRecentCount = source.QuickTagRecentCount,
             QuickTagUndoDepth = source.QuickTagUndoDepth,
             QuickTagNeighbourScan = source.QuickTagNeighbourScan,

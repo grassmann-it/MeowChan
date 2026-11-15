@@ -4037,6 +4037,8 @@
     "budgets.group.quickTag": "Etiquetado rápido",
     "budgets.quickTagSuggestions": "Sugerencias de etiquetas mostradas",
     "budgets.quickTagSuggestionsHint": "Cuántos chips de sugerencias muestra el campo de etiquetado rápido mientras está vacío. Solo los nueve primeros tienen una tecla numérica. Predeterminado: {0}, permitido: de {1} a {2}.",
+    "budgets.quickTagPanelSuggestions": "Sugerencias de etiquetas en el panel (máximo)",
+    "budgets.quickTagPanelSuggestionsHint": "El panel de etiquetas de la galería llena su altura libre con sugerencias, hasta este número. Solo los nueve primeros tienen una tecla numérica. El ajuste anterior sigue valiendo para la ventana emergente de etiquetas. Predeterminado: {0}, permitido: de {1} a {2}.",
     "budgets.quickTagRecent": "Etiquetas recientes recordadas",
     "budgets.quickTagRecentHint": "Cuántas etiquetas propias usadas recientemente se recuerdan hasta que se cierra la aplicación y aparecen más arriba en las sugerencias. 0 lo desactiva. Predeterminado: {0}, permitido: de {1} a {2}.",
     "budgets.quickTagUndo": "Pasos para deshacer cambios de etiquetas",

@@ -3550,6 +3550,8 @@
     "budgets.group.quickTag": "Szybkie tagowanie",
     "budgets.quickTagSuggestions": "Wyświetlane propozycje tagów",
     "budgets.quickTagSuggestionsHint": "Ile chipów z propozycjami pokazuje pole szybkiego tagowania, gdy jest puste. Tylko pierwsze dziewięć ma przypisany klawisz cyfry. Domyślnie: {0}, dozwolone: od {1} do {2}.",
+    "budgets.quickTagPanelSuggestions": "Propozycje tagów w panelu (maksymalnie)",
+    "budgets.quickTagPanelSuggestionsHint": "Panel tagów galerii wypełnia wolną wysokość propozycjami, nie więcej niż ta liczba. Tylko pierwsze dziewięć ma przypisany klawisz cyfry. Ustawienie powyżej nadal dotyczy okienka podręcznego tagów. Domyślnie: {0}, dozwolone: od {1} do {2}.",
     "budgets.quickTagRecent": "Zapamiętywane ostatnio używane tagi",
     "budgets.quickTagRecentHint": "Ile ostatnio używanych własnych tagów jest zapamiętywanych do zamknięcia aplikacji i umieszczanych wyżej w propozycjach. 0 wyłącza tę funkcję. Domyślnie: {0}, dozwolone: od {1} do {2}.",
     "budgets.quickTagUndo": "Kroki cofania zmian tagów",

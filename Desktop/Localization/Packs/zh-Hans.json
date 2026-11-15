@@ -3486,6 +3486,8 @@
     "budgets.group.quickTag": "快速打标签",
     "budgets.quickTagSuggestions": "显示的标签建议数",
     "budgets.quickTagSuggestionsHint": "快速标签字段为空时显示的建议标签片数量。只有前九个建议有对应的数字键。默认值：{0}，允许范围：{1} 到 {2}。",
+    "budgets.quickTagPanelSuggestions": "标签面板中的建议数（上限）",
+    "budgets.quickTagPanelSuggestionsHint": "图库标签面板会用建议填满剩余高度，最多显示这么多个。只有前九个建议有对应的数字键。上方的设置仍适用于标签弹出窗口。默认值：{0}，允许范围：{1} 到 {2}。",
     "budgets.quickTagRecent": "记住的最近使用标签数",
     "budgets.quickTagRecentHint": "记住最近使用的“我的标签”的数量。这些标签会保留到应用关闭，并在建议中优先显示。0 表示关闭此功能。默认值：{0}，允许范围：{1} 到 {2}。",
     "budgets.quickTagUndo": "标签撤销步骤数",

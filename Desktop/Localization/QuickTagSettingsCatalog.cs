@@ -12,6 +12,7 @@ internal static class QuickTagSettingsCatalog
     internal static readonly (string Property, string Stem)[] Limits =
     {
         (nameof(Config.QuickTagSuggestionCount), "quickTagSuggestions"),
+        (nameof(Config.QuickTagPanelSuggestionLimit), "quickTagPanelSuggestions"),
         (nameof(Config.QuickTagRecentCount), "quickTagRecent"),
         (nameof(Config.QuickTagUndoDepth), "quickTagUndo"),
         (nameof(Config.QuickTagNeighbourScan), "quickTagNeighbours"),
@@ -27,6 +28,10 @@ internal static class QuickTagSettingsCatalog
         ("budgets.quickTagSuggestionsHint",
             "How many suggestion chips the quick tag field shows while it is empty. Only the first nine have a number key. Default: {0}, allowed: {1} to {2}.",
             "Wie viele Vorschlags-Chips das Schnell-Tag-Feld zeigt, solange es leer ist. Nur die ersten neun haben eine Zifferntaste. Standard: {0}, erlaubt: {1} bis {2}."),
+        ("budgets.quickTagPanelSuggestions", "Tag suggestions in the tag panel (at most)", "Tag-Vorschläge im Tag-Panel (höchstens)"),
+        ("budgets.quickTagPanelSuggestionsHint",
+            "The gallery tag panel fills its free height with suggestions, at most this many. Only the first nine have a number key. The setting above still applies to the tag popover. Default: {0}, allowed: {1} to {2}.",
+            "Das Tag-Panel der Galerie füllt seine freie Höhe mit Vorschlägen, höchstens so vielen. Nur die ersten neun haben eine Zifferntaste. Die Einstellung darüber gilt weiter für das Tag-Popover. Standard: {0}, erlaubt: {1} bis {2}."),
         ("budgets.quickTagRecent", "Recently used tags remembered", "Gemerkte zuletzt verwendete Tags"),
         ("budgets.quickTagRecentHint",
             "How many recently used own tags are remembered until the app is closed and ranked higher in the suggestions. 0 switches this off. Default: {0}, allowed: {1} to {2}.",

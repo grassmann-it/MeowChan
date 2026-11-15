@@ -71,6 +71,11 @@ internal sealed record QuickTagOptions
 {
     internal const int DefaultUndoDepth = 20, MinimumUndoDepth = 1, MaximumUndoDepth = 100;
     internal const int DefaultSuggestionCount = 9, MinimumSuggestionCount = 3, MaximumSuggestionCount = 18;
+    /// <summary>
+    /// The most suggestions the gallery tag panel ranks when its height allows more than <see cref="SuggestionCount"/> (<c>QuickTagPanelSuggestionLimit</c>).
+    /// Only as many chips as fit are built; this bounds the ranking, never the number of controls.
+    /// </summary>
+    internal const int DefaultPanelSuggestionLimit = 60, MinimumPanelSuggestionLimit = 9, MaximumPanelSuggestionLimit = 200;
     /// <summary>Media the gallery lets the user mark for one tag change (<c>QuickTagMarkedMediaLimit</c>, E4). The write stays
     /// under <c>PrivateTagStore.MaximumMediaAssignments</c>, which the maximum never exceeds.</summary>
     internal const int DefaultMarkedMediaLimit = 500, MinimumMarkedMediaLimit = 10, MaximumMarkedMediaLimit = 5000;
@@ -82,6 +87,7 @@ internal sealed record QuickTagOptions
 
     internal int UndoDepth { get; init; } = DefaultUndoDepth;
     internal int SuggestionCount { get; init; } = DefaultSuggestionCount;
+    internal int PanelSuggestionLimit { get; init; } = DefaultPanelSuggestionLimit;
     internal int MarkedMediaLimit { get; init; } = DefaultMarkedMediaLimit;
 
     /// <summary>The marked-media limit inside its range and below what one tag write accepts.</summary>
@@ -97,6 +103,7 @@ internal sealed record QuickTagOptions
     {
         UndoDepth = Math.Clamp(UndoDepth, MinimumUndoDepth, MaximumUndoDepth),
         SuggestionCount = Math.Clamp(SuggestionCount, MinimumSuggestionCount, MaximumSuggestionCount),
+        PanelSuggestionLimit = Math.Clamp(PanelSuggestionLimit, MinimumPanelSuggestionLimit, MaximumPanelSuggestionLimit),
         MarkedMediaLimit = ClampMarkedMediaLimit(MarkedMediaLimit),
         StampSize = Math.Clamp(StampSize, MinimumStampSize, MaximumStampSize)
     };

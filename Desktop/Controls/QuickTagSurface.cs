@@ -151,6 +151,37 @@ internal static class QuickTagKeys
         gesture is null ? Texts.T(key + "NoKey", leading) : Texts.T(key, leading.Append(gesture).ToArray());
 }
 
+/// <summary>
+/// How many suggestion chips fit a slot: the greedy line wrap of a wrap panel (items left to right, a new row when the next does not fit
+/// the width, rows without line spacing) over the chips' measured sizes. The first <c>minimum</c> chips (the numbered ones) are always
+/// taken, even when they overflow; later ones only while their row still fits the height. Pure, so it is tested without a window.
+/// </summary>
+internal struct QuickTagStripFit(double width, double height, double itemSpacing, int minimum)
+{
+    private double _x, _used, _rowHeight;
+
+    /// <summary>Places the chip of <paramref name="size"/> as number <paramref name="index"/> (0-based); false when it does not fit (and is not placed).</summary>
+    internal bool TryAdd(int index, Size size)
+    {
+        bool newRow = _x > 0 && _x + itemSpacing + size.Width > width;
+        double rowsAbove = newRow ? _used + _rowHeight : _used;
+        double thisRow = newRow ? size.Height : Math.Max(_rowHeight, size.Height);
+        if (index >= minimum && rowsAbove + thisRow > height) return false;
+        if (newRow) { _used += _rowHeight; _x = size.Width; _rowHeight = size.Height; }
+        else { _x += (_x > 0 ? itemSpacing : 0) + size.Width; _rowHeight = thisRow; }
+        return true;
+    }
+
+    /// <summary>The number of chips of <paramref name="sizes"/> (in order) that fit, at least <paramref name="minimum"/> of them (or all, if fewer).</summary>
+    internal static int Count(IReadOnlyList<Size> sizes, double width, double height, double itemSpacing, int minimum)
+    {
+        QuickTagStripFit fit = new(width, height, itemSpacing, minimum);
+        for (int index = 0; index < sizes.Count; index++)
+            if (!fit.TryAdd(index, sizes[index])) return index;
+        return sizes.Count;
+    }
+}
+
 /// <summary>Number and letter keys of the suggestion chips.</summary>
 internal static class QuickTagBadges
 {
@@ -209,6 +240,12 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     internal const double CompactWidth = 320;
     /// <summary>Gap between the footer buttons and between a button's icon and its text, on the 8 dip grid.</summary>
     internal const double FooterGap = 8;
+    /// <summary>Horizontal gap between suggestion chips (the strip's wrap panel).</summary>
+    private const double StripItemSpacing = 8;
+    /// <summary>The most the assigned chips and the extra section take above the suggestions in a popover, in dip.</summary>
+    private const double UpperMaxHeight = 160;
+    /// <summary>Delay of the re-fit after the panel was resized, in milliseconds (a drag fires many size changes).</summary>
+    private const int FitDebounceMs = 60;
     private const string UndoIcon = "corner-up-left", StampIcon = "check-square", AdvancedIcon = "external-link";
     private readonly QuickTagSession _session;
     private readonly QuickTagOptions _options;
@@ -230,7 +267,12 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     private readonly Button _close = new();
     private readonly IdentitySuggestionBox _input = new();
     private readonly TextBlock _suggestionsHeading = new() { Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap };
-    private readonly WrapPanel _strip = new() { ItemSpacing = 8, LineSpacing = 0 };
+    private readonly WrapPanel _strip = new() { ItemSpacing = StripItemSpacing, LineSpacing = 0, VerticalAlignment = VerticalAlignment.Top };
+    // The strip's slot: a block between the heading and "More…" whose height comes from the layout (a star row), never from its chips,
+    // so the number of chips that fit can be computed from it without a feedback loop (see ApplyFit).
+    private readonly ScrollViewer _stripHost = new() { HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled, VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto };
+    // The assigned chips and the host's extra section above the suggestions: keeps its natural height up to a limit, then scrolls.
+    private readonly ScrollViewer _upper = new() { HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled, MaxHeight = UpperMaxHeight };
     private readonly TextBlock _stripEmpty = new() { Classes = { "workspace-help" }, TextWrapping = TextWrapping.Wrap };
     private readonly Button _more = new() { Classes = { "subtle" }, HorizontalAlignment = HorizontalAlignment.Left };
     private readonly TextBlock _allHeading = new() { Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap };
@@ -245,6 +287,14 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     private readonly Button _stamp = new();
     private readonly Button _advanced = new();
     private readonly List<SuggestionChip> _suggestionChips = new();
+    // One entry per chip now in the strip (the hit zone and its measured size); _suggestionChips is the same list seen as chips.
+    private readonly List<StripItem> _stripItems = new();
+    // The ranked suggestions the strip may show (up to the cap), and their letter keys; _shown is the prefix that is on screen.
+    private IReadOnlyList<QuickTagSuggestion> _candidates = Array.Empty<QuickTagSuggestion>();
+    private char?[] _candidateLetters = Array.Empty<char?>();
+    private DispatcherTimer? _fitTimer;
+    private bool _fillSuggestions;
+    private bool _stripMeasured;
     private readonly List<AssignedChip> _assignedChips = new();
     private IQuickTagSuggestionSource _source = FrequentQuickTagSuggestions.Instance;
     // The source the strip asks: the stamp set in front of _source, whatever source the host passes.
@@ -272,6 +322,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         _close.Name = _name + "Close"; _input.Name = _name + "Input"; _strip.Name = _name + "Suggestions"; _more.Name = _name + "More";
         _allChips.Name = _name + "Assigned"; _someChips.Name = _name + "AssignedSome"; _status.Name = _name + "Status";
         _undo.Name = _name + "Undo"; _stamp.Name = _name + "Stamp"; _advanced.Name = _name + "Advanced"; _title.Name = _name + "Title"; _extra.Name = _name + "Extra";
+        _stripHost.Name = _name + "SuggestionsHost"; _upper.Name = _name + "Body";
         _stripEmpty.Name = _name + "SuggestionsEmpty"; _assignedEmpty.Name = _name + "AssignedEmpty";
         _markedClear.Name = _name + "MarkedClear";
 
@@ -296,17 +347,16 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         _close.VerticalAlignment = VerticalAlignment.Center;
 
         _assigned = new StackPanel { Spacing = 8, Children = { _allHeading, _allChips, _someHeading, _someChips, _assignedEmpty } };
-        StackPanel body = new()
-        {
-            Spacing = 12,
-            Children =
-            {
-                new StackPanel { Spacing = 8, Children = { SuggestionsHeader(), _strip, _stripEmpty, _more } },
-                _assigned,
-                _extra
-            }
-        };
-        ScrollViewer scroll = new() { Content = body, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled, Name = _name + "Body" };
+        // Above the suggestions, right under the field: what the file carries stays on screen however many suggestions fit below.
+        _upper.Content = new StackPanel { Spacing = 8, Children = { _assigned, _extra } };
+        // The suggestion area takes everything that is left: heading, the chips that fit, and "More…" at the bottom, over the footer.
+        _stripHost.Content = new StackPanel { Children = { _strip, _stripEmpty } };
+        Grid suggestionArea = new() { RowDefinitions = new RowDefinitions("Auto,*,Auto"), RowSpacing = 8, Name = _name + "SuggestionArea" };
+        Control suggestionsHeader = SuggestionsHeader();
+        suggestionArea.Children.Add(suggestionsHeader);
+        suggestionArea.Children.Add(_stripHost); Grid.SetRow(_stripHost, 1);
+        suggestionArea.Children.Add(_more); Grid.SetRow(_more, 2);
+        _more.VerticalAlignment = VerticalAlignment.Bottom;
 
         // The footer: three buttons of icon and text. In a narrow host (the side panel) they are stacked at full width, otherwise in a row.
         Grid actions = new() { Name = _name + "Actions" };
@@ -319,23 +369,25 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         BuildFooterButton(_advanced, AdvancedIcon);
         ApplyFooterLayout(stacked: false);
 
-        Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,Auto,*,Auto,Auto"), RowSpacing = 12 };
+        Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,Auto,Auto,*,Auto,Auto"), RowSpacing = 12 };
         layout.Children.Add(header);
         // The field with the marks bar under it (a single row, so a hidden bar leaves no gap).
         StackPanel fieldArea = new() { Spacing = 8, Children = { _input, _markBar }, Name = _name + "Field" };
         _fieldArea = fieldArea;
         layout.Children.Add(fieldArea); Grid.SetRow(fieldArea, 1);
-        layout.Children.Add(scroll); Grid.SetRow(scroll, 2);
-        layout.Children.Add(_status); Grid.SetRow(_status, 3);
-        layout.Children.Add(actions); Grid.SetRow(actions, 4);
+        layout.Children.Add(_upper); Grid.SetRow(_upper, 2);
+        layout.Children.Add(suggestionArea); Grid.SetRow(suggestionArea, 3);
+        layout.Children.Add(_status); Grid.SetRow(_status, 4);
+        layout.Children.Add(actions); Grid.SetRow(actions, 5);
         Content = layout;
         Header = header;
-        // Focus order: field, suggestions, "More…", assigned chips, extra section, undo, stamp, "Open tag editor", and the close button last
+        // Focus order (the visual one): field, assigned chips, extra section, suggestions, "More…", undo, stamp, "Open tag editor", and the close button last
         // (a popover cycles, so Shift+Tab from the field reaches it directly).
         KeyboardNavigation.SetTabIndex(header, 1);
 
         AutomationProperties.SetLiveSetting(_status, AutomationLiveSetting.Polite);
         _strip.PropertyChanged += OnStripPropertyChanged;
+        _stripHost.SizeChanged += OnStripHostSizeChanged;
         _close.Click += OnClose;
         _markedClear.Click += OnMarkedClear;
         _undo.Click += OnUndo;
@@ -546,9 +598,10 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         (QuickTagFocus zone, TagId? tag, string? key, int index) = CurrentFocus();
         PrivateTagStoreSnapshot? snapshot = _session.Snapshot;
         IReadOnlySet<TagId> carried = _session.Carried();
-        _shown = snapshot == null ? Array.Empty<QuickTagSuggestion>() : Normalize(_decorated.Suggest(
-            new QuickTagSuggestionRequest(snapshot, carried, _options.SuggestionCount)), snapshot, carried, _options.SuggestionCount);
-        Letters = QuickTagBadges.Letters(_shown.Select(item => item.Name.Display).ToArray());
+        int cap = SuggestionCap;
+        _candidates = snapshot == null ? Array.Empty<QuickTagSuggestion>() : Normalize(_decorated.Suggest(
+            new QuickTagSuggestionRequest(snapshot, carried, cap)), snapshot, carried, cap);
+        _candidateLetters = QuickTagBadges.Letters(_candidates.Select(item => item.Name.Display).ToArray());
         BuildSuggestions();
         BuildAssigned();
         _input.IsEnabled = snapshot != null;
@@ -586,22 +639,144 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         return result;
     }
 
+    /// <summary>
+    /// The most suggestions asked from the source. A popover shows the configured count; the gallery panel (<see cref="FillSuggestions"/>)
+    /// asks for up to the panel limit and shows as many as fit, never fewer than the configured count would be.
+    /// </summary>
+    private int SuggestionCap => _fillSuggestions ? Math.Max(_options.SuggestionCount, _options.PanelSuggestionLimit) : _options.SuggestionCount;
+
+    /// <summary>
+    /// True for a host that gives the surface a fixed height (the gallery side panel): the suggestion area then shows as many chips as
+    /// fit its height (up to <see cref="QuickTagOptions.PanelSuggestionLimit"/>) and follows resizes. Off: the configured count.
+    /// </summary>
+    internal bool FillSuggestions
+    {
+        get => _fillSuggestions;
+        set
+        {
+            if (_fillSuggestions == value) return;
+            _fillSuggestions = value;
+            _upper.MaxHeight = value ? UpperMaxHeightFor(Bounds.Height) : UpperMaxHeight;
+            if (!_disposed) Refresh();
+        }
+    }
+
+    /// <summary>The assigned block keeps at most this share of a fixed-height surface (and never less than three chip rows).</summary>
+    private static double UpperMaxHeightFor(double surfaceHeight) => surfaceHeight > 0 ? Math.Max(96, surfaceHeight * 0.4) : UpperMaxHeight;
+
     private void BuildSuggestions()
     {
-        foreach (SuggestionChip chip in _suggestionChips) chip.Button.Click -= OnSuggestionClick;
+        ClearStrip();
+        ApplyFit();
+    }
+
+    private void ClearStrip()
+    {
+        foreach (StripItem item in _stripItems) item.Chip.Button.Click -= OnSuggestionClick;
+        _stripItems.Clear();
         _suggestionChips.Clear();
         _strip.Children.Clear();
-        for (int index = 0; index < _shown.Count; index++)
+    }
+
+    // The chips of the strip are the longest prefix of the candidates that fits the strip's slot. Sizes are measured once per chip (the
+    // chip's own DesiredSize) and wrapped like the WrapPanel does, so no control beyond the first row that does not fit is ever kept.
+    // The slot's height is a layout result that never depends on the chips (a star row), so changing the chips cannot change it again.
+    private void ApplyFit()
+    {
+        double width = _stripHost.Bounds.Width, height = _stripHost.Bounds.Height;
+        bool measurable = _fillSuggestions && _attached && width > 0 && height > 0;
+        _stripMeasured = measurable;
+        int limit = measurable ? _candidates.Count : Math.Min(_candidates.Count, _options.SuggestionCount);
+        int count = 0;
+        QuickTagStripFit fit = new(width, height, StripItemSpacing, QuickTagOptions.NumberedSuggestions);
+        for (int index = 0; index < limit; index++)
         {
-            SuggestionChip chip = SuggestionChip.Create(_name + "Suggestion" + (index + 1), _shown[index], index, Letters[index], _platform);
-            chip.Button.Click += OnSuggestionClick;
-            AutomationProperties.SetName(chip.Button, AccessibleName(_shown[index], index, _shown.Count));
-            if (_shown[index].Id is { } offered) AttachStampMenu(chip.Button, offered);
-            if (QuickTagKeys.SuggestionGesture(index, _platform) is { } gesture) AutomationProperties.SetAcceleratorKey(chip.Button, gesture);
-            _suggestionChips.Add(chip);
-            _strip.Children.Add(HitZone(chip.Button));
+            StripItem item = EnsureItem(index);
+            if (measurable)
+            {
+                if (!item.Measured)
+                {
+                    item.Zone.Measure(new Size(width, double.PositiveInfinity));
+                    item.Size = item.Zone.DesiredSize;
+                    item.Measured = true;
+                }
+                if (!fit.TryAdd(index, item.Size)) break;
+            }
+            count++;
         }
+        TrimItems(count);
+        _shown = count == _candidates.Count ? _candidates : _candidates.Take(count).ToArray();
+        Letters = count == _candidateLetters.Length ? _candidateLetters : _candidateLetters.Take(count).ToArray();
+        for (int index = 0; index < count; index++)
+            AutomationProperties.SetName(_stripItems[index].Chip.Button, AccessibleName(_shown[index], index, count));
         ShowLetters(_strip.IsKeyboardFocusWithin);
+    }
+
+    private StripItem EnsureItem(int index)
+    {
+        if (index < _stripItems.Count) return _stripItems[index];
+        QuickTagSuggestion suggestion = _candidates[index];
+        SuggestionChip chip = SuggestionChip.Create(_name + "Suggestion" + (index + 1), suggestion, index, _candidateLetters[index], _platform);
+        chip.Button.Click += OnSuggestionClick;
+        if (suggestion.Id is { } offered) AttachStampMenu(chip.Button, offered);
+        if (QuickTagKeys.SuggestionGesture(index, _platform) is { } gesture) AutomationProperties.SetAcceleratorKey(chip.Button, gesture);
+        StripItem item = new(chip, HitZone(chip.Button));
+        _stripItems.Add(item);
+        _suggestionChips.Add(chip);
+        _strip.Children.Add(item.Zone);
+        return item;
+    }
+
+    // Drops the chips beyond the fit; a focused one hands the focus to the last chip that stays (or "More…").
+    private void TrimItems(int count)
+    {
+        if (_stripItems.Count <= count) return;
+        bool focused = _stripItems.Skip(count).Any(item => item.Chip.Button.IsKeyboardFocusWithin);
+        for (int index = _stripItems.Count - 1; index >= count; index--)
+        {
+            _stripItems[index].Chip.Button.Click -= OnSuggestionClick;
+            _stripItems.RemoveAt(index);
+            _suggestionChips.RemoveAt(index);
+            _strip.Children.RemoveAt(index);
+        }
+        if (focused) (count > 0 ? _stripItems[count - 1].Chip.Button : _more).Focus(NavigationMethod.Directional);
+    }
+
+    // The slot changed size (panel resized, a block above it grew or shrank). The first fit after the surface got its size is taken at
+    // once (no flicker of a short strip); later ones wait for the resize to settle.
+    private void OnStripHostSizeChanged(object? sender, SizeChangedEventArgs e)
+    {
+        if (_disposed || !_fillSuggestions) return;
+        if (!_stripMeasured) { RefitStrip(); return; }
+        _fitTimer ??= CreateFitTimer();
+        _fitTimer.Stop();
+        _fitTimer.Start();
+    }
+
+    private DispatcherTimer CreateFitTimer()
+    {
+        DispatcherTimer timer = new() { Interval = TimeSpan.FromMilliseconds(FitDebounceMs) };
+        timer.Tick += (_, _) => { timer.Stop(); if (!_disposed) RefitStrip(); };
+        return timer;
+    }
+
+    // Fits again with the chips already built (grows or trims the strip); the ranking is not asked again.
+    private void RefitStrip()
+    {
+        if (_disposed) return;
+        int before = _stripItems.Count;
+        (QuickTagFocus zone, TagId? tag, string? key, int index) = CurrentFocus();
+        ApplyFit();
+        if (_stripItems.Count != before) RefreshTexts();
+        RestoreFocus(zone, tag, key, index);
+    }
+
+    private sealed class StripItem(SuggestionChip chip, Control zone)
+    {
+        internal SuggestionChip Chip { get; } = chip;
+        internal Control Zone { get; } = zone;
+        internal Size Size { get; set; }
+        internal bool Measured { get; set; }
     }
 
     private void BuildAssigned()
@@ -723,7 +898,13 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     });
 
     // Below the compact width (the side panel) the footer buttons are stacked at full width; icon and text stay in both layouts.
-    private void OnSizeChanged(object? sender, SizeChangedEventArgs e) => ApplyWidth(e.NewSize.Width);
+    private void OnSizeChanged(object? sender, SizeChangedEventArgs e)
+    {
+        ApplyWidth(e.NewSize.Width);
+        // A fixed-height host: the assigned block yields to the suggestions beyond a share of the height. (Never in a flyout, whose height
+        // follows the content: the limit would then depend on its own result.)
+        if (_fillSuggestions && e.HeightChanged) _upper.MaxHeight = UpperMaxHeightFor(e.NewSize.Height);
+    }
 
     /// <summary>Chooses the footer layout for a surface of <paramref name="width"/> dip (0 or less keeps the current one).</summary>
     internal void ApplyWidth(double width)
@@ -1141,6 +1322,8 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         foreach (SuggestionChip chip in _suggestionChips) chip.Button.Click -= OnSuggestionClick;
         foreach (AssignedChip chip in _assignedChips) { chip.Button.Click -= OnAssignedClick; chip.Remove.Click -= OnRemoveClick; }
         _strip.PropertyChanged -= OnStripPropertyChanged;
+        _stripHost.SizeChanged -= OnStripHostSizeChanged;
+        if (_fitTimer != null) { _fitTimer.Stop(); _fitTimer = null; }
         _input.RemoveHandler(KeyDownEvent, OnInputKey);
         RemoveHandler(KeyDownEvent, OnKey);
         SizeChanged -= OnSizeChanged;
