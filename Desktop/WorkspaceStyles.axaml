@@ -1127,7 +1127,7 @@
         <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="BorderThickness" Value="1" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
         <Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Control}" />
-        <Setter Property="MinHeight" Value="32" /><Setter Property="Padding" Value="9,2" /><Setter Property="FontWeight" Value="Normal" />
+        <Setter Property="MinHeight" Value="{StaticResource Workspace.Size.Control}" /><Setter Property="Padding" Value="{StaticResource Workspace.Inset.MenuItem}" /><Setter Property="FontWeight" Value="Normal" />
     </Style>
     <Style Selector="Button.gallery-overflow-item:pointerover /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.gallery-overflow-item:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.gallery-overflow-item:focus-visible /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.gallery-overflow-item:focus-visible /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="{DynamicResource Workspace.Hover}" />

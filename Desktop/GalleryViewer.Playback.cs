@@ -50,10 +50,10 @@ internal sealed partial class GalleryViewer
         Config.GallerySlideshowVideoSecondsMinimum, Config.GallerySlideshowVideoSecondsMaximum);
     private readonly AccessibleNumberInput _videoRepeats = SlideshowNumber("GallerySlideshowVideoRepeatsInput",
         Config.GallerySlideshowVideoRepeatsMinimum, Config.GallerySlideshowVideoRepeatsMaximum);
-    private readonly TextBlock _videoRuleCaption = new() { Classes = { "workspace-meta" }, Margin = new Thickness(12, 8, 12, 0), IsVisible = false };
-    private readonly TextBlock _videoValueCaption = new() { Classes = { "workspace-meta" }, Margin = new Thickness(12, 2, 12, 0), IsVisible = false };
+    private readonly TextBlock _videoRuleCaption = new() { Classes = { "workspace-meta" }, Margin = OverflowCaptionMargin, IsVisible = false };
+    private readonly TextBlock _videoValueCaption = new() { Classes = { "workspace-meta" }, Margin = OverflowCaptionMargin, IsVisible = false };
     private readonly TextBlock _reducedMotionNote = new() { Name = "GallerySlideshowReducedMotionNote", Classes = { "workspace-help" },
-        Margin = new Thickness(12, 2, 12, 2), TextWrapping = TextWrapping.Wrap, MaxWidth = 300, IsVisible = false };
+        Margin = OverflowNoteMargin, TextWrapping = TextWrapping.Wrap, MaxWidth = 300, IsVisible = false };
     // "Pause when MeowChan loses focus" (off by default): a row of the slideshow settings, shown with the other slideshow choices.
     private readonly ToggleButton _pauseOnFocusLossToggle = new() { Name = "GallerySlideshowPauseOnFocusLossToggle" };
     private readonly ToggleButton _slideshowToggle = new() { Name = "GallerySlideshowToggle" };
@@ -125,8 +125,10 @@ internal sealed partial class GalleryViewer
         AddOverflowItem(_videoRepeatToggle, "video.loop", check: true, keepOpen: true,
             label: () => GalleryPlaybackCatalog.Get("viewer.playback.repeat"), host: _slideshowHome);
         _videoRepeatToggle.Click += (_, _) => ChangePlaybackPreferences(_playbackPreferences with { VideoRepeat = !_playbackPreferences.VideoRepeat });
+        // One inset for everything in the menu: a choice box starts where a row's lead mark starts and ends where its shortcut ends,
+        // a caption is a field label of the box below it (Space.4 between them), and the box leaves Space.4 before the next row.
         foreach (Control choice in new Control[] { _playbackMode, _slideshowSeconds, _videoRule, _videoSeconds, _videoRepeats })
-        { choice.HorizontalAlignment = HorizontalAlignment.Stretch; choice.Margin = new Thickness(8, 0); }
+        { choice.HorizontalAlignment = HorizontalAlignment.Stretch; choice.Margin = OverflowChoiceMargin; }
         _slideshowHome.Children.Add(_modeCaption);
         _slideshowHome.Children.Add(_playbackMode);
         _slideshowHome.Children.Add(_secondsCaption);
@@ -288,7 +290,8 @@ internal sealed partial class GalleryViewer
                 string? reason = id == "gallery.slideshow-toggle" && !button.IsEnabled ? SlideshowStatusText(CurrentSlideshowStatus)
                     : id == "gallery.overlay-autohide-toggle" && !button.IsEnabled
                         ? GalleryPlaybackCatalog.Get("viewer.playback.enableOverlay") : null;
-                string label = button.Content?.ToString() ?? CommandCatalog.Label(id);
+                // A menu row's content is its Grid (the row layout), never a text: the visible label is the row's label block.
+                string label = LabelOf(button) ?? CommandCatalog.Label(id);
                 string tip = CommandBindings.Tooltip(id, reason, label);
                 ToolTip.SetTip(button, tip); AutomationProperties.SetHelpText(button, tip);
             }
