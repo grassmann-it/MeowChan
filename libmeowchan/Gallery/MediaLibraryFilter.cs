@@ -57,6 +57,9 @@ internal sealed record MediaLibraryFilter
         if (board != null && source == null) throw new ArgumentException("A board filter needs its source.", nameof(board));
         string? name = string.IsNullOrWhiteSpace(nameContains) ? null : nameContains.Trim();
         if (name is { Length: > MaximumNameLength }) throw new ArgumentException("The file name text is too long.", nameof(nameContains));
+        // A text without a word (an empty phrase "" or one made of quote marks only) is no text: the filter stays inactive, as for white space.
+        string[] words = name == null ? [] : WordsOf(name);
+        if (words.Length == 0) name = null;
         Tags = tags;
         Kinds = kindSet;
         FavoritesOnly = favoritesOnly;
@@ -64,7 +67,7 @@ internal sealed record MediaLibraryFilter
         Source = string.IsNullOrEmpty(source) ? null : source;
         Board = string.IsNullOrEmpty(board) ? null : board;
         NameContains = name;
-        TextWords = name == null ? [] : WordsOf(name);
+        TextWords = words;
         Thread = thread;
         Sound = sound;
         WithoutMediaTags = withoutMediaTags;
@@ -125,6 +128,9 @@ internal sealed record MediaLibraryFilter
         return [.. words.Distinct(StringComparer.OrdinalIgnoreCase)];
     }
 
+    /// <summary>Whether a text of the search field has at least one word (<see cref="WordsOf"/>): white space and an empty phrase <c>""</c> have none.</summary>
+    internal static bool HasText(string? text) => !string.IsNullOrWhiteSpace(text) && WordsOf(text).Length > 0;
+
     internal static MediaLibraryFilter None { get; } = new();
 
     /// <summary>Every concrete type except the given ones: the set for "without type X". All four given is refused (nothing would be left).</summary>
@@ -148,8 +154,9 @@ internal sealed record MediaLibraryFilter
     /// <summary>Boards (with their source) whose media is not shown (empty: none).</summary>
     internal IReadOnlySet<MediaLibraryBoardKey> ExcludeBoards { get; }
     /// <summary>
-    /// The free text of the search field (trimmed; null: none). Despite the historical name it is not limited to the file name: every word of
-    /// it (<see cref="TextWords"/>) must occur, ignoring case, in the file name, the thread title, the board or the source of the occurrence.
+    /// The free text of the search field (trimmed; null: none, also for a text without a word such as <c>""</c>). Despite the historical name it
+    /// is not limited to the file name: every word of it (<see cref="TextWords"/>) must occur, ignoring case, in the file name or the thread
+    /// title, or name the board or the source of the occurrence as a whole.
     /// </summary>
     internal string? NameContains { get; }
     /// <summary>
@@ -423,7 +430,7 @@ internal static class MediaLibraryFilterEngine
     }
 
     /// <summary>
-    /// The free text part of one evaluation: every word must occur (ignoring case) in the file name, the thread title, the board or the
+    /// The free text part of one evaluation: every word must occur (ignoring case) in the file name or the thread title, or be the board or the
     /// source. The three thread fields are the same for every occurrence of a thread, so they are searched once per thread (a large library
     /// has many files in few threads) and the answer is kept for this evaluation only; the file name is searched per occurrence.
     /// </summary>
@@ -450,12 +457,17 @@ internal static class MediaLibraryFilterEngine
                 return known.Hits;
             bool[] hits = new bool[words.Count];
             for (int i = 0; i < words.Count; i++)
-                hits[i] = Contains(entry.ThreadTitle, words[i]) || Contains(entry.Thread.Board, words[i]) || Contains(entry.Thread.Source, words[i]);
+                hits[i] = Contains(entry.ThreadTitle, words[i]) || IsBoard(entry.Thread.Board, words[i]) || IsSource(entry.Thread.Source, words[i]);
             _threads[entry.Thread] = (entry.ThreadTitle, hits);
             return hits;
         }
 
         private static bool Contains(string? field, string word) => field != null && field.Contains(word, StringComparison.OrdinalIgnoreCase);
+
+        // Board and source are identifiers, not prose: a word names one as a whole ("g" and "/g/" the board g, "4chan" the source), so a
+        // short word such as "chan" or "4" does not hit every file of a source. The thread title and the file name stay substring searches.
+        private static bool IsBoard(string? board, string word) => board != null && string.Equals(board, word.Trim('/'), StringComparison.OrdinalIgnoreCase);
+        private static bool IsSource(string? source, string word) => source != null && string.Equals(source, word, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>Type for the filter. GIF only by the .gif ending; unknown kinds count as other.</summary>

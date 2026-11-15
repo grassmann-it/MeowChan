@@ -84,14 +84,58 @@ public sealed class MediaFilterQueryTests : IDisposable
         Assert.Equal([MediaFilterTerm.Board("4chan", "b"), MediaFilterTerm.Tag(Two), Type(MediaLibraryKindFilter.Gif, exclude: true),
             MediaFilterTerm.Flag(MediaFilterField.Favorite), MediaFilterTerm.Rating(3), MediaFilterTerm.InThread(new ResourceId("4chan", "b", "99"))], result.Terms);
         Assert.Empty(result.Problems);
-        Assert.Equal("/kot/ general bar", result.FreeText);
-        // In the live field (before Enter) the quoted run is one word of the text filter.
+        // The phrase keeps its quotes in the text, so it stays one word after Enter (review 15.11.2026, finding 1).
+        Assert.Equal("\"/kot/ general\" bar", result.FreeText);
+        Assert.Equal(new[] { "/kot/ general", "bar" }, new MediaLibraryFilter(nameContains: result.FreeText).TextWords);
+        // In the live field (before Enter) the quoted run is one word of the text filter as well.
         Assert.Equal(new[] { "/kot/ general", "bar" }, new MediaLibraryFilter(nameContains: "\"/kot/ general\" bar").TextWords);
         // The way back: the text is written as free text and reads back as the same terms.
         IReadOnlyList<MediaFilterTerm> terms = [MediaFilterTerm.Board("4chan", "b"), MediaFilterTerm.Name("/kot/ foo")];
         string text = MediaFilterQuery.Serialize(terms, Vocab());
         Assert.Equal("board:b /kot/ foo", text);
         Assert.Equal(terms, Parse(text).AllTerms);
+    }
+
+    // Review 15.11.2026, finding 1: Enter used to rewrite "cat girl" to cat girl, which are two words (cat in the file name, girl in the title).
+    [Fact]
+    public void AQuotedPhraseStaysOneWordThroughFreeTextEnterAndTheWayBackToText()
+    {
+        MediaFilterQueryResult phrase = Parse("\"cat girl\"");
+        Assert.Equal("\"cat girl\"", phrase.FreeText);
+        Assert.Equal(new[] { "cat girl" }, MediaLibraryFilter.WordsOf(phrase.FreeText));
+        Assert.Equal(new[] { "cat girl" }, new MediaLibraryFilter(nameContains: phrase.FreeText).TextWords);
+
+        // Enter leaves the quoted phrase in the field, next to the remainder of the other tokens.
+        MediaFilterQueryApplication applied = MediaFilterQuery.Apply([], Parse("tag:cats \"a b\""), AdmitLikeThePage);
+        Assert.Equal([MediaFilterTerm.Tag(Cats)], applied.Terms);
+        Assert.Equal("\"a b\"", applied.Remainder);
+        Assert.Equal(new[] { "a b" }, MediaLibraryFilter.WordsOf(applied.Remainder));
+
+        // Serialize and parse again: the phrase is the same one word.
+        IReadOnlyList<MediaFilterTerm> terms = [MediaFilterTerm.Tag(Cats), MediaFilterTerm.Name("\"cat girl\" boy")];
+        MediaFilterQueryResult back = Parse(MediaFilterQuery.Serialize(terms, Vocab()));
+        Assert.Equal(terms, back.AllTerms);
+        Assert.Equal(new[] { "cat girl", "boy" }, MediaLibraryFilter.WordsOf(back.FreeText));
+
+        // A quote glued to a word makes one word of the whole run, as WordsOf reads it.
+        MediaFilterQueryResult glued = Parse("foo\"b c\"");
+        Assert.Equal(new[] { "foob c" }, MediaLibraryFilter.WordsOf(glued.FreeText));
+        // Quotes and backslashes inside a phrase are escaped again; a quoted single word loses its quotes.
+        Assert.Equal(new[] { "say \"hi\" now" }, MediaLibraryFilter.WordsOf(Parse("\"say \\\"hi\\\" now\"").FreeText));
+        Assert.Equal("cat", Parse("\"cat\"").FreeText);
+    }
+
+    // Review 15.11.2026, finding 10: an empty phrase is no text: no term, no problem, nothing left in the field.
+    [Fact]
+    public void AnEmptyPhraseIsNoText()
+    {
+        Assert.Equal(string.Empty, Parse("\"\"").FreeText);
+        Assert.Empty(Parse("\"\"").AllTerms);
+        Assert.Equal("cat", Parse("\"\" cat").FreeText);
+        MediaFilterQueryApplication applied = MediaFilterQuery.Apply([], Parse("type:video \"\""), AdmitLikeThePage);
+        Assert.Equal([Type(MediaLibraryKindFilter.Video)], applied.Terms);
+        Assert.Equal(string.Empty, applied.Remainder);
+        Assert.False(MediaLibraryFilter.HasText("\"\""));
     }
 
     [Fact]
@@ -171,8 +215,8 @@ public sealed class MediaFilterQueryTests : IDisposable
         MediaFilterQueryResult result = Parse("holiday  type:video  photos");
         Assert.Equal([Type(MediaLibraryKindFilter.Video)], result.Terms);
         Assert.Equal("holiday photos", result.FreeText);
-        // A bare quoted phrase is free text without its quotes; quoting a token keeps a filter-looking word text.
-        Assert.Equal("two words", Parse("\"two words\"").FreeText);
+        // A bare quoted phrase is free text and stays one word (it keeps its quotes); quoting a token keeps a filter-looking word text.
+        Assert.Equal("\"two words\"", Parse("\"two words\"").FreeText);
         MediaFilterQueryResult escaped = Parse("\"type:video\" \"fav\"");
         Assert.Empty(escaped.Terms);
         Assert.Equal("\"type:video\" \"fav\"", escaped.FreeText);

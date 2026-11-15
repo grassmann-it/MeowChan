@@ -87,7 +87,8 @@ public sealed partial class MediaPage
     private IEnumerable<MediaFilterTerm> AllTerms()
     {
         foreach (MediaFilterTerm term in _terms) yield return term;
-        if (!string.IsNullOrWhiteSpace(_nameFilter.Text)) yield return MediaFilterTerm.Name(_nameFilter.Text);
+        // A text without a word (white space, an empty phrase "") is no filter: no term, no chip.
+        if (MediaLibraryFilter.HasText(_nameFilter.Text)) yield return MediaFilterTerm.Name(_nameFilter.Text!);
     }
 
     private bool HasField(MediaFilterField field) => _terms.Any(term => term.Field == field);

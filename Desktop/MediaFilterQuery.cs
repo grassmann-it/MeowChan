@@ -30,7 +30,8 @@ internal enum MediaFilterQueryTokenKind { Text, Term, Problem }
 
 /// <summary>
 /// One token of a query as typed: free text, a recognized term, or a problem token (kept as text). <see cref="Raw"/> is what the user
-/// typed; <see cref="Text"/> is what the token contributes to the file name text (the value of a quoted word, or the raw token).
+/// typed; <see cref="Text"/> is what the token contributes to the free text, in the syntax of <see cref="MediaLibraryFilter.WordsOf"/>: a quoted
+/// phrase that holds white space keeps its quotes (it is one word), an empty phrase is empty, any other token is its raw or unquoted spelling.
 /// </summary>
 internal sealed record MediaFilterQueryToken(MediaFilterQueryTokenKind Kind, string Raw, string Text, MediaFilterTerm? Term = null,
     MediaFilterQueryProblem? Problem = null);
@@ -89,7 +90,7 @@ internal sealed class MediaFilterQueryResult(IReadOnlyList<MediaFilterQueryToken
     internal IReadOnlyList<MediaFilterTerm> Terms => Tokens.Where(token => token.Term != null).Select(token => token.Term!).ToList();
     internal IReadOnlyList<MediaFilterQueryToken> Problems => Tokens.Where(token => token.Kind == MediaFilterQueryTokenKind.Problem).ToList();
     /// <summary>What is left for the file name: the free words and the tokens that were not understood, joined by single spaces.</summary>
-    internal string FreeText => string.Join(' ', Tokens.Where(token => token.Term == null).Select(token => token.Text));
+    internal string FreeText => string.Join(' ', Tokens.Where(token => token.Term == null && token.Text.Length > 0).Select(token => token.Text));
     /// <summary>The terms plus the free text as a name term: the whole query as one term set (what <see cref="MediaFilterQuery.Serialize"/> writes).</summary>
     internal IReadOnlyList<MediaFilterTerm> AllTerms => FreeText is { Length: > 0 } name ? [.. Terms, MediaFilterTerm.Name(name)] : Terms;
 }
@@ -108,7 +109,7 @@ internal sealed record MediaFilterQueryApplication(IReadOnlyList<MediaFilterTerm
 /// <c>queue:yes|no</c> and the provider's tags <c>booru:name</c>, <c>-booru:name</c>;</item>
 /// <item>free text, which stays the search text: every word of it must occur in the file name, the thread title, the board or the source
 /// (<see cref="MediaLibraryFilter.TextWords"/>); slashes are ordinary characters, so a title pseudo-tag such as <c>/kot/</c> is free text. A value in double quotes may hold spaces (<c>tag:"two words"</c>; inside quotes
-/// <c>\"</c> and <c>\\</c> are escapes); a bare quoted phrase is free text, and quoting a token (<c>"type:video"</c>) keeps it free text.</item>
+/// <c>\"</c> and <c>\\</c> are escapes); a bare quoted phrase is free text that stays one word (<c>"cat girl"</c> keeps its quotes in the text), and quoting a token (<c>"type:video"</c>) keeps it free text.</item>
 /// </list>
 /// A token that looks like a field but is not understood (unknown field or value, nothing after the colon, an exclusion of a field that
 /// cannot exclude, an ambiguous board) is never dropped: it stays in the free text and is reported as a problem. The text is read once,
@@ -181,9 +182,14 @@ internal static class MediaFilterQuery
 
     private static MediaFilterQueryToken Plain(Raw raw, MediaFilterQueryVocabulary vocabulary, bool nested)
     {
-        // A quoted phrase is free text without its quotes, unless it would read as a filter again (then the quotes stay: they are the escape).
-        string text = raw.Quoted && (nested || Parse(raw.Decoded, vocabulary, nested: true).Tokens.All(token => token.Kind == MediaFilterQueryTokenKind.Text))
-            ? raw.Decoded : raw.Text;
+        // The free text is read by MediaLibraryFilter.WordsOf, which honours double quotes: a quoted phrase has to stay one word there. So it
+        // keeps its quotes when its value holds white space, a quote or a backslash (inside them \" and \\ escape); an empty phrase "" is no
+        // text at all; a quoted word that needs no quotes loses them. A phrase that would read as a filter again keeps its raw spelling
+        // (the quotes are the escape).
+        string text = raw.Text;
+        if (raw.Quoted && (nested || Parse(raw.Decoded, vocabulary, nested: true).Tokens.All(token => token.Kind == MediaFilterQueryTokenKind.Text)))
+            text = raw.Decoded.Length == 0 ? string.Empty
+                : raw.Decoded.Any(c => char.IsWhiteSpace(c) || c is '"' or '\\') ? Quote(raw.Decoded, always: true) : raw.Decoded;
         return new MediaFilterQueryToken(MediaFilterQueryTokenKind.Text, raw.Text, text);
     }
 
@@ -333,7 +339,7 @@ internal static class MediaFilterQuery
         {
             if (token.Term == null)
             {
-                text.Add(token.Text);
+                if (token.Text.Length > 0) text.Add(token.Text); // an empty phrase "" contributes no text
                 if (token.Problem is { } problem) kept.Add((token.Raw, problem));
                 continue;
             }

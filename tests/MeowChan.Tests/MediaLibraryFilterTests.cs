@@ -320,6 +320,50 @@ public sealed class MediaLibraryFilterTests
         Assert.Equal(new[] { "/kot/", "general: cats", "a\"b" }, new MediaLibraryFilter(nameContains: "/kot/ \"general: cats\" \"a\\\"b\" /KOT/").TextWords);
     }
 
+    // Review 15.11.2026, finding 10: "" is a text of two characters but of no word, so the filter is not active.
+    [Fact]
+    public void AnEmptyPhraseOrWhiteSpaceIsNoTextAndEqualsNoFilter()
+    {
+        foreach (string text in new[] { "", " ", "\"\"", "\"\" \"\"", "  \"\"  " })
+        {
+            MediaLibraryFilter filter = new(nameContains: text);
+            Assert.True(filter.IsEmpty, text);
+            Assert.Null(filter.NameContains);
+            Assert.Empty(filter.TextWords);
+            Assert.Equal(MediaLibraryFilter.None, filter);
+            Assert.False(MediaLibraryFilter.HasText(text));
+        }
+        Assert.True(MediaLibraryFilter.HasText(" cat "));
+        Assert.True(MediaLibraryFilter.HasText("\" \"")); // a phrase of white space is a word
+        Assert.False(new MediaLibraryFilter(nameContains: "cat").IsEmpty);
+        MediaLibraryEntry[] all = [Entry("a", "1", 'a'), Entry("a", "2", 'b')];
+        Assert.Equal(2, MediaLibraryFilterEngine.Apply(all, new(nameContains: "\"\""), MediaLibraryUserData.Unavailable).Count);
+    }
+
+    // Review 15.11.2026, finding 11: board and source name themselves as a whole; "chan" is no longer every 4chan file.
+    [Fact]
+    public void BoardAndSourceMatchAsWholeValuesWhileNameAndTitleStaySubstrings()
+    {
+        MediaLibraryEntry g = Entry("a", "1", 'a', name: "a.webm", source: "4chan", board: "g") with { ThreadTitle = "General" },
+            b = Entry("b", "1", 'b', name: "b.webm", source: "4chan", board: "b") with { ThreadTitle = "Random" },
+            kot = Entry("c", "1", 'c', name: "c.webm", source: "8kun", board: "kot") with { ThreadTitle = "/kot/ talk" },
+            plain = Entry("d", "1", 'd', name: "chanel.webm", source: "8kun", board: "x") with { ThreadTitle = "4 items" };
+        MediaLibraryEntry[] all = [g, b, kot, plain];
+        string[] Find(string text) => Posts(MediaLibraryFilterEngine.Apply(all, new(nameContains: text), MediaLibraryUserData.Unavailable));
+
+        Assert.Equal(new[] { "a:1", "b:1" }, Find("4chan")); // the source as a whole, any case
+        Assert.Equal(new[] { "a:1", "b:1" }, Find("4CHAN"));
+        Assert.Equal(new[] { "d:1" }, Find("chan")); // not the source "4chan"; only the file name "chanel.webm" holds it
+        Assert.Equal(new[] { "d:1" }, Find("4")); // the title "4 items"; not the source "4chan"
+        Assert.Equal(new[] { "a:1" }, Find("g")); // the board g (and "General"); no other board, source, title or name holds a g
+        Assert.Equal(new[] { "a:1" }, Find("/g/ general")); // "/g/" names the board; the other word is in the title
+        Assert.Equal(new[] { "a:1" }, Find("/G/"));
+        Assert.Equal(new[] { "c:1" }, Find("kot")); // board kot, and "/kot/" in the title
+        Assert.Equal(new[] { "c:1" }, Find("/kot/")); // the board "kot" without its slashes, and the title literally
+        Assert.Equal(new[] { "d:1" }, Find("items"));
+        Assert.Empty(Find("//")); // slashes alone name no board
+    }
+
     [Fact]
     public void FreeTextThreadAnswersAreNotReusedForAnotherTitleOfTheSameThread()
     {
