@@ -4341,7 +4341,7 @@
     "tagging.done": "完了して次へ",
     "tagging.stamp": "スタンプして次へ",
     "tagging.position": "キュー: {1} 件中 {0} 件目",
-    "tagging.progress": "完了: {0} · スキップ: {1} · 未処理: {2}",
+    "tagging.progress": "未処理: {0} · 完了: {1} · スキップ: {2}",
     "tagging.status.start": "タグ付けモード: {0} でメディアを完了、{1} でスキップ、{2} で直前の判断を元に戻します。",
     "tagging.status.unavailable": "ファイルが現在見つからないため表示していません（キューでは未処理のまま残ります）: {0}。",
     "tagging.status.done": "完了: 「{0}」。次: 「{1}」。",

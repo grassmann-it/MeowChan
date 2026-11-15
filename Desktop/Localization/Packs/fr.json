@@ -4427,7 +4427,7 @@
     "tagging.done": "Terminé et suivant",
     "tagging.stamp": "Tampon et suivant",
     "tagging.position": "File : {0} sur {1}",
-    "tagging.progress": "Terminés : {0} · Ignorés : {1} · À faire : {2}",
+    "tagging.progress": "À faire : {0} · Terminées : {1} · Ignorées : {2}",
     "tagging.status.start": "Mode étiquetage : {0} termine le média, {1} le passe, {2} annule la dernière décision.",
     "tagging.status.unavailable": "Non affichés, car le fichier manque pour l’instant (ils restent à faire dans la file) : {0}.",
     "tagging.status.done": "Terminé : « {0} ». Suivant : « {1} ».",

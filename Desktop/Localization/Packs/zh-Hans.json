@@ -4341,7 +4341,7 @@
     "tagging.done": "完成并下一个",
     "tagging.stamp": "盖印章并下一个",
     "tagging.position": "队列：第 {0} 个，共 {1} 个",
-    "tagging.progress": "已完成：{0} · 已跳过：{1} · 待处理：{2}",
+    "tagging.progress": "待处理：{0} · 已完成：{1} · 已跳过：{2}",
     "tagging.status.start": "打标签模式：{0} 完成当前媒体，{1} 跳过它，{2} 撤销上一个决定。",
     "tagging.status.unavailable": "因文件暂时缺失而未显示（它们在队列中仍为待处理）：{0}。",
     "tagging.status.done": "已完成：“{0}”。下一个：“{1}”。",

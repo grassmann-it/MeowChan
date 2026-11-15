@@ -4341,7 +4341,7 @@
     "tagging.done": "완료하고 다음",
     "tagging.stamp": "스탬프하고 다음",
     "tagging.position": "대기열: {1}개 중 {0}번째",
-    "tagging.progress": "완료: {0} · 건너뜀: {1} · 미처리: {2}",
+    "tagging.progress": "미처리: {0} · 완료: {1} · 건너뜀: {2}",
     "tagging.status.start": "태그 지정 모드: {0} 키로 미디어를 완료하고, {1} 키로 건너뛰고, {2} 키로 마지막 결정을 실행 취소합니다.",
     "tagging.status.unavailable": "지금 파일이 없어 표시하지 않았습니다(대기열에서는 계속 남아 있음): {0}.",
     "tagging.status.done": "완료: “{0}”. 다음: “{1}”.",

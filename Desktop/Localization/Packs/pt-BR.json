@@ -4433,7 +4433,7 @@
     "tagging.done": "Concluir e próximo",
     "tagging.stamp": "Carimbar e próximo",
     "tagging.position": "Fila: {0} de {1}",
-    "tagging.progress": "Concluídas: {0} · Puladas: {1} · Pendentes: {2}",
+    "tagging.progress": "Pendentes: {0} · Concluídas: {1} · Puladas: {2}",
     "tagging.status.start": "Modo de tags: {0} conclui a mídia, {1} a pula e {2} desfaz a última decisão.",
     "tagging.status.unavailable": "Não exibidos porque o arquivo está faltando no momento (continuam pendentes na fila): {0}.",
     "tagging.status.done": "Concluído: “{0}”. Próximo: “{1}”.",

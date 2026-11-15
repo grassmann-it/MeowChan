@@ -4433,7 +4433,7 @@
     "tagging.done": "Completato e avanti",
     "tagging.stamp": "Timbro e avanti",
     "tagging.position": "Coda: {0} di {1}",
-    "tagging.progress": "Fatti: {0} · Saltati: {1} · Da fare: {2}",
+    "tagging.progress": "Da fare: {0} · Completate: {1} · Saltate: {2}",
     "tagging.status.start": "Modalità tagging: {0} conclude il media, {1} lo salta, {2} annulla l’ultima decisione.",
     "tagging.status.unavailable": "Non mostrati perché al momento il file manca (restano da fare nella coda): {0}.",
     "tagging.status.done": "Fatto: «{0}». Prossimo: «{1}».",

@@ -4470,7 +4470,7 @@
     "tagging.done": "Hotovo a další",
     "tagging.stamp": "Razítko a další",
     "tagging.position": "Fronta: {0} z {1}",
-    "tagging.progress": "Hotovo: {0} · Přeskočeno: {1} · Otevřeno: {2}",
+    "tagging.progress": "Otevřené: {0} · Hotové: {1} · Přeskočené: {2}",
     "tagging.status.start": "Režim štítkování: {0} dokončí médium, {1} ho přeskočí, {2} vrátí poslední rozhodnutí.",
     "tagging.status.unavailable": "Nezobrazeno, protože soubor teď chybí (ve frontě zůstávají otevřené): {0}.",
     "tagging.status.done": "Hotovo: „{0}“. Další: „{1}“.",

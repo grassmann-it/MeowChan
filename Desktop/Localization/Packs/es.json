@@ -4427,7 +4427,7 @@
     "tagging.done": "Terminado y siguiente",
     "tagging.stamp": "Sello y siguiente",
     "tagging.position": "Cola: {0} de {1}",
-    "tagging.progress": "Listos: {0} · Omitidos: {1} · Pendientes: {2}",
+    "tagging.progress": "Pendientes: {0} · Terminadas: {1} · Omitidas: {2}",
     "tagging.status.start": "Modo de etiquetado: {0} da por terminado el medio, {1} lo omite y {2} deshace la última decisión.",
     "tagging.status.unavailable": "No se muestran porque el archivo falta en este momento (siguen pendientes en la cola): {0}.",
     "tagging.status.done": "Listo: «{0}». Siguiente: «{1}».",

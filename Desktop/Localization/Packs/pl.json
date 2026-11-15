@@ -4473,7 +4473,7 @@
     "tagging.done": "Gotowe i dalej",
     "tagging.stamp": "Stempel i dalej",
     "tagging.position": "Kolejka: {0} z {1}",
-    "tagging.progress": "Gotowe: {0} · Pominięte: {1} · Otwarte: {2}",
+    "tagging.progress": "Otwarte: {0} · Zakończone: {1} · Pominięte: {2}",
     "tagging.status.start": "Tryb tagowania: {0} kończy medium, {1} je pomija, {2} cofa ostatnią decyzję.",
     "tagging.status.unavailable": "Nie pokazano, bo plik jest teraz niedostępny (w kolejce pozostają otwarte): {0}.",
     "tagging.status.done": "Gotowe: „{0}”. Następne: „{1}”.",
