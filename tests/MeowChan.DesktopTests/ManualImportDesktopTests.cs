@@ -61,7 +61,7 @@ public sealed class ManualImportDesktopTests : IDisposable
         Assert.False(session.CanImport);
         session.AddRoots(new[] { "/tmp/one", "/tmp/one/", "/tmp/two" });
         await session.WorkTask;
-        Assert.Equal(new[] { "/tmp/one", "/tmp/two" }, Assert.Single(requests).Roots);
+        Assert.Equal(new[] { Path.GetFullPath("/tmp/one"), Path.GetFullPath("/tmp/two") }, Assert.Single(requests).Roots);
         Assert.Equal(ManualImportStage.Ready, session.Stage);
         Assert.Equal((1, 1, 1, 1), (session.NewCount, session.LinkedCount, session.UnsupportedCount, session.UnreadableCount));
         Assert.True(session.CanImport);

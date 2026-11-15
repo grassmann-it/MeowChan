@@ -334,7 +334,7 @@ public sealed class BooruCrossLinkExactFilterTests
     private static void Set(MediaPage page, string field, object? value) => typeof(MediaPage).GetField(field, Private)!.SetValue(page, value);
     private static void SetProperty(MediaPage page, string property, object value) => typeof(MediaPage).GetProperty(property, Private)!.SetValue(page, value);
     private static string Source(string path, [CallerFilePath] string caller = "") =>
-        File.ReadAllText(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(caller)!, "../..", path)));
+        File.ReadAllText(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(caller)!, "../..", path))).ReplaceLineEndings("\n");
 
     // Existing pinned Avalonia dispatcher seam, without starting an app, rendering or opening a window.
     private static void OnDispatcher(Action test)

@@ -19,7 +19,7 @@ public sealed class MediaPageLayoutTests : IDisposable
     public void Dispose() { Texts.Initialize(); Texts.SetLanguage("en"); }
 
     private static string Read(string relative, [CallerFilePath] string caller = "") =>
-        File.ReadAllText(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(caller)!, "../..", relative)));
+        File.ReadAllText(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(caller)!, "../..", relative))).ReplaceLineEndings("\n");
 
     // ---- The value and its presets ----
 

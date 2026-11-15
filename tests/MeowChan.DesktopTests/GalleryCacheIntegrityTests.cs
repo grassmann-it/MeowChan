@@ -34,7 +34,10 @@ public sealed class GalleryCacheIntegrityTests
 
         Assert.Equal(entry.Asset.Length, new FileInfo(entry.Asset.Path).Length);
         Assert.Equal(writeTime, File.GetLastWriteTimeUtc(entry.Asset.Path));
-        Assert.False(valid());
+        // Unix ctime changes for an in-place rewrite. Windows can expose the same file identity and stale change time immediately
+        // after a same-length rewrite; the gallery cache therefore uses a full hash on Windows for warm hits instead of relying on
+        // this identity-only predicate.
+        if (!OperatingSystem.IsWindows()) Assert.False(valid());
 
         // A rename-over has a new regular-file identity too, even when its bytes and timestamps look like the old file.
         await File.WriteAllBytesAsync(entry.Asset.Path, "original image"u8.ToArray());
@@ -257,7 +260,9 @@ public sealed class GalleryCacheIntegrityTests
 
         Assert.Same(first, hit);
         Assert.Equal(1, decodes);
-        Assert.Equal(3, probe.Calls); // the unchanged warm hit reads the original once and hashes nothing
+        // Unix uses the remembered identity fast path (one fresh capture). Windows deliberately hashes the occurrence and then
+        // performs the post-read identity fence, so the probe sees the capture plus that fence.
+        Assert.Equal(OperatingSystem.IsWindows() ? 4 : 3, probe.Calls);
         Assert.Equal(0, probe.OnUi);
         cache.Release(hit);
     });

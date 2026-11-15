@@ -112,12 +112,12 @@ public sealed class WorkViewDialogsTests : IDisposable
         foreach (string file in files)
         {
             // The mac menu forwards the bindable cycle command to the window; that call is the only mention of a view.
-            string text = File.ReadAllText(Root(file)).Replace("CycleWorkViewAsync", string.Empty, StringComparison.Ordinal);
+            string text = ReadSource(file).Replace("CycleWorkViewAsync", string.Empty, StringComparison.Ordinal);
             Assert.DoesNotContain("WorkView", text);
             Assert.DoesNotContain("WorkspaceMode", text);
         }
         // The tray menu itself is built in the window's code: from SetupTrayIcon to the end of RefreshTray.
-        string window = File.ReadAllText(Root("Desktop/Shell/MainWindow.axaml.cs"));
+        string window = ReadSource("Desktop/Shell/MainWindow.axaml.cs");
         int start = window.IndexOf("private void SetupTrayIcon()", StringComparison.Ordinal);
         int end = window.IndexOf("private void RefreshTray()", StringComparison.Ordinal);
         Assert.InRange(start, 1, end);
@@ -233,6 +233,7 @@ public sealed class WorkViewDialogsTests : IDisposable
         Assert.Equal("Zu Erweitert wechseln", Texts.T("workview.notice.switchAdvanced"));
     }
 
-    private static string Root(string path, [CallerFilePath] string source = "") =>
-        Path.GetFullPath(Path.Combine(Path.GetDirectoryName(source)!, "../..", path));
+    private static string ReadSource(string path, [CallerFilePath] string source = "") =>
+        File.ReadAllText(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(source)!, "../..", path))).ReplaceLineEndings("\n");
+
 }
