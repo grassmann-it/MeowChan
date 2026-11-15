@@ -1215,7 +1215,10 @@
         <Setter Property="Background" Value="{DynamicResource Workspace.ControlBorder}" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Accent}" />
     </Style>
-    <Style Selector="Slider.media-slider /template/ Grid#SliderContainer">
+    <!-- The compact alignment is only for horizontal tracks. A centered vertical
+         container collapses the volume track to the thumb height and makes native
+         pointer clicks land outside the actual value track on macOS/Linux. -->
+    <Style Selector="Slider.media-slider:horizontal /template/ Grid#SliderContainer">
         <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
     <Style Selector="Slider.media-slider /template/ Thumb">
