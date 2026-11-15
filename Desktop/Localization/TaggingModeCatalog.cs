@@ -8,14 +8,14 @@ internal static class TaggingModeCatalog
 {
     internal static readonly (string Key, string English, string German)[] Entries =
     {
-        ("command.tags.queue.done-next", "Done and next", "Fertig und weiter"),
+        ("command.tags.queue.done-next", "Done and next", "Erledigt und weiter"),
         ("command.tags.queue.skip", "Skip and next", "Überspringen und weiter"),
         ("command.tags.queue.back", "Back: undo the last decision", "Zurück: letzte Entscheidung zurücknehmen"),
         ("command.tags.queue.play-pause", "Play / pause in tagging mode", "Wiedergabe / Pause im Tagging-Modus"),
         ("tagging.strip.name", "Tagging decisions", "Tagging-Entscheidungen"),
         ("tagging.back", "Back", "Zurück"),
         ("tagging.skip", "Skip", "Überspringen"),
-        ("tagging.done", "Done & next", "Fertig & weiter"),
+        ("tagging.done", "Done & next", "Erledigt & weiter"),
         ("tagging.stamp", "Stamp & next", "Stempel & weiter"),
         ("tagging.position", "Queue {0} of {1}", "Warteschlange {0} von {1}"),
         ("tagging.progress", "Done: {0} · Skipped: {1} · Open: {2}", "Fertig: {0} · Übersprungen: {1} · Offen: {2}"),

@@ -309,7 +309,7 @@ public static class CommandCatalog
         // Tagging mode (PT3): the gallery walking the tagging queue. Own execution context "gallery-tagging": the keys mean something
         // else there than in the plain gallery (Space skips instead of playing, Backspace goes back instead of resetting the speed),
         // and only the tagging mode routes them, ahead of the gallery's own keys.
-        new("tags.queue.done-next", "command.tags.queue.done-next", "Done and next", "Fertig und weiter", "check", "Enter", CommandScope.Gallery, new[] { "gallery-tagging" }, new[] { "gallery-tagging" }),
+        new("tags.queue.done-next", "command.tags.queue.done-next", "Done and next", "Erledigt und weiter", "check", "Enter", CommandScope.Gallery, new[] { "gallery-tagging" }, new[] { "gallery-tagging" }),
         new("tags.queue.skip", "command.tags.queue.skip", "Skip and next", "Überspringen und weiter", "arrow-right", "Space", CommandScope.Gallery, new[] { "gallery-tagging" }, new[] { "gallery-tagging" }),
         new("tags.queue.back", "command.tags.queue.back", "Back: undo the last decision", "Zurück: letzte Entscheidung zurücknehmen", "corner-up-left", "Back", CommandScope.Gallery, new[] { "gallery-tagging" }, new[] { "gallery-tagging" }),
         new("tags.queue.play-pause", "command.tags.queue.play-pause", "Play / pause in tagging mode", "Wiedergabe / Pause im Tagging-Modus", "play", "Shift+Space", CommandScope.Gallery, new[] { "gallery-tagging" }, new[] { "gallery-tagging" }),

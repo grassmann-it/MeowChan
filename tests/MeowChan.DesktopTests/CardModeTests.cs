@@ -161,7 +161,7 @@ public sealed class CardModeTests : IDisposable
         Texts.SetLanguage("de");
         Assert.Equal("Bewertung 4 & weiter", TaggingCardActions.Find("rate-4")!.Label());
         Assert.Equal("Stempel & weiter", TaggingCardActions.Find("stamp")!.Label());
-        Assert.Equal("Fertig & weiter, Taste 3", TaggingCardsText.Name(TaggingCardActions.Find("done")!, 3));
+        Assert.Equal("Erledigt & weiter, Taste 3", TaggingCardsText.Name(TaggingCardActions.Find("done")!, 3));
         foreach (TaggingCardAction action in TaggingCardActions.All)
             Assert.False(string.IsNullOrWhiteSpace(action.Label()) || string.IsNullOrWhiteSpace(action.Description()), action.Id);
     }

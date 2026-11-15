@@ -30,7 +30,7 @@ internal static class NativeTransferImportCatalog
         ("transfer.import.failed", "Import failed", "Import fehlgeschlagen"),
         ("transfer.import.recoveryRequired", "Recovery is required before more profile writes", "Vor weiteren Profilschreibvorgängen ist eine Wiederherstellung nötig"),
         ("transfer.import.closed", "Import closed", "Import geschlossen"),
-        ("transfer.import.idle", "Choose an exported MeowChan archive (transfer package) to inspect and import.", "Ein exportiertes MeowChan-Archiv (Transferpaket) prüfen und übernehmen."),
+        ("transfer.import.idle", "Choose an exported MeowChan archive (transfer package) to inspect and import.", "Wähle ein exportiertes MeowChan-Archiv (Transferpaket), um es zu prüfen und zu importieren."),
         ("transfer.import.inventory", "The package is staged and verified before any archive write. Apply is enabled only for the exact ready plan.", "Das Paket wird vor jedem Archivschreibvorgang geprüft und zwischengespeichert. Übernehmen ist nur für den exakt bereiten Plan möglich."),
         ("transfer.import.privacy", "Private metadata is never imported silently. This package must be explicitly supported before it can be applied.", "Private Metadaten werden niemals still importiert. Dieses Paket muss ausdrücklich unterstützt werden, bevor es übernommen werden kann."),
         ("transfer.import.cleanupRetained", "Cleanup did not finish; temporary import files may remain. Check the profile before retrying.", "Die Bereinigung wurde nicht abgeschlossen; temporäre Importdateien können zurückbleiben. Prüfe das Profil vor einem neuen Versuch."),

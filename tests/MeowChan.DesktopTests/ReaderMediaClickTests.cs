@@ -105,7 +105,7 @@ public sealed class ReaderMediaClickTests : IDisposable
                 Assert.NotEqual(key, Texts.T(key));
         }
         Texts.SetLanguage("de");
-        Assert.Equal("In der Seitenleiste zeigen", Texts.T("settings.reader.mediaClick.sidebar"));
+        Assert.Equal("In der Medienleiste zeigen", Texts.T("settings.reader.mediaClick.sidebar"));
         Assert.Equal("Im Post öffnen", Texts.T("settings.reader.mediaClick.post"));
         Assert.Equal("In der Galerie öffnen", Texts.T("settings.reader.mediaClick.gallery"));
     }

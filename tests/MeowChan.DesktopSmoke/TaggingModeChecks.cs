@@ -97,7 +97,7 @@ internal static class TaggingModeChecks
 
             // The strip follows a language switch.
             Texts.SetLanguage("de");
-            await UntilAsync(() => AutomationProperties.GetName(viewer.TaggingDoneButton) == "Fertig & weiter", "The strip did not follow the language.");
+            await UntilAsync(() => AutomationProperties.GetName(viewer.TaggingDoneButton) == "Erledigt & weiter", "The strip did not follow the language.");
             Require(viewer.TaggingProgressText.Text == "Offen: 2 · Erledigt: 1 · Übersprungen: 0", "Wrong German progress: " + viewer.TaggingProgressText.Text);
             Program.CaptureWindow(window, "smoke-tagging-mode-de.png");
             Texts.SetLanguage("en");

@@ -18,7 +18,7 @@ internal static class NativeTransferPreviewCatalog
         ("transfer.preview.canceled", "Inspection cancelled", "Prüfung abgebrochen"),
         ("transfer.preview.closed", "Inspection closed", "Prüfung geschlossen"),
         ("transfer.preview.rejected", "Package rejected", "Paket abgelehnt"),
-        ("transfer.preview.idle", "Choose an exported MeowChan archive (transfer package) to inspect.", "Ein exportiertes MeowChan-Archiv (Transferpaket) zum Prüfen wählen."),
+        ("transfer.preview.idle", "Choose an exported MeowChan archive (transfer package) to inspect.", "Wähle ein exportiertes MeowChan-Archiv (Transferpaket), um es zu prüfen."),
         ("transfer.preview.inventoryOnly", "Inventory only — nothing is imported, applied, or merged.", "Nur Inventar — nichts wird importiert, übernommen oder zusammengeführt."),
         ("transfer.preview.cleanupRetained", "Cleanup did not finish; temporary inspection files may remain. No archive data was changed.", "Die Bereinigung wurde nicht abgeschlossen; temporäre Prüfdateien können zurückbleiben. Archivdaten wurden nicht geändert."),
         ("transfer.preview.summary", "Threads: {0} · posts: {1} · unique payloads: {2} · {3:N0} bytes", "Threads: {0} · Posts: {1} · eindeutige Payloads: {2} · {3:N0} Bytes"),

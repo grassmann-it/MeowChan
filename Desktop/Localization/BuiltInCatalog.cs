@@ -158,7 +158,7 @@ internal static class BuiltInCatalog
         ("admission.repairFormat", "Example URL format: {0}", "Beispiel für das URL-Format: {0}"),
         ("admission.repairExample", "Example from your session: {0}", "Beispiel aus deiner Sitzung: {0}"),
         ("admission.repairSources", "Supported sources: {0}", "Unterstützte Quellen: {0}"),
-        ("admission.repairNoSources", "No sources are currently available. Check Plugins.", "Derzeit ist keine Quelle verfügbar. Plugins prüfen."),
+        ("admission.repairNoSources", "No sources are currently available. Check Plugins.", "Derzeit ist keine Quelle verfügbar. Prüfe die Plugins."),
         ("mode.simple", "Simple", "Einfach"),
         ("mode.advanced", "Advanced", "Erweitert"),
         ("mode.barebones", "Barebones", "Minimal"),
