@@ -92,6 +92,18 @@ internal sealed partial class GalleryViewer
         UpdateFilmstripPlacement();
     }
 
+    /// <summary>
+    /// Filmstrip flags (decision 123): the choices of Settings, "Filmstrip shows" (favourite, rating, no tags yet). Called with the other gallery
+    /// preferences; the tiles in view draw again only when what is shown changed.
+    /// </summary>
+    internal void ConfigureFilmstripFlags(FilmstripFlagSettings settings) => _filmstrip.ConfigureFlags(settings);
+
+    /// <summary>Gives the strip the owner's view of favourites, ratings and tags (data that is already loaded; asked only for the flags that are shown).</summary>
+    internal void SetFilmstripFlagSource(Func<GalleryEntry, FilmstripFlagKinds, FilmstripFlagFacts>? source) => _filmstrip.FlagSource = source;
+
+    /// <summary>A favourite, rating or tag changed: the tiles in view read their flags again.</summary>
+    internal void RefreshFilmstripFlags() => _filmstrip.RefreshFlags();
+
     // The strip follows the list the shell owns: the entries (the same list that grows as further threads load) and the shown one.
     private void FilmstripShown(GalleryEntry entry, IReadOnlyList<GalleryEntry> list)
     {

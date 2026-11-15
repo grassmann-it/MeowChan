@@ -4926,6 +4926,15 @@
     "sources.stat.queued": "En attente",
     "sources.stat.threads": "Fils",
     "stats.footer.tip": "{0} : {1}",
-    "theme.colors.resetAll.hint": "Remet toutes les couleurs sur les couleurs intégrées."
+    "theme.colors.resetAll.hint": "Remet toutes les couleurs sur les couleurs intégrées.",
+    "settings.galleryFilmstripFlagFavorite": "La bande affiche : favori",
+    "settings.galleryFilmstripFlagFavoriteHint": "Une petite étoile pleine sur les miniatures des médias favoris.",
+    "settings.galleryFilmstripFlagRating": "La bande affiche : note",
+    "settings.galleryFilmstripFlagRatingHint": "La note personnelle, de 1 à 5, sous forme de petit nombre avec une demi-étoile sur les miniatures des médias notés.",
+    "settings.galleryFilmstripFlagUntagged": "La bande affiche : sans étiquette",
+    "settings.galleryFilmstripFlagUntaggedHint": "Une petite marque d’étiquette barrée sur les médias sans étiquette propre, la même marque que sur la page des médias. Avec la vue d’étiquetage, elle n’apparaît que lorsque le panneau d’étiquettes à droite est ouvert.",
+    "settings.galleryFilmstripFlagUntagged.tagging": "Tant que la vue d’étiquetage est ouverte",
+    "settings.galleryFilmstripFlagUntagged.always": "Toujours",
+    "settings.galleryFilmstripFlagUntagged.off": "Jamais"
   }
 }

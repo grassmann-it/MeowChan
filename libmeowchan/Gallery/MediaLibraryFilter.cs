@@ -303,14 +303,26 @@ internal sealed class MediaLibraryUserData
     {
         if (_threadTags == null || _mediaTags == null) throw new MediaLibraryFilterException(MediaLibraryFilterError.TagsUnavailable);
         MediaTagSubject? subject = MediaTagSubjects.Of(entry);
-        HashSet<Guid>? own = subject switch
-        {
-            MediaTagSubject.Bound bound => _mediaTags.GetValueOrDefault(bound.Target),
-            MediaTagSubject.Local local when TagSnapshot!.ResolveLocal(local.Observation) is { IsRegistered: true, Target: { } target } =>
-                _localTags!.GetValueOrDefault(target),
-            _ => null
-        };
-        return (_threadTags.GetValueOrDefault(entry.Thread), own, subject);
+        return (_threadTags.GetValueOrDefault(entry.Thread), OwnTagsOf(subject), subject);
+    }
+
+    // The own media tags of a subject (null: none; the set is never empty). Requires available tags.
+    private HashSet<Guid>? OwnTagsOf(MediaTagSubject? subject) => subject switch
+    {
+        MediaTagSubject.Bound bound => _mediaTags!.GetValueOrDefault(bound.Target),
+        MediaTagSubject.Local local when TagSnapshot!.ResolveLocal(local.Observation) is { IsRegistered: true, Target: { } target } =>
+            _localTags!.GetValueOrDefault(target),
+        _ => null
+    };
+
+    /// <summary>
+    /// <see cref="LacksMediaTags(MediaLibraryEntry)"/> for a subject the caller resolved itself (the gallery's filmstrip flags: the same rule,
+    /// the same index, no rebuild per medium). Null when that cannot be said: tags unavailable or no subject (nothing to tag).
+    /// </summary>
+    internal bool? LacksMediaTags(MediaTagSubject? subject)
+    {
+        if (_mediaTags == null || subject == null) return null;
+        return OwnTagsOf(subject) == null;
     }
 
     internal bool IsFavorite(MediaLibraryEntry entry)

@@ -1126,6 +1126,25 @@ namespace MeowChan
         [JsonConverter(typeof(DesktopPreferenceGalleryFilmstripTileGapConverter))]
         public int GalleryFilmstripTileGap { get; set; } = GalleryFilmstripTileGapDefault;
         internal const int GalleryFilmstripTileGapDefault = 8, GalleryFilmstripTileGapMinimum = 4, GalleryFilmstripTileGapMaximum = 16;
+        /// <summary>Filmstrip flags (decision 123): whether a filmstrip tile carries the favourite star (default on).</summary>
+        [JsonConverter(typeof(DesktopPreferenceTrueBooleanConverter))]
+        public bool GalleryFilmstripFlagFavorite { get; set; } = true;
+        /// <summary>Filmstrip flags: whether a filmstrip tile carries the own rating, a small number with the half-star icon (default on).</summary>
+        [JsonConverter(typeof(DesktopPreferenceTrueBooleanConverter))]
+        public bool GalleryFilmstripFlagRating { get; set; } = true;
+        // Filmstrip flags: when a tile carries the "no tags yet" mark. "Tagging" (default) shows it only while the gallery's tagging view (the
+        // right tag panel) is open, "Always" shows it whenever the medium has no own tag, "Off" never. Any other stored value reads as "Tagging".
+        private string _galleryFilmstripFlagUntagged = GalleryFilmstripUntaggedWithTagging;
+        public const string GalleryFilmstripUntaggedWithTagging = "Tagging", GalleryFilmstripUntaggedAlways = "Always", GalleryFilmstripUntaggedOff = "Off";
+        [JsonConverter(typeof(DesktopPreferenceStringConverter))]
+        public string GalleryFilmstripFlagUntagged
+        {
+            get => _galleryFilmstripFlagUntagged;
+            set => _galleryFilmstripFlagUntagged = NormalizeGalleryFilmstripUntagged(value);
+        }
+        internal static string NormalizeGalleryFilmstripUntagged(string? value) =>
+            string.Equals(value?.Trim(), GalleryFilmstripUntaggedAlways, StringComparison.OrdinalIgnoreCase) ? GalleryFilmstripUntaggedAlways
+            : string.Equals(value?.Trim(), GalleryFilmstripUntaggedOff, StringComparison.OrdinalIgnoreCase) ? GalleryFilmstripUntaggedOff : GalleryFilmstripUntaggedWithTagging;
         /// <summary>How many thumbnails on each side of the visible ones the filmstrip decodes in advance.</summary>
         public int GalleryFilmstripPreload { get; set; } = GalleryFilmstripPreloadDefault;
         internal const int GalleryFilmstripPreloadDefault = 12, GalleryFilmstripPreloadMinimum = 4, GalleryFilmstripPreloadMaximum = 60;
@@ -1815,6 +1834,9 @@ namespace MeowChan
                 GalleryLayout = GalleryLayout,
                 GalleryFilmstripHeight = GalleryFilmstripHeight,
                 GalleryFilmstripTileGap = GalleryFilmstripTileGap,
+                GalleryFilmstripFlagFavorite = GalleryFilmstripFlagFavorite,
+                GalleryFilmstripFlagRating = GalleryFilmstripFlagRating,
+                GalleryFilmstripFlagUntagged = GalleryFilmstripFlagUntagged,
                 GalleryFilmstripPreload = GalleryFilmstripPreload,
                 GalleryVideoSeekStepSeconds = GalleryVideoSeekStepSeconds,
                 MediaBadgeCollapseBelow = MediaBadgeCollapseBelow,
@@ -2070,6 +2092,9 @@ namespace MeowChan
             GalleryLayout = source.GalleryLayoutResetRequested ? null : source.GalleryLayout; // (a draft that asked for the reset: nothing chosen)
             GalleryFilmstripHeight = source.GalleryFilmstripHeight;
             GalleryFilmstripTileGap = source.GalleryFilmstripTileGap;
+            GalleryFilmstripFlagFavorite = source.GalleryFilmstripFlagFavorite;
+            GalleryFilmstripFlagRating = source.GalleryFilmstripFlagRating;
+            GalleryFilmstripFlagUntagged = source.GalleryFilmstripFlagUntagged;
             GalleryFilmstripPreload = source.GalleryFilmstripPreload;
             GalleryVideoSeekStepSeconds = source.GalleryVideoSeekStepSeconds;
             MediaBadgeCollapseBelow = source.MediaBadgeCollapseBelow;
@@ -2291,6 +2316,9 @@ namespace MeowChan
             // (GalleryFilmstrip itself follows the View set's filmstrip through ApplyTo; an unchanged box leaves both as they are.)
             GalleryFilmstripHeight = source.GalleryFilmstripHeight;
             GalleryFilmstripTileGap = source.GalleryFilmstripTileGap;
+            GalleryFilmstripFlagFavorite = source.GalleryFilmstripFlagFavorite;
+            GalleryFilmstripFlagRating = source.GalleryFilmstripFlagRating;
+            GalleryFilmstripFlagUntagged = source.GalleryFilmstripFlagUntagged;
             GalleryFilmstripPreload = source.GalleryFilmstripPreload;
             GalleryVideoSeekStepSeconds = source.GalleryVideoSeekStepSeconds;
             // M1: only the tag list width of the draft's media layout, and only when the box was changed against its baseline. The media page changes the

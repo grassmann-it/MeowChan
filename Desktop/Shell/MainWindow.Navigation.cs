@@ -207,6 +207,7 @@ public partial class MainWindow
         InitializeTagQueue();
         InitializeTaggingPage();
         InitializePostFilters();
+        InitializeGalleryFilmstripFlags();
         InitializeFolderSources();
         InitializeBooru();
         MeowChan.Diagnostics.PerformanceDiagnostics.Record("startup.pages", "resume-bookmarks-booru-done");

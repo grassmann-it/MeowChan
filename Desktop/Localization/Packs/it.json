@@ -4932,6 +4932,15 @@
     "sources.stat.queued": "In coda",
     "sources.stat.threads": "Thread",
     "stats.footer.tip": "{0}: {1}",
-    "theme.colors.resetAll.hint": "Riporta tutti i colori a quelli integrati."
+    "theme.colors.resetAll.hint": "Riporta tutti i colori a quelli integrati.",
+    "settings.galleryFilmstripFlagFavorite": "La striscia mostra: preferito",
+    "settings.galleryFilmstripFlagFavoriteHint": "Una piccola stella piena sulle miniature dei media preferiti.",
+    "settings.galleryFilmstripFlagRating": "La striscia mostra: valutazione",
+    "settings.galleryFilmstripFlagRatingHint": "La propria valutazione, da 1 a 5, come piccolo numero con mezza stella sulle miniature dei media valutati.",
+    "settings.galleryFilmstripFlagUntagged": "La striscia mostra: senza tag",
+    "settings.galleryFilmstripFlagUntaggedHint": "Un piccolo segno di tag barrato sui media senza tag propri, lo stesso segno della pagina dei media. Con la vista di tagging compare solo mentre il pannello dei tag a destra è aperto.",
+    "settings.galleryFilmstripFlagUntagged.tagging": "Mentre la vista di tagging è aperta",
+    "settings.galleryFilmstripFlagUntagged.always": "Sempre",
+    "settings.galleryFilmstripFlagUntagged.off": "Mai"
   }
 }

@@ -4926,6 +4926,15 @@
     "sources.stat.queued": "En cola",
     "sources.stat.threads": "Hilos",
     "stats.footer.tip": "{0}: {1}",
-    "theme.colors.resetAll.hint": "Devuelve todos los colores a los colores integrados."
+    "theme.colors.resetAll.hint": "Devuelve todos los colores a los colores integrados.",
+    "settings.galleryFilmstripFlagFavorite": "La tira de miniaturas muestra: favorito",
+    "settings.galleryFilmstripFlagFavoriteHint": "Una pequeña estrella rellena en las miniaturas de los medios favoritos.",
+    "settings.galleryFilmstripFlagRating": "La tira de miniaturas muestra: valoración",
+    "settings.galleryFilmstripFlagRatingHint": "La valoración propia, de 1 a 5, como un número pequeño con media estrella en las miniaturas de los medios valorados.",
+    "settings.galleryFilmstripFlagUntagged": "La tira de miniaturas muestra: sin etiquetas",
+    "settings.galleryFilmstripFlagUntaggedHint": "Una pequeña marca de etiqueta tachada en los medios sin etiquetas propias, la misma marca que en la página de medios. Con la vista de etiquetado solo aparece mientras el panel de etiquetas de la derecha está abierto.",
+    "settings.galleryFilmstripFlagUntagged.tagging": "Mientras la vista de etiquetado está abierta",
+    "settings.galleryFilmstripFlagUntagged.always": "Siempre",
+    "settings.galleryFilmstripFlagUntagged.off": "Nunca"
   }
 }

@@ -100,6 +100,7 @@ internal sealed partial class GalleryViewer
         ShowUnavailableReason(controller.UnavailableReason);
         surface.LoadSourceTags();
         _tagPanelOpen = true;
+        _filmstrip.SetTaggingViewOpen(true); // the filmstrip's "no tags yet" mark follows the tagging view
         _hoverContextOpen = false; // an edge-hover opened post panel would otherwise close the slot behind the tags
         RefreshDecisionRow();
         ApplyChrome(); // the info line's rating yields to the row (QW5)
@@ -126,6 +127,7 @@ internal sealed partial class GalleryViewer
     {
         if (!_tagPanelOpen) return false;
         _tagPanelOpen = false;
+        _filmstrip.SetTaggingViewOpen(false);
         QuickTagSurface? surface = _tagSurface;
         GalleryTagPanelController? controller = _tagController;
         _tagSurface = null; _tagController = null; _tagOwner = null;

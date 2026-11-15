@@ -4975,6 +4975,15 @@
     "sources.stat.queued": "W kolejce",
     "sources.stat.threads": "Wątki",
     "stats.footer.tip": "{0}: {1}",
-    "theme.colors.resetAll.hint": "Przywraca wszystkie kolory do wbudowanych."
+    "theme.colors.resetAll.hint": "Przywraca wszystkie kolory do wbudowanych.",
+    "settings.galleryFilmstripFlagFavorite": "Pasek miniatur pokazuje: ulubione",
+    "settings.galleryFilmstripFlagFavoriteHint": "Małą wypełnioną gwiazdkę na miniaturach ulubionych mediów.",
+    "settings.galleryFilmstripFlagRating": "Pasek miniatur pokazuje: ocenę",
+    "settings.galleryFilmstripFlagRatingHint": "Własną ocenę od 1 do 5 jako małą liczbę z pół gwiazdki na miniaturach ocenionych mediów.",
+    "settings.galleryFilmstripFlagUntagged": "Pasek miniatur pokazuje: brak tagów",
+    "settings.galleryFilmstripFlagUntaggedHint": "Mały przekreślony znak tagu przy mediach bez własnych tagów, taki sam jak na stronie mediów. W trybie z widokiem tagowania pojawia się tylko przy otwartym panelu tagów po prawej.",
+    "settings.galleryFilmstripFlagUntagged.tagging": "Gdy widok tagowania jest otwarty",
+    "settings.galleryFilmstripFlagUntagged.always": "Zawsze",
+    "settings.galleryFilmstripFlagUntagged.off": "Nigdy"
   }
 }

@@ -170,6 +170,7 @@ public partial class MainWindow
 
     private void RefreshGalleryMediaTags()
     {
+        RefreshGalleryFilmstripFlags(); // the filmstrip's "no tags yet" mark follows a tag change made in the gallery
         if (_gallery == null || _galleryIndex < 0 || _galleryIndex >= _galleryEntries.Count) return;
         GalleryEntry current = _galleryEntries[_galleryIndex];
         _gallery.RetargetTagPanel(current); // an open panel follows the shown medium
