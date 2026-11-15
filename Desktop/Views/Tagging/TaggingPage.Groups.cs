@@ -43,9 +43,14 @@ public sealed partial class TaggingPage
         ? null
         : item => InSelectedGroup(item) && (Scope == null || Scope(item));
 
+    // The combo box builds its selection box while ItemsSource is being swapped, and then the item is null for a moment:
+    // the template must tolerate that (an exception here aborted Render and left the queue table empty).
+    internal static FuncDataTemplate<TaggingGroupChoice> GroupChoiceTemplate() =>
+        new((choice, _) => new TextBlock { Text = choice?.Label, TextTrimming = TextTrimming.CharacterEllipsis });
+
     private void InitializeGroups()
     {
-        _group.ItemTemplate = new FuncDataTemplate<TaggingGroupChoice>((choice, _) => new TextBlock { Text = choice.Label, TextTrimming = TextTrimming.CharacterEllipsis });
+        _group.ItemTemplate = GroupChoiceTemplate();
         _group.SelectionChanged += (_, _) =>
         {
             if (_groupLocalizing || _group.SelectedItem is not TaggingGroupChoice choice) return;

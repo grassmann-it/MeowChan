@@ -1,4 +1,8 @@
 using System.Diagnostics;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Controls.Presenters;
+using Avalonia.Controls.Templates;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
@@ -105,6 +109,43 @@ public sealed class TaggingPageTests : IDisposable
         Assert.Null(TaggingQueueView.MoveTarget(queue, TaggingQueueFilter.All, Item(4).Key, 1));
         Assert.Null(TaggingQueueView.MoveTarget(queue, TaggingQueueFilter.All, Item(9).Key, 1));
         Assert.Throws<ArgumentOutOfRangeException>(() => TaggingQueueView.MoveTarget(queue, TaggingQueueFilter.All, Item(1).Key, 2));
+    }
+
+    [Fact]
+    public void TheGroupComboBoxSurvivesItsItemsSourceBeingSwappedAndTheTemplateToleratesAMissingItem()
+    {
+        IDataTemplate template = TaggingPage.GroupChoiceTemplate();
+        // The selection box builds the template without an item while the source is replaced: no exception, empty text.
+        Assert.Equal(string.Empty, Assert.IsType<TextBlock>(template.Build(null)!).Text ?? string.Empty);
+        Assert.Equal("Review", Assert.IsType<TextBlock>(template.Build(new TaggingGroupChoice("g", false, "Review"))!).Text);
+
+        TagQueueGroup group = new("group-1", "Review", 0, new[] { "common" });
+        TagQueueSnapshot queue = new(1, 0, Array.Empty<string>(), new[] { Item(1) with { GroupId = group.Id } }, TagQueueLoadState.Ready, new[] { group });
+        IReadOnlyList<TaggingGroupChoice> first = TaggingQueueView.GroupChoices(queue);
+        IReadOnlyList<TaggingGroupChoice> second = TaggingQueueView.GroupChoices(queue);
+        ComboBox box = new()
+        {
+            ItemTemplate = template,
+            Template = new FuncControlTemplate<ComboBox>((owner, scope) =>
+            {
+                ContentPresenter selected = new() { Name = "PART_SelectedItem" };
+                selected[!ContentPresenter.ContentProperty] = owner[!ComboBox.SelectionBoxItemProperty];
+                selected[!ContentPresenter.ContentTemplateProperty] = owner[!ItemsControl.ItemTemplateProperty];
+                scope.Register("PART_SelectedItem", selected);
+                Avalonia.Controls.Primitives.Popup popup = new() { Name = "PART_Popup" };
+                scope.Register("PART_Popup", popup);
+                return new Panel { Children = { selected, popup } };
+            })
+        };
+        box.ApplyTemplate();
+        // The order RenderGroups uses on every Render: replace the source, then restore the selection (here by an equal choice).
+        box.ItemsSource = first;
+        box.SelectedItem = first[2];
+        box.ItemsSource = second;
+        box.SelectedItem = second[2];
+        box.ItemsSource = TaggingQueueView.GroupChoices(TagQueueSnapshot.Empty);
+        box.SelectedItem = ((IReadOnlyList<TaggingGroupChoice>)box.ItemsSource)[0];
+        Assert.Equal("All entries", ((TaggingGroupChoice)box.SelectedItem!).Label);
     }
 
     [Fact]
