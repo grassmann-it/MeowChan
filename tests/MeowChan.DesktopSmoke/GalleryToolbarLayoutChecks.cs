@@ -19,7 +19,7 @@ using SkiaSharp;
 namespace MeowChan.DesktopSmoke;
 
 // Root dispatch only: MEOWCHAN_GALLERY_TOOLBAR_ONLY. A real main-window gallery with a decoded picture and a post is
-// captured at the two reference sizes in both themes, with the post panel closed and open.
+// captured at the GL5 threshold matrix (760, 1099, 1100 and 1440 DIP) in both themes, with the post panel closed and open.
 internal static partial class GalleryToolbarLayoutChecks
 {
     private static readonly TimeSpan Deadline = TimeSpan.FromSeconds(20);
@@ -53,8 +53,8 @@ internal static partial class GalleryToolbarLayoutChecks
             await UntilAsync(() => !ratingSaved.IsVisible);
             viewer.StatusDwellMs = Config.GalleryStatusDwellMsDefault;
             foreach (ThemeVariant variant in new[] { ThemeVariant.Light, ThemeVariant.Dark })
-            foreach ((int width, int height) in new[] { (760, 500), (1440, 920) })
-            foreach (string lang in width == 760 ? new[] { "en", "de" } : new[] { "en" })
+            foreach ((int width, int height) in new[] { (760, 500), (1099, 500), (1100, 920), (1440, 920) })
+            foreach (string lang in new[] { "en", "de" })
             {
                 Application.Current.RequestedThemeVariant = variant;
                 Texts.SetLanguage(lang);
@@ -170,7 +170,7 @@ internal static partial class GalleryToolbarLayoutChecks
                 await LayoutAsync(window);
             }
             Require(viewer.CaptureState().Key == start.Key, "The gallery selection changed during the layout checks.");
-            Console.WriteLine("SMOKE gallery toolbar: captures at 760x500 and 1440x920, Light and Dark, post panel closed and open.");
+            Console.WriteLine("SMOKE gallery toolbar: GL5 threshold matrix 760/1099/1100/1440 DIP (500/500/920/920 high), Light and Dark, EN and DE; real bounds/focus geometry receipts emitted.");
         }
         finally
         {
@@ -285,9 +285,12 @@ internal static partial class GalleryToolbarLayoutChecks
         Border chrome = Find<Border>(viewer, "GalleryOverlayControls");
         Console.WriteLine("SMOKE gallery toolbar metrics: " + JsonSerializer.Serialize(new
         {
-            tag, window = window.Bounds.Size.ToString(), viewer = viewer.Bounds.Size.ToString(),
+            tag, requestedWindow = new { width = window.Width, height = window.Height },
+            window = window.Bounds.Size.ToString(), viewer = viewer.Bounds.Size.ToString(),
             viewport = viewport.IsVisible ? viewport.Bounds.Size.ToString() : "hidden",
             toolbar = chrome.Bounds.Size.ToString(),
+            toolbarBounds = chrome.Bounds.ToString(),
+            focus = window.FocusManager?.GetFocusedElement() is Control focused ? focused.Name ?? focused.GetType().Name : "none",
             visibleButtons = viewer.GetGalleryVisualDescendants().OfType<Button>().Count(b => b.IsEffectivelyVisible && chrome.IsVisualAncestorOf(b))
         }));
     }
