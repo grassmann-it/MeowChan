@@ -223,7 +223,7 @@ internal static class R08dPresentationChecks
                 await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window,
                     wide.Client.Width, wide.Client.Height));
                 Button back = fixture.FindControl<Button>("ArchiveBackButton")!;
-                Require(FitsWindow(window, readerBar.More!) && (!back.IsVisible || FitsWindow(window, back)),
+                Require(FitsWindowOrNoOverflow(window, readerBar) && (!back.IsVisible || FitsWindow(window, back)),
                     "The reader's native full-screen or back action overflows the fitted wide viewport.");
                 Console.WriteLine($"SMOKE archive native viewport: requested={wide.Client}; actual={window.Bounds.Size}; "
                     + $"workingArea={screen.WorkingArea}; scale={window.RenderScaling}; "
@@ -236,7 +236,7 @@ internal static class R08dPresentationChecks
                 {
                     window.UpdateLayout();
                     return PresentationChecks.MatchesRequestedSize(window, 760, 500)
-                        && FitsWindow(window, readerBar.More!) && FitsWindow(window, back);
+                        && FitsWindowOrNoOverflow(window, readerBar) && FitsWindow(window, back);
                 });
                 Program.CaptureWindow(window, "smoke-r08d-reader-narrow.png");
                 Click(fixture.FindControl<Button>("ArchiveBackButton")!);
@@ -257,6 +257,17 @@ internal static class R08dPresentationChecks
 
     private static void Click(Button button) => SmokeActionClick.Execute(button);
     private static void Click(MenuItem item) => item.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+    private static bool FitsWindowOrNoOverflow(Window window, ActionToolBar toolbar)
+    {
+        // ActionToolBar hides More when no action was reduced. On a wide reader the
+        // fullscreen action is deliberately direct, so requiring the hidden toggle
+        // to fit would assert a control that has no viewport contract. When More is
+        // present, keep the strict physical viewport assertion.
+        if (toolbar.More?.IsEffectivelyVisible != true)
+            return toolbar.OverflowHost?.Children.Count == 0;
+        return FitsWindow(window, toolbar.More);
+    }
+
     private static bool FitsWindow(Window window, Control control)
     {
         Point? origin = control.TranslatePoint(default, window);
