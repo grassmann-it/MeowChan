@@ -1,6 +1,10 @@
 using System;
+using System.Linq;
+using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
@@ -31,11 +35,17 @@ public partial class ArchivePage
     private void OnReaderFontWheel(object? sender, PointerWheelEventArgs e)
     {
         if (e.Handled || !ItemActivation.IsZoomWheel(e.KeyModifiers) || _ended || IsReaderDialogOpen) return;
+        // Over the Media tab's tiles the wheel belongs to the tile size (TileSizeInput on the tile list, further down this tunnel): the font stays as it is.
+        if (WheelBelongsToTileSize(e.Source, ArchiveMediaTiles)) return;
         // Ctrl with the wheel is never a scroll: a step changes the size, the rest of a touchpad gesture waits for the next one.
         e.Handled = true;
         int steps = _readerFontWheel.Add(e.Delta.Y, DateTime.UtcNow);
         if (steps != 0) StepReaderFontSize(steps);
     }
+
+    /// <summary>Whether a Ctrl+wheel from <paramref name="source"/> lands on the shown tile list, whose own size input answers it.</summary>
+    internal static bool WheelBelongsToTileSize(object? source, Control tiles) =>
+        tiles.IsVisible && source is Visual visual && visual.GetSelfAndVisualAncestors().Any(node => ReferenceEquals(node, tiles));
 
     private void OnReaderFontKeyDown(object? sender, KeyEventArgs e)
     {

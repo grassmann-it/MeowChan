@@ -901,10 +901,10 @@ public partial class ArchivePage
         _readerMediaHeldKeys.Clear();
     }
 
-    // Fixed content activation is not a new global binding. Explicit effective
-    // Reader/shell commands keep their meaning, including Enter/Space remaps.
+    // Fixed content activation is Space only: Enter is the command "Open medium of the post" (reader.media.activate, TryRouteReaderVideoKey), so
+    // rebinding or unbinding it takes Enter away. Explicit effective Reader/shell commands keep their meaning, including Space remaps.
     internal static bool IsReaderMediaGesture(KeyEventArgs e, EffectiveShortcutBindings bindings) =>
-        e.Key is Key.Enter or Key.Space && e.KeyModifiers == KeyModifiers.None
+        e.Key == Key.Space && e.KeyModifiers == KeyModifiers.None
         && !bindings.Gestures.Keys.Any(id => bindings.Matches(e, id) && !ReaderVideoKeys.IsVideoCommand(id)
             && EffectiveShortcutBindings.ExecutionContexts(id).Any(context => context is "reader" or "shell"));
 
@@ -968,8 +968,9 @@ public partial class ArchivePage
         return true;
     }
 
+    // only: the one medium of the post a key chose (null: the first available medium of the post, in position order).
     private async Task ActivateReaderMediaAsync(Control origin, ArchivePostRow post, ResourceId resource,
-        Task<IReadOnlyList<ArchiveAssetRow>> ready, CancellationTokenSource cancellation)
+        Task<IReadOnlyList<ArchiveAssetRow>> ready, CancellationTokenSource cancellation, ArchiveAttachmentRow? only = null)
     {
         int content = _contentRequest, media = _mediaRequest, focus = _readerFocusRequest;
         long coverage = _readerCoverageRevision, shortcuts = ShortcutService.Revision;
@@ -989,8 +990,9 @@ public partial class ArchivePage
             // A stale manifest is not proof that an original still exists. Skip
             // missing originals in post order, not toward unrelated thread media.
             // The gallery retains byte integrity/decoding ownership after handoff.
-            ReaderMediaTarget? target = await Task.Run(() => FindReaderMediaTarget(resource, post, assets,
-                row => File.Exists(row.Asset.Path)), cancellation.Token);
+            ReaderMediaTarget? target = await Task.Run(() => only == null
+                ? FindReaderMediaTarget(resource, post, assets, row => File.Exists(row.Asset.Path))
+                : FindReaderMediumTarget(resource, post, only, assets, row => File.Exists(row.Asset.Path)), cancellation.Token);
             if (target == null || !Current()) return;
             ReaderMediaActivationGuard = Current;
             try { await open!(resource, target.Key, origin); }

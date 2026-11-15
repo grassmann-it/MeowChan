@@ -175,6 +175,50 @@ public sealed class ReaderMediaActivationTests
             new ShortcutBindingsSection().Set("gallery.next", [ShortcutGesture.Parse(key.ToString())]))));
     }
 
+    // Enter is only the command "Open medium of the post": the fixed content path knows Space alone, so rebinding or unbinding the command takes Enter away.
+    [Fact]
+    public void EnterIsNeverAFixedContentGestureSoUnbindingTheCommandLeavesItDead()
+    {
+        KeyEventArgs enter = new() { Key = Key.Enter };
+        Assert.False(ArchivePage.IsReaderMediaGesture(enter, EffectiveShortcutBindings.Build()));
+        EffectiveShortcutBindings unbound = EffectiveShortcutBindings.Build(new ShortcutBindingsSection().Set(ArchivePage.ActivateMediumCommandId, Array.Empty<ShortcutGesture>()));
+        Assert.False(unbound.Matches(enter, ArchivePage.ActivateMediumCommandId));
+        Assert.False(ArchivePage.IsReaderMediaGesture(enter, unbound));
+        EffectiveShortcutBindings moved = EffectiveShortcutBindings.Build(new ShortcutBindingsSection().Set(ArchivePage.ActivateMediumCommandId, [ShortcutGesture.Parse("F2")]));
+        Assert.False(ArchivePage.IsReaderMediaGesture(enter, moved));
+        Assert.True(ArchivePage.IsReaderMediaGesture(new() { Key = Key.Space }, unbound)); // Space keeps its fixed meaning
+    }
+
+    [Fact]
+    public void AKeyChosenMediumOpensExactlyThatAttachmentNotAnotherOneOfThePost()
+    {
+        var first = Bound("later", 0, "first.png");
+        var second = Bound("later", 1, "second.webm");
+        var rows = Assets(first, second);
+        ArchivePostRow post = Post("later", first.Attachment, second.Attachment);
+        ArchiveAttachmentRow chosen = post.Attachments.Single(row => row.Attachment.Position == 1);
+        var target = ArchivePage.FindReaderMediumTarget(Thread, post, chosen, rows);
+        Assert.NotNull(target);
+        Assert.Equal(second.Asset.AssetId, target.Key.Asset.AssetId);
+        Assert.Equal(1, target.Key.AttachmentPosition);
+        Assert.Equal("later", target.Key.PostId);
+        Assert.Null(ArchivePage.FindReaderMediumTarget(Thread, post, chosen, rows, _ => false)); // the saved file is gone: nothing opens, no other medium takes its place
+        Assert.Null(ArchivePage.FindReaderMediumTarget(Thread, post, chosen, Assets(first)));    // not in the manifest
+    }
+
+    [Fact]
+    public void TheKeyPathOpensTheGalleryUnderTheReadersGuardNotAfterABareManifestWait()
+    {
+        string path = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(SourceFile())!, "../..", "Desktop/Views/Archive/ArchivePage.MediaActivation.cs"));
+        string source = File.ReadAllText(path);
+        Assert.DoesNotContain("OpenMediumInGalleryAsync", source);
+        Assert.Contains("_readerMediaActivationCancellation = cancellation;", source);   // a repeat or a second key does nothing while it runs
+        Assert.Contains("ActivateReaderMediaAsync(origin, post, _thread.Summary.Id, _mediaReady.Task, cancellation, row)", source); // the same Current() recheck after every await
+        Assert.DoesNotContain("ReaderMediaActivationTask = Open", source);
+    }
+
+    private static string SourceFile([System.Runtime.CompilerServices.CallerFilePath] string path = "") => path;
+
     [Theory]
     [InlineData(Key.Enter)]
     [InlineData(Key.Space)]

@@ -248,7 +248,7 @@ public sealed class ReaderExpandRepliesTests : IDisposable
         ArchivePostRow shown = Row("1"), collapsed = Row("2"), unseen = Row("3");
         policy.Realise(shown); policy.Realise(collapsed);                       // realised while the setting was off
         policy.RememberChoice(collapsed, false);
-        List<ArchivePostRow> toLoad = policy.Enable(new[] { shown, collapsed, unseen });
+        List<ArchivePostRow> toLoad = policy.Enable(new[] { shown, collapsed, unseen }, _ => true);
         Assert.Equal(new[] { shown }, toLoad);                                  // lazy: the unseen card loads nothing
         Assert.True(shown.RepliesExpanded);
         Assert.False(collapsed.RepliesExpanded);                                // the reader's collapse wins
@@ -270,8 +270,22 @@ public sealed class ReaderExpandRepliesTests : IDisposable
         Assert.False(row.RepliesExpanded);
         Assert.True(row.RepliesLoaded);
         Assert.False(policy.Realise(row));                                      // off: stays closed
-        Assert.Empty(policy.Enable(new[] { row }));                             // on again: opens at once, nothing to load
+        Assert.Empty(policy.Enable(new[] { row }, _ => true));                             // on again: opens at once, nothing to load
         Assert.True(row.RepliesExpanded);
+    }
+
+    [Fact]
+    public void SwitchingItOnDeepInABigThreadLoadsOnlyTheCardsThatExistNowNotEveryCardEverRealised()
+    {
+        ReplyAutoExpandPolicy policy = new ReplyAutoExpandPolicy().Opened(ThreadA);
+        ArchivePostRow[] rows = Enumerable.Range(0, 500).Select(i => Row(i.ToString())).ToArray();
+        foreach (ArchivePostRow row in rows) policy.Realise(row);               // scrolled through all of them while the setting was off (the flag is never reset)
+        HashSet<object> live = rows.Skip(240).Take(12).ToHashSet(ReferenceEqualityComparer.Instance);     // only these cards exist now
+        List<ArchivePostRow> toLoad = policy.Enable(rows, row => live.Contains(row));
+        Assert.Equal(live.Count, toLoad.Count);
+        Assert.All(toLoad, row => Assert.Contains(row, live));
+        Assert.All(rows.Where(row => !live.Contains(row)), row => Assert.False(row.RepliesExpanded));
+        Assert.True(policy.Realise(rows[0]));                                   // a card that appears later still opens when it is realised
     }
 
     // ---- the page ----
@@ -288,6 +302,10 @@ public sealed class ReaderExpandRepliesTests : IDisposable
         int publish = replies.IndexOf("ApplyAutomaticRepliesToRealised(rows);", StringComparison.Ordinal);
         int restore = replies.IndexOf("if (restoreLayout != null) await restoreLayout();", StringComparison.Ordinal);
         Assert.True(counts >= 0 && publish > counts && restore > publish, "the counts' layout correction covers the automatic expansion");
+        string auto = Source("Desktop/Views/Archive/ArchivePage.ReplyAutoExpand.cs");
+        Assert.Contains("_replyAutoExpand.Enable(rows, HasLiveCard)", auto);                       // the switch loads for the cards that exist now only
+        Assert.Contains("row.RepliesRealised && HasLiveCard(row)", auto);                           // so does the count publication
+        Assert.Contains("ArchivePosts.ContainerFromItem(row) != null", auto);
         Assert.Contains("RememberReplyChoice(row, open);", replies);              // the header counter is the reader's own choice
         Assert.Contains("row.Replies.Count != loadedBefore", replies);            // a late page never lands on restored replies
         string state = Source("Desktop/Views/Archive/ArchivePage.Navigation.cs");
