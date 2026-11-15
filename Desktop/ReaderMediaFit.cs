@@ -17,16 +17,27 @@ internal static class ReaderMediaFit
     internal const double CardBottomPadding = 13;
     /// <summary>The post header block above the media row (card margin, header line, spacing) when the visual tree cannot measure it yet.</summary>
     internal const double HeaderEstimate = 44;
+    /// <summary>Where a reader jump puts the focused card's top edge: this far below the top of the viewport.</summary>
+    internal const double AlignedTop = 8;
+    /// <summary>The margin under each reader card (the list item's vertical margin).</summary>
+    internal const double CardMarginBelow = 4;
+    /// <summary>
+    /// What a fully capped card leaves of the viewport: the aligned top, the card margin and the scroll air below. With it a capped card
+    /// placed at <see cref="AlignedTop"/> shows its bottom edge, so the jump's alignment and <see cref="ScrollDelta"/> agree.
+    /// </summary>
+    internal const double AlignedAir = AlignedTop + CardMarginBelow + ScrollMargin;
 
     /// <summary>
-    /// The height a medium's frame may use: the viewport minus <paramref name="chromeHeight"/> (header, file line, paddings). NaN when
-    /// the viewport is not known (no cap then); never below one dip.
+    /// The height a medium's frame may use: the viewport minus <paramref name="chromeHeight"/> (header, file line, paddings) and minus
+    /// <paramref name="air"/> (what the viewport keeps free around the card, <see cref="AlignedAir"/> in the reader). NaN when the viewport
+    /// is not known (no cap then); never below one dip.
     /// </summary>
-    internal static double VisibleHeight(double viewportHeight, double chromeHeight)
+    internal static double VisibleHeight(double viewportHeight, double chromeHeight, double air = 0)
     {
         if (!double.IsFinite(viewportHeight) || viewportHeight <= 0) return double.NaN;
         double chrome = double.IsFinite(chromeHeight) ? Math.Max(0, chromeHeight) : 0;
-        return Math.Max(1, viewportHeight - chrome);
+        double free = double.IsFinite(air) ? Math.Max(0, air) : 0;
+        return Math.Max(1, viewportHeight - chrome - free);
     }
 
     /// <summary>

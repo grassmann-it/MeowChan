@@ -77,6 +77,22 @@ public sealed class ReaderMediaFitTests : IDisposable
         Assert.Equal(350, ReaderMediaFit.VisibleHeight(500, 150));
     }
 
+    // A fully capped card aligned by a jump (top at AlignedTop) keeps its bottom edge and the scroll air in view (review 2026-11-15, A3).
+    [Fact]
+    public void VisibleHeightLeavesTheAlignmentAirFree()
+    {
+        Assert.Equal(350 - ReaderMediaFit.AlignedAir, ReaderMediaFit.VisibleHeight(500, 150, ReaderMediaFit.AlignedAir));
+        Assert.Equal(350, ReaderMediaFit.VisibleHeight(500, 150, double.NaN));
+        Assert.Equal(1, ReaderMediaFit.VisibleHeight(160, 150, ReaderMediaFit.AlignedAir));
+        double viewport = 641, chrome = 130;
+        double frame = ReaderMediaFit.VisibleHeight(viewport, chrome, ReaderMediaFit.AlignedAir);
+        double cardBottom = ReaderMediaFit.AlignedTop + chrome + frame;
+        Assert.True(cardBottom + ReaderMediaFit.CardMarginBelow + ReaderMediaFit.ScrollMargin <= viewport + Tolerance);
+        // The medium inside that card needs no further scroll once the card is aligned.
+        double frameTop = ReaderMediaFit.AlignedTop + 60;
+        Assert.Equal(0, ReaderMediaFit.ScrollDelta(frameTop, frameTop + frame, viewport));
+    }
+
     [Fact]
     public void UnusablePictureSizeIsReturnedUnchanged()
     {

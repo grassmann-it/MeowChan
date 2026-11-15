@@ -232,8 +232,12 @@ public sealed class ArchiveAttachmentView : UserControl
         return above + Margin.Top + Margin.Bottom + _column.NonFrameHeight + ReaderMediaFit.CardBottomPadding;
     }
 
-    /// <summary>The height a picture's frame may use in the visible reader (viewport minus <see cref="ChromeHeight"/>); NaN while the viewport is unknown.</summary>
-    internal double VisibleFrameHeight() => ReaderMediaFit.VisibleHeight(GetValue(ReaderPostLayout.VisibleHeightProperty), ChromeHeight());
+    /// <summary>
+    /// The height a picture's frame may use in the visible reader (viewport minus <see cref="ChromeHeight"/> and the air a card aligned by
+    /// a jump keeps above and below, <see cref="ReaderMediaFit.AlignedAir"/>); NaN while the viewport is unknown.
+    /// </summary>
+    internal double VisibleFrameHeight() =>
+        ReaderMediaFit.VisibleHeight(GetValue(ReaderPostLayout.VisibleHeightProperty), ChromeHeight(), ReaderMediaFit.AlignedAir);
 
     /// <summary>Raised (bubbling) when the frame of an enlarged picture changed size, so the reader can keep the whole picture in view.</summary>
     internal static readonly Avalonia.Interactivity.RoutedEvent<Avalonia.Interactivity.RoutedEventArgs> FocusedFrameChangedEvent =

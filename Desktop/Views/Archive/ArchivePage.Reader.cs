@@ -418,7 +418,7 @@ public partial class ArchivePage
             ScrollContentPresenter? viewport = scroll?.GetVisualDescendants().OfType<ScrollContentPresenter>().FirstOrDefault();
             if (viewport == null || container.TranslatePoint(default, viewport) is not Point position) continue;
             // The post that carries the reading line scrolls to just below the line, which sits above its card.
-            double offset = Math.Clamp(scroll!.Offset.Y + position.Y - 8 - (row.HasUnreadLine ? ReaderUnreadLineHost.Reach : 0), 0,
+            double offset = Math.Clamp(scroll!.Offset.Y + position.Y - ReaderMediaFit.AlignedTop - (row.HasUnreadLine ? ReaderUnreadLineHost.Reach : 0), 0,
                 Math.Max(0, scroll.Extent.Height - scroll.Viewport.Height));
             if (Math.Abs(offset - scroll.Offset.Y) > 1)
             {
