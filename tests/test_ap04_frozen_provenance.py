@@ -271,7 +271,7 @@ class FrozenProvenanceTests(unittest.TestCase):
         manifest_path = ctx.src / 'UPGRADE-102-SOURCE.json'
         manifest_path.write_text(json.dumps(manifest))
         ids = [{'Source': source, 'Board': 'g', 'Thread': '123'} for source in ('4chan', '8kun')]
-        asset = {'Length': len(source_check.PNG), 'Sha256': digest(source_check.PNG)}
+        asset = {'Length': len(source_check.PNG), 'Sha256': digest(source_check.PNG), 'Sha1': source_check.PNG_SHA1}
         settings = {'DownloadsPaused': True, 'VideoVolume': 31, 'VideoStartMuted': True,
                     'GalleryContextOpen': True, 'AutomaticUpdateChecks': False,
                     'ArchiveThreadLayout': 'Table', 'ArchiveSplitWidth': 431, 'WindowWidth': 1123}
@@ -287,7 +287,8 @@ class FrozenProvenanceTests(unittest.TestCase):
                     'Bookmarks': {'Bookmarks': [{'Key': {'Thread': item, 'Post': '124'},
                                                 'Note': 'SYNTHETIC 1.0.2 retained reply\nNo personal content.'} for item in ids]},
                     'Watch': {'ThreadUrls': sorted(source_check.URLS)}, 'Settings': settings},
-                'Requests': ['https://a.4cdn.org/boards.json']}
+                'Requests': ['https://a.4cdn.org/boards.json'],
+                'LegacyChanPlugins': source_check.LEGACY_CHAN_STATES}
 
     def test_released_input_must_bind_pinned_102_receipt_and_source_before_current_open(self):
         ctx = self.context()

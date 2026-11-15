@@ -85,6 +85,26 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertLess(gate, upload)
         self.assertIn("artifacts/build-evidence/release-validation-gate.json", self.workflow[upload:])
 
+    def test_upgrade_gate_runs_the_released_102_fixture_and_binds_current_source(self):
+        start = self.workflow.index("      - name: Exercise the released 1.0.2 fixture against the current source")
+        end = self.workflow.index("      - name: Exercise FirstRunSetup", start)
+        section = self.workflow[start:end]
+        for marker in (
+            "tests/fixtures/upgrade-v1.0.2/prepare.py",
+            "tests/fixtures/upgrade-v1.0.2/check.py",
+            "tests/fixtures/upgrade-v1.0.2/check_migrated.py",
+            "Released102RestPackageUpgradeTests",
+            "MEOWCHAN_RELEASED102_SOURCE_MANIFEST",
+            "source-binding.json",
+            "--expect-revision \"$current_revision\"",
+            "test ! -s \"$fixture/status-after.txt\"",
+        ):
+            self.assertIn(marker, section)
+        self.assertNotIn("upgrade-v1x", section)
+        self.assertNotIn("OldReleaseExplicitNewBundledSelectionPreservesHistoryAcrossTwoOfflineRestarts", section)
+        self.assertIn("required=(candidate_matrix", self.workflow)
+        self.assertIn("upgrade_replay", self.workflow)
+
     def test_candidate_gate_waits_for_every_release_input_and_is_always_evaluated(self):
         section = self.workflow.split("  release-candidate-gate:\n", 1)[1].split(
             "\n  # Diagnostic evidence only", 1)[0]

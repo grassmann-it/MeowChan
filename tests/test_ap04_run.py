@@ -686,9 +686,24 @@ class CycleEvidenceGateTests(unittest.TestCase):
 def plugin_state(active=True):
     required = [{'PluginId': pid, 'Enabled': True, 'Active': active, 'ActiveExecutionRevision': 'r-' + pid,
                  'Problem': None, 'SdkTransition': None} for pid in cw.REQUIRED_PLUGINS]
+    # Keep this synthetic post-check control aligned with the current migration oracle:
+    # the released single-site records remain in the profile while the bundled families
+    # take ownership of their sources.
+    required.extend(
+        {'PluginId': pid, 'Enabled': enabled, 'Active': False, 'ActiveExecutionRevision': None,
+         'Problem': 'Replaced by the bundled plugin ' + ('vichan' if pid != 'meowchan.source.zzzchan' else 'jschan'),
+         'SdkTransition': None}
+        for pid, enabled in cw.LEGACY_CHAN_STATES.items())
+    required.extend(
+        {'PluginId': pid, 'Enabled': True, 'Active': active, 'ActiveExecutionRevision': 'r-' + pid,
+         'Problem': None, 'SdkTransition': None}
+        for pid in cw.CHAN_FAMILIES)
     required.append({'PluginId': 'meowchan.example.off', 'Enabled': False, 'Active': False, 'ActiveExecutionRevision': None,
                      'Problem': None, 'SdkTransition': None})
-    return {'Revision': 1, 'Warnings': [], 'Sources': [], 'Plugins': required}
+    sources = sorted(site for sites in cw.CHAN_FAMILIES.values() for site in sites)
+    sources = sorted(sources + ['2ch', '4chan', '8kun', 'bbwchan', 'capybarachan', 'endchan',
+                                'eightchanmoe', 'fchan', 'kohlchan', 'sevenchan'])
+    return {'Revision': 1, 'Warnings': [], 'Sources': sources, 'Plugins': required}
 
 
 class PostCheckTests(unittest.TestCase):
@@ -701,6 +716,12 @@ class PostCheckTests(unittest.TestCase):
         self.profile, self.results, self.writes = base / 'p', base / 'c', base / 'w'
         for directory in (self.profile, self.results, self.writes / 'snapshot-before', self.writes / 'snapshot-v1'):
             directory.mkdir(parents=True)
+        (self.profile / 'chan-sources.json').write_text(json.dumps({
+            'Version': 1,
+            'Enabled': {'lainchan': False, 'leftypol': False, 'sushichan': False,
+                        'uboachan': False, 'wizchan': True, 'zzzchan': True},
+            'Migrated': sorted(cw.LEGACY_CHAN_STATES),
+        }))
         version = '1.1.0+' + SHA
 
         def cycle(mode, **extra):

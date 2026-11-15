@@ -194,6 +194,9 @@ jobs:
           python -m unittest discover -s tests -p test_plugin_packaging.py -v
           python -m unittest discover -s tests -p test_plugin_documentation.py -v
           python -m unittest discover -s tests -p test_prerelease.py -v
+          python -m unittest discover -s tests -p test_release_gates.py -v
+          python -m unittest discover -s tests -p test_released102_fixture_generation.py -v
+          python -m unittest discover -s tests -p test_released102_migrated_check.py -v
           python -m unittest discover -s tests -p test_public_api_policy.py -v
           python -m unittest discover -s tests -p test_ci_desktop_preparation.py -v
           python -m unittest discover -s tests -p test_macos_test_watchdog.py -v
@@ -291,7 +294,7 @@ jobs:
           MEOWCHAN_PLUGIN_RESELECTION_ONLY: '1'
         run: |
           python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll ${{ runner.os != 'Linux' && '--allow-native-desktop' || '' }} --mode plugins --timeout 300 --output artifacts/closure-plugin-reselection
-      - name: Replay genuine 1.0.0 and 1.0.1 profiles with confirmed new selections
+      - name: Exercise the released 1.0.2 fixture against the current source
         id: upgrade_replay
         # Keep independent checks running so one failure yields a complete evidence set.
         continue-on-error: true
@@ -299,12 +302,60 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for version in 1.0.0 1.0.1; do
-            fixture="$GITHUB_WORKSPACE/artifacts/upgrade-$version"
-            python tests/fixtures/upgrade-v1x/prepare.py "$fixture" --version "$version"
-            MEOWCHAN_UPGRADE_1X_FIXTURE="$fixture" dotnet test tests/MeowChan.DesktopTests/MeowChan.DesktopTests.csproj -c Release --no-build --no-restore --filter 'FullyQualifiedName~OldReleaseExplicitNewBundledSelectionPreservesHistoryAcrossTwoOfflineRestarts' --logger "trx;LogFileName=upgrade-$version.trx" --results-directory artifacts/upgrade-results
-          done
-          python -c 'import pathlib,xml.etree.ElementTree as E; files=list(pathlib.Path("artifacts/upgrade-results").glob("upgrade-*.trx")); assert len(files)==2; rows=[E.parse(f).getroot().findall(".//{*}UnitTestResult") for f in files]; assert all(len(r)==1 and r[0].get("outcome")=="Passed" for r in rows), "Genuine upgrade tests must actually execute and pass"'
+          fixture="$GITHUB_WORKSPACE/artifacts/upgrade-1.0.2"
+          source="$fixture/released102-source"
+          profile="$fixture/released102-profile"
+          results="$fixture/current-cycles"
+          current_revision="$(git rev-parse HEAD)"
+          released_revision=eec6c0169f8d52f7481ea0bf7febfd20981e97c3
+          mkdir -p "$fixture"
+          git status --porcelain=v1 --untracked-files=all > "$fixture/status-before.txt"
+          test ! -s "$fixture/status-before.txt"
+
+          # Keep the source/generator contracts in this gate as well as the runtime evidence.
+          python -m unittest discover -s tests -p test_released102_fixture_generation.py -v
+          python tests/fixtures/upgrade-v1.0.2/prepare.py "$source" > "$fixture/prepare.log" 2>&1
+          python tests/fixtures/upgrade-v1.0.2/check.py --source "$source" > "$fixture/source-check.log"
+          generator="$source/tests/Upgrade102FixtureGenerator/UpgradeFixtureGenerator.csproj"
+          dotnet restore "$generator" -p:Configuration=Debug --locked-mode -p:NuGetAudit=false -warnaserror:NU1900
+          dotnet build "$generator" --configuration Debug --no-restore -p:SourceRevisionId="$released_revision" -p:UseSharedCompilation=false -nodeReuse:false
+          env -u MEOWCHAN_PROFILE -u OCHAN_PROFILE MEOWCHAN_DISABLE_UPDATE_CHECK=1 \
+            dotnet "$source/tests/Upgrade102FixtureGenerator/bin/Debug/net10.0/MeowChan.DesktopTests.dll" \
+            "$profile" "$source/UPGRADE-102-SOURCE.json" > "$fixture/generator.log" 2>&1
+          python tests/fixtures/upgrade-v1.0.2/check.py --source "$source" --profile "$profile" > "$fixture/receipt-check.log"
+          cp "$profile/v102-receipt.json" "$fixture/receipt.json"
+          cp "$source/UPGRADE-102-SOURCE.json" "$fixture/source-binding.json"
+
+          consumer=tests/fixtures/upgrade-v1.0.2/current/UpgradeConsumer.csproj
+          dotnet restore "$consumer" -p:Configuration=Debug --locked-mode -warnaserror:NU1900
+          dotnet build "$consumer" --configuration Debug --no-restore -p:SourceRevisionId="$current_revision" -p:UseSharedCompilation=false -nodeReuse:false
+          mkdir -p "$fixture/current-test-results"
+          if [[ "$RUNNER_OS" == Linux ]]; then
+            export MEOWCHAN_RELEASED102_NETWORK_NAMESPACE=1
+          fi
+          env -u MEOWCHAN_PROFILE -u OCHAN_PROFILE MEOWCHAN_DISABLE_UPDATE_CHECK=1 \
+            MEOWCHAN_RELEASED102_PROFILE="$profile" \
+            MEOWCHAN_RELEASED102_SOURCE_MANIFEST="$source/UPGRADE-102-SOURCE.json" \
+            MEOWCHAN_RELEASED102_CONSUMER_DLL="$GITHUB_WORKSPACE/tests/fixtures/upgrade-v1.0.2/current/bin/Debug/net10.0/MeowChan.DesktopTests.dll" \
+            MEOWCHAN_RELEASED102_RESULTS="$results" \
+            dotnet test tests/MeowChan.DesktopTests/MeowChan.DesktopTests.csproj -c Release --no-build --no-restore \
+              --filter 'FullyQualifiedName~MeowChan.DesktopTests.Released102RestPackageUpgradeTests' \
+              --logger 'trx;LogFileName=upgrade-1.0.2.trx' --results-directory "$fixture/current-test-results" -nodeReuse:false
+          python - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          files = list(Path('artifacts/upgrade-1.0.2/current-test-results').glob('upgrade-1.0.2.trx'))
+          assert len(files) == 1, 'the released 1.0.2 upgrade test must produce exactly one TRX'
+          rows = [item for item in ET.parse(files[0]).getroot().iter() if item.tag.endswith('UnitTestResult')]
+          assert len(rows) == 1 and rows[0].get('testName') == 'MeowChan.DesktopTests.Released102RestPackageUpgradeTests.ReleasedProviderProfileSurvivesCurrentOpenAndTwoOfflineProcessRestarts' and rows[0].get('outcome') == 'Passed', 'the released 1.0.2 upgrade test must execute and pass'
+          PY
+          test -f "$results/current-result.json"
+          git status --porcelain=v1 --untracked-files=all > "$fixture/status-after.txt"
+          test ! -s "$fixture/status-after.txt"
+          python tests/fixtures/upgrade-v1.0.2/check_migrated.py --profile "$profile" --results "$results" \
+            --expect-revision "$current_revision" --status "$fixture/status-before.txt" --status "$fixture/status-after.txt" \
+            > "$fixture/migrated-check.log"
+          cp "$results/current-result.json" "$fixture/current-result.json"
       - name: Exercise FirstRunSetup on the actual platform
         id: first_run
         # Keep independent checks running so one failure yields a complete evidence set.
