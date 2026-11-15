@@ -3982,6 +3982,7 @@
     "rules.wizard.back": "Atrás",
     "rules.wizard.toOverview": "Volver a las reglas",
     "rules.wizard.closeName": "Cerrar el editor y volver al resumen de reglas",
+    "rules.wizard.scopeExists": "Ya existe una regla para este ámbito. Siguiente la abre para editarla.",
     "tags.quick.heading": "Etiquetas",
     "tags.quick.title": "Etiquetas · {0}",
     "tags.quick.name": "Etiquetas de {0}",

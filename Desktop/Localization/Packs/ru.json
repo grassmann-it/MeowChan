@@ -4015,6 +4015,7 @@
     "rules.wizard.back": "Назад",
     "rules.wizard.toOverview": "Назад к правилам",
     "rules.wizard.closeName": "Закрыть редактор и вернуться к обзору правил",
+    "rules.wizard.scopeExists": "Правило для этой области уже существует. «Далее» откроет его для редактирования.",
     "tags.quick.heading": "Теги",
     "tags.quick.title": "Теги · {0}",
     "tags.quick.name": "Теги для {0}",

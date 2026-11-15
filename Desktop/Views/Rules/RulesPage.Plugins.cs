@@ -75,8 +75,8 @@ public partial class RulesPage
                 }
                 _filterRenderedDraft = null; DraftChanged(); RefreshFilterEditor();
             };
-            panel.Children.Add(mode);
-            panel.Children.Add(HintLabel(Texts.T("plugins.ruleEffect")));
+            // Like the rows above the block: the mode in the 280 dip control column, its effect as the hint on the left.
+            panel.Children.Add(RuleRow(mode, HintLabel(Texts.T("plugins.ruleEffect"))));
             if (_draft.ImageFilter.Mode != MediaImageFilterMode.Plugin) return;
             FilterChoice[] choices = FilterChoices();
             FilterChoice? selectedFilter = choices.FirstOrDefault(choice => choice.PluginId == _draft.ImageFilter.PluginId && choice.Filter.Key == _draft.ImageFilter.FilterKey);
@@ -88,8 +88,7 @@ public partial class RulesPage
                 _draft.ImageFilter = new(MediaImageFilterMode.Plugin, choice.PluginId, choice.Filter.Key, choice.Filter.Settings.Version);
                 _draft.FilterParameters = null; _draft.FilterValidationErrors = Array.Empty<FieldValidationError>(); _draft.FilterSchemaAcknowledged = false; _filterRenderedDraft = null; DraftChanged(); RefreshFilterEditor();
             };
-            panel.Children.Add(RuleFieldLabel(Texts.T("plugins.filterChoice")));
-            panel.Children.Add(select);
+            panel.Children.Add(RuleRow(select, RuleFieldLabel(Texts.T("plugins.filterChoice"))));
             if (selectedFilter == null)
             {
                 panel.Children.Add(FilterLabel(Texts.T("plugins.filterMissing", _draft.ImageFilter.PluginId, _draft.ImageFilter.FilterKey)));

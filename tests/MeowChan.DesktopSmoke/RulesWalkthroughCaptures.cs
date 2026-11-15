@@ -62,6 +62,10 @@ internal static class RulesWalkthroughCaptures
             Click(page.FindControl<Button>("OpenNewRuleScopeButton")!); // the thread scope with empty ids
             await Settle();
             await Capture(window, page, "04-scope-invalid");
+            Console.WriteLine("RULES_WALK 04-scope-invalid marks: source=" + page.FindControl<Control>("NewRuleSourceInput")!.Classes.Contains("workspace-invalid")
+                + " board=" + page.FindControl<Control>("NewRuleBoardInput")!.Classes.Contains("workspace-invalid")
+                + " thread=" + page.FindControl<Control>("NewRuleThreadInput")!.Classes.Contains("workspace-invalid")
+                + " focus=" + (window.FocusManager?.GetFocusedElement() as Control)?.GetSelfAndVisualAncestors().OfType<Control>().FirstOrDefault(c => c.Name?.StartsWith("NewRule") == true)?.Name);
 
             // Global: step 2 with its defaults, then own values, step 3, an invalid value and save.
             page.NewScopeKind = 0; await Settle();
@@ -88,6 +92,11 @@ internal static class RulesWalkthroughCaptures
             Click(page.FindControl<Button>("SaveRuleButton")!);
             await Until(() => page.IsOverviewVisible && rules.Current.Rules.Count == 1);
             await Capture(window, page, "10-overview-saved");
+            Click(page.OverviewCreateButton);
+            await Until(() => page.IsWizardOpen && page.WizardStep == RuleWizardStep.Scope);
+            await Capture(window, page, "10b-scope-global-exists");
+            Console.WriteLine("RULES_WALK 10b fresh: kind=" + page.NewScopeKind + " exists=" + page.HasExistingScopeRule);
+            page.CloseWizard(); await Until(() => page.IsOverviewVisible);
 
             // A board rule left as a draft, a thread rule saved under it.
             Click(page.OverviewCreateButton);

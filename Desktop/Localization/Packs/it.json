@@ -3985,6 +3985,7 @@
     "rules.wizard.back": "Indietro",
     "rules.wizard.toOverview": "Torna alle regole",
     "rules.wizard.closeName": "Chiudi l’editor e torna alla panoramica delle regole",
+    "rules.wizard.scopeExists": "Esiste già una regola per questo ambito. Avanti la apre per modificarla.",
     "tags.quick.heading": "Tag",
     "tags.quick.title": "Tag · {0}",
     "tags.quick.name": "Tag di {0}",

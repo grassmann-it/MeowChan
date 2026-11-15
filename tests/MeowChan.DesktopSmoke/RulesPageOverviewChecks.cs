@@ -29,8 +29,14 @@ internal static partial class RulesPageChecks
         if (page.CurrentOverview.IsEmpty) RequireEmptyStatePlacement(window, page);
         Program.CaptureWindow(window, "smoke-rules-overview.png");
 
+        // Create starts fresh (follow-up 15.11.): a scope typed in an earlier wizard does not carry over.
+        page.NewScopeKind = (int)MediaRuleScopeKind.Thread;
+        page.NewSourceId = "stale-source"; page.NewBoardId = "stale-board"; page.NewThreadId = "stale-thread";
         Click(create);
         await WaitLayoutAsync(window, () => page.IsWizardOpen && FocusWithin(window, page.FindControl<Control>("NewRuleScopeKindInput")!));
+        Require(page.NewScopeKind == (int)MediaRuleScopeKind.Global && page.NewSourceId.Length == 0 && page.NewBoardId.Length == 0
+            && page.NewThreadId.Length == 0 && !page.HasExistingScopeRule && page.StatusMessage.Length == 0,
+            "Create rule did not open step 1 with fresh defaults (Global, empty IDs, no footer line).");
         Require(page.WizardStep == RuleWizardStep.Scope && !page.FindControl<Button>("SaveRuleButton")!.IsEffectivelyVisible
             && page.FindControl<Button>("OpenNewRuleScopeButton")!.IsEffectivelyVisible && page.EditingLabel == Texts.T("rules.wizard.new"),
             "Create rule did not open step 1 (scope) with Next and without Save.");

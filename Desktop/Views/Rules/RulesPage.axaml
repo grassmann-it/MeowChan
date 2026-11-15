@@ -35,6 +35,8 @@
         <Style Selector="Grid.rule-row.rule-row-stacked > StackPanel.rule-label"><Setter Property="Margin" Value="0" /></Style>
         <Style Selector="Grid.rule-row > :is(Control)"><Setter Property="VerticalAlignment" Value="Top" /></Style>
         <!-- The card's edge closes its last visible row (MarkLastRuleRows), so no divider runs along the card's bottom inset. -->
+        <!-- A refused Next marks the missing ID: the suggestion boxes draw their edge on the inner text box. -->
+        <Style Selector="ursa|AutoCompleteBox.workspace-invalid /template/ TextBox#PART_TextBox"><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Error}" /></Style>
         <Style Selector="StackPanel.rule-rows > Border.rule-row-last"><Setter Property="BorderThickness" Value="0" /></Style>
     </UserControl.Styles>
     <Grid RowDefinitions="*,Auto">
@@ -117,6 +119,7 @@
                     <StackPanel x:Name="RuleWizardScopeStep" Spacing="{StaticResource Workspace.Space.12}" IsEnabled="{Binding IsEditable}">
                         <!-- Rows like Settings: label and its hint on the left, the control in the 280 dip column, one divider per row. -->
                         <Border x:Name="NewRuleScopePanel" wv:WorkViewElement.Id="rules.scope.new" Classes="workspace-section">
+                        <StackPanel Spacing="{StaticResource Workspace.Space.8}">
                         <StackPanel x:Name="NewRuleScopeRows" Classes="rule-rows" Spacing="0">
                             <Border Classes="settings-divider">
                                 <Grid Classes="rule-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Form.Gap}">
@@ -151,6 +154,11 @@
                                     <TextBox x:Name="NewRuleThreadInput" Grid.Column="1" AutomationProperties.Name="{Binding ThreadIdLabel}" Text="{Binding NewThreadId, Mode=TwoWay}" PlaceholderText="123" />
                                 </Grid>
                             </Border>
+                        </StackPanel>
+                        <!-- One rule per scope: when the entered scope already has a saved rule, Next opens it for editing, and this says so first. -->
+                        <controls:WorkspaceBanner x:Name="RuleScopeExistsNote" Type="Information" IsVisible="{Binding HasExistingScopeRule}">
+                            <TextBlock Text="{Binding ExistingScopeRuleNote}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+                        </controls:WorkspaceBanner>
                         </StackPanel>
                         </Border>
                         <!-- A folded block in its own card, like Image filter and Rule templates in step 2: the same edge and inset. -->

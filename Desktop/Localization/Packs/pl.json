@@ -4041,6 +4041,7 @@
     "rules.wizard.back": "Wstecz",
     "rules.wizard.toOverview": "Wróć do reguł",
     "rules.wizard.closeName": "Zamknij edytor i wróć do przeglądu reguł",
+    "rules.wizard.scopeExists": "Reguła dla tego zakresu już istnieje. Dalej otwiera ją do edycji.",
     "tags.quick.heading": "Tagi",
     "tags.quick.title": "Tagi · {0}",
     "tags.quick.name": "Tagi dla {0}",
