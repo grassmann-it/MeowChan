@@ -171,6 +171,122 @@ public sealed class ChipStyleTests
         Assert.Equal(offered, Count(source, "WorkspaceChips.MarkOffered(new Button"));
     }
 
+    // UX review 15.11. ("the pills don't look good yet"): the tag pill. One size (28), full radius (half the height), 12 dip in from the edge
+    // (8 where a key hint leads, the hint a 16 dip square 6 dip from the label), a quiet fill at rest, the toolbar hover and pressed values,
+    // the shared focus ring, and an assigned tag told apart by tint, edge and its check.
+    [Fact]
+    public void TagPillTokensAreOnTheGridAndTheRadiusIsHalfTheHeight()
+    {
+        XElement[] shared = Styles().Element(A + "Styles.Resources")!.Elements().ToArray();
+        foreach ((string key, string value) in new[] { ("Workspace.Size.TagPill", "28"), ("Workspace.Radius.TagPill", "14"), ("Workspace.Inset.TagPill", "12,0"),
+            ("Workspace.Inset.TagPillKeyed", "8,0,12,0"), ("Workspace.Size.TagKey", "16"), ("Workspace.Space.TagKey", "6") })
+            Assert.Equal(value, Assert.Single(shared.Where(element => (string?)element.Attribute(X + "Key") == key)).Value);
+        Assert.Equal(28 / 2, double.Parse(Assert.Single(shared.Where(element => (string?)element.Attribute(X + "Key") == "Workspace.Radius.TagPill")).Value, CultureInfo.InvariantCulture));
+    }
+
+    [Fact]
+    public void TagPillRestHoverPressedFocusAndAssignedFollowTheToolbarLanguage()
+    {
+        Assert.Equal("{StaticResource Workspace.Size.TagPill}", Setting("Button.chip.tag-pill", "MinHeight"));
+        Assert.Equal("{StaticResource Workspace.Radius.TagPill}", Setting("Button.chip.tag-pill", "CornerRadius"));
+        Assert.Equal("{StaticResource Workspace.Inset.TagPill}", Setting("Button.chip.tag-pill", "Padding"));
+        Assert.Equal("{StaticResource Workspace.Inset.TagPillKeyed}", Setting("Button.chip.tag-pill.chip-keyed", "Padding"));
+        Assert.Equal("{StaticResource Workspace.FocusAdorner}", Setting("Button.chip.tag-pill", "FocusAdorner"));
+        // Rest: a quiet filled pill with a hairline edge, so a suggestion no longer reads as an outlined (disabled) box.
+        Assert.Equal("{DynamicResource Workspace.ChipSurface}", Setting("Button.chip.tag-pill", "Background"));
+        Assert.Equal("{DynamicResource Workspace.Border}", Setting("Button.chip.tag-pill", "BorderBrush"));
+        const string presenter = " /template/ ContentPresenter#PART_ContentPresenter";
+        Assert.Equal("{DynamicResource Workspace.Hover}", Setting("Button.chip.tag-pill:pointerover" + presenter, "Background"));
+        Assert.Equal("{DynamicResource Workspace.ControlBorder}", Setting("Button.chip.tag-pill:pointerover" + presenter, "BorderBrush"));
+        Assert.Equal("{DynamicResource Workspace.ChipSelectedSurface}", Setting("Button.chip.tag-pill:pressed" + presenter, "Background"));
+        Assert.Equal("{DynamicResource Workspace.ChipSelectedBorder}", Setting("Button.chip.tag-pill:pressed" + presenter, "BorderBrush"));
+        // Assigned: the accent tint and edge (also on hover, where the fill is the hover fill), so it differs from a suggestion by form too.
+        Assert.Equal("{DynamicResource Workspace.ChipSelectedSurface}", Setting("Button.chip.tag-pill.tag-pill-assigned", "Background"));
+        Assert.Equal("{DynamicResource Workspace.ChipSelectedBorder}", Setting("Button.chip.tag-pill.tag-pill-assigned", "BorderBrush"));
+        Assert.Equal("{DynamicResource Workspace.ChipSelectedBorder}", Setting("Button.chip.tag-pill.tag-pill-assigned:pointerover" + presenter, "BorderBrush"));
+        Assert.Equal("{DynamicResource Workspace.ChipSelectedBorder}", Setting("Button.chip.tag-pill.tag-pill-partial", "BorderBrush"));
+        // The compact tile form keeps its 18 dip size and takes the colours only.
+        Assert.Equal("{StaticResource Workspace.Size.ChipCompact}", Setting("Button.chip.tag-pill.chip-compact", "MinHeight"));
+        // The key hint: a 16 dip rounded square without an edge, Muted digit; the content row puts 6 dip between its parts.
+        Assert.Equal("{StaticResource Workspace.Size.TagKey}", Setting("Border.chip-badge.chip-key", "Height"));
+        Assert.Equal("{StaticResource Workspace.Size.TagKey}", Setting("Border.chip-badge.chip-key", "MinWidth"));
+        Assert.Equal("{StaticResource Workspace.Radius.Badge}", Setting("Border.chip-badge.chip-key", "CornerRadius"));
+        Assert.Equal("0", Setting("Border.chip-badge.chip-key", "BorderThickness"));
+        Assert.Equal("{DynamicResource Workspace.Muted}", Setting("Border.chip-badge.chip-key TextBlock.chip-label", "Foreground"));
+        Assert.Equal("{StaticResource Workspace.Space.TagKey}", Setting("StackPanel.tag-pill-content", "Spacing"));
+        // The source suggestion keeps its dashed outline (no fill) in the same geometry; ChipOutline draws its edge inside, hence 13 and 9.
+        Assert.Equal("{StaticResource Workspace.Size.TagPill}", Setting("controls|ChipOutline.chip-source.tag-pill", "MinHeight"));
+        Assert.Equal("13,0", Setting("controls|ChipOutline.chip-source.tag-pill", "Padding"));
+        Assert.Equal("9,0,13,0", Setting("controls|ChipOutline.chip-source.tag-pill.chip-keyed", "Padding"));
+        Assert.Equal("{DynamicResource Workspace.Muted}", Setting("controls|ChipOutline.chip-source.tag-pill Border.chip-key TextBlock.chip-label", "Foreground"));
+        // A tag pill's state styles may not share a comma list with a template selector (AVLN2000) and may not animate.
+        foreach (string selector in Styles().Elements(A + "Style").Select(style => (string)style.Attribute("Selector")!).Where(selector => selector.Contains("tag-pill")))
+            Assert.False(selector.Contains(','), selector);
+        Assert.DoesNotContain(Styles().Elements(A + "Style").Where(style => ((string?)style.Attribute("Selector"))!.Contains("tag-pill", StringComparison.Ordinal)),
+            style => style.Elements(A + "Style.Animations").Any() || style.Elements(A + "Setter").Any(setter => (string?)setter.Attribute("Property") == "Transitions"));
+    }
+
+    // Both themes: the pill's edges and text read on every surface it sits on (the edge is a hairline, so the label and the fill carry it;
+    // hover and pressed edges reach 3:1), and the key hint's digit reads on its window-background square.
+    [Theory, InlineData("Dark"), InlineData("Light")]
+    public void TagPillStatesReadInBothThemes(string theme)
+    {
+        foreach (string surface in new[] { "Workspace.Background", "Workspace.Panel", "Workspace.Raised", "Workspace.Card", "Workspace.Overlay" })
+        {
+            AssertContrast(theme, "Workspace.ControlBorder", surface, 3.0);   // hover edge
+            AssertContrast(theme, "Workspace.ChipSelectedBorder", surface, 3.0); // pressed and assigned edge
+        }
+        foreach ((string text, string fill) in new[] { ("Workspace.Text", "Workspace.ChipSurface"), ("Workspace.Text", "Workspace.Hover"),
+            ("Workspace.Text", "Workspace.ChipSelectedSurface"), ("Workspace.Muted", "Workspace.Background") })
+            AssertContrast(theme, text, fill, 4.5);
+        // The assigned tint is told apart from a suggestion's fill by more than the tint: the edge changes from hairline to accent (3:1 or more).
+        AssertContrast(theme, "Workspace.ChipSelectedBorder", "Workspace.ChipSurface", 3.0);
+        // The tint of a suggestion and of an assigned tag are different values in both themes.
+        Assert.NotEqual(Color(theme, "Workspace.ChipSurface"), Color(theme, "Workspace.ChipSelectedSurface"));
+    }
+
+    [Fact]
+    public void TagPillClassesAreAddedAlongsideTheChipClassesAndNeverDropThem()
+    {
+        Button suggestion = WorkspaceChips.MarkTagPill(WorkspaceChips.MarkOffered(new Button()));
+        Assert.Equal(new[] { "chip", "chip-available", "tag-pill" }, suggestion.Classes.Where(name => name[0] != ':'));
+        Button assigned = WorkspaceChips.MarkTagPill(WorkspaceChips.MarkOwn(new Button()), WorkspaceChips.TagPillAssigned);
+        Assert.Equal(new[] { "chip", "chip-own", "tag-pill", "tag-pill-assigned" }, assigned.Classes.Where(name => name[0] != ':'));
+        Button tile = WorkspaceChips.MarkTagPill(WorkspaceChips.MarkOwn(new Button(), compact: true));
+        Assert.Equal(new[] { "chip", "chip-own", "chip-compact", "tag-pill" }, tile.Classes.Where(name => name[0] != ':'));
+        Assert.Equal("tag-pill-partial", WorkspaceChips.TagPillPartial);
+        // The call sites: the quick tag surface (suggestions, assigned all/some, key badges and content rows), the reader tag bar, the thread tags,
+        // the stamp chip and the tile chips.
+        string surface = File.ReadAllText(Root("Desktop/Controls/QuickTagSurface.cs"));
+        Assert.Contains("WorkspaceChips.MarkTagPill(button);", surface);
+        Assert.Contains("WorkspaceChips.TagPill } };", surface);
+        Assert.Contains("WorkspaceChips.MarkTagPill(WorkspaceChips.MarkOwn(chip), WorkspaceChips.TagPillAssigned)", surface);
+        Assert.Contains("WorkspaceChips.MarkTagPill(WorkspaceChips.MarkOffered(chip), WorkspaceChips.TagPillPartial)", surface);
+        Assert.Equal(2, Count(surface, "Classes = { WorkspaceChips.TagPillContent }"));
+        Assert.Contains("MarkTagPill(chip, MeowChan.Desktop.Controls.WorkspaceChips.TagPillAssigned)", File.ReadAllText(Root("Desktop/Views/Archive/ArchivePage.Tags.cs")));
+        Assert.Contains("WorkspaceChips.MarkTagPill(WorkspaceChips.MarkOwn(chip), WorkspaceChips.TagPillAssigned)", File.ReadAllText(Root("Desktop/Controls/GalleryThreadTagSection.cs")));
+        Assert.Contains("WorkspaceChips.MarkTagPill(WorkspaceChips.MarkOwn(chip), WorkspaceChips.TagPillAssigned)", File.ReadAllText(Root("Desktop/Views/Tagging/TaggingPage.Stamp.cs")));
+        Assert.Contains("WorkspaceChips.MarkTagPill(WorkspaceChips.MarkOwn(new Button { Name = \"MediaTileTag\"", File.ReadAllText(Root("Desktop/MediaLibraryTileView.cs")));
+    }
+
+    [Fact]
+    public void TheTagStripGapsAreEightInBothDirectionsAndTheFitMeasuresTheHitZone()
+    {
+        string surface = File.ReadAllText(Root("Desktop/Controls/QuickTagSurface.cs"));
+        // Column gap 8 (the wrap panel's item spacing, also the fit's), row gap 8 = the hit zone's 4 above and below the 28 dip pill.
+        Assert.Contains("private const double StripItemSpacing = 8;", surface);
+        Assert.Contains("new() { ItemSpacing = StripItemSpacing, LineSpacing = 0,", surface);
+        Assert.Contains("Padding = new Thickness(0, 4), Child = chip", surface);
+        Assert.Contains("item.Zone.Measure(new Size(width, double.PositiveInfinity));", surface);
+        Assert.Contains("AssignedItemSpacing = 8, AssignedLineSpacing = 4", surface);
+        // 28 + 2 * 4 = 36 per row: the fit sees the same rows the wrap panel lays out.
+        Assert.Equal(36, 28 + 2 * 4);
+        // 80-wide pills, three to a 280 row.
+        Assert.Equal(9, QuickTagStripFit.Count(Enumerable.Repeat(new Avalonia.Size(80, 36), 40).ToArray(), 280, 3 * 36, 8, 9));
+        Assert.Equal(12, QuickTagStripFit.Count(Enumerable.Repeat(new Avalonia.Size(80, 36), 40).ToArray(), 280, 4 * 36, 8, 9));
+        Assert.Equal(9, QuickTagStripFit.Count(Enumerable.Repeat(new Avalonia.Size(80, 36), 40).ToArray(), 280, 4 * 36 - 1, 8, 9));
+    }
+
     [Fact]
     public void BooruDetailsAndResultCardsUseSourceChipsAndBadges()
     {

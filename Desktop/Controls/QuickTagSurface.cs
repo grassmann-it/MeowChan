@@ -248,6 +248,8 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     internal const double FooterGap = 8;
     /// <summary>Horizontal gap between suggestion chips (the strip's wrap panel).</summary>
     private const double StripItemSpacing = 8;
+    /// <summary>Gaps between assigned pills: 8 across, and 4 between rows because a pill is 28 high beside its 32 dip remove button (so 8 dip of air).</summary>
+    private const double AssignedItemSpacing = 8, AssignedLineSpacing = 4;
     /// <summary>The most the assigned chips and the extra section take above the suggestions in a popover, in dip.</summary>
     private const double UpperMaxHeight = 160;
     /// <summary>Delay of the re-fit after the panel was resized, in milliseconds (a drag fires many size changes).</summary>
@@ -282,9 +284,9 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     private readonly TextBlock _stripEmpty = new() { Classes = { "workspace-help" }, TextWrapping = TextWrapping.Wrap };
     private readonly Button _more = new() { Classes = { "subtle" }, HorizontalAlignment = HorizontalAlignment.Left };
     private readonly TextBlock _allHeading = new() { Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap };
-    private readonly WrapPanel _allChips = new() { ItemSpacing = 8, LineSpacing = 0 };
+    private readonly WrapPanel _allChips = new() { ItemSpacing = AssignedItemSpacing, LineSpacing = AssignedLineSpacing };
     private readonly TextBlock _someHeading = new() { Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap };
-    private readonly WrapPanel _someChips = new() { ItemSpacing = 8, LineSpacing = 0 };
+    private readonly WrapPanel _someChips = new() { ItemSpacing = AssignedItemSpacing, LineSpacing = AssignedLineSpacing };
     private readonly TextBlock _assignedEmpty = new() { Classes = { "workspace-help" }, TextWrapping = TextWrapping.Wrap };
     private readonly StackPanel _assigned;
     private readonly ContentControl _extra = new() { IsVisible = false };
@@ -1366,7 +1368,10 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
 
     // ---- chips --------------------------------------------------------------------------------------------------------
 
-    /// <summary>A 24 dip chip in a transparent 32 dip hit zone: a tap beside the chip still reaches it.</summary>
+    /// <summary>
+    /// A 28 dip tag pill in a transparent 36 dip hit zone: a tap beside the pill still reaches it. The 4 dip above and below also make the
+    /// row gap of the strip 8 dip, the same as the column gap (<see cref="StripItemSpacing"/>); the fit measures the zone, so both flow through it.
+    /// </summary>
     private static Control HitZone(Button chip)
     {
         Border zone = new() { Background = Brushes.Transparent, Padding = new Thickness(0, 4), Child = chip };
@@ -1422,7 +1427,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         internal static SuggestionChip Create(string name, QuickTagSuggestion suggestion, int index, char? letter, ShortcutPlatform platform)
         {
             string display = suggestion.Name.Display;
-            StackPanel content = new() { Orientation = Orientation.Horizontal, Spacing = 4 };
+            StackPanel content = new() { Orientation = Orientation.Horizontal, Classes = { WorkspaceChips.TagPillContent } };
             bool keyed = false;
             if (QuickTagBadges.Number(index) is { } number) { content.Children.Add(KeyBadge(number.ToString(Texts.Culture))); keyed = true; }
             Border? letterBadge = null;
@@ -1439,7 +1444,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
             if (suggestion.CreatesTag)
             {
                 // A provider tag or a new name: the dashed source chip (I8), never mistaken for an own tag.
-                ChipOutline outline = new() { Child = content, Classes = { WorkspaceChips.Chip, WorkspaceChips.Source, WorkspaceChips.CategoryClass(SourceCategory.General) } };
+                ChipOutline outline = new() { Child = content, Classes = { WorkspaceChips.Chip, WorkspaceChips.Source, WorkspaceChips.CategoryClass(SourceCategory.General), WorkspaceChips.TagPill } };
                 if (keyed) outline.Classes.Add("chip-keyed");
                 button.Content = outline;
                 button.Classes.Add(WorkspaceChips.SourceButton);
@@ -1448,6 +1453,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
             {
                 button.Content = content;
                 WorkspaceChips.MarkOffered(button);
+                WorkspaceChips.MarkTagPill(button);
                 if (keyed) button.Classes.Add("chip-keyed");
             }
             Describe(button, suggestion, index, platform);
@@ -1493,12 +1499,13 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         internal static AssignedChip Create(string name, QuickTagAssignment assignment, bool selection)
         {
             string display = assignment.Tag.Name.Display;
-            StackPanel content = new() { Orientation = Orientation.Horizontal, Spacing = 4 };
+            StackPanel content = new() { Orientation = Orientation.Horizontal, Classes = { WorkspaceChips.TagPillContent } };
             content.Children.Add(StateGlyph(assignment.State));
             content.Children.Add(ChipLabel(display));
             Button chip = new() { Name = name, Content = content };
-            if (assignment.State == TagToggleState.All) WorkspaceChips.MarkOwn(chip);
-            else WorkspaceChips.MarkOffered(chip); // "some": outline without fill, the half-square glyph says it too
+            // All: the accent-tinted pill with a check; some: the quiet pill with an accent edge, the half-square glyph says it too.
+            if (assignment.State == TagToggleState.All) WorkspaceChips.MarkTagPill(WorkspaceChips.MarkOwn(chip), WorkspaceChips.TagPillAssigned);
+            else WorkspaceChips.MarkTagPill(WorkspaceChips.MarkOffered(chip), WorkspaceChips.TagPillPartial);
             string accessible = AccessibleName(assignment, selection);
             AutomationProperties.SetName(chip, accessible);
             ToolTip.SetTip(chip, accessible);
@@ -1506,10 +1513,10 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
             string removeName = Texts.T(selection ? "tags.quick.chip.removeAll" : "tags.quick.chip.remove", display);
             remove.Content = WorkspaceIcons.Create(WorkspaceIcons.CloseSmall);
             remove.Classes.Add(WorkspaceIcons.SquareClass);
-            remove.Classes.Add("subtle");
+            remove.Classes.Add("bar-flat"); // flat at rest like the toolbar buttons: the pill beside it is the one outlined shape
             AutomationProperties.SetName(remove, removeName);
             ToolTip.SetTip(remove, removeName);
-            StackPanel host = new() { Orientation = Orientation.Horizontal, Spacing = 0, Children = { chip, remove } };
+            StackPanel host = new() { Orientation = Orientation.Horizontal, Spacing = 2, Children = { chip, remove } };
             return new AssignedChip { Host = host, Button = chip, Remove = remove, Tag = assignment.Tag.Id, State = assignment.State };
         }
 

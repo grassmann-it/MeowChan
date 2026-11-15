@@ -326,6 +326,7 @@ public partial class ArchivePage
             TagId tagId = tag.Id;
             // A TextBlock keeps underscores in names literal instead of access-key markers.
             Button chip = MeowChan.Desktop.Controls.WorkspaceChips.MarkOwn(new Button { Content = MeowChan.Desktop.Controls.WorkspaceChips.RemovableContent(tag.Name.Display), IsEnabled = canEdit });
+            MeowChan.Desktop.Controls.WorkspaceChips.MarkTagPill(chip, MeowChan.Desktop.Controls.WorkspaceChips.TagPillAssigned);
             string hint = Texts.T("tags.remove", tag.Name.Display);
             AutomationProperties.SetName(chip, hint);
             ToolTip.SetTip(chip, hint);
@@ -346,6 +347,7 @@ public partial class ArchivePage
             {
                 string display = name.Display;
                 Button suggestion = MeowChan.Desktop.Controls.WorkspaceChips.MarkOffered(new Button { Content = new TextBlock { Text = "+ " + display }, IsEnabled = canEdit });
+                MeowChan.Desktop.Controls.WorkspaceChips.MarkTagPill(suggestion);
                 string hint = Texts.T("tags.addSuggestion", display);
                 AutomationProperties.SetName(suggestion, hint);
                 ToolTip.SetTip(suggestion, hint);

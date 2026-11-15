@@ -249,7 +249,7 @@ internal sealed class MediaLibraryTileView : UserControl
             TextBlock label = new() { Name = "MediaTileTagName", MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
             DockPanel content = new() { Children = { mark, label } };
             DockPanel.SetDock(mark, Dock.Left);
-            Button chip = _tagChips[index] = WorkspaceChips.MarkOwn(new Button { Name = "MediaTileTag", IsVisible = false, Content = content }, compact: true);
+            Button chip = _tagChips[index] = WorkspaceChips.MarkTagPill(WorkspaceChips.MarkOwn(new Button { Name = "MediaTileTag", IsVisible = false, Content = content }, compact: true));
             // Shift turns the click (or Enter/Space) into an exclusion; the modifier is read where the gesture starts.
             bool excludeIntent = false;
             chip.AddHandler(PointerPressedEvent, (_, e) => excludeIntent = e.KeyModifiers.HasFlag(KeyModifiers.Shift), RoutingStrategies.Tunnel);

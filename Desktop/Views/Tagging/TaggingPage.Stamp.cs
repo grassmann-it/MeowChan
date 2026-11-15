@@ -158,7 +158,7 @@ public sealed partial class TaggingPage
     private Control StampChip(string name)
     {
         Button chip = new() { Content = new TextBlock { Text = name, Classes = { WorkspaceChips.Label } }, IsHitTestVisible = false, Focusable = false };
-        WorkspaceChips.MarkOwn(chip);
+        WorkspaceChips.MarkTagPill(WorkspaceChips.MarkOwn(chip), WorkspaceChips.TagPillAssigned);
         AutomationProperties.SetName(chip, name);
         string removeName = Texts.T("tagging.page.stamp.remove", name);
         Button remove = new() { Content = WorkspaceIcons.Create(WorkspaceIcons.CloseSmall), IsEnabled = CanChange };

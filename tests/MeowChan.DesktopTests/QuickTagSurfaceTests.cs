@@ -454,6 +454,12 @@ public sealed class QuickTagSurfaceTests : IDisposable
             Assert.Equal("Alt+2", AutomationProperties.GetAcceleratorKey(chips[1]));
             Assert.Contains(WorkspaceChips.Available, chips[0].Classes);
             Assert.Contains(WorkspaceChips.SourceButton, chips[2].Classes); // dashed source chip, never an own-tag look
+            Assert.Contains(WorkspaceChips.TagPill, chips[0].Classes);      // the 28 dip tag pill
+            Assert.Contains("chip-keyed", chips[0].Classes);                // a number hint leads: 8 dip start padding
+            Assert.DoesNotContain(WorkspaceChips.TagPillAssigned, chips[0].Classes); // a suggestion is never the accent-tinted assigned look
+            ChipOutline sourceChip = Assert.IsType<ChipOutline>(chips[2].Content);
+            Assert.Contains(WorkspaceChips.TagPill, sourceChip.Classes);
+            Assert.All(new[] { chips[0], chips[1] }, chip => Assert.Contains(WorkspaceChips.TagPillContent, Assert.IsType<StackPanel>(chip.Content).Classes));
             Assert.Equal(new char?[] { 'S', 'W', 'B' }, surface.Letters);
 
             await surface.ToggleSuggestionAsync(1); // Alt+2
@@ -828,6 +834,8 @@ public sealed class QuickTagSurfaceTests : IDisposable
             Assert.Equal("Remove red from all", AutomationProperties.GetName(chips[1].Remove));
             Assert.Contains(WorkspaceChips.Own, chips[0].Chip.Classes);       // all: filled + check
             Assert.Contains(WorkspaceChips.Available, chips[1].Chip.Classes); // some: outline + half square
+            Assert.Contains(WorkspaceChips.TagPillAssigned, chips[0].Chip.Classes); // all: accent tint and edge
+            Assert.Contains(WorkspaceChips.TagPillPartial, chips[1].Chip.Classes);  // some: quiet fill, accent edge
             Assert.Empty(surface.Shown); // both tags are carried: no suggestion repeats a chip
 
             await session.ToggleAsync(red);
