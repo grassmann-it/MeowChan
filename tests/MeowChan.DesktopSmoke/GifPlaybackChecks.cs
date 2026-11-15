@@ -272,7 +272,13 @@ internal static partial class GalleryPlaybackFeatureChecks
             await native.KeyAsync(MediaNativeInput.Space);
             await UntilAsync(() => GifState(viewer).UserPaused && !GifState(viewer).IsRunning, "Native Space did not pause GIF.");
             await GifStablePixelsAsync(viewer, "Space-paused");
-            await native.ClickAsync(Find<Button>(viewer, "GalleryGifPlayPause"));
+            Button gifPlayPause = Find<Button>(viewer, "GalleryGifPlayPause");
+            await UntilAsync(async () =>
+            {
+                await LayoutAsync(fixture.Window);
+                return gifPlayPause.IsEffectivelyVisible && gifPlayPause.Bounds.Width > 0 && gifPlayPause.Bounds.Height > 0;
+            }, "GIF play/pause control did not become laid out and visible.");
+            await native.ClickAsync(gifPlayPause);
             await UntilAsync(() => !GifState(viewer).UserPaused && GifState(viewer).IsRunning, "GIF button did not resume.");
             await GifChangingPixelsAsync(viewer, "button-resumed");
             await native.ClickAsync(Find<Button>(viewer, "GalleryGifPlayPause"));
