@@ -272,8 +272,18 @@ public static class CommandBindings
         lock (IconMasks)
         {
             if (IconMasks.TryGetValue(icon, out Bitmap? bitmap)) return bitmap;
-            using Stream stream = AssetLoader.Open(new Uri(IconUri(icon)));
-            bitmap = new Bitmap(stream);
+            try
+            {
+                using Stream stream = AssetLoader.Open(new Uri(IconUri(icon)));
+                bitmap = new Bitmap(stream);
+            }
+            catch (IOException error)
+            {
+                // A name without a mask file is a bug of the caller (the icon-catalog guard test fails for it), but it must not take a page
+                // down: the icon stays empty (a fully transparent mask) and the missing name is logged once.
+                Serilog.Log.Warning(error, "The icon mask {Icon} does not exist in the catalog; an empty icon is shown instead.", icon);
+                bitmap = new WriteableBitmap(new PixelSize(1, 1), new Vector(96, 96), PixelFormat.Bgra8888, AlphaFormat.Premul);
+            }
             IconMasks.Add(icon, bitmap);
             return bitmap;
         }
