@@ -139,7 +139,7 @@ public sealed class TaggingDecisionLogTests : IDisposable
             Assert.Equal((1, "file-2.png", TagQueueState.Open), (undone!.Index, undone.Name, undone.State));
             Assert.Equal(TagQueueState.Open, walk.StateOf(1));
             Assert.Equal(1, host.GetTagQueue()!.Cursor); // the resume point is back on the medium
-            Assert.Equal("Undone: “file-2.png” is open again.", TaggingModeText.Undone(undone));
+            Assert.Equal("Taken back: “file-2.png” is open again.", TaggingModeText.Undone(undone));
 
             Assert.Equal(0, (await walk.UndoAsync())!.Index);
             Assert.Equal(TagQueueState.Open, host.GetTagQueue()!.Items[0].State);
@@ -295,7 +295,7 @@ public sealed class TaggingDecisionLogTests : IDisposable
             Assert.True(undo.IsNewest);
             Assert.True(undo.QueueIsNewest);
 
-            Assert.Equal("Undone: “file-1.png” is open again.", await undo.UndoAsync());
+            Assert.Equal("Taken back: “file-1.png” is open again.", await undo.UndoAsync());
             Assert.Equal(0, Assert.Single(returned).Index);
             Assert.Equal(TagQueueState.Open, walk.StateOf(0));
             Assert.False(undo.QueueIsNewest);
@@ -333,11 +333,11 @@ public sealed class TaggingDecisionLogTests : IDisposable
         TagQueueSnapshot queue = new(1, 0, Array.Empty<string>(), items, TagQueueLoadState.Ready);
         (IReadOnlyList<TaggingWalkItem> paired, int unavailable) = TaggingWalk.Pair(items, new[] { Entry(1) });
         using TaggingWalk walk = new(paired, unavailable, queue, writer);
-        Assert.Equal("Tag mode: Enter finishes the medium, Space skips it, Backspace undoes the last decision. "
+        Assert.Equal("Tagging mode: Enter finishes the medium, Space skips it, Backspace takes back the last decision. "
             + "Not shown because the file is missing right now (they stay open in the queue): 2.", TaggingModeText.Start(walk));
         Assert.Equal(2, walk.OpenOutsideWalk());
         Texts.SetLanguage("de");
-        Assert.StartsWith("Modus Taggen: Enter schließt das Medium ab", TaggingModeText.Start(walk));
+        Assert.StartsWith("Tagging-Modus: Enter schließt das Medium ab", TaggingModeText.Start(walk));
         Assert.Equal("Warteschlange 1 von 3", TaggingModeText.Position(walk, 0));
         await Task.CompletedTask;
     }
