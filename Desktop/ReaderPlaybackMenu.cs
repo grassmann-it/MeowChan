@@ -1,5 +1,9 @@
+using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
+using Avalonia.Controls;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.MediaActions;
 
 namespace MeowChan.Desktop;
 
