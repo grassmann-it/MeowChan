@@ -69,7 +69,9 @@ internal static class MediaMenuCompositionChecks
             Require(ReferenceEquals(bMenu, bControl.ContextMenu), "The menu was not attached to the exact requested tile control.");
             Require(Item(bMenu, "media.rating.edit").IsEnabled, "A bound media occurrence lost its enabled Rate and tag action.");
             Execute(bMenu, "media.rating.edit");
-            Require(calls.Count == 1 && calls[0].Id == "media.rating.edit" && ReferenceEquals(calls[0].Entry, b.Entry)
+            // The fixture intentionally leaves the shell-owned popover unwired; the page's documented fallback
+            // forwards the combined Rate-and-tag entry to the legacy host action.
+            Require(calls.Count == 1 && calls[0].Id == "media.tags.edit" && ReferenceEquals(calls[0].Entry, b.Entry)
                 && ReferenceEquals(page.Grid.SelectedItem, a), "Right-clicking B while A is selected acted on the selected row.");
             bMenu.Close();
             await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
