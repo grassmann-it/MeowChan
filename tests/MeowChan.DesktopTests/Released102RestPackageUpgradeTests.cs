@@ -86,13 +86,43 @@ public sealed class Released102RestPackageUpgradeTests(ITestOutputHelper output)
         string host = Environment.GetEnvironmentVariable("DOTNET_HOST_PATH") ?? "dotnet";
         // Opt-in OS-level network denial for the three current processes: a private user+network namespace in which
         // only a downed loopback exists. The consumer's own injected HTTP handler (zero requests) stays in force too.
-        bool isolated = Environment.GetEnvironmentVariable("MEOWCHAN_RELEASED102_NETWORK_NAMESPACE") == "1";
-        ProcessStartInfo start = new(isolated ? "unshare" : host)
+        // Ubuntu hosted runners reject nested unshare uid_map writes; bubblewrap performs the same namespace setup
+        // through its supported user-namespace handshake. A requested backend is never silently downgraded.
+        string? namespaceBackend = Environment.GetEnvironmentVariable("MEOWCHAN_RELEASED102_NETWORK_NAMESPACE");
+        ProcessStartInfo start;
+        if (string.IsNullOrWhiteSpace(namespaceBackend))
         {
-            UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true,
-            WorkingDirectory = Path.GetDirectoryName(consumer)!
-        };
-        if (isolated) { start.ArgumentList.Add("-Urn"); start.ArgumentList.Add("--"); start.ArgumentList.Add(host); }
+            start = new(host);
+        }
+        else if (namespaceBackend == "bwrap")
+        {
+            string bwrap = Environment.GetEnvironmentVariable("MEOWCHAN_RELEASED102_BWRAP_PATH") ?? "bwrap";
+            start = new(bwrap);
+            start.ArgumentList.Add("--die-with-parent");
+            start.ArgumentList.Add("--unshare-user");
+            start.ArgumentList.Add("--unshare-net");
+            start.ArgumentList.Add("--disable-userns");
+            start.ArgumentList.Add("--ro-bind"); start.ArgumentList.Add("/"); start.ArgumentList.Add("/");
+            start.ArgumentList.Add("--proc"); start.ArgumentList.Add("/proc");
+            start.ArgumentList.Add("--dev"); start.ArgumentList.Add("/dev");
+            start.ArgumentList.Add("--tmpfs"); start.ArgumentList.Add("/tmp");
+            // The child owns these writes; all other host paths remain read-only.
+            start.ArgumentList.Add("--bind"); start.ArgumentList.Add(profile); start.ArgumentList.Add(profile);
+            string resultsDirectory = Path.GetDirectoryName(result)!;
+            start.ArgumentList.Add("--bind"); start.ArgumentList.Add(resultsDirectory); start.ArgumentList.Add(resultsDirectory);
+            start.ArgumentList.Add("--"); start.ArgumentList.Add(host);
+        }
+        else if (namespaceBackend == "unshare")
+        {
+            start = new("unshare");
+            start.ArgumentList.Add("-Urn"); start.ArgumentList.Add("--"); start.ArgumentList.Add(host);
+        }
+        else
+        {
+            throw new InvalidOperationException("Unsupported MEOWCHAN_RELEASED102_NETWORK_NAMESPACE backend: " + namespaceBackend);
+        }
+        start.UseShellExecute = false; start.RedirectStandardOutput = true; start.RedirectStandardError = true;
+        start.WorkingDirectory = Path.GetDirectoryName(consumer)!;
         start.ArgumentList.Add(consumer); start.ArgumentList.Add(profile); start.ArgumentList.Add(result);
         start.Environment.Remove("MEOWCHAN_PROFILE"); start.Environment.Remove("OCHAN_PROFILE");
         start.Environment["MEOWCHAN_DISABLE_UPDATE_CHECK"] = "1";

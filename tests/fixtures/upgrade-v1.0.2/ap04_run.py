@@ -50,6 +50,8 @@ LOCK = Path('/home/tomka/.cache/claude-ssd-tmp/heavy.lock')
 # flock --conflict-exit-code: heavy.lock was not acquired within --lock-wait, so the command never started.
 LOCK_BUSY = 75
 DEFAULT_LOCK_WAIT = 3600
+DEFAULT_NAMESPACE_BACKEND = 'bwrap'
+NAMESPACE_BACKENDS = ('bwrap', 'unshare')
 FEED = Path('/home/tomka/.nuget/packages')
 TEST_NAME = 'ReleasedProviderProfileSurvivesCurrentOpenAndTwoOfflineProcessRestarts'
 TEST_FULL_NAME = 'MeowChan.DesktopTests.Released102RestPackageUpgradeTests.' + TEST_NAME
@@ -76,6 +78,9 @@ class Context:
         self.out = Path(args.out).absolute()
         self.args = args
         self.netns = not args.no_netns
+        self.namespace_backend = getattr(args, 'namespace_backend', DEFAULT_NAMESPACE_BACKEND)
+        if self.namespace_backend not in NAMESPACE_BACKENDS:
+            raise ValueError('unsupported namespace backend: ' + self.namespace_backend)
         self.lock_wait = args.lock_wait
         self.fix = self.root / 'tests/fixtures/upgrade-v1.0.2'
         self.src, self.profile = self.out / 'rel', self.out / 'p'
@@ -104,7 +109,28 @@ class Context:
                 'nice', '-n', '19', *argv]
 
     def isolated(self, argv):
-        return ['unshare', '-Urn', '--', *argv] if self.netns else list(argv)
+        if not self.netns:
+            return list(argv)
+        if self.namespace_backend == 'bwrap':
+            # Keep the root read-only, then re-open only the candidate and AP04
+            # output trees for the writes owned by this command. Network and
+            # user namespaces are both mandatory; there is no best-effort mode.
+            bwrap = shutil.which('bwrap') or 'bwrap'
+            return [bwrap, '--die-with-parent', '--unshare-user', '--unshare-net',
+                    '--disable-userns', '--ro-bind', '/', '/', '--proc', '/proc', '--dev', '/dev',
+                    '--tmpfs', '/tmp', '--bind', str(self.root), str(self.root),
+                    '--bind', str(self.out), str(self.out), '--', *argv]
+        return ['unshare', '-Urn', '--', *argv]
+
+    def namespace_probe(self):
+        if self.namespace_backend == 'bwrap':
+            bwrap = shutil.which('bwrap')
+            if not bwrap:
+                return None, 'bubblewrap (bwrap) is not installed'
+            return subprocess.run([bwrap, '--die-with-parent', '--unshare-user', '--unshare-net',
+                                   '--disable-userns', '--ro-bind', '/', '/', '--proc', '/proc', '--dev', '/dev',
+                                   '--tmpfs', '/tmp', '--', '/usr/bin/true'], capture_output=True), bwrap
+        return subprocess.run(['unshare', '-Urn', '--', 'true'], capture_output=True), 'unshare'
 
     def dotnet(self, verb, project, *extra, timeout=900):
         return self.heavy(['timeout', f'{timeout}s', 'dotnet', verb, str(project), *extra])
@@ -130,7 +156,9 @@ class Context:
                    MEOWCHAN_RELEASED102_SOURCE_MANIFEST=str(self.src / 'UPGRADE-102-SOURCE.json'),
                    MEOWCHAN_RELEASED102_CONSUMER_DLL=str(self.consumer_dll), MEOWCHAN_RELEASED102_RESULTS=str(self.results))
         if self.netns:
-            env['MEOWCHAN_RELEASED102_NETWORK_NAMESPACE'] = '1'
+            env['MEOWCHAN_RELEASED102_NETWORK_NAMESPACE'] = self.namespace_backend
+            if self.namespace_backend == 'bwrap':
+                env['MEOWCHAN_RELEASED102_BWRAP_PATH'] = shutil.which('bwrap') or 'bwrap'
         return env
 
     def consumer_command(self, result, mode):
@@ -267,11 +295,14 @@ RELEASE_ASSET_NAME = re.compile(r'(?:[0-9]+-)?MeowChan-1\.0\.2-[A-Za-z0-9._-]+')
 
 def step_preflight(ctx):
     guard_out(ctx.out)
-    for tool in ('git', 'python3', 'dotnet', 'flock', 'nice', 'timeout') + (('unshare',) if ctx.netns else ()):
+    namespace_tool = 'bwrap' if ctx.namespace_backend == 'bwrap' else 'unshare'
+    for tool in ('git', 'python3', 'dotnet', 'flock', 'nice', 'timeout') + ((namespace_tool,) if ctx.netns else ()):
         require(shutil.which(tool), 'missing tool: ' + tool)
     if ctx.netns:
-        probe = subprocess.run(['unshare', '-Urn', '--', 'true'], capture_output=True)
-        require(probe.returncode == 0, 'unshare -Urn is not available; use --no-netns only if the owner accepts handler-only blocking')
+        probe, detail = ctx.namespace_probe()
+        require(probe is not None and probe.returncode == 0,
+                f'{ctx.namespace_backend} namespace capability is unavailable ({detail}); '
+                'the replay requires an OS-level private network namespace and will not fall back silently')
     require(FEED.is_dir(), f'offline package feed missing: {FEED}')
     ALLOWED_OUT.mkdir(parents=True, exist_ok=True)
     require(shutil.disk_usage(ALLOWED_OUT).free >= MIN_FREE_BYTES, 'less than 6 GiB free for the build and the profile')
@@ -290,7 +321,7 @@ def step_preflight(ctx):
     ctx.nuget_config.write_text('<configuration><packageSources><clear /><add key="local-cache" value="' + str(FEED)
                                 + '" /></packageSources></configuration>\n', encoding='utf-8')
     return (f"commit={ctx.sha} clean=yes fresh=yes version={EXPECTED_VERSION} "
-            f"network={'namespace' if ctx.netns else 'handler-only'} lock-wait={ctx.lock_wait}s {note}")
+            f"network={ctx.namespace_backend if ctx.netns else 'handler-only'} lock-wait={ctx.lock_wait}s {note}")
 
 
 def step_candidate(ctx):
@@ -563,12 +594,12 @@ def render(tokens, records, final_problems, result, out):
 
 def dry_run(ctx):
     print('AP04 DRY RUN: nothing is executed, nothing is written, no evidence is produced.')
-    print(f'candidate={ctx.sha} out={ctx.out} network={"unshare -Urn" if ctx.netns else "handler-only"} lock={LOCK} '
+    print(f'candidate={ctx.sha} out={ctx.out} network={ctx.namespace_backend if ctx.netns else "handler-only"} lock={LOCK} '
           f'lock-wait<={ctx.lock_wait}s per heavy command')
     package = (f'package set of {ctx.args.linux_package_dir} + {ctx.args.sha256sums}' if ctx.args.linux_package_dir
                else 'NO package: source-only diagnosis, the verdict cannot be PASS')
     show = [
-        ('preflight', 'git status/rev-parse, no ignored build outputs (fresh worktree), tool + `unshare -Urn true` probe, '
+        ('preflight', f'git status/rev-parse, no ignored build outputs (fresh worktree), tool + `{ctx.namespace_backend} namespace` probe, '
                       'disk, offline feed, pinned 1.0.2 object'),
         ('candidate', 'ap04_candidate.identity (commit, tree, version, ' + package + ')'),
         ('release-artifact', 'SHA-256 of --release-artifact against --release-sums (optional)'),
@@ -605,7 +636,9 @@ def main(argv=None):
                         help=f'seconds each restore/build/test may wait for {LOCK.name} on top of its own timeout (default {DEFAULT_LOCK_WAIT})')
     parser.add_argument('--release-artifact', type=Path, help='owner-supplied published 1.0.2 asset (checksum only)')
     parser.add_argument('--release-sums', type=Path, help='the published 1.0.2 SHA256SUMS')
-    parser.add_argument('--no-netns', action='store_true', help='skip the private network namespace (handler-only blocking)')
+    parser.add_argument('--namespace-backend', choices=NAMESPACE_BACKENDS, default=DEFAULT_NAMESPACE_BACKEND,
+                        help='OS namespace launcher (default: bwrap; unshare is retained only for explicit compatible hosts)')
+    parser.add_argument('--no-netns', action='store_true', help='skip the private network namespace (handler-only blocking; never an implicit fallback)')
     parser.add_argument('--dry-run', action='store_true', help='print the plan; execute and write nothing')
     args = parser.parse_args(argv)
     if not candidate_lib.SHA1.fullmatch(args.candidate_sha):
