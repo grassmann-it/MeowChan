@@ -405,7 +405,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         Refresh();
     }
 
-    /// <summary>HB2: the "Suggestions" heading with the round help button at the right edge (how suggestions are ranked and toggled).</summary>
+    /// <summary>HB2: the "Suggestions" heading with the help button at the right edge (how suggestions are ranked and toggled).</summary>
     private Grid SuggestionsHeader()
     {
         HelpButton help = new() { Name = _name + "SuggestionsHelp", HelpKey = "help.tagSuggestions" };

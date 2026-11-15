@@ -43,7 +43,7 @@ internal sealed class ThemeColorsDialog : Window
     private readonly Button _apply = new() { Name = "ThemeColorsApply", Classes = { "primary" } };
     private readonly Button _cancel = new() { Name = "ThemeColorsCancel" };
     private readonly Button _resetAll = new() { Name = "ThemeColorsResetAll" };
-    // TH5: the round help button beside the intro, and "Try in window" (only with a live-apply callback: the owner's palette runtime).
+    // TH5: the help button beside the intro, and "Try in window" (only with a live-apply callback: the owner's palette runtime).
     private readonly HelpButton _help = new() { Name = "ThemeColorsHelp", HelpKey = "help.themeColors", VerticalAlignment = VerticalAlignment.Top };
     private readonly CheckBox _try = new() { Name = "ThemeColorsTry" };
     private readonly ThemeTrialSession? _trial;
@@ -74,7 +74,7 @@ internal sealed class ThemeColorsDialog : Window
             _rows.Add(row);
         }
 
-        // The intro and the round help button share the first row; the button stays at the top edge when the intro wraps.
+        // The intro and the help button share the first row; the button stays at the top edge when the intro wraps.
         Grid introRow = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 };
         introRow.Children.Add(_intro);
         Grid.SetColumn(_help, 1); introRow.Children.Add(_help);

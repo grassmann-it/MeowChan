@@ -4,9 +4,9 @@ using System.Xml.Linq;
 
 namespace MeowChan.DesktopTests.DesignLint;
 
-// A round bordered button already is a circle: its icon must not be a circled catalog icon (feather help-circle, x-circle, plus-circle,
-// info, circle ...), which would draw two rings ("Fragezeichen im Kreis ist doppelt gemoppelt"). The round button is the shared
-// help button (class help-round); this lint keeps it the only round button of the style file and keeps circled masks out of its owners.
+// UX review 15.11.: the question mark in a circle was ugly, so the help button is a plain "?" on a flat square (class help-round, kept as the
+// name). This lint keeps the style file free of round buttons and of a round focus ring, keeps the shared HelpButton the only owner of the class
+// (nobody draws a help circle of their own) and keeps circled catalog masks (help-circle ...) out of it and out of the help commands.
 public sealed class RoundButtonSingleCircleTests
 {
     private static readonly XNamespace A = "https://github.com/avaloniaui";
@@ -15,19 +15,20 @@ public sealed class RoundButtonSingleCircleTests
     private static readonly string[] CircledMasks = ["help-circle", "x-circle", "plus-circle", "circle", "info", "check-circle", "alert-circle", "alert-triangle"];
 
     [Fact]
-    public void TheHelpRoundButtonIsTheOnlyFullyRoundButtonStyle()
+    public void NoButtonStyleIsFullyRoundAndTheRoundFocusRingIsGone()
     {
         XElement styles = XDocument.Load(Root("Desktop/WorkspaceStyles.axaml")).Root!;
         string[] round = styles.Descendants(A + "Style")
             .Where(style => ((string?)style.Attribute("Selector") ?? "").StartsWith("Button.", StringComparison.Ordinal))
             .Where(style => style.Elements(A + "Setter").Any(setter => (string?)setter.Attribute("Property") == "CornerRadius" && (string?)setter.Attribute("Value") == "16"))
             .Select(style => (string)style.Attribute("Selector")!).ToArray();
-        // A new round button style needs the same review: its icon has no ring of its own.
-        Assert.Equal(["Button.help-round"], round);
+        // The help button was the one round button; it is a flat square now. A new round button style needs the same review.
+        Assert.Empty(round);
+        Assert.DoesNotContain("FocusAdorner.Round", File.ReadAllText(Root("Desktop/WorkspaceStyles.axaml")), StringComparison.Ordinal);
     }
 
     [Fact]
-    public void OnlyTheSharedHelpButtonAddsTheRoundClassAndItsContentIsNoCircledMask()
+    public void OnlyTheSharedHelpButtonAddsTheHelpClassAndItsContentIsNoCircledMask()
     {
         List<string> users = [];
         foreach (string file in ProductFiles())
@@ -38,6 +39,17 @@ public sealed class RoundButtonSingleCircleTests
         Assert.Equal(["HelpButton.cs"], users.Order(StringComparer.Ordinal).ToArray());
         string help = string.Join("\n", File.ReadAllLines(Root("Desktop/Controls/HelpButton.cs")).Where(line => !line.TrimStart().StartsWith("//", StringComparison.Ordinal)));
         foreach (string mask in CircledMasks) Assert.DoesNotContain("\"" + mask + "\"", help, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TheHelpCommandsUseThePlainQuestionMarkMaskNotTheCircledOne()
+    {
+        // The keyboard-shortcut help commands (gallery toolbar, menus) show the same plain "?" as the help button.
+        foreach (string id in new[] { "viewer.shortcut-help", "viewer.shortcut-hints", "gallery.layout.hints" })
+            Assert.Equal("help", MeowChan.Desktop.Commands.CommandCatalog.Get(id).Icon);
+        Assert.True(File.Exists(Root("Assets/icons/feather/masks/help.png")));
+        Assert.True(File.Exists(Root("Assets/icons/feather/help.svg")));
+        Assert.DoesNotContain("<circle", File.ReadAllText(Root("Assets/icons/feather/help.svg")), StringComparison.Ordinal);
     }
 
     [Fact]

@@ -257,7 +257,7 @@ public sealed class StatisticsReadabilityTests : IDisposable
         XDocument page = Markup("Desktop/Views/Statistics/StatisticsPage.axaml");
         Assert.Contains(Named(page, "ResetConfirmPanel").Ancestors(), e => e.Name.LocalName == "Flyout");
         Assert.DoesNotContain(Named(page, "StatisticsStatus").Ancestors(), e => e.Name.LocalName == "ScrollViewer");
-        // HB1: the measurement note is the structured popover of the round help button, no longer a flyout of the page itself.
+        // HB1: the measurement note is the structured popover of the help button, no longer a flyout of the page itself.
         XElement help = Named(page, "StatisticsHelpButton");
         Assert.Equal("HelpButton", help.Name.LocalName);
         Assert.Equal("help.stats", (string?)help.Attribute("HelpKey"));

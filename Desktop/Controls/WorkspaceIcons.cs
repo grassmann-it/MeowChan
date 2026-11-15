@@ -37,7 +37,7 @@ internal static class WorkspaceIcons
     internal const string Refresh = "refresh";
     internal const string Shuffle = "shuffle";
     internal const string Maximize = "maximize";
-    // The plain question mark of the help button: no ring, because the round button around it already is the circle.
+    // The plain question mark of the help button: no ring, the button is a flat square (a circled mark was dropped in the UX review).
     internal const string Help = "help";
     // MP4: the Booru mode of the media page (a list of tags in a column beside a grid).
     internal const string TagList = "tag-list";
@@ -81,8 +81,9 @@ internal static class WorkspaceIcons
         // A question mark without a circle (the arc, the curl down to the stem, the dot). Curl circle and dot share the axis x = 8 (the
         // middle of the 16 dip grid; it was 7.92); the glyph sits a quarter dip below the geometric middle, because the open curl carries
         // its weight at the top and a geometrically centred "?" looks high in the round button. The dot is a 0.3 dip stroke, a little
-        // taller than the stroke weight, so it does not read thinner than the curl.
-        [Help] = new("M5.17,5.25 A3,3 0 0 1 11,6.25 C11,8.25 8,9.25 8,9.25 M8,13 L8,13.3"),
+        // taller than the stroke weight, so it does not read thinner than the curl. Drawn about 1.2 times its first size (12 of 16 dip high) so the bare mark reads
+        // as large as the other icons now that no circle frames it.
+        [Help] = new("M4.6,4.66 A3.6,3.6 0 0 1 11.6,5.86 C11.6,8.26 8,9.46 8,9.46 M8,13.96 L8,14.26"),
         // A frame split into a narrow left column with three list lines and a wide right part (the grid).
         [TagList] = new("M2,2.5 L14,2.5 L14,13.5 L2,13.5 Z M7,2.5 L7,13.5 M3.8,5.5 L5.2,5.5 M3.8,8 L5.2,8 M3.8,10.5 L5.2,10.5"),
         // Circle with a cross (error), triangle with a stroke and a dot (warning), circle with an "i" (information), circle with a tick (success).

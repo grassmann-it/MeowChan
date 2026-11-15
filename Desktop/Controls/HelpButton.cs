@@ -7,9 +7,9 @@ using MeowChan.Desktop.Localization;
 namespace MeowChan.Desktop.Controls;
 
 /// <summary>
-/// HB1: the one help button of the workspace. A 32 dip circle (<c>help-round</c> in WorkspaceStyles.axaml) with the drawn plain
-/// question mark (<see cref="WorkspaceIcons.Help"/>) and no text, never a font glyph. The button's own outline is the only circle: a
-/// circled icon (feather <c>help-circle</c>) inside it would draw two rings. It opens a <see cref="HelpPopover"/> with the structured text of <see cref="HelpKey"/>
+/// HB1: the one help button of the workspace. A flat 32 dip square (<c>help-round</c> in WorkspaceStyles.axaml: no outline at rest, the
+/// rounded hover pill of the other icon buttons) with the drawn plain question mark (<see cref="WorkspaceIcons.Help"/>) and no text, never a
+/// font glyph and never a circled icon (UX review: the "?" in a circle was ugly). The class name is historical. It opens a <see cref="HelpPopover"/> with the structured text of <see cref="HelpKey"/>
 /// (<c>&lt;key&gt;.title</c>, <c>.p1..</c>, <c>.li1..</c>; see <see cref="HelpContent.FromKeys"/>) or of <see cref="Source"/>.
 /// The accessible name is "Help: &lt;title&gt;"; the popover text is also the help text of the button, so assistive technology reads it
 /// without opening the popover. Name, tooltip and help text follow the language while the button is shown. The icon is a drawn path
@@ -27,7 +27,6 @@ public sealed class HelpButton : Button
     public HelpButton()
     {
         Classes.Add("help-round");
-        Classes.Add("subtle");
         _popover.Provider = Resolve;
         Flyout = _popover;
         Content = WorkspaceIcons.Create(WorkspaceIcons.Help);
