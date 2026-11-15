@@ -54,7 +54,7 @@ internal sealed record MediaLibraryFilter
         string? nameContains = null, ResourceId? thread = null, MediaLibrarySoundFilter sound = MediaLibrarySoundFilter.Any,
         bool withoutMediaTags = false, IEnumerable<MediaLibraryKindFilter>? kinds = null,
         IEnumerable<string>? excludeSources = null, IEnumerable<MediaLibraryBoardKey>? excludeBoards = null,
-        MediaTextFields textFields = MediaTextFields.All)
+        MediaTextFields textFields = MediaTextFields.All, IEnumerable<ResourceId>? threads = null)
     {
         if (!Enum.IsDefined(kind)) throw new ArgumentOutOfRangeException(nameof(kind));
         if (minimumRating is < 1 or > 5) throw new ArgumentOutOfRangeException(nameof(minimumRating), "Ratings are whole values from 1 to 5.");
@@ -81,6 +81,8 @@ internal sealed record MediaLibraryFilter
         // Where to look means nothing without a word: such a filter is the same as no text, whatever scope was named.
         TextFields = words.Length == 0 ? MediaTextFields.All : textFields;
         Thread = thread;
+        // A set of threads is a lookup, however large; null is "no such part", an empty set is "no thread" (nothing passes).
+        Threads = threads?.Where(item => item != null).ToFrozenSet();
         Sound = sound;
         WithoutMediaTags = withoutMediaTags;
         ExcludeSources = (excludeSources ?? []).Where(value => !string.IsNullOrEmpty(value)).ToFrozenSet(StringComparer.Ordinal);
@@ -183,6 +185,12 @@ internal sealed record MediaLibraryFilter
     internal MediaTextFields TextFields { get; }
     /// <summary>The thread as a meta tag: only media of exactly this thread.</summary>
     internal ResourceId? Thread { get; }
+    /// <summary>
+    /// Only media of exactly these threads (a set lookup per entry, so a set of tens of thousands costs the same as one of three). Null: no
+    /// such restriction, every thread. An empty set is a restriction too: it lets nothing pass, and is no "all" (<see cref="IsEmpty"/> is false).
+    /// It narrows together with <see cref="Thread"/>, source and board.
+    /// </summary>
+    internal IReadOnlySet<ResourceId>? Threads { get; }
     /// <summary>With or without sound; videos whose sound is not known are shown for neither choice.</summary>
     internal MediaLibrarySoundFilter Sound { get; }
     /// <summary>Only media that could carry media tags but carry none yet (<see cref="MediaLibraryUserData.LacksMediaTags"/>); thread tags do not count.</summary>
@@ -190,12 +198,13 @@ internal sealed record MediaLibraryFilter
 
     internal bool IsEmpty => Tags == null && Kinds.Count == 0 && !FavoritesOnly && MinimumRating == null
         && Source == null && Board == null && ExcludeSources.Count == 0 && ExcludeBoards.Count == 0
-        && NameContains == null && Thread == null && Sound == MediaLibrarySoundFilter.Any && !WithoutMediaTags;
+        && NameContains == null && Thread == null && Threads == null && Sound == MediaLibrarySoundFilter.Any && !WithoutMediaTags;
 
     // The sets compare by content (the synthesized record equality would compare the set objects).
     public bool Equals(MediaLibraryFilter? other) => other != null && Equals(Tags, other.Tags) && Kinds.SetEquals(other.Kinds)
         && FavoritesOnly == other.FavoritesOnly && MinimumRating == other.MinimumRating && Source == other.Source && Board == other.Board
         && ExcludeSources.SetEquals(other.ExcludeSources) && ExcludeBoards.SetEquals(other.ExcludeBoards)
+        && (Threads == null ? other.Threads == null : other.Threads != null && Threads.SetEquals(other.Threads))
         && NameContains == other.NameContains && TextFields == other.TextFields && Equals(Thread, other.Thread) && Sound == other.Sound && WithoutMediaTags == other.WithoutMediaTags;
 
     public override int GetHashCode()
@@ -209,6 +218,12 @@ internal sealed record MediaLibraryFilter
         foreach (string source in ExcludeSources) sources ^= StringComparer.Ordinal.GetHashCode(source);
         foreach (MediaLibraryBoardKey board in ExcludeBoards) boards ^= board.GetHashCode();
         hash.Add(kinds); hash.Add(sources); hash.Add(boards);
+        if (Threads != null)
+        {
+            int threads = 0;
+            foreach (ResourceId item in Threads) threads ^= item.GetHashCode();
+            hash.Add(threads); hash.Add(Threads.Count);
+        }
         return hash.ToHashCode();
     }
 }
@@ -467,6 +482,7 @@ internal static class MediaLibraryFilterEngine
     {
         outcome = TextOutcome.NoText;
         if (filter.Thread != null && entry.Thread != filter.Thread) return false;
+        if (filter.Threads != null && !filter.Threads.Contains(entry.Thread)) return false;
         if (filter.Source != null && !string.Equals(entry.Thread.Source, filter.Source, StringComparison.Ordinal)) return false;
         if (filter.Board != null && !string.Equals(entry.Thread.Board, filter.Board, StringComparison.Ordinal)) return false;
         if (filter.ExcludeSources.Count > 0 && filter.ExcludeSources.Contains(entry.Thread.Source)) return false;

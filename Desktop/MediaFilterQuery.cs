@@ -70,7 +70,7 @@ internal sealed class MediaFilterQueryVocabulary
     internal static IReadOnlyDictionary<string, MediaFilterField> AliasesFrom(Func<string, string?> text)
     {
         Dictionary<string, MediaFilterField> aliases = new(StringComparer.Ordinal);
-        foreach (MediaFilterField field in Enum.GetValues<MediaFilterField>())
+        foreach (MediaFilterField field in Enum.GetValues<MediaFilterField>().Where(MediaFilterTerm.HasQueryText))
             foreach (string word in (text("media.query.alias." + MediaFilterTerm.KeyOf(field)) ?? string.Empty)
                 .Split([' ', ',', ';', '、'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
             {
@@ -251,6 +251,8 @@ internal static class MediaFilterQuery
         if (key.StartsWith('-')) { exclude = true; key = key[1..]; }
         if (!IsFieldWord(key)) return Plain(raw, vocabulary, nested); // "12:30", "http://x", "--tag:x": ordinary text
         if (vocabulary.FieldOf(key) is not { } field) return Problem(raw.Text, MediaFilterQueryProblem.UnknownField);
+        // A thread set is handed over by another page and has no query text: "threadset:x" is ordinary text.
+        if (!MediaFilterTerm.HasQueryText(field)) return Plain(raw, vocabulary, nested);
         if (exclude && !MediaFilterTerm.CanExclude(field)) return Problem(raw.Text, MediaFilterQueryProblem.CannotExclude);
         value = value.Trim();
         if (value.Length == 0 && !IsFlag(field)) return Problem(raw.Text, MediaFilterQueryProblem.NeedsValue);
@@ -438,6 +440,9 @@ internal static class MediaFilterQuery
                     break;
                 case MediaFilterField.Name:
                     name = name == null ? term.Value : name + " " + term.Value;
+                    break;
+                // A set of threads handed over from another page has no query text; the copy leaves it out.
+                case MediaFilterField.Threads:
                     break;
                 // The scope stands directly before the free text, wherever the set holds it; the default (every field) is not written.
                 case MediaFilterField.In:

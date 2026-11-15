@@ -8,7 +8,7 @@ using MeowChan.Gallery;
 namespace MeowChan.Desktop;
 
 /// <summary>The fields a media filter term can be about (M2): every filter of the media page is one of these.</summary>
-internal enum MediaFilterField { Tag, Type, Sound, Source, Board, Rating, Favorite, Missing, Untagged, Thread, Name, Queue, SourceTag, In }
+internal enum MediaFilterField { Tag, Type, Sound, Source, Board, Rating, Favorite, Missing, Untagged, Thread, Name, Queue, SourceTag, In, Threads }
 
 /// <summary>
 /// One filter of the media page as data: a field, its value and whether it excludes (M2 groundwork). A set of terms is what the chips of
@@ -24,16 +24,22 @@ internal enum MediaFilterField { Tag, Type, Sound, Source, Board, Rating, Favori
 /// <item>In: where the text (the Name term) is looked for, the English keys of <see cref="MediaTextFields"/> in a fixed order, comma separated
 /// (<c>name,title,board,source,tag</c>; <c>all</c> is every field). One per set, no chip of its own: the name chip carries it. It
 /// is the term of the query token <c>in:tag,title</c>.</item>
+/// <item>Threads: <see cref="ThreadSet"/>, the media of exactly these threads (the results of an Archive search, or threads picked in a list).
+/// Runtime state handed over by another page: it has no query text (<see cref="HasQueryText"/>), so a typed <c>threadset:</c> is ordinary
+/// text and "Copy filters as text" leaves it out. One per set.</item>
 /// </list>
 /// Only Tag, Type, Source, Board, Queue and SourceTag can be excluded (<see cref="CanExclude"/>); the other fields have no meaningful "not".
 /// Queue and SourceTag are page-side terms: the core filter does not know them (<see cref="MediaFilterTerms.ToFilter"/> skips them) and
 /// the media page applies them after it (<see cref="MediaPageTermFilter"/>).
 /// </summary>
-internal sealed record MediaFilterTerm(MediaFilterField Field, string Value = "", bool Exclude = false, string? Scope = null, ResourceId? Resource = null)
+internal sealed record MediaFilterTerm(MediaFilterField Field, string Value = "", bool Exclude = false, string? Scope = null, ResourceId? Resource = null, MediaThreadSet? ThreadSet = null)
 {
     /// <summary>Whether a term of this field may exclude (the chips of these fields get the include/exclude switch).</summary>
     internal static bool CanExclude(MediaFilterField field) => field is MediaFilterField.Tag or MediaFilterField.Type or MediaFilterField.Source or MediaFilterField.Board
         or MediaFilterField.Queue or MediaFilterField.SourceTag;
+
+    /// <summary>Whether a field can be written in a query. Only <see cref="MediaFilterField.Threads"/> cannot: its value is a set handed over at runtime.</summary>
+    internal static bool HasQueryText(MediaFilterField field) => field != MediaFilterField.Threads;
 
     /// <summary>The longest source tag name a term holds (a technical ceiling of the term, not a user limit; Danbooru names are far shorter).</summary>
     internal const int MaximumSourceTagLength = 256;
@@ -63,6 +69,7 @@ internal sealed record MediaFilterTerm(MediaFilterField Field, string Value = ""
         MediaFilterField.Queue => "queue",
         MediaFilterField.SourceTag => "booru",
         MediaFilterField.In => "in",
+        MediaFilterField.Threads => "threadset", // not "threads": that is the English alias of the thread: token
         _ => "name"
     };
 
@@ -138,6 +145,8 @@ internal sealed record MediaFilterTerm(MediaFilterField Field, string Value = ""
     /// <summary>Where the text is looked for (<see cref="MediaFilterField.In"/>); <see cref="MediaTextFields.All"/> is the default scope.</summary>
     internal static MediaFilterTerm In(MediaTextFields fields) => fields == MediaTextFields.None || (fields & ~MediaTextFields.All) != 0
         ? throw new ArgumentOutOfRangeException(nameof(fields)) : new(MediaFilterField.In, TextFieldsValue(fields));
+    /// <summary>The media of exactly these threads; the set may be empty (then nothing passes, which is not the same as no term).</summary>
+    internal static MediaFilterTerm InThreads(MediaThreadSet threads) => new(MediaFilterField.Threads, ThreadSet: threads ?? throw new ArgumentNullException(nameof(threads)));
     internal static MediaFilterTerm InThread(ResourceId thread) => new(MediaFilterField.Thread, thread.Thread ?? string.Empty, Resource: thread);
     /// <summary>MP1: in the tagging queue (<paramref name="inQueue"/> true) or not in it (the excluded term).</summary>
     internal static MediaFilterTerm InQueue(bool inQueue = true) => new(MediaFilterField.Queue, string.Empty, !inQueue);
@@ -168,6 +177,7 @@ internal static class MediaFilterTerms
         string? source = null, board = null, boardSource = null, name = null;
         MediaTextFields? textFields = null;
         ResourceId? thread = null;
+        MediaThreadSet? threadSet = null;
         int? rating = null;
         MediaLibrarySoundFilter sound = MediaLibrarySoundFilter.Any;
         bool favorites = false, untagged = false;
@@ -228,6 +238,11 @@ internal static class MediaFilterTerms
                     if (thread != null && thread != resource) throw new ArgumentException("Only one thread can be set.", nameof(terms));
                     thread = resource;
                     break;
+                case MediaFilterField.Threads:
+                    if (term.ThreadSet == null) throw new ArgumentException("A threads term needs a thread set.", nameof(terms));
+                    if (threadSet != null && !threadSet.Equals(term.ThreadSet)) throw new ArgumentException("Only one thread set can be set.", nameof(terms));
+                    threadSet = term.ThreadSet;
+                    break;
                 case MediaFilterField.Favorite: favorites = true; break;
                 case MediaFilterField.Untagged: untagged = true; break;
                 case MediaFilterField.Missing: break;
@@ -257,7 +272,7 @@ internal static class MediaFilterTerms
         }
         else if (excludeTypes.Count > 0) kinds = MediaLibraryFilter.AllKindsExcept([.. excludeTypes]);
         return new MediaLibraryFilter(ArchiveTagFilter.OrNull(includeTags, excludeTags, tagMatch, ArchiveTagFilter.MaximumConfigurableTagsPerList), MediaLibraryKindFilter.Any, favorites, rating,
-            source, board, name, thread, sound, untagged, kinds, excludeSources, excludeBoards, textFields ?? MediaTextFields.All);
+            source, board, name, thread, sound, untagged, kinds, excludeSources, excludeBoards, textFields ?? MediaTextFields.All, threadSet?.Members);
     }
 
     /// <summary>Whether the terms ask to show missing files (a flag of the presentation, not of the filter).</summary>
@@ -298,6 +313,8 @@ internal static class MediaFilterTerms
         if (includeMissing) terms.Add(MediaFilterTerm.Flag(MediaFilterField.Missing));
         if (filter.WithoutMediaTags) terms.Add(MediaFilterTerm.Flag(MediaFilterField.Untagged));
         if (filter.Thread != null) terms.Add(MediaFilterTerm.InThread(filter.Thread));
+        // A filter does not remember where its set came from; the origin only words the chip.
+        if (filter.Threads != null) terms.Add(MediaFilterTerm.InThreads(new MediaThreadSet(filter.Threads, MediaThreadSetOrigin.ArchiveSearch)));
         // The scope belongs to the text: it is a term only where it narrows (the filter forgets it without a word).
         if (filter.TextFields != MediaTextFields.All) terms.Add(MediaFilterTerm.In(filter.TextFields));
         if (filter.NameContains != null) terms.Add(MediaFilterTerm.Name(filter.NameContains));
@@ -337,7 +354,7 @@ internal static class MediaFilterTermSet
         List<MediaFilterTerm> next = terms.Where(other => Identity(other) != identity).ToList();
         switch (term.Field)
         {
-            case MediaFilterField.Sound or MediaFilterField.Rating or MediaFilterField.Thread or MediaFilterField.Name or MediaFilterField.In:
+            case MediaFilterField.Sound or MediaFilterField.Rating or MediaFilterField.Thread or MediaFilterField.Threads or MediaFilterField.Name or MediaFilterField.In:
                 next.RemoveAll(other => other.Field == term.Field);
                 break;
             case MediaFilterField.Source when !term.Exclude:
@@ -429,14 +446,14 @@ internal static class MediaFilterTermSet
 
     /// <summary>
     /// The place of a term's chip in the row (the order the chips had before M2): included tags, excluded tags, [the tag mode chip],
-    /// source tags (2), thread, without media tags, name, type, sound, source, board, rating, favourites and the tagging queue, missing;
+    /// source tags (2), thread and thread set, without media tags, name, type, sound, source, board, rating, favourites and the tagging queue, missing;
     /// within a field included before excluded.
     /// </summary>
     internal static int DisplayRank(MediaFilterTerm term) => term.Field switch
     {
         MediaFilterField.Tag => term.Exclude ? 1 : 0,
         MediaFilterField.SourceTag => 2,
-        MediaFilterField.Thread => 3,
+        MediaFilterField.Thread or MediaFilterField.Threads => 3,
         MediaFilterField.Untagged => 4,
         MediaFilterField.Name or MediaFilterField.In => 5, // the scope stands before its text (a stable sort keeps the set's order)
         MediaFilterField.Type => 6,

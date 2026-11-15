@@ -4861,6 +4861,10 @@
     "media.scope.board": "板",
     "media.scope.source": "ソース",
     "media.scope.tag": "タグ",
-    "search.scope.media.some": "{0} 項目"
+    "search.scope.media.some": "{0} 項目",
+    "command.archive.open-results-in-media": "メディアで開く",
+    "media.filter.threadsChip.archive": "アーカイブ検索のスレッド {0} 件",
+    "media.filter.threadsChip.selection": "選択したスレッド {0} 件",
+    "media.filter.threadsMore": "他 {0} 件"
   }
 }

@@ -4960,6 +4960,12 @@
     "media.breakdown.field.name.one": "{0} in un nome di file",
     "media.breakdown.field.title.one": "{0} in un titolo di thread",
     "media.breakdown.field.board.one": "{0} in un board",
-    "media.breakdown.field.source.one": "{0} in una fonte"
+    "media.breakdown.field.source.one": "{0} in una fonte",
+    "command.archive.open-results-in-media": "Apri in Media",
+    "media.filter.threadsChip.archive": "{0} thread dalla ricerca in Archivio",
+    "media.filter.threadsChip.archive.one": "{0} thread dalla ricerca in Archivio",
+    "media.filter.threadsChip.selection": "{0} thread selezionati",
+    "media.filter.threadsChip.selection.one": "{0} thread selezionato",
+    "media.filter.threadsMore": "+{0} altri"
   }
 }

@@ -4861,6 +4861,10 @@
     "media.scope.board": "게시판",
     "media.scope.source": "소스",
     "media.scope.tag": "태그",
-    "search.scope.media.some": "{0}개 항목"
+    "search.scope.media.some": "{0}개 항목",
+    "command.archive.open-results-in-media": "미디어에서 열기",
+    "media.filter.threadsChip.archive": "보관함 검색의 스레드 {0}개",
+    "media.filter.threadsChip.selection": "선택한 스레드 {0}개",
+    "media.filter.threadsMore": "외 {0}개"
   }
 }

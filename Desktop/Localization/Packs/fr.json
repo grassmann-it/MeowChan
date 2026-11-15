@@ -4954,6 +4954,12 @@
     "media.breakdown.field.name.one": "{0} dans un nom de fichier",
     "media.breakdown.field.title.one": "{0} dans un titre de fil",
     "media.breakdown.field.board.one": "{0} dans un tableau",
-    "media.breakdown.field.source.one": "{0} dans une source"
+    "media.breakdown.field.source.one": "{0} dans une source",
+    "command.archive.open-results-in-media": "Ouvrir dans Médias",
+    "media.filter.threadsChip.archive": "{0} fils de la recherche dans Archives",
+    "media.filter.threadsChip.archive.one": "{0} fil de la recherche dans Archives",
+    "media.filter.threadsChip.selection": "{0} fils sélectionnés",
+    "media.filter.threadsChip.selection.one": "{0} fil sélectionné",
+    "media.filter.threadsMore": "+{0} de plus"
   }
 }

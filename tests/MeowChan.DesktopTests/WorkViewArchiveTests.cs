@@ -35,6 +35,7 @@ public sealed class WorkViewArchiveTests
         { "archive.results.layout-list", Presence.Overflow, Presence.Direct, Presence.Direct },
         { "archive.results.layout-table", Presence.Overflow, Presence.Direct, Presence.Direct },
         { "archive.results.gallery", Presence.Direct, Presence.Direct, Presence.Direct },
+        { "archive.results.open-in-media", Presence.Overflow, Presence.Direct, Presence.Direct },
         { "archive.results.favorites", Presence.Overflow, Presence.Direct, Presence.Direct },
         { "archive.results.columns", Presence.Overflow, Presence.Overflow, Presence.Direct },
         { "archive.results.export", Presence.Overflow, Presence.Overflow, Presence.Direct },

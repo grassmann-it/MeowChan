@@ -43,7 +43,7 @@ public sealed class MediaFilterTermTests
             Assert.Equal(field, MediaFilterTerm.FieldOf(MediaFilterTerm.KeyOf(field)));
             Assert.Equal(field, MediaFilterTerm.FieldOf(" " + MediaFilterTerm.KeyOf(field).ToUpperInvariant() + " "));
         }
-        Assert.Equal(["tag", "type", "sound", "source", "board", "rating", "fav", "missing", "untagged", "thread", "name", "queue", "booru", "in"], keys);
+        Assert.Equal(["tag", "type", "sound", "source", "board", "rating", "fav", "missing", "untagged", "thread", "name", "queue", "booru", "in", "threadset"], keys);
         Assert.Null(MediaFilterTerm.FieldOf("typ"));
         Assert.Null(MediaFilterTerm.FieldOf(null));
     }

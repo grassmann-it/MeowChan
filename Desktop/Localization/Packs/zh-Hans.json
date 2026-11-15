@@ -4861,6 +4861,10 @@
     "media.scope.board": "版块",
     "media.scope.source": "来源",
     "media.scope.tag": "标签",
-    "search.scope.media.some": "{0} 个字段"
+    "search.scope.media.some": "{0} 个字段",
+    "command.archive.open-results-in-media": "在媒体中打开",
+    "media.filter.threadsChip.archive": "归档搜索的 {0} 个串",
+    "media.filter.threadsChip.selection": "已选 {0} 个串",
+    "media.filter.threadsMore": "另有 {0} 个"
   }
 }

@@ -332,7 +332,8 @@ public sealed class MediaFilterQueryTests : IDisposable
     {
         Texts.SetLanguage(code);
         Dictionary<string, MediaFilterField> seen = new(StringComparer.Ordinal);
-        foreach (MediaFilterField field in Enum.GetValues<MediaFilterField>())
+        // The thread set (MediaFilterField.Threads) is runtime state with no query text, so it has no aliases either.
+        foreach (MediaFilterField field in Enum.GetValues<MediaFilterField>().Where(MediaFilterTerm.HasQueryText))
         {
             string key = "media.query.alias." + MediaFilterTerm.KeyOf(field);
             string text = Texts.T(key);

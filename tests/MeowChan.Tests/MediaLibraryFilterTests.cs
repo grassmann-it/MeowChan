@@ -128,6 +128,48 @@ public sealed class MediaLibraryFilterTests
     }
 
     [Fact]
+    public void ThreadSetKeepsOnlyTheMediaOfItsThreadsAndAnEmptySetShowsNothingWhileNoSetShowsAll()
+    {
+        MediaLibraryEntry a1 = Entry("a", "1", 'a'), a2 = Entry("a", "2", 'b'), b1 = Entry("b", "1", 'c'), c1 = Entry("c", "1", 'd', source: "t"),
+            d1 = Entry("d", "1", 'e', board: "x");
+        MediaLibraryEntry[] all = [a1, a2, b1, c1, d1];
+        MediaLibraryUserData data = MediaLibraryUserData.Unavailable;
+
+        Assert.Equal(new[] { "a:1", "a:2", "c:1" }, Posts(MediaLibraryFilterEngine.Apply(all, new(threads: [a1.Thread, c1.Thread, new ResourceId("s", "b", "gone")]), data)));
+        // The set is exact: the same thread number on another board or source is another thread.
+        Assert.Empty(MediaLibraryFilterEngine.Apply(all, new(threads: [new ResourceId("s", "x", "a"), new ResourceId("t", "b", "a")]), data));
+        // An empty set is a restriction that nothing passes; no set at all (null) is no restriction.
+        MediaLibraryFilter none = new(threads: []);
+        Assert.False(none.IsEmpty);
+        Assert.Empty(MediaLibraryFilterEngine.Apply(all, none, data));
+        Assert.Equal(5, MediaLibraryFilterEngine.Apply(all, new(threads: null), data).Count);
+        Assert.True(new MediaLibraryFilter(threads: null).IsEmpty);
+        Assert.NotEqual(none, MediaLibraryFilter.None);
+        // It narrows together with the other parts and the single thread.
+        Assert.Equal(new[] { "a:1", "a:2" }, Posts(MediaLibraryFilterEngine.Apply(all, new(threads: [a1.Thread, b1.Thread], thread: a1.Thread), data)));
+        Assert.Empty(MediaLibraryFilterEngine.Apply(all, new(threads: [a1.Thread], thread: b1.Thread), data));
+        Assert.Equal(new[] { "c:1" }, Posts(MediaLibraryFilterEngine.Apply(all, new(threads: [a1.Thread, c1.Thread, d1.Thread], source: "t"), data)));
+        Assert.Equal(new[] { "b:1" }, Posts(MediaLibraryFilterEngine.Apply(all, new(threads: [a1.Thread, b1.Thread], nameContains: "Tb"), data)));
+    }
+
+    [Fact]
+    public void ThreadSetsCompareByContentAndStayAFastLookupForTensOfThousandsOfThreads()
+    {
+        ResourceId[] many = [.. Enumerable.Range(0, 50_000).Select(index => new ResourceId("s", "b", index.ToString()))];
+        MediaLibraryFilter first = new(threads: many), reversed = new(threads: many.Reverse());
+        Assert.Equal(first, reversed);
+        Assert.Equal(first.GetHashCode(), reversed.GetHashCode());
+        Assert.NotEqual(first, new MediaLibraryFilter(threads: many.Skip(1)));
+        Assert.NotEqual(first, MediaLibraryFilter.None);
+        MediaLibraryEntry[] entries = [.. Enumerable.Range(0, 20_000).Select(index => Entry((index * 5).ToString(), "1", 'a'))];
+        System.Diagnostics.Stopwatch watch = System.Diagnostics.Stopwatch.StartNew();
+        IReadOnlyList<MediaLibraryEntry> passing = MediaLibraryFilterEngine.Apply(entries, first, MediaLibraryUserData.Unavailable);
+        watch.Stop();
+        Assert.Equal(Enumerable.Range(0, 20_000).Count(index => index * 5 < 50_000), passing.Count);
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(5), "A set lookup per entry took " + watch.Elapsed);
+    }
+
+    [Fact]
     public void KindsAreASetWhereEmptyMeansEveryTypeAndWithoutVideoIsTheOtherTypes()
     {
         MediaLibraryEntry png = Entry("a", "1", 'a', name: "Cat.PNG"), gif = Entry("a", "2", 'b', name: "dance.GIF"),

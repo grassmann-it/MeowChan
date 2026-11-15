@@ -5004,6 +5004,14 @@
     "media.breakdown.field.title.one": "{0} w tytule wątku",
     "media.breakdown.field.board.one": "{0} w tablicy",
     "media.breakdown.field.source.one": "{0} w źródle",
-    "search.scope.media.some.few": "{0} pola"
+    "search.scope.media.some.few": "{0} pola",
+    "command.archive.open-results-in-media": "Otwórz w Mediach",
+    "media.filter.threadsChip.archive": "{0} wątków z wyszukiwania w Archiwum",
+    "media.filter.threadsChip.archive.one": "{0} wątek z wyszukiwania w Archiwum",
+    "media.filter.threadsChip.archive.few": "{0} wątki z wyszukiwania w Archiwum",
+    "media.filter.threadsChip.selection": "{0} wybranych wątków",
+    "media.filter.threadsChip.selection.one": "{0} wybrany wątek",
+    "media.filter.threadsChip.selection.few": "{0} wybrane wątki",
+    "media.filter.threadsMore": "+{0} więcej"
   }
 }

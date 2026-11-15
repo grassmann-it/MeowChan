@@ -279,6 +279,7 @@ internal static class ActionToolBarPresentationChecks
                 "ArchiveReaderGroups" => "reader-groups.open-manager",
                 "ArchivePostBookmarks" => "post-bookmarks.open-manager",
                 "ArchiveResultsGallery" => "gallery.open-results",
+                "ArchiveResultsOpenInMedia" => "archive.open-results-in-media",
                 "ArchiveFavoritesOverview" => "favorites.open",
                 _ => null
             };

@@ -141,6 +141,7 @@ public static class CommandCatalog
         new("media.tile-size.larger", "command.media.tile-size.larger", "Larger tiles", "Größere Kacheln", "zoom-in", "Primary+Plus", CommandScope.Media, new[] { "media-tiles" }),
         new("media.tile-size.smaller", "command.media.tile-size.smaller", "Smaller tiles", "Kleinere Kacheln", "zoom-out", "Primary+Minus", CommandScope.Media, new[] { "media-tiles" }),
         new("gallery.open-results", "command.gallery.open-results", "Media from matching threads", "Medien der Treffer", "image", null, CommandScope.Archive, new[] { "archive-results-toolbar" }),
+        new("archive.open-results-in-media", "command.archive.open-results-in-media", "Open in Media", "In Medien öffnen", "grid", null, CommandScope.Archive, new[] { "archive-results-toolbar" }),
         new("thread.show-in-media", "command.thread.show-in-media", "Show in Media", "In Medien zeigen", "grid", "Alt+M", CommandScope.Archive | CommandScope.Reader | CommandScope.Downloads, new[] { "downloads-thread-menu", "archive-card-menu", "archive-table-menu", "reader-thread-menu" }),
         new("thread.details", "command.thread.details", "Show details", "Details anzeigen", "info", "Alt+Enter", CommandScope.Archive | CommandScope.Downloads, new[] { "downloads-thread-menu", "downloads-board-menu", "downloads-toolbar", "archive-card-menu", "archive-table-menu", "reader-thread-menu" }),
         new("inspector.close", "command.inspector.close", "Close details", "Details schließen", "x", null, CommandScope.Downloads, new[] { "downloads-inspector" }),

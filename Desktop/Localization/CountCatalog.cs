@@ -18,6 +18,8 @@ internal static class CountCatalog
         ("archive.delete.summary.one", "Permanently delete {0} thread and {1} local files ({2:N0} bytes)?", "{0} Thread und {1} lokale Dateien ({2:N0} Bytes) endgültig löschen?"),
         ("media.filters.countName.one", "Filters, {0} active", "Filter, {0} aktiv"),
         ("media.filter.kind.count.one", "{0} type", "{0} Typ"),
+        ("media.filter.threadsChip.archive.one", "{0} thread from Archive search", "{0} Thread aus der Archivsuche"),
+        ("media.filter.threadsChip.selection.one", "{0} selected thread", "{0} ausgewählter Thread"),
         ("archive.filters.countName.one", "Filters and sorting, {0} active", "Filter und Sortierung, {0} aktiv"),
         ("media.count.one", "{0} media in {1} thread", "{0} Medien in {1} Thread"),
         ("media.countMissing.one", "{0} media in {1} thread, {2} missing", "{0} Medien in {1} Thread, davon {2} fehlend"),

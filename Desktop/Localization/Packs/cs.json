@@ -5001,6 +5001,14 @@
     "media.breakdown.field.title.one": "{0} v názvu vlákna",
     "media.breakdown.field.board.one": "{0} v boardu",
     "media.breakdown.field.source.one": "{0} ve zdroji",
-    "search.scope.media.some.few": "{0} pole"
+    "search.scope.media.some.few": "{0} pole",
+    "command.archive.open-results-in-media": "Otevřít v Médiích",
+    "media.filter.threadsChip.archive": "{0} vláken z hledání v Archivu",
+    "media.filter.threadsChip.archive.one": "{0} vlákno z hledání v Archivu",
+    "media.filter.threadsChip.archive.few": "{0} vlákna z hledání v Archivu",
+    "media.filter.threadsChip.selection": "{0} vybraných vláken",
+    "media.filter.threadsChip.selection.one": "{0} vybrané vlákno",
+    "media.filter.threadsChip.selection.few": "{0} vybraná vlákna",
+    "media.filter.threadsMore": "+{0} dalších"
   }
 }

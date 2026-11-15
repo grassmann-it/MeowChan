@@ -59,6 +59,7 @@ internal static class CommandLabelCatalog
         ("command.media.open", "Open selected media", "Ausgewähltes Medium öffnen"),
         ("command.media.select-all", "Select all media", "Alle Medien auswählen"),
         ("command.gallery.open-results", "Media from matching threads", "Medien der Treffer"),
+        ("command.archive.open-results-in-media", "Open in Media", "In Medien öffnen"),
         ("command.thread.details", "Show details", "Details anzeigen"),
         ("command.inspector.close", "Close details", "Details schließen"),
         ("command.watch.check", "Check now", "Jetzt prüfen"),
