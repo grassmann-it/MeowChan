@@ -521,7 +521,13 @@ internal static class ReaderInteractionChecks
             // native hit-testable layout on macOS; keep the real native key checks below intact.
             Click(page.FindControl<Button>("ExportArchiveButton")!);
             await Program.WaitUntilAsync(() => page.IsReaderDialogOpen);
-            page.FindControl<TextBox>("ArchiveExportDestination")!.Focus();
+            TextBox exportDestination = page.FindControl<TextBox>("ArchiveExportDestination")!;
+            // The dialog first resolves its export state and keeps the destination disabled.
+            // Do not post the native key while focus is still on the retired Reader control:
+            // a slow cross-platform layout/lookup would otherwise make this guard flaky.
+            await Program.WaitUntilAsync(() => exportDestination.IsEffectivelyEnabled
+                && exportDestination.Focus()
+                && ReferenceEquals(window.FocusManager?.GetFocusedElement(), exportDestination));
             await input.KeyAsync(MediaNativeInput.Space);
             Require(opens == protectedBefore && page.IsReaderDialogOpen, "Native export dialog leaked Reader activation.");
             await input.ClickAsync(page.FindControl<Button>("ArchiveExportClose")!);
