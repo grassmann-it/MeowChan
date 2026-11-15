@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -54,13 +55,40 @@ internal static class MediaMenuCompositionChecks
             MediaLibraryTileRow a = rows[0], b = rows[1];
             page.Grid.SelectedItem = a;
             page.Grid.ScrollIntoView(b.Index);
-            await UntilAsync(() => page.Grid.ContainerFromIndex(b.Index) is Control);
-            Control bControl = (Control)page.Grid.ContainerFromIndex(b.Index)!;
+            // A virtualized ListBox can expose the right index with the previous row's
+            // DataContext for one layout turn.  Resolve both the container and its tile
+            // before routing the press; otherwise a synthetic event can legitimately
+            // open the menu for A while its pointer was meant for B.
+            Control bControl = null!;
+            InputElement bHit = null!;
+            Point bPoint = default;
+            await UntilAsync(() =>
+            {
+                if (page.Grid.ContainerFromIndex(b.Index) is not Control container
+                    || !container.IsEffectivelyVisible || container.Bounds is not { Width: > 0, Height: > 0 }
+                    || !ReferenceEquals(container.DataContext, b)) return false;
+                MediaLibraryTileView? tile = container.GetVisualDescendants().OfType<MediaLibraryTileView>()
+                    .FirstOrDefault(candidate => candidate.IsEffectivelyVisible && candidate.Bounds is { Width: > 0, Height: > 0 }
+                        && ReferenceEquals(candidate.DataContext, b));
+                if (tile == null || tile.TranslatePoint(new Point(tile.Bounds.Width / 2, tile.Bounds.Height / 2), window) is not { } point
+                    || window.InputHitTest(point) is not InputElement hit
+                    || !hit.GetSelfAndVisualAncestors().Contains(tile)) return false;
+                bControl = container;
+                bHit = hit;
+                bPoint = point;
+                return true;
+            });
 
+            // Native right-click keeps the existing selection.  Focus the exact
+            // container for the close/focus contract, then restore A explicitly
+            // before the pointer press so the assertion covers both target and
+            // selection semantics rather than relying on ListBox focus behavior.
             bControl.Focus();
+            page.Grid.SelectedItem = a;
+            Require(ReferenceEquals(page.Grid.SelectedItem, a), "Preparing the B pointer target changed the existing A selection.");
             using (Pointer pointer = new(Pointer.GetNextFreeId(), PointerType.Mouse, true))
             {
-                bControl.RaiseEvent(new PointerPressedEventArgs(bControl, pointer, window, default, 0,
+                bHit.RaiseEvent(new PointerPressedEventArgs(bHit, pointer, window, bPoint, 0,
                     new PointerPointProperties(RawInputModifiers.RightMouseButton, PointerUpdateKind.RightButtonPressed),
                     KeyModifiers.None));
                 pointer.Capture(null);
