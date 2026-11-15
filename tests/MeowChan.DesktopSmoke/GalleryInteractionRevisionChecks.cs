@@ -403,11 +403,21 @@ internal static partial class GalleryPlaybackFeatureChecks
         await native.MoveAsync(loop);
         await ObservePlayingAsync(player, "loop hover");
         Require(Running(viewer) && !viewer.CaptureState().ContextOpen, "Loop hover opened post and stopped progression.");
+        // A running slideshow owns video repetition, so the transport loop is intentionally
+        // disabled. Do not make the native helper click a disabled target: switch the
+        // existing playback mode while retaining the real native video clock, then wait for
+        // the current transport root to publish an actually clickable loop control.
+        Require(!loop.IsEffectivelyEnabled, "A running slideshow exposed a competing transport repeat action.");
+        viewer.ConfigurePlayback(prefs with { Mode = GalleryPlaybackMode.Manual });
+        await UntilAsync(() => !Running(viewer) && MediaInteractionSmokeHelpers.IsPointerTargetReady(loop),
+            "Manual repeat setup did not produce a current native loop target.");
+        await ObservePlayingAsync(player, "manual repeat ownership");
         await native.ClickAsync(loop);
         await ObservePlayingAsync(player, "loop click");
         Require(loop.IsChecked == true && !viewer.CaptureState().ContextOpen && contextWrites == 0,
             "Loop click opened post or failed to enable Repeat.");
-        Require(!Running(viewer), "Explicit Repeat did not retain its existing exclusive-mode safety contract.");
+        Require(!Running(viewer), "Explicit Repeat unexpectedly restarted slideshow automation.");
+        loop = await NativeTargetAsync<ToggleButton>(viewer, "GalleryVideoLoop");
         await native.ClickAsync(loop);
         // Configuring mode is setup, not Start. Menu/panel interactions below must not
         // stop the native video even when they pause automatic advancement.
@@ -501,6 +511,14 @@ internal static partial class GalleryPlaybackFeatureChecks
     private static bool Within(Rect actual, Rect owner) => actual.Width >= 16 && actual.Height >= 16
         && actual.Left >= -1 && actual.Top >= -1
         && actual.Right <= owner.Width + 1 && actual.Bottom <= owner.Height + 1;
+
+    private static async Task<T> NativeTargetAsync<T>(GalleryViewer viewer, string name) where T : Control
+    {
+        T target = Find<T>(viewer, name);
+        await UntilAsync(() => MediaInteractionSmokeHelpers.IsPointerTargetReady(target),
+            $"The {name} control did not settle as a native hit target.");
+        return target;
+    }
 
     private static GalleryVideoPlayer Player(GalleryViewer viewer) => viewer.GetGalleryVisualDescendants().OfType<GalleryVideoPlayer>().Single();
     private static bool HasRealFrames(GalleryVideoPlayer.PlaybackEvidence evidence) => evidence.HasPlayback
