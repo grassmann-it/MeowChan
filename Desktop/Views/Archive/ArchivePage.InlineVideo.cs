@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
@@ -23,6 +24,9 @@ public partial class ArchivePage
     private DispatcherTimer? _sidebarVideoAutoplay;
     private string? _sidebarVideoAutoplayKey;
     private Window? _inlineVideoWindow;
+
+    /// <summary>The profile's timeline hover-preview cache (the gallery's own); the shell sets it. Videos started after it is set show the preview on their timeline.</summary>
+    internal VideoScrubPreviewCache? ScrubPreviewCache { get => _inlineVideo.ScrubCache; set => _inlineVideo.ScrubCache = value; }
 
     /// <summary>The reader's inline players (smoke and test seam).</summary>
     internal ReaderInlineVideoController InlineVideo => _inlineVideo;
@@ -64,9 +68,17 @@ public partial class ArchivePage
     private void WatchInlineVideoWindow(Window? window)
     {
         if (ReferenceEquals(window, _inlineVideoWindow)) return;
-        if (_inlineVideoWindow != null) _inlineVideoWindow.PropertyChanged -= OnInlineVideoWindowPropertyChanged;
+        if (_inlineVideoWindow != null)
+        {
+            _inlineVideoWindow.PropertyChanged -= OnInlineVideoWindowPropertyChanged;
+            _inlineVideoWindow.RemoveHandler(KeyDownEvent, OnViewerFocusLostKeyDown);
+        }
         _inlineVideoWindow = window;
-        if (window != null) window.PropertyChanged += OnInlineVideoWindowPropertyChanged;
+        if (window != null)
+        {
+            window.PropertyChanged += OnInlineVideoWindowPropertyChanged;
+            window.AddHandler(KeyDownEvent, OnViewerFocusLostKeyDown, RoutingStrategies.Bubble);
+        }
     }
 
     private void OnInlineVideoWindowPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
@@ -155,8 +167,59 @@ public partial class ArchivePage
     private void CreateSidebarVideo(ReaderMediaSidebar sidebar)
     {
         // In the sidebar the slot's activator covers the poster also while idle: the focusable "Play video here" (Enter plays).
-        ReaderInlineVideoSlot slot = _sidebarVideo = new ReaderInlineVideoSlot(sidebar.FrameArea, activatorWhenIdle: true);
+        ReaderInlineVideoSlot slot = _sidebarVideo = new ReaderInlineVideoSlot(sidebar.FrameArea, activatorWhenIdle: true) { PointerPlayFocus = FocusPostsAfterPointerPlay };
         sidebar.VideoRow.Children.Add(slot.Below);
+    }
+
+    // After a click on the sidebar's play button the button hides itself and would leave no focus: it goes to the posts, where Up and Down
+    // move the reader and the video keys act on the shown video. A menu, dialog or field that took the focus meanwhile keeps it.
+    private void FocusPostsAfterPointerPlay()
+    {
+        if (_ended || !_mediaSidebarShown || _mediaSidebar is not { } sidebar) return;
+        object? focused = TopLevel.GetTopLevel(sidebar)?.FocusManager?.GetFocusedElement();
+        if (focused is Visual visual && !visual.GetSelfAndVisualAncestors().Any(node => ReferenceEquals(node, sidebar))) return;
+        ArchivePosts.Focus(NavigationMethod.Pointer);
+    }
+
+    // ---- keys in the media sidebar -----------------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// The reader's post keys for a key pressed in the media sidebar (not in the timeline or on the picture, which the video slot routes first): the
+    /// large reader moves by the reader's bindings, the archive view moves the selected post one up or down. True when the key did something.
+    /// </summary>
+    internal bool TryNavigateFromViewer(KeyEventArgs e)
+    {
+        if (e.Handled || ShortcutService.IsCapturing || _ended) return false;
+        if (_largeReader) return TryNavigateReaderByKey(e);
+        if (_busy || IsReaderDialogOpen || ArchivePosts.ItemCount == 0) return false;
+        int delta = ShortcutService.Current.Matches(e, "reader.previous-post") ? -1 : ShortcutService.Current.Matches(e, "reader.next-post") ? 1 : 0;
+        if (delta == 0) return false;
+        e.Handled = true;
+        int index = Math.Clamp((ArchivePosts.SelectedIndex < 0 ? (delta > 0 ? -1 : ArchivePosts.ItemCount) : ArchivePosts.SelectedIndex) + delta, 0, ArchivePosts.ItemCount - 1);
+        if (index != ArchivePosts.SelectedIndex)
+        {
+            ArchivePosts.SelectedIndex = index;
+            ArchivePosts.ScrollIntoView(index);
+        }
+        return true;
+    }
+
+    // Bubble, after the strip and the video had their keys: whatever of the reader's navigation is left reaches the reader from any focus in the sidebar.
+    private void OnSidebarNavigationKey(object? sender, KeyEventArgs e)
+    {
+        if (e.Handled || !ReaderVideoKeys.IsNavigationKey(e.Key)) return;
+        TryNavigateFromViewer(e);
+    }
+
+    // A window-level net for the moment the focus is nowhere (the pressed play button hid itself): the key then has the window for its source and would reach
+    // neither the reader's pane nor the sidebar. The sidebar's video keys and the reader's navigation work from there too.
+    private void OnViewerFocusLostKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Handled || !ReferenceEquals(e.Source, sender) || _ended || _obscuredByGallery || IsReaderDialogOpen || ShortcutService.IsCapturing) return;
+        bool visible = _largeReader ? _largeReaderFrame?.IsEffectivelyVisible == true : _mediaSidebarShown && IsEffectivelyVisible;
+        if (!visible) return;
+        if (TryRouteSidebarVideoKey(e)) return;
+        if (ReaderVideoKeys.IsNavigationKey(e.Key)) TryNavigateFromViewer(e);
     }
 
     /// <summary>The sidebar shows this attachment (or none): a video offers inline playback; any other medium gives a player back.</summary>

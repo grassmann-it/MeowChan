@@ -39,7 +39,7 @@ internal sealed class GalleryInlineVideoPlayer : IReaderInlineVideoPlayer
     internal event Action<bool>? MuteChosen;
 
     internal GalleryInlineVideoPlayer(Panel area, Control below, Panel transportHost, GalleryEntry entry, ReaderInlineVideoOptions options, bool startMuted,
-        string name, Action? openGallery = null, bool viewer = false)
+        string name, Action? openGallery = null, bool viewer = false, VideoScrubPreviewCache? scrubCache = null)
     {
         _area = area;
         _entry = entry;
@@ -47,6 +47,8 @@ internal sealed class GalleryInlineVideoPlayer : IReaderInlineVideoPlayer
         // An inline player is created to play: the activation is the user's Play (or the opted-in muted autoplay).
         Player.Configure(autoplay: true, startMuted, options.Volume);
         Player.ConfigureSeekStep(options.SeekStepSeconds);
+        // The timeline's hover preview is the gallery's (its component, cache and budget); the bar's timeline is the very slider it listens to.
+        Player.ConfigureScrubPreview(scrubCache);
         // The loop switch of its place (the gallery's "Repeat video" for a video in a post, the sidebar's own for the viewer): a silent
         // preference, not a user toggle; the video loops from its first play on.
         Player.SetLoopEnabled(viewer ? options.SidebarLoop : options.Repeat);
@@ -180,6 +182,10 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
             HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Stretch, IsVisible = false,
             Cursor = new Cursor(StandardCursorType.Hand)
         };
+        // A pointer click on the activator is told apart from Enter or Space on it: the pointer's play gives the focus back (PointerPlayFocus), the keyboard's moves it to the bar.
+        Activator.AddHandler(InputElement.PointerPressedEvent, (_, _) => _pointerPlay = true, RoutingStrategies.Tunnel, handledEventsToo: true);
+        Activator.AddHandler(InputElement.PointerReleasedEvent, (_, _) => Dispatcher.UIThread.Post(() => _pointerPlay = false, DispatcherPriority.Background),
+            RoutingStrategies.Bubble, handledEventsToo: true);
         Activator.Click += (_, e) => { e.Handled = true; _ = PlayAsync(); };
         area.Children.Add(Activator);
         _error.Classes.Add("workspace-error");
@@ -237,13 +243,31 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
     internal Task PlayAsync(bool muted = false)
     {
         if (_controller is not { } controller || !IsOffered) return Task.CompletedTask;
-        bool focus = Activator.IsKeyboardFocusWithin;
-        if (_player != null) return ActivationTask = ResumeAsync(controller, focus);
-        if (_activation != null) return ActivationTask; // already loading
-        CancellationTokenSource activation = new();
-        _activation = activation;
-        return ActivationTask = CreateAsync(controller, activation, muted, focus);
+        bool pointer = _pointerPlay;
+        _pointerPlay = false;
+        bool focus = Activator.IsKeyboardFocusWithin && !pointer;
+        Task task;
+        if (_player != null) task = ActivationTask = ResumeAsync(controller, focus);
+        else if (_activation != null) return ActivationTask; // already loading
+        else
+        {
+            CancellationTokenSource activation = new();
+            _activation = activation;
+            task = ActivationTask = CreateAsync(controller, activation, muted, focus);
+        }
+        // The play button hides itself once the video runs; after a click the focus goes back where the reader's keys work (not into the bar).
+        if (pointer && PointerPlayFocus is { } back)
+            _ = task.ContinueWith(_ => Dispatcher.UIThread.Post(back, DispatcherPriority.Loaded), CancellationToken.None, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Default);
+        return task;
     }
+
+    private bool _pointerPlay;
+
+    /// <summary>
+    /// Where the focus goes after a pointer click started or resumed the video here (the owner's posts or grid), so Up and Down keep moving the reader
+    /// and the video keys keep acting on the video; a keyboard start puts it on the bar's play button instead. Unset leaves the focus alone.
+    /// </summary>
+    internal Action? PointerPlayFocus { get; set; }
 
     private async Task ResumeAsync(ReaderInlineVideoController controller, bool focus)
     {
@@ -268,7 +292,7 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
                 GalleryInlineVideoPlayer player = new(_area, Activator, _transportHost, entry, options,
                     _activatorWhenIdle ? ReaderInlineVideoRules.StartMutedViewer(options, controller.SessionMuted)
                         : ReaderInlineVideoRules.StartMuted(options, controller.SessionMuted, autoplay: muted),
-                    _name.Length > 0 ? _name : Texts.T("reader.video.unnamed"), _openGallery, viewer: _activatorWhenIdle);
+                    _name.Length > 0 ? _name : Texts.T("reader.video.unnamed"), _openGallery, viewer: _activatorWhenIdle, scrubCache: controller.ScrubCache);
                 player.MuteChosen += muted => controller.SessionMuted = muted;
                 player.Failed += message => Dispatcher.UIThread.Post(() => { if (ReferenceEquals(_player, player)) ShowError(message); });
                 player.UserPlayback += playing => { if (ReferenceEquals(_player, player)) controller.OnUserPlayback(this, playing); };
@@ -315,12 +339,27 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
         }
     }
 
-    // Tunnel: an arrow (or Home, End, Page) pressed in the video's controls moves the reader when the reader's bindings say so; the timeline
-    // slider would otherwise keep it. A key the reader does not bind stays with the control (a rebinding never costs the keyboard a function).
+    // Tunnel, before the control sees the key. Up, Down and the page keys never belong to a video control: they move the reader's posts (by its bindings)
+    // from the play button, the timeline or the picture alike, so a click on a video never costs the keyboard its place in the reader. Left and Right
+    // are the video's: the timeline seeks with them (its own keys), and on the picture they seek by the seek step; without a player they go on
+    // to the reader. A key the reader does not bind stays with the control (a rebinding never costs the keyboard a function).
     private void OnNavigationKey(KeyEventArgs e)
     {
-        if (e.Handled || !IsOffered || !ReaderVideoKeys.IsNavigationKey(e.Key) || _controller?.NavigationKeys is not { } route) return;
-        if (route(e)) e.Handled = true;
+        if (e.Handled || !IsOffered || !ReaderVideoKeys.IsNavigationKey(e.Key)) return;
+        bool inTimeline = e.Source is Visual source && source.GetSelfAndVisualAncestors().Any(node => node is Slider);
+        switch (ReaderVideoKeys.OwnerOf(e.Key, e.KeyModifiers, inTimeline, _player != null))
+        {
+            case VideoControlKeyOwner.Reader:
+                if (_controller?.NavigationKeys is { } route && route(e)) e.Handled = true;
+                break;
+            case VideoControlKeyOwner.Seek:
+                if (_player?.Player is { } player)
+                {
+                    e.Handled = true;
+                    player.SeekByStep(forward: e.Key == Key.Right);
+                }
+                break;
+        }
     }
 
     private void OnKeyDown(KeyEventArgs e)

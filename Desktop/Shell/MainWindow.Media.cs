@@ -43,8 +43,11 @@ public partial class MainWindow
 
     // The media panel plays inline always (it is the panel's own control): the gallery's volume, start-muted choice and seek step, the reader's player
     // and file limits, and the gallery's fit limit for its picture.
-    private void ConfigureMediaPanel() => _mediaPage?.ConfigurePanel(ReaderInlineVideoOptions.From(_session.Config) with { Enabled = true },
-        ReaderSettingsPreferences.Gallery(_session.Config));
+    private void ConfigureMediaPanel()
+    {
+        _mediaPage?.ConfigurePanel(ReaderInlineVideoOptions.From(_session.Config) with { Enabled = true }, ReaderSettingsPreferences.Gallery(_session.Config));
+        ConfigureGalleryScrubPreview(); // the panel's timeline hover preview uses the profile's scrub cache (the gallery's)
+    }
 
     private void InitializeMediaPage()
     {

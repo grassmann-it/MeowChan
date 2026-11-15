@@ -69,6 +69,9 @@ public sealed partial class MediaPage
     internal int PanelMinimumPageWidth => Math.Clamp(PanelMinimumPageWidthSource?.Invoke() ?? MeowChan.Config.MediaPanelMinimumPageWidthDefault,
         MeowChan.Config.MediaPanelMinimumPageWidthMinimum, MeowChan.Config.MediaPanelMinimumPageWidthMaximum);
 
+    /// <summary>The profile's timeline hover-preview cache (the gallery's own); the shell sets it. Videos started after it is set show the preview on their timeline.</summary>
+    internal void ConfigureScrubPreviewCache(VideoScrubPreviewCache? cache) => _panelVideoController.ScrubCache = cache;
+
     /// <summary>
     /// The video options of the panel (the shell: the gallery's volume, start-muted choice and seek step, the reader's player and file limits; the panel
     /// always plays inline) and the gallery's fit limit, which the panel's picture follows. A change applies to what the panel shows now; the shell
@@ -112,7 +115,11 @@ public sealed partial class MediaPage
         panel.PictureActivated += (_, _) => OnPanelPictureActivated();
         panel.Close.Click += (_, e) => { e.Handled = true; ClosePanel(); };
         // In the panel the slot's activator covers the poster also while idle: the focusable "Play video here" (Enter plays).
-        ReaderInlineVideoSlot slot = _panelVideo = new ReaderInlineVideoSlot(panel.FrameArea, activatorWhenIdle: true) { OwnerClaims = MediaPanelKeys.PageClaims };
+        ReaderInlineVideoSlot slot = _panelVideo = new ReaderInlineVideoSlot(panel.FrameArea, activatorWhenIdle: true)
+        {
+            OwnerClaims = MediaPanelKeys.PageClaims, PointerPlayFocus = FocusGridAfterPointerPlay
+        };
+        _panelVideoController.NavigationKeys = TryNavigateGridFromPanel;
         panel.VideoRow.Children.Add(slot.Below);
         panel.AddHandler(KeyDownEvent, OnPanelKeyDown, RoutingStrategies.Tunnel);
         panel.AddHandler(PointerPressedEvent, OnPanelPointerPressed, RoutingStrategies.Tunnel);
@@ -123,6 +130,25 @@ public sealed partial class MediaPage
         DetachedFromVisualTree += (_, _) => { WatchPanelWindow(null); _ = ReleasePanelVideos(); };
         if (TopLevel.GetTopLevel(this) is Window attached) WatchPanelWindow(attached);
         return panel;
+    }
+
+    // Up, Down and the page keys pressed in the panel's video controls move the grid's selection (the panel follows it), as they do with the focus on the grid:
+    // the key goes on to the grid, which has the focus from now on. The timeline keeps Left and Right (they seek).
+    private bool TryNavigateGridFromPanel(KeyEventArgs e)
+    {
+        if (e.Handled || _lifetime.IsCancellationRequested || !_panelShown || !ReaderVideoKeys.IsPostNavigationKey(e.Key)) return false;
+        _grid.Focus(NavigationMethod.Pointer);
+        _grid.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = e.Key, KeyModifiers = e.KeyModifiers, PhysicalKey = e.PhysicalKey, KeyDeviceType = e.KeyDeviceType, Source = _grid });
+        return true;
+    }
+
+    // After a click on the panel's play button (which hides itself) the focus goes to the grid, unless a menu, dialog or field took it meanwhile.
+    private void FocusGridAfterPointerPlay()
+    {
+        if (_lifetime.IsCancellationRequested || !_panelShown) return;
+        object? focused = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement();
+        if (focused is Visual visual && (_panel == null || !visual.GetSelfAndVisualAncestors().Any(node => ReferenceEquals(node, _panel)))) return;
+        _grid.Focus(NavigationMethod.Pointer);
     }
 
     private Window? _panelWindow;

@@ -198,9 +198,29 @@ internal static class ReaderVideoKeys
     /// <summary>Enter on the selected post's video: a fixed content key (no command) that plays or pauses.</summary>
     internal static bool IsEnterToggle(Key key, KeyModifiers modifiers) => key == Key.Enter && modifiers == KeyModifiers.None;
 
-    /// <summary>Keys that move between posts and threads (the reader's navigation): a bar's timeline must not keep them for itself.</summary>
+    /// <summary>Keys that move between posts and threads (the reader's navigation).</summary>
     internal static bool IsNavigationKey(Key key) => key is Key.Up or Key.Down or Key.Left or Key.Right or Key.Home or Key.End or Key.PageUp or Key.PageDown;
+
+    /// <summary>Keys that move between posts (and, where the person bound them, the first, the last and by page): no video control owns them, so a bar's timeline never keeps them for itself.</summary>
+    internal static bool IsPostNavigationKey(Key key) => key is Key.Up or Key.Down or Key.Home or Key.End or Key.PageUp or Key.PageDown;
+
+    /// <summary>
+    /// Who gets a key pressed in a video's controls (pure). The post keys always go to the reader's navigation (its bindings decide which of them move);
+    /// Left and Right belong to the video: the timeline seeks with them when it has the focus, and on the video itself they seek by the seek step (when no
+    /// player lives yet there is nothing to seek, and they go on to the reader). Every other key stays with the control or its video keys.
+    /// </summary>
+    internal static VideoControlKeyOwner OwnerOf(Key key, KeyModifiers modifiers, bool inTimeline, bool playerLive)
+    {
+        if (IsPostNavigationKey(key)) return VideoControlKeyOwner.Reader;
+        if (key is not (Key.Left or Key.Right)) return VideoControlKeyOwner.Control;
+        if (modifiers != KeyModifiers.None) return VideoControlKeyOwner.Control;
+        if (inTimeline) return VideoControlKeyOwner.Control;
+        return playerLive ? VideoControlKeyOwner.Seek : VideoControlKeyOwner.Reader;
+    }
 }
+
+/// <summary>Where a key pressed in a video's controls goes (<see cref="ReaderVideoKeys.OwnerOf"/>).</summary>
+internal enum VideoControlKeyOwner { Control, Reader, Seek }
 
 /// <summary>One live inline player as the controller sees it (the real one wraps <see cref="GalleryVideoPlayer"/>).</summary>
 internal interface IReaderInlineVideoPlayer : IAsyncDisposable
@@ -258,6 +278,11 @@ internal sealed class ReaderInlineVideoController
     /// before its timeline gets it. True when the key moved the reader; a timeline never keeps the arrows for itself.
     /// </summary>
     internal Func<KeyEventArgs, bool>? NavigationKeys { get; set; }
+    /// <summary>
+    /// The profile's hover-preview cache of the timeline (the gallery's own, with its cache budget setting); null shows no preview. Every player made after it is set
+    /// connects to it: a thumbnail is only made while the pointer rests on the timeline and its request ends when the pointer leaves.
+    /// </summary>
+    internal VideoScrubPreviewCache? ScrubCache { get; set; }
     /// <summary>The video whose controls are shown (the one started last); null without one.</summary>
     internal IReaderInlineVideoOwner? Current { get; private set; }
     /// <summary>The images the reader expanded in their posts, remembered while "Keep images expanded" is on (see <see cref="ReaderExpandedImages"/>).</summary>
