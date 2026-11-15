@@ -93,7 +93,8 @@ public sealed class HelpPopoverTests : IDisposable
     {
         HelpButton button = new() { HelpKey = "help.stats" };
         Assert.Contains("help-round", button.Classes);
-        Assert.Contains("subtle", button.Classes);
+        // Flat: no outlined "subtle" look, the hover pill and the plain glyph come from the one help-round style.
+        Assert.DoesNotContain("subtle", button.Classes);
         Assert.Equal("Help: What is counted", AutomationProperties.GetName(button));
         Assert.Equal("Help: What is counted", ToolTip.GetTip(button));
         Assert.Equal(HelpContent.FromKeys("help.stats").PlainText, AutomationProperties.GetHelpText(button));
@@ -109,17 +110,17 @@ public sealed class HelpPopoverTests : IDisposable
     }
 
     [Fact]
-    public void TheHelpButtonShowsAPlainQuestionMarkNotACircledIconInsideItsOwnCircle()
+    public void TheHelpButtonShowsAPlainQuestionMarkWithoutAnyCircle()
     {
         HelpButton button = new() { HelpKey = "help.stats" };
-        // The content is the drawn plain "?" (a path), not a catalog mask: the round button's outline is the one circle.
+        // The content is the drawn plain "?" (a path), not a catalog mask with a ring.
         Assert.Equal(WorkspaceIcons.Help, WorkspaceIcons.KeyOf(button.Content));
         Assert.IsType<Avalonia.Controls.Shapes.Path>(button.Content);
         string data = WorkspaceIcons.DataOf(WorkspaceIcons.Help);
         // No ring: no second full circle (a closed path, or two arcs that return to their start) in the icon.
         Assert.DoesNotContain("Z", data, StringComparison.OrdinalIgnoreCase);
         Assert.Single(System.Text.RegularExpressions.Regex.Matches(data, "A"));
-        // Still a 32 dip circular button with the accessible name of the section.
+        // Still the accessible name of the section.
         Assert.Equal("Help: What is counted", AutomationProperties.GetName(button));
         Assert.Contains("help-round", button.Classes);
         // The icon stays after the button is shown again (language change, re-attach): the same object, never a recreated catalog icon.
@@ -154,7 +155,7 @@ public sealed class HelpPopoverTests : IDisposable
     }
 
     [Fact]
-    public void TheTooltipStyleWrapsAndCapsTheWidthAt360AndTheHelpButtonIsA32DipCircle()
+    public void TheTooltipStyleWrapsAndCapsTheWidthAt360AndTheHelpButtonIsAFlat32DipSquare()
     {
         XElement styles = XDocument.Load(Root("Desktop/WorkspaceStyles.axaml")).Root!;
         Assert.Equal("360", Assert.Single(styles.Descendants(X + "Double"), e => (string?)e.Attribute(X + "Key") == "ToolTipMaxWidth").Value.Trim());
@@ -162,7 +163,9 @@ public sealed class HelpPopoverTests : IDisposable
         Assert.Equal("Wrap", Setter(styles, "ToolTip TextBlock", "TextWrapping"));
         Assert.Equal("{StaticResource Workspace.Size.Control}", Setter(styles, "Button.help-round", "Width"));
         Assert.Equal("{StaticResource Workspace.Size.Control}", Setter(styles, "Button.help-round", "Height"));
-        Assert.Equal("16", Setter(styles, "Button.help-round", "CornerRadius"));
+        Assert.Equal("{StaticResource Workspace.Radius.Control}", Setter(styles, "Button.help-round", "CornerRadius"));
+        Assert.Equal("Transparent", Setter(styles, "Button.help-round", "Background"));
+        Assert.Equal("Transparent", Setter(styles, "Button.help-round", "BorderBrush"));
         Assert.Equal("32", Assert.Single(styles.Descendants(X + "Double"), e => (string?)e.Attribute(X + "Key") == "Workspace.Size.Control").Value.Trim());
         Assert.Equal("{StaticResource Workspace.Inset.Popover}", Setter(styles, "FlyoutPresenter.help-popover", "Padding"));
         Assert.Equal("{DynamicResource Workspace.ControlBorder}", Setter(styles, "FlyoutPresenter.help-popover", "BorderBrush"));
@@ -237,20 +240,21 @@ public sealed class HelpPopoverTests : IDisposable
     }
 
     [Fact]
-    public void TheRoundHelpButtonHasARoundFocusRingConcentricWithItsCircle()
+    public void TheFlatHelpButtonUsesTheSharedFocusRingAndTheHoverPillOfTheOtherFlatIconButtons()
     {
         XElement styles = XDocument.Load(Root("Desktop/WorkspaceStyles.axaml")).Root!;
-        Assert.Equal("{StaticResource Workspace.FocusAdorner.Round}", Setter(styles, "Button.help-round", "FocusAdorner"));
-        // Inside a toolbar (Tagging page) Ursa's borderless theme took the ring away; the help button keeps the standard button theme.
+        // The one shared ring (a rounded square); the concentric round ring of the circled button is gone.
+        Assert.Equal("{StaticResource Workspace.FocusAdorner}", Setter(styles, "Button.help-round", "FocusAdorner"));
+        Assert.DoesNotContain(styles.Descendants(A + "Template"), e => (string?)e.Attribute(X + "Key") == "Workspace.FocusAdorner.Round");
+        // Inside a toolbar (Tagging page) Ursa's borderless theme has neither the hover pill nor this ring; the help button keeps the standard button theme.
         Assert.Equal("{DynamicResource {x:Type Button}}", Setter(styles, "Button.help-round", "Theme"));
-        XElement template = Assert.Single(styles.Descendants(A + "Template"), e => (string?)e.Attribute(X + "Key") == "Workspace.FocusAdorner.Round");
-        XElement outer = Assert.Single(template.Elements(A + "Border"));
-        XElement inner = Assert.Single(outer.Elements(A + "Border"));
-        // Button radius 16 + the 4 dip offset; the inner ring 2 less (the outer ring's width).
-        Assert.Equal(("20", "-4", "2", "False"), ((string?)outer.Attribute("CornerRadius"), (string?)outer.Attribute("Margin"), (string?)outer.Attribute("BorderThickness"), (string?)outer.Attribute("AdornerLayer.IsClipEnabled")));
-        Assert.Equal(("18", "1"), ((string?)inner.Attribute("CornerRadius"), (string?)inner.Attribute("BorderThickness")));
-        Assert.Equal("{DynamicResource Workspace.Accent}", (string?)outer.Attribute("BorderBrush"));
-        Assert.Equal("{DynamicResource Workspace.Background}", (string?)inner.Attribute("BorderBrush"));
+        // Muted glyph at rest, Text on hover; the hover pill is the Hover fill with the ControlBorder edge (media-control / bar-flat).
+        Assert.Equal("{DynamicResource Workspace.Muted}", Setter(styles, "Button.help-round", "Foreground"));
+        const string presenter = " /template/ ContentPresenter#PART_ContentPresenter";
+        Assert.Equal("{DynamicResource Workspace.Hover}", Setter(styles, "Button.help-round:pointerover" + presenter, "Background"));
+        Assert.Equal("{DynamicResource Workspace.ControlBorder}", Setter(styles, "Button.help-round:pointerover" + presenter, "BorderBrush"));
+        Assert.Equal("{DynamicResource Workspace.Text}", Setter(styles, "Button.help-round:pointerover" + presenter, "Foreground"));
+        Assert.Equal("{DynamicResource Workspace.AccentSurface}", Setter(styles, "Button.help-round:pressed" + presenter, "Background"));
     }
 
     [Fact]

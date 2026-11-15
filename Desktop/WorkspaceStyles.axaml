@@ -700,14 +700,6 @@
                         CornerRadius="{StaticResource Workspace.Radius.Badge}" IsHitTestVisible="False" />
             </Border>
         </Template>
-        <!-- The same two shells for the round help button (Button.help-round, 32 dip): the outer ring is the button radius 16 plus the
-             4 dip offset, the inner ring 2 less, so both rings stay concentric with the circle. -->
-        <Template x:Key="Workspace.FocusAdorner.Round">
-            <Border BorderBrush="{DynamicResource Workspace.Accent}" BorderThickness="2" CornerRadius="20" Margin="-4"
-                    AdornerLayer.IsClipEnabled="False" IsHitTestVisible="False">
-                <Border BorderBrush="{DynamicResource Workspace.Background}" BorderThickness="1" CornerRadius="18" IsHitTestVisible="False" />
-            </Border>
-        </Template>
     </Styles.Resources>
     <Style Selector="Window">
         <Setter Property="Background" Value="{DynamicResource Workspace.Background}" />
@@ -1455,19 +1447,37 @@
          may carry line breaks (CommandBindings.Tooltip: "Label · shortcut" on the first line, hint or reason on the second). -->
     <Style Selector="ToolTip"><Setter Property="MaxWidth" Value="360" /></Style>
     <Style Selector="ToolTip TextBlock"><Setter Property="TextWrapping" Value="Wrap" /><Setter Property="LineSpacing" Value="{StaticResource Workspace.Space.2}" /></Style>
-    <!-- HB1 help-round: the one help button (controls:HelpButton) - a 32 dip circle with the plain drawn "?" (WorkspaceIcons.Help, no ring of its own: the
-         button outline is the one circle) centred, the subtle outline and the shared focus ring. Never text, never a font glyph; its name is "Help: <section>" and it opens a HelpPopover. -->
+    <!-- HB1 help-round: the one help button (controls:HelpButton), flat like the other icon buttons (UX review 15.11.: the circled "?" was ugly).
+         A 32 dip square hit target with the plain drawn "?" (WorkspaceIcons.Help) centred: no outline at rest (a 1-px edge is reserved so the
+         hover does not move it), Muted glyph at rest, Workspace.Text on hover with the rounded Hover pill and ControlBorder edge (the bar-flat /
+         media-control hover), the accent pressed look while its popover opens, and the shared focus ring. Never text, never a font glyph; its
+         name is "Help: <section>" and it opens a HelpPopover. -->
     <Style Selector="Button.help-round">
         <Setter Property="Width" Value="{StaticResource Workspace.Size.Control}" /><Setter Property="Height" Value="{StaticResource Workspace.Size.Control}" />
         <Setter Property="MinWidth" Value="0" /><Setter Property="MinHeight" Value="0" /><Setter Property="Padding" Value="0" />
-        <Setter Property="CornerRadius" Value="16" />
+        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
+        <Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Control}" />
         <Setter Property="HorizontalContentAlignment" Value="Center" /><Setter Property="VerticalContentAlignment" Value="Center" />
         <Setter Property="VerticalAlignment" Value="Center" />
-        <!-- Its outline is the circle, also inside a toolbar: Ursa's ToolBar gives its buttons the borderless theme, which took the ring
-             away from the Tagging page's help button (a bare "?" in the toolbar). The help button keeps the standard button theme. -->
+        <!-- Also inside a toolbar: Ursa's ToolBar gives its buttons the borderless theme, which has no hover pill and no focus ring of this
+             look. The help button keeps the standard button theme, restyled flat here. -->
         <Setter Property="Theme" Value="{DynamicResource {x:Type Button}}" />
-        <!-- The focus ring follows the circle (the shared ring is a rounded square that sat around the circle like a frame). -->
-        <Setter Property="FocusAdorner" Value="{StaticResource Workspace.FocusAdorner.Round}" />
+        <Setter Property="FocusAdorner" Value="{StaticResource Workspace.FocusAdorner}" />
+    </Style>
+    <Style Selector="Button.help-round /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
+    </Style>
+    <Style Selector="Button.help-round:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Hover}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+    </Style>
+    <Style Selector="Button.help-round:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
     </Style>
     <!-- Tagging page (layout review 15.11.): the outlined button of a toolbar row. Ursa's ToolBar gives its buttons the borderless theme, so a
          row of actions beside combo boxes read as flat labels and a disabled one as a dead grey word; bar-button keeps the standard button

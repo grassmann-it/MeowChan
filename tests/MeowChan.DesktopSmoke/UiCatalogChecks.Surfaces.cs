@@ -105,7 +105,7 @@ internal static partial class UiCatalogChecks
             }
             finally { panel.IsVisible = shown; }
         });
-        // The round "?" itself, four times enlarged beside its neighbours: rest, hover and pressed (pseudo classes set for the capture),
+        // The plain "?" itself, four times enlarged beside its neighbours: rest, hover and pressed (pseudo classes set for the capture),
         // then keyboard focus as a window image (the focus ring lives in the adorner layer, not in the button).
         await StepAsync("help-button-states", async () =>
         {

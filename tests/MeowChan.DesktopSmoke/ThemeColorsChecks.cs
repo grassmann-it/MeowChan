@@ -66,7 +66,7 @@ internal static class ThemeColorsChecks
             Require(dialog.PresetButtons[3].IsChecked == true && dialog.ApplyButton.IsEnabled && dialog.ResetAllButton.IsEnabled, "The preset button or Apply/Reset all did not follow the draft.");
             Require(SmokeThemeResources.Color(window, "Workspace.Accent") == builtInAccent, "A draft reached the live window before Apply.");
 
-            // TH5: the round help button has its note, and "Try in window" shows the unsaved draft on the whole window and takes it back
+            // TH5: the help button has its note, and "Try in window" shows the unsaved draft on the whole window and takes it back
             // when switched off; it never saves anything.
             Require(dialog.HelpButton.IsEffectivelyVisible && !string.IsNullOrEmpty(AutomationName(dialog.HelpButton)) && dialog.HelpButton.Resolve() is { Bullets.Count: 3 },
                 "The help button of the colour dialog is missing or has no note.");
