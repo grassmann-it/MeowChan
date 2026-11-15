@@ -539,6 +539,10 @@ internal static partial class GalleryPlaybackFeatureChecks
         await PresentForClickAsync(overlay);
         Click(overlay);
         layoutTrace.Record("after overlay");
+        // Capture after the shell's real footer/context pass has settled. CaptureState also contains
+        // fit-derived zoom, so taking it immediately after the toolbar click races the layout pass
+        // and mistakes a legitimate re-fit for error presentation rolling back gallery state.
+        await LayoutAsync(shell);
         GalleryViewerState intendedSelection = viewer.CaptureState();
         Require(intendedSelection.ContextOpen, "Actual context action did not open the gallery context.");
         Task observed = (Task)ShellErrorCall(shell, "FlushGalleryPreferencesAsync")!;
