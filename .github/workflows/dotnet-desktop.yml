@@ -294,6 +294,26 @@ jobs:
           MEOWCHAN_PLUGIN_RESELECTION_ONLY: '1'
         run: |
           python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll ${{ runner.os != 'Linux' && '--allow-native-desktop' || '' }} --mode plugins --timeout 300 --output artifacts/closure-plugin-reselection
+      - name: Exercise selected 1.1 registry workflows on Linux x64
+        id: smoke_1_1_registry
+        # The registry runner isolates entries and continues after individual failures;
+        # the candidate gate below still rejects this step unless every entry passes.
+        continue-on-error: true
+        if: github.event_name == 'workflow_dispatch' && (inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate') && runner.os == 'Linux' && runner.arch == 'X64'
+        run: |
+          python scripts/run-desktop-smoke.py \
+            --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll \
+            --registry --only booru-workbench \
+            --only booru-composition \
+            --only booru-media \
+            --only tagging-page \
+            --only tagging-mode \
+            --only media-page \
+            --only media-page-booru-captures \
+            --only media-menu-surfaces \
+            --only settings-reader-display \
+            --timeout 300 \
+            --output artifacts/desktop-smoke-1.1-registry
       - name: Exercise the released 1.0.2 fixture against the current source
         id: upgrade_replay
         # Keep independent checks running so one failure yields a complete evidence set.
@@ -550,6 +570,9 @@ jobs:
             required=(candidate_matrix record_source public_api dev_build restore_release retain_release_assets build_all package_fixtures local_package smoke_runner_contract smoke_restore smoke_assets smoke_build plugin_delivery smoke_normal upgrade_replay first_run preference_startup scoped_diagnostics gif_playback gallery_errors reader_media gallery_features media_input tray_lifecycle)
             if [[ "$RUNNER_OS" == Linux ]]; then
               required+=(linux_setup tray_host core_tests smoke_plugins)
+              if [[ "$RUNNER_ARCH" == X64 ]]; then
+                required+=(smoke_1_1_registry)
+              fi
             elif [[ "$RUNNER_OS" == macOS ]]; then
               required+=(prepare_desktop mac_tests)
             elif [[ "$RUNNER_OS" == Windows ]]; then
@@ -574,6 +597,7 @@ jobs:
           path: |
             test-results/**
             artifacts/desktop-smoke/**
+            artifacts/desktop-smoke-1.1-registry/**
             artifacts/gallery-features/**
             artifacts/closure-plugin-reselection/**
             artifacts/upgrade-results/**

@@ -85,6 +85,43 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertLess(gate, upload)
         self.assertIn("artifacts/build-evidence/release-validation-gate.json", self.workflow[upload:])
 
+    def test_candidate_1_1_registry_smoke_is_x64_only_and_required_when_run(self):
+        start = self.workflow.index("      - name: Exercise selected 1.1 registry workflows on Linux x64")
+        end = self.workflow.index("      - name: Exercise the released 1.0.2 fixture against the current source", start)
+        section = self.workflow[start:end]
+        self.assertIn("id: smoke_1_1_registry", section)
+        self.assertIn("continue-on-error: true", section)
+        self.assertIn("inputs.mode == 'prerelease-candidate'", section)
+        self.assertIn("inputs.mode == 'stable-candidate'", section)
+        self.assertIn("runner.os == 'Linux'", section)
+        self.assertIn("runner.arch == 'X64'", section)
+        self.assertIn("--registry --only booru-workbench", section)
+        for identifier in (
+            "booru-composition",
+            "booru-media",
+            "tagging-page",
+            "tagging-mode",
+            "media-page",
+            "media-page-booru-captures",
+            "media-menu-surfaces",
+            "settings-reader-display",
+        ):
+            self.assertIn("--only " + identifier, section)
+
+        gate = self.workflow.split("      - name: Fail validation after collecting all evidence", 1)[1].split(
+            "      - name: Upload regression and graphical evidence", 1
+        )[0]
+        linux_required = gate.split("if [[ \"$RUNNER_OS\" == Linux ]]; then", 1)[1].split(
+            "elif [[ \"$RUNNER_OS\" == macOS ]]; then", 1
+        )[0]
+        self.assertIn('if [[ "$RUNNER_ARCH" == X64 ]]; then', linux_required)
+        self.assertIn("required+=(smoke_1_1_registry)", linux_required)
+        self.assertLess(
+            linux_required.index('if [[ "$RUNNER_ARCH" == X64 ]]; then'),
+            linux_required.index("required+=(smoke_1_1_registry)"),
+        )
+        self.assertIn("artifacts/desktop-smoke-1.1-registry/**", self.workflow)
+
     def test_upgrade_gate_runs_the_released_102_fixture_and_binds_current_source(self):
         start = self.workflow.index("      - name: Exercise the released 1.0.2 fixture against the current source")
         end = self.workflow.index("      - name: Exercise FirstRunSetup", start)
