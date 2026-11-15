@@ -77,6 +77,7 @@ internal static partial class GalleryPlaybackFeatureChecks
             using MediaNativeInput native = new(fixture.Window);
             Border controls = Find<Border>(viewer, "GalleryOverlayControls");
             bool? nativeEdgeHintsSupported = null;
+            bool managedEdgeHintFallbackAllowed = OperatingSystem.IsWindows() || OperatingSystem.IsMacOS();
             async Task HiddenAsync()
             {
                 // Establish a non-native-editing focus context before testing a hidden key.
@@ -91,26 +92,28 @@ internal static partial class GalleryPlaybackFeatureChecks
                 Button rightHint = EdgeIndicator(viewer, "GalleryPostEdgeIndicator");
                 if (nativeEdgeHintsSupported != false)
                 {
-                    // CGEvent posting can succeed on macOS while Avalonia does not deliver
-                    // this particular hover transition to the gallery. Probe briefly so a
-                    // platform-unstable visual hint cannot turn the first-key contract into
-                    // a 20-second timing failure; non-macOS remains a strict native check.
+                    // Native pointer posting can succeed on Windows/macOS while Avalonia
+                    // does not deliver this particular hover transition to the gallery.
+                    // Probe briefly so a platform-unstable visual hint cannot turn the
+                    // first-key contract into a 20-second timing failure. Linux/Xvfb stays
+                    // strict because its private XTEST route is the deterministic baseline.
                     nativeEdgeHintsSupported = await ObserveEdgeHintsAsync(bottomHint, rightHint);
-                    if (nativeEdgeHintsSupported == false && !OperatingSystem.IsMacOS())
+                    if (nativeEdgeHintsSupported == false && !managedEdgeHintFallbackAllowed)
                         throw new TimeoutException("Native motion did not expose first-key fixture edge hints.");
                     if (nativeEdgeHintsSupported == false)
-                        Console.WriteLine("SMOKE capability-limit first-key hover: macOS CGEvent motion was posted but did not expose the transient edge hints; using managed hit-test geometry for the fixture precondition. Native key/navigation assertions remain required.");
+                        Console.WriteLine("SMOKE capability-limit first-key hover: " + native.Backend + " posted native motion but did not expose the transient edge hints; using managed hit-test geometry for the Windows/macOS fixture precondition. Native key/navigation assertions remain required.");
                 }
                 if (nativeEdgeHintsSupported == false)
                 {
                     // This is not a gallery-check skip: both real edge targets must still
                     // be attached, hit-testable and geometrically inside the viewer while
                     // the actual one-press native navigation assertions continue below.
-                    Require(!Visible(controls) && !viewer.CaptureState().ContextOpen,
-                        "macOS hover fallback changed the hidden first-key fixture state.");
+                    Require(managedEdgeHintFallbackAllowed && !Visible(controls)
+                        && !viewer.CaptureState().ContextOpen,
+                        "Windows/macOS hover fallback changed the hidden first-key fixture state.");
                     Require(MediaInteractionSmokeHelpers.IsPointerTargetReady(bottomHint)
                         && MediaInteractionSmokeHelpers.IsPointerTargetReady(rightHint),
-                        "macOS CGEvent hover was unavailable and managed edge-target geometry was not usable.");
+                        "Windows/macOS native hover was unavailable and managed edge-target geometry was not usable.");
                 }
             }
             async Task FirstKeyAsync(bool next, string scenario)
