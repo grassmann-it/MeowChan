@@ -159,13 +159,10 @@ public sealed class WorkStatePruneTests
         work.PruneDeleteObserver = processed =>
         {
             if (processed != 2) return;
-            // The on-disk image at this point is what a process killed mid-transaction leaves behind.
-            copied = Directory.EnumerateFiles(directory.Path, "work-state.sqlite*").Select(path =>
-            {
-                string target = Path.Combine(crash.Path, Path.GetFileName(path));
-                File.Copy(path, target);
-                return Path.GetFileName(path);
-            }).ToArray();
+            // Capture the last committed image while the DELETE transaction is still open.
+            string target = Journal(crash.Path);
+            SnapshotLiveJournal(Journal(directory.Path), target);
+            copied = [Path.GetFileName(target)!];
             throw new SimulatedInterruption();
         };
 
@@ -176,7 +173,7 @@ public sealed class WorkStatePruneTests
         Assert.Equal("ok", QuickCheck(Journal(directory.Path)));
         // The backup precedes the first DELETE and is complete.
         Assert.Equal(before, AllRows(Path.Combine(directory.Path, WorkStateStore.PruneBackupFileName)));
-        // Reopening the interrupted image (hot journal included, if any) yields the untouched journal.
+        // Reopening the captured image yields the untouched journal.
         using (ProfileLease recovered = ProfileLease.Acquire(crash.Path))
         {
             WorkStateStore reopened = new(crash.Path, recovered);
@@ -376,6 +373,23 @@ public sealed class WorkStatePruneTests
         SqliteConnection db = new(new SqliteConnectionStringBuilder { DataSource = path, Pooling = false }.ToString());
         db.Open();
         return db;
+    }
+
+    private static void SnapshotLiveJournal(string source, string destination)
+    {
+        // File.Copy of a live SQLite file is rejected by macOS while the writer owns
+        // its native share lock. SQLite's read-only snapshot path is portable and
+        // observes the last committed state, which is exactly what recovery of the
+        // uncommitted DELETE transaction must restore.
+        using SqliteConnection db = new(new SqliteConnectionStringBuilder
+        {
+            DataSource = source, Mode = SqliteOpenMode.ReadOnly, Pooling = false
+        }.ToString());
+        db.Open();
+        using SqliteCommand copy = db.CreateCommand();
+        copy.CommandText = "VACUUM INTO $path";
+        copy.Parameters.AddWithValue("$path", destination);
+        copy.ExecuteNonQuery();
     }
 
     private static void Execute(string directory, string sql, params (string Name, object Value)[] parameters)
