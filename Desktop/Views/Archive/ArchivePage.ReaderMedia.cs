@@ -122,7 +122,8 @@ public partial class ArchivePage
 
     private void OnFocusedFrameChanged(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        if (Environment.TickCount64 > _focusFitUntil || _focusFitScheduled || e.Source is not Visual source
+        // A jump that is still aligning measures the card again on its next pass.
+        if (ReaderJumpOwnsScroll || Environment.TickCount64 > _focusFitUntil || _focusFitScheduled || e.Source is not Visual source
             || ArchivePosts.SelectedItem is not { } item || ArchivePosts.ContainerFromItem(item) is not Visual container
             || !container.IsVisualAncestorOf(source)) return;
         _focusFitScheduled = true;
@@ -147,11 +148,14 @@ public partial class ArchivePage
     // Selection changes the focused card's size. Its top edge keeps its place in the viewport: measured before the change is laid out and
     // again once it was, the scroll offset takes up the difference. Only while the enlargement is in effect. Then the whole medium is
     // brought into view (EnsureFocusedMediaVisible), once right after the layout and once after other pending scroll requests.
+    // A selection made by a reader jump (FocusPostAsync) is left to the jump, which aligns the card's top itself: the anchor is for a
+    // selection by the pointer or anything else that does not scroll.
     private void AnchorFocusedCard()
     {
         if (ArchivePosts.GetValue(ReaderPostLayout.FocusScalePercentProperty) <= 100 || ArchivePosts.SelectedItem is not { } item) return;
         ListBox list = ArchivePosts;
         _focusFitUntil = Environment.TickCount64 + FocusFitWindowMilliseconds;
+        if (ReaderJumpOwnsScroll) return;
         Point? before = list.ContainerFromItem(item) is Control container ? container.TranslatePoint(default, list) : null;
         Dispatcher.UIThread.Post(() =>
         {

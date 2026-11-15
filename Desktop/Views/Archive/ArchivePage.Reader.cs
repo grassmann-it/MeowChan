@@ -88,6 +88,9 @@ public partial class ArchivePage
     private int _readerFocusRequest;
     private int _readerInteractionRevision;
     private int _readerLayoutRevision;
+    // The reader jumps (FocusPostAsync) own the list's offset while they align their target (ReaderScrollOwner).
+    private readonly ReaderScrollOwner _readerScrollOwner = new();
+    private bool ReaderJumpOwnsScroll => _readerScrollOwner.JumpOwns(_readerInteractionRevision);
     private IDisposable? _readerTabScope;
     private readonly HashSet<Key> _readerMediaHeldKeys = new();
     private CancellationTokenSource? _readerMediaActivationCancellation;
@@ -355,7 +358,10 @@ public partial class ArchivePage
         ResourceId? threadId = _thread?.Summary.Id;
         int request = _contentRequest;
         _readerPostId = postId;
-        ShowPost(postId, null, reveal: false);
+        // This jump owns the scroll until it settled (or was superseded): ShowPost only selects, the selection anchor
+        // (AnchorFocusedCard) and the frame re-fit (OnFocusedFrameChanged) stand back, and the passes below are the only offset writes.
+        using ReaderScrollOwner.Jump jump = _readerScrollOwner.BeginJump(_readerInteractionRevision);
+        ShowPost(postId, null, reveal: false, scroll: false);
         UpdateReaderNavigation();
         ListBox posts = ArchivePosts;
         // A jump the user did not ask to restore ends as soon as they take over: a wheel turn, a press or a paging key
