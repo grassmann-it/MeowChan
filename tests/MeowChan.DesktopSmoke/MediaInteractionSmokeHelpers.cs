@@ -93,7 +93,6 @@ internal static class MediaInteractionSmokeHelpers
             await native.MoveAsync(viewer, new Point(viewer.Bounds.Width * .4, viewer.Bounds.Height - 2));
         await Program.WaitUntilAsync(() => IsPointerTargetReady(target), () => message);
     }
-    }
 
     internal static Point TrackPoint(Slider slider, double fraction)
     {
