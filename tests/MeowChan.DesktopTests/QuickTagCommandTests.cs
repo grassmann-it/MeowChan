@@ -37,7 +37,6 @@ public sealed class QuickTagCommandTests
     }
 
     [Fact]
-    [Fact]
     public void GermanPageKeyNamesAndMacShiftEnterUseDisplayOnlyTranslations()
     {
         Texts.SetLanguage("de");
