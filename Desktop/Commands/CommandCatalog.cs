@@ -126,6 +126,8 @@ public static class CommandCatalog
         new("thread.read", "command.thread.read", "Read posts", "Posts lesen", "file-text", "Enter", CommandScope.Archive | CommandScope.Reader | CommandScope.Gallery | CommandScope.Downloads, new[] { "downloads-thread-menu", "archive-card-menu", "archive-table-menu", "reader-toolbar", "gallery-empty-state", "thread-double-click" }),
         new("gallery.open", "command.gallery.open", "Open in gallery", "In der Galerie öffnen", "image", "Shift+Enter", CommandScope.Archive | CommandScope.Reader | CommandScope.Media | CommandScope.Downloads, new[] { "downloads-thread-menu", "archive-card-menu", "archive-table-menu", "reader-toolbar", "media-list", "media-tiles", "inline-attachment" }),
         new("media.open", "command.media.open", "Open selected media", "Ausgewähltes Medium öffnen", "image", "Enter", CommandScope.Media, new[] { "media-list", "media-tiles" }),
+        // The empty Media page opens the read-only folder-source flow; keep its presentation in the shared command catalog.
+        new("media.link-folder", "command.media.link-folder", "Link folder…", "Ordner verknüpfen…", "folder", null, CommandScope.Media, new[] { "media-empty-state" }),
         new("media.focus-mode", "command.media.focus-mode", "Focus mode", "Fokusmodus", "maximize", "Shift+F", CommandScope.Media, new[] { "media-toolbar", "media-tiles" }, new[] { "media" }),
         new("media.select-all", "command.media.select-all", "Select all media", "Alle Medien auswählen", "check-square", "Primary+A", CommandScope.Media, new[] { "media-tiles" }),
         new("gallery.open-results", "command.gallery.open-results", "Media from matching threads", "Medien der Treffer", "image", null, CommandScope.Archive, new[] { "archive-results-toolbar" }),
