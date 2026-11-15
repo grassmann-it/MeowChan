@@ -96,6 +96,10 @@ public partial class SettingsEditor
     public string ReaderReplyLinesLabel => Texts.T("settings.reader.replyLines");
     public string ReaderReplyLinesHint => Texts.T("settings.reader.replyLines.hint") + " " + Texts.T("settings.reader.range", Config.ReaderReplyLinesMinimum, Config.ReaderReplyLinesMaximum);
     public string ReaderReplyLinesHelp => FieldHelp(nameof(ReaderReplyLinesInput), ReaderReplyLinesHint);
+    private bool _readerExpandReplies;
+    public bool ReaderExpandReplies { get => _readerExpandReplies; set => SetField(ref _readerExpandReplies, value, nameof(ReaderExpandReplies)); }
+    public string ReaderExpandRepliesLabel => Texts.T("settings.reader.expandReplies");
+    public string ReaderExpandRepliesHint => Texts.T("settings.reader.expandReplies.hint");
     private decimal? _readerPageSize;
     public decimal? ReaderPageSize { get => _readerPageSize; set => SetField(ref _readerPageSize, value, nameof(ReaderPageSize)); }
     public string ReaderPageSizeLabel => Texts.T("settings.reader.pageSize");
@@ -366,6 +370,7 @@ public partial class SettingsEditor
         ResetNumber(ReaderReplyStepInput, ReaderReplyStep.Value);
         ReaderReplyLines = config.ReaderReplyLines;
         ResetNumber(ReaderReplyLinesInput, ReaderReplyLines.Value);
+        ReaderExpandReplies = config.ReaderExpandReplies;
         ReaderPageSize = config.ReaderPageSize;
         ResetNumber(ReaderPageSizeInput, ReaderPageSize.Value);
         ReaderThreadingDepth = config.ReaderThreadingDepth;
@@ -447,6 +452,7 @@ public partial class SettingsEditor
         candidate.ReaderPreviewDelayMs = GetInteger(ReaderPreviewDelayMs, ReaderPreviewDelayMsLabel, Config.ReaderPreviewDelayMsMinimum, Config.ReaderPreviewDelayMsMaximum);
         candidate.ReaderReplyStep = GetInteger(ReaderReplyStep, ReaderReplyStepLabel, Config.ReaderReplyStepMinimum, Config.ReaderReplyStepMaximum);
         candidate.ReaderReplyLines = GetInteger(ReaderReplyLines, ReaderReplyLinesLabel, Config.ReaderReplyLinesMinimum, Config.ReaderReplyLinesMaximum);
+        candidate.ReaderExpandReplies = ReaderExpandReplies;
         candidate.ReaderPageSize = GetInteger(ReaderPageSize, ReaderPageSizeLabel, Config.ReaderPageSizeMinimum, Config.ReaderPageSizeMaximum);
         candidate.ReaderThreadingDepth = GetInteger(ReaderThreadingDepth, ReaderThreadingDepthLabel, Config.ReaderThreadingDepthMinimum, Config.ReaderThreadingDepthMaximum);
         candidate.GalleryFitMaxUpscalePercent = CaptureGalleryFitCap();
@@ -565,6 +571,9 @@ public partial class SettingsEditor
                     ReadingHistoryLimit = _config.ReadingHistoryLimit;
                     ResetNumber(ReadingHistoryLimitInput, _config.ReadingHistoryLimit);
                     break;
+                case SettingsFieldId.ReaderExpandReplies:
+                    ReaderExpandReplies = _config.ReaderExpandReplies;
+                    break;
                 case SettingsFieldId.ReaderTextlessLargeImages:
                     ReaderTextlessLargeImages = _config.ReaderTextlessLargeImages;
                     break;
@@ -649,6 +658,7 @@ public partial class SettingsEditor
         nameof(ReaderPreviewDelayMsLabel), nameof(ReaderPreviewDelayMsHint), nameof(ReaderPreviewDelayMsHelp),
         nameof(ReaderReplyStepLabel), nameof(ReaderReplyStepHint), nameof(ReaderReplyStepHelp),
         nameof(ReaderReplyLinesLabel), nameof(ReaderReplyLinesHint), nameof(ReaderReplyLinesHelp),
+        nameof(ReaderExpandRepliesLabel), nameof(ReaderExpandRepliesHint),
         nameof(ReaderPageSizeLabel), nameof(ReaderPageSizeHint), nameof(ReaderPageSizeHelp),
         nameof(ReaderThreadingDepthLabel), nameof(ReaderThreadingDepthHint), nameof(ReaderThreadingDepthHelp),
         nameof(GalleryFitMaxUpscalePercentLabel), nameof(GalleryFitMaxUpscalePercentHint), nameof(GalleryFitMaxUpscalePercentHelp),

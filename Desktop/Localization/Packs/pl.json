@@ -1636,6 +1636,8 @@
     "settings.reader.replyStep.hint": "„Pokaż więcej odpowiedzi” dodaje tę liczbę kart.",
     "settings.reader.replyLines": "Wierszy na kartę odpowiedzi",
     "settings.reader.replyLines.hint": "Ogranicza fragment tekstu na każdej karcie odpowiedzi.",
+    "settings.reader.expandReplies": "Automatycznie rozwijaj odpowiedzi",
+    "settings.reader.expandReplies.hint": "Otwiera karty odpowiedzi pod każdym postem od razu po jego wyświetleniu, dzięki czemu posty z samymi obrazami od razu pokazują komentarze. Post zwinięty ręcznie pozostaje zwinięty, dopóki wątek jest otwarty.",
     "settings.reader.pageSize": "Postów na stronę czytnika",
     "settings.reader.pageSize.hint": "Zmiana zachowuje bieżącą pozycję czytania w widoku.",
     "settings.reader.threadingDepth": "Maksymalna głębokość wcięcia rozmowy",

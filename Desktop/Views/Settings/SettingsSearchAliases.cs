@@ -61,6 +61,7 @@ internal static class SettingsSearchAliases
         ["ReaderMediaStripLimit"] = "sidebar thumbnails strip files several images count limit leiste vorschaubilder streifen dateien mehrere bilder anzahl grenze",
         ["ReaderPreviewPrefetchPosts"] = "preload prefetch previews thumbnails ahead scrolling jump stable posts vorausladen vorschaubilder voraus scrollen springen stabil posts",
         ["ReaderPreviewSizeMemory"] = "remembered preview sizes memory aspect jump layout gemerkte vorschaugrößen speicher seitenverhältnis springen",
+        ["ReaderExpandReplies"] = "replies answers comments expand open automatically auto unfold nested cards antworten kommentare aufklappen automatisch öffnen karten",
         ["ReaderMediaGrid"] = "grid tiles several images columns post layout raster kacheln mehrere bilder spalten anordnung",
         ["ReaderMediaGridTextLimit"] = "grid short text characters limit several images raster kurzer text zeichen grenze mehrere bilder",
         ["ShowShortcutHelp"] = "shortcuts keyboard hints tastenkürzel tastatur hilfe",

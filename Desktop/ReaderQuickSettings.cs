@@ -29,6 +29,7 @@ internal static class ReaderQuickSettings
         Choice(SettingsFieldId.ReaderDateStyle, "settings.reader.dateStyle", "settings.reader.dateStyle.hint", Options(("System", "settings.reader.dateStyle.system"), ("Long", "settings.reader.dateStyle.long"), ("SinceOp", "settings.reader.dateStyle.sinceOp"), ("RelativeToNow", "settings.reader.dateStyle.relative")), c => c.ReaderDateStyle, (c, v) => c.ReaderDateStyle = v),
         Choice(SettingsFieldId.ReaderSpoilers, "settings.reader.spoilers", "settings.reader.spoilers.hint", Options(("Hide", "settings.reader.spoilers.hide"), ("Hover", "settings.reader.spoilers.hover"), ("Always", "settings.reader.spoilers.always")), c => c.ReaderSpoilers, (c, v) => c.ReaderSpoilers = v),
         Integer(SettingsFieldId.ReaderPageSize, "settings.reader.pageSize", "settings.reader.pageSize.hint", Config.ReaderPageSizeMinimum, Config.ReaderPageSizeMaximum, 10, c => c.ReaderPageSize, (c, v) => c.ReaderPageSize = v),
+        Toggle(SettingsFieldId.ReaderExpandReplies, "settings.reader.expandReplies", "settings.reader.expandReplies.hint", c => c.ReaderExpandReplies, (c, v) => c.ReaderExpandReplies = v),
         // R5/R6: the reading history and the reader media sizes, same ids and steps as on the settings page.
         Integer(SettingsFieldId.ReadingHistoryLimit, "settings.reader.historyLimit", "settings.reader.historyLimit.hint", Config.ReadingHistoryLimitMinimum, Config.ReadingHistoryLimitMaximum, 1, c => c.ReadingHistoryLimit, (c, v) => c.ReadingHistoryLimit = v),
         Integer(SettingsFieldId.ReadingHistoryMenuEntries, "settings.reader.historyMenuEntries", "settings.reader.historyMenuEntries.hint", Config.ReadingHistoryMenuEntriesMinimum, Config.ReadingHistoryMenuEntriesMaximum, 1, c => c.ReadingHistoryMenuEntries, (c, v) => c.ReadingHistoryMenuEntries = v),
@@ -87,6 +88,7 @@ internal static class ReaderQuickSettings
         Row(SettingsFieldId.ReaderDateStyle),
         Row(SettingsFieldId.ReaderSpoilers),
         Row(SettingsFieldId.ReaderPageSize),
+        Row(SettingsFieldId.ReaderExpandReplies),
         new QuickSettingsSection("quicksettings.reader.section.thread"),
         new QuickSettingsSessionEntry("watch.follow-live"),
     };

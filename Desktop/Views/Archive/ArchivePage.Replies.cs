@@ -23,6 +23,7 @@ public partial class ArchivePage
     private void RefreshInlineReplies(ArchivePostRow[] rows)
     {
         CancelInlineReplies();
+        _replyAutoExpand.SwitchThread(_thread?.Summary.Id);
         _inlineReplyRows = rows;
         if (rows.Length == 0 || _thread == null || _openReader == null || !CanRead || _ended) return;
         int request = _inlineRepliesRequest;
@@ -57,6 +58,7 @@ public partial class ArchivePage
             }
             Func<Task>? restoreLayout = CaptureReaderCountLayoutCorrection();
             foreach (ArchivePostRow row in rows) row.SetBacklinkCount(counts.GetValueOrDefault(row.Id));
+            ApplyAutomaticRepliesToRealised(rows);
             if (restoreLayout != null) await restoreLayout();
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
@@ -79,6 +81,7 @@ public partial class ArchivePage
 
     internal async Task SetRepliesExpandedAsync(ArchivePostRow row, bool open)
     {
+        RememberReplyChoice(row, open);
         row.RepliesExpanded = open;
         if (open && !row.RepliesLoaded) await LoadInlineRepliesAsync(row);
     }
@@ -95,6 +98,7 @@ public partial class ArchivePage
         ArchivePostRow[] rows = _inlineReplyRows;
         ResourceId thread = _thread.Summary.Id;
         CancellationToken token = _inlineRepliesCancellation?.Token ?? _lifetime.Token;
+        int loadedBefore = row.Replies.Count;
         row.SetRepliesLoading(true);
         row.SetRepliesError(null);
         try
@@ -102,7 +106,8 @@ public partial class ArchivePage
             await using ArchiveReader reader = await _openReader(token);
             ArchiveQuotePage page = await reader.GetBacklinksAsync(new ArchivePostId(thread, row.Id),
                 row.Replies.Count, InlineReplyPageSize, token);
-            if (!InlineReplyPageCurrent(rows, thread, request)) return;
+            // A history restore may have put loaded pages on the row while this one was on its way; its offset is then stale.
+            if (!InlineReplyPageCurrent(rows, thread, request) || row.Replies.Count != loadedBefore) return;
             row.SetReplies(Array.AsReadOnly(row.Replies.Concat(page.Items.Select(quote => ReplyCard(quote, thread))).ToArray()),
                 page.TotalCount, page.Offset);
         }

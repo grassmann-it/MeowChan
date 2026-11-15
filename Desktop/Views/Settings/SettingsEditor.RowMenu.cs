@@ -150,6 +150,7 @@ public partial class SettingsEditor
             Flag(ErrorNotificationsInput, () => ShowErrorNotifications, value => ShowErrorNotifications = value, config => config.ShowErrorNotifications),
             Flag(ShowShortcutHelpInput, () => ShowShortcutHelp, value => ShowShortcutHelp = value, config => config.ShowShortcutHelp),
             Flag(MediaFocusHidesHeaderInput, () => MediaFocusHidesHeader, value => MediaFocusHidesHeader = value, config => config.MediaFocusHidesHeader),
+            Flag(ReaderExpandRepliesInput, () => ReaderExpandReplies, value => ReaderExpandReplies = value, config => config.ReaderExpandReplies),
             Flag(ReaderNavigationShowPositionInput, () => ReaderNavigationShowPosition, value => ReaderNavigationShowPosition = value, config => config.ReaderNavigationShowPosition),
             Flag(GalleryFilmstripFlagFavoriteInput, () => GalleryFilmstripFlagFavorite, value => GalleryFilmstripFlagFavorite = value, config => config.GalleryFilmstripFlagFavorite),
             Flag(GalleryFilmstripFlagRatingInput, () => GalleryFilmstripFlagRating, value => GalleryFilmstripFlagRating = value, config => config.GalleryFilmstripFlagRating),

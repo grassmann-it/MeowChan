@@ -1626,6 +1626,8 @@
     "settings.reader.replyStep.hint": "«Mostra altre risposte» aggiunge questo numero di schede.",
     "settings.reader.replyLines": "Righe per scheda di risposta",
     "settings.reader.replyLines.hint": "Limita l’estratto di testo in ogni scheda di risposta.",
+    "settings.reader.expandReplies": "Espandi automaticamente le risposte",
+    "settings.reader.expandReplies.hint": "Apre le schede di risposta sotto ogni post non appena compare, così i post con sole immagini mostrano subito i commenti. Un post che comprimi a mano resta compresso finché il thread è aperto.",
     "settings.reader.pageSize": "Post per pagina del lettore",
     "settings.reader.pageSize.hint": "La modifica mantiene visibile la posizione di lettura corrente.",
     "settings.reader.threadingDepth": "Profondità massima di rientro della conversazione",
