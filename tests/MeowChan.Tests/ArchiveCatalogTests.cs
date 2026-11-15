@@ -76,6 +76,22 @@ public sealed class ArchiveCatalogTests
     }
 
     [Fact]
+    public async Task LaterCaptureWithoutImageDimensionsRetainsEarlierDimensions()
+    {
+        await using Harness fixture = await Harness.OpenAsync();
+        CapturedAttachment sized = new(0, "image", Url: "https://cdn.test/image.png")
+            { Width = 640, Height = 480 };
+        await fixture.Catalog.CaptureAsync(fixture.Snapshot(Post("1", 0, "post") with { Attachments = [sized] }));
+
+        CapturedAttachment legacy = sized with { Width = null, Height = null };
+        await fixture.Catalog.CaptureAsync(fixture.Snapshot(Post("1", 0, "post") with { Attachments = [legacy] }));
+
+        CapturedAttachment saved = Assert.Single(Assert.Single((await fixture.Reader.ReadThreadAsync(ThreadId))!.GetPosts()).Attachments!);
+        Assert.Equal(640, saved.Width);
+        Assert.Equal(480, saved.Height);
+    }
+
+    [Fact]
     public async Task AttachmentDeletionMarksEarlierMetadataAndKeepsOrderedExtraAttachments()
     {
         await using Harness fixture = await Harness.OpenAsync();

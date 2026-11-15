@@ -142,6 +142,8 @@ public static class ArchiveCaptureMerge
             {
                 if (attachment.IsDeleted && attachment.MediaId == null && merged.TryGetValue(attachment.Position, out CapturedAttachment? old))
                     merged[attachment.Position] = old with { IsDeleted = true };
+                else if (merged.TryGetValue(attachment.Position, out CapturedAttachment? oldAttachment))
+                    merged[attachment.Position] = PreserveDimensions(oldAttachment, attachment);
                 else merged[attachment.Position] = attachment;
             }
             // Null is an observation, not deletion of already known attachment metadata.
@@ -155,6 +157,18 @@ public static class ArchiveCaptureMerge
             Has(PostFieldPresence.Html) ? next.Html : previous.Html,
             Has(PostFieldPresence.IsDeleted) ? next.IsDeleted : previous.IsDeleted,
             attachments == null ? null : Array.AsReadOnly(attachments.ToArray()));
+    }
+
+    private static CapturedAttachment PreserveDimensions(CapturedAttachment previous, CapturedAttachment next)
+    {
+        // Dimensions are optional provider observations. A later legacy/partial capture must
+        // not erase dimensions already recorded for the same media occurrence; fresh values
+        // still replace them. Do not carry dimensions across a changed media identity.
+        if (!string.Equals(previous.MediaId, next.MediaId, StringComparison.Ordinal)
+            || !string.Equals(previous.Variant, next.Variant, StringComparison.Ordinal)
+            || !string.Equals(previous.Url, next.Url, StringComparison.Ordinal))
+            return next;
+        return next with { Width = next.Width ?? previous.Width, Height = next.Height ?? previous.Height };
     }
 
     internal static CapturedPost CopyPost(CapturedPost post)
