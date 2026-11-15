@@ -22,7 +22,18 @@ internal static partial class MediaPageChecks
         grid.SelectedIndex = 0; // an older selection elsewhere must not be what the double click opens
         grid.ScrollIntoView(1);
         Control? second = null;
-        await UntilAsync(() => (second = grid.ContainerFromIndex(1)) is { IsEffectivelyVisible: true, Bounds.Width: > 0 });
+        // A virtualized ListBox can expose a visible recycled container before its
+        // DataContext/template has caught up.  Routing the synthetic gesture in
+        // that turn silently makes the product reject it because RowAt(Source)
+        // cannot resolve an occurrence.  Wait for the exact row and tile, not
+        // merely for the container's bounds.
+        await UntilAsync(() =>
+        {
+            if ((second = grid.ContainerFromIndex(1)) is not { IsEffectivelyVisible: true, Bounds.Width: > 0 } item
+                || item.DataContext is not MediaLibraryTileRow { Index: 1 }) return false;
+            return item.GetVisualDescendants().OfType<MediaLibraryTileView>()
+                .Any(tile => tile.IsEffectivelyVisible && tile.DataContext is MediaLibraryTileRow { Index: 1 });
+        });
 
         int before = opened.Count;
         await DoubleClickAsync(second!, window);
@@ -75,7 +86,8 @@ internal static partial class MediaPageChecks
         // container whose bounds were just settled. Route the managed input from a tile child so the
         // product handler receives the same item ancestry as a real pointer gesture.
         Control hit = target is ListBoxItem
-            ? target.GetVisualDescendants().OfType<Control>().FirstOrDefault() ?? target
+            ? target.GetVisualDescendants().OfType<MediaLibraryTileView>()
+                .FirstOrDefault(tile => tile.IsEffectivelyVisible && tile.DataContext is MediaLibraryTileRow) ?? target
             : target;
         using Pointer pointer = new(Pointer.GetNextFreeId(), PointerType.Mouse, true);
         for (int click = 1; click <= 2; click++)
