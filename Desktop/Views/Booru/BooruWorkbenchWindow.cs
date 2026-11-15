@@ -27,6 +27,8 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
     internal const string RemoveNoteName = BooruWorkbenchView.RemoveNoteName;
     internal const string NoFilterNoteName = BooruWorkbenchView.NoFilterNoteName;
     internal const string LoadPrefix = BooruWorkbenchView.LoadPrefix;
+    internal const string CancelLoadPrefix = BooruWorkbenchView.CancelLoadPrefix;
+    internal const string RetryLoadPrefix = BooruWorkbenchView.RetryLoadPrefix;
     internal const string CheckPrefix = BooruWorkbenchView.CheckPrefix;
     internal const string PausePrefix = BooruWorkbenchView.PausePrefix;
     internal const string ResumePrefix = BooruWorkbenchView.ResumePrefix;
