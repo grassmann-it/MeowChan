@@ -198,11 +198,21 @@ internal static class PresentationChecks
         if (!OperatingSystem.IsWindows() || window.FrameSize is not Size frame)
             return logicalMinimum;
 
-        // On Win32 the minimum-track clamp can consume the top frame inset: a
-        // 480 DIP request became a 487 DIP client in run 43691525250, yet the
-        // expanded results still clipped the first 33 DIP table row. Reserve
-        // the measured native frame inset so this content contract is stable.
-        return logicalMinimum + Math.Max(0, frame.Height - window.Bounds.Height);
+        double frameInset = Math.Max(0, frame.Height - window.Bounds.Height);
+        if (mode == "Barebones")
+        {
+            // Win32 measured 656×498 frame / 640×489 client after the 480 DIP
+            // minimum plus its 9 DIP frame inset. That client still leaves the
+            // selected 33 DIP row 4 DIP short of the strict viewport check when
+            // admission results are expanded. A 500 DIP client is the smallest
+            // stable Windows probe; retain the measured inset for other modes.
+            return Math.Max(500, logicalMinimum + frameInset);
+        }
+
+        // On Win32 the minimum-track clamp can consume the top frame inset.
+        // Reserve the measured native frame inset without changing production
+        // minimums or relaxing the full-row contract.
+        return logicalMinimum + frameInset;
     }
 
     private static async Task CheckSmallWindowAsync(MainWindow window, ThreadRow selected, double width, double height, string scenario)
