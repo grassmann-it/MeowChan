@@ -299,6 +299,56 @@ public partial class ArchivePage
         }
     }
 
+    // The menu of an own-tag chip of the reader's tag bar. The entries use the texts of the chip itself, the filter picker and the tag manager.
+    private MeowChan.Desktop.Controls.ContextMenuBuilder? ComposeThreadTagChipMenu(string display, TagId tag)
+    {
+        if (_ended) return null;
+        bool canEdit = CanEditThreadTags;
+        string? editReason = canEdit ? null : Texts.T("menu.unavailable.target");
+        bool canFilter = CanFilterArchiveByTag;
+        bool canManage = CanOpenTagManager;
+        return new MeowChan.Desktop.Controls.ContextMenuBuilder().Named(display)
+            .Item("reader.tag.remove", Texts.T("tags.remove", display), () => PrivateTagTask = RemoveThreadTagAsync(tag), canEdit, editReason, icon: "x")
+            .Item("reader.tag.filter", Texts.T("tags.filter.includeHint"), () => _ = FilterArchiveByTagAsync(tag), canFilter,
+                canFilter ? null : Texts.T("menu.unavailable.target"), icon: "filter")
+            .Section()
+            .Item("reader.tag.copy-name", CommandCatalog.Label("tags.copy-name"), () => _ = CopyChipTextAsync(this, display), icon: "copy")
+            .Item("reader.tag.manage", Texts.T("tags.manage.open"), () => TagManagerTask = OpenTagManagerAsync(ReaderTagChips), canManage,
+                canManage ? null : Texts.T("menu.unavailable.target"), icon: "tag");
+    }
+
+    private bool CanFilterArchiveByTag => _available && !_ended && !_busy && CanRead && !IsFilenameSearchOpen && !IsReaderDialogOpen;
+
+    /// <summary>
+    /// Shows the threads that have this own tag: the tag filter becomes just this tag, and the archive searches with the rest of its draft as it stands. The
+    /// large reader closes first (the list is behind it). A refused search explains itself as every search does.
+    /// </summary>
+    internal async Task FilterArchiveByTagAsync(TagId tag)
+    {
+        if (!CanFilterArchiveByTag) return;
+        if (_largeReader) CloseReaderRequested?.Invoke();
+        WriteTagFilterDraft(ArchiveTagFilter.OrNull(new[] { tag.Value }, Array.Empty<Guid>(), ArchiveTagMatch.All, ArchiveTagFilter.MaximumConfigurableTagsPerList));
+        DraftEdited("tags");
+        RenderDraftSets();
+        await ApplySearchAsync();
+    }
+
+    // A thread row's menu: its own tags as a submenu that searches the archive for the one chosen (one thread only; a thread without own tags gets none).
+    private void AddThreadTagFilterSubmenu(MeowChan.Desktop.Controls.ContextMenuBuilder menu, ResourceId thread)
+    {
+        PrivateTagDefinition[] tags = _privateTags?.TagsOf(thread).ToArray() ?? Array.Empty<PrivateTagDefinition>();
+        if (tags.Length == 0) return;
+        bool ready = CanFilterArchiveByTag;
+        MeowChan.Desktop.Controls.ContextMenuBuilder children = new();
+        foreach (PrivateTagDefinition tag in tags)
+        {
+            TagId id = tag.Id;
+            children.Item("archive.tag-filter." + id.Value.ToString("N"), tag.Name.Display, () => _ = FilterArchiveByTagAsync(id), ready,
+                ready ? null : Texts.T("archive.command.busy"), icon: "tag");
+        }
+        menu.Submenu("archive.filter-by-tag", Texts.T("tags.filter.label"), children.ToModel(), ready, ready ? null : Texts.T("archive.command.busy"), icon: "filter");
+    }
+
     private IReadOnlyList<PrivateTagName> ThreadTagSuggestions(ArchivedThreadView thread)
     {
         if (_tagSuggestions is { } cached && cached.Thread == thread.Summary.Id && cached.Revision == thread.Summary.Revision && cached.SlashCount == SlashTagSuggestionCountPreference)
@@ -340,6 +390,9 @@ public partial class ArchivePage
             AutomationProperties.SetName(chip, hint);
             ToolTip.SetTip(chip, hint);
             chip.Click += (_, _) => PrivateTagTask = RemoveThreadTagAsync(tagId);
+            // Right-click, Menu key, Shift+F10: remove (the click), show the threads that have the tag, copy its name, manage the tags.
+            MeowChan.Desktop.Controls.WorkspaceChips.AttachMenu(chip, () => ComposeThreadTagChipMenu(tag.Name.Display, tagId),
+                fallbackFocus: () => { if (CanEditThreadTags) ReaderTagInput.Focus(); });
             chips.Children.Add(chip);
         }
         if (assigned.Length == 0)

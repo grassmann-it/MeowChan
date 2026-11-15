@@ -104,6 +104,7 @@ public partial class ArchivePage
     // The Menu key and Shift+F10 open the same media menu as a right-click, for the focused row or attachment.
     private void OnArchiveMediaContextKey(object? sender, KeyEventArgs e)
     {
+        _sidebarPointerContextPending = false; // a key ends a pointer gesture whose release never came
         if (_ended || !_available || IsReaderDialogOpen || e.Source is not Control source || !MediaMenuPresenter.IsContextKey(e)) return;
         Control[] path = source.GetSelfAndVisualAncestors().OfType<Control>().ToArray();
         if (!path.Any(control => control is ArchiveAttachmentView || control.Name is "ArchiveMediaGrid" or "ArchiveMediaTiles")
@@ -113,21 +114,31 @@ public partial class ArchivePage
         e.Handled = request.Handled;
     }
 
-    // The sidebar's right click of its picture: the press itself opens the menu (nothing the player does with the pointer can swallow it), and the
-    // ContextRequested that Avalonia may send after it is consumed once. The bar's own controls keep their behaviour.
+    // The sidebar's right click, anywhere in it (picture, video row, header line, the card's edge; a thumbnail of the strip keeps its own request, which
+    // selects it first): the press itself opens the menu (nothing the player does with the pointer can swallow it), and the ContextRequested that Avalonia
+    // sends while it processes the release of that click is consumed once. The flag lives from the press until that release is through: Avalonia 12 sends the
+    // request on the release (a click lasts far longer than a Background tick), so a flag that was dropped right after the press let the release re-open the menu
+    // in place of the first one.
     private bool _sidebarPointerContextPending;
 
     private void OnSidebarPointerPressed(object? sender, PointerPressedEventArgs e)
     {
+        _sidebarPointerContextPending = false; // each press starts its own gesture
         if (e.Handled || _ended || !_available || !_mediaSidebarShown || _mediaSidebar is not { } sidebar || e.Source is not Control source
             || !e.GetCurrentPoint(sidebar).Properties.IsRightButtonPressed || MediaMenuPresenter.IsNativeTextSource(source)) return;
         Control[] ancestors = source.GetSelfAndVisualAncestors().OfType<Control>().ToArray();
-        if (!ancestors.Any(control => ReferenceEquals(control, sidebar.FrameArea)) || ancestors.Any(control => ReferenceEquals(control, sidebar.VideoRow))) return;
+        if (ancestors.Any(control => ReferenceEquals(control, sidebar.Strip))) return;
         ContextRequestedEventArgs request = new(e) { RoutedEvent = ContextRequestedEvent };
         source.RaiseEvent(request);
         if (!request.Handled) return;
         e.Handled = true;
         _sidebarPointerContextPending = true;
+    }
+
+    // The release of that right click: the request Avalonia sends with it comes through the handlers after this one, so the flag ends on the next tick.
+    private void OnSidebarPointerReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        if (!_sidebarPointerContextPending || e.InitialPressMouseButton != MouseButton.Right) return;
         Avalonia.Threading.Dispatcher.UIThread.Post(() => _sidebarPointerContextPending = false, Avalonia.Threading.DispatcherPriority.Background);
     }
 
@@ -212,12 +223,13 @@ public partial class ArchivePage
         return CommandBindings.RouteMenuAction(BuildArchiveMediaMenu(asset, attachment, origin, postId, surface, SeveralSelectedWith(asset, attachment)).Menu, e);
     }
 
-    // The sidebar's picture and video row (not its header buttons) stand for the medium it shows: its attachment, post and menu origin.
-    // With the keyboard (the Menu key, Shift+F10) any focus inside the sidebar stands for it, its strip and header buttons included.
+    // The sidebar stands for the medium it shows: its attachment, post and menu origin. A pointer right click anywhere in the sidebar counts (picture, video row,
+    // header line and its buttons, the edge around the card); a thumbnail of the strip stands for its own file (SidebarStripContext). With the keyboard (the
+    // Menu key, Shift+F10) any focus inside the sidebar stands for it, its strip included.
     private (ArchiveAttachmentRow Attachment, string PostId, Control Origin)? SidebarMediaContext(Control[] ancestors, bool keyboard = true)
     {
-        if (_mediaSidebar == null || !_mediaSidebarShown || !ancestors.Any(control => ReferenceEquals(control, _mediaSidebar.FrameArea)
-                || ReferenceEquals(control, _mediaSidebar.VideoRow) || keyboard && ReferenceEquals(control, _mediaSidebar))) return null;
+        if (_mediaSidebar == null || !_mediaSidebarShown || !ancestors.Any(control => ReferenceEquals(control, _mediaSidebar))
+            || !keyboard && ancestors.Any(control => ReferenceEquals(control, _mediaSidebar.Strip))) return null;
         return ArchivePosts.SelectedItem is ArchivePostRow post && CurrentSidebarAttachment() is { } current
             ? (current, post.Id, _mediaSidebar.FrameArea) : null;
     }
