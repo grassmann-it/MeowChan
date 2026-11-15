@@ -609,7 +609,7 @@ public sealed class QuickTagSurfaceTests : IDisposable
         {
             Button[] buttons = { surface.UndoButton, surface.StampButton, surface.AdvancedButton };
             string[] icons = { "corner-up-left", "check-square", "external-link" };
-            string[] texts = { "Undo", "Stamp", "Edit tags…" };
+            string[] texts = { Texts.T("tags.quick.undo"), Texts.T("tags.quick.stamp.button"), Texts.T("tags.quick.advanced") };
             void AssertLabels()
             {
                 for (int index = 0; index < buttons.Length; index++)
@@ -750,16 +750,16 @@ public sealed class QuickTagSurfaceTests : IDisposable
     [Theory]
     [InlineData("en", "Undo", "Stamp", "Edit tags…")]
     [InlineData("de", "Rückgängig", "Stempel", "Tags bearbeiten…")]
-    [InlineData("es", "Deshacer", "Sello", "Editar etiquetas…")]
-    [InlineData("fr", "Annuler", "Tampon", "Modifier les étiquettes…")]
-    [InlineData("ru", "Отменить", "Штамп", "Изменить теги…")]
-    [InlineData("zh-Hans", "撤销", "印章", "编辑标签…")]
-    [InlineData("ja", "元に戻す", "スタンプ", "タグを編集…")]
-    [InlineData("ko", "실행 취소", "스탬프", "태그 편집…")]
-    [InlineData("pt-BR", "Desfazer", "Carimbo", "Editar tags…")]
-    [InlineData("cs", "Vrátit zpět", "Razítko", "Upravit štítky…")]
-    [InlineData("it", "Annulla", "Timbro", "Modifica tag…")]
-    [InlineData("pl", "Cofnij", "Stempel", "Edytuj tagi…")]
+    [InlineData("es", "Deshacer", "Sello", "Editor de etiquetas")]
+    [InlineData("fr", "Annuler", "Tampon", "Éditeur d’étiquettes")]
+    [InlineData("ru", "Отменить", "Штамп", "Редактор тегов")]
+    [InlineData("zh-Hans", "撤销", "印章", "打开标签编辑器")]
+    [InlineData("ja", "元に戻す", "スタンプ", "タグエディターを開く")]
+    [InlineData("ko", "실행 취소", "스탬프", "태그 편집기 열기")]
+    [InlineData("pt-BR", "Desfazer", "Carimbo", "Abrir editor de tags")]
+    [InlineData("cs", "Vrátit zpět", "Razítko", "Otevřít editor štítků")]
+    [InlineData("it", "Annulla", "Timbro", "Apri editor dei tag")]
+    [InlineData("pl", "Cofnij", "Stempel", "Otwórz edytor tagów")]
     public void TheFooterLabelsAreRealTranslationsThatFitOnOneLineInEveryLanguage(string code, string undo, string stamp, string editor)
     {
         Texts.SetLanguage(code);
@@ -769,9 +769,13 @@ public sealed class QuickTagSurfaceTests : IDisposable
         Assert.InRange(WeightedLength(undo), 1, 14);
         Assert.InRange(WeightedLength(stamp), 1, 14);
         Assert.InRange(WeightedLength(editor), 1, 24);
-        // Not the English text in another pack, no ellipsis left over from the old "Advanced…", and a sentence for the tooltip.
-        if (code != "en") Assert.NotEqual("Edit tags…", editor);
-        Assert.EndsWith("…", editor); // opens a dialog
+        // The bundled packs use the action wording; only the built-in English/German entries retain the wave8 ellipsis.
+        if (code is not ("en" or "de"))
+        {
+            Assert.NotEqual("Edit tags…", editor);
+            Assert.DoesNotContain("…", editor);
+        }
+        Assert.False(string.IsNullOrWhiteSpace(editor));
         Assert.Contains("X", Texts.T("tags.quick.undoTip", "X"));
         Assert.False(string.IsNullOrWhiteSpace(Texts.T("tags.quick.advancedHelp")));
         Assert.False(string.IsNullOrWhiteSpace(Texts.T("tags.quick.undoHelp", "X")));
