@@ -15,7 +15,7 @@ public sealed class BooruWorkbenchViewContractTests
         const BindingFlags flags = BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
         FieldInfo[] viewNames = typeof(BooruWorkbenchView).GetFields(flags).Where(field => field.IsLiteral && field.FieldType == typeof(string)).ToArray();
         FieldInfo[] windowNames = typeof(BooruWorkbenchWindow).GetFields(flags).Where(field => field.IsLiteral && field.FieldType == typeof(string)).ToArray();
-        Assert.Equal(40, viewNames.Length); // original selectors, CatalogStorageName, local-media actions and cancel/retry actions
+        Assert.Equal(51, viewNames.Length); // original selectors, CatalogStorageName, local-media actions, cancel/retry actions and the 11 card menu entry ids
         Assert.Equal(viewNames.Select(field => field.Name).Order(), windowNames.Select(field => field.Name).Order());
         foreach (FieldInfo field in viewNames)
         {

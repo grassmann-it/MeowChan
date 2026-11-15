@@ -31,8 +31,12 @@ internal sealed partial class BooruWorkbenchView
     internal const string MenuTagAdd = "booru.menu.tag-add";
     internal const string MenuTagExclude = "booru.menu.tag-exclude";
 
-    // The icons of entries that are no catalog commands: the same masks as the command or the button that does the same thing.
-    private const string LoadIcon = "download-cloud", CancelIcon = "x", RetryIcon = "refresh-cw", PauseIcon = "pause", ResumeIcon = "play", RestartIcon = "rotate-ccw";
+    // The icons of entries that are no catalog commands: the same masks as the command or the button that does the same thing. They live in a
+    // nested class: the view's own string constants are its selectors, each with a compile-time alias on BooruWorkbenchWindow.
+    private static class CardMenuIcons
+    {
+        internal const string Load = "download-cloud", Cancel = "x", Retry = "refresh-cw", Pause = "pause", Resume = "play", Restart = "rotate-ccw";
+    }
 
     /// <summary>Gives a card its context menu; <paramref name="compose"/> is called at every opening, so the entries are current. <paramref name="fallbackFocus"/>
     /// takes the focus when an entry rebuilt the cards (the hit's own card again).</summary>
@@ -45,9 +49,9 @@ internal sealed partial class BooruWorkbenchView
         ContextMenuBuilder menu = new ContextMenuBuilder().Named(Texts.T("booru.ui.post.title", postId));
         Button? load = ButtonOf(card, LoadPrefix + postId), cancel = ButtonOf(card, CancelLoadPrefix + postId), retry = ButtonOf(card, RetryLoadPrefix + postId);
         // The primary action of the card is the one button it shows: load the original, cancel the running load, or try again.
-        if (cancel != null) AddButtonItem(menu, cancel, MenuLoad, CancelIcon);
-        else if (retry != null) AddButtonItem(menu, retry, MenuLoad, RetryIcon);
-        else if (load != null) AddButtonItem(menu, load, MenuLoad, LoadIcon);
+        if (cancel != null) AddButtonItem(menu, cancel, MenuLoad, CardMenuIcons.Cancel);
+        else if (retry != null) AddButtonItem(menu, retry, MenuLoad, CardMenuIcons.Retry);
+        else if (load != null) AddButtonItem(menu, load, MenuLoad, CardMenuIcons.Load);
         AddShowInMedia(menu, ButtonOf(card, ShowInMediaPrefix + postId));
         menu.Section();
         AddLinkItems(menu, ButtonOf(card, OpenPostPrefix + postId), ButtonOf(card, CopyLinkPrefix + postId));
@@ -59,9 +63,9 @@ internal sealed partial class BooruWorkbenchView
         if (_closed) return null;
         ContextMenuBuilder menu = new ContextMenuBuilder().Named(query);
         AddButtonItem(menu, ButtonOf(card, CheckPrefix + watcherId), MenuCheck, CommandCatalog.Get("watch.check").Icon);
-        if (ButtonOf(card, ResumePrefix + watcherId) is { } resume) AddButtonItem(menu, resume, MenuResume, ResumeIcon);
-        else AddButtonItem(menu, ButtonOf(card, PausePrefix + watcherId), MenuPause, PauseIcon);
-        AddButtonItem(menu, ButtonOf(card, RestartPrefix + watcherId), MenuRestart, RestartIcon);
+        if (ButtonOf(card, ResumePrefix + watcherId) is { } resume) AddButtonItem(menu, resume, MenuResume, CardMenuIcons.Resume);
+        else AddButtonItem(menu, ButtonOf(card, PausePrefix + watcherId), MenuPause, CardMenuIcons.Pause);
+        AddButtonItem(menu, ButtonOf(card, RestartPrefix + watcherId), MenuRestart, CardMenuIcons.Restart);
         menu.Section();
         AddShowInMedia(menu, ButtonOf(card, WatcherShowInMediaPrefix + watcherId));
         AddLinkItems(menu, ButtonOf(card, WatcherOpenPrefix + watcherId), ButtonOf(card, WatcherCopyPrefix + watcherId));

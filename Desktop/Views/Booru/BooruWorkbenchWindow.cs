@@ -51,6 +51,18 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
     internal const string ShowInMediaPrefix = BooruWorkbenchView.ShowInMediaPrefix;
     internal const string WatcherShowInMediaPrefix = BooruWorkbenchView.WatcherShowInMediaPrefix;
     internal const string CatalogStorageName = BooruWorkbenchView.CatalogStorageName;
+    // The context menu entry ids of the hit, watcher and tag menus (BooruWorkbenchView.CardMenus.cs).
+    internal const string MenuLoad = BooruWorkbenchView.MenuLoad;
+    internal const string MenuShowInMedia = BooruWorkbenchView.MenuShowInMedia;
+    internal const string MenuOpenPost = BooruWorkbenchView.MenuOpenPost;
+    internal const string MenuCopyLink = BooruWorkbenchView.MenuCopyLink;
+    internal const string MenuCheck = BooruWorkbenchView.MenuCheck;
+    internal const string MenuPause = BooruWorkbenchView.MenuPause;
+    internal const string MenuResume = BooruWorkbenchView.MenuResume;
+    internal const string MenuRestart = BooruWorkbenchView.MenuRestart;
+    internal const string MenuRemove = BooruWorkbenchView.MenuRemove;
+    internal const string MenuTagAdd = BooruWorkbenchView.MenuTagAdd;
+    internal const string MenuTagExclude = BooruWorkbenchView.MenuTagExclude;
 
     private readonly BooruWorkbenchView _view;
     private readonly Button _close = new();
