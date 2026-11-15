@@ -391,7 +391,8 @@ jobs:
           assert len(files) == 1, 'the released 1.0.2 upgrade test must produce exactly one TRX'
           rows = [item for item in ET.parse(files[0]).getroot().iter() if item.tag.endswith('UnitTestResult')]
           expected = 'MeowChan.DesktopTests.Released102RestPackageUpgradeTests.ReleasedProviderProfileSurvivesCurrentOpenAndTwoOfflineProcessRestarts'
-          assert len(rows) == 1 and rows[0].get('testName') == expected and rows[0].get('outcome') == 'Passed', 'the released 1.0.2 upgrade test must execute and pass'
+          matches = [item for item in rows if item.get('testName') == expected]
+          assert len(matches) == 1 and matches[0].get('outcome') == 'Passed', 'the released 1.0.2 main upgrade test must execute exactly once and pass'
           PY
           test -f "$results/current-result.json"
           git status --porcelain=v1 --untracked-files=all > "$fixture/status-after.txt"
