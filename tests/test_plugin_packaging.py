@@ -54,6 +54,33 @@ class PluginPackagingTests(unittest.TestCase):
         self.assertEqual(set(PACKAGE.SOURCES), set(compile_ids[0]))
         self.assertTrue(set(compile_ids[0].values()).issubset(set(expected_ids[0].values())))
 
+    def test_ci_keeps_plugin_delivery_verification_separate_from_passive_plugin_smoke(self):
+        repository = SCRIPT.parents[1]
+        workflow = (repository / '.github/workflows/dotnet-desktop.yml').read_text(encoding='utf-8')
+        delivery = workflow.index('id: plugin_delivery')
+        smoke = workflow.index('id: smoke_plugins')
+        self.assertLess(delivery, smoke)
+        self.assertIn(
+            'python scripts/package-plugins.py --verify bin/Release/net10.0 --runtime "$plugin_rid" --development',
+            workflow[delivery:smoke],
+        )
+        self.assertIn(
+            'python scripts/package-plugins.py --verify tests/MeowChan.DesktopSmoke/bin/Release/net10.0 '
+            '--runtime "$plugin_rid" --development',
+            workflow[delivery:smoke],
+        )
+        smoke_source = (repository / 'tests/MeowChan.DesktopSmoke/PluginReselectionChecks.cs').read_text(encoding='utf-8')
+        # Run 43696723538 timed out on the old exact 320px native-size assertion,
+        # after plugin delivery had already verified all 20 payloads. Keep the
+        # smoke contract bounded by a usable native floor, not an impossible
+        # exact client-size promise; the passive fixture must remain a separate
+        # UI check and must not be presented as plugin execution evidence.
+        self.assertIn('const double usableMinimum = 320;', smoke_source)
+        self.assertIn('Math.Max(usableMinimum, modal.MinWidth)', smoke_source)
+        self.assertIn('footer.IsEffectivelyVisible', smoke_source)
+        self.assertNotIn('Math.Abs(modal.ClientSize.Width - 320)', smoke_source)
+        self.assertIn('MEOWCHAN_PLUGIN_RESELECTION_ONLY', workflow[smoke:])
+
     def test_booru_test_matrix_cites_only_tests_fixtures_and_files_that_exist(self):
         # The matrix is the B8/B9 coverage index; a cited test that is not in the tree is a claimed
         # pass without evidence. Every cited class, method, fixture and path must resolve here.
