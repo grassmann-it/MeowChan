@@ -19,6 +19,17 @@ public sealed class NativeV6DerivedReadTests
     private static readonly byte[] Preview = Enumerable.Range(0, 196645).Select(i => (byte)(i * 31 + 7)).ToArray();
     private static readonly byte[] Poster = CreatePoster();
 
+    [Fact]
+    public async Task CapturedImageDimensionsRemainReadableInV6Evidence()
+    {
+        using TempDirectory temp = new();
+        Fixture fixture = await CreateAsync(temp, dimensions: true);
+
+        CapturedAttachment metadata = Assert.Single(fixture.Snapshot.OriginalEvidence).Metadata;
+        Assert.Equal(640, metadata.Width);
+        Assert.Equal(480, metadata.Height);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -433,7 +444,7 @@ public sealed class NativeV6DerivedReadTests
     private static async Task<Fixture> CreateAsync(TempDirectory temp, bool poster = false,
         Func<MediaActualIntegrity, MediaActualIntegrity>? alterActual = null,
         MediaDerivedStatus? noncontained = null, byte[]? payload = null, bool sourceWithoutSha1 = false,
-        string operation = "88a99917-1f38-4c11-bf75-ab536376e194")
+        string operation = "88a99917-1f38-4c11-bf75-ab536376e194", bool dimensions = false)
     {
         byte[] bytes = payload ?? (poster ? Poster : Preview);
         MediaActualIntegrity source = Measure(Original);
@@ -443,7 +454,8 @@ public sealed class NativeV6DerivedReadTests
         string key = MediaRevisionKeys.CreateAttachmentKey(Resource, "123", 0, provider);
         CapturedAttachment metadata = new(0, provider.MediaId, provider.Variant, provider.Url,
             provider.OriginalFileName, ExpectedSize: provider.ExpectedSize, ExpectedMd5: provider.ExpectedMd5)
-            { ExpectedSha256 = provider.ExpectedSha256, AttachmentRevisionKey = key };
+            { Width = dimensions ? 640 : null, Height = dimensions ? 480 : null,
+                ExpectedSha256 = provider.ExpectedSha256, AttachmentRevisionKey = key };
         MediaOccurrence occurrence = new(Resource, "123", 0, key);
         MediaPassiveObservation origin = new(operation, Hash([1, 2, 3]), At);
         MediaOriginalEvidence evidence = new(occurrence, metadata, MediaObservedContentStatus.Omitted, source, origin);
