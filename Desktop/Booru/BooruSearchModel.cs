@@ -511,13 +511,13 @@ internal sealed class BooruSearchModel : IDisposable
         try
         {
             cancelled = await _queue.CancelOriginalAsync(postId, _lifetime.Token).ConfigureAwait(false);
-            code = cancelled ? BooruCodes.Cancelled : "cancel_not_pending";
+            code = cancelled ? BooruCodes.Cancelled : BooruCodes.CancelNotPending;
         }
         catch (OperationCanceledException) { cancelled = false; code = BooruCodes.Canceled; }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
             cancelled = false;
-            code = "cancel_failed";
+            code = BooruCodes.CancelFailed;
         }
         lock (_gate)
         {

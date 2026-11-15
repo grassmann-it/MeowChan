@@ -53,6 +53,8 @@ namespace MeowChan.Desktop.Booru
         internal const string CooldownNotActive = "cooldown_not_active";
         internal const string MissingReason = "missing_reason";
         internal const string MissingError = "missing_error";
+        internal const string InvalidReason = "invalid_reason";
+        internal const string InvalidError = "invalid_error";
 
         // Watcher search port (BooruWatcherSearchPort) and the production ports.
         internal const string WorkerUnavailable = "worker_unavailable";
@@ -75,6 +77,8 @@ namespace MeowChan.Desktop.Booru
         internal const string UnknownResult = "unknown_result";
         internal const string PageBinding = "page_binding";
         internal const string WrongPost = "wrong_post";
+        internal const string CancelNotPending = "cancel_not_pending";
+        internal const string CancelFailed = "cancel_failed";
 
         /// <summary>Codes whose text lives under <c>booru.watcher.problem.*</c> (domain texts on goal plus <see cref="BooruCodeCatalog"/>).</summary>
         internal static readonly IReadOnlyList<string> All =
@@ -84,9 +88,9 @@ namespace MeowChan.Desktop.Booru
             SearchResultMissing, SearchPortFault, ForeignPost, PageRejected, ProviderDeferred, SourceUnavailable, ProviderError,
             SearchResultUnknown, AdmissionFailed, ProviderCooldown, ProviderCooldownUnavailable, TransportResetFailed,
             TransportResetUnavailable, WatcherError, CheckFaulted, CheckAlreadyRunning, CooldownActive,
-            WatcherNotResumable, CooldownNotActive, MissingReason, MissingError, WorkerUnavailable, MalformedPost, NotAdmitted, BooruSource,
+            WatcherNotResumable, CooldownNotActive, MissingReason, MissingError, InvalidReason, InvalidError, WorkerUnavailable, MalformedPost, NotAdmitted, BooruSource,
             BooruCooldown, ProviderThrottled, ProviderUnavailable,
-            Busy, Canceled, Closed, Exception, Error, NoWorker, UnknownResult, PageBinding, WrongPost,
+            Busy, Canceled, Closed, Exception, Error, NoWorker, UnknownResult, PageBinding, WrongPost, CancelNotPending, CancelFailed,
             // Domain codes whose texts already exist on goal (BooruStatusCatalog).
             "check_not_running", "watcher_paused", "watcher_already_paused", "watcher_already_active", "page_binding_mismatch",
             "page_limit_exceeded", "invalid_post_id", "page_not_descending", "cursor_did_not_advance", "empty_page_did_not_advance",
@@ -157,6 +161,8 @@ namespace MeowChan.Desktop.Localization
                 "Diese Suchbeobachtung hat keine aktive Anbieterpause zum Zurücksetzen. Die Suchbeobachtung ist unverändert."),
             (P + "missing_reason", "The provider pause came without a reason. The check was stopped.", "Die Anbieterpause kam ohne Grund. Die Prüfung wurde abgebrochen."),
             (P + "missing_error", "The check failed without an error code.", "Die Prüfung ist ohne Fehlercode fehlgeschlagen."),
+            (P + "invalid_reason", "The provider pause supplied an invalid reason code. The check was stopped.", "Die Anbieterpause enthielt einen ungültigen Grundcode. Die Prüfung wurde abgebrochen."),
+            (P + "invalid_error", "The watcher check supplied an invalid error code. The check was stopped.", "Die Prüfung der Suchbeobachtung enthielt einen ungültigen Fehlercode. Die Prüfung wurde abgebrochen."),
             (P + "worker_unavailable", "The Danbooru plugin could not be started. Nothing was requested.", "Das Danbooru-Plugin konnte nicht gestartet werden. Es wurde nichts angefragt."),
             (P + "malformed_post", "The provider's answer contained a post MeowChan cannot store.", "Die Antwort des Anbieters enthielt einen Post, den MeowChan nicht speichern kann."),
             (P + "not_admitted", "The download queue did not accept the original (it may be stopping). Try again.", "Die Downloadwarteschlange hat das Original nicht angenommen (sie wird eventuell beendet). Versuche es erneut."),
@@ -172,7 +178,9 @@ namespace MeowChan.Desktop.Localization
             (P + "no-worker", "The Danbooru plugin is not available (disabled or not running).", "Das Danbooru-Plugin ist nicht verfügbar (deaktiviert oder nicht gestartet)."),
             (P + "unknown_result", "The search returned an answer MeowChan does not understand.", "Die Suche lieferte eine Antwort, die MeowChan nicht versteht."),
             (P + "page_binding", "The provider's answer did not match the search that was sent.", "Die Antwort des Anbieters passte nicht zur gesendeten Suche."),
-            (P + "wrong_post", "The provider returned a different post than the one requested.", "Der Anbieter hat einen anderen Post als den angefragten geliefert.")
+            (P + "wrong_post", "The provider returned a different post than the one requested.", "Der Anbieter hat einen anderen Post als den angefragten geliefert."),
+            (P + "cancel_not_pending", "This original is no longer pending, so it could not be cancelled.", "Dieses Original wartet nicht mehr, daher konnte es nicht abgebrochen werden."),
+            (P + "cancel_failed", "The original download could not be cancelled. Try again.", "Der Download des Originals konnte nicht abgebrochen werden. Versuche es erneut.")
         };
     }
 }
