@@ -1060,6 +1060,19 @@
         <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
     </Style>
+    <!-- A status badge that also carries a filter (shortcuts window: the conflict count): no button frame of its own, the badge inside is the
+         look; hover tints it, checked (filter on) draws an accent ring around it. -->
+    <Style Selector="ToggleButton.status-toggle">
+        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="BorderThickness" Value="1" />
+        <Setter Property="MinHeight" Value="0" /><Setter Property="MinWidth" Value="0" /><Setter Property="Padding" Value="2" />
+        <Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Control}" />
+    </Style>
+    <Style Selector="ToggleButton.status-toggle:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Hover}" /><Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+    <Style Selector="ToggleButton.status-toggle:checked /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.status-toggle:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.status-toggle:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
+    </Style>
     <!-- M5: the two-way switch (TwoWayToggle, "all | any"): two touching buttons with the frame, height and corners of the combo box; on = accent surface. -->
     <Style Selector="ToggleButton.segment">
         <Setter Property="Background" Value="{DynamicResource Workspace.Raised}" />

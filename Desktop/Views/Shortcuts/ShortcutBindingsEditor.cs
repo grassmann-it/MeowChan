@@ -50,7 +50,13 @@ public sealed class ShortcutBindingsEditor : UserControl
     private readonly CheckBox _assignedOnly = new() { Name = "ShortcutsAssignedOnly" };
     private readonly CheckBox _grouped = new() { Name = "ShortcutsGrouped", IsChecked = true };
     private readonly ToggleButton _conflicts = new() { Name = "ShortcutsConflicts" };
-    private readonly TextBlock _notes = new() { Name = "ShortcutsNotes", TextWrapping = TextWrapping.Wrap };
+    // The conflict count as a status badge (the toggle around it only carries the "conflicts only" filter and its keyboard focus).
+    private readonly Border _conflictBadge = new() { Classes = { "workspace-status" } };
+    private readonly TextBlock _conflictText = new() { Classes = { "workspace-status" }, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.NoWrap };
+    // The context hints as one secondary-text strip: a plain line each, a leading key ("Esc  ...") as a keycap plus its text.
+    private readonly StackPanel _notes = new() { Name = "ShortcutsNotes", Spacing = 4 };
+    private readonly Border _notesHost = new() { Classes = { "workspace-section" }, Padding = new Thickness(12, 8), Margin = new Thickness(16, 0, 16, 12) };
+    private IReadOnlyList<string> _noteLines = Array.Empty<string>();
     private readonly Grid _header = new() { ColumnDefinitions = new ColumnDefinitions(TableColumns), ColumnSpacing = 12 };
     private readonly ListBox _actions = new() { Name = ListName };
     private readonly TextBlock _empty = new() { Name = "ShortcutsEmpty", TextWrapping = TextWrapping.Wrap, IsVisible = false };
@@ -91,14 +97,16 @@ public sealed class ShortcutBindingsEditor : UserControl
         Name = "ShortcutBindingsEditor";
         _errors.Classes.Add("workspace-error");
         _pendingLabel.Classes.Add("workspace-help");
-        _notes.Classes.Add("workspace-help");
         _empty.Classes.Add("workspace-help");
         _noSelection.Classes.Add("workspace-help");
         _status.Classes.Add("workspace-meta");
         _recording.Classes.Add("workspace-status-active");
         _detailFrame.Classes.Add("workspace-section");
         _detailFrame.Child = _detail;
-        _conflicts.Classes.Add("subtle");
+        _conflicts.Classes.Add("status-toggle");
+        _conflictBadge.Child = _conflictText;
+        _conflicts.Content = _conflictBadge;
+        _notesHost.Child = _notes;
         Content = _root;
         _search.TextChanging += (_, _) => { if (!_syncingFilters) RefreshList(); };
         _area.SelectionChanged += (_, _) => { if (!_syncingFilters) RefreshList(); };
@@ -159,6 +167,8 @@ public sealed class ShortcutBindingsEditor : UserControl
     internal Button SaveButton => _save;
     internal TextBlock StatusText => _status;
     internal TextBlock ErrorText => _errors;
+    /// <summary>The context hints shown above the table, as the localized lines (a leading key is drawn as a keycap, the line stays whole here).</summary>
+    internal IReadOnlyList<string> NoteLines => _noteLines;
     /// <summary>The bound commands the opening context offers, in the words of the former F1 list (automation, tests).</summary>
     internal string PlainText => BuildPlainText();
 
@@ -375,9 +385,12 @@ public sealed class ShortcutBindingsEditor : UserControl
 
     private void BuildFrame()
     {
-        // Toolbar, two rows: search and area share the width half and half; the options (filters, conflicts) sit below.
-        var toolbar = new StackPanel { Spacing = 8, Margin = new Thickness(16, 0, 16, 8) };
+        // Toolbar (16 inset, 8 between its rows, 12 to what follows): search and area share the width half and half at the input
+        // height; below, the filters on the left and the conflict badge on the right.
+        var toolbar = new StackPanel { Spacing = 8, Margin = new Thickness(16, 0, 16, 12) };
         var find = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*"), ColumnSpacing = 8 };
+        _search.VerticalAlignment = VerticalAlignment.Center;
+        _area.VerticalAlignment = VerticalAlignment.Center;
         find.Children.Add(_search);
         // A plain list as the source: Items.Add would bind a collection listener to the creating thread.
         _area.ItemsSource = new[] { AreaItem(null) }.Concat(ShortcutGroups.Order.Select(group => AreaItem(group))).ToArray();
@@ -385,19 +398,21 @@ public sealed class ShortcutBindingsEditor : UserControl
         Grid.SetColumn(_area, 1);
         find.Children.Add(_area);
         toolbar.Children.Add(find);
-        var options = new WrapPanel { ItemSpacing = 16, LineSpacing = 8 };
+        var options = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,Auto,*,Auto"), ColumnSpacing = 16, MinHeight = 32 };
         foreach (Control option in new Control[] { _assignedOnly, _grouped, _conflicts }) option.VerticalAlignment = VerticalAlignment.Center;
         Localized(_assignedOnly, () => Texts.T("shortcuts.window.assignedOnly"));
         options.Children.Add(_assignedOnly);
         Localized(_grouped, () => Texts.T("shortcuts.window.grouped"));
+        Grid.SetColumn(_grouped, 1);
         options.Children.Add(_grouped);
+        _conflicts.HorizontalAlignment = HorizontalAlignment.Right;
+        Grid.SetColumn(_conflicts, 3);
         options.Children.Add(_conflicts);
         toolbar.Children.Add(options);
         _root.Children.Add(toolbar);
 
-        var notesHost = new Border { Child = _notes, Margin = new Thickness(16, 0, 16, 8) };
-        Grid.SetRow(notesHost, 1);
-        _root.Children.Add(notesHost);
+        Grid.SetRow(_notesHost, 1);
+        _root.Children.Add(_notesHost);
 
         // Column heads: a plain header row of the table (text, no buttons; the order is fixed). Its inset is that of a row's content
         // (a list row's border and padding are 12 wide on both sides), so the labels sit above their columns.
@@ -494,19 +509,42 @@ public sealed class ShortcutBindingsEditor : UserControl
     private void RefreshConflictChip()
     {
         int count = _model.BlockingCount;
-        _conflicts.Content = Texts.T("shortcuts.window.conflicts", count);
+        _conflictText.Text = Texts.T("shortcuts.window.conflicts", count);
         AutomationProperties.SetName(_conflicts, Texts.T("shortcuts.window.conflicts", count));
         AutomationProperties.SetHelpText(_conflicts, Texts.T("shortcuts.window.conflicts.help"));
         ToolTip.SetTip(_conflicts, Texts.T("shortcuts.window.conflicts.help"));
-        _conflicts.Classes.Set("danger", count > 0);
+        // Only a conflict colors the badge; with none it is the neutral status chip.
+        _conflictBadge.Classes.Set("workspace-status-error", count > 0);
     }
 
     private void RefreshNotes()
     {
         List<string> notes = (_context.NoteKeys ?? Array.Empty<string>()).Select(key => Texts.T(key)).ToList();
         if (!ShortcutService.Current.SingleKeyShortcuts || !_session.Draft.SingleKeyShortcuts) notes.Add(Texts.T("help.singleKeysOff"));
-        _notes.Text = string.Join(Environment.NewLine, notes.Distinct());
-        _notes.IsVisible = notes.Count > 0;
+        _noteLines = notes.Distinct().ToArray();
+        _notes.Children.Clear();
+        foreach (string line in _noteLines) _notes.Children.Add(NoteLine(line));
+        _notesHost.IsVisible = _noteLines.Count > 0;
+    }
+
+    private static readonly System.Text.RegularExpressions.Regex KeyHint = new(@"^(?<key>\S{1,8})\s{2,}(?<text>\S.*)$",
+        System.Text.RegularExpressions.RegexOptions.Singleline | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+    /// <summary>One hint line; "Esc  Close ..." becomes a keycap (as in the table) and the rest as secondary text.</summary>
+    private static Control NoteLine(string line)
+    {
+        var text = new TextBlock { Text = line, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
+        text.Classes.Add("workspace-help");
+        if (KeyHint.Match(line) is not { Success: true } match) return text;
+        text.Text = match.Groups["text"].Value;
+        var cap = new Border { Child = new TextBlock { Text = match.Groups["key"].Value }, VerticalAlignment = VerticalAlignment.Center };
+        cap.Classes.Add(KeyCapText.CapClass);
+        var row = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*"), ColumnSpacing = 8 };
+        row.Children.Add(cap);
+        Grid.SetColumn(text, 1);
+        row.Children.Add(text);
+        AutomationProperties.SetName(row, line);
+        return row;
     }
 
     private void RefreshList()
