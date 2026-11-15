@@ -10,6 +10,7 @@
             <!-- WV2: the header tools are one toolbar, so a view that moves one off the bar keeps it under the same "More". -->
             <desktop:ActionToolBar x:Name="ArchiveHeaderActions" Grid.Column="1" VerticalAlignment="Top" HorizontalAlignment="Right">
                 <Button x:Name="ArchiveTransferPreview" wv:WorkViewElement.Id="archive.header.transfer-preview" Click="OnTransferPreviewClick" ursa:ToolBar.OverflowMode="AsNeeded" />
+                <Button x:Name="ArchiveTransferExport" wv:WorkViewElement.Id="archive.header.transfer-export" Click="OnTransferExportClick" ursa:ToolBar.OverflowMode="AsNeeded" />
                 <Button x:Name="ArchiveCleanupOpen" wv:WorkViewElement.Id="archive.header.cleanup" Click="OnArchiveCleanupClick" ursa:ToolBar.OverflowMode="AsNeeded" />
                 <Button x:Name="RefreshArchiveButton" wv:WorkViewElement.Id="archive.header.refresh" Tag="archive.refresh" Classes="localized" Click="OnRefreshClick" ursa:ToolBar.OverflowMode="AsNeeded" />
             </desktop:ActionToolBar>

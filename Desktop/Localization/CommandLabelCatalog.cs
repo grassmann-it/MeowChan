@@ -77,6 +77,7 @@ internal static class CommandLabelCatalog
         ("command.input.focus-download-search", "Search local downloads", "Lokale Downloads durchsuchen"),
         ("command.export.open-all-results-html-dialog", "Export all results", "Alle Treffer exportieren"),
         ("command.archive.refresh", "Refresh archive", "Archiv aktualisieren"),
+        ("command.archive.transfer-export", "Export archive", "Archiv exportieren"),
         ("command.archive.cleanup", "Clean up archive…", "Archiv aufräumen…"),
         ("command.archive.search", "Search", "Suchen"),
         ("command.archive.filters-toggle", "Filters and sorting", "Filter und Sortierung"),

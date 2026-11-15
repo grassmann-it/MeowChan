@@ -161,6 +161,8 @@ public static class CommandCatalog
         new("export.open-all-results-html-dialog", "command.export.open-all-results-html-dialog", "Export all results", "Alle Treffer exportieren", "download", null, CommandScope.Archive, new[] { "archive-results-toolbar" }),
         new("archive.refresh", "command.archive.refresh", "Refresh archive", "Archiv aktualisieren", "refresh-cw", null, CommandScope.Archive, new[] { "archive-toolbar" }),
         new("archive.transfer-preview", "transfer.preview.open", "Inspect transfer package…", "Transferpaket prüfen…", "archive", null, CommandScope.Archive, new[] { "archive-header" }),
+        // Export labels carry no trailing ellipsis (ExportLabelPunctuationTests); the tooltip names the dialog instead (DialogHint).
+        new("archive.transfer-export", "command.archive.transfer-export", "Export archive", "Archiv exportieren", "download", null, CommandScope.Archive, new[] { "archive-header" }),
         new("archive.cleanup", "command.archive.cleanup", "Clean up archive…", "Archiv aufräumen…", "archive", null, CommandScope.Archive, new[] { "archive-toolbar" }),
         new("archive.saved-searches.open-manager", "savedSearch.openManager", "Saved searches…", "Gespeicherte Suchen…", "folder", null, CommandScope.Archive, new[] { "archive-results-toolbar" }),
         new("archive.saved-searches.save-current", "savedSearch.saveCurrent", "Save applied search…", "Angewandte Suche speichern…", "save", null, CommandScope.Archive | CommandScope.Dialog, new[] { "archive-results-toolbar" }),
@@ -494,7 +496,7 @@ public static class CommandCatalog
     public static string? DialogHint(string id) => id switch
     {
         "export.open-html-dialog" or "export.open-all-results-html-dialog" or "export.open-urltext-dialog"
-            or "favorites.export-originals" or "media.export-original" => Texts.T("command.hint.opens-export-dialog"),
+            or "favorites.export-originals" or "media.export-original" or "archive.transfer-export" => Texts.T("command.hint.opens-export-dialog"),
         _ => null
     };
 

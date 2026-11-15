@@ -54,7 +54,7 @@ public partial class ArchivePage
 
     private bool CanOpenTransferPreview => !_ended && !_busy && _available && !_urlTextExportBusy
         && !_transferPreviewOpening && _transferPreviewDialog == null && _transferImportDialog == null
-        && !IsArchiveCleanupOpen && !IsReaderDialogOpen && !_exportRunning
+        && !IsArchiveCleanupOpen && !IsReaderDialogOpen && !_exportRunning && !IsTransferExportOpen
         && (_transferImportHost == null || _transferImportHost.State == DesktopSessionState.Ready);
 
     private void UpdateTransferPreviewAction()
