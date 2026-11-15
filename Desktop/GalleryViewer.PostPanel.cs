@@ -1,0 +1,180 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using Avalonia;
+using Avalonia.Automation;
+using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Layout;
+using Avalonia.Markup.Xaml.MarkupExtensions;
+using Avalonia.Media;
+using MeowChan.Desktop.Controls;
+using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.MediaActions;
+using MeowChan.Gallery;
+
+namespace MeowChan.Desktop;
+
+// Review 15.11. (Tom's decision): the Post segment of the side panel carries what the toolbar's rating button and the rating dialog did.
+// Top to bottom, 12 dip between the sections, 8 inside a section, 4 from a caption to its content (the values the tag panel and the decision
+// row use): where the post is, favourite and stars (a second GalleryDecisionRow, created once and put back on every rebuild), the medium's tags
+// as read-only chips with a link to the Tags segment, a rule, then the post itself and the file. R (media.rating.edit) moves the focus to the
+// stars; only a panel that cannot take it opens the rating menu on the viewer.
+internal sealed partial class GalleryViewer
+{
+    internal const string PostDecisionName = "GalleryPostDecision";
+    /// <summary>The most tags the Post segment lists as chips; the rest is one "+N more" chip (the full list is one click away in Tags).</summary>
+    internal const int PostTagChipLimit = 30;
+
+    private GalleryDecisionRow? _postDecision;
+    private StackPanel? _postDecisionSection;
+    private readonly TextBlock _postRatingError = new() { Name = "GalleryPostRatingError", Classes = { "workspace-error" },
+        TextWrapping = TextWrapping.Wrap, IsVisible = false };
+
+    /// <summary>The favourite and rating row of the Post segment (null until the segment was first built).</summary>
+    internal GalleryDecisionRow? PostDecisionRow => _postDecision;
+
+    // What the Post row shows: the viewer's own state (this medium only; the marked media belong to the Tags segment's row). The row stays usable
+    // while a write is under way so the focus is not lost under a keyboard user; its requests are ignored then (OnPostRatingRequested).
+    private GalleryDecisionView PostDecisionView() => new(1, _favoriteSelected ? GalleryDecisionCoverage.All : GalleryDecisionCoverage.None,
+        _ratingValue, false, _entry != null && !_terminalRetirement && _favoriteKnown && (_ratingAvailable || _ratingPending));
+
+    private Control PostDecisionSection()
+    {
+        if (_postDecision == null)
+        {
+            _postDecision = new GalleryDecisionRow(PostDecisionName);
+            _postDecision.FavoriteRequested += OnPostFavoriteRequested;
+            _postDecision.RatingRequested += OnPostRatingRequested;
+            // An assertive live region: a failed write is said at once, the next click on a star tries again (the dialog's retry is gone).
+            AutomationProperties.SetLiveSetting(_postRatingError, AutomationLiveSetting.Assertive);
+            _postDecisionSection = new StackPanel { Name = "GalleryPostDecisionSection", Spacing = 4,
+                Children = { _postDecision, _postRatingError } };
+        }
+        RefreshPostDecision();
+        return _postDecisionSection!;
+    }
+
+    /// <summary>Shows the viewer's favourite and rating (and the error of a failed write) in the Post row without rebuilding the segment.</summary>
+    internal void RefreshPostDecision()
+    {
+        if (_postDecision == null) return;
+        _postDecision.Show(PostDecisionView());
+        string? error = _ratingError;
+        string text = string.IsNullOrEmpty(error) ? string.Empty
+            : MediaRatingText.FormatError(MediaRatingText.Catalog("media.rating.error.save"), error);
+        if (_postRatingError.Text != text) _postRatingError.Text = text;
+        _postRatingError.IsVisible = text.Length > 0;
+    }
+
+    private void OnPostFavoriteRequested(bool selected)
+    {
+        if (_favoritePending) { RefreshPostDecision(); return; } // a write is under way: the click is ignored and the focus stays
+        ToggleFavorite();
+    }
+
+    private void OnPostRatingRequested(int? value)
+    {
+        if (_entry == null || _ratingPending || !_ratingAvailable) { RefreshPostDecision(); return; }
+        RatingSetRequested?.Invoke(_entry, value);
+    }
+
+    // ---- the tags of the shown medium ------------------------------------------------------------------------------------------
+
+    private Control BuildPostTagsSection(Func<Panel, string, string, Action, Button> command)
+    {
+        StackPanel section = new() { Name = "GalleryPostTags", Spacing = 4 };
+        IReadOnlyList<string>? names = _tagNames;
+        int count = names?.Count ?? 0;
+        section.Children.Add(new TextBlock { Name = "GalleryPostTagsCaption", Classes = { "workspace-meta" }, FontWeight = FontWeight.SemiBold,
+            Text = count > 0 ? Texts.T("tags.media.buttonCount", count) : Texts.T("tags.media.button") });
+        if (names == null)
+        {
+            // Unknown or not taggable: the reason, no link (the Tags segment is not offered either).
+            if (!string.IsNullOrWhiteSpace(_tagsUnavailableReason))
+                section.Children.Add(new TextBlock { Name = "GalleryPostTagsReason", Classes = { "workspace-help" }, Text = _tagsUnavailableReason,
+                    TextWrapping = TextWrapping.Wrap });
+            return section;
+        }
+        if (count == 0)
+            section.Children.Add(new TextBlock { Name = "GalleryPostTagsEmpty", Classes = { "workspace-help" }, Text = Texts.T("tags.quick.assigned.empty"),
+                TextWrapping = TextWrapping.Wrap });
+        else
+        {
+            WrapPanel chips = new() { Name = "GalleryPostTagChips", ItemSpacing = 8, LineSpacing = 8 };
+            // The chips are decoration of one line: a screen reader reads "Tags: a, b, c" once, not every chip.
+            AutomationProperties.SetName(chips, Texts.T("tags.rowLabel", string.Join(", ", names)));
+            AutomationProperties.SetAccessibilityView(chips, AccessibilityView.Content);
+            foreach (string name in names.Take(PostTagChipLimit)) chips.Children.Add(TagChip(name, more: false));
+            if (count > PostTagChipLimit) chips.Children.Add(TagChip(Texts.T("gallery.post.tags.more", count - PostTagChipLimit), more: true));
+            section.Children.Add(chips);
+        }
+        Button edit = command(section, "GalleryPostTagsEdit", Texts.T("gallery.post.tags.edit"), () => OnSidePanelSegmentRequested(GallerySidePanelSegment.Tags, focusContent: true));
+        edit.Classes.Add("link");
+        edit.HorizontalAlignment = HorizontalAlignment.Left;
+        return section;
+    }
+
+    private static Border TagChip(string text, bool more)
+    {
+        Border chip = new() { Name = more ? "GalleryPostTagsMore" : "GalleryPostTag", Classes = { "chip", "chip-readonly" },
+            HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center, Focusable = false,
+            Child = new TextBlock { Text = text, Classes = { "chip-label" }, MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis,
+                VerticalAlignment = VerticalAlignment.Center } };
+        if (more) chip.Classes.Add("chip-more");
+        AutomationProperties.SetAccessibilityView(chip, AccessibilityView.Raw);
+        return chip;
+    }
+
+    private static Control PostRule() => new Border { Name = "GalleryPostRule", Height = 1, [!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.Border"),
+        Focusable = false, IsHitTestVisible = false };
+
+    // ---- R: the stars, or the rating menu -------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// R moves the focus to the checked star (star 1 while unrated) of the panel, as a Tab would. Panel closed: the Post segment opens first.
+    /// The Tags segment open: it stays and its row's stars take the focus (switching would drop the marked-media context). False when no
+    /// panel can take the focus (the caller then shows the rating menu).
+    /// </summary>
+    internal bool FocusRatingStars()
+    {
+        if (_entry == null || _terminalRetirement || !_ratingAvailable) return false;
+        if (_tagPanelOpen && _decisionRow is { } tagsRow) return _contextOpen && tagsRow.FocusRating();
+        if (!_contextOpen) SetContextOpen(true, notify: false);
+        if (!_contextOpen || _tagPanelOpen) return false;
+        EnsureContextCurrent();
+        return _postDecision is { } row && row.FocusRating();
+    }
+
+    // Keys of a focused star: Left/Right/Home/End rove along the group (never read as "previous / next medium"), Esc returns the focus to
+    // the picture and leaves the panel open. Both rows (Post and Tags) behave alike.
+    private bool RouteDecisionRowKey(KeyEventArgs e)
+    {
+        if (!_contextOpen) return false;
+        foreach (GalleryDecisionRow? row in new[] { _postDecision, _decisionRow })
+        {
+            if (row == null || !row.IsKeyboardFocusWithin || !row.IsRatingFocused) continue;
+            if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None) { FocusGallerySurface(); e.Handled = true; return true; }
+            if (row.RouteStarKey(e)) { e.Handled = true; return true; }
+        }
+        return false;
+    }
+
+    /// <summary>The stars and "Remove rating" as a menu of their own at the viewer (R when no panel can take the focus). Rates the shown medium.</summary>
+    internal void ShowRatingMenu()
+    {
+        if (_entry == null || _terminalRetirement) return;
+        HoldSlideshowAdvance();
+        RevealOverlayControls();
+        GalleryEntry entry = _entry;
+        long navigation = _navigationId;
+        MediaMenuSession session = new(_nativeOverlayActive ? MediaMenuSurface.NativeVideoOverlay : MediaMenuSurface.Gallery, MediaMenuTarget.Of(entry),
+            () => !_terminalRetirement && navigation == _navigationId && _entry is { } current && MediaMenuTarget.Of(current) == MediaMenuTarget.Of(entry));
+        bool available = RatingSetRequested != null && _ratingAvailable;
+        ContextMenu menu = MediaMenuBuilder.BuildRatingMenu(session, _ratingValue, available, MediaMenuReasons.Unavailable,
+            value => { RatingSetRequested?.Invoke(entry, value); return Task.CompletedTask; }, action => action());
+        Control owner = _nativeOverlayActive ? _nativeVideoOverlay : _viewport;
+        _mediaMenuPresenter.Show(menu, session, owner, attachToOrigin: true, fallbackFocus: FocusGallerySurface);
+    }
+}

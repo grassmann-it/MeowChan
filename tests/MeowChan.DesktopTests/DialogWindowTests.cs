@@ -152,9 +152,8 @@ public sealed class DialogWindowTests
         Assert.Single(bare.Children, child => child.Name == DialogFrame.BodyName);
     }
 
-    // The four reference dialogs of MD1: no title repeated in the body, Escape through the policy, the footer through the factory.
+    // The remaining reference dialogs of MD1: no title repeated in the body, Escape through the policy, the footer through the factory.
     [Theory]
-    [InlineData("Desktop/MediaRatingDialog.cs", null, true)]
     [InlineData("Desktop/Views/Media/MediaOccurrencesWindow.cs", null, false)]
     [InlineData("Desktop/Views/Collections/ReaderGroupsDialog.axaml.cs", "internal static class ReaderGroupsPrompt", true)]
     [InlineData("Desktop/Views/Collections/PostBookmarksDialog.axaml.cs", "private async Task<bool> ConfirmAsync(", true)]

@@ -262,7 +262,13 @@ public partial class MainWindow
                     }
                     break;
                 case "favorites.toggle": await ToggleGalleryFavoriteAsync(entry); break;
-                case "media.rating.edit": await EditMediaRatingAsync(entry); break;
+                // The rating menu's stars and "Remove rating" (R opens the same menu on the tile): written like the gallery's rating keys.
+                case "media.rating.clear": await RateMediaPageEntryAsync(entry, null); break;
+                case "media.rating.set-1": await RateMediaPageEntryAsync(entry, 1); break;
+                case "media.rating.set-2": await RateMediaPageEntryAsync(entry, 2); break;
+                case "media.rating.set-3": await RateMediaPageEntryAsync(entry, 3); break;
+                case "media.rating.set-4": await RateMediaPageEntryAsync(entry, 4); break;
+                case "media.rating.set-5": await RateMediaPageEntryAsync(entry, 5); break;
                 case "media.export-original":
                     await ArchivePage.OpenOriginalExportAsync(new[] { Favorites.FavoriteExportAsset.From(entry.Key.Thread,
                         entry.Manifest, entry.Asset) }, _mediaPage, scopeLabel: CommandCatalog.Label(id));

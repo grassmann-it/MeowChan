@@ -45,6 +45,9 @@ internal sealed partial class GalleryViewer
         _tagNames = names;
         _tagsUnavailableReason = names == null ? unavailableReason : null;
         UpdateTagsButton();
+        // The Post segment lists the tags as chips: it is rebuilt when it is shown (now, or when it opens).
+        _contextDirty = true;
+        EnsureContextCurrent();
     }
 
     private void ResetMediaTags()
@@ -52,6 +55,7 @@ internal sealed partial class GalleryViewer
         _tagNames = null;
         _tagsUnavailableReason = null;
         UpdateTagsButton();
+        _contextDirty = true; // the medium changes: the context is built for it right after (UpdateContext)
     }
 
     // The row's label is the live tag count; on the toolbar it is the button's name and tooltip (the visible text stays "Tags").

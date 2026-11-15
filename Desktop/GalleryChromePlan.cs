@@ -97,7 +97,7 @@ internal sealed record GalleryChromePlan(bool Filmstrip, GalleryFilmstripDock Fi
     internal static IReadOnlyList<string> Priority { get; } = Array.AsReadOnly(new[]
     {
         "gallery.position", "gallery.toolbar.more", "gallery.toolbar.tools-toggle", "gallery.toolbar.layout", "gallery.mode", "gallery.toolbar.fit",
-        "gallery.toolbar.post-panel", "gallery.toolbar.tags", "gallery.favorite", "gallery.toolbar.slideshow", "gallery.toolbar.rating",
+        "gallery.toolbar.post-panel", "gallery.toolbar.tags", "gallery.favorite", "gallery.toolbar.slideshow",
         "gallery.toolbar.help"
     });
 
@@ -111,15 +111,12 @@ internal sealed record GalleryChromePlan(bool Filmstrip, GalleryFilmstripDock Fi
 
     /// <summary>
     /// The overflow table of S2 for the movable tools: the first stage at which the tool is under "More" in <paramref name="view"/> (the tool
-    /// is on the bar below this stage). Advanced: help (?) at 1, the rating button at 2, tags and the slideshow at 3. Simple: the rating
-    /// button at 1, tags at 2, the slideshow at 3. Barebones offers none of them on the bar; every other id leaves at 3.
+    /// is on the bar below this stage). Advanced: help (?) at 1, tags and the slideshow at 3. Simple: tags at 2, the slideshow at 3. Barebones offers none of them on the bar; every other id leaves at 3.
     /// An active slideshow is not decided here: its toggle never leaves (R6).
     /// </summary>
     internal static int LeaveStage(WorkView view, string id) => (view, id) switch
     {
         (WorkView.Advanced, "gallery.toolbar.help") => 1,
-        (WorkView.Advanced, "gallery.toolbar.rating") => 2,
-        (WorkView.Simple, "gallery.toolbar.rating") => 1,
         (WorkView.Simple, "gallery.toolbar.tags") => 2,
         _ => 3
     };
@@ -141,7 +138,6 @@ internal sealed record GalleryChromePlan(bool Filmstrip, GalleryFilmstripDock Fi
     public bool ModeIcons { get; init; }
     public bool PanelToggle { get; init; }
     public bool Favorite { get; init; }
-    public bool Rating { get; init; }
     public bool Tags { get; init; }
     public bool Slideshow { get; init; }
     public bool Help { get; init; }
@@ -164,7 +160,6 @@ internal sealed record GalleryChromePlan(bool Filmstrip, GalleryFilmstripDock Fi
     /// <summary>Whether the movable tool <paramref name="id"/> sits on the bar (seconds and mode: never, E2).</summary>
     internal bool OnBar(string id) => id switch
     {
-        "gallery.toolbar.rating" => Rating,
         "gallery.toolbar.tags" => Tags,
         "gallery.toolbar.slideshow" => Slideshow,
         "gallery.toolbar.help" => Help,
@@ -173,7 +168,7 @@ internal sealed record GalleryChromePlan(bool Filmstrip, GalleryFilmstripDock Fi
 
     /// <summary>The same tools on the bar and in the menu (only visibility may differ).</summary>
     internal bool SamePlacement(GalleryChromePlan other) =>
-        Rating == other.Rating && Tags == other.Tags && Slideshow == other.Slideshow && Help == other.Help;
+        Tags == other.Tags && Slideshow == other.Slideshow && Help == other.Help;
 
     /// <summary>The mode of the viewer: Tag while it walks the tagging queue, else View.</summary>
     internal static GalleryChromeMode ResolveMode(bool tagging) => tagging ? GalleryChromeMode.Tag : GalleryChromeMode.View;
@@ -224,9 +219,9 @@ internal sealed record GalleryChromePlan(bool Filmstrip, GalleryFilmstripDock Fi
             Info: info,
             // S2: the "where am I" segment goes first when the bar gets narrow (below NarrowWidth).
             InfoScope: info && !tag && ViewOffers("gallery.info.scope") && (input.Width <= 0 || input.Width >= NarrowWidth),
-            // QW5: the info line's rating yields to the tag panel's row, which shows the same value and is the one place to change it.
-            // GL5c: it also yields to the rating button of the bar (☆ 4), which shows the value too.
-            InfoRating: info && InfoRatingVisible(mediaFocus: false, input.PanelDecisions) && !Movable("gallery.toolbar.rating"),
+            // QW5: the info line's rating yields to the panel's decision row (the Post and the Tags segment both carry one), which shows the same
+            // value and is the place to change it. There is no rating button on the bar any more (review 15.11.).
+            InfoRating: info && InfoRatingVisible(mediaFocus: false, input.PanelDecisions),
             Hints: hints,
             // Only a walk of the tagging queue has decisions; Tag in any other gallery is the tag panel alone.
             DecisionRow: tag && input.Walk && bar,
@@ -249,7 +244,6 @@ internal sealed record GalleryChromePlan(bool Filmstrip, GalleryFilmstripDock Fi
             // button comes back in the tagging mode too, so changing the favourite is never only a key away while the tools show.
             Favorite = bar && (tools || tag && !input.MediaFocus && favoriteSurface == GalleryFavoriteSurface.Bar),
             FavoriteSurface = favoriteSurface,
-            Rating = Movable("gallery.toolbar.rating"),
             Tags = Movable("gallery.toolbar.tags"),
             Help = Movable("gallery.toolbar.help"),
             // R6: a chosen or running slideshow keeps its pause one click away (with hidden tools too); in the tagging mode only while it runs.

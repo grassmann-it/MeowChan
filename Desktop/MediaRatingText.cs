@@ -22,11 +22,9 @@ internal static class MediaRatingText
     internal static string LocalizedFilterAtLeast(int value) => Catalog("media.rating.filter.atLeast", value);
     internal static string LocalizedFilterLabel => Catalog("media.rating.filter.label");
     internal static string LocalizedFilterNoLongerMatches => Catalog("media.rating.filter.noLongerMatches");
-    internal static string LocalizedSaved(int? value) => Catalog("media.rating.saved", LocalizedValue(value));
     internal static string LocalizedIdentity(MeowChan.Favorites.FavoriteAssetKey key) => Catalog(
         "media.rating.identity", key.Thread.Source, key.Thread.Board, key.Thread.Thread,
         key.MediaIdentifier, key.Variant, key.Sha256);
-    internal static string KeyboardValue(int value) => Catalog("media.rating.keyboardSave", LocalizedValue(value));
     internal static string AccessibleValue(string value) => Catalog("media.rating.accessibleValue", LocalizedLabel, value);
     internal static string Row(MeowChan.Ratings.MediaRatingEntry entry) => Catalog("media.rating.row", LocalizedIdentity(entry.Key), LocalizedValue(entry.Value));
 

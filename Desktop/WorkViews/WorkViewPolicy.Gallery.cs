@@ -28,7 +28,7 @@ public static partial class WorkViewPolicy
 
     private static string[] GalleryMovable() =>
     [
-        "gallery.toolbar.rating", "gallery.toolbar.tags", "gallery.toolbar.slideshow", "gallery.toolbar.slideshow-seconds",
+        "gallery.toolbar.tags", "gallery.toolbar.slideshow", "gallery.toolbar.slideshow-seconds",
         "gallery.toolbar.playback-mode", "gallery.toolbar.help"
     ];
 
@@ -104,8 +104,8 @@ public static partial class WorkViewPolicy
 
         // ---- Movable tools (plan §1.6), in GalleryMovableToolIds order. A shortcut keeps working in every view: the
         // viewer routes them by their command, not by where the button sits. ----
-        // Curating: rating and tags are Simple's reason to open the gallery. Barebones keeps them under More.
-        GalleryTool("gallery.toolbar.rating", Overflow, Direct, Direct, "media.rating.edit"),
+        // Curating: tags are Simple's reason to open the gallery. Barebones keeps them under More. (The rating has no tool of its own any more:
+        // the Post and Tags segments of the side panel carry the stars, review 15.11.)
         GalleryTool("gallery.toolbar.tags", Overflow, Direct, Direct, "media.tags.edit"),
         // Slideshow: a chosen or running slideshow keeps its toggle on the bar in every view (R6, the viewer passes the state).
         GalleryTool("gallery.toolbar.slideshow", Overflow, Direct, Direct, "gallery.slideshow-toggle"),

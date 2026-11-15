@@ -12,11 +12,11 @@ namespace MeowChan.DesktopTests;
 
 // Pure helper/source-contract coverage; native-window execution is intentionally separate.
 [Collection("Localization")]
-public sealed class MediaRatingDialogLanguageRefreshTests : IDisposable
+public sealed class MediaRatingsManagerLanguageRefreshTests : IDisposable
 {
     private readonly string _language = Texts.Language;
 
-    public MediaRatingDialogLanguageRefreshTests()
+    public MediaRatingsManagerLanguageRefreshTests()
     {
         Texts.Initialize();
         Texts.SetLanguage("en");
@@ -36,16 +36,13 @@ public sealed class MediaRatingDialogLanguageRefreshTests : IDisposable
         var expected = Expected(language);
         foreach (string key in new[] { "media.rating.label", "media.rating.unrated", "media.rating.search",
             "media.rating.noSaved", "media.rating.noMatching", "media.rating.confirmRemove", "media.rating.removeThis",
-            "media.rating.cancel", "media.rating.close", "media.rating.retry", "media.rating.help",
-            "media.rating.keyboardHelp", "media.rating.error.save", "media.rating.error.remove",
+            "media.rating.cancel", "media.rating.error.save", "media.rating.error.remove",
             "media.rating.error.load", "media.rating.error.details" })
             Assert.Equal(expected[key], MediaRatingText.Catalog(key));
         Assert.Equal(expected["media.rating.label"], MediaRatingText.LocalizedLabel);
         string value = string.Format(expected["media.rating.value"], 4);
         Assert.Equal(value, MediaRatingText.LocalizedValue(4));
         Assert.Equal(expected["media.rating.unrated"], MediaRatingText.LocalizedValue(null));
-        Assert.Equal(string.Format(expected["media.rating.saved"], value), MediaRatingText.LocalizedSaved(4));
-        Assert.Equal(string.Format(expected["media.rating.keyboardSave"], value), MediaRatingText.KeyboardValue(4));
         Assert.Equal(string.Format(expected["media.rating.accessibleValue"], expected["media.rating.label"], value),
             MediaRatingText.AccessibleValue(value));
         Assert.Equal(string.Format(expected["media.rating.summary"], 2, 7), MediaRatingText.Catalog("media.rating.summary", 2, 7));
@@ -92,12 +89,10 @@ public sealed class MediaRatingDialogLanguageRefreshTests : IDisposable
             Assert.Equal(pair.Value, strings.GetProperty(pair.Key).GetString());
     }
 
-    [Theory]
-    [InlineData("MediaRatingDialog")]
-    [InlineData("MediaRatingsManagerDialog")]
-    public void SubscriptionDispatchesAndRejectsCallbacksAfterClosed(string dialog)
+    [Fact]
+    public void SubscriptionDispatchesAndRejectsCallbacksAfterClosed()
     {
-        string source = ReadSource(dialog);
+        string source = ReadSource("MediaRatingsManagerDialog");
         Assert.Contains("Texts.Changed += OnLanguageChanged;", source);
         Assert.Contains("Volatile.Write(ref _closed, true); Texts.Changed -= OnLanguageChanged;", source);
         string callback = Between(source, "private void OnLanguageChanged(", "private void ApplyTexts()");
@@ -109,34 +104,14 @@ public sealed class MediaRatingDialogLanguageRefreshTests : IDisposable
             < apply.IndexOf("Title =", StringComparison.Ordinal));
     }
 
-    [Theory]
-    [InlineData("MediaRatingDialog")]
-    [InlineData("MediaRatingsManagerDialog")]
-    public void RefreshOnlyChangesPresentationNotPendingOperationsOrFocus(string dialog)
+    [Fact]
+    public void RefreshOnlyChangesPresentationNotPendingOperationsOrFocus()
     {
-        string apply = Between(ReadSource(dialog), "private void ApplyTexts()", "private void Refresh");
+        string apply = Between(ReadSource("MediaRatingsManagerDialog"), "private void ApplyTexts()", "private void Refresh");
         foreach (string forbidden in new[] { "Reload();", "Filter();", ".Focus()", "ItemsSource =", "SelectedItem =",
             "_busy =", "_attempt =", "_confirmed =", "_frozen =", "_confirmationOrigin =", "_keyboardChoice =",
             "_rating.Value =", "_rating.DefaultValue =", ".IsEnabled =", ".IsVisible =", "_search.Text =" })
             Assert.DoesNotContain(forbidden, apply);
-    }
-
-    [Fact]
-    public void DialogRefreshUsesCatalogForAllOwnedPresentationAndPreservesRawErrorDetails()
-    {
-        string source = ReadSource("MediaRatingDialog");
-        string apply = Between(source, "private void ApplyTexts()", "private void RefreshValueText()");
-        foreach (string required in new[] { "Title = MediaRatingText.LocalizedLabel", "_identity.Text = MediaRatingText.LocalizedIdentity(_key)", "_help.Text = MediaRatingText.Catalog",
-            "_confirmedValue.Text = ConfirmedText()", "RefreshValueText();", "CommandBindings.Apply(_clear,",
-            "_close.Content = MediaRatingText.Catalog", "_retry.Content = MediaRatingText.Catalog",
-            "CommandBindings.BindShortcutHelp(_rating,", "RefreshErrorText();" })
-            Assert.Contains(required, apply);
-        // Owner decision E1: the title stands in the title bar only, the body does not repeat it.
-        Assert.DoesNotContain("_heading", source);
-        Assert.Contains("MediaRatingText.FormatError(_errorLabel(), _errorDetails)", source);
-        Assert.Contains("_errorDetails = error.Message;", source);
-        Assert.DoesNotContain("Texts.T(_errorDetails", source);
-        Assert.DoesNotContain("Catalog(_errorDetails", source);
     }
 
     [Fact]
@@ -178,28 +153,33 @@ public sealed class MediaRatingDialogLanguageRefreshTests : IDisposable
     }
 
     [Fact]
-    public void KeyboardDraftAndErrorRefreshKeepTheirOriginalStateAndProvenanceContracts()
+    public void ErrorRefreshKeepsTheOriginalProvenanceContract()
     {
-        string editor = ReadSource("MediaRatingDialog");
-        string value = Between(editor, "private void RefreshValueText()", "private void RefreshErrorText()");
-        Assert.Contains("_keyboardChoice", value);
-        Assert.Contains("MediaRatingText.KeyboardValue((int)_rating.Value)", value);
-        Assert.Contains("MediaRatingText.LocalizedValue(_confirmed)", value);
-        Assert.Contains("AutomationProperties.SetName(_rating, MediaRatingText.AccessibleValue", value);
-        Assert.DoesNotContain("_rating.Value =", value);
-        foreach (string dialog in new[] { "MediaRatingDialog", "MediaRatingsManagerDialog" })
+        string source = ReadSource("MediaRatingsManagerDialog");
+        Assert.DoesNotContain("MediaRatingText.Get(", source);
+        Assert.Contains("_errorDetails = error.Message;", source);
+        string refresh = Between(source, "private void RefreshErrorText()", "private void RefreshSummary()");
+        Assert.Contains("MediaRatingText.FormatError(_errorLabel(), _errorDetails)", refresh);
+        Assert.DoesNotContain(".Message", refresh);
+        Assert.DoesNotContain("Texts.T", refresh);
+        Assert.DoesNotContain("MediaRatingText.Catalog", refresh);
+    }
+
+    [Fact]
+    public void TheRatingModalAndItsPlaybackHoldAreGone()
+    {
+        // Review 15.11.: the rating lives in the Post tab, the badge and the media menu; no modal dialog and no playback hold remain.
+        string root = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(Here())!, "../../Desktop"));
+        foreach (string file in Directory.EnumerateFiles(root, "*.cs", SearchOption.AllDirectories))
         {
-            string source = ReadSource(dialog);
-            Assert.DoesNotContain("MediaRatingText.Get(", source);
-            Assert.Contains("_errorDetails = error.Message;", source);
-            string refresh = Between(source, "private void RefreshErrorText()", dialog == "MediaRatingDialog"
-                ? "private string ConfirmedText()" : "private void RefreshSummary()");
-            Assert.Contains("MediaRatingText.FormatError(_errorLabel(), _errorDetails)", refresh);
-            Assert.DoesNotContain(".Message", refresh);
-            Assert.DoesNotContain("Texts.T", refresh);
-            Assert.DoesNotContain("MediaRatingText.Catalog", refresh);
+            string text = File.ReadAllText(file);
+            Assert.DoesNotContain("MediaRatingDialog", text);
+            Assert.DoesNotContain("GalleryDialogPlaybackHold", text);
+            Assert.DoesNotContain("PauseForDialogAsync", text);
         }
     }
+
+    private static string Here([CallerFilePath] string path = "") => path;
 
     // Literal preview expectations intentionally retain their Untested review status.
     private static IReadOnlyDictionary<string, string> Expected(string language) => language switch
@@ -211,7 +191,6 @@ public sealed class MediaRatingDialogLanguageRefreshTests : IDisposable
             ["media.rating.label"] = "Rating",
             ["media.rating.value"] = "{0} of 5",
             ["media.rating.unrated"] = "Unrated",
-            ["media.rating.saved"] = "Saved rating: {0}",
             ["media.rating.identity"] = "{0} /{1}/ {2} · {3} · {4}\nSHA-256: {5}",
             ["media.rating.search"] = "Search identities",
             ["media.rating.noSaved"] = "No saved ratings.",
@@ -220,11 +199,6 @@ public sealed class MediaRatingDialogLanguageRefreshTests : IDisposable
             ["media.rating.confirmRemove"] = "Remove rating for this exact identity?",
             ["media.rating.removeThis"] = "Remove this rating",
             ["media.rating.cancel"] = "Cancel",
-            ["media.rating.close"] = "Close",
-            ["media.rating.retry"] = "Retry",
-            ["media.rating.help"] = "Click to save • Arrows choose, Enter or Space saves",
-            ["media.rating.keyboardHelp"] = "Arrow keys choose; Enter or Space saves. Escape closes without saving a keyboard choice.",
-            ["media.rating.keyboardSave"] = "{0} (Enter or Space to save)",
             ["media.rating.error.save"] = "Could not save the rating.",
             ["media.rating.error.remove"] = "Could not remove the rating.",
             ["media.rating.error.load"] = "Could not load the ratings.",
@@ -237,7 +211,6 @@ public sealed class MediaRatingDialogLanguageRefreshTests : IDisposable
             ["media.rating.label"] = "Bewertung",
             ["media.rating.value"] = "{0} von 5",
             ["media.rating.unrated"] = "Unbewertet",
-            ["media.rating.saved"] = "Gespeicherte Bewertung: {0}",
             ["media.rating.identity"] = "{0} /{1}/ {2} · {3} · {4}\nSHA-256: {5}",
             ["media.rating.search"] = "Bewertungen durchsuchen",
             ["media.rating.noSaved"] = "Keine gespeicherten Bewertungen.",
@@ -246,11 +219,6 @@ public sealed class MediaRatingDialogLanguageRefreshTests : IDisposable
             ["media.rating.confirmRemove"] = "Bewertung für genau diese Identität entfernen?",
             ["media.rating.removeThis"] = "Diese Bewertung entfernen",
             ["media.rating.cancel"] = "Abbrechen",
-            ["media.rating.close"] = "Schließen",
-            ["media.rating.retry"] = "Wiederholen",
-            ["media.rating.help"] = "Klick speichert • Pfeile wählen, Enter oder Leertaste speichert",
-            ["media.rating.keyboardHelp"] = "Pfeiltasten wählen; Enter oder Leertaste speichert. Escape schließt ohne Übernahme einer Tastaturauswahl.",
-            ["media.rating.keyboardSave"] = "{0} (Enter oder Leertaste zum Speichern)",
             ["media.rating.error.save"] = "Bewertung konnte nicht gespeichert werden.",
             ["media.rating.error.remove"] = "Bewertung konnte nicht entfernt werden.",
             ["media.rating.error.load"] = "Bewertungen konnten nicht geladen werden.",
@@ -263,7 +231,6 @@ public sealed class MediaRatingDialogLanguageRefreshTests : IDisposable
             ["media.rating.label"] = "Valoración",
             ["media.rating.value"] = "{0} de 5",
             ["media.rating.unrated"] = "Sin valorar",
-            ["media.rating.saved"] = "Valoración guardada: {0}",
             ["media.rating.identity"] = "{0} /{1}/ {2} · {3} · {4}\nSHA-256: {5}",
             ["media.rating.search"] = "Buscar identidades",
             ["media.rating.noSaved"] = "No hay valoraciones guardadas.",
@@ -272,11 +239,6 @@ public sealed class MediaRatingDialogLanguageRefreshTests : IDisposable
             ["media.rating.confirmRemove"] = "¿Eliminar la valoración de esta identidad exacta?",
             ["media.rating.removeThis"] = "Eliminar esta valoración",
             ["media.rating.cancel"] = "Cancelar",
-            ["media.rating.close"] = "Cerrar",
-            ["media.rating.retry"] = "Reintentar",
-            ["media.rating.help"] = "Haga clic para guardar • Las flechas eligen; Intro o Espacio guarda",
-            ["media.rating.keyboardHelp"] = "Las flechas eligen; Intro o Espacio guarda. Escape cierra sin guardar una elección del teclado.",
-            ["media.rating.keyboardSave"] = "{0} (pulse Intro o Espacio para guardar)",
             ["media.rating.error.save"] = "No se pudo guardar la valoración.",
             ["media.rating.error.remove"] = "No se pudo eliminar la valoración.",
             ["media.rating.error.load"] = "No se pudieron cargar las valoraciones.",
@@ -289,7 +251,6 @@ public sealed class MediaRatingDialogLanguageRefreshTests : IDisposable
             ["media.rating.label"] = "Évaluation",
             ["media.rating.value"] = "{0} sur 5",
             ["media.rating.unrated"] = "Non évaluée",
-            ["media.rating.saved"] = "Évaluation enregistrée : {0}",
             ["media.rating.identity"] = "{0} /{1}/ {2} · {3} · {4}\nSHA-256 : {5}",
             ["media.rating.search"] = "Rechercher des identités",
             ["media.rating.noSaved"] = "Aucune évaluation enregistrée.",
@@ -298,11 +259,6 @@ public sealed class MediaRatingDialogLanguageRefreshTests : IDisposable
             ["media.rating.confirmRemove"] = "Supprimer l’évaluation de cette identité exacte ?",
             ["media.rating.removeThis"] = "Supprimer cette évaluation",
             ["media.rating.cancel"] = "Annuler",
-            ["media.rating.close"] = "Fermer",
-            ["media.rating.retry"] = "Réessayer",
-            ["media.rating.help"] = "Cliquez pour enregistrer • Les flèches choisissent, Entrée ou Espace enregistre",
-            ["media.rating.keyboardHelp"] = "Les flèches choisissent ; Entrée ou Espace enregistre. Échap ferme sans enregistrer un choix au clavier.",
-            ["media.rating.keyboardSave"] = "{0} (appuyez sur Entrée ou Espace pour enregistrer)",
             ["media.rating.error.save"] = "Impossible d’enregistrer l’évaluation.",
             ["media.rating.error.remove"] = "Impossible de supprimer l’évaluation.",
             ["media.rating.error.load"] = "Impossible de charger les évaluations.",
@@ -315,7 +271,6 @@ public sealed class MediaRatingDialogLanguageRefreshTests : IDisposable
             ["media.rating.label"] = "Оценка",
             ["media.rating.value"] = "{0} из 5",
             ["media.rating.unrated"] = "Без оценки",
-            ["media.rating.saved"] = "Сохранённая оценка: {0}",
             ["media.rating.identity"] = "{0} /{1}/ {2} · {3} · {4}\nSHA-256: {5}",
             ["media.rating.search"] = "Поиск идентификаторов",
             ["media.rating.noSaved"] = "Сохранённых оценок нет.",
@@ -324,11 +279,6 @@ public sealed class MediaRatingDialogLanguageRefreshTests : IDisposable
             ["media.rating.confirmRemove"] = "Удалить оценку для этой точной идентичности?",
             ["media.rating.removeThis"] = "Удалить эту оценку",
             ["media.rating.cancel"] = "Отмена",
-            ["media.rating.close"] = "Закрыть",
-            ["media.rating.retry"] = "Повторить",
-            ["media.rating.help"] = "Нажмите, чтобы сохранить • Выберите стрелками, сохраните клавишей Enter или пробелом",
-            ["media.rating.keyboardHelp"] = "Стрелки выбирают; Enter или пробел сохраняет. Escape закрывает окно без сохранения выбора с клавиатуры.",
-            ["media.rating.keyboardSave"] = "{0} (Enter или пробел — сохранить)",
             ["media.rating.error.save"] = "Не удалось сохранить оценку.",
             ["media.rating.error.remove"] = "Не удалось удалить оценку.",
             ["media.rating.error.load"] = "Не удалось загрузить оценки.",

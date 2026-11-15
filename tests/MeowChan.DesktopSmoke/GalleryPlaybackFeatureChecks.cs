@@ -356,7 +356,7 @@ internal static partial class GalleryPlaybackFeatureChecks
         { before = fullWidth, after = viewport.Bounds.Width, window = fixture.Window.ClientSize.ToString(),
             viewer = viewer.Bounds.ToString(), contextParent = (context.Parent as Control)?.Name }));
         Require(Math.Abs(viewport.Bounds.Width - fullWidth) < 1, "Overlay post context still reserves the docked media column.");
-        Border favoriteBadge = Find<Border>(viewer, "GalleryFavoriteIndicator");
+        Control favoriteBadge = Find<Control>(viewer, "GalleryFavoriteIndicator");
         Point? favoriteOrigin = favoriteBadge.TranslatePoint(default, viewer);
         Point? contextOrigin = context.TranslatePoint(default, viewer);
         Require(favoriteBadge.IsEffectivelyVisible && favoriteOrigin is { } favoritePoint

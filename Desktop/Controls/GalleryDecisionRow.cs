@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Avalonia;
 using Avalonia.Automation;
+using Avalonia.Automation.Peers;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
@@ -71,6 +73,35 @@ internal sealed class GalleryDecisionRow : StackPanel
     internal Button ClearButton => _clear;
     internal TextBlock Summary => _summary;
     internal GalleryDecisionView View => _view;
+    internal Control RatingGroup => _group;
+
+    /// <summary>The star that takes the focus: the checked one (the current rating), star 1 while the medium is unrated.</summary>
+    internal ToggleButton FocusStar => _stars.FirstOrDefault(star => star.IsChecked == true) ?? _stars[0];
+
+    /// <summary>Puts the keyboard focus on <see cref="FocusStar"/> (as a Tab would); false when the row cannot take it (disabled or not shown).</summary>
+    internal bool FocusRating()
+    {
+        ToggleButton star = FocusStar;
+        return star.IsEffectivelyEnabled && star.IsEffectivelyVisible && star.Focus(NavigationMethod.Tab);
+    }
+
+    /// <summary>True while the keyboard focus is on one of the stars or the remove button.</summary>
+    internal bool IsRatingFocused => _stars.Any(star => star.IsFocused) || _clear.IsFocused;
+
+    /// <summary>
+    /// Left and Right (Home and End) move the focus along the stars and the remove button like a radio group; they stop at the ends. Without
+    /// this the gallery would read the arrows as "previous / next medium" under a keyboard user who is choosing a rating.
+    /// </summary>
+    internal bool RouteStarKey(KeyEventArgs e)
+    {
+        if (e.KeyModifiers != KeyModifiers.None || e.Key is not (Key.Left or Key.Right or Key.Home or Key.End)) return false;
+        Control[] order = _stars.Cast<Control>().Append(_clear).Where(control => control.IsEffectivelyEnabled && control.IsEffectivelyVisible).ToArray();
+        int at = Array.FindIndex(order, control => control.IsFocused);
+        if (at < 0) return false;
+        int to = e.Key switch { Key.Left => Math.Max(0, at - 1), Key.Right => Math.Min(order.Length - 1, at + 1), Key.Home => 0, _ => order.Length - 1 };
+        if (to != at) order[to].Focus(NavigationMethod.Directional);
+        return true;
+    }
 
     /// <summary>The favorite button was pressed: the flag the targets should get (every target not yet a favorite becomes one).</summary>
     internal event Action<bool>? FavoriteRequested;
@@ -121,6 +152,9 @@ internal sealed class GalleryDecisionRow : StackPanel
         WorkspaceIcons.MakeSquare(_clear, WorkspaceIcons.Close, clear,
             CommandCatalog.ShortcutDisplay("media.rating.clear") is { } clearGesture ? clear + " · " + clearGesture : clear);
         AutomationProperties.SetName(_group, MediaRatingText.Label);
+        // The stars are one group of toggle buttons that act as a radio group: a screen reader names the group "Rating" with the summary as its help.
+        AutomationProperties.SetAccessibilityView(_group, AccessibilityView.Content);
+        AutomationProperties.SetControlTypeOverride(_group, AutomationControlType.Group);
         AutomationProperties.SetName(this, Texts.T("gallery.decision.name"));
         Show(_view);
     }

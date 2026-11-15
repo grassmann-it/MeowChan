@@ -12,9 +12,9 @@ using MeowChan.Transfer;
 
 namespace MeowChan.DesktopTests;
 
-// PT6 (PLAN-POWER-TAGGEN-2026-11-14, decision E2): Shift+1 to Shift+5 rate, Shift+0 removes the rating, R stays the dialog; the gallery tag panel
+// PT6 (PLAN-POWER-TAGGEN-2026-11-14, decision E2): Shift+1 to Shift+5 rate, Shift+0 removes the rating, R moves to the Post tab's stars (review 15.11.: no dialog any more); the gallery tag panel
 // carries a favorite and rating row, and the rating works on the marked media (TP4) as one step with undo. The shortcut defaults and their
-// conflict freedom (gallery, media, reader and the rating dialog), the yielding rule, the decision session over a fake owner, the controller's
+// conflict freedom (gallery, media and reader), the yielding rule, the decision session over a fake owner, the controller's
 // targets and the shared undo order against a real tag store, the twelve languages and the source contracts of the viewer and window hooks.
 // The row and the panel need a platform (the smokes cover them).
 [Collection("Localization")]
@@ -65,11 +65,11 @@ public sealed class GalleryRatingKeyTests : IDisposable
 
     [Theory]
     [MemberData(nameof(Platforms))]
-    public void NoOtherDefaultInTheGalleryTheMediaPageTheReaderOrTheRatingDialogUsesAShiftDigit(ShortcutPlatform platform)
+    public void NoOtherDefaultInTheGalleryTheMediaPageOrTheReaderUsesAShiftDigit(ShortcutPlatform platform)
     {
         var bindings = EffectiveShortcutBindings.Build(platform: platform);
         string[] mine = RatingIds.Append("media.rating.clear").ToArray();
-        string[] contexts = { "gallery", "media", "reader", "dialog:media-rating" };
+        string[] contexts = { "gallery", "media", "reader" };
         // The effective table rejects both sides of a conflict, so the defaults themselves are compared.
         foreach (string id in mine) Assert.Contains(EffectiveShortcutBindings.ExecutionContexts(id), context => contexts.Contains(context));
         foreach (CommandDefinition command in CommandCatalog.All.Where(command => command.IsImplemented && !mine.Contains(command.Id)))
@@ -83,7 +83,7 @@ public sealed class GalleryRatingKeyTests : IDisposable
     }
 
     [Fact]
-    public void TheRatingCommandsActInTheGalleryTheMediaPageTheReaderAndTheDialog()
+    public void TheRatingCommandsActInTheGalleryTheMediaPageAndTheReader()
     {
         foreach (string id in RatingIds.Append("media.rating.clear"))
         {
@@ -91,7 +91,7 @@ public sealed class GalleryRatingKeyTests : IDisposable
             Assert.Contains("gallery", contexts);
             Assert.Contains("media", contexts);
             Assert.Contains("reader", contexts);
-            Assert.Contains("dialog:media-rating", contexts);
+            Assert.DoesNotContain("dialog:media-rating", contexts); // the rating modal is gone (review 15.11.)
             Assert.True(CommandCatalog.Get(id).Scope.HasFlag(CommandScope.Gallery));
         }
     }
@@ -102,7 +102,7 @@ public sealed class GalleryRatingKeyTests : IDisposable
         Assert.True(EffectiveShortcutBindings.DefaultsRevision >= 7);
         foreach (string id in RatingIds.Append("media.rating.clear"))
             Assert.Contains(id, EffectiveShortcutBindings.YieldingDefaultCommandIds);
-        // The rating dialog's R is an older default and stays as it was.
+        // R is an older default and stays as it was (it now moves the focus to the stars of the Post tab).
         Assert.Contains("media.rating.edit", EffectiveShortcutBindings.YieldingDefaultCommandIds);
     }
 
@@ -690,7 +690,8 @@ public sealed class GalleryRatingKeyTests : IDisposable
         Assert.Contains("FieldFocused = () => surface.Input.IsKeyboardFocusWithin", panel);
         Assert.Contains("surface.ExtraUndo = controller.ExtraUndo;", panel);
         // The header star and the row follow every change from the toolbar, the dialog or the keys.
-        Assert.Contains("RefreshDecisionRow(); // the panel's row shows the same rating", router);
+        Assert.Contains("RefreshDecisionRow(); // the Tags panel's row shows the same rating", router);
+        Assert.Contains("RefreshPostDecision(); // and so does the Post row", router);
         Assert.Contains("RefreshDecisionRow(); // the panel's row and the header star stay in step", router);
     }
 

@@ -9,6 +9,8 @@ internal static class GalleryDecisionCatalog
     {
         ("gallery.decision.name", "Favorite and rating", "Favorit und Bewertung"),
         ("gallery.decision.favorite", "Favorite", "Favorit"),
+        ("gallery.post.tags.edit", "Edit tags", "Tags bearbeiten"),
+        ("gallery.post.tags.more", "+{0} more", "+{0} weitere"),
         ("gallery.decision.favorite.tip", "Add to or remove from favorites", "Zu den Favoriten hinzufügen oder daraus entfernen"),
         ("gallery.decision.favorite.some", "Favorite on some", "Bei einigen Favorit"),
         ("gallery.decision.rating.mixed", "Ratings differ", "Bewertungen unterschiedlich"),

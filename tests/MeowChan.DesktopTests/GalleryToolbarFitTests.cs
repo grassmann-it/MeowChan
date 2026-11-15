@@ -47,7 +47,6 @@ public sealed class GalleryToolbarFitTests : IDisposable
         return toggle + Square;
     }
 
-    private static double Rating() => ButtonPadding + 16 + 4 + 8; // "☆ 4": the star and one digit, as wide as the value needs
 
     private static double LayoutButton(GalleryChromePlan plan) => ButtonPadding + 16 + 8 + Text(Texts.T("gallery.layout.button")) + 8 + 16; // icon, label, chevron
 
@@ -62,7 +61,6 @@ public sealed class GalleryToolbarFitTests : IDisposable
         if (plan.PanelToggle || plan.Favorite)
             groups.Add(Group(Enumerable.Repeat(Square, (plan.PanelToggle ? 1 : 0) + (plan.Favorite ? 1 : 0)).ToArray()));
         List<double> tools = new();
-        if (plan.Rating) tools.Add(Rating());
         if (plan.Tags) tools.Add(Square);
         if (plan.Slideshow) tools.Add(SlideshowToggle(plan, start, pause));
         if (plan.Help) tools.Add(Square);
@@ -128,7 +126,7 @@ public sealed class GalleryToolbarFitTests : IDisposable
             // Everything is icon-only below 1100; the movable tools and the layout button are under "More"; an active slideshow keeps its toggle.
             Assert.True(plan.ModeIcons);
             Assert.False(plan.LayoutOnBar);
-            Assert.False(plan.Rating || plan.Tags || plan.Help);
+            Assert.False(plan.Tags || plan.Help);
             Assert.True(plan.Slideshow); // R6: an active slideshow's pause stays one click away
             double need = Demand(plan), room = Room(760);
             Assert.True(need <= room * 0.85, $"{view} {language}: {need} of {room} dip leaves too little spare room for a longer position text or a wider font.");

@@ -1211,6 +1211,25 @@
     <Style Selector="Button.media-control:disabled /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.media-control:disabled /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
     </Style>
+    <!-- The gallery's favourite badge beside the way back (GalleryViewer.Favorites): a toggle on a dark scrim over the picture. A 1-px edge is
+         transparent at rest (the padding gives it back), ControlBorder under the pointer, the accent when pressed or focused by the keyboard.
+         The checked fill of a toggle is switched off: the filled gold star is the saved state. -->
+    <Style Selector="ToggleButton.gallery-favorite-badge">
+        <Setter Property="Background" Value="#D2181A1F" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Foreground" Value="White" /><Setter Property="Padding" Value="7,3" />
+    </Style>
+    <Style Selector="ToggleButton.gallery-favorite-badge /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="#D2181A1F" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="ToggleButton.gallery-favorite-badge:pointerover /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.gallery-favorite-badge:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="#F0181A1F" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" /><Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="ToggleButton.gallery-favorite-badge:focus-visible /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.gallery-favorite-badge:checked:focus-visible /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
+    </Style>
+    <Style Selector="ToggleButton.gallery-favorite-badge:pressed /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.gallery-favorite-badge:checked:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
+    </Style>
     <Style Selector="Slider.media-slider">
         <Setter Property="Background" Value="{DynamicResource Workspace.ControlBorder}" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Accent}" />

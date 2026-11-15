@@ -883,7 +883,12 @@ public sealed partial class MediaPage : UserControl
         else await ExecuteMediaActionAsync("media.tags.edit", entry, current);
     }
 
-    private static readonly string[] MediaShortcutCommands = { "media.rating.edit", "media.details", "media.export-original", "media.show-in-folder", "media.copy-path" };
+    // media.rating.edit (R) opens the rating menu on the tile; the stars and the removal rate the selected tile directly (Shift+1 to 5, Shift+0).
+    private static readonly string[] MediaShortcutCommands =
+    {
+        "media.rating.edit", "media.rating.set-1", "media.rating.set-2", "media.rating.set-3", "media.rating.set-4", "media.rating.set-5", "media.rating.clear",
+        "media.details", "media.export-original", "media.show-in-folder", "media.copy-path"
+    };
 
     /// <summary>The shortcut for a menu command of one medium. Export with several selected tiles exports the selection;
     /// the others need exactly one saved tile, like the menu entries they stand for.</summary>
@@ -892,9 +897,32 @@ public sealed partial class MediaPage : UserControl
         if (_lifetime.IsCancellationRequested || _building != null || _selectionBusy || ExecuteMediaMenuActionAsync == null) return;
         if (id == "media.export-original" && _grid.Selection.Count > 1) { await ExportSelectionAsync(); return; }
         if (_grid.Selection.Count != 1 || SelectedRow is not { } row || row.Entry.Presence != MediaLibraryPresence.Present) return;
-        if (id == "media.rating.edit" && row.State?.RatingKnown != true) return;
+        if (id.StartsWith("media.rating.", StringComparison.Ordinal) && row.State?.RatingKnown != true) return;
         bool Current() => !_lifetime.IsCancellationRequested && _building == null && IsEffectivelyVisible;
+        if (id == "media.rating.edit") { OpenRatingMenu(row, _grid.ContainerFromItem(row) ?? _grid); return; }
         await ExecuteMediaActionAsync(id, row.Entry, Current);
+    }
+
+    /// <summary>
+    /// R on a tile: the rating menu (five stars and "Remove rating") on that tile instead of a dialog. It rates exactly the tile it opened on
+    /// and retires with the page's other menus when the grid, the page or the tile changes.
+    /// </summary>
+    internal void OpenRatingMenu(MediaLibraryTileRow row, Control origin)
+    {
+        if (_lifetime.IsCancellationRequested || !IsEffectivelyVisible || row.Entry.Presence != MediaLibraryPresence.Present) return;
+        long revision = _mediaMenuRevision;
+        long serial = ++_mediaMenuSerial;
+        object? rows = _grid.ItemsSource;
+        bool Current() => !_lifetime.IsCancellationRequested && _building == null && IsEffectivelyVisible
+            && revision == _mediaMenuRevision && serial == _mediaMenuSerial && ReferenceEquals(rows, _grid.ItemsSource)
+            && origin.IsAttachedToVisualTree() && origin.IsEffectivelyVisible;
+        MediaLibraryEntry entry = row.Entry;
+        bool available = ExecuteMediaMenuActionAsync != null && row.State?.RatingKnown == true;
+        MediaMenuSession session = new(MediaMenuSurface.MediaPage, MediaMenuTarget.Of(entry), Current);
+        Task Run(Func<Task> action) => RunMenuActionAsync(action, session);
+        ContextMenu menu = MediaMenuBuilder.BuildRatingMenu(session, row.State?.UserRating, available, MediaMenuReasons.Unavailable,
+            value => ExecuteMediaActionAsync(value == null ? "media.rating.clear" : "media.rating.set-" + value, entry, Current), Run);
+        _mediaMenuPresenter.Show(menu, session, origin, attachToOrigin: true, fallbackFocus: () => FocusGrid(Current));
     }
 
     internal void InitializeSharedMediaMenus()
@@ -1044,6 +1072,7 @@ public sealed partial class MediaPage : UserControl
             FavoriteWired = hostActions,
             RatingWired = hostActions,
             RatingKnown = state?.RatingKnown == true,
+            Rating = state?.UserRating,
             TagsWired = EditTagsForMenuAsync != null || TagPopoverAsync != null || hostActions,
             TagsBlocked = TagsBlockedReason(entry, state),
             TagsBlockedExplained = true,
@@ -1065,7 +1094,6 @@ public sealed partial class MediaPage : UserControl
         {
             [MediaMenuAction.Open] = () => OpenMediaMenuAsync(entry, galleryWindow, galleryStart, Current),
             [MediaMenuAction.Favorite] = () => ExecuteMediaActionAsync("favorites.toggle", entry, Current),
-            [MediaMenuAction.Rating] = () => ExecuteMediaActionAsync("media.rating.edit", entry, Current),
             [MediaMenuAction.Tags] = () => OpenTagsAsync(entry, row, origin, Current),
             // One tile: that tile. Several selected: the selection frozen now, like the selection actions below.
             [MediaMenuAction.Queue] = queueTiles is { Count: > 1 } ? () => AddTilesToQueueAsync(queueTiles) : () => AddEntryToQueueAsync(entry),
@@ -1105,7 +1133,8 @@ public sealed partial class MediaPage : UserControl
             ? queueTiles.Select(tileEntry => tileEntry.Entry).ToArray() : new[] { entry };
         if (QueueGroupMenu(session, queueEntries, Run) is { } groups) context.Add(groups);
         // The media panel's menu of a video starts with the playback group (play / pause, mute, repeat), as the reader's menu of a video does.
-        ContextMenu menu = MediaMenuBuilder.Build(session, model, handlers, Run, context, ShowSelectionNote, ReaderPlaybackMenu.MenuItems(playback, session, Run));
+        ContextMenu menu = MediaMenuBuilder.Build(session, model, handlers, Run, context, ShowSelectionNote, ReaderPlaybackMenu.MenuItems(playback, session, Run),
+            rate: value => ExecuteMediaActionAsync(value == null ? "media.rating.clear" : "media.rating.set-" + value, entry, Current));
         _mediaMenuPresenter.Show(menu, session, origin, attachToOrigin: true, fallbackFocus: () => FocusGrid(Current));
     }
 

@@ -526,7 +526,7 @@ public sealed class EffectiveShortcutBindings
         // page and the gallery, the folder of the shown medium (media.show-in-folder). Neither claims the other's page.
         if (id == "location.open-folder") return new[] { "archive", "dialog", "downloads" };
         if (id == "media.rating.clear" || id.StartsWith("media.rating.set-", StringComparison.Ordinal))
-            return new[] { "media", "reader", "gallery", "dialog:media-rating" };
+            return new[] { "media", "reader", "gallery" };
         if (id.StartsWith("navigation.") || id is "session.pause" or "window.fullscreen" or "input.focus-url" or "viewer.shortcut-help" or "workspace.view-cycle") return new[] { "shell" };
         // The large reader owns thread find; the archive search box is not reachable from it.
         if (id is "reader.find" or "reader.find-next" or "reader.find-previous") return new[] { "large-reader" };
@@ -537,7 +537,6 @@ public sealed class EffectiveShortcutBindings
         {
             string family = id.StartsWith("archive.saved-searches.", StringComparison.Ordinal) ? "saved-searches"
                 : id.StartsWith("post-bookmarks.", StringComparison.Ordinal) ? "post-bookmarks"
-                : id.StartsWith("media.rating.", StringComparison.Ordinal) ? "media-rating"
                 : id.Split('.')[0];
             return new[] { "dialog:" + family };
         }
