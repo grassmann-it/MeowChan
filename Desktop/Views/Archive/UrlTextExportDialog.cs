@@ -23,13 +23,14 @@ internal sealed class UrlTextExportOperation : IDisposable
     private readonly Func<Task<string?>> _choose;
     private readonly Func<ArchiveUrlTextExportPlan, string, CancellationToken, Task<UrlTextExportFileWriteResult>> _write;
     private readonly CancellationTokenSource _lifetime;
-    private bool _started, _ended;
+    private bool _started, _ended, _canceling;
     internal Task Completion { get; private set; } = Task.CompletedTask;
     internal string StatusKey { get; private set; } = "urltext.export.scope";
     internal UrlTextExportFileWriteResult? Result { get; private set; }
     internal int LimitMiB { get; }
     internal bool Started => _started;
     internal bool Ended => _ended;
+    internal bool IsCanceling => _canceling;
     internal event Action? Changed;
     internal UrlTextExportOperation(ArchiveUrlTextExportPlan plan, Func<Task<string?>> choose,
         Func<ArchiveUrlTextExportPlan, string, CancellationToken, Task<UrlTextExportFileWriteResult>> write,
@@ -46,7 +47,12 @@ internal sealed class UrlTextExportOperation : IDisposable
         _started = true;
         return Completion = RunAsync();
     }
-    private void Status(string key) { StatusKey = "urltext.export." + key; if (!_ended) Changed?.Invoke(); }
+    private void Status(string key)
+    {
+        StatusKey = "urltext.export." + key;
+        if (key != "canceling") _canceling = false;
+        if (!_ended) Changed?.Invoke();
+    }
     private async Task RunAsync()
     {
         bool writeStarted = false;
@@ -54,15 +60,19 @@ internal sealed class UrlTextExportOperation : IDisposable
         {
             Status("choosing");
             string? target = await _choose();
-            if (_ended || _lifetime.IsCancellationRequested) return;
+            if (_ended) return;
+            if (_lifetime.IsCancellationRequested) { Status("canceled"); return; }
             if (target == null) { Status("canceled"); return; }
             Status("writing");
             // Changed callbacks cannot authorize a write after cancellation.
-            if (_ended || _lifetime.IsCancellationRequested) return;
+            if (_ended) return;
+            if (_lifetime.IsCancellationRequested) { Status("canceled"); return; }
             writeStarted = true;
             var result = await _write(_plan, target, _lifetime.Token);
             Result = result; // Reconcile even after close/cancellation; never touch stale UI.
-            if (_ended || _lifetime.IsCancellationRequested) return;
+            if (_ended) return;
+            // A cancellation request is not the outcome. Keep the dialog open until the
+            // writer settles, then show the actual receipt (Saved or PartialRetained).
             Status(result.Status switch
             {
                 UrlTextExportFileWriteStatus.Saved => "saved",
@@ -92,6 +102,18 @@ internal sealed class UrlTextExportOperation : IDisposable
     // The plan still has a separate 1 MiB format ceiling. A larger writer budget does not lift that contract.
     internal static string LimitFailureKey(int byteCount, int limitMiB) =>
         (long)byteCount > (long)limitMiB * 1024 * 1024 ? "error.outputLimit" : "error.pathLimit";
+
+    internal Task CancelAsync()
+    {
+        if (!_started || _ended || Completion.IsCompleted) return Completion;
+        if (!_canceling)
+        {
+            _canceling = true;
+            Status("canceling");
+            _lifetime.Cancel();
+        }
+        return Completion;
+    }
 
     internal Task TerminateAsync() { _ended = true; _lifetime.Cancel(); return Completion; }
     public void Dispose() { _lifetime.Dispose(); }
@@ -163,6 +185,7 @@ internal sealed class UrlTextExportDialog : Window
         _save.Content = Texts.T("urltext.export.save");
         _save.IsEnabled = !_operation.Started && !_operation.Ended;
         _close.Content = Texts.T(_operation.Started ? "action.close" : "urltext.export.cancel");
+        _close.IsEnabled = !_operation.IsCanceling;
         AutomationProperties.SetName(_save, (string)_save.Content!);
         AutomationProperties.SetName(_close, (string)_close.Content!);
         // Failures go to the local error strip; progress and outcomes stay in the footer status.
@@ -172,7 +195,18 @@ internal sealed class UrlTextExportDialog : Window
         _error.Text = failed ? message : string.Empty;
     }
     private async void OnSave(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => await _operation.ConfirmAsync();
-    private void OnClose(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => Close();
+    private async void OnClose(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (_operation.Started && !_operation.Ended && !_operation.Completion.IsCompleted)
+        {
+            // Once writing started, keep the dialog alive for the owned drain. This
+            // exposes canceling and the final partial/saved receipt instead of making
+            // Close look like a successful or silent retry boundary.
+            await _operation.CancelAsync();
+            return;
+        }
+        Close();
+    }
     private void OnClosed(object? sender, EventArgs e) => _ = TerminateAsync();
     internal Task TerminateAsync()
     {

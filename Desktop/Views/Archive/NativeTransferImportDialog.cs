@@ -418,7 +418,9 @@ internal sealed class NativeTransferImportDialog : Window
         _state.Text = Label(IsChoosing ? "transfer.import.choosing" : StateKey(snapshot));
         _notice.Text = Label("transfer.import.inventory") + Environment.NewLine + Label("transfer.import.privacy");
         if (snapshot.CleanupRetained) _notice.Text += Environment.NewLine + Label("transfer.import.cleanupRetained");
-        _error.Text = snapshot.Error == NativeTransferImportError.None ? string.Empty : Label(ErrorKey(snapshot.Error));
+        _error.Text = snapshot.Error != NativeTransferImportError.None
+            ? Label(ErrorKey(snapshot.Error))
+            : Label(PartialResultNoticeKey(snapshot.Result));
 
         if (snapshot.Inventory is not { } inventory)
         {
@@ -454,6 +456,12 @@ internal sealed class NativeTransferImportDialog : Window
             : Label("transfer.import.planNew", value.NewPosts, value.NewAttachments,
                 value.EvidenceAdditions, value.DerivedDescriptorAdditions);
     }
+
+    internal static bool IsPartialSetResult(NativeTransferImportResult? result) =>
+        result is { ThreadsTotal: > 0 } value && value.ThreadsApplied < value.ThreadsTotal;
+
+    internal static string PartialResultNoticeKey(NativeTransferImportResult? result) =>
+        IsPartialSetResult(result) ? "transfer.import.error.apply" : string.Empty;
 
     private string ResultText(NativeTransferImportResult? result)
     {

@@ -123,6 +123,35 @@ public sealed class NativeTransferImportLifetimeTests
     }
 
     [Fact]
+    public async Task CanceledMultithreadApplyPublishesPartialReceiptForExplicitRecheck()
+    {
+        await using Fixture f = await Fixture.StartAsync();
+        string source = await f.WritePackageAsync("multithread");
+        await using NativeTransferImportSession session = f.Host.CreateNativeTransferImportSession(f.Work);
+        int commits = 0;
+        f.Host.BeforeNativeImportCommitForTests = () => { Interlocked.Increment(ref commits); return Task.CompletedTask; };
+        f.Host.NativeImportCheckpointForTests = phase =>
+        {
+            if (phase == NativeMediaImportPhase.SqlCommitted && Volatile.Read(ref commits) == 1)
+                session.Cancel();
+        };
+
+        NativeTransferImportSnapshot ready = await session.InspectAsync(source, NativeTransferImportScope.New).WaitAsync(Deadline);
+        NativeTransferImportSnapshot canceled = await session.ApplyAsync(ready.Generation).WaitAsync(Deadline);
+
+        Assert.Equal(NativeTransferImportState.Canceled, canceled.State);
+        NativeTransferImportResult result = Assert.IsType<NativeTransferImportResult>(canceled.Result);
+        Assert.Equal(1, result.ThreadsApplied);
+        Assert.Equal(2, result.ThreadsTotal);
+        Assert.True(NativeTransferImportDialog.IsPartialSetResult(result));
+        Assert.Equal("transfer.import.error.apply", NativeTransferImportDialog.PartialResultNoticeKey(result));
+        Assert.False(NativeTransferImportDialog.IsPartialSetResult(result with { ThreadsApplied = result.ThreadsTotal }));
+        Assert.Equal(string.Empty, NativeTransferImportDialog.PartialResultNoticeKey(result with { ThreadsApplied = result.ThreadsTotal }));
+        Assert.Equal(1, Volatile.Read(ref commits));
+        Assert.Equal(canceled, await session.ApplyAsync(ready.Generation).WaitAsync(Deadline));
+    }
+
+    [Fact]
     public async Task PreCanceledAndCanceledPreparedInspectionPublishNoInventoryOrPlanAndNeverApply()
     {
         await using Fixture f = await Fixture.StartAsync();
