@@ -128,7 +128,7 @@ class DotnetShardRunnerTests(unittest.TestCase):
         self.assertEqual(result.status, "timed_out")
         self.assertEqual(evidence["status"], "timed_out")
         self.assertEqual(evidence["exit_code"], 124)
-        self.assertEqual(killpg.call_count, 1)
+        self.assertEqual(killpg.call_count, 2)
 
     def test_run_shard_keeps_projects_sequential_and_records_each_status(self):
         calls = []

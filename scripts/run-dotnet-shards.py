@@ -14,7 +14,6 @@ import os
 import signal
 import subprocess
 import sys
-import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass, field
@@ -106,6 +105,72 @@ def _wait_for_exit(process: subprocess.Popen, timeout: float) -> bool:
         return False
 
 
+def _process_parent_map() -> dict[int, int]:
+    """Return a best-effort PID -> parent PID map without external dependencies."""
+
+    parents: dict[int, int] = {}
+    proc_root = Path("/proc")
+    if proc_root.is_dir():
+        for status_file in proc_root.glob("[0-9]*/status"):
+            try:
+                pid = int(status_file.parent.name)
+                parent_line = next(
+                    line for line in status_file.read_text(errors="replace").splitlines()
+                    if line.startswith("PPid:")
+                )
+                parents[pid] = int(parent_line.split()[1])
+            except (OSError, StopIteration, ValueError, IndexError):
+                continue
+        return parents
+
+    # macOS has no /proc.  `ps` is present on all hosted macOS runners and the
+    # bounded call is only used while cleaning up an already timed-out process.
+    try:
+        listing = subprocess.run(
+            ["ps", "-axo", "pid=,ppid="],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        ).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return parents
+    for line in listing.splitlines():
+        fields = line.split()
+        if len(fields) != 2:
+            continue
+        try:
+            parents[int(fields[0])] = int(fields[1])
+        except ValueError:
+            continue
+    return parents
+
+
+def _descendant_pids(root_pid: int, extra_roots: Iterable[int] = ()) -> set[int]:
+    """Find descendants recursively, including children in a new process group."""
+
+    parents = _process_parent_map()
+    roots = {root_pid, *extra_roots}
+    descendants: set[int] = set()
+    pending = list(roots)
+    while pending:
+        parent = pending.pop()
+        for pid, ppid in parents.items():
+            if ppid != parent or pid in descendants or pid in roots:
+                continue
+            descendants.add(pid)
+            pending.append(pid)
+    return descendants
+
+
+def _signal_pids(pids: Iterable[int], sig: signal.Signals) -> None:
+    for pid in sorted(set(pids), reverse=True):
+        try:
+            os.kill(pid, sig)
+        except (OSError, ProcessLookupError):
+            pass
+
+
 def terminate_process_tree(
     process: subprocess.Popen,
     *,
@@ -114,9 +179,10 @@ def terminate_process_tree(
 ) -> None:
     """Terminate *process* and descendants without waiting indefinitely.
 
-    POSIX uses the private process group created by ``start_new_session``.
-    Windows first gives a new process group CTRL_BREAK, then uses taskkill's
-    documented tree switch, and finally falls back to Popen.kill().
+    A process group is not a complete tree boundary: plugin workers can move
+    themselves into a separate group.  We therefore snapshot and recursively
+    signal descendants as well as the private group.  The Windows fallback is
+    bounded so it cannot consume the workflow's remaining timeout by itself.
     """
 
     if is_windows is None:
@@ -129,16 +195,15 @@ def terminate_process_tree(
             process.send_signal(ctrl_break)
         except (AttributeError, OSError, ProcessLookupError, ValueError):
             pass
-        if _wait_for_exit(process, grace):
-            return
         try:
             subprocess.run(
                 ["taskkill", "/PID", str(process.pid), "/T", "/F"],
                 check=False,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
+                timeout=max(1.0, grace),
             )
-        except OSError:
+        except (OSError, subprocess.TimeoutExpired):
             pass
         if _wait_for_exit(process, grace):
             return
@@ -149,10 +214,12 @@ def terminate_process_tree(
         _wait_for_exit(process, grace)
         return
 
+    process_group = None
     try:
         process_group = os.getpgid(process.pid)
     except (OSError, ProcessLookupError):
-        process_group = None
+        pass
+    tracked = _descendant_pids(process.pid)
     try:
         if process_group is not None:
             os.killpg(process_group, signal.SIGTERM)
@@ -160,8 +227,13 @@ def terminate_process_tree(
             process.terminate()
     except (OSError, ProcessLookupError):
         pass
-    if _wait_for_exit(process, grace):
-        return
+    _signal_pids(tracked, signal.SIGTERM)
+    _wait_for_exit(process, grace)
+
+    # Capture children spawned during graceful shutdown before escalating.  The
+    # root may already have exited; the original snapshot remains useful for
+    # workers that changed process group or were reparented during teardown.
+    tracked.update(_descendant_pids(process.pid, tracked))
     try:
         if process_group is not None:
             os.killpg(process_group, signal.SIGKILL)
@@ -169,6 +241,7 @@ def terminate_process_tree(
             process.kill()
     except (OSError, ProcessLookupError):
         pass
+    _signal_pids(tracked, signal.SIGKILL)
     _wait_for_exit(process, grace)
 
 
