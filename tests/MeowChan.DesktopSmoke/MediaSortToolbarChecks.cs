@@ -127,8 +127,8 @@ internal static partial class MediaPageChecks
             Require(sort.IsEffectivelyVisible && direction.IsEffectivelyVisible && search.IsEffectivelyVisible && filters.IsEffectivelyVisible && more.IsEffectivelyVisible
                 && !refresh.IsVisible && page.HeaderMoreIds.SequenceEqual(["media.toolbar.tag-list", "media.toolbar.layout", "media.toolbar.focus", "media.toolbar.refresh", "media.toolbar.export-all", "media.toolbar.manage-ratings"]),
                 "At 640 the order must stay and Refresh and the Booru mode switch must be under More: " + string.Join(",", page.HeaderMoreIds));
-            Require(sort.MinWidth == MediaToolbarLayout.NarrowSortMinWidth && search is { MinWidth: MediaToolbarLayout.NarrowSearchMinWidth }
-                && X(sort) + sort.Bounds.Width <= page.ToolbarRow.Bounds.Width + 0.5, "The compact row must fit and shrink search and order to their narrow minimum.");
+            Require(sort.MinWidth == MediaToolbarLayout.NarrowSortMinWidth && search is { MinWidth: MediaToolbarLayout.SearchMinWidth }
+                && X(sort) + sort.Bounds.Width <= page.ToolbarRow.Bounds.Width + 0.5, "The compact row must fit and keep the search at its minimum and shrink the order to its narrow minimum.");
             Require(!C<TextBlock>(page, "MediaSortLabel").IsVisible && !C<ToggleButton>(page, "MediaBooruMode").IsVisible, "The compact row must drop the Sort label and the Booru mode switch.");
             RequireToolbarFits("compact (640)");
             sort.SelectedIndex = (int)MediaLibrarySort.Random;

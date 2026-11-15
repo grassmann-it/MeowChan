@@ -443,6 +443,11 @@ class CandidateWorkflowFixtures(unittest.TestCase):
         for key, value in {'github.event_name': event, 'inputs.mode': mode,
                            'inputs.scenario': scenario, 'inputs.platform': platform}.items():
             expression = expression.replace(key, repr(value))
+        expression = expression.strip()
+        if expression.startswith('${{') and expression.endswith('}}'):
+            expression = expression[3:-2].strip()
+        # GitHub evaluates always() to true even when an upstream need failed.
+        expression = expression.replace('always()', 'True')
         expression = expression.replace('&&', ' and ').replace('||', ' or ')
         expression = re.sub(r'!(?!=)', ' not ', expression)
         return eval(expression, {'__builtins__': {}}, {})
@@ -468,8 +473,9 @@ class CandidateWorkflowFixtures(unittest.TestCase):
             self.assertFalse(self.condition('library-package', mode, scenario='selection'))
             self.assertFalse(self.condition('current-source-inventory', mode, event='push'))
         guard = re.search(r'name: Require the complete current-source candidate matrix\n'
+                          r'(?:        (?:id:|continue-on-error:|#)[^\n]*\n)*'
                           r'        if: [^\n]+\n        shell: bash\n        run: \|\n(.*?)'
-                          r'(?=      -)', self.jobs['validate'], re.S).group(1)
+                          r'(?=      -)', self.jobs['validate'], re.M | re.S).group(1)
         bash = workflow_bash()
         for platform, scenario, expected in (('all', 'all', 0), ('windows-2022', 'all', 1),
                                                ('all', 'selection', 1), ('all', 'gallery-errors', 1),
@@ -589,7 +595,9 @@ class CandidateWorkflowFixtures(unittest.TestCase):
         self.assertIn("pattern: '*candidate*'", download)
         for cross_run_option in ('run-id:', 'github-token:', 'repository:'):
             self.assertNotIn(cross_run_option, download)
-        self.assertNotIn('always()', job)
+        # Candidate verification remains an evidence-producing dependent, even
+        # when an earlier candidate job failed.
+        self.assertIn('always()', job)
         self.assertIn('--run-id "$GITHUB_RUN_ID"', job)
         self.assertIn('--source-commit "$GITHUB_SHA"', job)
         self.assertIn('channel=prerelease', job)
