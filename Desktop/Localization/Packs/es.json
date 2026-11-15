@@ -4944,10 +4944,10 @@
     "transfer.export.foldersOver": "más de {0:N0}",
     "transfer.export.foldersUnknown": "sin contar",
     "transfer.export.missing": "Ya no está en el archivo: {0:N0}",
-    "transfer.export.estimate": "Tamaño multimedia estimado: unos {0}",
+    "transfer.export.estimate": "Multimedia estimada: unos {0} · archivos: {1:N0}",
     "transfer.export.estimateUnknown": "El tamaño multimedia no se puede estimar a partir del inventario multimedia.",
-    "transfer.export.limits": "Límites fijos del formato de transferencia por paquete — hilos: {0:N0} · publicaciones: {1:N0} · adjuntos: {2:N0} · carpetas multimedia: {3:N0}.",
-    "transfer.export.overLimit": "La selección supera el límite: {0}. Selecciona menos hilos en la lista del archivo y exporta los hilos seleccionados.",
+    "transfer.export.limits": "Límites fijos del formato de transferencia por paquete — hilos: {0:N0} · publicaciones: {1:N0} · adjuntos: {2:N0} · carpetas multimedia: {3:N0} · archivos multimedia: {4:N0} · tamaño multimedia: {5}.",
+    "transfer.export.overLimit": "Un paquete no puede contener esta selección: {0}. Activa la exportación completa o selecciona menos hilos en la lista del archivo.",
     "transfer.export.overThreads": "hilos: {0:N0} (como máximo {1:N0})",
     "transfer.export.overPosts": "publicaciones: {0:N0} (como máximo {1:N0})",
     "transfer.export.overFolders": "carpetas multimedia: más de {0:N0}",
@@ -4981,6 +4981,15 @@
     "transfer.export.error.empty": "No hay nada que exportar: la selección está vacía.",
     "transfer.export.error.count": "No se pudo contar la selección.",
     "transfer.export.error.openFolder": "No se pudo abrir la carpeta.",
-    "command.archive.transfer-export": "Exportar archivo"
+    "command.archive.transfer-export": "Exportar archivo",
+    "transfer.export.full": "Exportación completa: dividir en varios paquetes si hace falta",
+    "transfer.export.fullHelp": "Cada paquete respeta los límites anteriores, así que cada uno se puede importar por separado. Los paquetes se numeran (-part-01, -part-02, etc.). Un hilo demasiado grande para cualquier paquete con su multimedia se escribe sin multimedia y se nombra en el resultado.",
+    "transfer.export.splitNote": "Un paquete no puede contener esta selección; se escribe en varios paquetes.",
+    "transfer.export.tooLarge": "Probablemente la multimedia no cabe en un solo paquete (tamaño multimedia: como máximo {0} · archivos multimedia: como máximo {1:N0}). Activa la exportación completa.",
+    "transfer.export.packageProgress": "Paquete {0:N0} de {1:N0}: {2}",
+    "transfer.export.resultParts": "Paquetes escritos: {0:N0} · hilos: {1:N0} · tamaño total: {2}",
+    "transfer.export.partsKept": "Los paquetes ya escritos siguen completos e importables — paquetes: {0:N0} · hilos: {1:N0} · tamaño: {2}",
+    "transfer.export.withoutMedia": "Escritos sin multimedia (demasiado grandes para un paquete): {0}",
+    "transfer.export.skipped": "No exportados: {0}"
   }
 }

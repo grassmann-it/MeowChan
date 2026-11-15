@@ -4855,10 +4855,10 @@
     "transfer.export.foldersOver": "{0:N0}개 초과",
     "transfer.export.foldersUnknown": "세지 않음",
     "transfer.export.missing": "더 이상 보관함에 없음: {0:N0}",
-    "transfer.export.estimate": "예상 미디어 크기: 약 {0}",
+    "transfer.export.estimate": "예상 미디어: 약 {0} · 파일: {1:N0}",
     "transfer.export.estimateUnknown": "미디어 목록으로는 미디어 크기를 추정할 수 없습니다.",
-    "transfer.export.limits": "패키지 하나에 대한 전송 형식의 고정 한도 — 스레드: {0:N0} · 게시물: {1:N0} · 첨부 파일: {2:N0} · 미디어 폴더: {3:N0}.",
-    "transfer.export.overLimit": "선택 항목이 한도를 넘습니다: {0}. 보관함 목록에서 스레드를 더 적게 선택한 다음 선택한 스레드를 내보내세요.",
+    "transfer.export.limits": "패키지 하나에 대한 전송 형식의 고정 한도 — 스레드: {0:N0} · 게시물: {1:N0} · 첨부 파일: {2:N0} · 미디어 폴더: {3:N0} · 미디어 파일: {4:N0} · 미디어 크기: {5}.",
+    "transfer.export.overLimit": "패키지 하나에 이 선택 항목을 담을 수 없습니다: {0}. 전체 내보내기를 켜거나 보관함 목록에서 스레드를 더 적게 선택하세요.",
     "transfer.export.overThreads": "스레드: {0:N0}(최대 {1:N0})",
     "transfer.export.overPosts": "게시물: {0:N0}(최대 {1:N0})",
     "transfer.export.overFolders": "미디어 폴더: {0:N0}개 초과",
@@ -4892,6 +4892,15 @@
     "transfer.export.error.empty": "내보낼 항목이 없습니다. 선택 항목이 비어 있습니다.",
     "transfer.export.error.count": "선택 항목을 셀 수 없습니다.",
     "transfer.export.error.openFolder": "폴더를 열 수 없습니다.",
-    "command.archive.transfer-export": "보관함 내보내기"
+    "command.archive.transfer-export": "보관함 내보내기",
+    "transfer.export.full": "전체 내보내기: 필요하면 여러 패키지로 나누기",
+    "transfer.export.fullHelp": "모든 패키지는 위의 한도를 지키므로 각 패키지를 따로 가져올 수 있습니다. 패키지에는 번호가 붙습니다(-part-01, -part-02 등). 미디어를 포함하면 어떤 패키지에도 들어가지 않는 스레드는 미디어 없이 쓰고 결과에 표시합니다.",
+    "transfer.export.splitNote": "패키지 하나에 이 선택 항목을 담을 수 없어 여러 패키지로 씁니다.",
+    "transfer.export.tooLarge": "미디어가 패키지 하나에 들어가지 않을 수 있습니다(미디어 크기: 최대 {0} · 미디어 파일: 최대 {1:N0}). 전체 내보내기를 켜세요.",
+    "transfer.export.packageProgress": "패키지 {0:N0}/{1:N0}: {2}",
+    "transfer.export.resultParts": "쓴 패키지: {0:N0} · 스레드: {1:N0} · 전체 크기: {2}",
+    "transfer.export.partsKept": "이미 쓴 패키지는 완전하며 가져올 수 있습니다 — 패키지: {0:N0} · 스레드: {1:N0} · 크기: {2}",
+    "transfer.export.withoutMedia": "미디어 없이 씀(패키지 하나에 너무 큼): {0}",
+    "transfer.export.skipped": "내보내지 않음: {0}"
   }
 }

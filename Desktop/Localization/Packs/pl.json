@@ -4993,10 +4993,10 @@
     "transfer.export.foldersOver": "ponad {0:N0}",
     "transfer.export.foldersUnknown": "nie policzono",
     "transfer.export.missing": "Już nie ma w archiwum: {0:N0}",
-    "transfer.export.estimate": "Szacowany rozmiar mediów: około {0}",
+    "transfer.export.estimate": "Szacowane media: około {0} · pliki: {1:N0}",
     "transfer.export.estimateUnknown": "Rozmiaru mediów nie da się oszacować na podstawie spisu mediów.",
-    "transfer.export.limits": "Stałe limity formatu transferu na jeden pakiet – wątki: {0:N0} · posty: {1:N0} · załączniki: {2:N0} · foldery mediów: {3:N0}.",
-    "transfer.export.overLimit": "Wybór przekracza limit: {0}. Wybierz mniej wątków na liście archiwum i wyeksportuj wybrane wątki.",
+    "transfer.export.limits": "Stałe limity formatu transferu na jeden pakiet – wątki: {0:N0} · posty: {1:N0} · załączniki: {2:N0} · foldery mediów: {3:N0} · pliki mediów: {4:N0} · rozmiar mediów: {5}.",
+    "transfer.export.overLimit": "Jeden pakiet nie pomieści tego wyboru: {0}. Włącz pełny eksport albo wybierz mniej wątków na liście archiwum.",
     "transfer.export.overThreads": "wątki: {0:N0} (najwyżej {1:N0})",
     "transfer.export.overPosts": "posty: {0:N0} (najwyżej {1:N0})",
     "transfer.export.overFolders": "foldery mediów: ponad {0:N0}",
@@ -5030,6 +5030,15 @@
     "transfer.export.error.empty": "Nie ma nic do eksportu: wybór jest pusty.",
     "transfer.export.error.count": "Nie można policzyć wyboru.",
     "transfer.export.error.openFolder": "Nie można otworzyć folderu.",
-    "command.archive.transfer-export": "Eksportuj archiwum"
+    "command.archive.transfer-export": "Eksportuj archiwum",
+    "transfer.export.full": "Pełny eksport: w razie potrzeby podziel na kilka pakietów",
+    "transfer.export.fullHelp": "Każdy pakiet zachowuje limity podane wyżej, więc każdy można zaimportować osobno. Pakiety są numerowane (-part-01, -part-02 itd.). Wątek, który z mediami nie mieści się w żadnym pakiecie, jest zapisywany bez mediów i wymieniony w wyniku.",
+    "transfer.export.splitNote": "Jeden pakiet nie pomieści tego wyboru; zostanie zapisany w kilku pakietach.",
+    "transfer.export.tooLarge": "Media prawdopodobnie nie zmieszczą się w jednym pakiecie (rozmiar mediów: najwyżej {0} · pliki mediów: najwyżej {1:N0}). Włącz pełny eksport.",
+    "transfer.export.packageProgress": "Pakiet {0:N0} z {1:N0}: {2}",
+    "transfer.export.resultParts": "Zapisane pakiety: {0:N0} · wątki: {1:N0} · łączny rozmiar: {2}",
+    "transfer.export.partsKept": "Już zapisane pakiety pozostają kompletne i możliwe do zaimportowania – pakiety: {0:N0} · wątki: {1:N0} · rozmiar: {2}",
+    "transfer.export.withoutMedia": "Zapisane bez mediów (za duże na pakiet): {0}",
+    "transfer.export.skipped": "Nie wyeksportowano: {0}"
   }
 }

@@ -4855,10 +4855,10 @@
     "transfer.export.foldersOver": "超过 {0:N0}",
     "transfer.export.foldersUnknown": "未统计",
     "transfer.export.missing": "已不在归档中：{0:N0}",
-    "transfer.export.estimate": "估计媒体大小：约 {0}",
+    "transfer.export.estimate": "估计媒体：约 {0} · 文件：{1:N0}",
     "transfer.export.estimateUnknown": "无法根据媒体清单估计媒体大小。",
-    "transfer.export.limits": "每个传输包的传输格式固定限制——帖子：{0:N0} · 回复：{1:N0} · 附件：{2:N0} · 媒体文件夹：{3:N0}。",
-    "transfer.export.overLimit": "所选内容超出限制：{0}。请在归档列表中选择更少的帖子，然后导出所选帖子。",
+    "transfer.export.limits": "每个传输包的传输格式固定限制——帖子：{0:N0} · 回复：{1:N0} · 附件：{2:N0} · 媒体文件夹：{3:N0} · 媒体文件：{4:N0} · 媒体大小：{5}。",
+    "transfer.export.overLimit": "一个传输包无法容纳所选内容：{0}。请开启完整导出，或在归档列表中选择更少的帖子。",
     "transfer.export.overThreads": "帖子：{0:N0}（最多 {1:N0}）",
     "transfer.export.overPosts": "回复：{0:N0}（最多 {1:N0}）",
     "transfer.export.overFolders": "媒体文件夹：超过 {0:N0}",
@@ -4892,6 +4892,15 @@
     "transfer.export.error.empty": "没有可导出的内容：所选内容为空。",
     "transfer.export.error.count": "无法统计所选内容。",
     "transfer.export.error.openFolder": "无法打开文件夹。",
-    "command.archive.transfer-export": "导出归档"
+    "command.archive.transfer-export": "导出归档",
+    "transfer.export.full": "完整导出：必要时拆分为多个传输包",
+    "transfer.export.fullHelp": "每个传输包都遵守上述限制，因此每个包都可以单独导入。传输包按编号命名（-part-01、-part-02 等）。带媒体时任何包都容纳不下的帖子将不含媒体写入，并在结果中列出。",
+    "transfer.export.splitNote": "一个传输包无法容纳所选内容；将写入多个传输包。",
+    "transfer.export.tooLarge": "媒体可能无法放入一个传输包（媒体大小：最多 {0} · 媒体文件：最多 {1:N0}）。请开启完整导出。",
+    "transfer.export.packageProgress": "传输包 {0:N0}/{1:N0}：{2}",
+    "transfer.export.resultParts": "已写入传输包：{0:N0} · 帖子：{1:N0} · 总大小：{2}",
+    "transfer.export.partsKept": "已写入的传输包保持完整且可导入——传输包：{0:N0} · 帖子：{1:N0} · 大小：{2}",
+    "transfer.export.withoutMedia": "已不含媒体写入（单个包放不下）：{0}",
+    "transfer.export.skipped": "未导出：{0}"
   }
 }

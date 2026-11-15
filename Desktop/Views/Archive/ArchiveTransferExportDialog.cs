@@ -40,6 +40,8 @@ internal sealed class ArchiveTransferExportDialog : Window
     private readonly TextBlock _summary = new() { Name = "ArchiveTransferExportSummary", TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _limits = new() { Name = "ArchiveTransferExportLimits", TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _overLimit = new() { Name = "ArchiveTransferExportOverLimit", TextWrapping = TextWrapping.Wrap };
+    private readonly CheckBox _full = new() { Name = "ArchiveTransferExportFull" };
+    private readonly TextBlock _fullHelp = new() { Name = "ArchiveTransferExportFullHelp", TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _destinationLabel = new() { TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _destination = new() { Name = "ArchiveTransferExportDestination", TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _result = new() { Name = "ArchiveTransferExportResult", TextWrapping = TextWrapping.Wrap };
@@ -89,7 +91,7 @@ internal sealed class ArchiveTransferExportDialog : Window
 
         _intro.Classes.Add("workspace-help");
         _scopeLabel.Classes.Add("section-title"); _mediaLabel.Classes.Add("section-title"); _destinationLabel.Classes.Add("section-title");
-        _mediaHelp.Classes.Add("workspace-help"); _limits.Classes.Add("workspace-help");
+        _mediaHelp.Classes.Add("workspace-help"); _limits.Classes.Add("workspace-help"); _fullHelp.Classes.Add("workspace-help");
         _summary.Classes.Add("workspace-meta"); _destination.Classes.Add("workspace-meta"); _state.Classes.Add("workspace-meta");
         _overLimit.Classes.Add("workspace-warning");
         _start.Classes.Add("primary"); _close.Classes.Add("subtle");
@@ -99,6 +101,8 @@ internal sealed class ArchiveTransferExportDialog : Window
         AutomationProperties.SetLiveSetting(_error, AutomationLiveSetting.Assertive);
         _scope.SelectionChanged += (_, _) => { if (!_localizing) OnChoiceChanged(); };
         _media.SelectionChanged += (_, _) => { if (!_localizing) OnChoiceChanged(); };
+        // The count does not depend on splitting; only the limits that block Export do.
+        _full.IsCheckedChanged += (_, _) => { if (!_localizing && !_running) { _last = null; Render(); } };
         _choose.Click += async (_, _) => await ChooseAsync();
         _start.Click += async (_, _) => await StartAsync();
         _cancel.Click += (_, _) => CancelOperation();
@@ -110,6 +114,7 @@ internal sealed class ArchiveTransferExportDialog : Window
         body.Children.Add(_scopeLabel); body.Children.Add(_scope);
         body.Children.Add(_mediaLabel); body.Children.Add(_media); body.Children.Add(_mediaHelp);
         body.Children.Add(_summary); body.Children.Add(_overLimit); body.Children.Add(_limits);
+        body.Children.Add(_full); body.Children.Add(_fullHelp);
         body.Children.Add(_destinationLabel); body.Children.Add(_destination); body.Children.Add(_result);
         Border footer = DialogFooter.Build(_close, new Control[] { _choose, _cancel, _folder, _start }, _state, statusAbove: true);
         DialogWindow.Frame(this, DialogFrame.Build(header, body, footer, DialogFrame.ErrorStrip(_error)), modal: true);
@@ -133,6 +138,7 @@ internal sealed class ArchiveTransferExportDialog : Window
     internal Button CloseButton => _close;
     internal ComboBox ScopeBox => _scope;
     internal ComboBox MediaBox => _media;
+    internal CheckBox FullExportBox => _full;
     internal TextBlock SummaryText => _summary;
     internal TextBlock OverLimitText => _overLimit;
     internal TextBlock LimitsText => _limits;
@@ -148,7 +154,8 @@ internal sealed class ArchiveTransferExportDialog : Window
     internal Task StartForTestsAsync() => StartAsync();
     internal Task RecountForTestsAsync() => RecountAsync();
 
-    internal ArchiveTransferExportRequest Request => new(SelectedScopeIsSelection ? _selected : null, SelectedMedia);
+    internal ArchiveTransferExportRequest Request => new(SelectedScopeIsSelection ? _selected : null, SelectedMedia, FullExport);
+    private bool FullExport => _full.IsChecked == true;
     private bool SelectedScopeIsSelection => _selected.Count > 0 && _scope.SelectedIndex == 0;
     private ArchiveTransferExportMedia SelectedMedia => _media.SelectedIndex switch
     {
@@ -281,7 +288,8 @@ internal sealed class ArchiveTransferExportDialog : Window
                 break;
             default:
                 _stateKey = "transfer.export.failed"; _errorKey = ErrorKey(result.Error);
-                if (result.Error is ArchiveTransferExportError.DestinationExists or ArchiveTransferExportError.InvalidDestination) _target = null;
+                if (result.Error is ArchiveTransferExportError.DestinationExists or ArchiveTransferExportError.InvalidDestination
+                    || result.Parts.Count > 0) _target = null;
                 break;
         }
         Render();
@@ -297,7 +305,7 @@ internal sealed class ArchiveTransferExportDialog : Window
 
     private void OpenFolder()
     {
-        if (_closed || _last is not { Succeeded: true, Destination: { } path }) return;
+        if (_closed || _last?.Parts.FirstOrDefault()?.Path is not { } path) return;
         try
         {
             string? directory = Path.GetDirectoryName(path);
@@ -307,7 +315,7 @@ internal sealed class ArchiveTransferExportDialog : Window
     }
 
     private bool CanStart => !_closed && !_running && !_counting && !_picking && _target != null
-        && _counted is { WithinLimits: true, MissingThreads: 0 };
+        && _counted is { IsEmpty: false, MissingThreads: 0 } counted && (counted.WithinLimits || FullExport);
 
     internal static string ErrorKey(ArchiveTransferExportError error) => error switch
     {
@@ -342,11 +350,47 @@ internal sealed class ArchiveTransferExportDialog : Window
             : count.MediaDirectories.Value.ToString("N0", Texts.Culture);
         List<string> lines = new() { Texts.T("transfer.export.count", count.Threads, count.Posts, folders) };
         if (count.MissingThreads > 0) lines.Add(Texts.T("transfer.export.missing", count.MissingThreads));
-        if (media != ArchiveTransferExportMedia.MetadataOnly && count.WithinLimits)
+        if (media != ArchiveTransferExportMedia.MetadataOnly && count.MediaDirectories != null && !count.MediaDirectoriesTruncated)
             lines.Add(count.EstimatedMediaBytes is { } bytes
-                ? Texts.T("transfer.export.estimate", SizeText.Format(bytes)) : Texts.T("transfer.export.estimateUnknown"));
+                ? Texts.T("transfer.export.estimate", SizeText.Format(bytes), count.EstimatedMediaFiles ?? 0)
+                : Texts.T("transfer.export.estimateUnknown"));
         return string.Join(Environment.NewLine, lines);
     }
+
+    /// <summary>
+    /// The warning under the count: what one package cannot hold, or (Full export) that several packages will be written.
+    /// Empty when one package is expected to fit.
+    /// </summary>
+    internal static string DescribeLimitState(ArchiveTransferExportCount? count, ArchiveTransferExportMedia media, bool full)
+    {
+        if (count == null || count.IsEmpty) return string.Empty;
+        bool tooLarge = media != ArchiveTransferExportMedia.MetadataOnly && count.LikelyTooLargeForOnePackage;
+        if (full) return !count.WithinLimits || tooLarge ? Texts.T("transfer.export.splitNote") : string.Empty;
+        if (!count.WithinLimits) return DescribeOverLimit(count);
+        return tooLarge ? Texts.T("transfer.export.tooLarge", SizeText.Format(ArchiveTransferExportCount.MaxMediaBytes),
+            ArchiveTransferExportCount.MaxMediaFiles) : string.Empty;
+    }
+
+    internal static string DescribeResult(ArchiveTransferExportResult result)
+    {
+        List<string> lines = new();
+        if (result.Succeeded && result.Parts.Count == 1)
+            lines.Add(Texts.T("transfer.export.result", result.Parts[0].Threads, SizeText.Format(result.Parts[0].Bytes), result.Parts[0].Path));
+        else if (result.Parts.Count > 0)
+        {
+            lines.Add(Texts.T(result.Succeeded ? "transfer.export.resultParts" : "transfer.export.partsKept", result.Parts.Count,
+                result.Parts.Sum(part => part.Threads), SizeText.Format(result.Parts.Sum(part => part.Bytes))));
+            lines.AddRange(result.Parts.Select(part => part.Path));
+        }
+        if (result.WithoutMedia.Count > 0)
+            lines.Add(Texts.T("transfer.export.withoutMedia", string.Join(", ", result.WithoutMedia.Select(Identity))));
+        if (result.Skipped.Count > 0)
+            lines.Add(Texts.T("transfer.export.skipped", string.Join(", ", result.Skipped.Select(skip => Identity(skip.Thread)))));
+        if (result.StageRetained) lines.Add(Texts.T("transfer.export.stageRetained"));
+        return string.Join(Environment.NewLine, lines);
+    }
+
+    private static string Identity(ResourceId id) => id.Source + "/" + id.Board + "/" + id.Thread;
 
     private void Render()
     {
@@ -360,30 +404,30 @@ internal sealed class ArchiveTransferExportDialog : Window
             _ => "transfer.export.mediaMetadataHelp"
         });
         _limits.Text = Texts.T("transfer.export.limits", ArchiveTransferExportCount.MaxThreads, ArchiveTransferExportCount.MaxPosts,
-            ArchiveTransferExportCount.MaxAttachments, ArchiveTransferExportCount.MaxMediaDirectories);
+            ArchiveTransferExportCount.MaxAttachments, ArchiveTransferExportCount.MaxMediaDirectories,
+            ArchiveTransferExportCount.MaxMediaFiles, SizeText.Format(ArchiveTransferExportCount.MaxMediaBytes));
+        _fullHelp.Text = Texts.T("transfer.export.fullHelp");
         _summary.Text = _counted == null ? string.Empty : DescribeCount(_counted, SelectedMedia);
-        _overLimit.Text = DescribeOverLimit(_counted);
+        _overLimit.Text = DescribeLimitState(_counted, SelectedMedia, FullExport);
         _overLimit.IsVisible = _overLimit.Text.Length > 0;
         _destinationLabel.Text = Texts.T("transfer.export.destination");
         _destination.Text = _target ?? Texts.T("transfer.export.noDestination");
-        _state.Text = _stateKey == "transfer.export.writing" && _progress?.PayloadBytes is > 0 and var bytes
+        string state = _stateKey == "transfer.export.writing" && _progress?.PayloadBytes is > 0 and var bytes
             ? Texts.T("transfer.export.writingSize", SizeText.Format(bytes)) : Texts.T(_stateKey);
+        _state.Text = _running && _progress is { Packages: > 1 } step && _stateKey != "transfer.export.counting"
+            ? Texts.T("transfer.export.packageProgress", step.Package, step.Packages, state) : state;
         _error.Text = _errorKey == null ? string.Empty : Texts.T(_errorKey);
-        if (_last is { Succeeded: true } done)
-        {
-            _result.Text = Texts.T("transfer.export.result", done.Count?.Threads ?? 0, SizeText.Format(done.BytesWritten ?? 0), done.Destination)
-                + (done.StageRetained ? Environment.NewLine + Texts.T("transfer.export.stageRetained") : string.Empty);
-        }
-        else _result.Text = _last?.StageRetained == true ? Texts.T("transfer.export.stageRetained") : string.Empty;
+        _result.Text = _last == null ? string.Empty : DescribeResult(_last);
         _result.IsVisible = _result.Text.Length > 0;
         bool idle = !_running && !_picking;
         _scope.IsEnabled = idle && _selected.Count > 0;
         _media.IsEnabled = idle;
+        _full.IsEnabled = idle;
         _choose.IsEnabled = idle;
         _cancel.IsEnabled = _running || _counting;
         _start.IsEnabled = CanStart;
-        _folder.IsEnabled = idle && _last is { Succeeded: true } && _openFolder != null;
-        _folder.IsVisible = _last is { Succeeded: true };
+        _folder.IsEnabled = idle && _last is { Parts.Count: > 0 } && _openFolder != null;
+        _folder.IsVisible = _last is { Parts.Count: > 0 };
     }
 
     private void SetButtonLabel(Button button, string key)
@@ -412,6 +456,8 @@ internal sealed class ArchiveTransferExportDialog : Window
                 Texts.T("transfer.export.mediaEverything") };
             _media.SelectedIndex = media is 0 or 1 or 2 ? media : 0;
             AutomationProperties.SetName(_media, _mediaLabel.Text);
+            _full.Content = Texts.T("transfer.export.full");
+            AutomationProperties.SetName(_full, Texts.T("transfer.export.full"));
             SetButtonLabel(_choose, "transfer.export.choose");
             SetButtonLabel(_cancel, "transfer.export.cancel");
             SetButtonLabel(_start, "transfer.export.start");

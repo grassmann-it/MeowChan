@@ -4990,10 +4990,10 @@
     "transfer.export.foldersOver": "více než {0:N0}",
     "transfer.export.foldersUnknown": "nespočítáno",
     "transfer.export.missing": "Už není v archivu: {0:N0}",
-    "transfer.export.estimate": "Odhadovaná velikost médií: asi {0}",
+    "transfer.export.estimate": "Odhadovaná média: asi {0} · soubory: {1:N0}",
     "transfer.export.estimateUnknown": "Velikost médií nelze odhadnout ze soupisu médií.",
-    "transfer.export.limits": "Pevné limity přenosového formátu na jeden balíček – vlákna: {0:N0} · příspěvky: {1:N0} · přílohy: {2:N0} · složky médií: {3:N0}.",
-    "transfer.export.overLimit": "Výběr překračuje limit: {0}. Vyber v seznamu archivu méně vláken a exportuj vybraná vlákna.",
+    "transfer.export.limits": "Pevné limity přenosového formátu na jeden balíček – vlákna: {0:N0} · příspěvky: {1:N0} · přílohy: {2:N0} · složky médií: {3:N0} · mediální soubory: {4:N0} · velikost médií: {5}.",
+    "transfer.export.overLimit": "Jeden balíček tento výběr nepojme: {0}. Zapni úplný export, nebo vyber v seznamu archivu méně vláken.",
     "transfer.export.overThreads": "vlákna: {0:N0} (nejvýše {1:N0})",
     "transfer.export.overPosts": "příspěvky: {0:N0} (nejvýše {1:N0})",
     "transfer.export.overFolders": "složky médií: více než {0:N0}",
@@ -5027,6 +5027,15 @@
     "transfer.export.error.empty": "Není co exportovat: výběr je prázdný.",
     "transfer.export.error.count": "Výběr nelze spočítat.",
     "transfer.export.error.openFolder": "Složku nelze otevřít.",
-    "command.archive.transfer-export": "Exportovat archiv"
+    "command.archive.transfer-export": "Exportovat archiv",
+    "transfer.export.full": "Úplný export: v případě potřeby rozdělit do více balíčků",
+    "transfer.export.fullHelp": "Každý balíček dodržuje limity výše, takže každý lze importovat samostatně. Balíčky jsou číslované (-part-01, -part-02 atd.). Vlákno, které se s médii nevejde do žádného balíčku, se zapíše bez médií a uvede se ve výsledku.",
+    "transfer.export.splitNote": "Jeden balíček tento výběr nepojme; zapíše se do více balíčků.",
+    "transfer.export.tooLarge": "Média se pravděpodobně nevejdou do jednoho balíčku (velikost médií: nejvýše {0} · mediální soubory: nejvýše {1:N0}). Zapni úplný export.",
+    "transfer.export.packageProgress": "Balíček {0:N0} z {1:N0}: {2}",
+    "transfer.export.resultParts": "Zapsané balíčky: {0:N0} · vlákna: {1:N0} · celková velikost: {2}",
+    "transfer.export.partsKept": "Už zapsané balíčky zůstávají úplné a importovatelné – balíčky: {0:N0} · vlákna: {1:N0} · velikost: {2}",
+    "transfer.export.withoutMedia": "Zapsáno bez médií (příliš velké pro balíček): {0}",
+    "transfer.export.skipped": "Neexportováno: {0}"
   }
 }

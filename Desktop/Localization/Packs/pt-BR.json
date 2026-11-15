@@ -4950,10 +4950,10 @@
     "transfer.export.foldersOver": "mais de {0:N0}",
     "transfer.export.foldersUnknown": "não contado",
     "transfer.export.missing": "Não está mais no acervo: {0:N0}",
-    "transfer.export.estimate": "Tamanho estimado da mídia: cerca de {0}",
+    "transfer.export.estimate": "Mídia estimada: cerca de {0} · arquivos: {1:N0}",
     "transfer.export.estimateUnknown": "Não é possível estimar o tamanho da mídia pelo inventário de mídia.",
-    "transfer.export.limits": "Limites fixos do formato de transferência por pacote — tópicos: {0:N0} · postagens: {1:N0} · anexos: {2:N0} · pastas de mídia: {3:N0}.",
-    "transfer.export.overLimit": "A seleção passa do limite: {0}. Selecione menos tópicos na lista do acervo e exporte os tópicos selecionados.",
+    "transfer.export.limits": "Limites fixos do formato de transferência por pacote — tópicos: {0:N0} · postagens: {1:N0} · anexos: {2:N0} · pastas de mídia: {3:N0} · arquivos de mídia: {4:N0} · tamanho da mídia: {5}.",
+    "transfer.export.overLimit": "Um pacote não comporta esta seleção: {0}. Ative a exportação completa ou selecione menos tópicos na lista do acervo.",
     "transfer.export.overThreads": "tópicos: {0:N0} (no máximo {1:N0})",
     "transfer.export.overPosts": "postagens: {0:N0} (no máximo {1:N0})",
     "transfer.export.overFolders": "pastas de mídia: mais de {0:N0}",
@@ -4987,6 +4987,15 @@
     "transfer.export.error.empty": "Não há nada para exportar: a seleção está vazia.",
     "transfer.export.error.count": "Não foi possível contar a seleção.",
     "transfer.export.error.openFolder": "Não foi possível abrir a pasta.",
-    "command.archive.transfer-export": "Exportar acervo"
+    "command.archive.transfer-export": "Exportar acervo",
+    "transfer.export.full": "Exportação completa: dividir em vários pacotes quando necessário",
+    "transfer.export.fullHelp": "Cada pacote respeita os limites acima, então cada um pode ser importado sozinho. Os pacotes são numerados (-part-01, -part-02 e assim por diante). Um tópico grande demais para qualquer pacote com sua mídia é gravado sem mídia e citado no resultado.",
+    "transfer.export.splitNote": "Um pacote não comporta esta seleção; ela é gravada em vários pacotes.",
+    "transfer.export.tooLarge": "A mídia provavelmente não cabe em um só pacote (tamanho da mídia: no máximo {0} · arquivos de mídia: no máximo {1:N0}). Ative a exportação completa.",
+    "transfer.export.packageProgress": "Pacote {0:N0} de {1:N0}: {2}",
+    "transfer.export.resultParts": "Pacotes gravados: {0:N0} · tópicos: {1:N0} · tamanho total: {2}",
+    "transfer.export.partsKept": "Os pacotes já gravados continuam completos e importáveis — pacotes: {0:N0} · tópicos: {1:N0} · tamanho: {2}",
+    "transfer.export.withoutMedia": "Gravados sem mídia (grandes demais para um pacote): {0}",
+    "transfer.export.skipped": "Não exportados: {0}"
   }
 }

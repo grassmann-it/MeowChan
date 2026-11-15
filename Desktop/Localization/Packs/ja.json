@@ -4855,10 +4855,10 @@
     "transfer.export.foldersOver": "{0:N0} を超える",
     "transfer.export.foldersUnknown": "未集計",
     "transfer.export.missing": "アーカイブにもうありません：{0:N0}",
-    "transfer.export.estimate": "推定メディアサイズ：約 {0}",
+    "transfer.export.estimate": "推定メディア：約 {0} · ファイル：{1:N0}",
     "transfer.export.estimateUnknown": "メディア一覧からメディアサイズを推定できません。",
-    "transfer.export.limits": "1 つのパッケージに対する転送形式の固定の上限 — スレッド：{0:N0} · 投稿：{1:N0} · 添付ファイル：{2:N0} · メディアフォルダー：{3:N0}。",
-    "transfer.export.overLimit": "選択が上限を超えています：{0}。アーカイブ一覧で選択するスレッドを減らし、選択したスレッドをエクスポートしてください。",
+    "transfer.export.limits": "1 つのパッケージに対する転送形式の固定の上限 — スレッド：{0:N0} · 投稿：{1:N0} · 添付ファイル：{2:N0} · メディアフォルダー：{3:N0} · メディアファイル：{4:N0} · メディアサイズ：{5}。",
+    "transfer.export.overLimit": "この選択は 1 つのパッケージに収まりません：{0}。完全エクスポートをオンにするか、アーカイブ一覧で選択するスレッドを減らしてください。",
     "transfer.export.overThreads": "スレッド：{0:N0}（最大 {1:N0}）",
     "transfer.export.overPosts": "投稿：{0:N0}（最大 {1:N0}）",
     "transfer.export.overFolders": "メディアフォルダー：{0:N0} を超える",
@@ -4892,6 +4892,15 @@
     "transfer.export.error.empty": "エクスポートするものがありません：選択が空です。",
     "transfer.export.error.count": "選択を数えられませんでした。",
     "transfer.export.error.openFolder": "フォルダーを開けませんでした。",
-    "command.archive.transfer-export": "アーカイブをエクスポート"
+    "command.archive.transfer-export": "アーカイブをエクスポート",
+    "transfer.export.full": "完全エクスポート：必要に応じて複数のパッケージに分割",
+    "transfer.export.fullHelp": "各パッケージは上記の上限を守るため、どのパッケージも単独でインポートできます。パッケージには番号が付きます（-part-01、-part-02 など）。メディア付きではどのパッケージにも収まらないスレッドは、メディアなしで書き出し、結果に表示します。",
+    "transfer.export.splitNote": "この選択は 1 つのパッケージに収まらないため、複数のパッケージに書き出します。",
+    "transfer.export.tooLarge": "メディアはおそらく 1 つのパッケージに収まりません（メディアサイズ：最大 {0} · メディアファイル：最大 {1:N0}）。完全エクスポートをオンにしてください。",
+    "transfer.export.packageProgress": "パッケージ {0:N0}/{1:N0}：{2}",
+    "transfer.export.resultParts": "書き出したパッケージ：{0:N0} · スレッド：{1:N0} · 合計サイズ：{2}",
+    "transfer.export.partsKept": "書き出し済みのパッケージは完全なままでインポートできます — パッケージ：{0:N0} · スレッド：{1:N0} · サイズ：{2}",
+    "transfer.export.withoutMedia": "メディアなしで書き出し（1 つのパッケージには大きすぎる）：{0}",
+    "transfer.export.skipped": "エクスポートされていません：{0}"
   }
 }

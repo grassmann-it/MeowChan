@@ -4944,10 +4944,10 @@
     "transfer.export.foldersOver": "plus de {0:N0}",
     "transfer.export.foldersUnknown": "non compté",
     "transfer.export.missing": "Plus dans l’archive : {0:N0}",
-    "transfer.export.estimate": "Taille estimée des médias : environ {0}",
+    "transfer.export.estimate": "Médias estimés : environ {0} · fichiers : {1:N0}",
     "transfer.export.estimateUnknown": "La taille des médias ne peut pas être estimée à partir de l’inventaire des médias.",
-    "transfer.export.limits": "Limites fixes du format de transfert par paquet — fils : {0:N0} · messages : {1:N0} · pièces jointes : {2:N0} · dossiers médias : {3:N0}.",
-    "transfer.export.overLimit": "La sélection dépasse la limite : {0}. Sélectionne moins de fils dans la liste de l’archive et exporte les fils sélectionnés.",
+    "transfer.export.limits": "Limites fixes du format de transfert par paquet — fils : {0:N0} · messages : {1:N0} · pièces jointes : {2:N0} · dossiers médias : {3:N0} · fichiers médias : {4:N0} · taille des médias : {5}.",
+    "transfer.export.overLimit": "Un paquet ne peut pas contenir cette sélection : {0}. Active l’export complet ou sélectionne moins de fils dans la liste de l’archive.",
     "transfer.export.overThreads": "fils : {0:N0} (au plus {1:N0})",
     "transfer.export.overPosts": "messages : {0:N0} (au plus {1:N0})",
     "transfer.export.overFolders": "dossiers médias : plus de {0:N0}",
@@ -4981,6 +4981,15 @@
     "transfer.export.error.empty": "Il n’y a rien à exporter : la sélection est vide.",
     "transfer.export.error.count": "La sélection n’a pas pu être comptée.",
     "transfer.export.error.openFolder": "Le dossier n’a pas pu être ouvert.",
-    "command.archive.transfer-export": "Exporter l’archive"
+    "command.archive.transfer-export": "Exporter l’archive",
+    "transfer.export.full": "Export complet : répartir sur plusieurs paquets si nécessaire",
+    "transfer.export.fullHelp": "Chaque paquet respecte les limites ci-dessus, chaque paquet peut donc être importé seul. Les paquets sont numérotés (-part-01, -part-02 et ainsi de suite). Un fil trop grand pour tout paquet avec ses médias est écrit sans médias et cité dans le résultat.",
+    "transfer.export.splitNote": "Un paquet ne peut pas contenir cette sélection ; elle est écrite en plusieurs paquets.",
+    "transfer.export.tooLarge": "Les médias ne tiennent probablement pas dans un seul paquet (taille des médias : au plus {0} · fichiers médias : au plus {1:N0}). Active l’export complet.",
+    "transfer.export.packageProgress": "Paquet {0:N0} sur {1:N0} : {2}",
+    "transfer.export.resultParts": "Paquets écrits : {0:N0} · fils : {1:N0} · taille totale : {2}",
+    "transfer.export.partsKept": "Les paquets déjà écrits restent complets et importables — paquets : {0:N0} · fils : {1:N0} · taille : {2}",
+    "transfer.export.withoutMedia": "Écrits sans médias (trop grands pour un paquet) : {0}",
+    "transfer.export.skipped": "Non exportés : {0}"
   }
 }

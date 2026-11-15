@@ -139,36 +139,131 @@ public sealed class ArchiveTransferExportHostTests
         Assert.True(again.Succeeded, again.Error.ToString());
     }
 
+    // 1.1.0 raised the selection-wide media-folder ceiling from 32 to the thread ceiling: 40 threads, each with its own
+    // folder, are one ordinary package, and the import preview reads it back.
     [Fact]
-    public async Task MoreMediaFoldersThanTheFormatAllowsAreReportedUpFrontAndNeverFrozen()
+    public async Task FortyThreadsWithTheirOwnMediaFoldersFitOnePackageAndRoundTrip()
     {
         using Workspace files = new();
-        int over = ArchiveTransferExportCount.MaxMediaDirectories + 1;
-        await files.SeedAsync(Enumerable.Range(0, over).Select(i => (new ResourceId("4chan", "b", (8500 + i).ToString()), 1)).ToArray());
+        ResourceId[] ids = Threads(9000, 40);
+        await files.SeedAsync(ids.Select(id => (id, 2)).ToArray());
         await using DesktopSessionHost host = await files.StartAsync();
 
         ArchiveTransferExportCount count = await host.CountArchiveTransferExportAsync(
-            new(null, ArchiveTransferExportMedia.Originals)).WaitAsync(Deadline);
-        Assert.Equal(over, count.Threads);
-        Assert.True(count.MediaDirectoriesOverLimit);
-        Assert.False(count.WithinLimits);
-        Assert.Null(count.EstimatedMediaBytes); // no manifest is read for a selection that cannot be exported
-
-        int checkpoints = 0;
-        host.ArchiveTransferExportCheckpointForTests = (_, _) => { Interlocked.Increment(ref checkpoints); return Task.CompletedTask; };
-        string target = Path.Combine(files.Output, "too-many.zip");
+            new(null, ArchiveTransferExportMedia.Everything)).WaitAsync(Deadline);
+        Assert.Equal(40, count.MediaDirectories);
+        Assert.True(count.WithinLimits);
+        Assert.Equal(1000, ArchiveTransferExportCount.MaxMediaDirectories);
+        string target = Path.Combine(files.Output, "forty.zip");
         ArchiveTransferExportResult result = await host.ExportArchiveTransferAsync(
-            new(null, ArchiveTransferExportMedia.MetadataOnly), target).WaitAsync(Deadline);
-        Assert.Equal(ArchiveTransferExportError.SelectionLimit, result.Error);
-        Assert.Equal(0, checkpoints);
-        Assert.False(File.Exists(target));
+            new(null, ArchiveTransferExportMedia.Everything), target).WaitAsync(Deadline);
 
-        // A selection inside the ceiling from the same archive still exports.
-        ResourceId[] few = Enumerable.Range(0, 3).Select(i => new ResourceId("4chan", "b", (8500 + i).ToString())).ToArray();
-        ArchiveTransferExportResult selected = await host.ExportArchiveTransferAsync(
-            new(few, ArchiveTransferExportMedia.MetadataOnly), target).WaitAsync(Deadline);
-        Assert.True(selected.Succeeded, selected.Error.ToString());
-        Assert.Equal(3, selected.Count!.Threads);
+        Assert.True(result.Succeeded, result.Error.ToString());
+        Assert.Equal(target, Assert.Single(result.Parts).Path);
+        await using NativeTransferPreviewSession preview = new(files.Work);
+        NativeTransferPreviewSnapshot read = await preview.InspectAsync(target).WaitAsync(Deadline);
+        Assert.Equal(NativeTransferPreviewState.Inventory, read.State);
+        Assert.Equal(ids.ToHashSet(), read.Inventory!.Threads.Select(thread => thread.Id).ToHashSet());
+        Assert.Equal(80, read.Inventory.Posts);
+    }
+
+    // Full export with a lowered packing budget (16 threads per package): numbered packages, each a complete package that
+    // the import preview accepts on its own, together exactly the archive.
+    [Fact]
+    public async Task FullExportSplitsAtTheBudgetAndEveryPackageRoundTrips()
+    {
+        using Workspace files = new();
+        ResourceId[] ids = Threads(9100, 40);
+        await files.SeedAsync(ids.Select(id => (id, 1)).ToArray());
+        await using DesktopSessionHost host = await files.StartAsync();
+        host.ArchiveTransferPackageBudgetForTests = ArchiveTransferPackageBudget.Default with { Threads = 16 };
+        List<ArchiveTransferExportProgress> reports = new();
+        string target = Path.Combine(files.Output, "full.zip");
+
+        ArchiveTransferExportResult result = await host.ExportArchiveTransferAsync(
+            new(null, ArchiveTransferExportMedia.Everything, Split: true), target, new Collect(reports)).WaitAsync(Deadline);
+
+        Assert.True(result.Succeeded, result.Error.ToString());
+        Assert.Equal([16, 16, 8], result.Parts.Select(part => part.Threads));
+        Assert.Equal(new[] { 1, 2, 3 }.Select(part => Path.Combine(files.Output, $"full-part-0{part}.zip")), result.Parts.Select(part => part.Path));
+        Assert.False(File.Exists(target)); // several packages: only numbered names
+        Assert.Empty(result.WithoutMedia); Assert.Empty(result.Skipped);
+        Assert.Contains(reports, report => report.Phase == ArchiveTransferExportPhase.Writing && report is { Package: 3, Packages: 3 });
+        HashSet<ResourceId> seen = new();
+        foreach (ArchiveTransferExportPart part in result.Parts)
+        {
+            Assert.Equal(new FileInfo(part.Path).Length, part.Bytes);
+            await using NativeTransferPreviewSession preview = new(files.Work);
+            NativeTransferPreviewSnapshot read = await preview.InspectAsync(part.Path).WaitAsync(Deadline);
+            Assert.Equal(NativeTransferPreviewState.Inventory, read.State);
+            Assert.Equal(part.Threads, read.Inventory!.Threads.Length);
+            foreach (var thread in read.Inventory.Threads) Assert.True(seen.Add(thread.Id));
+        }
+        Assert.Equal(ids.ToHashSet(), seen);
+        Assert.Empty(Pending(files.Output));
+    }
+
+    // A limit the plan cannot see in advance (here the stored-text budget, lowered so two threads exceed it): the refused
+    // package is halved until each part fits. Without Full export the same selection is refused as a whole.
+    [Fact]
+    public async Task FullExportHalvesAPackageTheEngineRefusesUntilEveryPartFits()
+    {
+        using Workspace files = new();
+        ResourceId[] ids = Threads(9200, 5);
+        await files.SeedAsync(ids.Select(id => (id, 1)).ToArray());
+        long single;
+        await using (ArchiveReader reader = await ArchiveReader.OpenAsync(files.Profile).WaitAsync(Deadline))
+            single = await SmallestTextBudgetAsync(reader, ids[0]);
+        await using DesktopSessionHost host = await files.StartAsync();
+        host.ArchiveTransferMetadataLimitsForTests = new(storedTextBytes: single + single / 2);
+
+        ArchiveTransferExportResult refused = await host.ExportArchiveTransferAsync(
+            new(null, ArchiveTransferExportMedia.MetadataOnly), Path.Combine(files.Output, "one.zip")).WaitAsync(Deadline);
+        Assert.Equal(ArchiveTransferExportError.SelectionLimit, refused.Error);
+        Assert.Empty(refused.Parts);
+
+        ArchiveTransferExportResult result = await host.ExportArchiveTransferAsync(
+            new(null, ArchiveTransferExportMedia.MetadataOnly, Split: true), Path.Combine(files.Output, "halved.zip")).WaitAsync(Deadline);
+        Assert.True(result.Succeeded, result.Error.ToString());
+        Assert.Equal(5, result.Parts.Count);
+        Assert.All(result.Parts, part => Assert.Equal(1, part.Threads));
+        Assert.Equal(Enumerable.Range(1, 5).Select(part => Path.Combine(files.Output, $"halved-part-0{part}.zip")), result.Parts.Select(p => p.Path));
+        Assert.Empty(Pending(files.Output));
+    }
+
+    [Fact]
+    public async Task AnExistingNumberedPackageNameIsRefusedBeforeAnythingIsWritten()
+    {
+        using Workspace files = new();
+        await files.SeedAsync(Threads(9300, 4).Select(id => (id, 1)).ToArray());
+        await using DesktopSessionHost host = await files.StartAsync();
+        host.ArchiveTransferPackageBudgetForTests = ArchiveTransferPackageBudget.Default with { Threads = 2 };
+        await File.WriteAllTextAsync(Path.Combine(files.Output, "full-part-02.zip"), "KEEP");
+
+        ArchiveTransferExportResult result = await host.ExportArchiveTransferAsync(
+            new(null, ArchiveTransferExportMedia.MetadataOnly, Split: true), Path.Combine(files.Output, "full.zip")).WaitAsync(Deadline);
+
+        Assert.Equal(ArchiveTransferExportError.DestinationExists, result.Error);
+        Assert.Empty(result.Parts);
+        Assert.False(File.Exists(Path.Combine(files.Output, "full-part-01.zip")));
+        Assert.Equal("KEEP", await File.ReadAllTextAsync(Path.Combine(files.Output, "full-part-02.zip")));
+    }
+
+    private static ResourceId[] Threads(int first, int count) =>
+        Enumerable.Range(first, count).Select(i => new ResourceId("4chan", "b", i.ToString())).ToArray();
+
+    // The smallest stored-text budget one thread passes, found with the exporter's own read-only preflight.
+    private static async Task<long> SmallestTextBudgetAsync(ArchiveReader reader, ResourceId id)
+    {
+        long low = 0, high = MeowChan.Transfer.NativeTransferArchiveMetadataLimits.MaxStoredTextBytes;
+        while (low < high)
+        {
+            long middle = low + (high - low) / 2;
+            if (await MeowChan.Transfer.NativeTransferArchiveExporter.PreflightMetadataAsync(reader, [id], new(storedTextBytes: middle), CancellationToken.None))
+                high = middle;
+            else low = middle + 1;
+        }
+        return low;
     }
 
     [Fact]

@@ -142,10 +142,41 @@ public sealed class ArchiveTransferExportEntrypointTests : IDisposable
         Assert.Contains("threads: 1,200 (at most 1,000)", text);
         Assert.Contains("posts: 150,000 (at most 100,000)", text);
         Assert.Contains("not counted", ArchiveTransferExportDialog.DescribeCount(over, ArchiveTransferExportMedia.Everything));
-        Assert.Contains("media folders: more than 32",
-            ArchiveTransferExportDialog.DescribeOverLimit(new(40, 40, 33, true, null)));
+        Assert.Contains("media folders: more than 1,000",
+            ArchiveTransferExportDialog.DescribeOverLimit(new(900, 900, 1001, true, null)));
         Texts.SetLanguage("de");
         Assert.Contains("Threads: 1.200 (höchstens 1.000)", ArchiveTransferExportDialog.DescribeOverLimit(over));
+    }
+
+    [Fact]
+    public void FullExportTurnsTheBlockingLimitIntoASplitNoteAndTheResultListsEveryPackage()
+    {
+        ArchiveTransferExportCount over = new(1200, 150_000, null, false, null);
+        ArchiveTransferExportCount large = new(200, 40_000, 200, false, 17L * 1024 * 1024 * 1024, EstimatedMediaFiles: 34_000);
+        Assert.True(large.WithinLimits);
+        Assert.True(large.LikelyTooLargeForOnePackage);
+        Assert.Contains("Full export", ArchiveTransferExportDialog.DescribeLimitState(over, ArchiveTransferExportMedia.MetadataOnly, false));
+        Assert.Contains("2 GiB", ArchiveTransferExportDialog.DescribeLimitState(large, ArchiveTransferExportMedia.Originals, false));
+        Assert.Equal(string.Empty, ArchiveTransferExportDialog.DescribeLimitState(large, ArchiveTransferExportMedia.MetadataOnly, false));
+        string split = Texts.T("transfer.export.splitNote");
+        Assert.Equal(split, ArchiveTransferExportDialog.DescribeLimitState(over, ArchiveTransferExportMedia.MetadataOnly, true));
+        Assert.Equal(split, ArchiveTransferExportDialog.DescribeLimitState(large, ArchiveTransferExportMedia.Everything, true));
+        Assert.Contains("media files: 9,998", Texts.T("transfer.export.limits", 1000, 100_000, 100_000, 1000, 9998, "2 GiB"));
+
+        string root = Path.GetTempPath();
+        Assert.Equal(Path.Combine(root, "meowchan-archive-2026-11-15-part-03.zip"),
+            ArchiveTransferExportDestination.PartPath(Path.Combine(root, "meowchan-archive-2026-11-15.zip"), 3));
+        ArchiveTransferExportResult result = new(ArchiveTransferExportError.None)
+        {
+            Parts = [new(Path.Combine(root, "a-part-01.zip"), 2048, 16), new(Path.Combine(root, "a-part-02.zip"), 1024, 4)],
+            WithoutMedia = [new ResourceId("4chan", "b", "1")], Skipped = [new(new ResourceId("4chan", "b", "2"), ArchiveTransferExportError.ValidationFailed)]
+        };
+        string text = ArchiveTransferExportDialog.DescribeResult(result);
+        Assert.Contains("Packages written: 2 · threads: 20 · total size: 3 KiB", text);
+        Assert.Contains("a-part-02.zip", text);
+        Assert.Contains("4chan/b/1", text);
+        Assert.Contains("Not exported: 4chan/b/2", text);
+        Assert.Contains("Packages already written stay complete", ArchiveTransferExportDialog.DescribeResult(result with { Error = ArchiveTransferExportError.StaleSnapshot }));
     }
 
     [Theory]
