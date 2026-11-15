@@ -12,8 +12,9 @@ public static partial class WorkViewPolicy
     /// The reader toolbar's one keep-visible order (OverflowOrder, lower stays on the bar longer). The toolbar has
     /// PrioritizedOverflow, so this list, not the visual order of the bar, decides what a narrow window moves into "More"
     /// first: the tail of this list. RL1 (15.11.): gallery, read, find, tags, export, settings (the gear that replaced "View"),
-    /// thread; the rarely used history return goes before full screen, which left the bar in every view (it is under More
-    /// always) and so ends the list. The post-capture switch is no bar item any more: it is an entry of the Thread menu (R2).
+    /// thread; the rarely used history return goes before full screen, which ends the list: it is the first to move under More
+    /// when the bar runs out of room (review 15.11.: an action only overflows when it does not fit; a forced "More" with free room
+    /// beside it hid actions). The post-capture switch is no bar item any more: it is an entry of the Thread menu (R2).
     /// Required items (way back, favourite star, state returns) never move.
     /// </summary>
     public static IReadOnlyList<string> ReaderToolbarKeepVisibleOrder => ReaderKeepVisible();
@@ -50,15 +51,17 @@ public static partial class WorkViewPolicy
         ReaderTool("reader.toolbar.tags", Overflow, Direct, Direct, "thread.tags"),
         ReaderTool("reader.toolbar.export", Overflow, Direct, Direct, "export.open-html-dialog"),
         // RL1: the gear "Settings" is the former View menu and the quick settings popover in one (a popover, not a menu); under More
-        // it opens the same popover, anchored at More. Full screen is on the bar in no view any more: the header button, F11 and
-        // More carry it (the row stays so its shortcut command keeps its reduced-control route).
+        // it opens the same popover, anchored at More.
         ReaderTool("reader.toolbar.settings", Overflow, Direct, Direct, null),
         // R2: the thread's downloader-side actions (capture, check now, retry media, media rules, details, folder, source, link, watch);
         // a menu button, so Barebones moves it under More, where it opens the same menu.
         ReaderTool("reader.toolbar.thread", Overflow, Direct, Direct, null),
         // Shown only with a history (state); as a navigation it stays on the bar in every view while it fits.
         ReaderTool("reader.toolbar.history-back", Direct, Direct, Direct, "reader.history-back"),
-        ReaderTool("reader.toolbar.fullscreen", Overflow, Overflow, Overflow, "window.fullscreen"),
+        // Review 15.11. (Tom): with room to spare, nothing hides under More. Full screen stands at the end of the bar while it fits and
+        // is the first to move under More (the end of the keep-visible order); Barebones keeps it under More. The header button and F11
+        // carry it as well. RL1 had it under More in every view, which showed a "More" holding only this one action beside free room.
+        ReaderTool("reader.toolbar.fullscreen", Overflow, Direct, Direct, "window.fullscreen"),
 
         // ---- Status line and messages: state and safety, Required in every view (R5). ----
         Same("reader.status.capture", WorkViewPage.Reader, WorkViewKind.Element, Required, safety: true),

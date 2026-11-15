@@ -97,7 +97,7 @@ public sealed class ReaderThreadMenuTests : IDisposable
         Assert.Contains("OnReaderThreadMenuClick", (string?)items[thread].Attribute("Click"));
         // Work-view id of the menu button (the policy row of the same id decides bar or More).
         Assert.Contains(items[thread].Attributes(), attribute => attribute.Name.LocalName == "WorkViewElement.Id" && attribute.Value == "reader.toolbar.thread");
-        // The export button stands before full screen, which is the last item and under More in every view (RL1).
+        // The export button stands before full screen, which is the last item and the first to move under More (review 15.11.).
         Assert.True(Array.IndexOf(names, "ExportArchiveButton") < Array.IndexOf(names, "ArchiveReaderFullscreen"));
     }
 

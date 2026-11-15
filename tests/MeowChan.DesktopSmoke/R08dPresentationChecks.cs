@@ -204,23 +204,22 @@ internal static class R08dPresentationChecks
                 Button read = fixture.FindControl<Button>("ArchiveReadPosts")!;
                 await Program.WaitUntilAsync(() => read.IsEffectivelyEnabled);
                 Click(read);
-                await Program.WaitUntilAsync(() => fixture.CurrentThread?.Summary.Id == id
-                    && fixture.FindControl<ActionToolBar>("ReaderToolbar")!.More?.IsEffectivelyVisible == true);
+                await Program.WaitUntilAsync(() => fixture.CurrentThread?.Summary.Id == id);
                 Button full = fixture.FindControl<Button>("ArchiveReaderFullscreen")!;
                 ActionToolBar readerBar = fixture.FindControl<ActionToolBar>("ReaderToolbar")!;
-                // RL1: full screen is under More in every work view (the header button and F11 carry it on the bar's behalf); the
-                // action is checked where the user finds it, in the opened More popup.
-                Require(readerBar.OverflowHost?.Children.Contains(full) == true, "Full screen is not under More in the reader toolbar.");
-                readerBar.More!.IsChecked = true;
+                // Review 15.11.: full screen ends the reader bar while it fits and is the first action to move under More; the action
+                // is checked where the user finds it, on the bar or in the opened More popup.
+                bool fullUnderMore = readerBar.OverflowHost?.Children.Contains(full) == true;
+                if (fullUnderMore) readerBar.More!.IsChecked = true;
                 await Program.WaitUntilAsync(() => { window.UpdateLayout(); return full.IsAttachedToVisualTree() && full.Bounds.Width > 0; },
-                    () => "Full screen is not shown in the opened More popup.");
+                    () => "Full screen is shown neither on the reader bar nor in the opened More popup.");
                 Require(full.IsEnabled && full.Bounds.Width > 0
                     && full.Content is StackPanel fullPanel && fullPanel.Children.Count == 2
                     && fullPanel.Children[0] is Control
                     && fullPanel.Children[1] is TextBlock fullLabel && !string.IsNullOrWhiteSpace(fullLabel.Text)
                     && !string.IsNullOrWhiteSpace(Avalonia.Automation.AutomationProperties.GetName(full)),
                     "The reader's visible OS full-screen action is missing.");
-                readerBar.More.IsChecked = false;
+                if (fullUnderMore) readerBar.More!.IsChecked = false;
                 await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window,
                     wide.Client.Width, wide.Client.Height));
                 Button back = fixture.FindControl<Button>("ArchiveBackButton")!;

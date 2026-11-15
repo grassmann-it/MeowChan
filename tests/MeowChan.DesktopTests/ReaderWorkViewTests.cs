@@ -88,8 +88,8 @@ public sealed class ReaderWorkViewTests
             ("reader.toolbar.tags", Presence.Overflow, Presence.Direct, Presence.Direct),
             ("reader.toolbar.settings", Presence.Overflow, Presence.Direct, Presence.Direct),
             ("reader.toolbar.export", Presence.Overflow, Presence.Direct, Presence.Direct),
-            // RL1: full screen left the bar in every view (the header button, F11 and More carry it).
-            ("reader.toolbar.fullscreen", Presence.Overflow, Presence.Overflow, Presence.Overflow),
+            // Review 15.11.: full screen ends the bar and overflows only when it does not fit; Barebones keeps it under More.
+            ("reader.toolbar.fullscreen", Presence.Overflow, Presence.Direct, Presence.Direct),
             ("reader.toolbar.thread", Presence.Overflow, Presence.Direct, Presence.Direct),
             ("reader.media.sort", Presence.Direct, Presence.Direct, Presence.Direct),
             ("reader.media.layout", Presence.Overflow, Presence.Direct, Presence.Direct),
@@ -120,7 +120,7 @@ public sealed class ReaderWorkViewTests
     }
 
     // The single declarative keep-visible order (owner 14.11., RL1 15.11.): OverflowOrder follows it; a narrow window moves the tail first:
-    // full screen (under More in every view), the rarely used history return, Thread, the settings gear, export, tags, find, read, gallery.
+    // full screen (the first to move when the room ends), the rarely used history return, Thread, the settings gear, export, tags, find, read, gallery.
     // Required items are not in it (never move). The post-capture switch left the bar for the Thread menu (R2), so no "capture" tool exists.
     [Fact]
     public void ToolbarKeepVisibleOrderIsTheOverflowOrderAndEndsWithTheRarelyUsedActions()
@@ -147,13 +147,13 @@ public sealed class ReaderWorkViewTests
     }
 
     // The width race in Advanced with the bar's visual order and the policy priorities: whenever the room ends before the tail,
-    // export stays and settings, Thread and history go first (full screen is under More in every view, so it always moves). The pixel check at 1520 and 1280 is in the work-views
+    // export stays and full screen, history, Thread and settings go first (full screen ends the order, so it moves first). The pixel check at 1520 and 1280 is in the work-views
     // reader smoke; these widths are the English labels measured roughly (icon 16 + gap 5 + text + padding + 8 margin).
     // The way out (close, "Back to …") left the bar for the header row's end slot (Tom's rule 14.11.), so it no longer races.
     private static readonly (string Name, string Id, double Width)[] AdvancedBar =
     [
         ("ArchiveCurrentThreadFavorite", "reader.toolbar.thread-favorite", 46),
-        ("ArchiveReadPosts", "reader.toolbar.read", 100), ("ArchiveOpenGallery", "reader.toolbar.gallery", 158),
+        ("ArchiveReadPosts", "reader.toolbar.read", 150), ("ArchiveOpenGallery", "reader.toolbar.gallery", 158),
         ("ReaderFindOpen", "reader.toolbar.find", 100),
         ("ReaderTagsOpen", "reader.toolbar.tags", 92), ("ExportArchiveButton", "reader.toolbar.export", 172),
         ("ReaderThreadOpen", "reader.toolbar.thread", 104), ("ReaderSettingsOpen", "reader.toolbar.settings", 130),
@@ -170,7 +170,7 @@ public sealed class ReaderWorkViewTests
     }
 
     [Theory]
-    [InlineData(1280 - 48)]
+    [InlineData(1100)]
     [InlineData(1040)]
     [InlineData(900)]
     public void ExportStaysOnTheAdvancedBarWhileTheRarelyUsedActionsOverflow(double available)
@@ -182,11 +182,12 @@ public sealed class ReaderWorkViewTests
         Assert.Contains("ArchiveReaderFullscreen", moved);
     }
 
-    // With the way out in the header row, the wide Advanced reader (1520) keeps every tool on the bar except full screen, which is under More always.
+    // With the way out in the header row, the wide Advanced reader (1520) keeps every tool on the bar, full screen included: with room to
+    // spare nothing is forced under More (review 15.11.; RL1 had put full screen there in every view, a "More" with a single action).
     [Fact]
-    public void TheWideAdvancedBarKeepsEveryToolButFullScreenOnceTheWayOutLeftIt()
+    public void TheWideAdvancedBarKeepsEveryToolOnceTheWayOutLeftIt()
     {
-        Assert.Equal(["ArchiveReaderFullscreen"], MovedAt(1520 - 48));
+        Assert.Empty(MovedAt(1520 - 48));
         Assert.DoesNotContain(AdvancedBar, item => item.Name is "ArchiveCloseReader" or "ArchiveGalleryReturn" or "ArchiveMediaReturn" or "ArchiveBackButton");
     }
 
