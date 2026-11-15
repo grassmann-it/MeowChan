@@ -4894,6 +4894,7 @@
     "reader.media.collapseHint": "Повторный щелчок возвращает картинку к малому размеру.",
     "command.media.panel.previous": "Предыдущее медиа",
     "command.media.panel.next": "Следующее медиа",
+    "command.media.panel.toggle": "Панель медиа",
     "media.layout.panel": "Панель медиа",
     "media.layout.panelSide.left": "Панель медиа слева",
     "media.layout.panelSide.right": "Панель медиа справа",

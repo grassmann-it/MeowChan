@@ -4782,6 +4782,7 @@
     "reader.media.collapseHint": "もう一度クリックすると画像が元の小さいサイズに戻ります。",
     "command.media.panel.previous": "前のメディア",
     "command.media.panel.next": "次のメディア",
+    "command.media.panel.toggle": "メディアパネル",
     "media.layout.panel": "メディアパネル",
     "media.layout.panelSide.left": "メディアパネルを左に表示",
     "media.layout.panelSide.right": "メディアパネルを右に表示",

@@ -4920,6 +4920,7 @@
     "reader.media.collapseHint": "Kolejne kliknięcie przywraca obrazowi mały rozmiar.",
     "command.media.panel.previous": "Poprzednie medium",
     "command.media.panel.next": "Następne medium",
+    "command.media.panel.toggle": "Panel mediów",
     "media.layout.panel": "Panel mediów",
     "media.layout.panelSide.left": "Panel mediów po lewej",
     "media.layout.panelSide.right": "Panel mediów po prawej",

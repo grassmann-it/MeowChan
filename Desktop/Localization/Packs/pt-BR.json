@@ -4877,6 +4877,7 @@
     "reader.media.collapseHint": "Outro clique devolve a imagem ao tamanho pequeno.",
     "command.media.panel.previous": "Mídia anterior",
     "command.media.panel.next": "Próxima mídia",
+    "command.media.panel.toggle": "Painel de mídia",
     "media.layout.panel": "Painel de mídia",
     "media.layout.panelSide.left": "Painel de mídia à esquerda",
     "media.layout.panelSide.right": "Painel de mídia à direita",

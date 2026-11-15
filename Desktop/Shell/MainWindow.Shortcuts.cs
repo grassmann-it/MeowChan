@@ -90,6 +90,10 @@ public partial class MainWindow
             _shortcutRouter.Register(new CommandRegistration(MediaFocusMode.CommandId, media,
                 () => _selectedPage == WorkspacePage.Media && !_largeReaderOpen && _gallery == null,
                 () => media.CanToggleFocusMode, media.ToggleFocusModeByShortcut, Priority: 100));
+            // The media panel's switch (S-4): Primary+Shift+M, as the reader's media sidebar; the choice is the Layout menu row's (saved).
+            _shortcutRouter.Register(new CommandRegistration(MeowChan.Desktop.MediaPanelKeys.ToggleCommandId, media,
+                () => _selectedPage == WorkspacePage.Media && !_largeReaderOpen && _gallery == null,
+                () => media.CanTogglePanel, media.TogglePanelByShortcut, Priority: 100));
         }
     }
 

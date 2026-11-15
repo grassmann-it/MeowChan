@@ -4782,6 +4782,7 @@
     "reader.media.collapseHint": "다시 클릭하면 이미지가 원래의 작은 크기로 돌아갑니다.",
     "command.media.panel.previous": "이전 미디어",
     "command.media.panel.next": "다음 미디어",
+    "command.media.panel.toggle": "미디어 패널",
     "media.layout.panel": "미디어 패널",
     "media.layout.panelSide.left": "미디어 패널을 왼쪽에",
     "media.layout.panelSide.right": "미디어 패널을 오른쪽에",
