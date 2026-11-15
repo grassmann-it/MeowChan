@@ -61,6 +61,7 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
         InitializeComponent();
         InitializeWorkViewPresentation();
         InitializeRuleSuggestions();
+        InitializeRuleRowEdges();
         _drafts.Add(_draft.Scope, _draft);
         RuleExtensionsInput.Edited += DraftChanged;
         // The empty state is placed in the scroll viewport's free height; the viewport changes with the window and the footer bar.
@@ -631,16 +632,36 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
     }
 
     private bool _narrowRules;
+
+    // The rows of the scope and settings cards come and go with the scope kind and the modes; the last visible one carries no divider.
+    private void InitializeRuleRowEdges()
+    {
+        foreach (StackPanel rows in new[] { NewRuleScopeRows, RuleSettingsRows })
+            foreach (Control row in rows.Children)
+                row.PropertyChanged += (_, e) => { if (e.Property == IsVisibleProperty) MarkLastRuleRows(rows); };
+        MarkLastRuleRows(NewRuleScopeRows);
+        MarkLastRuleRows(RuleSettingsRows);
+    }
+
+    private static void MarkLastRuleRows(StackPanel rows)
+    {
+        Control? last = rows.Children.LastOrDefault(child => child.IsVisible);
+        foreach (Control row in rows.Children) row.Classes.Set("rule-row-last", ReferenceEquals(row, last));
+    }
     // Rows inside a folded block exist only once it opened, so this also runs when a block opens.
     private void ApplyRuleRowLayout()
     {
         if (_ended) return;
         bool narrow = _narrowRules;
+        // The wide row keeps the Settings form gap (Workspace.Form.Gap, 24 dip) between label and control; the stacked row puts the
+        // label (and its hint) 8 dip above the control, the gap between a label and its field.
+        double gap = this.TryFindResource("Workspace.Form.Gap", out object? token) && token is double value ? value : 24;
         foreach (Grid row in RulesContent.GetVisualDescendants().OfType<Grid>().Where(row => row.Classes.Contains("rule-row")))
         {
             row.ColumnDefinitions[1].Width = new GridLength(narrow ? 0 : 280);
-            row.ColumnSpacing = narrow ? 0 : 32;
-            row.RowSpacing = narrow ? 6 : 0;
+            row.ColumnSpacing = narrow ? 0 : gap;
+            row.RowSpacing = narrow ? 8 : 0;
+            row.Classes.Set("rule-row-stacked", narrow);
             Control editor = row.Children[1];
             Grid.SetColumn(editor, narrow ? 0 : 1);
             Grid.SetRow(editor, narrow ? 1 : 0);

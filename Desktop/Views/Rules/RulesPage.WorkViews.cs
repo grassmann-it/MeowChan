@@ -45,8 +45,9 @@ public partial class RulesPage
         string scope = _draft.Scope.ToString();
         WorkViewPresenter.ApplyExpander(RuleSavedScopesExpander, view, viewChanged);
         WorkViewGate.Apply(RuleBreadcrumbRow, view);
-        WorkViewGate.Apply(OpenTypesOriginButton, view, CanOpenTypesOrigin);
-        WorkViewGate.Apply(OpenSizeOriginButton, view, CanOpenSizeOrigin);
+        // An origin link leads to another rule; a value of the edited rule itself has no link to the page already open.
+        WorkViewGate.Apply(OpenTypesOriginButton, view, CanOpenTypesOrigin && _preview?.TypesOrigin.Scope != _draft.Scope);
+        WorkViewGate.Apply(OpenSizeOriginButton, view, CanOpenSizeOrigin && _preview?.SizeLimitOrigin.Scope != _draft.Scope);
         ApplyStateful(RulePluginExpander, "filter|" + scope, viewChanged, PluginFilterActive);
         RefreshTemplatesPresentation(view, viewChanged);
         RefreshPluginFilterHeader();
