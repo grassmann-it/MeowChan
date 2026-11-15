@@ -37,6 +37,16 @@ public sealed class QuickTagCommandTests
     }
 
     [Fact]
+    [Fact]
+    public void GermanPageKeyNamesAndMacShiftEnterUseDisplayOnlyTranslations()
+    {
+        Texts.SetLanguage("de");
+        Assert.Equal("Bild ab", ShortcutGesture.Parse("PageDown").Display(ShortcutPlatform.Windows));
+        Assert.Equal("Bild auf", ShortcutGesture.Parse("PageUp").Display(ShortcutPlatform.Windows));
+        Texts.SetLanguage("en");
+        Assert.Equal("⇧↩", ShortcutGesture.Parse("Shift+Enter").Display(ShortcutPlatform.MacOS));
+    }
+
     public void TheDefaultGesturesFollowThePlanOnWindowsAndLinux()
     {
         foreach (var platform in new[] { ShortcutPlatform.Windows, ShortcutPlatform.Linux })
