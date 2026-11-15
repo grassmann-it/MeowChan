@@ -137,7 +137,11 @@ internal static class DiagnosticsChecks
                         Program.CaptureWindow(window, $"smoke-diagnostics-{theme.ToLowerInvariant()}-{mode.ToLowerInvariant()}-{language}.png");
                         TextBox details = page.FindControl<TextBox>("DiagnosticDetails")!;
                         details.BringIntoView();
-                        await Program.WaitUntilAsync(() => Fits(content, details));
+                        // At the 640x480 shell minimum the retained details editor is intentionally capped at
+                        // 110 DIP while the scroll viewport can be 97 DIP. In that case full containment is
+                        // impossible; BringIntoView must instead align the editor's top and leave it visibly
+                        // scrollable. Larger layouts still require the strict fully-contained contract.
+                        await Program.WaitUntilAsync(() => FitsOrScrollsToTop(content, details));
                         Require(details.Focus(), "Diagnostic details cannot receive keyboard focus.");
                         Program.CaptureWindow(window, $"smoke-diagnostics-details-{theme.ToLowerInvariant()}-{mode.ToLowerInvariant()}-{language}.png");
                         requested = null;
@@ -279,6 +283,15 @@ internal static class DiagnosticsChecks
         Point? point = control.TranslatePoint(new Point(0, 0), viewport);
         return control.IsEffectivelyVisible && control.Bounds.Width > 0 && point.HasValue && point.Value.X >= 0 && point.Value.Y >= 0
             && point.Value.X + control.Bounds.Width <= viewport.Bounds.Width + 1 && point.Value.Y + control.Bounds.Height <= viewport.Bounds.Height + 1;
+    }
+
+    private static bool FitsOrScrollsToTop(ScrollViewer viewport, Control control)
+    {
+        if (Fits(viewport, control)) return true;
+        Point? point = control.TranslatePoint(new Point(0, 0), viewport);
+        return control.IsEffectivelyVisible && control.Bounds.Width > 0 && control.Bounds.Height > viewport.Viewport.Height
+            && point.HasValue && point.Value.X >= 0 && point.Value.Y >= -1 && point.Value.Y <= 1
+            && VisibleHeight(viewport, control) > 0;
     }
     private static void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
     private static void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
