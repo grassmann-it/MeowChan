@@ -428,6 +428,25 @@ class StableFixtures(PrereleaseFixtures):
 
 
 class CandidateWorkflowFixtures(unittest.TestCase):
+    # Keep the contract model aligned with validate's weighted include matrix.
+    # The lanes deliberately share an OS while only lane-a runs the full suite.
+    VALIDATE_MATRIX = (
+        {'os': 'ubuntu-24.04', 'lane': 'lane-a', 'full': True},
+        {'os': 'ubuntu-24.04', 'lane': 'lane-b', 'full': False},
+        {'os': 'ubuntu-24.04', 'lane': 'lane-c', 'full': False},
+        {'os': 'ubuntu-24.04', 'lane': 'lane-d', 'full': False},
+        {'os': 'ubuntu-24.04-arm', 'lane': 'lane-a', 'full': True},
+        {'os': 'ubuntu-24.04-arm', 'lane': 'lane-b', 'full': False},
+        {'os': 'ubuntu-24.04-arm', 'lane': 'lane-c', 'full': False},
+        {'os': 'ubuntu-24.04-arm', 'lane': 'lane-d', 'full': False},
+        {'os': 'windows-2022', 'lane': 'lane-a', 'full': True},
+        {'os': 'windows-2022', 'lane': 'lane-b', 'full': False},
+        {'os': 'windows-2022', 'lane': 'lane-c', 'full': False},
+        {'os': 'windows-2022', 'lane': 'lane-d', 'full': False},
+        {'os': 'macos-15', 'lane': 'native', 'full': True},
+        {'os': 'macos-15-intel', 'lane': 'native', 'full': True},
+    )
+
     @classmethod
     def setUpClass(cls):
         cls.workflow = (ROOT / '.github/workflows/dotnet-desktop.yml').read_text()
@@ -439,9 +458,12 @@ class CandidateWorkflowFixtures(unittest.TestCase):
         return self.evaluate(expression, mode, scenario, platform, event)
 
     def evaluate(self, expression, mode='validate', scenario='all', platform='all',
-                 event='workflow_dispatch'):
-        for key, value in {'github.event_name': event, 'inputs.mode': mode,
-                           'inputs.scenario': scenario, 'inputs.platform': platform}.items():
+                 event='workflow_dispatch', matrix=None):
+        symbols = {'github.event_name': event, 'inputs.mode': mode,
+                   'inputs.scenario': scenario, 'inputs.platform': platform}
+        if matrix is not None:
+            symbols.update({f'matrix.{key}': value for key, value in matrix.items()})
+        for key, value in symbols.items():
             expression = expression.replace(key, repr(value))
         expression = expression.strip()
         if expression.startswith('${{') and expression.endswith('}}'):
@@ -497,7 +519,7 @@ class CandidateWorkflowFixtures(unittest.TestCase):
         self.assertIn('        shell: bash\n', body)
         condition = re.search(r'^        if: (.+)$', body, re.M).group(1)
         for scenario, expected in (('all', True), ('media-input', True), ('gui-only', False)):
-            self.assertEqual(expected, self.evaluate(condition, scenario=scenario))
+            self.assertEqual(expected, self.evaluate(condition, scenario=scenario, matrix={'full': True}))
         command = body.split('        run: |\n', 1)[1]
         self.assertIn('set -euo pipefail', command)
         # Run the real extracted multi-command shape with a fake failing Python.
@@ -536,7 +558,16 @@ class CandidateWorkflowFixtures(unittest.TestCase):
             'Exercise selected 1.1 registry workflows on Linux x64',
         }
         candidate_only = {'Exercise selected 1.1 registry workflows on Linux x64'}
-        for os in ('Windows', 'Linux', 'macOS'):
+        runner_os = {
+            'ubuntu-24.04': 'Linux',
+            'ubuntu-24.04-arm': 'Linux',
+            'windows-2022': 'Windows',
+            'macos-15': 'macOS',
+            'macos-15-intel': 'macOS',
+        }
+        for matrix in self.VALIDATE_MATRIX:
+            os = runner_os[matrix['os']]
+            arch = 'ARM64' if matrix['os'].endswith('-arm') else 'X64'
             for scenario in ('all', 'gui-only', 'selection', *selectors):
                 for name, body in scenes.items():
                     condition = re.search(r'^        if: (.+)$', body, re.M)
@@ -545,24 +576,31 @@ class CandidateWorkflowFixtures(unittest.TestCase):
                     # The registry smoke is a candidate-only Linux-x64 step.  The
                     # candidate matrix separately rejects non-`all` scenarios, so
                     # model its valid dispatch with the candidate mode here.
-                    expression = expression.replace('runner.arch', repr('X64'))
+                    expression = expression.replace('runner.arch', repr(arch))
                     mode = 'prerelease-candidate' if name in candidate_only and scenario == 'all' else 'validate'
                     if scenario in selectors:
-                        expected = name == selectors[scenario]
+                        expected = matrix['full'] and name == selectors[scenario]
                     elif scenario == 'selection':
-                        expected = name == startup
+                        expected = matrix['full'] and name == startup
                     else:
-                        expected = scenario == 'all' or name not in full_only
+                        expected = matrix['full'] and (scenario == 'all' or name not in full_only)
                         if name in linux_only:
                             expected = expected and os == 'Linux'
-                    with self.subTest(os=os, scenario=scenario, scene=name):
-                        self.assertEqual(expected, self.evaluate(expression, mode=mode, scenario=scenario))
-                        push_expected = name not in linux_only or os == 'Linux'
+                        if name in candidate_only:
+                            expected = expected and arch == 'X64'
+                    with self.subTest(os=os, lane=matrix['lane'], full=matrix['full'],
+                                      scenario=scenario, scene=name):
+                        self.assertEqual(expected, self.evaluate(
+                            expression, mode=mode, scenario=scenario, matrix=matrix))
+                        push_expected = matrix['full'] and (name not in linux_only or os == 'Linux')
                         if name in candidate_only:
                             push_expected = False
                         self.assertEqual(
                             push_expected,
-                            self.evaluate(expression, mode='prerelease-candidate' if name in candidate_only else 'validate', event='push'))
+                            self.evaluate(
+                                expression,
+                                mode='prerelease-candidate' if name in candidate_only else 'validate',
+                                event='push', matrix=matrix))
         for name in ('Record SDK and source commit',
                      'Restore graphical harness with reviewed dependencies',
                      'Retain exact graphical harness dependency graph',
@@ -591,8 +629,9 @@ class CandidateWorkflowFixtures(unittest.TestCase):
         for scenario in selectors:
             self.assertIn(f'          - {scenario}\n', self.workflow)
         self.assertIn('default: all', self.workflow.split('      scenario:', 1)[1].split('permissions:', 1)[0])
-        matrix = re.search(r'^        os: (.+)$', self.jobs['validate'], re.M).group(1)
-        self.assertIn("format('[\"{0}\"]', inputs.platform)", matrix)
+        matrix = re.search(r'^      matrix: (.+)$', self.jobs['validate'], re.M).group(1)
+        self.assertIn('fromJSON(', matrix)
+        self.assertIn('\"include\"', matrix)
         self.assertNotIn('inputs.scenario', matrix)
         for scenario in selectors:
             for platform in ('all', 'ubuntu-24.04', 'windows-2022', 'macos-15'):
