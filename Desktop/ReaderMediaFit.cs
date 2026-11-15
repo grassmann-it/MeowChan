@@ -132,6 +132,19 @@ internal static class ReaderMediaFit
     }
 
     /// <summary>
+    /// The top edge of what a pointer selection keeps in view with the enlarged medium (dip from the top of the viewport): the card's
+    /// <paramref name="cardTop"/> when the card from there down to the medium's <paramref name="frameBottom"/> fits the viewport with air,
+    /// so the post header of a card clicked while partly above the view comes in with its medium; otherwise the medium's own
+    /// <paramref name="frameTop"/>. A card that is whole in view is not moved by this (<see cref="ScrollDelta"/> is zero for it).
+    /// </summary>
+    internal static double KeptTop(double cardTop, double frameTop, double frameBottom, double viewportHeight, double margin = ScrollMargin)
+    {
+        if (!double.IsFinite(cardTop) || !double.IsFinite(frameTop) || !double.IsFinite(frameBottom) || !double.IsFinite(viewportHeight)
+            || cardTop > frameTop) return frameTop;
+        return frameBottom - cardTop <= viewportHeight - 2 * Math.Max(0, margin) ? cardTop : frameTop;
+    }
+
+    /// <summary>
     /// How far the list scrolls (positive: further down) so a medium whose frame spans <paramref name="top"/> to <paramref name="bottom"/>
     /// (dip from the top of the viewport) is visible whole, with a little air. Zero when it already is. A medium that is not shorter than
     /// the viewport (it should not be, after the cap) gets its top edge aligned to the top of the viewport.

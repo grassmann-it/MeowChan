@@ -13,6 +13,7 @@ namespace MeowChan.DesktopTests;
 public sealed class ReaderPostWidthTests : IDisposable
 {
     private static readonly XNamespace A = "https://github.com/avaloniaui";
+    private static readonly XNamespace Desktop = "clr-namespace:MeowChan.Desktop";
     private static readonly string[] Keys = { "reader.postWidth", "reader.postWidth.hint", "reader.postWidth.fit", "reader.postWidth.full", "reader.postWidth.column" };
 
     public ReaderPostWidthTests() { Texts.Initialize(); Texts.SetLanguage("en"); }
@@ -81,7 +82,7 @@ public sealed class ReaderPostWidthTests : IDisposable
     public void ReaderUsesOneCapForTheStyleAndTheLayoutConstant()
     {
         Assert.Equal(1120, ReaderNavigationLayout.CardMaxWidth);
-        XElement posts = Assert.Single(Source("Desktop/Views/Archive/ArchivePage.axaml").Descendants(A + "ListBox")
+        XElement posts = Assert.Single(Source("Desktop/Views/Archive/ArchivePage.axaml").Descendants(Desktop + "ReaderPostList")
             .Where(element => (string?)element.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml")) == "ArchivePosts"));
         Assert.Contains("reader-fit-width", ((string?)posts.Attribute("Classes"))!.Split(' '));
         XElement style = Assert.Single(posts.Element(A + "ListBox.Styles")!.Elements(A + "Style")

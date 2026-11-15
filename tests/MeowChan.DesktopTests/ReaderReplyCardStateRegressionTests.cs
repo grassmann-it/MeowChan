@@ -19,6 +19,7 @@ public sealed class ReaderReplyCardStateRegressionTests
 {
     private static readonly XNamespace A = "https://github.com/avaloniaui";
     private static readonly XNamespace X = "http://schemas.microsoft.com/winfx/2006/xaml";
+    private static readonly XNamespace Desktop = "clr-namespace:MeowChan.Desktop";
 
     [Theory]
     [InlineData("Light", false)]
@@ -141,7 +142,7 @@ public sealed class ReaderReplyCardStateRegressionTests
             element => (string?)element.Attribute(X + "Key") == theme);
         Dictionary<string, Color> tokens = dictionary.Elements(A + "SolidColorBrush")
             .ToDictionary(element => (string)element.Attribute(X + "Key")!, element => Color.Parse(element.Value));
-        XElement posts = Assert.Single(Source("Desktop/Views/Archive/ArchivePage.axaml").Descendants(A + "ListBox"),
+        XElement posts = Assert.Single(Source("Desktop/Views/Archive/ArchivePage.axaml").Descendants(Desktop + "ReaderPostList"),
             element => (string?)element.Attribute(X + "Name") == "ArchivePosts");
         StyleRoot root = new();
         // Only the card surface/edge setters are under test. Keep their original selectors and source

@@ -221,7 +221,9 @@ public partial class ArchivePage
         if (scroll == null || container.TranslatePoint(default, scroll) is not Point top) return;
         ArchiveAttachmentView? view = container.GetVisualDescendants().OfType<ArchiveAttachmentView>().FirstOrDefault(candidate => candidate.IsEffectivelyVisible);
         Rect? frame = view?.FrameBoundsIn(scroll);
-        double delta = ReaderMediaFit.HoldDelta(cardShift, frame?.Top ?? double.NaN, frame?.Bottom ?? double.NaN, scroll.Viewport.Height);
+        // The card's header comes in with the medium when both fit (a card clicked while partly above the view).
+        double keptTop = ReaderMediaFit.KeptTop(top.Y, frame?.Top ?? double.NaN, frame?.Bottom ?? double.NaN, scroll.Viewport.Height);
+        double delta = ReaderMediaFit.HoldDelta(cardShift, keptTop, frame?.Bottom ?? double.NaN, scroll.Viewport.Height);
         double moved = 0;
         if (Math.Abs(delta) >= 1)
         {

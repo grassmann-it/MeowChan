@@ -353,4 +353,24 @@ public sealed class ReaderMediaFitTests : IDisposable
         // Idempotent: nothing moves when the size did not change.
         Assert.Equal(offset, ReaderMediaFit.JumpOffset(offset, topNow, 300, 800, 20000, 0, centre: true), 1e-6);
     }
+
+    [Fact]
+    public void APointerSelectionKeepsTheHeaderInViewWithTheMediumWhenBothFit()
+    {
+        // A card clicked while 150 dip above the view (viewport 786): its medium spans 80..420 of the card, so the card from its top
+        // down to the medium's bottom (420 dip) fits; the kept span starts at the card's top and the header comes in with the medium.
+        double kept = ReaderMediaFit.KeptTop(-150, -70, 270, 786);
+        Assert.Equal(-150, kept, Tolerance);
+        Assert.Equal(-150 - ReaderMediaFit.ScrollMargin, ReaderMediaFit.HoldDelta(0, kept, 270, 786), Tolerance);
+        // Partly below the view: the span is the same, only its bottom is brought in (the card's top stays in view).
+        Assert.Equal(636, ReaderMediaFit.KeptTop(636, 716, 1100, 786), Tolerance);
+        Assert.Equal(1100 - (786 - ReaderMediaFit.ScrollMargin), ReaderMediaFit.HoldDelta(0, 636, 1100, 786), Tolerance);
+        // A card whose header and medium do not fit together: only the medium is kept in view (its own top).
+        Assert.Equal(-200, ReaderMediaFit.KeptTop(-400, -200, 560, 786), Tolerance);
+        // Without a medium or a viewport nothing changes: the medium's top (NaN, so only the card is held).
+        Assert.True(double.IsNaN(ReaderMediaFit.KeptTop(-150, double.NaN, double.NaN, 786)));
+        Assert.Equal(-70, ReaderMediaFit.KeptTop(-150, -70, 270, double.NaN), Tolerance);
+        // A card already whole in view is not moved by the kept span.
+        Assert.Equal(0, ReaderMediaFit.HoldDelta(0, ReaderMediaFit.KeptTop(60, 140, 480, 786), 480, 786), Tolerance);
+    }
 }
