@@ -15,12 +15,12 @@ PROJECTS = (
 )
 
 # Candidate validation gets a little more room without making a hang
-# unbounded. 360s + 720s leaves two minutes in the 20-minute workflow step
+# unbounded. 360s + 780s leaves three minutes in the 22-minute workflow step
 # for timeout sampling, process-group cleanup, and writing bounded evidence.
 STANDARD_CORE_TIMEOUT = 300
 STANDARD_DESKTOP_TIMEOUT = 600
 CANDIDATE_CORE_TIMEOUT = 360
-CANDIDATE_DESKTOP_TIMEOUT = 720
+CANDIDATE_DESKTOP_TIMEOUT = 780
 
 # Keep MSBuild single-node and let vstest terminate a genuinely stalled test host
 # before the suite watchdog has to kill the whole process group. The latter is
