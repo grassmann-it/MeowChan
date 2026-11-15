@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using MeowChan.Tags;
 
 namespace MeowChan.Archive;
 
@@ -61,6 +62,42 @@ internal sealed class ArchiveTagFilter : IEquatable<ArchiveTagFilter>
     internal IReadOnlyList<Guid> Include { get; }
     internal IReadOnlyList<Guid> Exclude { get; }
     internal ArchiveTagMatch Match { get; }
+
+    /// <summary>
+    /// The IDs this filter names as the tags they stand for now (<see cref="PrivateTagStoreSnapshot.ResolveId"/>: a tag merged into another
+    /// one counts as that tag), deduplicated; null when an ID is unknown to the snapshot. Resolved once per evaluation, not per item.
+    /// </summary>
+    internal Resolved? Resolve(PrivateTagStoreSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        Guid[]? include = Map(Include, snapshot), exclude = Map(Exclude, snapshot);
+        return include == null || exclude == null ? null : new Resolved(include, exclude, Match == ArchiveTagMatch.Any);
+    }
+
+    private static Guid[]? Map(IReadOnlyList<Guid> ids, PrivateTagStoreSnapshot snapshot)
+    {
+        List<Guid> mapped = new(ids.Count);
+        foreach (Guid id in ids)
+        {
+            if (snapshot.ResolveId(new TagId(id)) is not { } current) return null;
+            if (!mapped.Contains(current.Value)) mapped.Add(current.Value);
+        }
+        return mapped.ToArray();
+    }
+
+    /// <summary>
+    /// A tag filter after a merge was applied to its IDs. Not an <see cref="ArchiveTagFilter"/>: an ID that was included and another
+    /// that was excluded can now be the same tag, which the filter itself refuses; here the exclusion simply wins (the result is empty).
+    /// </summary>
+    internal sealed class Resolved
+    {
+        internal Resolved(Guid[] include, Guid[] exclude, bool any) { Include = include; Exclude = exclude; Any = any; }
+
+        internal Guid[] Include { get; }
+        internal Guid[] Exclude { get; }
+        /// <summary>True when one included tag is enough; false when all are needed.</summary>
+        internal bool Any { get; }
+    }
 
     private static void ValidateLimit(int tagsPerList)
     {

@@ -556,7 +556,8 @@ public sealed partial class MediaPage
     private string BoardLabel(string source, string board) =>
         Included(MediaFilterField.Source)?.Value == source ? "/" + board + "/" : Texts.T("media.filter.boardOfSource", board, source);
 
-    private string TagLabel(Guid id) => _userData.TagSnapshot?.Find(new TagId(id))?.Name.Display ?? Texts.T("tags.filter.deleted");
+    private string TagLabel(Guid id) => _userData.TagSnapshot is { } tags && tags.ResolveId(new TagId(id)) is { } current
+        ? tags.Find(current)?.Name.Display ?? Texts.T("tags.filter.deleted") : Texts.T("tags.filter.deleted");
 
     // The popovers read the tags and the filter when they open; the buttons only say whether something is left to add.
     private void RenderTagOptions() { _tagAdd.Refresh(); _filterAdd.Refresh(); }

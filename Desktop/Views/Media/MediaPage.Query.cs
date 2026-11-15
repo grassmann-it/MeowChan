@@ -179,7 +179,8 @@ public sealed partial class MediaPage
                 if (Guid.TryParseExact(name, "D", out Guid id)) return tags.ResolveId(new TagId(id))?.Value;
                 return tags.Resolve(name, out _)?.Id.Value;
             },
-            TagName = id => tags?.Find(new TagId(id))?.Name.Display,
+            // A held chip may still name a merged-away tag: show (and serialise) the tag it stands for.
+            TagName = id => tags?.ResolveId(new TagId(id)) is { } current ? tags.Find(current)?.Name.Display : null,
             FindSource = text => sources.Value.FirstOrDefault(source => string.Equals(source, text, StringComparison.OrdinalIgnoreCase))
                 ?? sources.Value.FirstOrDefault(source => string.Equals(SourceLabel(source), text, StringComparison.OrdinalIgnoreCase)),
             FindBoards = board => boards.Value.Where(pair => string.Equals(pair.Board, board, StringComparison.OrdinalIgnoreCase)).ToArray(),

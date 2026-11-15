@@ -603,6 +603,27 @@ public sealed class MediaLibraryFilterTests
     }
 
     [Fact]
+    public void AMergedAwayTagIdStillFiltersAsTheTagItWasMergedInto()
+    {
+        // Bad was merged into Cute: its ID is gone from the vocabulary but an alias carries it as Former.
+        Guid merged = Guid.Parse("00000000-0000-0000-0000-0000000000b1");
+        Assert.True(PrivateTagName.TryCreate("old cute", out PrivateTagName? aliasName, out _));
+        MediaLibraryEntry tagged = Entry("a", "1", 'a'), plain = Entry("a", "2", 'b');
+        MediaLibraryUserData data = new(new PrivateTagStoreSnapshot(2, "fp", [Tag(Rpt, "rpt"), Tag(Cute, "cute")], [], [MediaTag(Cute, tagged)],
+            formatVersion: 3, aliases: [new PrivateTagAlias(aliasName!, new TagId(Cute), new TagId(merged))]), [], []);
+        MediaLibraryEntry[] all = [tagged, plain];
+
+        Assert.Equal(new[] { "a:1" }, Posts(MediaLibraryFilterEngine.Apply(all, new(tags: new ArchiveTagFilter([merged], null)), data)));
+        Assert.Equal(new[] { "a:2" }, Posts(MediaLibraryFilterEngine.Apply(all, new(tags: new ArchiveTagFilter(null, [merged])), data)));
+        // The old and the new ID of one tag are the same tag: all-of does not need it twice, and include plus exclude of it excludes.
+        Assert.Equal(new[] { "a:1" }, Posts(MediaLibraryFilterEngine.Apply(all, new(tags: new ArchiveTagFilter([merged, Cute], null)), data)));
+        Assert.Empty(MediaLibraryFilterEngine.Apply(all, new(tags: new ArchiveTagFilter([Cute], [merged])), data));
+        // An ID nothing knows is still refused.
+        Assert.Equal(MediaLibraryFilterError.UnknownTag, Assert.Throws<MediaLibraryFilterException>(() =>
+            MediaLibraryFilterEngine.Apply(all, new(tags: new ArchiveTagFilter([Guid.NewGuid()], null)), data)).Error);
+    }
+
+    [Fact]
     public void CarriedTagsListMediaTagsFirstThenThreadTagsEachOnce()
     {
         MediaLibraryEntry entry = Entry("a", "1", 'a');
