@@ -5,6 +5,7 @@ using MeowChan.Archive;
 using MeowChan.Interfaces;
 using MeowChan.Persistence;
 using MeowChan.Storage;
+using MeowChan.Testing;
 using MeowChan.Transfer;
 
 namespace MeowChan.Tests.Transfer;
@@ -171,7 +172,7 @@ internal sealed class NativeV2ImportFixture : IAsyncDisposable
 
     internal sealed class Workspace : IDisposable
     {
-        internal string Root { get; } = Directory.CreateTempSubdirectory("meowchan-v2-import-tests-").FullName;
+        internal string Root { get; } = TemporaryWorkspacePaths.CreateDirectory("meowchan-v2-import-tests-");
         internal string Profile { get; }
         internal string StageRoot { get; }
         internal Workspace()

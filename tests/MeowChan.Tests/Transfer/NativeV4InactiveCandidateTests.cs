@@ -6,6 +6,7 @@ using MeowChan.Archive;
 using MeowChan.Interfaces;
 using MeowChan.Storage;
 using MeowChan.Transfer;
+using MeowChan.Testing;
 
 namespace MeowChan.Tests.Transfer;
 
@@ -354,7 +355,7 @@ public sealed class NativeV4InactiveCandidateTests
 
     private sealed class Workspace : IDisposable
     {
-        private readonly string root = Directory.CreateTempSubdirectory("meowchan-v4-inactive-tests-").FullName;
+        private readonly string root = TemporaryWorkspacePaths.CreateDirectory("meowchan-v4-inactive-tests-");
         internal string Candidates { get; }
         internal string Staging { get; }
         internal Workspace()

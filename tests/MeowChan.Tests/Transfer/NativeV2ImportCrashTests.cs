@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using MeowChan.Archive;
 using MeowChan.Persistence;
 using MeowChan.Storage;
+using MeowChan.Testing;
 using MeowChan.Transfer;
 using Xunit.Abstractions;
 
@@ -56,7 +57,7 @@ public sealed class NativeV2ImportCrashTests(ITestOutputHelper output)
     /// <summary>Starts the named child test, SIGKILLs its test host at the checkpoint and returns the workspace root.</summary>
     internal static async Task<string> KillAtCheckpointAsync(string childTest, string phase)
     {
-        string marker = Path.Combine(Path.GetTempPath(), "meowchan-crash-" + Guid.NewGuid().ToString("N"));
+        string marker = Path.Combine(TemporaryWorkspacePaths.TempRoot, "meowchan-crash-" + Guid.NewGuid().ToString("N"));
         ProcessStartInfo start = new("dotnet")
         {
             ArgumentList = { "test", typeof(NativeV2ImportCrashTests).Assembly.Location, "--filter", "FullyQualifiedName~" + childTest },

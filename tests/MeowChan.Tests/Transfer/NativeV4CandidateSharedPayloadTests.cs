@@ -321,7 +321,7 @@ public sealed class NativeV4CandidateSharedPayloadTests
 
     private sealed class Fixture : IAsyncDisposable
     {
-        internal string Root { get; } = Directory.CreateTempSubdirectory("meowchan-v4-shared-tests-").FullName;
+        internal string Root { get; } = TemporaryWorkspacePaths.CreateDirectory("meowchan-v4-shared-tests-");
         internal string Parent { get; }
         internal NativeTransferImportStage Stage { get; private set; } = null!;
         internal NativeMediaMaterializationPlan Plan { get; private set; } = null!;

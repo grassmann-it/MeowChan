@@ -8,6 +8,7 @@ using MeowChan.Favorites;
 using MeowChan.Interfaces;
 using MeowChan.Persistence;
 using MeowChan.Transfer;
+using MeowChan.Testing;
 
 namespace MeowChan.Tests.Transfer;
 
@@ -180,8 +181,7 @@ public sealed class NativeTransferPrivatePackageTests
     [Fact]
     public async Task StageAcceptsPrivatePackageAndRemovesItsPendingCopy()
     {
-        string parent = Path.Combine(Path.GetTempPath(), "meowchan-private-package-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(parent);
+        string parent = TemporaryWorkspacePaths.CreateDirectory("meowchan-private-package-");
         try
         {
             using MemoryStream bytes = await WriteAsync(Private());

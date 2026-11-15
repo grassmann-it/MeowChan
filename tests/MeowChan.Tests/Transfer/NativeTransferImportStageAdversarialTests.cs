@@ -5,6 +5,7 @@ using System.Text.Json.Nodes;
 using MeowChan.Archive;
 using MeowChan.Interfaces;
 using MeowChan.Transfer;
+using MeowChan.Testing;
 
 namespace MeowChan.Tests.Transfer;
 
@@ -713,7 +714,7 @@ public sealed class NativeTransferImportStageAdversarialTests
 
     private sealed class Workspace : IDisposable
     {
-        internal string Root { get; } = Path.Combine(Path.GetTempPath(), "meowchan-stage-adversarial-" + Guid.NewGuid().ToString("N"));
+        internal string Root { get; } = TemporaryWorkspacePaths.CreateDirectory("meowchan-stage-adversarial-");
         internal string Staging { get; }
         internal string Sentinel { get; }
         internal string Nested { get; }

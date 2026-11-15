@@ -4,6 +4,7 @@ using MeowChan.Archive;
 using MeowChan.Interfaces;
 using MeowChan.Persistence;
 using MeowChan.Storage;
+using MeowChan.Testing;
 using MeowChan.Transfer;
 using Microsoft.Data.Sqlite;
 
@@ -673,7 +674,7 @@ public sealed class NativeMediaImportTests
         .OrderBy(p => p, StringComparer.Ordinal).ToDictionary(p => Path.GetRelativePath(directory, p), p => Hash(File.ReadAllBytes(p)), StringComparer.Ordinal);
     internal sealed class Workspace : IDisposable
     {
-        private readonly string _root = Directory.CreateTempSubdirectory("meowchan-native-media-tests-").FullName;
+        private readonly string _root = TemporaryWorkspacePaths.CreateDirectory("meowchan-native-media-tests-");
         internal string Profile { get; }
         internal string StageRoot { get; }
         internal Workspace()
