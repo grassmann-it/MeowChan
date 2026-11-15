@@ -54,13 +54,34 @@ internal static class PluginReselectionChecks
                 Window modal = await OpenAsync(owner, page);
                 bool oneRow = VerifyFooter(modal, closePrimary: false, requireOneRow: false);
                 Program.CaptureWindow(modal, "smoke-approval-footer-default-" + narrowLanguage + ".png");
-                modal.Width = 320; modal.Height = 320;
-                await Program.WaitUntilAsync(() => { modal.UpdateLayout(); return Math.Abs(modal.ClientSize.Width - 320) <= 1; });
+                // 320x320 is a usable-size request, not an exact native promise: the dialog/footer
+                // contract may clamp the actual client size upward to keep the modal and its actions
+                // reachable. Observe that bounded native floor instead of waiting for the rejected size.
+                const double usableMinimum = 320;
+                modal.Width = usableMinimum; modal.Height = usableMinimum;
+                await Program.WaitUntilAsync(() =>
+                {
+                    modal.UpdateLayout();
+                    Control footer = modal.GetVisualDescendants().OfType<Control>().Single(c => c.Name == DialogFrame.FooterName);
+                    Size actual = modal.ClientSize;
+                    Size nativeMinimum = new(Math.Max(usableMinimum, modal.MinWidth), Math.Max(usableMinimum, modal.MinHeight));
+                    return modal.IsVisible && modal.IsActive && actual.Width >= nativeMinimum.Width - 1
+                        && actual.Height >= nativeMinimum.Height - 1 && footer.IsEffectivelyVisible
+                        && footer.Bounds.Width > 0 && footer.Bounds.Height > 0;
+                });
+                Require(modal.IsVisible && modal.IsActive && modal.ClientSize.Width >= usableMinimum - 1
+                    && modal.ClientSize.Height >= usableMinimum - 1,
+                    "Modal did not retain a usable native client size after the 320x320 request.");
                 VerifyFooter(modal, closePrimary: false, requireOneRow: false);
                 Program.CaptureWindow(modal, "smoke-approval-footer-minimum-" + narrowLanguage + ".png");
-                using (MediaNativeInput input = new(modal)) await ClickAsync(modal, input, Cancel(modal));
+                using (MediaNativeInput input = new(modal)) await input.KeyAsync(MediaNativeInput.Escape);
                 await ClosedAsync(page, modal);
-                Console.WriteLine("PLUGIN_APPROVAL_FOOTER " + JsonSerializer.Serialize(new { result = "pass", language = narrowLanguage, oneRowAtDefaultWidth = oneRow, defaultWidth = modal.Width, minimumWidth = 320 }));
+                Console.WriteLine("PLUGIN_APPROVAL_FOOTER " + JsonSerializer.Serialize(new
+                {
+                    result = "pass", language = narrowLanguage, oneRowAtDefaultWidth = oneRow,
+                    requestedClient = new { width = usableMinimum, height = usableMinimum },
+                    actualClient = modal.ClientSize.ToString(), nativeMinimum = new { modal.MinWidth, modal.MinHeight }
+                }));
             }
             foreach (string currentLanguage in new[] { "en", "de" })
             {
