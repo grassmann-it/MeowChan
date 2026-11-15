@@ -249,6 +249,34 @@ public sealed class PrivateTagMergeTests
     }
 
     [Fact]
+    public void RenamingATagToItsMergedAwayNameKeepsTheMergedIdResolving()
+    {
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        PrivateTagStore store = new(temp.Path, lease);
+        TagId keep = store.Define("cats").Tag, gone = store.Define("felines").Tag;
+        store.Merge(keep, [gone]);
+        Assert.Equal(keep, store.ReadSnapshot().ResolveId(gone));
+
+        // The tag takes the merged-away name; its old name takes the alias's place with the same former ID.
+        Assert.True(store.Rename(keep, "Felines").Changed);
+        PrivateTagStoreSnapshot renamed = store.ReadSnapshot();
+        Assert.Equal("Felines", renamed.Find(keep)!.Name.Display);
+        PrivateTagAlias alias = Assert.Single(renamed.Aliases);
+        Assert.Equal("cats", alias.Name.Display);
+        Assert.Equal(keep, alias.Tag);
+        Assert.Equal(gone, alias.Former);
+        Assert.Equal(keep, renamed.ResolveId(gone));
+        Assert.Equal(keep, renamed.Resolve("cats", out _)?.Id);
+        // Durable, and renaming back swaps again.
+        Assert.Equal(keep, new PrivateTagStore(temp.Path, lease).ReadSnapshot().ResolveId(gone));
+        Assert.True(store.Rename(keep, "cats").Changed);
+        PrivateTagStoreSnapshot back = store.ReadSnapshot();
+        Assert.Equal("Felines", Assert.Single(back.Aliases).Name.Display);
+        Assert.Equal(keep, back.ResolveId(gone));
+    }
+
+    [Fact]
     public void TheParserRejectsInvalidAliasSections()
     {
         string tag = "00000000-0000-0000-0000-0000000000a1", other = "00000000-0000-0000-0000-0000000000a2";

@@ -428,12 +428,13 @@ internal static class MediaLibraryFilterEngine
         ArgumentNullException.ThrowIfNull(data);
         if (filter.IsEmpty) return new(entries as IReadOnlyList<MediaLibraryEntry> ?? entries.ToArray(), 0);
         Validate(filter, data);
+        ArchiveTagFilter.Resolved? tags = filter.Tags is { } wanted && data.TagSnapshot is { } snapshot ? wanted.Resolve(snapshot) : null;
         List<MediaLibraryEntry> passing = new();
         HashSet<string> unknown = new(StringComparer.Ordinal);
         TextMatch? text = filter.TextWords.Count > 0 ? new TextMatch(filter.TextWords, filter.TextFields, data) : null;
         List<MediaTextTally>? tally = text == null ? null : new();
         foreach (MediaLibraryEntry entry in entries)
-            switch (Verdict(entry, filter, data, audio, text, tally))
+            switch (Verdict(entry, filter, data, audio, text, tags, tally))
             {
                 case Judgement.Pass: passing.Add(entry); break;
                 case Judgement.SoundUnknown: unknown.Add(MediaAudioMap.KeyOf(entry)!); break;
@@ -447,8 +448,8 @@ internal static class MediaLibraryFilterEngine
         if (filter.Tags is { } tags)
         {
             if (data.TagSnapshot is not { } snapshot) throw new MediaLibraryFilterException(MediaLibraryFilterError.TagsUnavailable);
-            HashSet<Guid> known = snapshot.Tags.Select(tag => tag.Id.Value).ToHashSet();
-            if (tags.Include.Concat(tags.Exclude).Any(id => !known.Contains(id)))
+            // A tag that was merged into another one still exists as that tag (the same rule as the thread filter), so a saved chip keeps working.
+            if (tags.Resolve(snapshot) == null)
                 throw new MediaLibraryFilterException(MediaLibraryFilterError.UnknownTag);
         }
         // "Without media tags" needs the tags as much as a tag filter: unavailable tags never read as "no tags".
@@ -464,9 +465,9 @@ internal static class MediaLibraryFilterEngine
     private enum Judgement { Fail, Pass, SoundUnknown }
 
     private static Judgement Verdict(MediaLibraryEntry entry, MediaLibraryFilter filter, MediaLibraryUserData data, MediaAudioMap? audio,
-        TextMatch? text, List<MediaTextTally>? tally)
+        TextMatch? text, ArchiveTagFilter.Resolved? tags, List<MediaTextTally>? tally)
     {
-        if (!Matches(entry, filter, data, text, out TextOutcome outcome)) return Judgement.Fail;
+        if (!Matches(entry, filter, data, text, tags, out TextOutcome outcome)) return Judgement.Fail;
         Judgement sound = SoundJudgement(entry, filter, audio);
         // The tally holds what passes everything but the text scope: a video whose sound is unknown is in no answer, so it is not in it either.
         if (tally != null && sound == Judgement.Pass) tally.Add(new MediaTextTally(entry, outcome.Fields));
@@ -490,7 +491,8 @@ internal static class MediaLibraryFilterEngine
     /// True when the entry passes every part of the filter but the text scope: the text must hit under "All" (every word in some field),
     /// <paramref name="outcome"/> then says whether it also hits in the chosen scope and where every word hits on its own.
     /// </summary>
-    private static bool Matches(MediaLibraryEntry entry, MediaLibraryFilter filter, MediaLibraryUserData data, TextMatch? text, out TextOutcome outcome)
+    private static bool Matches(MediaLibraryEntry entry, MediaLibraryFilter filter, MediaLibraryUserData data, TextMatch? text,
+        ArchiveTagFilter.Resolved? resolved, out TextOutcome outcome)
     {
         outcome = TextOutcome.NoText;
         if (filter.Thread != null && entry.Thread != filter.Thread) return false;
@@ -508,11 +510,11 @@ internal static class MediaLibraryFilterEngine
         if (filter.FavoritesOnly && !data.IsFavorite(entry)) return false;
         if (filter.MinimumRating is int minimum && !(data.RatingOf(entry) >= minimum)) return false;
         if (filter.WithoutMediaTags && !data.LacksMediaTags(entry)) return false;
-        if (filter.Tags is { } tags)
+        if (resolved is { } tags)
         {
             IReadOnlySet<Guid> carried = data.TagsOf(entry);
             if (tags.Exclude.Any(carried.Contains)) return false;
-            if (tags.Include.Count > 0 && !(tags.Match == ArchiveTagMatch.Any ? tags.Include.Any(carried.Contains) : tags.Include.All(carried.Contains)))
+            if (tags.Include.Length > 0 && !(tags.Any ? tags.Include.Any(carried.Contains) : tags.Include.All(carried.Contains)))
                 return false;
         }
         return true;

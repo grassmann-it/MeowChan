@@ -454,7 +454,10 @@ internal sealed class PrivateTagStore
         });
     }
 
-    /// <summary>Renames in place; the ID and every assignment are retained.</summary>
+    /// <summary>
+    /// Renames in place; the ID and every assignment are retained. A name that is a merged-away alias of this tag swaps places with the
+    /// tag's old name, so the merged tag's former ID keeps resolving.
+    /// </summary>
     internal PrivateTagCommit Rename(TagId tag, string? name, long? expectedRevision = null,
         CancellationToken token = default)
     {
@@ -472,12 +475,21 @@ internal sealed class PrivateTagStore
             int alias = model.Aliases.FindIndex(item => item.Name.Key == parsed.Key);
             if (alias >= 0 && model.Aliases[alias].Tag != tag)
                 throw new PrivateTagStoreException(model.Catalog.Contains(tag) ? PrivateTagStoreError.NameCollision : PrivateTagStoreError.UnknownTag);
+            PrivateTagName? previous = model.Catalog.Definitions.FirstOrDefault(item => item.Id == tag)?.Name;
             if (!model.Catalog.TryRename(tag, parsed, model.Catalog.Revision, out PrivateTagCatalog next,
                 out PrivateTagCatalogError error))
                 throw new PrivateTagStoreException(Map(error));
             bool changed = !ReferenceEquals(next, model.Catalog);
             model.Catalog = next;
-            if (alias >= 0) { model.Aliases.RemoveAt(alias); changed = true; }
+            if (alias >= 0)
+            {
+                // A merged-away name carries the merged tag's ID (Former), which saved searches still name. Swapping the names keeps it:
+                // the tag's old name takes the alias's place with the same Former. Without a Former the alias simply goes.
+                if (model.Aliases[alias].Former is { } former && previous != null)
+                    model.Aliases[alias] = new PrivateTagAlias(previous, tag, former);
+                else model.Aliases.RemoveAt(alias);
+                changed = true;
+            }
             return (changed, tag);
         });
     }
