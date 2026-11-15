@@ -54,7 +54,7 @@ internal sealed class TaggingQueueRowView : Grid
         AutomationProperties.SetAccessibilityView(_stateIcon, AccessibilityView.Raw);
         Children.Add(number);
         Add(_preview, 1); Add(_kind, 2); Add(_name, 3); Add(_source, 4); Add(_group, 5); Add(_tags, 6);
-        Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, VerticalAlignment = VerticalAlignment.Center, Children = { _stateIcon, _state } }, 7);
+        Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center, Children = { _stateIcon, _state } }, 7);
         _number.Classes.Add("tnum");
         _tags.Classes.Add("tnum");
     }

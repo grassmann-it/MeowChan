@@ -55,7 +55,7 @@ public sealed class TypographyStyleTests
 
     // P5: sizes come from the type scale (tokens or the heading classes); the only literals left are the About brand
     // mark (documented brand size) and the Reader's local post-number style (package P8). The tagging queue
-    // deliberately bolds the next-row number as a state cue; no other desktop surface may use literal bold.
+    // deliberately bold the next-row number as a state cue in both queue presentations; no other desktop surface may use literal bold.
     [Fact]
     public void FontSizesComeFromTheScaleAndNothingIsBold()
     {
@@ -69,7 +69,7 @@ public sealed class TypographyStyleTests
             string relative = Path.GetRelativePath(desktop, file).Replace('\\', '/');
             string text = File.ReadAllText(file);
             foreach (Match match in literal.Matches(text)) found.Add(relative + ": " + match.Value);
-            if (relative != "Views/Tagging/TaggingQueueRowView.cs")
+            if (relative is not ("Views/Tagging/TaggingQueueRowView.cs" or "Views/Tagging/TaggingQueueTileView.cs"))
             {
                 Assert.DoesNotContain("FontWeight.Bold", text);
                 Assert.DoesNotContain("FontWeight=\"Bold\"", text);
