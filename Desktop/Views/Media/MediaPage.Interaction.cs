@@ -17,13 +17,49 @@ namespace MeowChan;
 public sealed partial class MediaPage
 {
     private readonly WheelSteps _tileSizeWheel = new();
+    private readonly MiddleClickTracker _tileMiddleClick = new();
 
     private void InstallTileInteraction()
     {
         _grid.DoubleTapped += OnTileDoubleTapped;
         _grid.AddHandler(PointerWheelChangedEvent, OnTileSizeWheel, RoutingStrategies.Tunnel);
         _grid.AddHandler(KeyDownEvent, OnTileSizeKey, RoutingStrategies.Tunnel);
+        // Audit V5: the middle click on a tile opens its folder, the menu's "Show in folder".
+        _grid.AddHandler(PointerPressedEvent, OnTileMiddlePressed, RoutingStrategies.Tunnel, handledEventsToo: true);
+        _grid.AddHandler(PointerReleasedEvent, OnTileMiddleReleased, RoutingStrategies.Tunnel);
     }
+
+    private MediaLibraryTileRow? MiddleClickRow(object? source) =>
+        ItemActivation.IsOwnedByInteractivePart(source, _grid) ? null : RowAt(source);
+
+    private void OnTileMiddlePressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (!MiddleClickTracker.IsPress(e, _grid)) { _tileMiddleClick.Cancel(); return; }
+        _tileMiddleClick.Pressed(MiddleClickRow(e.Source));
+    }
+
+    private void OnTileMiddleReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        if (e.Handled || !MiddleClickTracker.IsRelease(e)) return;
+        MediaLibraryTileRow? row = MiddleClickRow(e.Source);
+        if (!_tileMiddleClick.Released(row) || row == null) return;
+        e.Handled = true;
+        OpenActions.Start(() => RunMediaCommandOnTileAsync(FolderCommandId, row), "media.grid.middleClick");
+    }
+
+    /// <summary>
+    /// A menu command of <paramref name="row"/>'s medium, run by a click on that tile (the selection stays as it is). The rules are those of the menu entry and of
+    /// its shortcut: a saved medium, nothing being built or busy, the host's action wired.
+    /// </summary>
+    internal async Task RunMediaCommandOnTileAsync(string id, MediaLibraryTileRow row)
+    {
+        if (_lifetime.IsCancellationRequested || _building != null || _selectionBusy || ExecuteMediaMenuActionAsync == null
+            || row.Entry.Presence != MediaLibraryPresence.Present) return;
+        bool Current() => !_lifetime.IsCancellationRequested && _building == null && IsEffectivelyVisible;
+        await ExecuteMediaActionAsync(id, row.Entry, Current);
+    }
+
+    internal const string FolderCommandId = "media.show-in-folder";
 
     private void OnTileDoubleTapped(object? sender, TappedEventArgs e)
     {

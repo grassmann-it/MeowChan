@@ -115,7 +115,7 @@ public sealed class EffectiveShortcutBindings
     private static long _nextVersion;
     /// <summary>Revision of the default table. Raise it, and list the command in
     /// <see cref="DefaultChangedInRevision"/>, whenever a default gesture is added to or changed on a command.</summary>
-    public const int DefaultsRevision = 19;
+    public const int DefaultsRevision = 20;
     /// <summary>Commands whose default gesture set was introduced or changed after profiles with saved
     /// bindings may already exist, with the revision that did it. A new default on such a command yields to
     /// a saved binding of another command instead of silencing both; entries are never removed because a
@@ -240,6 +240,10 @@ public sealed class EffectiveShortcutBindings
         // another command, like every new default.
         ["tagging.mark-done"] = 19, ["tagging.mark-skipped"] = 19, ["post.hide"] = 19, ["post.copy-link"] = 19, ["media.copy-path"] = 19,
         ["thread.show-in-media"] = 19, ["tagging.show-in-media"] = 19, ["reader.expand"] = 19, ["media.open-external"] = 19,
+        // Revision 20, package "mouse and keyboard quick wins" (audit V4, V13; the other revision-20 table entries are listed separately). Ctrl/Cmd+Plus and
+        // Ctrl/Cmd+Minus step the reader's font size, Ctrl/Cmd+0 sets it back to Normal (Ctrl+wheel does the first two); F5 refreshes the Plugins page
+        // (macOS: Cmd+R first, F5 stays an extra). All of them yield to a saved binding of another command like every new default.
+        ["reader.font-size.larger"] = 20, ["reader.font-size.smaller"] = 20, ["reader.font-size.reset"] = 20, ["plugins.refresh"] = 20,
     };
     public static IReadOnlyCollection<string> YieldingDefaultCommandIds => DefaultChangedInRevision.Keys.ToArray();
     // Commands whose default changed only in the macOS table: on Windows and Linux their gesture is the old stable one
@@ -294,6 +298,11 @@ public sealed class EffectiveShortcutBindings
             case "gallery.zoom-out": list.Add(ShortcutGesture.Parse("Subtract")); break;
             case "media.tile-size.larger": list.Add(ShortcutGesture.Parse("Primary+Add")); break;
             case "media.tile-size.smaller": list.Add(ShortcutGesture.Parse("Primary+Subtract")); break;
+            // The reader's font size (revision 20): the main keyboard's Plus and Minus (the catalog's gesture) and the number pad's, and the
+            // number pad's 0 next to Primary+0.
+            case "reader.font-size.larger": list.Add(ShortcutGesture.Parse("Primary+Add")); break;
+            case "reader.font-size.smaller": list.Add(ShortcutGesture.Parse("Primary+Subtract")); break;
+            case "reader.font-size.reset": list.Add(ShortcutGesture.Parse("Primary+NumPad0")); break;
             case "viewer.shortcut-help": list.Add(new("OemQuestion", new[] { "Shift" }, "?")); break;
             case "menu.context-open": list.Add(ShortcutGesture.Parse("Apps")); break;
             case "reader.find-next": list.Add(ShortcutGesture.Parse("Primary+G")); break;
@@ -330,6 +339,8 @@ public sealed class EffectiveShortcutBindings
             "archive.next-page" => Of("Primary+Alt+Right", "Alt+PageDown"),
             "media.return" or "reader.history-back" or "gallery.return" => Of("Primary+Left"),
             "window.minimize" => Of("Primary+M"),
+            // Revision 20: F5 needs Fn on an Apple keyboard, so the browser's Cmd+R comes first and F5 stays an extra.
+            "plugins.refresh" => Of("Primary+R", "F5"),
             "pagination.previous" => Of("Primary+Alt+Left", "Alt+PageUp"),
             "pagination.next" => Of("Primary+Alt+Right", "Alt+PageDown"),
             "media.details" => Of("I", "Primary+I"),

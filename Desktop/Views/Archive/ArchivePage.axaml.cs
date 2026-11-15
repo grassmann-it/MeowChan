@@ -131,6 +131,8 @@ public partial class ArchivePage : UserControl
         InitializeArchiveMediaCounts();
         InitializeReaderDisplay();
         InitializeReaderView(); AttachPostFilter(); AttachConversationView();
+        AttachReaderFontZoom();
+        AttachMouseKeyboardQuickWins();
     }
     internal ArchivePage(Func<CancellationToken, Task<ArchiveReader>> openReader,
         Func<ResourceId, bool, Task> setCapture, Action<string> openFolder,

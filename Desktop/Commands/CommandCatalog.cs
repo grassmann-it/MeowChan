@@ -84,7 +84,8 @@ public static class CommandCatalog
         new("navigation.sources", "command.navigation.sources", "Plugins", "Plugins", "globe", null, CommandScope.Application, new[] { "footer", "tools-menu" }),
         // The Diagnostics segment of Status: no main page, no default gesture (MainPageOrder.StatusSegmentCommandIds); the Sources page opens it.
         new("navigation.diagnostics", "command.navigation.diagnostics", "Diagnostics", "Diagnose", "activity", null, CommandScope.Sources | CommandScope.Application, new[] { "sources", "status-segment" }),
-        new("plugins.refresh", "plugins.refresh", "Refresh status", "Status aktualisieren", "refresh-cw", null, CommandScope.Settings, new[] { "plugins" }),
+        // Revision 20 (audit V13): F5 refreshes the plugin list's status, like the button.
+        new("plugins.refresh", "plugins.refresh", "Refresh status", "Status aktualisieren", "refresh-cw", "F5", CommandScope.Settings, new[] { "plugins" }),
         new("plugins.folder", "plugins.folder", "Open plugin folder", "Pluginordner öffnen", "folder", null, CommandScope.Settings, new[] { "plugins" }),
         new("plugins.back", "plugins.back", "Back to plugins", "Zurück zur Pluginliste", "arrow-left", null, CommandScope.Settings, new[] { "plugins" }),
         new("plugins.save", "plugins.save", "Save for next start", "Für nächsten Start speichern", "save", null, CommandScope.Settings, new[] { "plugins" }),
@@ -274,6 +275,10 @@ public static class CommandCatalog
         new("table.choose-columns", "command.table.choose-columns", "Choose columns…", "Spalten auswählen…", "columns", null, CommandScope.Archive | CommandScope.Downloads, new[] { "downloads-table", "archive-table" }),
         new("table.reset-layout", "command.table.reset-layout", "Reset table layout", "Tabellenlayout zurücksetzen", "rotate-ccw", null, CommandScope.Archive | CommandScope.Downloads, new[] { "downloads-table", "archive-table", "split-layout" }),
         new("reader.font-size", "command.reader.font-size", "Reading font size", "Leseschriftgröße", "type", null, CommandScope.Reader | CommandScope.Media | CommandScope.Settings, new[] { "reader-toolbar", "settings-reading-media" }),
+        // Revision 20 (audit V4): the reader's font size one step up or down (Small, Normal, Large of the setting) or back to Normal; Ctrl+wheel steps it too.
+        new("reader.font-size.larger", "command.reader.font-size.larger", "Larger reading font", "Größere Leseschrift", "zoom-in", "Primary+Plus", CommandScope.Reader, new[] { "reader-text" }),
+        new("reader.font-size.smaller", "command.reader.font-size.smaller", "Smaller reading font", "Kleinere Leseschrift", "zoom-out", "Primary+Minus", CommandScope.Reader, new[] { "reader-text" }),
+        new("reader.font-size.reset", "command.reader.font-size.reset", "Default reading font size", "Standard-Leseschriftgröße", "type", "Primary+0", CommandScope.Reader, new[] { "reader-text" }),
         new("watch.follow-live", "command.watch.follow-live", "Show new posts automatically", "Neue Posts automatisch anzeigen", "arrow-down", "Primary+Shift+L", CommandScope.Reader | CommandScope.Downloads, new[] { "reader-settings", "threadwatcher" }),
         new("reader.show-new-posts", "command.reader.show-new-posts", "Show new posts", "Neue Posts anzeigen", "arrow-down", "Primary+Shift+N", CommandScope.Reader, new[] { "reader-new-posts-notice" }),
         // The reader's view options (plan P0; the settings popover's session rows since RL1). No default gesture; each one can be given a shortcut. The conversation view
