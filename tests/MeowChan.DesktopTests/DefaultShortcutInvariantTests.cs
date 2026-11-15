@@ -1,3 +1,4 @@
+using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 
 namespace MeowChan.DesktopTests;
@@ -21,6 +22,7 @@ public sealed class DefaultShortcutInvariantTests
         // seek by the step setting, L repeats the video, D the slideshow. Revision 14: X slower and C faster next to [ and ] (AltGr on DE/FR).
         "video.mute", "video.snapshot", "video.speed-down", "video.speed-up", "video.ab-loop", "video.frame-step",
         "video.step-back", "video.step-forward", "video.loop",
+        // Revision 18: the same video keys also act on the Media page's panel video (scope Media added, no new gesture, so no new entry here).
         // PT6: Shift+1 to Shift+5 rate, Shift+0 removes the rating (switched off with the other single keys).
         "media.rating.set-1", "media.rating.set-2", "media.rating.set-3", "media.rating.set-4", "media.rating.set-5", "media.rating.clear",
         // PT4: K switches the card mode of the tagging mode, 1 to 5 choose its cards (only inside the mode; the cards stay clickable).
@@ -99,7 +101,49 @@ public sealed class DefaultShortcutInvariantTests
             "window.minimize", "menu.context-open", "video.mute", "video.seek-back", "video.seek-forward", "video.seek-back-far",
             "video.seek-forward-far", "video.speed-down", "video.speed-up", "video.speed-reset", "video.snapshot",
             "video.ab-loop", "video.frame-step", "gallery.rotate", "gallery.mode-toggle",
+            // Revisions 12, 17 and 18: the video keys that the reader (17) and the Media page's panel (18) share with the gallery.
+            "video.play-pause", "video.loop", "video.step-back", "video.step-forward",
             "gallery.context-toggle", "gallery.tools-toggle", "gallery.overlay-toggle", "gallery.layout.info", "gallery.layout.hints" })
             Assert.Contains(id, EffectiveShortcutBindings.YieldingDefaultCommandIds);
+    }
+
+    /// <summary>The nine video commands the gallery shares with the reader and the Media page's panel (revision 18).</summary>
+    private static readonly string[] MediaPanelVideoCommands =
+    {
+        "video.play-pause", "video.mute", "video.loop", "video.step-back", "video.step-forward",
+        "video.speed-down", "video.speed-up", "video.speed-reset", "video.frame-step"
+    };
+
+    [Theory, MemberData(nameof(Platforms))]
+    public void Revision18ScopesTheVideoKeysToTheMediaPageAndAddsThePanelArrowsWithoutAKey(ShortcutPlatform platform)
+    {
+        Assert.True(EffectiveShortcutBindings.DefaultsRevision >= 18);
+        EffectiveShortcutBindings bindings = EffectiveShortcutBindings.Build(null, platform);
+        // Exactly the reader's video keys, each also a Media command with its own media context; their defaults keep yielding to saved bindings.
+        Assert.Equal(MediaPanelVideoCommands.Order(StringComparer.Ordinal), ReaderVideoKeys.Commands.Select(entry => entry.Id).Order(StringComparer.Ordinal));
+        foreach (string id in MediaPanelVideoCommands)
+        {
+            CommandDefinition command = CommandCatalog.Get(id);
+            Assert.True(command.Scope.HasFlag(CommandScope.Gallery) && command.Scope.HasFlag(CommandScope.Reader) && command.Scope.HasFlag(CommandScope.Media), id);
+            Assert.Contains("media", command.ExecutionContexts);
+            Assert.Contains("media-video-keys", command.Contexts);
+            Assert.Contains(id, EffectiveShortcutBindings.YieldingDefaultCommandIds);
+            Assert.NotEmpty(bindings.For(id));
+        }
+        // Seeking with Ctrl+arrows stays a gallery key: on the Media page the arrows move the grid's selection.
+        foreach (string id in new[] { "video.seek-back", "video.seek-forward", "video.seek-back-far", "video.seek-forward-far" })
+            Assert.False(CommandCatalog.Get(id).Scope.HasFlag(CommandScope.Media), id);
+        // The panel's arrows: Media commands with no default gesture (the grid's own arrow keys step), labelled in both languages.
+        foreach (string id in new[] { "media.panel.previous", "media.panel.next" })
+        {
+            CommandDefinition command = CommandCatalog.Get(id);
+            Assert.Equal(CommandScope.Media, command.Scope);
+            Assert.Contains("media-panel", command.Contexts);
+            Assert.Empty(EffectiveShortcutBindings.Defaults(command, platform));
+            Assert.Empty(bindings.For(id));
+            Assert.False(string.IsNullOrWhiteSpace(command.LabelEn) || string.IsNullOrWhiteSpace(command.LabelDe), id);
+        }
+        Assert.DoesNotContain(bindings.Issues, issue => MediaPanelVideoCommands.Contains(issue.CommandId)
+            || issue.OtherCommandId != null && MediaPanelVideoCommands.Contains(issue.OtherCommandId));
     }
 }
