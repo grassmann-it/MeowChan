@@ -35,6 +35,7 @@ public sealed partial class TaggingPage : UserControl
     // TG1: one toolbar row: the primary start button, the icon buttons, then "Show", the view switch and the help. Items that do not fit
     // move into the toolbar's "More" in the order of the work view.
     private readonly ActionToolBar _actions = new() { Name = "TaggingActions", HorizontalAlignment = HorizontalAlignment.Stretch };
+    private readonly WrapPanel _secondaryToolbar = new() { Name = "TaggingSecondaryToolbar", ItemSpacing = 16, LineSpacing = 8, IsVisible = false };
     private readonly Border _error = new() { Name = "TaggingError", Classes = { "workspace-error" }, IsVisible = false };
     private readonly TextBlock _errorText = new() { TextWrapping = TextWrapping.Wrap };
     // The counters row: "Open n · Finished n · Skipped n", a 120 dip mini bar and the percentage; the "last shown" link sits at its end.
@@ -83,6 +84,7 @@ public sealed partial class TaggingPage : UserControl
         _filter.SelectionChanged += (_, _) => { if (!_localizing) { Render(); RefreshWorkView(); } };
         InitializeGrid();
         InitializeCommands();
+        InitializeColumns();
         InitializeGroups();
         InitializeStamp();
         InitializeEmptyStates();
@@ -91,6 +93,8 @@ public sealed partial class TaggingPage : UserControl
         _host.StateChanged += OnHostChanged;
         Localize();
         Render();
+        AttachedToVisualTree += (_, _) => UpdateToolbarRows();
+        UpdateToolbarRows();
     }
 
     /// <summary>
@@ -144,7 +148,9 @@ public sealed partial class TaggingPage : UserControl
         header.Children.Add(BuildClearConfirmation());
         header.Children.Add(_progress);
         header.Children.Add(_actions);
+        header.Children.Add(_secondaryToolbar);
         header.Children.Add(BuildStamp());
+        SizeChanged += (_, _) => UpdateToolbarRows();
         header.Children.Add(_status);
         AutomationProperties.SetLiveSetting(_status, AutomationLiveSetting.Polite);
 
@@ -196,7 +202,7 @@ public sealed partial class TaggingPage : UserControl
     private FuncDataTemplate<TaggingQueueRow> RowTemplate()
     {
         bool compact = _compactRows;
-        return new FuncDataTemplate<TaggingQueueRow>((_, _) => new TaggingQueueRowView(_thumbnails, TagCountOf, compact));
+        return new FuncDataTemplate<TaggingQueueRow>((_, _) => new TaggingQueueRowView(_thumbnails, TagCountOf, compact, ShowPreviewColumn));
     }
 
     /// <summary>The number of own media tags of an entry, or null when the tag store is not known (shown as a dash).</summary>
@@ -264,6 +270,7 @@ public sealed partial class TaggingPage : UserControl
     private void Show()
     {
         _userData = ReadUserData?.Invoke();
+        ApplyTileAppearance();
         ApplyDensity();
         Render();
         RenderStamp();
@@ -384,6 +391,8 @@ public sealed partial class TaggingPage : UserControl
 
     private void LocalizeColumns()
     {
+        _columnHeader.ColumnDefinitions = new ColumnDefinitions(TaggingQueueRowView.ColumnsFor(ShowPreviewColumn));
+        _columnHeader.ColumnSpacing = ShowPreviewColumn ? 8 : 0;
         _columnHeader.Children.Clear();
         string[] keys = { "", "tagging.page.col.preview", "tagging.page.col.kind", "tagging.page.col.name", "tagging.page.col.source", "tagging.page.col.group", "tagging.page.col.tags", "tagging.page.col.state" };
         for (int column = 0; column < keys.Length; column++)
@@ -393,6 +402,7 @@ public sealed partial class TaggingPage : UserControl
                 Text = column == 0 ? "#" : Texts.T(keys[column]), Classes = { "workspace-meta" },
                 TextAlignment = column is 0 or 6 ? TextAlignment.Right : TextAlignment.Left, TextTrimming = TextTrimming.CharacterEllipsis
             };
+            header.IsVisible = column != 1 || ShowPreviewColumn;
             Grid.SetColumn(header, column);
             _columnHeader.Children.Add(header);
         }
@@ -408,6 +418,7 @@ public sealed partial class TaggingPage : UserControl
         EndTagging();
         _menuHost?.Dispose();
         _gridMenuHost?.Dispose();
+        EndColumns();
         _stateMenuHost?.Dispose();
         _groupMenuHost?.Dispose();
         _lifetime.Cancel();

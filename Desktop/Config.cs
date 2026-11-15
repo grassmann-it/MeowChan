@@ -673,6 +673,9 @@ namespace MeowChan
             get => _taggingPageView;
             set => _taggingPageView = TaggingViewModes.Parse(value).ToString();
         }
+        // C16: the list view's preview column can be hidden without changing the queue data.
+        [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
+        public bool TaggingPreviewColumn { get; set; } = true;
         // TG1: the stamp block of the tagging page: "Auto" (follows the work view: closed in Barebones), "Open" or "Closed" once chosen.
         private string _taggingStampBlock = nameof(TaggingStampBlockState.Auto);
         [JsonConverter(typeof(DesktopPreferenceStringConverter))]
@@ -1805,6 +1808,7 @@ namespace MeowChan
                 MediaTagListSort = MediaTagListSort,
                 MediaLayout = MediaLayout,
                 TaggingPageView = TaggingPageView,
+                TaggingPreviewColumn = TaggingPreviewColumn,
                 TaggingStampBlock = TaggingStampBlock,
                 GalleryFitUpscaleLimited = GalleryFitUpscaleLimited,
 
@@ -2052,6 +2056,7 @@ namespace MeowChan
             MediaTagListSort = source.MediaTagListSort;
             MediaLayout = source.MediaLayout;
             TaggingPageView = source.TaggingPageView;
+            TaggingPreviewColumn = source.TaggingPreviewColumn;
             TaggingStampBlock = source.TaggingStampBlock;
             GalleryFitUpscaleLimited = source.GalleryFitUpscaleLimited;
 

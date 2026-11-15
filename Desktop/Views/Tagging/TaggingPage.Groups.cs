@@ -19,7 +19,7 @@ namespace MeowChan;
 /// <summary>TG2's named queue scopes: the page keeps the existing state-filter seam and narrows it with this selection.</summary>
 public sealed partial class TaggingPage
 {
-    private readonly StackPanel _groupPanel = new() { Name = "TaggingGroupPanel", Orientation = Orientation.Horizontal, Spacing = 6 };
+    private readonly StackPanel _groupPanel = new() { Name = "TaggingGroupPanel", Orientation = Orientation.Horizontal, Spacing = 8 };
     private readonly TextBlock _groupLabel = new() { VerticalAlignment = VerticalAlignment.Center };
     private readonly ComboBox _group = new() { Name = "TaggingGroup", MinWidth = 170 };
     private readonly Button _groupNew = new() { Name = "TaggingGroupNew" };
@@ -90,7 +90,7 @@ public sealed partial class TaggingPage
     private void LocalizeGroups()
     {
         _groupLabel.Text = Texts.T("tagging.page.group");
-        _groupNew.Content = "+";
+        _groupNew.Content = CommandBindings.NamedIcon("plus", 14);
         _groupRename.Content = Texts.T("tagging.page.group.rename");
         _groupDelete.Content = Texts.T("tagging.page.group.delete");
         AutomationProperties.SetName(_groupNew, Texts.T("tagging.page.group.new"));
@@ -162,6 +162,7 @@ public sealed partial class TaggingPage
             if (TopLevel.GetTopLevel(owner) is not Window windowOwner) return null;
             Window dialog = DialogWindow.Create(title, DialogSize.S, modal: true, heightToContent: true);
             TextBox input = new() { Text = initial, MinWidth = 300, PlaceholderText = Texts.T("tagging.page.group.name") };
+            AutomationProperties.SetName(input, Texts.T("tagging.page.group.name"));
             Button cancel = new() { Content = Texts.T("queue.ask.no") };
             Button accept = new() { Content = Texts.T("queue.ask.yes"), Classes = { "primary" } };
             accept.Click += (_, _) => dialog.Close(input.Text.Trim());

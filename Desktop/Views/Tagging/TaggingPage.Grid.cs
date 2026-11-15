@@ -28,6 +28,11 @@ public sealed partial class TaggingPage
     private TaggingViewMode _viewMode = TaggingViewMode.List;
     private ContextMenuHost? _gridMenuHost;
     private bool _syncingView, _rendering;
+    private MediaTileAppearance _tileAppearance = MediaTileMetrics.Standard;
+
+    /// <summary>Reads the media page's active tile metrics; the default keeps the page usable in tests and before the shell wires it.</summary>
+    internal Func<MediaTileAppearance>? ReadMediaTileAppearance { get; set; }
+    internal MediaTileAppearance TileAppearance => _tileAppearance;
 
     /// <summary>The view the person picked: the shell saves it for the profile.</summary>
     internal Action<TaggingViewMode>? SaveViewMode { get; set; }
@@ -42,8 +47,7 @@ public sealed partial class TaggingPage
 
     private void InitializeGrid()
     {
-        _grid.ItemsPanel = new FuncTemplate<Panel?>(() => new MediaTilePanel { ItemHeight = TaggingQueueTileView.TileHeight });
-        _grid.ItemTemplate = new FuncDataTemplate<TaggingQueueRow>((_, _) => new TaggingQueueTileView(_thumbnails, TagCountOf));
+        ApplyTileAppearance(force: true);
         ScrollViewer.SetHorizontalScrollBarVisibility(_grid, Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled);
         _grid.Styles.Add(new Style(selector => selector.OfType<ListBoxItem>())
         {
@@ -74,6 +78,21 @@ public sealed partial class TaggingPage
             SetViewMode(_viewToggle.SelectedIndex == 1 ? TaggingViewMode.Grid : TaggingViewMode.List, save: true);
         };
         AutomationProperties.SetName(_grid, Texts.T("tagging.page.listName"));
+    }
+
+    private void ApplyTileAppearance(bool force = false)
+    {
+        MediaTileAppearance next = ReadMediaTileAppearance?.Invoke() ?? MediaTileMetrics.Standard;
+        if (next.CellWidth < 1 || next.CellHeight < 1 || next.PreviewHeight < 1) next = MediaTileMetrics.Standard;
+        if (!force && next == _tileAppearance) return;
+        _tileAppearance = next;
+        _grid.ItemsPanel = new FuncTemplate<Panel?>(() => new MediaTilePanel
+        {
+            ColumnWidth = _tileAppearance.CellWidth,
+            ItemHeight = _tileAppearance.CellHeight
+        });
+        _grid.ItemTemplate = new FuncDataTemplate<TaggingQueueRow>((_, _) => new TaggingQueueTileView(_thumbnails, TagCountOf, _tileAppearance));
+        _grid.InvalidateMeasure();
     }
 
     private void LocalizeView()

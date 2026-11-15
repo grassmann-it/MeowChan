@@ -233,6 +233,7 @@ public static class SettingsTransfer
             MediaTagListSort = source.MediaTagListSort,
             MediaLayout = source.MediaLayout,
             TaggingPageView = source.TaggingPageView,
+            TaggingPreviewColumn = source.TaggingPreviewColumn,
             TaggingStampBlock = source.TaggingStampBlock,
             GalleryFitUpscaleLimited = source.GalleryFitUpscaleLimited,
             PluginEditorExecutable = source.PluginEditorExecutable,

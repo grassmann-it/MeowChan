@@ -24,6 +24,7 @@ internal sealed class TaggingQueueTileView : Border
     internal const double PreviewHeight = 124;
 
     private readonly Func<TagQueueItem, int?>? _tagCount;
+    private readonly MediaTileAppearance _appearance;
     private readonly TaggingThumbnail _preview;
     private readonly TaggingTileBadges _badges = new();
     private readonly Border _selected = WorkspaceChips.CreateSelectionCheck("TaggingTileSelected");
@@ -35,13 +36,14 @@ internal sealed class TaggingQueueTileView : Border
     internal const double CheckInset = 4, CheckGap = 4;
     private IDisposable? _selection;
 
-    internal TaggingQueueTileView(TaggingThumbnails? thumbnails = null, Func<TagQueueItem, int?>? tagCount = null)
+    internal TaggingQueueTileView(TaggingThumbnails? thumbnails = null, Func<TagQueueItem, int?>? tagCount = null, MediaTileAppearance appearance = default)
     {
         _tagCount = tagCount;
-        MaxWidth = MediaTilePanel.CellWidth;
-        Height = TileHeight;
+        _appearance = appearance.CellWidth > 0 ? appearance : MediaTileMetrics.Standard;
+        MaxWidth = _appearance.CellWidth;
+        Height = _appearance.CellHeight;
         Classes.Add("tagging-tile");
-        _preview = new TaggingThumbnail(showText: true) { Source = thumbnails, Height = PreviewHeight };
+        _preview = new TaggingThumbnail(showText: true) { Source = thumbnails, Height = _appearance.PreviewHeight };
         AutomationProperties.SetAccessibilityView(_preview, AccessibilityView.Raw);
         _selected.HorizontalAlignment = HorizontalAlignment.Right;
         _selected.VerticalAlignment = VerticalAlignment.Top;
@@ -53,7 +55,7 @@ internal sealed class TaggingQueueTileView : Border
         _preview.PictureChanged += PlaceBadges;
         // The slot's size is known only after the first layout and changes with the column width: the badges follow it (they hang on the slot, not on the picture).
         _preview.SizeChanged += (_, _) => PlaceBadges();
-        Grid cell = new() { Margin = new Thickness(8, 8, 8, 4), RowDefinitions = new RowDefinitions(PreviewHeight + ",Auto,Auto"), RowSpacing = 4 };
+        Grid cell = new() { Margin = new Thickness(8, 8, 8, 4), RowDefinitions = new RowDefinitions(_appearance.PreviewHeight + ",Auto,Auto"), RowSpacing = 4 };
         cell.Children.Add(picture);
         Grid caption = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*") };
         Grid.SetColumn(_name, 1);
