@@ -20,7 +20,7 @@ namespace MeowChan;
 // cross clears the selection. What the work view reduces moves under the bar's own "More".
 public sealed partial class TaggingPage
 {
-    private readonly Border _selectionBar = new() { Name = "TaggingSelectionBar", Classes = { "workspace-info" }, IsVisible = false, Padding = new Thickness(12, 6),
+    private readonly Border _selectionBar = new() { Name = "TaggingSelectionBar", Classes = { "workspace-info" }, IsVisible = false, Padding = new Thickness(12, 4),
         Margin = new Thickness(0, 0, 0, 8) };
     private readonly TextBlock _selectionText = new() { Name = "TaggingSelectionStatus", Classes = { "tnum" }, VerticalAlignment = VerticalAlignment.Center };
     private readonly ActionToolBar _selectionActions = new() { Name = "TaggingSelectionActions", HorizontalAlignment = HorizontalAlignment.Stretch };
