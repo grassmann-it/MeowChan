@@ -402,7 +402,7 @@ public sealed class FooterLayoutTests
         private static string? ShortcutTextOf(FooterLayoutEditor editor, string id) =>
             editor.Rows.Children.OfType<Grid>().First(row => row.Tag as string == id).Children.OfType<TextBlock>().First(t => t.Name?.StartsWith("FooterShortcut") == true).Text;
 
-        // M6 (review wave 6): a toggle rebuilds the rows (the digits move), so the check box of the page must take the focus again.
+        // M6 (review wave 6): a toggle rebuilds the rows (the digits move), so the switch of the page (SP1) must take the focus again.
         [Fact]
         public void TheFocusStaysOnTheToggledCheckBoxAndOnTheMovedButtonAfterTheRowsAreRebuilt()
         {
@@ -410,15 +410,15 @@ public sealed class FooterLayoutTests
             {
                 var editor = new FooterLayoutEditor();
                 Assert.Null(editor.FocusTarget);
-                CheckBox before = editor.CheckBoxOf("navigation.rules")!;
+                ToggleSwitch before = editor.SwitchOf("navigation.rules")!;
                 before.IsChecked = false;
                 Assert.False(editor.Layout.IsVisible("navigation.rules"));
-                CheckBox after = editor.CheckBoxOf("navigation.rules")!;
+                ToggleSwitch after = editor.SwitchOf("navigation.rules")!;
                 Assert.NotSame(before, after);
                 Assert.Same(after, editor.FocusTarget);
-                // Checking it again keeps the focus on the check box of that page, not on a neighbour.
+                // Checking it again keeps the focus on the switch of that page, not on a neighbour.
                 after.IsChecked = true;
-                Assert.Same(editor.CheckBoxOf("navigation.rules"), editor.FocusTarget);
+                Assert.Same(editor.SwitchOf("navigation.rules"), editor.FocusTarget);
                 // A move keeps it on the same kind of button of the page that moved, also at the edge (where it is disabled now).
                 string page = "navigation.status";
                 for (int step = 0; step < Pages.Length; step++)
