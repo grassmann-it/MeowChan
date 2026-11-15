@@ -375,7 +375,7 @@ public partial class SourcesPage : UserControl
             if (_ended || !IsEffectivelyVisible || !target.IsEffectivelyVisible || !target.IsEffectivelyEnabled) return;
             target.BringIntoView();
             target.Focus();
-        }, DispatcherPriority.Loaded);
+        }, DispatcherPriority.Background);
     }
 
     private SourceWatchRow? SelectedWatch => this.FindControl<ListBox>("SourceWatchesList")!.SelectedItem as SourceWatchRow;
