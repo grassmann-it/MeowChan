@@ -303,11 +303,12 @@ public sealed class ViewerQuickWinsTests : IDisposable
     [InlineData("video.speed-down", "OemOpenBrackets")]
     [InlineData("video.speed-up", "OemCloseBrackets")]
     [InlineData("video.speed-reset", "Back")]
-    public void TheNewGalleryCommandsHaveTheirDefaultsAndStayInTheGallery(string id, string shortcut)
+    public void TheNewGalleryCommandsHaveTheirDefaultsInTheirExecutionContexts(string id, string shortcut)
     {
         CommandDefinition command = CommandCatalog.Get(id);
         Assert.Equal(shortcut, command.Shortcut);
-        Assert.Equal(new[] { "gallery" }, EffectiveShortcutBindings.ExecutionContexts(id));
+        Assert.Equal(id is "video.mute" or "video.speed-down" or "video.speed-up" or "video.speed-reset"
+            ? new[] { "reader", "gallery", "media" } : new[] { "gallery" }, EffectiveShortcutBindings.ExecutionContexts(id));
         foreach (ShortcutPlatform platform in Enum.GetValues<ShortcutPlatform>())
             Assert.NotEmpty(EffectiveShortcutBindings.Build(null, platform).For(id));
     }
@@ -338,7 +339,7 @@ public sealed class ViewerQuickWinsTests : IDisposable
         Assert.Equal("Backspace", ShortcutGesture.Parse("Back").Display(ShortcutPlatform.Windows));
         Texts.SetLanguage("de");
         Assert.Equal("Rücktaste", ShortcutGesture.Parse("Back").Display(ShortcutPlatform.Windows));
-        Assert.Equal("Strg+Umschalt+Left", ShortcutGesture.Parse("Primary+Shift+Left").Display(ShortcutPlatform.Linux));
+        Assert.Equal("Strg+Umschalt+Pfeil links", ShortcutGesture.Parse("Primary+Shift+Left").Display(ShortcutPlatform.Linux));
         Assert.True(EffectiveShortcutBindings.IsSingleCharacterKey(ShortcutGesture.Parse("OemOpenBrackets")));
     }
 

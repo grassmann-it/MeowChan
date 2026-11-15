@@ -42,7 +42,7 @@ public sealed record ShortcutGesture(string Key, IReadOnlyList<string> Modifiers
         string key = Key.StartsWith("D", StringComparison.Ordinal) && Key.Length == 2 && char.IsDigit(Key[1]) ? Key[1..] : Key;
         key = key switch
         {
-            "OemComma" => ",", "OemPeriod" => ".", "OemPlus" => "+", "OemMinus" => "−", "Apps" => "Menu",
+            "OemComma" => ",", "OemPeriod" => ".", "OemPlus" => "+", "OemMinus" => "−",
             "OemOpenBrackets" => "[", "OemCloseBrackets" => "]", _ => KeyNames.Localized(key) ?? key
         };
         // Key names follow the interface language (German: Strg, Umschalt, Entf, Pfeil hoch, Num 0; KeyNames); the stored gesture stays unchanged.

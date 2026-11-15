@@ -24,7 +24,7 @@ public static class CommandCatalog
         new("reader-groups.move-down", "command.reader-groups.move-down", "Move thread down", "Thread nach unten", "arrow-down", null, CommandScope.Dialog, new[] { "reader-groups-dialog" }),
         new("reader-groups.save", "command.reader-groups.save", "Save group", "Gruppe speichern", "save", null, CommandScope.Dialog, new[] { "reader-groups-dialog" }),
         new("reader-groups.read", "command.reader-groups.read", "Read group", "Gruppe lesen", "book-open", null, CommandScope.Dialog, new[] { "reader-groups-dialog" }),
-        new("media.tags.edit", "media.tags.edit", "Tag…", "Tag…", "edit-2", "Primary+Shift+T", CommandScope.Media | CommandScope.Reader | CommandScope.Gallery, new[] { "media-context-menu", "reader-attachment-menu" }, new[] { "media", "gallery" }),
+        new("media.tags.edit", "media.tags.edit", "Edit tags…", "Tags bearbeiten…", "edit-2", "Primary+Shift+T", CommandScope.Media | CommandScope.Reader | CommandScope.Gallery, new[] { "media-context-menu", "reader-attachment-menu" }, new[] { "media", "gallery" }),
         new("media.queue.add", "command.media.queue.add", "Add to tagging queue", "Zur Tagging-Warteschlange hinzufügen", "plus", "Q", CommandScope.Media | CommandScope.Reader | CommandScope.Gallery | CommandScope.Archive, new[] { "media-context-menu", "reader-attachment-menu", "gallery-menu" }, new[] { "media", "gallery" }),
         new("media.queue.open", "command.media.queue.open", "Walk through tagging queue", "Tagging-Warteschlange durchgehen", "list", null, CommandScope.Application, new[] { "media-page" }),
         // PT2: the tagging page and the commands of its queue list (execution context "tagging"). The page has a footer button behind
@@ -133,6 +133,7 @@ public static class CommandCatalog
         new("media.folders", "command.media.folders", "Media folders…", "Medienordner…", "folder", null, CommandScope.Media, new[] { "media-page" }),
         new("media.focus-mode", "command.media.focus-mode", "Focus mode", "Fokusmodus", "maximize", "Shift+F", CommandScope.Media, new[] { "media-toolbar", "media-tiles" }, new[] { "media" }),
         new("media.select-all", "command.media.select-all", "Select all media", "Alle Medien auswählen", "check-square", "Primary+A", CommandScope.Media, new[] { "media-tiles" }),
+        // Interaction audit 1.1.0: the Layout menu tile-size steps also have direct Ctrl/Cmd bindings.
         new("media.tile-size.larger", "command.media.tile-size.larger", "Larger tiles", "Größere Kacheln", "zoom-in", "Primary+Plus", CommandScope.Media, new[] { "media-tiles" }),
         new("media.tile-size.smaller", "command.media.tile-size.smaller", "Smaller tiles", "Kleinere Kacheln", "zoom-out", "Primary+Minus", CommandScope.Media, new[] { "media-tiles" }),
         new("gallery.open-results", "command.gallery.open-results", "Media from matching threads", "Medien der Treffer", "image", null, CommandScope.Archive, new[] { "archive-results-toolbar" }),
@@ -254,7 +255,7 @@ public static class CommandCatalog
         new("watch.show-in-downloads", "command.watch.show-in-downloads", "Show in downloads", "In Downloads zeigen", "corner-up-right", null, CommandScope.Sources | CommandScope.Diagnostics | CommandScope.Downloads, new[] { "sources-watch-details", "diagnostics-details" }),
         new("diagnostics.retry-selection", "command.diagnostics.retry-selection", "Retry selected targets", "Auswahl wiederholen", "refresh-cw", "Shift+F5", CommandScope.Diagnostics, new[] { "diagnostics" }),
         new("diagnostics.retry-filtered", "command.diagnostics.retry-filtered", "Retry filtered targets", "Gefilterte wiederholen", "refresh-cw", null, CommandScope.Diagnostics, new[] { "diagnostics" }),
-        new("diagnostics.copy", "command.diagnostics.copy", "Copy details", "Details kopieren", "copy", null, CommandScope.Diagnostics, new[] { "diagnostics-details" }),
+        new("diagnostics.copy", "command.diagnostics.copy", "Copy details", "Details kopieren", "copy", "Primary+C", CommandScope.Diagnostics, new[] { "diagnostics-details" }),
         new("about.open-link", "command.about.open-link", "Open project, credit or license page", "Projekt-/Credit-/Lizenzseite öffnen", "external-link", null, CommandScope.About | CommandScope.Sources, new[] { "about-project-link", "about-author-link", "about-ychan-link", "about-gchan-link", "about-feather-link", "about-project-license-link", "credits-component-link:planned", "licenses-source-link:planned" }),
         new("about.close", "command.about.close", "Close", "Schließen", "x", null, CommandScope.About | CommandScope.Application, new[] { "about-footer" }),
         new("viewer.focus-mode", "command.viewer.focus-mode", "Expand workspace / show list", "Arbeitsbereich vergrößern / Liste zeigen", "sidebar", null, CommandScope.Reader | CommandScope.Gallery, new[] { "embedded-reader", "embedded-gallery", "large-reader", "large-gallery" }),
@@ -378,7 +379,7 @@ public static class CommandCatalog
         new("rules.toggle-enabled", "command.rules.toggle-enabled", "Enable or disable rule", "Regel aktivieren oder deaktivieren", "power", null, CommandScope.Application, new[] { "rules-overview-row" }),
         new("rules.delete", "command.rules.delete", "Delete rule…", "Regel löschen…", "x", null, CommandScope.Application, new[] { "rules-overview-row" }),
         new("rules.copy-summary", "command.rules.copy-summary", "Copy rule summary", "Regelzusammenfassung kopieren", "copy", null, CommandScope.Application, new[] { "rules-overview-row" }),
-        new("statistics.copy-row", "command.statistics.copy-row", "Copy row", "Zeile kopieren", "copy", null, CommandScope.Application, new[] { "statistics-table" }, new[] { "statistics" }),
+        new("statistics.copy-row", "command.statistics.copy-row", "Copy row", "Zeile kopieren", "copy", "Primary+C", CommandScope.Application, new[] { "statistics-table" }, new[] { "statistics" }),
         new("statistics.copy-source", "command.statistics.copy-source", "Copy source name", "Quellennamen kopieren", "copy", null, CommandScope.Application, new[] { "statistics-table" }, new[] { "statistics" }),
         new("statistics.reset", "command.statistics.reset", "Reset statistics…", "Statistik zurücksetzen…", "rotate-ccw", null, CommandScope.Application, new[] { "statistics-table" }, new[] { "statistics" }),
         new("archive.copy-filter", "command.archive.copy-filter", "Copy filter text", "Filtertext kopieren", "copy", null, CommandScope.Archive, new[] { "archive-active-filter-chip" }),
@@ -395,7 +396,7 @@ public static class CommandCatalog
         new("feedback.copy-text", "command.feedback.copy-text", "Copy message text", "Meldungstext kopieren", "copy", null, CommandScope.Application, new[] { "notification" }),
         new("feedback.dismiss", "feedback.dismiss", "Dismiss message", "Meldung ausblenden", "x", null, CommandScope.Application, new[] { "notification" }),
         new("feedback.dismiss-all", "command.feedback.dismiss-all", "Close all notifications", "Alle Benachrichtigungen schließen", "x", null, CommandScope.Application, new[] { "notification" }),
-        new("settings.reset-default", "command.settings.reset-default", "Reset to default", "Auf Standard zurücksetzen", "rotate-ccw", null, CommandScope.Settings, new[] { "settings-row" }),
+        new("settings.reset-default", "command.settings.reset-default", "Reset setting", "Einstellung zurücksetzen", "rotate-ccw", null, CommandScope.Settings, new[] { "settings-row" }),
         new("settings.copy-id", "command.settings.copy-id", "Copy setting id", "Einstellungs-ID kopieren", "copy", null, CommandScope.Settings, new[] { "settings-row" }),
         new("menu.context-open", "command.menu.context-open", "Open context menu", "Kontextmenü öffnen", "more-horizontal", "Shift+F10", CommandScope.Archive | CommandScope.Downloads | CommandScope.Settings, new[] { "downloads-thread-list", "downloads-board-list", "archive-card-list", "archive-table", "plugins-list", "header-io-monitor", "rules-overview-row", "statistics-table", "settings-row", "archive-active-filter-chip", "tag-filter-picker", "notification", "media-filter-chip", "media-filter-row" }, new[] { "downloads", "archive", "plugins", "header-io-monitor", "rules", "statistics", "settings", "notification" }),
     };

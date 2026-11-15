@@ -175,12 +175,13 @@ public sealed class ViewerTransportTests : IDisposable
     [Theory]
     [InlineData("video.ab-loop", "A")]
     [InlineData("video.frame-step", "Shift+OemPeriod")]
-    public void TheTransportKeysAreSingleKeysOfTheGallery(string id, string shortcut)
+    public void TheTransportKeysHaveTheirDefaultsInTheirExecutionContexts(string id, string shortcut)
     {
         CommandDefinition command = CommandCatalog.Get(id);
         Assert.Equal(shortcut, command.Shortcut);
         Assert.True(command.IsImplemented);
-        Assert.Equal(new[] { "gallery" }, EffectiveShortcutBindings.ExecutionContexts(id));
+        Assert.Equal(id == "video.frame-step" ? new[] { "reader", "gallery", "media" } : new[] { "gallery" },
+            EffectiveShortcutBindings.ExecutionContexts(id));
         Assert.Contains(id, EffectiveShortcutBindings.YieldingDefaultCommandIds);
         foreach (ShortcutPlatform platform in Enum.GetValues<ShortcutPlatform>())
         {

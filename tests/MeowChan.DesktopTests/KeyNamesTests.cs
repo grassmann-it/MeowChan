@@ -79,16 +79,16 @@ public sealed class KeyNamesTests : IDisposable
     }
 
     [Fact]
-    public void EnglishReadsExactlyAsBeforeSoNoEnglishDisplayChanges()
+    public void EnglishUsesTheBuiltInKeyNames()
     {
         Assert.Equal("Alt+PageDown", Show("Alt+PageDown"));
         Assert.Equal("Alt+PageUp", Show("Alt+PageUp"));
         Assert.Equal("Alt+Left", Show("Alt+Left"));
         Assert.Equal("Delete", Show("Delete"));
         Assert.Equal("Shift+Delete", Show("Shift+Delete"));
-        Assert.Equal("NumPad0", Show("NumPad0"));
-        Assert.Equal("Add", Show("Add"));
-        Assert.Equal("Subtract", Show("Subtract"));
+        Assert.Equal("Num 0", Show("NumPad0"));
+        Assert.Equal("Num +", Show("Add"));
+        Assert.Equal("Num −", Show("Subtract"));
         Assert.Equal("Space", Show("Space"));
         Assert.Equal("Shift+Space", Show("Shift+Space"));
         Assert.Equal("Enter", Show("Enter"));
@@ -113,8 +113,8 @@ public sealed class KeyNamesTests : IDisposable
         Assert.Equal("Num 1", Show("NumPad1"));
         Assert.Equal("Num +", Show("Add"));
         Assert.Equal("Num −", Show("Subtract"));
-        Assert.Equal("Eingabe", Show("Enter"));
-        Assert.Equal("Umschalt+Eingabe", Show("Shift+Enter"));
+        Assert.Equal("Enter", Show("Enter"));
+        Assert.Equal("Umschalt+Enter", Show("Shift+Enter"));
         Assert.Equal("Leertaste", Show("Space"));
         Assert.Equal("Alt+Bild ab", Show("Alt+PageDown"));
         Assert.Equal("Alt+Bild auf", Show("Alt+PageUp"));
@@ -122,7 +122,7 @@ public sealed class KeyNamesTests : IDisposable
         Assert.Equal("Alt+Ende", Show("Alt+End"));
         Assert.Equal("Rücktaste", Show("Back"));
         Assert.Equal("Menü", Show("Apps"));
-        Assert.Equal("Esc", Show("Escape"));
+        Assert.Equal("Escape", Show("Escape"));
         Assert.Equal("Strg+Umschalt+D", Show("Primary+Shift+D"));
         Assert.Equal("Strg+3", Show("Primary+3"));
         Assert.Equal("F5", Show("F5"));

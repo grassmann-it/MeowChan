@@ -49,7 +49,7 @@ public sealed class TaggingPageMenuTests : IDisposable
         Assert.Equal(["tagging.group.menu"], model.Sections[2].Select(entry => entry.Id));
         Assert.Equal(["tagging.remove"], model.Sections[^1].Select(entry => entry.Id));
         Assert.All(model.Entries.Where(entry => entry.Kind != ContextMenuEntryKind.Submenu), entry => Assert.NotNull(entry.CommandId));
-        Assert.Equal(["Continue here", "Tag…", "Tag together…", "Apply tag stamp"], model.Sections[0].Select(entry => entry.Label));
+        Assert.Equal(["Continue here", "Edit tags…", "Tag together…", "Apply stamp"], model.Sections[0].Select(entry => entry.Label));
     }
 
     [Fact]

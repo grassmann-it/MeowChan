@@ -212,7 +212,7 @@ public sealed class MediaFocusModeTests : IDisposable
         Assert.Contains("{ _filters, _shuffle, _sortLabel, _sort, _sortDirection, _refresh, _booruMode, _layoutButton, _focus, _exportAll, _manageRatings, _booruOpen,", toolbar);
         Assert.Contains("WorkViewElement.SetId(_focus, \"media.toolbar.focus\");", view);
         Assert.Contains("WorkViewGate.Apply(_focus, view);", view);
-        Assert.Contains("Overflowed(_booruMode, _layoutButton, _focus, _refresh, _shuffle, _exportAll, _manageRatings, _booruOpen, _queueWalk, _taggingPageOpen)", view);
+        Assert.Contains("Overflowed(_booruMode, _layoutButton, _focus, _refresh, _shuffle, _exportAll, _manageRatings, _booruOpen, _queueWalk, _taggingPageOpen, _queueAll, _mediaFolders)", view);
         // A narrow page moves it under More first (MediaToolbarLayout.Demotable); the shortcut keeps working.
         Assert.True(MediaToolbarLayout.IsMovedUnderMore(MediaToolbarLayout.Level.Reduced, "media.toolbar.focus"));
         Assert.Equal("media.toolbar.focus", MediaToolbarLayout.MovedUnderMore(MediaToolbarLayout.Level.Compact)[0]);
