@@ -84,8 +84,8 @@ public sealed class MouseKeyboardQuickWinsTests : IDisposable
         Assert.Equal("Primary+OemPlus Primary+Add", Keys("reader.font-size.larger"));
         Assert.Equal("Primary+OemMinus Primary+Subtract", Keys("reader.font-size.smaller"));
         Assert.Equal("Primary+D0 Primary+NumPad0", Keys("reader.font-size.reset"));
-        // F5 on every platform: Cmd+R would collide with rules.edit-scope (Primary+R) on the Plugins page (integration of 15.11.2026).
-        Assert.Equal("F5", Keys("plugins.refresh"));
+        // macOS: Cmd+Option+R first (F5 needs Fn); not Cmd+R, which would collide with rules.edit-scope (Primary+R) on the Plugins page (integration of 15.11.2026).
+        Assert.Equal(platform == ShortcutPlatform.MacOS ? "Primary+Alt+R F5" : "F5", Keys("plugins.refresh"));
         foreach (string id in new[] { "reader.font-size.larger", "reader.font-size.smaller", "reader.font-size.reset", "plugins.refresh" })
         {
             Assert.Contains(id, EffectiveShortcutBindings.YieldingDefaultCommandIds);

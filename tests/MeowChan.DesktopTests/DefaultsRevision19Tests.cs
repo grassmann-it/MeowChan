@@ -102,7 +102,8 @@ public sealed class DefaultsRevision19Tests : IDisposable
         Assert.Contains("CommandBindings.Matches(e, \"post.copy-link\")", Source("Desktop/Views/Archive/ArchivePage.PostBookmarks.cs"), StringComparison.Ordinal);
         Assert.Contains("MatchesArchiveCommand(e, \"thread.show-in-media\")", Source("Desktop/Views/Archive/ArchivePage.Selection.cs"), StringComparison.Ordinal);
         Assert.Contains("CommandBindings.Matches(e, \"thread.show-in-media\")", Source("Desktop/Shell/MainWindow.Selection.cs"), StringComparison.Ordinal);
-        Assert.Contains("\"media.copy-path\" };", Source("Desktop/Views/Media/MediaPage.cs"), StringComparison.Ordinal);
+        // The media page's MediaShortcutCommands list (one entry per line since the rating panel added the star keys).
+        Assert.Contains("\"media.show-in-folder\", \"media.copy-path\"\n    };", Source("Desktop/Views/Media/MediaPage.cs"), StringComparison.Ordinal);
         string gallery = Source("Desktop/GalleryViewer.cs");
         Assert.Contains("CommandBindings.Matches(e, \"media.copy-path\")", gallery, StringComparison.Ordinal);
         Assert.Contains("CommandBindings.Matches(e, \"media.open-external\")", gallery, StringComparison.Ordinal);

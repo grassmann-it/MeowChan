@@ -252,8 +252,8 @@ public sealed class EffectiveShortcutBindings
         //   tagging queue from it (the same command as the tagging list's, now also in the context "media"; introduced in revision 9). It never deletes a file.
         ["tagging.remove"] = 20,
         // - "mouse and keyboard" (audit V4, V13): Ctrl/Cmd+Plus and Ctrl/Cmd+Minus step the reader's font size, Ctrl/Cmd+0 sets it back to Normal
-        //   (Ctrl+wheel does the first two); F5 refreshes the Plugins page on every platform (no Cmd+R on macOS: Primary+R is rules.edit-scope, also on the
-        //   Plugins page).
+        //   (Ctrl+wheel does the first two); F5 refreshes the Plugins page (macOS: Cmd+Option+R first and F5 as an extra; not Cmd+R, which
+        //   is rules.edit-scope, also on the Plugins page).
         ["reader.font-size.larger"] = 20, ["reader.font-size.smaller"] = 20, ["reader.font-size.reset"] = 20, ["plugins.refresh"] = 20,
         // - reader Space and Enter on the selected post's medium: Enter, until now a fixed content key, is the command "Open medium of the post" (what a click
         //   on the medium does by the choice "Clicking a medium"). Space stays the video's play / pause.
@@ -361,6 +361,9 @@ public sealed class EffectiveShortcutBindings
             "archive.next-page" => Of("Primary+Alt+Right", "Alt+PageDown"),
             "media.return" or "reader.history-back" or "gallery.return" => Of("Primary+Left"),
             "window.minimize" => Of("Primary+M"),
+            // Revision 20: F5 needs Fn on an Apple keyboard, so the Plugins page's refresh gets Cmd+Option+R first, like "Check now" (watch.check); F5 stays an
+            // extra. Not Cmd+R: that is rules.edit-scope, also on the Plugins page.
+            "plugins.refresh" => Of("Primary+Alt+R", "F5"),
             "pagination.previous" => Of("Primary+Alt+Left", "Alt+PageUp"),
             "pagination.next" => Of("Primary+Alt+Right", "Alt+PageDown"),
             "media.details" => Of("I", "Primary+I"),
