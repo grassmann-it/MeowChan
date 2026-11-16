@@ -21,7 +21,6 @@ namespace MeowChan;
 public partial class MainWindow
 {
     private TaggingPage? _taggingPage;
-    private IDisposable? _taggingRegistration;
 
     /// <summary>The tagging page once it has been opened; null before.</summary>
     internal TaggingPage? TaggingPage => _taggingPage;
@@ -34,16 +33,10 @@ public partial class MainWindow
         if (ToolsNavigationButton.Flyout is { } moreFlyout)
             moreFlyout.Opened += (_, _) => SetMoreMenuItemEnabled("nav.tagging", TaggingNavigationButton.IsEnabled && CanShowTaggingPage);
         _workViews.Changed += (_, view) => _taggingPage?.ApplyWorkView(view);
-        Closed += (_, _) =>
-        {
-            _taggingRegistration?.Dispose();
-            _taggingPage?.End();
-        };
+        // The page's key (navigation.tagging) is a page chord of the shell key handler (OnShellKeyDown, ShellPageCommand), as every other main page:
+        // it closes the gallery or the large reader and builds the page on its first opening (ShowTaggingPage).
+        Closed += (_, _) => _taggingPage?.End();
     }
-
-    private void RegisterTaggingPageCommands() =>
-        _taggingRegistration = _shortcutRouter!.Register(new CommandRegistration("navigation.tagging", this,
-            () => !_isClosing && !_largeReaderOpen && _gallery == null, () => CanShowTaggingPage, () => ShowTaggingPage()));
 
     /// <summary>Opens the tagging page. False while the window cannot navigate (no restored session, busy editors, gallery or reader open).</summary>
     internal bool ShowTaggingPage()

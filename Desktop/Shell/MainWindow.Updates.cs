@@ -69,8 +69,10 @@ public partial class MainWindow
         }
         if (_checkUpdatesMenu != null)
         {
-            _checkUpdatesMenu.Header = Texts.T("updates.check");
-            ToolTip.SetTip(_checkUpdatesMenu, view.EnvironmentDisabled ? Texts.T("updates.disabled") : null);
+            // The entry carries its command (S3 P2-3): a key bound to "Check for updates" presses it (TryRunUnroutedShellCommand finds menu entries by
+            // their command). Label, icon, gesture and tip come from the command; the tip names why checks are off when packaging disabled them.
+            MeowChan.Desktop.Commands.CommandBindings.Apply(_checkUpdatesMenu, "updates.check",
+                () => _session.Updates.View.EnvironmentDisabled ? Texts.T("updates.disabled") : null, () => Texts.T("updates.check"));
             // The entry stays reachable when packaging disabled checks: About explains the reason.
             _checkUpdatesMenu.IsEnabled = !view.IsChecking;
         }

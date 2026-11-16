@@ -61,6 +61,9 @@ public partial class SourcesPage : UserControl
 
     public SourcesPage()
     {
+        // Every key of the page runs in the "sources" context (S3 P2-4), the plugin management inside it in "plugins" (its own host, nearer the key): a
+        // default that a saved binding took away only elsewhere (a partial yield) stays active here (EffectiveShortcutBindings.EnterKeyContext).
+        MeowChan.Desktop.Controls.KeyContextHost.Install(this, _ => "sources");
         InitializeComponent(); InitializeContextMenus(); InitializeMergedSources(); InstallWatchEnter();
         AddHandler(GotFocusEvent, (_, _) =>
         {

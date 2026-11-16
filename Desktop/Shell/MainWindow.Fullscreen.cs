@@ -835,17 +835,19 @@ public partial class MainWindow
             && activeGallery.RouteUnfocusedHostShortcut(e)) return;
         if (CanExecuteShellPowerCommand(e))
         {
-            foreach (string id in MainPageOrder.CommandIds)
+            if (ShellPageCommand(e, CanOpenBooru) is { } pageCommand)
             {
-                if (id == "navigation.booru" && !CanOpenBooru) continue;
-                // A saved binding of the tagging page runs through its own router registration (RegisterTaggingPageCommands):
-                // the page is built lazily, which NavigateWorkspace alone does not do.
-                if (id == "navigation.tagging") continue;
-                if (!CommandBindings.Matches(e, id)) continue;
-                WorkspacePage page = PageFor(id);
+                WorkspacePage page = PageFor(pageCommand);
                 if (_gallery != null) CloseGallery(restoreOrigin: false);
                 if (_largeReaderOpen) CloseLargeReader(restoreOrigin: false);
-                e.Handled = page == WorkspacePage.Status ? ShowStatus() : NavigateWorkspace(page);
+                // The tagging page is built when it is first opened (ShowTaggingPage), which NavigateWorkspace alone does not do. Its chord is a page chord
+                // like the others (S3 P2-1): it also runs from a text field and from the gallery or the large reader, which close first.
+                e.Handled = page switch
+                {
+                    WorkspacePage.Status => ShowStatus(),
+                    WorkspacePage.Tagging => ShowTaggingPage(),
+                    _ => NavigateWorkspace(page)
+                };
                 return;
             }
             // Compatibility route: saved plugin shortcuts open the merged page's All plugins mode, not a hidden footer button.

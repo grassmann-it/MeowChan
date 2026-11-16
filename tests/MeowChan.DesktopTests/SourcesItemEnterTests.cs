@@ -125,6 +125,26 @@ public sealed class SourcesItemEnterTests
         Assert.Contains("watch.show-in-downloads", watches.ContextMenu.Items.OfType<MenuItem>().Select(item => (string)item.Tag!));
     });
 
+    // S3 P2-4: the page had no key context. A saved archive command on the Menu key made "Open context menu" give way in the archive only, but the
+    // page asked without a context and so counted it as given away here too: the menu key on a watch row did nothing. The page's host keeps it here.
+    [Fact]
+    public void TheMenuKeyStillOpensTheWatchRowsMenuAfterASavedArchiveCommandTookItInTheArchive() => Run(fixture =>
+    {
+        try
+        {
+            MeowChan.Desktop.Commands.ShortcutService.Publish(new MeowChan.Desktop.Commands.ShortcutBindingsSection()
+                .Set("archive.refresh", [MeowChan.Desktop.Commands.ShortcutGesture.Parse("Apps")]));
+            SelectingItemsControl watches = fixture.Page.FindControl<SelectingItemsControl>("SourceWatchesList")!;
+            watches.SelectedIndex = 0;
+            Assert.Equal(0, watches.ContextMenu!.ItemCount);
+
+            fixture.Press(Container(watches, 0), Key.Apps);
+
+            Assert.Contains("watch.show-in-downloads", watches.ContextMenu.Items.OfType<MenuItem>().Select(item => (string)item.Tag!));
+        }
+        finally { MeowChan.Desktop.Commands.ShortcutService.Publish(new MeowChan.Desktop.Commands.ShortcutBindingsSection()); }
+    });
+
     private static Control Container(SelectingItemsControl list, int index) => list.ContainerFromIndex(index)
         ?? throw new InvalidOperationException("The row " + index + " has no container.");
 

@@ -41,6 +41,9 @@ public partial class DiagnosticsPage : UserControl
 
     public DiagnosticsPage()
     {
+        // Every key of the Status page's diagnostics segment runs in the "diagnostics" context (S3 P2-4): a default that a saved binding took away only
+        // elsewhere (a partial yield, Shift+F10 after a saved archive command) stays active here (EffectiveShortcutBindings.EnterKeyContext).
+        MeowChan.Desktop.Controls.KeyContextHost.Install(this, _ => "diagnostics");
         InitializeComponent(); InitializeContextMenu(); InitializeRowInteraction(); _diagnosticFiltersReady = true;
         // A page that is shown before its first session refresh still carries its labels and headers.
         ApplyStaticLabels();

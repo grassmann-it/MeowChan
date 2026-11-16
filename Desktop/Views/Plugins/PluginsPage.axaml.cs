@@ -90,6 +90,9 @@ public partial class PluginsPage : UserControl
 
     public PluginsPage()
     {
+        // Every key of the plugin management runs in the "plugins" context (S3 P2-4): a default that a saved binding took away only elsewhere (a partial
+        // yield) stays active here (EffectiveShortcutBindings.EnterKeyContext). Inside the Sources page this host is the nearer one and wins.
+        MeowChan.Desktop.Controls.KeyContextHost.Install(this, _ => "plugins");
         InitializeComponent();
         InitializePluginDetails();
         InitializePluginActions();

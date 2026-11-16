@@ -132,13 +132,62 @@ public partial class MainWindow
         if (CommandBindings.Matches(e, "app.show")) { e.Handled = true; RestoreWindow(); return true; }
         MenuItem[] hits = WorkspaceMenuItem.GetLogicalDescendants().OfType<MenuItem>()
             .Where(item => item.ItemCount == 0 && (item.IsVisible || WorkViewGate.HiddenByView(item))
-                && CommandBindings.ActionId(item) is { } id && !CommandRouter.HasExplicitRegistration(id, this) && CommandBindings.Matches(e, id))
+                && CommandBindings.ActionId(item) is { } id && IsUnroutedShellCommand(id)
+                && !CommandRouter.HasExplicitRegistration(id, this) && CommandBindings.Matches(e, id))
             .ToArray();
         if (hits.Length == 0) return false;
         e.Handled = true;
         // Several entries for one gesture are ambiguous (the bindings table reports such a pair); a disabled one swallows the key like a disabled button.
         if (hits.Length == 1) WorkViewActionStateGuard.Invoke(hits[0]);
         return true;
+    }
+
+    /// <summary>
+    /// Whether <see cref="TryRunUnroutedShellCommand"/> may press the menu entry of <paramref name="id"/>. It runs in the window's tunnel, before the
+    /// gallery, the reader and every page, so only a command of the shell itself qualifies: one whose execution context is "shell", which the conflict
+    /// check compares with every page (S3 P2-2: "Change theme" had the context "settings", so a key the check accepted, F, toggled the theme in the
+    /// gallery and swallowed its favourite key). Settings and the URL field are left to the shell key handler's own branches after the power block,
+    /// which close the gallery and the large reader first; their menu entry would open the page behind the overlay (S3 P1-1).
+    /// </summary>
+    internal static bool IsUnroutedShellCommand(string id) =>
+        id is not ("navigation.settings" or "input.focus-url")
+        && EffectiveShortcutBindings.ExecutionContexts(id).Contains("shell", StringComparer.Ordinal);
+
+    /// <summary>The main-page command the key is a gesture of (the footer order of <see cref="MainPageOrder.CommandIds"/>), or null. Danbooru counts
+    /// only while it can open. The shell key handler runs the page it names, the tagging page included (built when first opened).</summary>
+    internal static string? ShellPageCommand(KeyEventArgs e, bool canOpenBooru) =>
+        MainPageOrder.CommandIds.FirstOrDefault(id => (id != "navigation.booru" || canOpenBooru) && CommandBindings.Matches(e, id));
+
+    /// <summary>
+    /// The execution context of the window's own routes (the router's registrations and the visible actions) for <paramref name="e"/>. They run in the
+    /// window's bubble handler, after every page's <see cref="MeowChan.Desktop.Controls.KeyContextHost"/> scope has closed; asked without a context, a
+    /// default that a saved binding took away in another context only (a saved reader command on Primary+T against "Thread tags", which also runs in the
+    /// archive) counted as yielded everywhere (S3 P2-5). The context the innermost page host resolved for this key comes first; a key from outside every
+    /// page (header, footer, the window itself) runs in the context of what the window shows.
+    /// </summary>
+    private string? ShellKeyContext(KeyEventArgs e) => ShellKeyContext(MeowChan.Desktop.Controls.KeyContextHost.ContextOf(e), _selectedPage,
+        _largeReaderOpen, _gallery != null && !_gallerySuspended,
+        // The saved segment is read lazily once (CurrentStatusSegment): only while the Status page shows, never as a side effect of an early key.
+        _selectedPage == WorkspacePage.Status ? CurrentStatusSegment : StatusSegment.Statistics);
+
+    internal static string? ShellKeyContext(string? resolved, WorkspacePage page, bool largeReaderOpen, bool galleryActive, StatusSegment segment)
+    {
+        if (resolved != null) return resolved;
+        if (galleryActive) return "gallery";
+        if (largeReaderOpen) return "reader";
+        return page switch
+        {
+            WorkspacePage.Downloads => "downloads",
+            WorkspacePage.Archive => "archive",
+            WorkspacePage.Media => "media",
+            WorkspacePage.Tagging => "tagging",
+            WorkspacePage.Booru => "booru",
+            WorkspacePage.Rules => "rules",
+            WorkspacePage.Sources => "sources",
+            WorkspacePage.Status => segment == StatusSegment.Diagnostics ? "diagnostics" : "statistics",
+            WorkspacePage.Settings => "settings",
+            _ => null
+        };
     }
 
     private void DisposeShortcutRouting()
@@ -171,6 +220,13 @@ public partial class MainWindow
             || HasBlockingPageDecision() || _archivePage?.IsReaderDialogOpen == true
             || ShellHelpOverlay.IsVisible) return false;
         if (!CommandRouter.IsRoutingContextActive(this, e.Source)) return false;
+        // The routes below are synchronous: the scope covers them and ends with this call (the gallery enters its own context inside).
+        if (ShellKeyContext(e) is not { } context) return RouteWorkspaceShortcutInContext(e);
+        using (EffectiveShortcutBindings.EnterKeyContext(context)) return RouteWorkspaceShortcutInContext(e);
+    }
+
+    private bool RouteWorkspaceShortcutInContext(KeyEventArgs e)
+    {
         // An open gallery panel keeps the workspace shortcuts away, but not the gallery's own keys while nothing has the focus.
         // A suspended gallery (the large reader is open over it) is hidden and owns no key: its panel or help state must not refuse the reader's routes.
         if (_gallery is { } openGallery && GalleryOwnsShortcutRouting(openGallery.IsOverlayOpen, _gallerySuspended))
