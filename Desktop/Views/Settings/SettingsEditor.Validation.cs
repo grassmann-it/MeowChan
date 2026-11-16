@@ -183,6 +183,7 @@ public partial class SettingsEditor
         NotifyQuickTagHelpChanged();
         NotifyLimitsHelpChanged();
         NotifyWorkViewNoticeHelpChanged();
+        NotifyShutdownLimitHelpChanged();
     }
 
     private void SetFieldErrorHelp(Control input, Func<string> message)
@@ -207,6 +208,7 @@ public partial class SettingsEditor
     private IEnumerable<(NumericUpDown Input, decimal? Value, string Label, string Unit, decimal Min, decimal Max, bool Integer)> NumericFields()
     {
         foreach (var field in WorkViewNoticeNumericFields()) yield return field;
+        foreach (var field in ShutdownLimitNumericFields()) yield return field;
         yield return (RecheckTimerInput, RecheckTimer, RecheckLabel, SecondsHelp, 10, 4294967, true);
         yield return (BandwidthInput, BandwidthLimiterMB, BandwidthLabel, BandwidthHelp, 0, Config.BandwidthLimiterMaximumMiB, false);
         yield return (ParallelDownloadsInput, MaxParallelDownloads, ParallelLabel, Texts.T("settings.unitCount"), Config.MaxParallelDownloadsMinimum, Config.MaxParallelDownloadsMaximum, true);

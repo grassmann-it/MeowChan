@@ -350,8 +350,30 @@ public partial class MainWindow : Window
             return;
         }
         _pendingSessionProjection = null;
-        BeginSessionRows(projection);
+        try { BeginSessionRows(projection); }
+        catch (Exception error)
+        {
+            AbandonSessionRows();
+            if (!UnhandledErrors.TryRecover(error, "session.rows")) throw;
+            return;
+        }
         ContinueSessionRows();
+    }
+
+    // A failing frame (a row that cannot be built or updated) must not keep _sessionRowsApplying set: every row command
+    // (RowCommandBusy) and every list click guarded by it would stay a silent no-op for the rest of the session. The frame is
+    // dropped and the next projection rebuilds the rows from scratch.
+    private void AbandonSessionRows()
+    {
+        _applyingSessionProjection = null;
+        _appliedSessionProjection = null;
+        _threadReconciliation = null; _boardReconciliation = null;
+        _sessionRowsApplying = false;
+        _sessionRowsApplied?.TrySetResult();
+        _sessionRowsApplied = null;
+        if (_isClosing) return;
+        try { RefreshClipboardMonitor(); RefreshWorkspace(); }
+        catch (Exception error) { Log.Warning(error, "The download lists could not be refreshed after a failed row update."); }
     }
 
     private void BeginSessionRows(DesktopSessionProjection projection)
@@ -390,6 +412,16 @@ public partial class MainWindow : Window
     private void ContinueSessionRows()
     {
         if (_isClosing || !_sessionRowsApplying) return;
+        try { ContinueSessionRowsCore(); }
+        catch (Exception error)
+        {
+            AbandonSessionRows();
+            if (!UnhandledErrors.TryRecover(error, "session.rows")) throw;
+        }
+    }
+
+    private void ContinueSessionRowsCore()
+    {
         if (_galleryCoversWorkspace) { _sessionDirtyWhileCovered = true; return; }
         // Exactly one bounded plan step per callback, including filtering/reorder after both source plans.
         if (!_threadReconciliation!.IsCompleted)
@@ -827,6 +859,8 @@ public partial class MainWindow : Window
 
     private void RestoreWindow()
     {
+        // The window hides when the shutdown starts; the tray must not bring back a window whose controls have stopped answering.
+        if (_shutdownRunning) return;
         _trayMinimizeRequest++;
         _trayHostMonitor?.Stop();
         ShowInTaskbar = true;
@@ -1027,146 +1061,7 @@ public partial class MainWindow : Window
         _trayStats?.Refresh();
     }
 
-    protected override async void OnClosing(WindowClosingEventArgs e)
-    {
-        Log.Debug("Window closing requested: reason {CloseReason}, allowed {AllowClose}, shutdown running {ShutdownRunning}, owned windows {OwnedWindowCount}.",
-            e.CloseReason, _allowClose, _shutdownRunning, OwnedWindows.Count);
-        base.OnClosing(e);
-        if (_allowClose)
-        {
-            return;
-        }
-
-        e.Cancel = true;
-        if (_isClosing)
-        {
-            return;
-        }
-
-        if (_config.CloseToTray && e.CloseReason == WindowCloseReason.WindowClosing)
-        {
-            MinimizeWindow();
-            return;
-        }
-
-        await CloseApplicationAsync();
-    }
-
-    private async Task CloseApplicationAsync()
-    {
-        if (_shutdownRunning || _allowClose)
-        {
-            return;
-        }
-
-        if (_postBookmarkEditor != null && !await _postBookmarkEditor.PrepareToCloseAsync()) return;
-        if (_postBookmarksDialog != null && !await _postBookmarksDialog.PrepareToCloseAsync()) return;
-        _archivePage?.FlushReadingPositionInput();
-        _isClosing = true;
-        StopClipboardMonitor();
-        _pendingSessionProjection = null;
-        _sessionRowsApplying = false;
-        _sessionRowsApplied?.TrySetResult(); _sessionRowsApplied = null;
-        _restoreDownloadSelection?.Dispose(); _restoreDownloadSelection = null;
-        _refreshingDownloadSearch = false;
-        _postBookmarksDialog?.CloseForProfileEnd();
-        _postBookmarkEditor?.CloseForProfileEnd();
-        _shutdownRunning = true;
-        _settingsEditor?.EndLifetime();
-        _pluginsPage?.EndLifetime();
-        _rulesPage?.EndLifetime();
-        UpdateInteractionState();
-        Log.Information("Application shutdown started.");
-        try
-        {
-            // Cancellation/admission must precede a potentially unbounded native gallery cleanup.
-            // BeginShutdown retains the profile and permits these last writes until StopAsync seals them.
-            Task engineDrain = _session.BeginShutdown();
-            CloseGallery(restoreOrigin: false);
-            Task windowPreferences = FlushWindowPreferencesAsync();
-            Task galleryPreferences = FlushGalleryPreferencesAsync();
-            Task readingPosition = _readingPositionSave;
-            Task finalPreferences = FlushFinalPreferencesAsync(windowPreferences, galleryPreferences, readingPosition);
-            Log.Debug("Shutdown: engine cancellation requested; waiting independently for final writes and gallery cleanup.");
-            Exception? preferenceFailure = null;
-            try { await Task.WhenAll(engineDrain, finalPreferences, _galleryCleanupTask, _restoreTask); }
-            catch (Exception error)
-            {
-                // Do not abandon the profile owner when one final write is rejected.
-                // A faulted drain is NOT proof that its resources were released.
-                preferenceFailure = error;
-            }
-            bool nativeOwnershipReleased = _galleryNativeCleanupTask.IsCompletedSuccessfully;
-            if (!nativeOwnershipReleased) _session.RetainProfileForExternalCleanupFailure();
-            Log.Debug("Shutdown: draining session; native ownership released {Released}.", nativeOwnershipReleased);
-            try { await _session.StopAsync(); }
-            catch (Exception error) { preferenceFailure ??= error; }
-            Log.Debug("Shutdown: session stopped; disposing the session.");
-            // Dispose the profile owner before fallible UI subscription/tray teardown.
-            try { await _session.DisposeAsync(); }
-            catch (Exception error) { preferenceFailure ??= error; }
-            if (!nativeOwnershipReleased || !_session.IsProfileReleased)
-                throw new InvalidOperationException("Shutdown ownership is unproven; native surface and profile remain retained.", preferenceFailure);
-            Log.Debug("Shutdown: session disposed; releasing UI subscriptions.");
-            _session.ProjectionPublished -= OnSessionChanged;
-            _session.StartupPreviewChanged -= OnStartupPreviewChanged;
-            _session.CatalogReadableChanged -= OnCatalogReadableChanged;
-            Texts.Changed -= OnLanguageChanged;
-            DisposeWorkspace();
-            _sessionRefresh.Dispose();
-            foreach (ThreadRow row in _threadRows.Values)
-            {
-                row.Dispose();
-            }
-
-            foreach (BoardRow row in _boardRows.Values)
-            {
-                row.Dispose();
-            }
-
-            _clipboardMenuItem = null;
-            if (OperatingSystem.IsLinux())
-            {
-                // Only DBus needs its menu subscriptions detached and queued layout updates drained.
-                // Avalonia 11.3.22's macOS exporter rejects Menu=null; other platforms dispose directly.
-                Log.Debug("Shutdown: detaching the DBus tray menu; tray present {TrayPresent}.", _trayIcon != null);
-                if (_trayIcon != null)
-                {
-                    _trayIcon.Menu = null;
-                }
-
-                Log.Debug("Shutdown: DBus tray menu detached; waiting for the background dispatcher.");
-                await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-                Log.Debug("Shutdown: background dispatcher completed.");
-            }
-
-            Log.Debug("Shutdown: disposing the tray icon; tray present {TrayPresent}.", _trayIcon != null);
-            DisposeTrayIcon();
-            Log.Debug("Shutdown: tray disposal returned; releasing the profile lease.");
-            if (preferenceFailure != null)
-            {
-                Log.Error(preferenceFailure, "Shutdown cleanup finished, but preferences were not confirmed saved.");
-                ShowNotification(Texts.T("notification.error"), Texts.T("shutdown.failed"), NotificationType.Error, operation: "session.shutdown");
-                // Leave an inert, safely disposed window for acknowledgement; the next close
-                // exits directly instead of retrying side effects against a released profile.
-                _allowClose = true;
-                return;
-            }
-            Log.Debug("Shutdown: profile lease released; requesting final window close.");
-            _allowClose = true;
-            Close();
-            Log.Information("Application shutdown window close returned; visible {IsVisible}.", IsVisible);
-        }
-        catch (Exception exception)
-        {
-            Log.Error(exception, "Failed to stop the application.");
-            ShowNotification(Texts.T("notification.error"), Texts.T("shutdown.failed"), NotificationType.Error, operation: "session.shutdown");
-        }
-        finally
-        {
-            _shutdownRunning = false;
-        }
-    }
+    // OnClosing and CloseApplicationAsync: MainWindow.Shutdown.cs (bounded shutdown).
 
     private async Task FlushFinalPreferencesAsync(params Task[] shellWrites)
     {

@@ -26,7 +26,6 @@ async-void-unguarded	Desktop/Shell/MainWindow.WorkViewNotice.cs::OnWorkViewNotic
 async-void-unguarded	Desktop/Shell/MainWindow.WorkViewNotice.cs::OnWorkViewNoticeDismiss	1
 async-void-unguarded	Desktop/Shell/MainWindow.axaml.cs::MinimizeWindow	1
 async-void-unguarded	Desktop/Shell/MainWindow.axaml.cs::OnAboutMenuItemClick	1
-async-void-unguarded	Desktop/Shell/MainWindow.axaml.cs::OnClosing	1
 async-void-unguarded	Desktop/Shell/MainWindow.axaml.cs::OnEmptyStateImportClick	1
 async-void-unguarded	Desktop/Shell/MainWindow.axaml.cs::OnKeyDown	1
 async-void-unguarded	Desktop/Shell/MainWindow.axaml.cs::OnRemoveBoardMenuItemClick	1

@@ -604,6 +604,8 @@
     "settings.restoreSession": "启动时恢复会话",
     "settings.closeToTray": "关闭时最小化到托盘",
     "settings.minimizeToTray": "最小化到托盘",
+    "settings.shutdownTimeLimit": "退出时限（秒）",
+    "settings.shutdownTimeLimitHint": "关闭应用可用的最长时间：停止下载和关注、保存最后的设置、释放视频播放器。若超过此时间仍有步骤在运行，应用会自行退出，并在日志中记下该步骤；已保存的数据已经完整。默认 30；允许 5–600。",
     "settings.save": "保存",
     "settings.saved": "设置已保存。",
     "settings.languagePacksTitle": "语言包",

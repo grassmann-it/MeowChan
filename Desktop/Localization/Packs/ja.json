@@ -604,6 +604,8 @@
     "settings.restoreSession": "起動時にセッションを復元",
     "settings.closeToTray": "閉じるときにトレイへ格納",
     "settings.minimizeToTray": "最小化時にトレイへ格納",
+    "settings.shutdownTimeLimit": "終了の制限時間（秒）",
+    "settings.shutdownTimeLimitHint": "アプリの終了にかけられる時間です：ダウンロードと監視の停止、最後の設定の保存、動画プレーヤーの解放。この時間を過ぎても実行中の手順があると、アプリは自ら終了し、その手順をログに記録します。保存済みのデータはすでに完全です。既定値 30、許容範囲 5～600。",
     "settings.save": "保存",
     "settings.saved": "設定を保存しました。",
     "settings.languagePacksTitle": "言語パック",

@@ -135,6 +135,7 @@ public partial class SettingsEditor
             Number(MediaIndexMaxEntriesInput, () => MediaIndexMaxEntries, value => MediaIndexMaxEntries = value, config => config.MediaIndexMaxEntries),
             Number(MediaIndexMaxThreadsInput, () => MediaIndexMaxThreads, value => MediaIndexMaxThreads = value, config => config.MediaIndexMaxThreads),
             Number(ImportCatalogLimitMiBInput, () => ImportCatalogLimitMiB, value => ImportCatalogLimitMiB = value, config => config.ImportCatalogLimitMiB),
+            Number(ShutdownTimeLimitSecondsInput, () => ShutdownTimeLimitSeconds, value => ShutdownTimeLimitSeconds = value, config => config.ShutdownTimeLimitSeconds),
             Number(GallerySlideshowSecondsInput, () => GallerySlideshowSeconds, value => GallerySlideshowSeconds = value, config => config.GallerySlideshowSeconds),
             Flag(RestoreSessionInput, () => SaveUrlsOnExit, value => SaveUrlsOnExit = value, config => config.SaveUrlsOnExit),
             Flag(BoardAdmissionWizardInput, () => ShowBoardAdmissionWizard, value => ShowBoardAdmissionWizard = value, config => config.ShowBoardAdmissionWizard),

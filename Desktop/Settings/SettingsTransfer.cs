@@ -88,6 +88,7 @@ public static class SettingsTransfer
             MonitorClipboardUrls = source.MonitorClipboardUrls,
             MinimizeToTray = source.MinimizeToTray,
             CloseToTray = source.CloseToTray,
+            ShutdownTimeLimitSeconds = source.ShutdownTimeLimitSeconds,
             BandwidthLimiter = source.BandwidthLimiter,
             MaxParallelDownloads = source.MaxParallelDownloads,
             ParallelDownloadsSafetyLimit = source.ParallelDownloadsSafetyLimit,

@@ -310,6 +310,7 @@ namespace MeowChan
             LoadQuickTagDraft(config);
             LoadLimitsDraft(config);
             LoadWorkViewSwitchNoticeDraft(config);
+            LoadShutdownLimitDraft(config);
             LoadFooterDraft(config);
             RefreshChoices(config.Theme, config.WorkspaceMode, config.Language);
             DataContext = this;
@@ -883,6 +884,7 @@ namespace MeowChan
             AutomaticUpdateChecks = _config.AutomaticUpdateChecks;
             ShowInformationNotifications = _config.ShowInformationNotifications;
             LoadWorkViewSwitchNoticeDraft(_config);
+            LoadShutdownLimitDraft(_config);
             ShowWarningNotifications = _config.ShowWarningNotifications;
             ShowErrorNotifications = _config.ShowErrorNotifications;
             IncludePrereleaseUpdates = _config.IncludePrereleaseUpdates;
@@ -940,6 +942,7 @@ namespace MeowChan
             LoadQuickTagDraft(_config);
             LoadLimitsDraft(_config);
             LoadWorkViewSwitchNoticeDraft(_config);
+            LoadShutdownLimitDraft(_config);
             LoadFooterDraft(_config);
             RefreshChoices(_config.Theme, _config.WorkspaceMode, _config.Language);
             ResetNumber(RecheckTimerInput, RecheckTimer!.Value);
@@ -1109,6 +1112,7 @@ namespace MeowChan
                 RaiseQuickTagTextsChanged();
                 RaiseLimitsTextsChanged();
                 RaiseWorkViewNoticeTextsChanged();
+                RaiseShutdownLimitTextsChanged();
                 RaiseFooterTextsChanged();
                 RaiseTransferTextsChanged();
                 RefreshWorkViewOverviewTexts();
@@ -1360,6 +1364,7 @@ namespace MeowChan
                 candidate.AutomaticUpdateChecks = AutomaticUpdateChecks;
                 candidate.ShowInformationNotifications = ShowInformationNotifications;
                 ApplyWorkViewSwitchNoticeDraft(candidate);
+                ApplyShutdownLimitDraft(candidate);
                 candidate.ShowWarningNotifications = ShowWarningNotifications;
                 candidate.ShowErrorNotifications = ShowErrorNotifications;
                 candidate.IncludePrereleaseUpdates = IncludePrereleaseUpdates;
@@ -1485,6 +1490,7 @@ namespace MeowChan
             AutomaticUpdateChecks = _config.AutomaticUpdateChecks;
             ShowInformationNotifications = _config.ShowInformationNotifications;
             LoadWorkViewSwitchNoticeDraft(_config);
+            LoadShutdownLimitDraft(_config);
             ShowWarningNotifications = _config.ShowWarningNotifications;
             ShowErrorNotifications = _config.ShowErrorNotifications;
             IncludePrereleaseUpdates = _config.IncludePrereleaseUpdates;
@@ -1542,6 +1548,7 @@ namespace MeowChan
             LoadQuickTagDraft(_config);
             LoadLimitsDraft(_config);
             LoadWorkViewSwitchNoticeDraft(_config);
+            LoadShutdownLimitDraft(_config);
             LoadFooterDraft(_config);
             RefreshChoices(_config.Theme, _config.WorkspaceMode, _config.Language);
             ResetNumber(RecheckTimerInput, RecheckTimer!.Value);
