@@ -136,6 +136,100 @@ public sealed class ActionOverflowLayoutTests
         Assert.Equal(342, width);
     }
 
+    // Sweep S6 F1 (16.11.): a joined pair is one overflow unit; the bar never keeps one half of List|Table while the other is under More.
+    [Fact]
+    public void AJoinedPairMovesUnderMoreAsAWholeWhenOnlyItsFirstHalfWouldFit()
+    {
+        OverflowMode[] modes = [OverflowMode.AsNeeded, OverflowMode.AsNeeded, OverflowMode.AsNeeded];
+        // 80 | 8 | 64 (List) | 0 | 64 (Table) = 216. At 200 with More (40), 80 + 8 + 64 = 152 would fit, the pair (136) does not.
+        (bool[] overflow, double width) = ActionOverflowLayout.ResolveSpaced([80, 64, 64], [0, 0, 0], [false, true, true], modes,
+            [true, true, true], 200, 40);
+        Assert.Equal(new[] { false, true, true }, overflow);
+        Assert.Equal(80, width);
+        // One dip short of the whole bar: the pair still moves together, the refill does not take back a half.
+        (overflow, width) = ActionOverflowLayout.ResolveSpaced([80, 64, 64], [0, 0, 0], [false, true, true], modes, [true, true, true], 215, 40);
+        Assert.Equal(new[] { false, true, true }, overflow);
+        Assert.Equal(80, width);
+        // With room for all of it nothing moves.
+        (overflow, width) = ActionOverflowLayout.ResolveSpaced([80, 64, 64], [0, 0, 0], [false, true, true], modes, [true, true, true], 216, 40);
+        Assert.Equal(new[] { false, false, false }, overflow);
+        Assert.Equal(216, width);
+    }
+
+    [Fact]
+    public void ALoneSegmentOrSegmentsOfDifferentGroupsOrModesKeepThePlainOneByOneRule()
+    {
+        OverflowMode[] modes = [OverflowMode.AsNeeded, OverflowMode.AsNeeded, OverflowMode.AsNeeded];
+        // A segment beside a plain item is no pair: 80 + 8 + 64 stays, the last item moves alone.
+        (bool[] overflow, double width) = ActionOverflowLayout.ResolveSpaced([80, 64, 64], [0, 0, 0], [true, false, true], modes,
+            [true, true, true], 200, 40);
+        Assert.Equal(new[] { false, false, true }, overflow);
+        Assert.Equal(152, width);
+        // Two segments across a group change are no pair either (they stand 16 apart).
+        (overflow, width) = ActionOverflowLayout.ResolveSpaced([80, 64, 64], [0, 0, 1], [false, true, true], modes, [true, true, true], 200, 40);
+        Assert.Equal(new[] { false, false, true }, overflow);
+        Assert.Equal(152, width);
+        // An explicit Never half does not drag its AsNeeded neighbour onto the bar, nor does the neighbour drag it under More.
+        (overflow, width) = ActionOverflowLayout.ResolveSpaced([64, 64], [0, 0], [true, true], [OverflowMode.Never, OverflowMode.AsNeeded],
+            [true, true], 100, 30);
+        Assert.Equal(new[] { false, true }, overflow);
+        Assert.Equal(64, width);
+    }
+
+    [Fact]
+    public void AHiddenItemBetweenTwoSegmentsDoesNotSplitThePair()
+    {
+        // The shown neighbours touch (no gap) and are judged as one unit; the hidden item takes no part and never overflows.
+        OverflowMode[] modes = [OverflowMode.AsNeeded, OverflowMode.AsNeeded, OverflowMode.AsNeeded, OverflowMode.AsNeeded];
+        (bool[] overflow, double width) = ActionOverflowLayout.ResolveSpaced([80, 64, 300, 64], [0, 0, 0, 0], [false, true, false, true], modes,
+            [true, true, false, true], 200, 40);
+        Assert.Equal(new[] { false, true, false, true }, overflow);
+        Assert.Equal(80, width);
+    }
+
+    [Fact]
+    public void TheReaderMediaPairRanksAsItsBestMemberAndNeverSplitsAtAnyWidth()
+    {
+        // ReaderMediaTools (PrioritizedOverflow): Tiles (40) | Table (45) | Columns (hidden, 60) | Favorites only (20) | Rating (30) | Sort (10).
+        double[] widths = [64, 64, 90, 100, 140, 160];
+        int[] groups = [0, 0, 0, 0, 0, 0];
+        bool[] segments = [true, true, false, false, false, false];
+        OverflowMode[] modes = [OverflowMode.AsNeeded, OverflowMode.AsNeeded, OverflowMode.AsNeeded, OverflowMode.AsNeeded, OverflowMode.AsNeeded, OverflowMode.AsNeeded];
+        bool[] visible = [true, true, false, true, true, true];
+        int[] priorities = [40, 45, 60, 20, 30, 10];
+        // 540 of the 552 the whole bar needs: Sort, Favorites and Rating (424) fit beside More, the pair (128) does not. Before the fix
+        // Tiles stayed alone on the bar (488 within 500) and Table went under More.
+        (bool[] overflow, double width) = ActionOverflowLayout.ResolveSpaced(widths, groups, segments, modes, visible, 540, 40, priorities);
+        Assert.Equal(new[] { true, true, false, false, false, false }, overflow);
+        Assert.Equal(100 + 8 + 140 + 8 + 160, width);
+        for (int available = 0; available <= 800; available++)
+        {
+            (overflow, width) = ActionOverflowLayout.ResolveSpaced(widths, groups, segments, modes, visible, available, 40, priorities);
+            Assert.True(overflow[0] == overflow[1], $"{available}: the Tiles|Table pair was split");
+            // The PrioritizedOverflow order still holds with the pair ranked 40: Rating (30) under More means the pair is under More too.
+            if (overflow[4]) Assert.True(overflow[0], $"{available}: Rating moved under More before the pair");
+            Assert.False(overflow[2], "a hidden item never overflows");
+        }
+    }
+
+    [Fact]
+    public void TheArchiveResultsPairNeverSplitsAtAnyWidth()
+    {
+        // ArchiveResultActions (item order): List | Table || Gallery | Open in media | Columns (hidden) | Favorites.
+        double[] widths = [64, 64, 120, 130, 90, 100];
+        int[] groups = [0, 0, 1, 1, 1, 1];
+        bool[] segments = [true, true, false, false, false, false];
+        OverflowMode[] modes = [OverflowMode.AsNeeded, OverflowMode.AsNeeded, OverflowMode.AsNeeded, OverflowMode.AsNeeded, OverflowMode.AsNeeded, OverflowMode.AsNeeded];
+        bool[] visible = [true, true, true, true, false, true];
+        for (int available = 0; available <= 700; available++)
+        {
+            (bool[] overflow, _) = ActionOverflowLayout.ResolveSpaced(widths, groups, segments, modes, visible, available, 40);
+            Assert.True(overflow[0] == overflow[1], $"{available}: the List|Table pair was split");
+            // Item order still decides: once the pair is under More, everything after it is too (what moves is always the tail).
+            if (overflow[0]) Assert.True(overflow[2] && overflow[3] && overflow[5], $"{available}: an item after the pair stayed");
+        }
+    }
+
     [Fact]
     public void APrioritizedBarWhoseMiddleItemMovedAwayCountsTheGroupGapItsNeighboursNowHave()
     {
@@ -202,6 +296,15 @@ public sealed class ActionOverflowLayoutTests
             }
             // Only the items that must stay (Never) may take more than there is; every other result fits with More counted.
             if (!onlyNever) Assert.True(width + (remaining ? more : 0) <= available + 1e-9, $"round {round}: {width} + more exceeds {available}");
+            // Sweep S6 F1: two neighbouring shown segments of one group and one mode (a joined pair) always share their place.
+            int previous = -1;
+            for (int i = 0; i < count; i++)
+            {
+                if (!visible[i]) continue;
+                if (previous >= 0 && ActionOverflowLayout.JoinedSegments(previous, i, groups, segments, modes))
+                    Assert.True(overflow[previous] == overflow[i], $"round {round}: the joined pair {previous}|{i} was split");
+                previous = i;
+            }
         }
     }
 
