@@ -34,26 +34,32 @@ internal sealed class TokenApplication : Application
     }
 }
 
-/// <summary>A Skia platform without windows for tests that decode and copy bitmaps, in a locator scope that ends with the test.</summary>
+/// <summary>A Skia platform without windows for tests that decode and copy bitmaps.</summary>
 internal static class AvaloniaTestPlatform
 {
+    private static readonly object Gate = new();
+    private static bool _setUp;
+
     /// <summary>
-    /// Enters a locator scope and sets the Skia platform up inside it. Dispose the result at the end of the test: nothing is left in the root locator for a
-    /// later test class to find (a root application from an AppBuilder setup used to survive the whole run).
+    /// Sets the Skia platform up once per process: Avalonia allows <see cref="AppBuilder.Setup"/> only once, so a per-test locator scope cannot
+    /// redo it. The classes that need it sit in the serialized "Avalonia global state" collection, so the root application it leaves does not
+    /// overlap the parallel classes. The returned handle is kept for the callers' <c>using</c>; disposing it does nothing.
     /// </summary>
     internal static IDisposable EnterSkia()
     {
-        IDisposable scope = AvaloniaLocator.EnterScope();
-        try
+        lock (Gate)
         {
-            AppBuilder.Configure<Application>().UseSkia().UseStandardRuntimePlatformSubsystem().UseHarfBuzz()
-                .UseWindowingSubsystem(() => { }).SetupWithoutStarting();
-            return scope;
+            if (!_setUp && Application.Current == null)
+                AppBuilder.Configure<Application>().UseSkia().UseStandardRuntimePlatformSubsystem().UseHarfBuzz()
+                    .UseWindowingSubsystem(() => { }).SetupWithoutStarting();
+            _setUp = true;
         }
-        catch
-        {
-            scope.Dispose();
-            throw;
-        }
+        return NoScope.Instance;
+    }
+
+    private sealed class NoScope : IDisposable
+    {
+        internal static readonly NoScope Instance = new();
+        public void Dispose() { }
     }
 }
