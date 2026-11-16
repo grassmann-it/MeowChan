@@ -73,6 +73,11 @@ public partial class ArchivePage
         });
         Button view = new() { Name = "FavoritesView", Content = Texts.T("viewer.favorites.view") };
         MeowChan.Desktop.Controls.IconButtons.WithText(view, "eye");
+        // A double click or Enter on a row runs the "View" button, refused exactly when the button is disabled.
+        MeowChan.Desktop.Controls.ListRowActions.OnActivate(list, () =>
+        {
+            if (view.IsEnabled) view.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+        });
         Button remove = new() { Name = "FavoritesRemove", Content = Texts.T("viewer.favorite.remove") };
         AutomationProperties.SetName(view, Texts.T("viewer.favorites.view"));
         AutomationProperties.SetName(remove, Texts.T("viewer.favorite.remove"));

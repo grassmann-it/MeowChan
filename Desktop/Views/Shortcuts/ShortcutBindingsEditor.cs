@@ -118,7 +118,8 @@ public sealed partial class ShortcutBindingsEditor : UserControl
             _validationFocusRequest++; StopCapture(); _pending = null; _capture.Gesture = null; SetPendingText(null);
             _selected = (_actions.SelectedItem as ListBoxItem)?.Tag as string; RefreshDetail();
         };
-        _actions.AddHandler(KeyDownEvent, OnListKeyDown, RoutingStrategies.Bubble);
+        // Tunnel: a focused ListBoxItem consumes Enter and Space before a bubble handler of the list sees them (Avalonia 12).
+        _actions.AddHandler(KeyDownEvent, OnListKeyDown, RoutingStrategies.Tunnel);
         // Interaction audit 1.1.0: a double click on a command row records its new shortcut, like Enter (group rows fold on a single click).
         _actions.DoubleTapped += (_, e) =>
         {
@@ -760,10 +761,19 @@ public sealed partial class ShortcutBindingsEditor : UserControl
     private void OnListKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Handled || ShortcutService.IsCapturing || e.KeyModifiers != KeyModifiers.None) return;
-        if (_actions.SelectedItem is ListBoxItem { Tag: GroupTag tag } && e.Key is Key.Enter or Key.Space)
-        { e.Handled = true; ToggleGroup(tag.Key); return; }
+        if (e.Key is not (Key.Enter or Key.Return or Key.Space or Key.Delete)) return;
+        // The row that has the focus (a focus-only move with Ctrl+arrow leaves another row selected); the list itself focused: the selected row.
+        ListBoxItem? row = MeowChan.Desktop.Controls.ItemActivation.ContainerAt(e.Source, _actions) as ListBoxItem
+            ?? (ReferenceEquals(e.Source, _actions) ? _actions.SelectedItem as ListBoxItem : null);
+        if (row == null || MeowChan.Desktop.Controls.ItemActivation.IsOwnedByInteractivePart(e.Source, _actions)) return;
+        if (!ReferenceEquals(row, _actions.SelectedItem)) _actions.SelectedItem = row;
+        if (row.Tag is GroupTag tag)
+        {
+            if (e.Key is Key.Enter or Key.Return or Key.Space) { e.Handled = true; ToggleGroup(tag.Key); }
+            return;
+        }
         if (_selected == null || !_detail.IsEnabled) return;
-        if (e.Key == Key.Enter) { e.Handled = true; StartRecording(replace: true); }
+        if (e.Key is Key.Enter or Key.Return) { e.Handled = true; StartRecording(replace: true); }
         else if (e.Key == Key.Delete) { e.Handled = true; _session.Clear(_selected); }
     }
 

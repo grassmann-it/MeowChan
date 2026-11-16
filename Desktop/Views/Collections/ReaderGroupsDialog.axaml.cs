@@ -154,10 +154,10 @@ public partial class ReaderGroupsDialog : Window
             RefreshActions();
         };
         C<TextBox>("GroupSearch").TextChanged += async (_, _) => await SearchAsync();
-        // Dead-affordance audit: a double click on a group reads it, on a candidate adds it (the buttons' own commands, refused when they are
+        // Dead-affordance audit: a double click or Enter on a group reads it, on a candidate adds it (the buttons' own commands, refused when they are
         // disabled); a right-click, Menu key or Shift+F10 on any of the three lists offers the buttons that belong to it.
-        ListRowActions.OnDoubleClick(C<ListBox>("Groups"), () => _ = ExecuteCommandAsync("reader-groups.read"));
-        ListRowActions.OnDoubleClick(C<ListBox>("GroupCandidates"), () => _ = ExecuteCommandAsync("reader-groups.add-members"));
+        ListRowActions.OnActivate(C<ListBox>("Groups"), () => _ = ExecuteCommandAsync("reader-groups.read"));
+        ListRowActions.OnActivate(C<ListBox>("GroupCandidates"), () => _ = ExecuteCommandAsync("reader-groups.add-members"));
         _listMenus.Add(ListRowActions.AttachMenu(C<ListBox>("Groups"), () => ComposeListMenu("Groups")));
         _listMenus.Add(ListRowActions.AttachMenu(C<ListBox>("GroupMembers"), () => ComposeListMenu("GroupMembers")));
         _listMenus.Add(ListRowActions.AttachMenu(C<ListBox>("GroupCandidates"), () => ComposeListMenu("GroupCandidates")));

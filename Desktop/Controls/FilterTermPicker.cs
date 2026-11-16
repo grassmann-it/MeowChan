@@ -114,6 +114,8 @@ internal class FilterTermPicker : Button
         _search.AddHandler(TextInputEvent, OnSearchTextInput, RoutingStrategies.Tunnel);
         _asInclude.IsCheckedChanged += (_, _) => { if (_flyout.IsOpen) Refill(); };
         _list.AddHandler(TappedEvent, OnListTapped, RoutingStrategies.Bubble);
+        // The entries are focusable and a focused ListBoxItem consumes Enter before a bubble handler sees it: tunnel.
+        _list.AddHandler(KeyDownEvent, OnListKeyDown, RoutingStrategies.Tunnel);
         ApplyTexts();
     }
 
@@ -452,6 +454,17 @@ internal class FilterTermPicker : Button
         if (snapshot == null || string.IsNullOrWhiteSpace(query)) return false;
         string start = query.Trim() + ",";
         return snapshot.Tags.Any(tag => tag.Name.Display.StartsWith(start, StringComparison.CurrentCultureIgnoreCase));
+    }
+
+    // Enter (Shift+Enter: as exclusion) on a focused entry picks it, like Enter in the search field picks the highlighted one.
+    private void OnListKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Handled || e.Key is not (Key.Enter or Key.Return) || e.KeyModifiers is not (KeyModifiers.None or KeyModifiers.Shift)) return;
+        FilterTermChoice? choice = ItemActivation.ItemAt<FilterTermChoice>(e.Source, _list)
+            ?? (ReferenceEquals(e.Source, _list) ? _list.SelectedItem as FilterTermChoice : null);
+        if (choice == null) return;
+        e.Handled = true;
+        Pick(choice, e.KeyModifiers == KeyModifiers.Shift, keepOpen: false);
     }
 
     private void OnListTapped(object? sender, TappedEventArgs e)

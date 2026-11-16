@@ -221,10 +221,9 @@ public sealed class InteractionAuditTests
         Assert.Contains("ItemActivation.IsPrimaryKey(e)", diagnostics);
         Assert.Contains("CommandBindings.Matches(e, \"diagnostics.copy\")", diagnostics);
         Assert.Contains("InitializeRowInteraction();", Read("Desktop/Views/Diagnostics/DiagnosticsPage.axaml.cs"));
-        // Shortcuts window: a double click on a command row records like Enter.
-        string shortcuts = Read("Desktop/Views/Shortcuts/ShortcutBindingsEditor.cs");
-        Assert.Contains("_actions.DoubleTapped += (_, e) =>", shortcuts);
-        Assert.Equal(2, Count(shortcuts, "StartRecording(replace: true);"));
+        // Shortcuts window: a double click on a command row records like Enter. The Enter half is a behaviour test now
+        // (ListItemEnterParityTests: Enter raised on the row's own container starts the recording); here only the double click wiring.
+        Assert.Contains("_actions.DoubleTapped += (_, e) =>", Read("Desktop/Views/Shortcuts/ShortcutBindingsEditor.cs"));
         // Tagging list and grid: continue here, the Enter command of the list.
         Assert.Equal("Enter", CommandCatalog.Get("tagging.continue-here").Shortcut);
         Assert.Contains("ExecuteRowCommandAsync(TaggingCommands.ContinueHere, explain: true)", Read("Desktop/Views/Tagging/TaggingPage.Grid.cs"));
@@ -273,7 +272,8 @@ public sealed class InteractionAuditTests
     public void EveryContextMenuHostOpensFromThePointerAndFromTheKeyboard()
     {
         string host = Read("Desktop/Controls/ContextMenuHost.cs");
-        Assert.Contains("origin.AddHandler(InputElement.KeyDownEvent, OnKeyDown, RoutingStrategies.Bubble);", host);
+        // Lists and tables take the key in the tunnel phase (a focused item consumes keys before a bubble handler); other origins keep the bubble phase.
+        Assert.Contains("origin.AddHandler(InputElement.KeyDownEvent, OnKeyDown, (origin is ListBox or DataGrid) ? RoutingStrategies.Tunnel : RoutingStrategies.Bubble);", host);
         Assert.Contains("origin.AddHandler(Control.ContextRequestedEvent, OnContextRequested, RoutingStrategies.Bubble);", host);
         Assert.Contains("MediaMenuPresenter.IsContextKey(e)", host);
         // The surfaces of the audit that use the host: tagging list and grid, rules cards, statistics table and compact list.
