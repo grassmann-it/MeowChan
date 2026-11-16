@@ -225,10 +225,39 @@ internal static class ReaderUxChecks
 
     // Each scoped journey starts from its own real archive query and opened reader.
     // No prior journey's selected post, gallery session or query snapshot is reused.
+    private static WindowStartupFit SetReaderJourneyGeometry(MainWindow window)
+    {
+        Avalonia.Platform.Screen screen = window.Screens.ScreenFromWindow(window)
+            ?? throw new InvalidOperationException("Reader journey fixture has no native screen.");
+        Size client = window.ClientSize;
+        Size frame = window.FrameSize ?? client;
+        WindowStartupFit target = WindowStartupGeometry.Fit(
+            new Size(1520, 920),
+            new Size(1520 + Math.Max(0, frame.Width - client.Width),
+                920 + Math.Max(0, frame.Height - client.Height)),
+            new Size(window.MinWidth, window.MinHeight), screen.WorkingArea, window.RenderScaling,
+            window.Position, WindowStartupGeometry.NormalFrameInsetPixels);
+        window.Width = target.Client.Width;
+        window.Height = target.Client.Height;
+        window.Position = target.Position;
+        return target;
+    }
+
     internal static async Task RunJourneyAsync(MainWindow window, string id)
     {
-        window.Width = 1520; window.Height = 920;
-        await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, 1520, 920));
+        WindowStartupFit target = SetReaderJourneyGeometry(window);
+        try
+        {
+            await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(
+                window, target.Client.Width, target.Client.Height));
+        }
+        finally
+        {
+            Console.WriteLine($"SMOKE reader journey geometry: target={target.Client.Width}x{target.Client.Height}; "
+                + $"requested={window.Width}x{window.Height}; client={window.Bounds.Size}; frame={window.FrameSize}; "
+                + $"minimum={window.MinWidth}x{window.MinHeight}; scale={window.RenderScaling}; "
+                + $"screen={window.Screens.ScreenFromWindow(window)?.WorkingArea}.");
+        }
         await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
         SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Archive);
         ArchivePage page = window.ArchivePage;
