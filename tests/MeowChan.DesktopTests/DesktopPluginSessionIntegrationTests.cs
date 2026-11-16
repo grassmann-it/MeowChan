@@ -282,8 +282,14 @@ public sealed class DesktopPluginSessionIntegrationTests(ITestOutputHelper outpu
         Assert.Single(new WorkStateStore(profile.Path, reopened).LoadResources());
     }
 
-    [Fact]
-    public async Task ReauthorizationThroughIndependentDesktopHostsKeepsExactRightsAndStartsTheReviewedWorker()
+    // Decision #130 (16.11.2026): an in-place update of a bundled plugin in this app's own plugins folder keeps the plugin's
+    // existing size/MD5 exception, grants, owner choices and settings without a repair review (endchan/kohlchan on Tom's
+    // profile). A pure executable change and a display-only declaration change (a renamed label) both qualify. Relocation and
+    // any widening declaration still need review; those are pinned at store level (PluginProfileStoreTests.InPlaceTrust).
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task InPlaceShippedUpdateThroughDesktopHostCarriesExactRightsWithoutReview(bool declarationChange)
     {
         using TempDirectory profile = new();
         Configure(profile.Path);
@@ -301,187 +307,49 @@ public sealed class DesktopPluginSessionIntegrationTests(ITestOutputHelper outpu
                 await host.StartAsync().WaitAsync(Deadline);
                 Assert.True(host.State == DesktopSessionState.Ready, host.StartupError);
                 baseline = await EnableKohlchanAsync(host);
-                Assert.True(baseline.Plugins.Single(plugin => plugin.PluginId == KohlchanPluginId).Enabled);
+                Assert.True(Plugin(baseline).Enabled);
                 Assert.NotNull(Plugin(baseline).Active);
-                Assert.Equal(SdkContract.Version, Plugin(baseline).Active!.Description.SdkVersion);
             }
             finally { await StopAndVerifyAsync(host); }
         }
 
-        byte[] originalState;
-        using (ShippedKohlchanVariant variant = ShippedKohlchanVariant.Create(declarationChange: false))
+        using (ShippedKohlchanVariant variant = ShippedKohlchanVariant.Create(declarationChange))
         {
-            using DesktopPluginFixtures fixture = new() { RejectAll = true };
-            DesktopSessionHost reviewing = Create(profile.Path, fixture);
-            try
+            for (int restart = 0; restart < 2; restart++)
             {
-                // These are two independent DesktopSessionHost lifetimes in one test process,
-                // not OS-process restarts or DesktopSessionHost/GUI acceptance.
-                await reviewing.StartAsync().WaitAsync(Deadline);
-                Assert.True(reviewing.State == DesktopSessionState.Ready, reviewing.StartupError);
-                PluginProfileStore store = Assert.IsType<PluginProfileStore>(reviewing.Plugins!.ProfileStore);
-                PluginProfileSnapshot blocked = await store.ReadAsync();
-                AssertBlockedAtHostBoundary(baseline, blocked);
-                Assert.Equal(permission, Config.LoadConfig(profile.Path).SourceMediaIntegrityPermissions[SourceMediaIntegrityPermission.CreateKey(permission.PluginOwnerId, permission.SourceId)]);
-                Assert.Equal(SdkJson.Serialize(baseline.Grants), SdkJson.Serialize(blocked.Grants));
-                Assert.Equal(SdkJson.Serialize(baseline.SelectedSourceOwners), SdkJson.Serialize(blocked.SelectedSourceOwners));
-                Assert.Empty(reviewing.Plugins.Runtime.GetSnapshots());
-                Assert.Empty(fixture.Requests);
-
-                BundledCandidateRepairPreview preview = await store.PreviewBundledRepairsAsync();
-                BundledCandidateRepair row = Assert.Single(preview.Rows, repair => repair.PluginId == KohlchanPluginId);
-                Assert.False(row.CanConfirm);
-                Assert.False(row.CanReviewChanges);
-                Assert.True(row.CanReauthorize);
-                Assert.Equal("inherited-grants", row.BlockedReason);
-                Assert.Equal(Hash(Encoding.UTF8.GetBytes(row.PermissionReviewJson!)), row.PermissionFingerprint);
-                BundledRepairPermissions permissions = SdkJson.Deserialize<BundledRepairPermissions>(Encoding.UTF8.GetBytes(row.PermissionReviewJson!));
-                Assert.Contains("kohlchan", permissions.SourceIds);
-                originalState = await File.ReadAllBytesAsync(store.StorePath);
-
-                await Assert.ThrowsAsync<InvalidOperationException>(() => store.ReauthorizeBundledRepairAsync(
-                    row with { PermissionFingerprint = new string('0', 64) }, preview.ProfileRevision));
-                Assert.Equal(originalState, await File.ReadAllBytesAsync(store.StorePath));
-                PluginProfileSnapshot rejected = await store.ReadAsync();
-                AssertBlockedAtHostBoundary(baseline, rejected);
-                Assert.Empty(reviewing.Plugins.Runtime.GetSnapshots());
-
-                PluginProfileSnapshot pending = await store.ReauthorizeBundledRepairAsync(row, preview.ProfileRevision);
-                AssertBlockedAtHostBoundary(baseline, pending);
-                Assert.NotNull(Plugin(pending).Pending);
-                Assert.Equal(row.NewCandidateId, Plugin(pending).Pending!.CandidateId);
-                Assert.Equal(SdkJson.Serialize(baseline.Grants), SdkJson.Serialize(pending.Grants));
-                Assert.Equal(SdkJson.Serialize(baseline.SelectedSourceOwners), SdkJson.Serialize(pending.SelectedSourceOwners));
-                Assert.Equal(permission, Config.LoadConfig(profile.Path).SourceMediaIntegrityPermissions[SourceMediaIntegrityPermission.CreateKey(permission.PluginOwnerId, permission.SourceId)]);
-                Assert.Empty(reviewing.Plugins.Runtime.GetSnapshots());
-            }
-            finally { await StopAndVerifyAsync(reviewing); }
-
-            using DesktopPluginFixtures offline = new();
-            DesktopSessionHost restored = Create(profile.Path, offline);
-            try
-            {
-                await restored.StartAsync().WaitAsync(Deadline);
-                Assert.True(restored.State == DesktopSessionState.Ready, restored.StartupError);
-                PluginProfileSnapshot active = await restored.Plugins!.ProfileStore.ReadAsync();
-                Assert.NotEqual(Plugin(baseline).Active!.ExecutionRevision, Plugin(active).Active!.ExecutionRevision);
-                Assert.True(Plugin(active).Enabled);
-                Assert.Equal(SdkJson.Serialize(Plugin(baseline).Active!.Configuration), SdkJson.Serialize(Plugin(active).Active!.Configuration));
-                Assert.Equal(SdkJson.Serialize(baseline.Grants), SdkJson.Serialize(active.Grants));
-                Assert.Equal(SdkJson.Serialize(baseline.SelectedSourceOwners), SdkJson.Serialize(active.SelectedSourceOwners));
-                Assert.Equal(permission, Config.LoadConfig(profile.Path).SourceMediaIntegrityPermissions[SourceMediaIntegrityPermission.CreateKey(permission.PluginOwnerId, permission.SourceId)]);
-
-                // Configure deliberately pauses all acquisition during admission. Only now,
-                // after exact consent and the independent host start, admit this offline call.
-                await restored.SetPausedAsync(false).WaitAsync(Deadline);
-                BoardAdmissionPreview preview = await restored.PreviewBoardAdmissionAsync(DesktopPluginFixtures.Origin("kohlchan") + "/demo/").WaitAsync(Deadline);
-                Assert.Equal("123", Assert.Single(preview.Threads).Id);
-                Assert.Contains(restored.Plugins.Runtime.GetSnapshots(), worker => worker.ProcessId is > 0
-                    && worker.Identity.ExecutionRevision == Plugin(active).Active!.ExecutionRevision);
-                Assert.NotEmpty(offline.Requests);
-            }
-            finally { await StopAndVerifyAsync(restored); }
-        }
-
-    }
-
-    [Fact]
-    public async Task ChangedDeclarationThroughDesktopHostNeedsExactReviewAndSeparateRightsConsent()
-    {
-        using TempDirectory profile = new();
-        Configure(profile.Path);
-        Config config = Config.LoadConfig(profile.Path);
-        SourceMediaIntegrityPermission permission = new("meowchan.source.kohlchan", "kohlchan", true, 7);
-        config.SourceMediaIntegrityPermissions[SourceMediaIntegrityPermission.CreateKey(permission.PluginOwnerId, permission.SourceId)] = permission;
-        config.SaveConfig(profile.Path);
-
-        PluginProfileSnapshot baseline;
-        using (DesktopPluginFixtures fixture = new() { RejectAll = true })
-        {
-            DesktopSessionHost host = Create(profile.Path, fixture);
-            try
-            {
-                await host.StartAsync().WaitAsync(Deadline);
-                Assert.True(host.State == DesktopSessionState.Ready, host.StartupError);
-                baseline = await EnableKohlchanAsync(host);
-            }
-            finally { await StopAndVerifyAsync(host); }
-        }
-
-        using (ShippedKohlchanVariant variant = ShippedKohlchanVariant.Create(declarationChange: true))
-        {
-            using DesktopPluginFixtures fixture = new() { RejectAll = true };
-            DesktopSessionHost reviewing = Create(profile.Path, fixture);
-            try
-            {
-                // This is the same-process DesktopSessionHost lifetime boundary used by
-                // the synthetic host bridge; it does not claim an OS restart or release evidence.
-                await reviewing.StartAsync().WaitAsync(Deadline);
-                Assert.True(reviewing.State == DesktopSessionState.Ready, reviewing.StartupError);
-                PluginProfileStore store = Assert.IsType<PluginProfileStore>(reviewing.Plugins!.ProfileStore);
-                PluginProfileSnapshot blocked = await store.ReadAsync();
-                AssertBlockedAtHostBoundary(baseline, blocked);
-                Assert.Empty(reviewing.Plugins.Runtime.GetSnapshots());
-
-                BundledCandidateRepairPreview preview = await store.PreviewBundledRepairsAsync();
-                BundledCandidateRepair row = Assert.Single(preview.Rows, repair => repair.PluginId == KohlchanPluginId);
-                Assert.False(row.CanConfirm);
-                Assert.True(row.CanReviewChanges);
-                Assert.False(row.CanReauthorize);
-                Assert.Equal("description-changed", row.BlockedReason);
-                Assert.Equal(Hash(Encoding.UTF8.GetBytes(row.ChangeReviewJson!)), row.ChangeFingerprint);
-                BundledPluginChangeReview review = SdkJson.Deserialize<BundledPluginChangeReview>(Encoding.UTF8.GetBytes(row.ChangeReviewJson!));
-                Assert.Equal(SdkJson.Serialize(Plugin(baseline).Active!.Description), SdkJson.Serialize(review.PreviousDescription));
-                Assert.NotEqual(review.PreviousDescription.Name, review.NewDescription.Name);
-                Assert.Equal(SdkJson.Serialize(Plugin(baseline).Active!.Configuration), SdkJson.Serialize(review.PreviousConfiguration));
-                Assert.Contains("kohlchan", review.Permissions.SourceIds);
-                byte[] beforeRejected = await File.ReadAllBytesAsync(store.StorePath);
-
-                await Assert.ThrowsAsync<InvalidOperationException>(() => store.ConfirmBundledChangeAsync(row with
+                // Independent DesktopSessionHost lifetimes in one test process, not OS-process restarts.
+                using DesktopPluginFixtures offline = new();
+                DesktopSessionHost updated = Create(profile.Path, offline);
+                try
                 {
-                    ChangeFingerprint = new string('0', 64)
-                }, Plugin(baseline).Active!.Configuration, acknowledgeChanges: true, authorizePermissions: true, expectedRevision: preview.ProfileRevision));
-                await Assert.ThrowsAsync<InvalidOperationException>(() => store.ConfirmBundledChangeAsync(
-                    row, Plugin(baseline).Active!.Configuration, acknowledgeChanges: true, authorizePermissions: false, expectedRevision: preview.ProfileRevision));
-                Assert.Equal(beforeRejected, await File.ReadAllBytesAsync(store.StorePath));
-                AssertBlockedAtHostBoundary(baseline, await store.ReadAsync());
-                Assert.Empty(reviewing.Plugins.Runtime.GetSnapshots());
+                    await updated.StartAsync().WaitAsync(Deadline);
+                    Assert.True(updated.State == DesktopSessionState.Ready, updated.StartupError);
+                    PluginProfileStore store = Assert.IsType<PluginProfileStore>(updated.Plugins!.ProfileStore);
+                    PluginProfileSnapshot active = await store.ReadAsync();
+                    PluginActivationSnapshot plugin = Plugin(active);
+                    Assert.NotNull(plugin.Active);
+                    Assert.Null(plugin.Problem);
+                    Assert.Null(plugin.Pending);
+                    Assert.NotEqual(Plugin(baseline).Active!.ExecutionRevision, plugin.Active!.ExecutionRevision);
+                    Assert.Equal(Plugin(baseline).SelectedCandidateId, plugin.SelectedCandidateId);
+                    Assert.Equal(variant.DeclaredName, plugin.Active.Description.Name);
+                    Assert.True(plugin.Enabled);
+                    Assert.Equal(SdkJson.Serialize(Plugin(baseline).Active!.Configuration), SdkJson.Serialize(plugin.Active.Configuration));
+                    Assert.Equal(SdkJson.Serialize(baseline.Grants), SdkJson.Serialize(active.Grants));
+                    Assert.Equal(SdkJson.Serialize(baseline.SelectedSourceOwners), SdkJson.Serialize(active.SelectedSourceOwners));
+                    Assert.Equal(permission, Config.LoadConfig(profile.Path).SourceMediaIntegrityPermissions[SourceMediaIntegrityPermission.CreateKey(permission.PluginOwnerId, permission.SourceId)]);
+                    // Nothing waits for "Review this repair".
+                    Assert.DoesNotContain((await store.PreviewBundledRepairsAsync()).Rows, row => row.PluginId == KohlchanPluginId);
 
-                PluginProfileSnapshot pending = await store.ConfirmBundledChangeAsync(row, Plugin(baseline).Active!.Configuration,
-                    acknowledgeChanges: true, authorizePermissions: true, expectedRevision: preview.ProfileRevision);
-                AssertBlockedAtHostBoundary(baseline, pending);
-                Assert.Equal(row.NewCandidateId, Plugin(pending).Pending!.CandidateId);
-                Assert.Equal(SdkJson.Serialize(baseline.Grants), SdkJson.Serialize(pending.Grants));
-                Assert.Equal(SdkJson.Serialize(baseline.SelectedSourceOwners), SdkJson.Serialize(pending.SelectedSourceOwners));
-                Assert.Equal(permission, Config.LoadConfig(profile.Path).SourceMediaIntegrityPermissions[SourceMediaIntegrityPermission.CreateKey(permission.PluginOwnerId, permission.SourceId)]);
+                    await updated.SetPausedAsync(false).WaitAsync(Deadline);
+                    BoardAdmissionPreview preview = await updated.PreviewBoardAdmissionAsync(DesktopPluginFixtures.Origin("kohlchan") + "/demo/").WaitAsync(Deadline);
+                    Assert.Equal("123", Assert.Single(preview.Threads).Id);
+                    Assert.Contains(updated.Plugins.Runtime.GetSnapshots(), worker => worker.ProcessId is > 0
+                        && worker.Identity.ExecutionRevision == plugin.Active.ExecutionRevision);
+                    Assert.NotEmpty(offline.Requests);
+                }
+                finally { await StopAndVerifyAsync(updated); }
             }
-            finally { await StopAndVerifyAsync(reviewing); }
-
-            using DesktopPluginFixtures offline = new();
-            DesktopSessionHost restored = Create(profile.Path, offline);
-            try
-            {
-                await restored.StartAsync().WaitAsync(Deadline);
-                Assert.True(restored.State == DesktopSessionState.Ready, restored.StartupError);
-                PluginProfileSnapshot active = await restored.Plugins!.ProfileStore.ReadAsync();
-                Assert.NotEqual(Plugin(baseline).Active!.ExecutionRevision, Plugin(active).Active!.ExecutionRevision);
-                Assert.Equal(variant.DeclaredName, Plugin(active).Active!.Description.Name);
-                Assert.True(Plugin(active).Enabled);
-                Assert.Equal(SdkJson.Serialize(Plugin(baseline).Active!.Configuration), SdkJson.Serialize(Plugin(active).Active!.Configuration));
-                Assert.Equal(SdkJson.Serialize(baseline.Grants), SdkJson.Serialize(active.Grants));
-                Assert.Equal(SdkJson.Serialize(baseline.SelectedSourceOwners), SdkJson.Serialize(active.SelectedSourceOwners));
-                Assert.Equal(permission, Config.LoadConfig(profile.Path).SourceMediaIntegrityPermissions[SourceMediaIntegrityPermission.CreateKey(permission.PluginOwnerId, permission.SourceId)]);
-
-                // Configure deliberately pauses all acquisition during admission. Only now,
-                // after exact consent and the independent host start, admit this offline call.
-                await restored.SetPausedAsync(false).WaitAsync(Deadline);
-                BoardAdmissionPreview preview = await restored.PreviewBoardAdmissionAsync(DesktopPluginFixtures.Origin("kohlchan") + "/demo/").WaitAsync(Deadline);
-                Assert.Equal("123", Assert.Single(preview.Threads).Id);
-                Assert.Contains(restored.Plugins.Runtime.GetSnapshots(), worker => worker.ProcessId is > 0
-                    && worker.Identity.ExecutionRevision == Plugin(active).Active!.ExecutionRevision);
-                Assert.NotEmpty(offline.Requests);
-            }
-            finally { await StopAndVerifyAsync(restored); }
         }
     }
 
@@ -497,18 +365,6 @@ public sealed class DesktopPluginSessionIntegrationTests(ITestOutputHelper outpu
         Assert.NotNull(plugin.Active);
         if (!plugin.Enabled) state = await host.Plugins.ProfileStore.SetEnabledAsync(KohlchanPluginId, true, state.Revision);
         return state;
-    }
-
-    private static void AssertBlockedAtHostBoundary(PluginProfileSnapshot baseline, PluginProfileSnapshot current)
-    {
-        PluginActivationSnapshot oldPlugin = Plugin(baseline), currentPlugin = Plugin(current);
-        Assert.True(currentPlugin.Enabled);
-        Assert.Equal(oldPlugin.SelectedCandidateId, currentPlugin.SelectedCandidateId);
-        Assert.Null(currentPlugin.Active);
-        Assert.Equal(oldPlugin.Active!.ExecutionRevision, currentPlugin.LastGood!.ExecutionRevision);
-        Assert.Equal(SdkJson.Serialize(oldPlugin.Active.Configuration), SdkJson.Serialize(currentPlugin.LastGood.Configuration));
-        Assert.Equal(SdkJson.Serialize(baseline.Grants), SdkJson.Serialize(current.Grants));
-        Assert.Equal(SdkJson.Serialize(baseline.SelectedSourceOwners), SdkJson.Serialize(current.SelectedSourceOwners));
     }
 
     private static string Hash(byte[] bytes) => Convert.ToHexStringLower(SHA256.HashData(bytes));

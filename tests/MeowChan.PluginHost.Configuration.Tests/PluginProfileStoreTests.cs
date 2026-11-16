@@ -789,7 +789,7 @@ public sealed partial class PluginProfileStoreTests : IDisposable
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task BundledGrantInheritanceIsBlockedAcrossRelocationAndInPlaceUpdate(bool samePath)
+    public async Task BundledGrantInheritanceIsBlockedAcrossRelocationButCarriedOverInPlace(bool samePath)
     {
         var old = await Delivered("install", "one");
         var store = Store(); var state = await store.ApplyBundledStartupAsync([old.Candidate], [old.Proof], [], 0);
@@ -797,6 +797,15 @@ public sealed partial class PluginProfileStoreTests : IDisposable
         byte[] grants = SdkJson.Serialize(state.Grants);
         var moved = await Delivered(samePath ? "install" : "moved", "two");
         state = await store.ApplyBundledStartupAsync([moved.Candidate], [moved.Proof], [], state.Revision);
+        if (samePath)
+        {
+            // Decision #130: the same shipped manifest, rebuilt in place, keeps its existing grant without review.
+            Assert.Equal(moved.Candidate.Artifact!.ExecutionRevision, Active(state).ExecutionRevision);
+            Assert.Null(state.Plugins[0].Problem);
+            Assert.Empty((await store.PreviewBundledRepairsAsync()).Rows);
+            Assert.Equal(grants, SdkJson.Serialize(state.Grants));
+            return;
+        }
         Assert.Null(state.Plugins[0].Active);
         var row = Assert.Single((await store.PreviewBundledRepairsAsync()).Rows);
         Assert.Equal("inherited-grants", row.BlockedReason);
