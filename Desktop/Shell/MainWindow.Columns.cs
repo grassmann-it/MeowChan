@@ -27,6 +27,8 @@ public partial class MainWindow
         if (sender is not Button button) return;
         ContextMenu menu = BuildDownloadColumnsMenu(DownloadsTabs.SelectedIndex == 1 ? "BoardsDataGrid" : "ThreadsDataGrid");
         button.ContextMenu = menu;
+        // The menu is built for the table of the tab shown now; a later right-click on the button must not reopen it for another tab.
+        menu.Closed += (_, _) => { if (ReferenceEquals(button.ContextMenu, menu)) button.ContextMenu = null; };
         menu.Open(button);
     }
 

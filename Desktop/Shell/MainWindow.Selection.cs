@@ -181,6 +181,11 @@ public partial class MainWindow
     private BoardRow? LeadBoard => _sessionRowsApplying || SelectedBoards().Length == 0 ? null
         : SelectedBoards().FirstOrDefault(row => row.WatchId == _boardLeadId) ?? SelectedBoards().FirstOrDefault();
 
+    /// <summary>The press landed on a column header of a downloads table (and on no row).</summary>
+    internal static bool IsDownloadColumnHeaderSource(object? source) => source is Visual visual
+        && visual.GetSelfAndVisualAncestors().OfType<DataGridColumnHeader>().Any()
+        && !visual.GetSelfAndVisualAncestors().OfType<DataGridRow>().Any();
+
     private void SelectDownloadContextRow(object? sender, PointerPressedEventArgs e)
     {
         if (_sessionRowsApplying) { e.Handled = true; return; }
@@ -192,6 +197,13 @@ public partial class MainWindow
         if (item is BoardRow board) _boardLeadId = board.WatchId;
         if (!e.GetCurrentPoint(grid).Properties.IsRightButtonPressed) return;
         _downloadPointerContextHandled.Add(grid);
+        if (IsDownloadColumnHeaderSource(e.Source))
+        {
+            // A column header is no empty area: its own menu (MainWindow.Columns.cs, registered after this handler) opens over the selection, which
+            // stays. The release ContextRequested stays swallowed (the flag above), and the row menu of the table closes.
+            grid.ContextMenu?.Close();
+            return;
+        }
         if (item == null)
         {
             grid.SelectedItems.Clear();

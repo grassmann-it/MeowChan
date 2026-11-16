@@ -53,7 +53,7 @@ public partial class ArchivePage
         ShowColumnMenu(menu, header);
     }
 
-    /// <summary>How a header's column menu is shown (a test records it instead of opening a popup).</summary>
+    /// <summary>How a column menu (a header's or the Columns button's) is shown (a test records it instead of opening a popup).</summary>
     internal Action<ContextMenu, Control> ShowColumnMenu { get; set; } = static (menu, header) => menu.Open(header);
 
     /// <summary>
