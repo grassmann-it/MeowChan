@@ -91,6 +91,7 @@ public sealed class Released102RestPackageUpgradeTests(ITestOutputHelper output)
         // namespace handshake; unshare then creates the network namespace without asking bwrap to configure lo.
         // A requested backend is never silently downgraded.
         string? namespaceBackend = Environment.GetEnvironmentVariable("MEOWCHAN_RELEASED102_NETWORK_NAMESPACE");
+        IReadOnlyDictionary<string, string> cycleEnvironment = Released102CycleEnvironment.Create(result);
         ProcessStartInfo start;
         if (string.IsNullOrWhiteSpace(namespaceBackend))
         {
@@ -147,6 +148,7 @@ public sealed class Released102RestPackageUpgradeTests(ITestOutputHelper output)
             start.ArgumentList.Add("--bind"); start.ArgumentList.Add(profile); start.ArgumentList.Add(profile);
             string resultsDirectory = Path.GetDirectoryName(result)!;
             start.ArgumentList.Add("--bind"); start.ArgumentList.Add(resultsDirectory); start.ArgumentList.Add(resultsDirectory);
+            Released102CycleEnvironment.Apply(start, cycleEnvironment, bubblewrap: true);
             string unshare = Environment.GetEnvironmentVariable("MEOWCHAN_RELEASED102_UNSHARE_PATH") ?? "unshare";
             string setpriv = Environment.GetEnvironmentVariable("MEOWCHAN_RELEASED102_SETPRIV_PATH") ?? "setpriv";
             start.ArgumentList.Add("--");
@@ -167,6 +169,7 @@ public sealed class Released102RestPackageUpgradeTests(ITestOutputHelper output)
         {
             throw new InvalidOperationException("Unsupported MEOWCHAN_RELEASED102_NETWORK_NAMESPACE backend: " + namespaceBackend);
         }
+        Released102CycleEnvironment.Apply(start, cycleEnvironment, bubblewrap: false);
         start.UseShellExecute = false; start.RedirectStandardOutput = true; start.RedirectStandardError = true;
         start.WorkingDirectory = Path.GetDirectoryName(consumer)!;
         start.ArgumentList.Add(consumer); start.ArgumentList.Add(profile); start.ArgumentList.Add(result);
