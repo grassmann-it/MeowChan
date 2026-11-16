@@ -25,7 +25,7 @@ Source-level fixes or contract tests alone do not prove native mouse/keyboard de
 
 - **Report:** Clicking a thread while the media sidebar is already open leaves “Select a post to see its media here”, although the thread has loaded posts and media. “Enlarge focused media” should apply without a second selection click.
 - **Expected:** Establish an initial post selection when opening a thread. An explicit jump or valid restored reading position has priority; otherwise select the first visible post. Display its first applicable medium and apply the existing focused-media enlargement mode.
-- **Status:** Dedicated current-source investigation/fix in progress; do not mark resolved from old screenshots or unrelated thumbnail fixes.
+- **Status:** Initial row-selection fix integrated as `01d9a70ac`; four Python contracts pass. Focused C# tests and final native verification remain pending.
 - **Cross-view review:** Archive embedded reader, large reader, sidebar image/video, filtered and paged posts, reopening a thread and switching threads quickly.
 - **Regression evidence:** Real thread open → selected card → correct sidebar medium → enlargement. Cover empty thread, first post without media, filtered initial post, saved position, explicit post jump, cancellation/stale loads and live updates. Selection must not steal keyboard focus from unrelated controls or unexpectedly move a live reader's scroll position.
 - **Relationship to UX-01:** A large empty media panel caused by missing selection is a state-initialization problem, not simply a margin problem. Legitimate no-media states need an honest explanation, never a stale previous image.
@@ -42,7 +42,7 @@ Source-level fixes or contract tests alone do not prove native mouse/keyboard de
 
 - **Report:** Thread favorite status takes a long time to load.
 - **Current-source finding:** Thread favorites are hydrated after plugin/registry startup although the catalog can already be readable. Existing Archive rows can miss a subsequently published snapshot until another refresh.
-- **Status:** Dedicated bounded fix and regression tests in progress.
+- **Status:** Worker fix `615f58ea6` passes 19 focused tests; parent integration/native verification pending. Additional Downloads → context-menu Read path regression is being added: that route bypassed list loading, previously the only place that populated the page favorite cache.
 - **Expected:** Known favorite state should be available with readable thread data where feasible; loading, unavailable/error and off are distinct states. A newer snapshot updates visible rows/detail without disk I/O on the UI thread.
 - **Cross-view review:** Thread list/table, reader header, favorite overview and any other passive metadata badges. Slow/failed plugin startup must not indefinitely block unrelated local state.
 - **Regression evidence:** Delay startup deliberately, then publish the snapshot; assert visible state catches up. Cover favorite writes during load, failure/retry, host/profile rebinding and disposal. Old completions must never paint a newly opened profile.
@@ -91,3 +91,17 @@ names, duplicate suppression and avoiding history writes for each keystroke are 
 Recommendation pending user decision: treat this as planned feature work rather than silently
 expanding the currently running 1.1.0 release-validation scope. Existing broken behavior remains
 separate from adding this new shared experience.
+
+### UX-06 — Loaded media regresses to a permanent loading placeholder
+
+- **Report:** With the reader sidebar open, Up/Down navigation briefly shows a new image, then a gray loading placeholder replaces it indefinitely.
+- **Confirmed old-build cause:** A delayed placeholder timer remained active while neighbour preloads ran after the selected image had already been displayed. Current-source fix `25bacbc72` addresses this; it is absent from the reported old build.
+- **Remaining hardening:** Immediately invalidate old requests on selection changes; ensure current-request cancellation ends loading; retain a valid same-medium image when a higher-resolution replacement fails. Dedicated worker/tests in progress, not accepted yet.
+- **Cross-view review:** Archive/large reader sidebar and Media sidebar; rapid forward/back navigation, resize, image/video transitions, missing files and disposal.
+- **Evidence required:** Deterministically reverse completion order and delay preview/full decode; stale results never alter the current medium or loading state. A previous post's image must not masquerade as the newly selected medium.
+
+### UX-07 — Update action icon consistency
+
+- **Report:** Check for updates should show a refresh icon.
+- **Source finding:** Application command already declares `refresh-cw`; About's button still assigns text-only content.
+- **Expected:** Consistent icon and localized accessible label, including checking/disabled states; no change to update/network policy. Implementation pending.
