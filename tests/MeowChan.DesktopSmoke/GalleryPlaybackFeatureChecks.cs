@@ -527,7 +527,23 @@ internal static partial class GalleryPlaybackFeatureChecks
         async Task BottomAsync()
         {
             Console.WriteLine("EDGE before move: " + JsonSerializer.Serialize(ObserveEdges()));
-            await native.MoveAsync(viewer, new Point(viewer.Bounds.Width * .45, viewer.Bounds.Height - 2));
+            // The bottom edge can be hosted by a different current presentation
+            // root from the GalleryViewer (the transparent native video overlay).
+            // Resolve the control that owns the point in this turn instead of
+            // pairing a viewer-relative bottom coordinate with a stale root. When
+            // the footer is visible, its current surface owns the transport; after
+            // auto-hide, the edge handle owns the reveal. MoveAsync keeps the
+            // strict native hit-test and re-resolves this selector on every bounded
+            // transaction retry.
+            await native.MoveAsync(
+                () =>
+                {
+                    Control footer = Find<Control>(viewer, "GalleryOverlayFooter");
+                    if (footer.IsEffectivelyVisible && footer.IsHitTestVisible)
+                        return Task.FromResult(footer);
+                    return Task.FromResult<Control>(Find<Button>(viewer, "GalleryControlsEdgeIndicator"));
+                },
+                target => Task.FromResult<Point?>(new Point(target.Bounds.Width / 2, target.Bounds.Height / 2)));
             Console.WriteLine("EDGE after move: " + JsonSerializer.Serialize(ObserveEdges()));
         }
         await CenterAsync();
