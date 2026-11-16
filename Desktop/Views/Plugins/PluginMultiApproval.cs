@@ -112,11 +112,7 @@ internal sealed class PluginMultiApproval(IPluginProfileStore store)
                 {
                     _receipts[start + i] = new(choice, PluginApprovalState.NeedsReview);
                     IssueKey = "plugins.approval.needsReview";
-                    // A bad row must not hide independent rows selected in the same batch. Re-read
-                    // each next row against the store's current revision instead of adopting a
-                    // locally incremented revision.
-                    expected = (await store.ReadAsync(token)).Revision;
-                    continue;
+                    return; // In particular: never adopt a foreign preview revision.
                 }
                 dispatched = true;
                 var result = await (choice.Kind switch
@@ -129,20 +125,14 @@ internal sealed class PluginMultiApproval(IPluginProfileStore store)
                 });
                 _consumed.Add(choice.PluginId);
                 _receipts[start + i] = new(choice, PluginApprovalState.Saved, result.Revision);
-                if (result.Revision <= expected)
-                {
-                    IssueKey = "plugins.approval.needsReview";
-                    expected = (await store.ReadAsync(token)).Revision;
-                    continue;
-                }
+                if (result.Revision <= expected) { IssueKey = "plugins.approval.needsReview"; return; }
                 expected = result.Revision; // ONLY the return revision of our immediately preceding successful write.
             }
             catch (PluginProfileConflictException)
             {
                 _receipts[start + i] = new(choice, PluginApprovalState.NeedsReview);
                 IssueKey = "plugins.approval.needsReview";
-                expected = (await store.ReadAsync(token)).Revision;
-                continue;
+                return;
             }
             catch (Exception exception) when (!dispatched &&
                 (exception is OperationCanceledException || _stop || token.IsCancellationRequested))
@@ -160,11 +150,7 @@ internal sealed class PluginMultiApproval(IPluginProfileStore store)
                 var state = uncertain ? PluginApprovalState.CheckStore : PluginApprovalState.Failed;
                 _receipts[start + i] = new(choice, state);
                 IssueKey = uncertain ? "plugins.approval.checkStore" : "plugins.approval.failed";
-                if (token.IsCancellationRequested || _stop || !admit()) return;
-                // Continue with independent checked rows. The read makes the next preview use
-                // the writer's actual revision whether this attempt published or not.
-                try { expected = (await store.ReadAsync(token)).Revision; }
-                catch (OperationCanceledException) { IssueKey = "plugins.approval.stopped"; return; }
+                return; // Honest partial results; no automatic retry, rollback or remaining writes.
             }
         }
     }

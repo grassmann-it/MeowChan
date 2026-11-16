@@ -85,11 +85,6 @@ public partial class PluginsPage
             StackPanel selectionRows = new() { Spacing = 16 };
             StackPanel receipts = new() { Spacing = 8 };
             List<(CheckBox Ack, PluginApprovalChoice Choice)> reauthorizations = new();
-            // Keep consent for the same frozen row across a refresh. The row fingerprint, rather
-            // than only the plugin ID, prevents a stale acknowledgement from crossing a target change.
-            HashSet<string> retainedAcknowledgements = new(StringComparer.Ordinal);
-            static string AcknowledgementKey(BundledCandidateRepair row) => string.Join("\u001f",
-                row.PluginId, row.OldCandidateId, row.NewCandidateId, row.NewExecutionRevision, row.PermissionFingerprint);
             // Neutral progress/outcome text sits politely above the footer actions; only real problems use the
             // assertive error strip. Exactly one of the two carries a message at a time, so nothing is announced twice.
             TextBlock status = RepairText("");
@@ -180,10 +175,7 @@ public partial class PluginsPage
                     {
                         await ReloadAsync();
                         if (!SessionCurrent() || closeRequested) return;
-                        foreach (PluginApprovalChoice choice in choices)
-                            if (!approval.MayOffer(choice.PluginId) && choice.Repair is { } repair)
-                                retainedAcknowledgements.Remove(AcknowledgementKey(repair));
-                        RenderRows();
+                        RenderRows(); // All unconsumed checkboxes are freshly UNCHECKED, also on failure.
                         SetStatus(approval.IssueKey ?? (!coherent ? "plugins.approval.needsReview" :
                             choices.Count == 1 && choices[0].Kind == PluginApprovalKind.ChangeReview
                                 ? "plugins.changeReview.saved" : "plugins.approval.reviewAgain"));
@@ -262,10 +254,9 @@ public partial class PluginsPage
                         else content.Children.Add(RepairText(Texts.T("plugins.repair.reauthorize.unavailable")));
                         string acknowledgementText = Texts.T("plugins.repair.reauthorize.acknowledge", row.PluginId,
                             row.NewExecutionRevision ?? Texts.T("plugins.repair.unknown"));
-                        string acknowledgementKey = AcknowledgementKey(row);
                         CheckBox acknowledgement = new()
                         {
-                            Content = RepairText(acknowledgementText), IsChecked = retainedAcknowledgements.Contains(acknowledgementKey), IsThreeState = false,
+                            Content = RepairText(acknowledgementText), IsChecked = false, IsThreeState = false,
                             IsEnabled = coherent && approval.MayOffer(row.PluginId) && permissions is not null
                         };
                         AutomationProperties.SetAutomationId(acknowledgement, automationPrefix + "Acknowledge");
@@ -284,12 +275,7 @@ public partial class PluginsPage
                                 permissions is not null && row.CanReauthorize && acknowledgement.IsChecked == true;
                             UpdateSubmit();
                         }
-                        acknowledgement.IsCheckedChanged += (_, _) =>
-                        {
-                            if (acknowledgement.IsChecked == true) retainedAcknowledgements.Add(acknowledgementKey);
-                            else retainedAcknowledgements.Remove(acknowledgementKey);
-                            UpdateAcknowledgement();
-                        };
+                        acknowledgement.IsCheckedChanged += (_, _) => UpdateAcknowledgement();
                         // Avalonia raises IsCheckedChanged before the native ToggleButton click has fully
                         // settled on some backends. Recompute synchronously from the final click state so the
                         // accessible label and the visible label cannot lag behind the checked rows.
