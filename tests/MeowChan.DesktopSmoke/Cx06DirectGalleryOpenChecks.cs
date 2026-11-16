@@ -52,6 +52,8 @@ internal static partial class MediaPageChecks
             GalleryViewerChecksAccess.Click(opened, "GalleryClose");
             await UntilAsync(() => !galleryHost.IsVisible);
             await shell.GalleryCleanupTask.WaitAsync(Deadline);
+            // Deliberately do not wait for MediaReturnTask: the page is already interactive and a
+            // new selection/open must supersede the deferred return, not be overwritten by it.
         }
         async Task OnMediaAsync()
         {
@@ -122,6 +124,21 @@ internal static partial class MediaPageChecks
         await page.OpenGallery!(new ResolverBoundaryWindow([page.ShownEntries[0]], () => { }, fail: true), 0).WaitAsync(Deadline);
         Require(Failures() == beforeFailure + 1, "CX-06 must retain feedback for a current resolver failure.");
 
+        // A selection made after a return is queued belongs to the user, even when it came
+        // through the selection model (accessibility/commands), not a routed pointer/key event.
+        // Force the deferred phase without a delay, then replace rows with the same logical entries.
+        await shell.MediaReturnTask.WaitAsync(Deadline);
+        page.Grid.Selection.Clear();
+        page.Grid.Selection.Select(0);
+        MediaLibraryReturnPoint priorSelection = page.CaptureReturnPoint(page.ShownEntries[0]);
+        Task<bool> pendingReturn = page.ReturnToAsync(priorSelection);
+        Require(!pendingReturn.IsCompleted, "CX-06 must exercise a queued media return.");
+        page.Grid.Selection.Select(1);
+        RePresent();
+        await pendingReturn.WaitAsync(Deadline);
+        Require(page.Grid.Selection.SelectedIndexes.Order().SequenceEqual(new[] { 0, 1 }),
+            "CX-06 a deferred media return overwrote the new selection after row replacement.");
+
         // Native cleanup is already independently tested. Hold its existing shell barrier here,
         // and prove that the original page/menu request survives all the way to admission.
         foreach (string outcome in new[] { "navigation", "roundtrip", "presentation", "cleanup-error", "menu-request", "valid-menu", "valid-enter", "valid-selection" })
@@ -165,7 +182,8 @@ internal static partial class MediaPageChecks
                 {
                     Require(galleryHost.IsVisible && galleryHost.Content is GalleryViewer { ClosesToMedia: true },
                         "CX-06 suppressed a current selection gallery after cleanup.");
-                    Require(page.SelectedTiles.Count == selectedCount, "CX-06 changed the valid gallery selection.");
+                    Require(page.SelectedTiles.Count == selectedCount,
+                        $"CX-06 changed the valid gallery selection: outcome={outcome}, expected={selectedCount}, actual={page.SelectedTiles.Count}, indexes={string.Join(',', page.Grid.Selection.SelectedIndexes)}.");
                     GalleryViewer viewer = (GalleryViewer)galleryHost.Content!;
                     await UntilAsync(() => viewer.CaptureState().PostId == chosen.PostId);
                     Require(Failures() == failures, "CX-06 current gallery emitted failure feedback.");
@@ -197,7 +215,7 @@ internal static partial class MediaPageChecks
                 }
             }
         }
-        Console.WriteLine("SMOKE CX-06 direct media gallery: stale resolver success/missing/error, navigation and presentation roundtrips suppressed; current tile survives resolver re-presentation; current error retained; cleanup navigation/roundtrip/presentation/error and stale menu request suppressed; current menu and re-presented Enter/selection galleries still open and close to media. Existing nested reader-return journeys also ran.");
+        Console.WriteLine("SMOKE CX-06 direct media gallery: stale resolver success/missing/error, navigation and presentation roundtrips suppressed; current tile survives resolver re-presentation; current error retained; new selection supersedes a queued return across row replacement; cleanup navigation/roundtrip/presentation/error and stale menu request suppressed; current menu and re-presented Enter/selection galleries still open and close to media. Existing nested reader-return journeys also ran.");
     }
 
     private sealed class ResolverBoundaryWindow : IReadOnlyList<MediaLibraryEntry>

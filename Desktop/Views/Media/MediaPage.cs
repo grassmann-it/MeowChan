@@ -233,7 +233,17 @@ public sealed partial class MediaPage : UserControl
         _grid.KeyDown += OnGridKeyDown;
         AddHandler(KeyDownEvent, OnPageRateAndTagKey, RoutingStrategies.Bubble);
         _grid.AddHandler(KeyDownEvent, OnSelectAllWhilePresenting, RoutingStrategies.Tunnel);
-        _grid.SelectionChanged += (_, e) => { if (_restoring) return; _selectionStamp++; ShowSelectionNote(null); UpdateSelectionBar(); OnPanelSelectionChanged(e); };
+        _grid.SelectionChanged += (_, e) =>
+        {
+            if (_restoring) return;
+            // A new selection owns the page even without a routed pointer/key event (e.g. accessibility).
+            // Do not let an earlier gallery return overwrite it while the next gallery is resolving.
+            EndPendingReturn();
+            _selectionStamp++;
+            ShowSelectionNote(null);
+            UpdateSelectionBar();
+            OnPanelSelectionChanged(e);
+        };
         InstallReturnInterruption();
         RegisterWorkViewIds();
         Texts.Changed += OnLanguageChanged;
