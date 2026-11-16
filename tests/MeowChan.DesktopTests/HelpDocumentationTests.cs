@@ -335,7 +335,7 @@ public sealed class HelpDocumentationTests
         Assert.Contains("_quickTagStamp.Capacity = _config.TagStampSize", owner, StringComparison.Ordinal);
         Assert.Contains("config => config.TagStamp = (string[])names.Clone()", owner, StringComparison.Ordinal);
         Assert.Contains("await RunAsync(target => target.AddExistingAsync(tag.Id, token));", Read("Desktop/QuickTagSession.cs"), StringComparison.Ordinal);
-        Assert.Contains("case QuickTagKeyAction.ApplyStamp: _ = ApplyStampAsync(); return true;", Plain(Read("Desktop/Controls/QuickTagSurface.cs")), StringComparison.Ordinal);
+        Assert.Contains("case QuickTagKeyAction.ApplyStamp: OpenActions.Start(() => ApplyStampAsync(), \"tags.quick.stamp.key\"); return true;", Plain(Read("Desktop/Controls/QuickTagSurface.cs")), StringComparison.Ordinal);
         Assert.Contains("return surface.Execute(new QuickTagKeyRoute(QuickTagKeyAction.ApplyStamp))", Read("Desktop/Controls/QuickTagPopover.cs"), StringComparison.Ordinal);
         Assert.Contains("TagPopoverAsync = OpenMediaLibraryTagPopoverAsync", Read("Desktop/Shell/MainWindow.Media.cs"), StringComparison.Ordinal);
         Assert.Contains("_archivePage.TagPopoverAsync = OpenArchiveMediaTagPopoverAsync", Read("Desktop/Shell/MainWindow.Navigation.cs"), StringComparison.Ordinal);

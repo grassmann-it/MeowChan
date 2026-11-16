@@ -109,15 +109,18 @@ public sealed class GalleryRatingKeyTests : IDisposable
     [Fact]
     public void ASavedBindingOnAShiftDigitKeepsItAndOnlyThatRatingDefaultYields()
     {
-        // The user once put Fit on Shift+3 and Zoom out on Shift+0: both keep their keys, and only the matching ratings give way.
+        // Fit and Zoom out keep saved Shift-digit bindings. The rating defaults remain available in their other contexts and yield only
+        // in the gallery context where those saved bindings run.
         var section = new ShortcutBindingsSection()
             .Set("gallery.fit", [ShortcutGesture.Parse("Shift+3")])
             .Set("gallery.zoom-out", [ShortcutGesture.Parse("Shift+0")]);
         var bindings = EffectiveShortcutBindings.Build(section, ShortcutPlatform.Linux);
         Assert.Equal("Shift+3", bindings.Display("gallery.fit"));
         Assert.Equal("Shift+0", bindings.Display("gallery.zoom-out"));
-        Assert.Empty(bindings.For("media.rating.set-3"));
-        Assert.Empty(bindings.For("media.rating.clear"));
+        Assert.NotEmpty(bindings.For("media.rating.set-3"));
+        Assert.NotEmpty(bindings.For("media.rating.clear"));
+        Assert.Equal(new[] { "gallery" }, bindings.YieldedContexts("media.rating.set-3", ShortcutGesture.Parse("Shift+3")));
+        Assert.Equal(new[] { "gallery" }, bindings.YieldedContexts("media.rating.clear", ShortcutGesture.Parse("Shift+0")));
         Assert.Equal("Shift+1", bindings.Display("media.rating.set-1"));
         Assert.Equal("Shift+5", bindings.Display("media.rating.set-5"));
         Assert.DoesNotContain(bindings.Issues, issue => issue.BlocksSave);
