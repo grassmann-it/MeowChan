@@ -341,7 +341,10 @@ internal static partial class GalleryPlaybackFeatureChecks
             Require(evidence.AudioAvailable && evidence.AudioTracks > 0, "Synthetic audio track is unavailable; volume acceptance cannot silently skip.");
             Require(volume.IsEffectivelyEnabled, "Real audio fixture did not enable volume.");
         }
-        await native.MoveAsync(volume);
+        // A no-output fixture disables the volume slider. Its hover is still a real
+        // pointer motion, but the disabled popup child is not an actionable native
+        // hit target; keep strict admission for the enabled/audio-positive branch.
+        await native.MoveAsync(volume, requireEnabled: !nativeUnavailable, requireHitTest: !nativeUnavailable);
         await ObservePlayingAsync(player, "volume hover");
         Require(Running(viewer) && !viewer.CaptureState().ContextOpen, "Volume hover opened post/paused slideshow.");
         if (nativeUnavailable)
