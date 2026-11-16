@@ -315,6 +315,14 @@ internal static partial class GalleryPlaybackFeatureChecks
         await native.ClickAsync(Find<Button>(viewer, "GallerySlideshowToggle"));
         GalleryVideoPlayer player = Player(viewer);
         await UntilAsync(async () => HasRealFrames(await player.InspectPlaybackAsync()) && Running(viewer), "Transport fixture did not start.");
+        Point LoopPoint(Border currentTransport)
+        {
+            ToggleButton currentLoop = currentTransport.GetVisualDescendants().OfType<ToggleButton>()
+                .Single(control => control.Name == "GalleryVideoLoop");
+            return currentLoop.TranslatePoint(
+                new Point(currentLoop.Bounds.Width / 2, currentLoop.Bounds.Height / 2), currentTransport)
+                ?? throw new ArgumentException("Gallery loop target has no current transport transform.", nameof(currentTransport));
+        }
         var evidence = await player.InspectPlaybackAsync();
         int contextWrites = 0;
         viewer.ContextOpenChanged += _ => contextWrites++;
@@ -377,7 +385,12 @@ internal static partial class GalleryPlaybackFeatureChecks
         await ObservePlayingAsync(player, "bottom transport at right hotspot");
         Require(Running(viewer) && !viewer.CaptureState().ContextOpen, "Right hotspot over visible bottom transport stole precedence and opened post.");
         ToggleButton loop = Find<ToggleButton>(viewer, "GalleryVideoLoop");
-        await native.MoveAsync(loop, requireEnabled: false);
+        // The running slideshow owns Repeat, so the button is intentionally disabled.
+        // Resolve the current enabled transport and deliver native motion at the loop's
+        // current coordinates; strict hit-testing still proves the real input route.
+        await native.MoveAsync(
+            () => NativeTargetAsync<Border>(viewer, "GalleryVideoTransport"),
+            currentTransport => Task.FromResult<Point?>(LoopPoint(currentTransport)));
         await ObservePlayingAsync(player, "loop hover");
         Require(Running(viewer) && !viewer.CaptureState().ContextOpen, "Loop hover opened post and stopped progression.");
         // A running slideshow owns video repetition, so the transport loop is intentionally
