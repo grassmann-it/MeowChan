@@ -127,6 +127,14 @@ public partial class MainWindow
     private bool HasBlockingPageDecision() =>
         _selectedPage == WorkspacePage.Rules && _rulesPage?.IsRuleConfirmationOpen == true
         || _selectedPage == WorkspacePage.Sources && _pluginsPage?.IsDiscardConfirmationOpen == true;
+    /// <summary>Whether an open gallery overlay (help, post panel, favourite question) keeps the workspace shortcuts away: only while the gallery is
+    /// the active surface. A suspended gallery keeps its overlay state (the post panel stays open behind the large reader) but owns no key.</summary>
+    internal static bool GalleryOwnsShortcutRouting(bool overlayOpen, bool suspended) => overlayOpen && !suspended;
+
+    /// <summary>Whether the gallery blocks the shell's power commands (page navigation and the like): its help or favourite question owns the keys
+    /// while it is the active surface; its side panel does not, and a suspended gallery never does.</summary>
+    internal static bool GalleryBlocksShellPowerCommands(bool blocksUnfocusedHostKeys, bool suspended) => blocksUnfocusedHostKeys && !suspended;
+
     private bool RouteWorkspaceShortcut(KeyEventArgs e)
     {
         if (e.Handled || ShortcutService.IsCapturing || !IsEnabled || _isClosing || HasVisibleShellDialog()
@@ -134,8 +142,9 @@ public partial class MainWindow
             || ShellHelpOverlay.IsVisible) return false;
         if (!CommandRouter.IsRoutingContextActive(this, e.Source)) return false;
         // An open gallery panel keeps the workspace shortcuts away, but not the gallery's own keys while nothing has the focus.
-        if (_gallery is { IsOverlayOpen: true } openGallery)
-            return !openGallery.BlocksUnfocusedHostKeys && !_gallerySuspended && openGallery.RouteUnfocusedHostShortcut(e);
+        // A suspended gallery (the large reader is open over it) is hidden and owns no key: its panel or help state must not refuse the reader's routes.
+        if (_gallery is { } openGallery && GalleryOwnsShortcutRouting(openGallery.IsOverlayOpen, _gallerySuspended))
+            return !openGallery.BlocksUnfocusedHostKeys && openGallery.RouteUnfocusedHostShortcut(e);
         if (_shortcutRouter?.Route(e) == true) return true;
         // Gallery's tunnel handler owns its native-control and effective-gesture
         // policy. Only a genuine unfocused Window input may enter that same policy

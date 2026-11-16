@@ -369,14 +369,13 @@ public sealed class MediaViewsDeadAffordanceTests : IDisposable
         string pressBody = panel[press..released];
         // The press no longer drops the flag on a Background tick (that came before Avalonia's release-time ContextRequested); the release does.
         Assert.DoesNotContain("Dispatcher.UIThread.Post", pressBody);
-        Assert.Contains("_panelPointerContextPending = false; // each press starts its own gesture", pressBody);
-        Assert.Contains("_panelPointerContextPending = true;", pressBody);
+        Assert.Contains("_panelPointerContext.BeginPress(); // each press starts its own gesture", pressBody);
+        Assert.Contains("_panelPointerContext.MenuOpenedByPress();", pressBody);
         string releaseBody = panel[released..requested];
-        Assert.Contains("e.InitialPressMouseButton != MouseButton.Right", releaseBody);
-        Assert.Contains("Dispatcher.UIThread.Post(() => _panelPointerContextPending = false, DispatcherPriority.Background);", releaseBody);
+        Assert.Contains("_panelPointerContext.Released(e.InitialPressMouseButton)", releaseBody);
         Assert.Contains("panel.AddHandler(PointerReleasedEvent, OnPanelPointerReleased, RoutingStrategies.Tunnel, handledEventsToo: true);", panel);
         // A key ends a gesture whose release never came.
-        Assert.Contains("_panelPointerContextPending = false; // a key ends a pointer gesture whose release never came", panel);
+        Assert.Contains("_panelPointerContext.Reset(); // a key ends a pointer gesture whose release never came", panel);
         // The whole panel, header line and its buttons included: the handlers sit on the panel itself and the press path asks for no frame.
         Assert.Contains("panel.AddHandler(PointerPressedEvent, OnPanelPointerPressed, RoutingStrategies.Tunnel);", panel);
         Assert.Contains("panel.AddHandler(ContextRequestedEvent, OnPanelContextRequested, RoutingStrategies.Bubble);", panel);
