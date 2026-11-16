@@ -78,7 +78,10 @@ public sealed class PluginSourceUnavailableMonitorTests
             Assert.NotEqual(ThreadActivity.Error, thread.Activity);
             Assert.NotEqual(ThreadActivity.SourceUnavailable, thread.Activity);
             Assert.Null(thread.LastCheckFailure);
-            Assert.Equal(2, sink.Events.Count(e => e.Level >= LogEventLevel.Information && e.Exception == null));
+            // The source logged exactly its two transitions (disabled, available again). The thread's own NotFound after the resumed check is a
+            // normal Information-level activity line of the thread (BaseThread), not part of the source's transition lines.
+            Assert.Equal(2, sink.Events.Count(e => e.Level >= LogEventLevel.Information && e.Exception == null
+                && e.RenderMessage().StartsWith("Source ", StringComparison.Ordinal)));
         }
         finally
         {
