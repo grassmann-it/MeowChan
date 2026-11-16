@@ -65,7 +65,7 @@ internal static partial class GalleryPlaybackFeatureChecks
                 byte[] bytes = await File.ReadAllBytesAsync(video.Path);
                 string sha = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
                 string[] allowed = video.Extension == ".webm"
-                    ? ["92f5175697fa441fd6a95270ef307a55c51bc4d30b019f571dc99bf45d2fdddf",
+                    ? ["d619b46f9168375c0a05fea3b1f10184923d18f9e6f4773c2833307284c72399",
                        "4356f0c4eaa9cbc57cac91481b99dfa233da6c2664c2e4e8ef1504e68c39f7c7",
                        "a88f7ec3fa76c11c38719662ba41d5538a5775cc58afce5bf32e14e0cd5d1ad8"]
                     : ["7c15acb2dc63822b37a3ebd69207b520d2fc8e1bf270f5c53d17bb068c5584be",
