@@ -259,8 +259,9 @@ public partial class ArchivePage : UserControl
                 return new ArchiveThreadRow(summary, pending.Work.GetValueOrDefault(summary.Url))
                 {
                     PreviewText = preview?.FirstCapturedText ?? string.Empty,
-                    PreviewAttachment = preview?.FirstAttachment is CapturedAttachment attachment
-                        ? CreateListAttachmentRow(summary, preview.FirstPostId, attachment) : null
+                    // The opening post's media in position order: the row shows the first one that is saved (ArchivePage.SelectListPreview).
+                    PreviewAttachment = preview is { Attachments.Count: > 0 }
+                        ? CreateListPreviewRow(summary, preview.FirstPostId, preview.Attachments) : null
                 };
             }).ToArray();
             if (_ended || token.IsCancellationRequested || generation != _contentRequest) return false;
@@ -822,23 +823,32 @@ public partial class ArchivePage : UserControl
     }
 
     // Only visible rows resolve their exact local binding. PlannedPath is never evidence of a saved revision.
-    private ArchiveAttachmentRow CreateListAttachmentRow(ArchiveThreadSummary summary, string? postId, CapturedAttachment attachment)
+    private ArchiveAttachmentRow CreateListAttachmentRow(ArchiveThreadSummary summary, string? postId, CapturedAttachment attachment) =>
+        CreateListPreviewRow(summary, postId, new[] { attachment });
+
+    // The row stands for the opening post's first medium; when that one is not saved locally, the load shows the first saved one
+    // instead (and the file line, note and badges follow the shown medium).
+    private ArchiveAttachmentRow CreateListPreviewRow(ArchiveThreadSummary summary, string? postId, IReadOnlyList<CapturedAttachment> candidates)
     {
-        ArchiveAttachmentRow row = new(attachment);
+        ArchiveAttachmentRow row = new(candidates[0]);
         row = row with
         {
             Compact = true,
-            LoadThumbnail = token => LoadListThumbnailAsync(summary, postId, attachment, binding => row.Binding = binding, token),
+            LoadThumbnail = token => LoadListThumbnailAsync(summary, postId, candidates, (shown, binding) =>
+            {
+                row.ShownAttachment = shown; row.Binding = binding;
+            }, token),
             OpenPreview = () => OpenActions.Start(() => OpenThreadGalleryAsync(summary.Id, null, this), "archive.attachment.preview")
         };
         return row;
     }
 
     private Task<Bitmap?> LoadListThumbnailAsync(ArchiveThreadSummary summary, string? postId,
-        CapturedAttachment attachment, Action<MediaAttachmentBinding?> setBinding, CancellationToken cancellationToken) => Task.Run(async () =>
+        IReadOnlyList<CapturedAttachment> candidates, Action<CapturedAttachment, MediaAttachmentBinding?> setShown,
+        CancellationToken cancellationToken) => Task.Run(async () =>
     {
         var openReader = _openReader;
-        if (attachment.IsDeleted || postId == null || openReader == null) return null;
+        if (postId == null || openReader == null || candidates.All(item => item.IsDeleted)) return null;
         using CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
         await using ArchiveReader reader = await openReader(loading.Token);
         ArchivedThreadView? thread = await reader.ReadThreadAsync(summary.Id, loading.Token);
@@ -846,13 +856,35 @@ public partial class ArchivePage : UserControl
         List<MediaAssetSnapshot> manifests = new();
         foreach (string directory in thread.MediaDirectories)
             manifests.Add(await MediaAssetReader.OpenAsync(directory, loading.Token));
-        ResolvedMediaAttachment? resolved = MediaAttachmentResolver.Resolve(manifests, summary.Id, postId, attachment);
-        setBinding(resolved?.Binding);
-        if (resolved == null) return null;
+        (CapturedAttachment Attachment, ResolvedMediaAttachment Resolved)? chosen = SelectListPreview(manifests, summary.Id, postId, candidates);
+        setShown(chosen?.Attachment ?? candidates[0], chosen?.Resolved.Binding);
+        if (chosen is not { } selected) return null;
+        ResolvedMediaAttachment resolved = selected.Resolved;
         loading.Token.ThrowIfCancellationRequested();
         return await ArchiveListThumbnails.LoadAsync(new(resolved.Snapshot, resolved.Asset),
             Path.Combine(Config.GetConfigDirectory(), "cache", "video-posters-v1"), loading.Token, _thumbnailGate);
     }, cancellationToken);
+
+    /// <summary>
+    /// The medium a thread-list row shows: the first of the opening post's attachments (position order) whose saved file is a
+    /// previewable image or video; when none is previewable the first saved one (nothing is drawn for it); null when none is saved.
+    /// A deleted attachment is skipped. A single medium behaves as before: shown when saved, otherwise nothing.
+    /// </summary>
+    internal static (CapturedAttachment Attachment, ResolvedMediaAttachment Resolved)? SelectListPreview(
+        IReadOnlyList<MediaAssetSnapshot> manifests, ResourceId resource, string postId, IReadOnlyList<CapturedAttachment> candidates)
+    {
+        (CapturedAttachment Attachment, ResolvedMediaAttachment Resolved)? firstSaved = null;
+        foreach (CapturedAttachment candidate in candidates.OrderBy(item => item.Position))
+        {
+            if (candidate.IsDeleted) continue;
+            ResolvedMediaAttachment? resolved = MediaAttachmentResolver.Resolve(manifests, resource, postId, candidate);
+            if (resolved == null) continue;
+            if (SavedMediaTypes.Classify(resolved.Asset.OriginalFileName ?? resolved.Asset.Path) is SavedMediaKind.Image or SavedMediaKind.Video)
+                return (candidate, resolved);
+            firstSaved ??= (candidate, resolved);
+        }
+        return firstSaved;
+    }
 
     internal static ArchiveAssetRow? FindMatchingAsset(ResourceId resource, string postId,
         CapturedAttachment attachment, IReadOnlyList<ArchiveAssetRow> assets)

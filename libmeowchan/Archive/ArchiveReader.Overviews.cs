@@ -7,14 +7,26 @@ using Microsoft.Data.Sqlite;
 
 namespace MeowChan.Archive;
 
-/// <summary>Catalog-only metadata for an archive list row. An attachment does not imply that its file exists.</summary>
+/// <summary>
+/// Catalog-only metadata for an archive list row. An attachment does not imply that its file exists.
+/// <see cref="FirstAttachment"/> is the opening post's first attachment by position; <see cref="Attachments"/> lists the opening
+/// post's attachments in that order (at most 32), so a list row can pick the first one whose file is actually saved.
+/// </summary>
 public sealed record ArchiveThreadPreview(ResourceId Id, string? FirstPostId,
-    string FirstCapturedText, CapturedAttachment? FirstAttachment);
+    string FirstCapturedText, CapturedAttachment? FirstAttachment)
+{
+    /// <summary>The opening post's attachments by position (ascending); empty when it has none.</summary>
+    public IReadOnlyList<CapturedAttachment> Attachments { get; init; } =
+        FirstAttachment == null ? Array.Empty<CapturedAttachment>() : new[] { FirstAttachment };
+}
 
 public sealed partial class ArchiveReader
 {
     private const int MaximumPreviewCount = 100;
     private const int MaximumPreviewTextLength = 400;
+    // A documented read bound per thread, not a user limit: boards allow a handful of files per post; the cap only keeps one
+    // preview read small for imported data with an extreme attachment count.
+    private const int MaximumPreviewAttachments = 32;
 
     /// <summary>
     /// Reads at most 100 list previews from one local catalog snapshot. Missing thread IDs are omitted.
@@ -51,12 +63,13 @@ public sealed partial class ArchiveReader
             + ArchiveSql.AttachmentIntegrityColumns(connection, transaction) + "\n" + """
             FROM archive_attachments
             WHERE source=$source AND board=$board AND thread=$thread AND post=$post
-            ORDER BY position LIMIT 1
+            ORDER BY position LIMIT $limit
             """);
         attachmentCommand.Parameters.AddWithValue("$source", "");
         attachmentCommand.Parameters.AddWithValue("$board", "");
         attachmentCommand.Parameters.AddWithValue("$thread", "");
         attachmentCommand.Parameters.AddWithValue("$post", "");
+        attachmentCommand.Parameters.AddWithValue("$limit", MaximumPreviewAttachments);
         foreach (ResourceId id in ids)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -69,14 +82,14 @@ public sealed partial class ArchiveReader
                 text = text[..MaximumPreviewTextLength].TrimEnd();
             post.Close();
 
-            CapturedAttachment? attachment = null;
+            List<CapturedAttachment> attachments = new();
             if (postId != null)
             {
                 SetId(attachmentCommand, id);
                 attachmentCommand.Parameters["$post"].Value = postId;
                 using SqliteDataReader media = attachmentCommand.ExecuteReader();
-                if (media.Read())
-                    attachment = new CapturedAttachment(media.GetInt32(0), media.IsDBNull(1) ? null : media.GetString(1),
+                while (media.Read())
+                    attachments.Add(new CapturedAttachment(media.GetInt32(0), media.IsDBNull(1) ? null : media.GetString(1),
                         media.GetString(2), media.IsDBNull(3) ? null : media.GetString(3),
                         media.IsDBNull(4) ? null : media.GetString(4), media.IsDBNull(5) ? null : media.GetString(5),
                         media.IsDBNull(6) ? null : media.GetInt64(6), media.IsDBNull(7) ? null : media.GetString(7),
@@ -86,9 +99,10 @@ public sealed partial class ArchiveReader
                             ExpectedSha256 = media.IsDBNull(11) ? null : media.GetString(11),
                             AttachmentRevisionKey = media.IsDBNull(12) ? null : media.GetString(12),
                             ExpectedSha1 = media.IsDBNull(13) ? null : media.GetString(13),
-                            ProviderSizeHint = ArchiveSql.ReadSizeHint(media.IsDBNull(14) ? null : media.GetString(14)) };
+                            ProviderSizeHint = ArchiveSql.ReadSizeHint(media.IsDBNull(14) ? null : media.GetString(14)) });
             }
-            previews[id] = new ArchiveThreadPreview(id, postId, text, attachment);
+            previews[id] = new ArchiveThreadPreview(id, postId, text, attachments.Count > 0 ? attachments[0] : null)
+                { Attachments = attachments.ToArray() };
         }
         return new ReadOnlyDictionary<ResourceId, ArchiveThreadPreview>(previews);
     }

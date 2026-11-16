@@ -44,7 +44,7 @@ internal static class ArchiveMediaBadges
     /// page, the tagging tiles and the gallery filmstrip (<see cref="ForAsset"/> and their own views).
     /// </summary>
     internal static MediaBadgeState ForAttachment(ArchiveAttachmentRow row, bool missing = false, TimeSpan? duration = null) =>
-        new(Kind: KindOf(row.Attachment.OriginalFileName), Duration: duration, Missing: missing);
+        new(Kind: KindOf(row.Shown.OriginalFileName), Duration: duration, Missing: missing);
 
     /// <summary>A load that failed because the file is not (or no longer) there, as opposed to one that is merely not decodable.</summary>
     internal static bool IsMissingFile(Exception? error)
