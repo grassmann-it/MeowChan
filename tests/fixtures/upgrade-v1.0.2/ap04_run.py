@@ -2,7 +2,7 @@
 """AP04 final run: upgrade from the released 1.0.2 to the frozen 1.1.0 candidate, one command.
 
     python3 tests/fixtures/upgrade-v1.0.2/ap04_run.py --candidate-sha <40-hex> \\
-        --out /home/tomka/.cache/claude-ssd-tmp/ap4/r1 --linux-package-dir <stable-candidate linux-packages> \\
+        --out-root /tmp/ap04 --out /tmp/ap04/run-1 --linux-package-dir <stable-candidate linux-packages> \\
         --sha256sums <SHA256SUMS of the same stable-candidate run>
 
 Run it from a CLEAN, FRESH detached worktree of exactly the candidate commit (never the live checkout). It
@@ -45,15 +45,15 @@ import legacy102_process as process_runner  # noqa: E402
 from legacy102_process import CommandFailed, CommandTimedOut, CommandUnavailable  # noqa: E402
 RELEASE_REVISION = 'eec6c0169f8d52f7481ea0bf7febfd20981e97c3'
 EXPECTED_VERSION = '1.1.0'
-ALLOWED_OUT = Path('/home/tomka/.cache/claude-ssd-tmp/ap4')
-LOCK = Path('/home/tomka/.cache/claude-ssd-tmp/heavy.lock')
+ALLOWED_OUT = Path.home() / '.cache/claude-ssd-tmp/ap4'
+LOCK = Path.home() / '.cache/claude-ssd-tmp/heavy.lock'
 # flock --conflict-exit-code: heavy.lock was not acquired within --lock-wait, so the command never started.
 LOCK_BUSY = 75
 DEFAULT_LOCK_WAIT = 3600
 DEFAULT_NAMESPACE_BACKEND = 'bwrap'
 BWRAP_ROOT_LAUNCHER = HERE / 'bwrap-root-accessible.sh'
 NAMESPACE_BACKENDS = ('bwrap', 'bwrap-root', 'unshare')
-FEED = Path('/home/tomka/.nuget/packages')
+FEED = Path.home() / '.nuget/packages'
 TEST_NAME = 'ReleasedProviderProfileSurvivesCurrentOpenAndTwoOfflineProcessRestarts'
 TEST_FULL_NAME = 'MeowChan.DesktopTests.Released102RestPackageUpgradeTests.' + TEST_NAME
 MIN_FREE_BYTES = 6 * 1024**3
@@ -78,7 +78,11 @@ class Context:
         self.sha = args.candidate_sha
         self.out = Path(args.out).absolute()
         self.args = args
+        self.out_root = Path(getattr(args, "out_root", ALLOWED_OUT)).absolute()
+        self.feed = Path(getattr(args, "offline_feed", FEED)).absolute()
+        self.lock = Path(getattr(args, "heavy_lock", LOCK)).absolute()
         self.netns = not args.no_netns
+        self.namespace_verified = False
         self.namespace_backend = getattr(args, 'namespace_backend', DEFAULT_NAMESPACE_BACKEND)
         if self.namespace_backend not in NAMESPACE_BACKENDS:
             raise ValueError('unsupported namespace backend: ' + self.namespace_backend)
@@ -101,7 +105,7 @@ class Context:
         env = {k: v for k, v in os.environ.items() if k not in DROPPED}
         env.update(HOME=str(self.out / 'home'), TMPDIR=str(self.out / 'tmp'), DOTNET_CLI_HOME=str(self.out / 'dotnet-cli'),
                    XDG_CONFIG_HOME=str(self.out / 'home/.config'), XDG_STATE_HOME=str(self.out / 'home/.local/state'),
-                   XDG_CACHE_HOME=str(self.out / 'home/.cache'), NUGET_PACKAGES=str(FEED), DOTNET_SKIP_FIRST_TIME_EXPERIENCE='1',
+                   XDG_CACHE_HOME=str(self.out / 'home/.cache'), NUGET_PACKAGES=str(self.feed), DOTNET_SKIP_FIRST_TIME_EXPERIENCE='1',
                    DOTNET_CLI_TELEMETRY_OPTOUT='1', DOTNET_NOLOGO='1', MEOWCHAN_DISABLE_UPDATE_CHECK='1')
         if self.netns and self.namespace_backend == 'bwrap-root':
             # Root only creates a runner-rooted outer user namespace; bwrap
@@ -111,10 +115,10 @@ class Context:
         return env
 
     def heavy(self, argv):
-        return ['flock', '--close', '--wait', str(self.lock_wait), '--conflict-exit-code', str(LOCK_BUSY), str(LOCK),
+        return ['flock', '--close', '--wait', str(self.lock_wait), '--conflict-exit-code', str(LOCK_BUSY), str(self.lock),
                 'nice', '-n', '19', *argv]
 
-    def _bwrap(self, argv, bind_worktrees):
+    def _bwrap(self, argv, bind_worktrees, environment=None):
         # The hosted ARM image denies an unprivileged bwrap uid_map write. The
         # explicit bwrap-root backend runs only bwrap's setup through sudo;
         # the actual command is still entered into a fresh netns and loses all
@@ -137,7 +141,21 @@ class Context:
             command += ['--uid', str(os.getuid()), '--gid', str(os.getgid())]
         command += ['--ro-bind', '/', '/', '--proc', '/proc', '--dev', '/dev', '--tmpfs', '/tmp']
         if bind_worktrees:
-            command += ['--bind', str(self.root), str(self.root), '--bind', str(self.out), str(self.out)]
+            command += ['--bind', str(self.root), str(self.root), '--bind', str(self.out), str(self.out),
+                        '--ro-bind', str(self.feed), str(self.feed)]
+        # sudo env_reset must not discard the bounded child home or probe identity.
+        # Forward only explicit owned values, never sudo -E / the desktop environment.
+        environment = self.env() if environment is None else environment
+        keys = ('HOME', 'TMPDIR', 'DOTNET_CLI_HOME', 'XDG_CONFIG_HOME', 'XDG_STATE_HOME',
+                'XDG_CACHE_HOME', 'NUGET_PACKAGES', 'DOTNET_SKIP_FIRST_TIME_EXPERIENCE',
+                'DOTNET_CLI_TELEMETRY_OPTOUT', 'DOTNET_NOLOGO', 'MEOWCHAN_DISABLE_UPDATE_CHECK',
+                'MEOWCHAN_HOST_NETNS', 'MEOWCHAN_EXPECTED_UID', 'MEOWCHAN_EXPECTED_GID',
+                'MEOWCHAN_EXPECTED_ROOT', 'MEOWCHAN_EXPECTED_OUT', 'MEOWCHAN_EXPECT_BINDS')
+        for key in keys:
+            if key in environment:
+                command += ['--setenv', key, environment[key]]
+        dotnet = shutil.which('dotnet')
+        command += ['--setenv', 'PATH', (str(Path(dotnet).parent) + ':' if dotnet else '') + os.defpath]
         command += ['--', unshare, '--net', '--', setpriv,
                     '--bounding-set=-all', '--inh-caps=-all', '--ambient-caps=-all', '--nnp', '--', *argv]
         return command
@@ -192,7 +210,7 @@ class Context:
                        MEOWCHAN_EXPECTED_UID=str(os.getuid()), MEOWCHAN_EXPECTED_GID=str(os.getgid()),
                        MEOWCHAN_EXPECTED_ROOT=str(self.root), MEOWCHAN_EXPECTED_OUT=str(self.out),
                        MEOWCHAN_EXPECT_BINDS='1' if bind_worktrees else '0')
-            command = self._bwrap(['/bin/sh', '-eu', '-c', probe], bind_worktrees=bind_worktrees)
+            command = self._bwrap(['/bin/sh', '-eu', '-c', probe], bind_worktrees=bind_worktrees, environment=env)
             return subprocess.run(command, env=env, capture_output=True, text=True), bwrap
         return subprocess.run(['unshare', '-Urn', '--', 'true'], capture_output=True), 'unshare'
 
@@ -200,7 +218,7 @@ class Context:
         return self.heavy(['timeout', f'{timeout}s', 'dotnet', verb, str(project), *extra])
 
     def restore(self, project):
-        return self.dotnet('restore', project, '--configfile', str(self.nuget_config), '--source', str(FEED),
+        return self.dotnet('restore', project, '--configfile', str(self.nuget_config), '--source', str(self.feed),
                            '--locked-mode', '-p:NuGetAudit=false', '-p:Configuration=Debug',
                            '-p:UseSharedCompilation=false', '-m:1', '-nodeReuse:false')
 
@@ -312,7 +330,7 @@ def run(ctx, name, argv, env=None, cwd=None, timeout=1500, check=True):
     except CommandFailed as error:
         text = _finalize_run_log(log, arguments, f'EXIT {error.returncode}')
         if locked and error.returncode == LOCK_BUSY:
-            raise StepFailed(f'{name}: {LOCK.name} not acquired within {ctx.lock_wait}s (another build holds it); '
+            raise StepFailed(f'{name}: {ctx.lock.name} not acquired within {ctx.lock_wait}s (another build holds it); '
                              f'nothing ran, retry with a new --out (see {log})')
         if check:
             raise StepFailed(f'{name}: exit {error.returncode} (see {log})')
@@ -333,15 +351,16 @@ def first_line(text, prefix):
     raise StepFailed('expected output line starting with ' + repr(prefix))
 
 
-def guard_out(out):
+def guard_out(out, out_root=None):
     """Fresh path below the allowed temp root; never a real profile and never anything that exists."""
     resolved = Path(os.path.abspath(out))
     require(not resolved.exists(), f'--out exists (a failed attempt is kept, use a new one): {resolved}')
     # A lexical prefix is not enough: an existing symlink component could redirect all evidence
     # outside the bounded AP04 root while the path still appears to be below it.
-    allowed = ALLOWED_OUT.resolve()
+    allowed = Path(out_root if out_root is not None else ALLOWED_OUT).absolute()
+    require(allowed == allowed.resolve(), "--out-root must not contain symlinks")
     parent = resolved.parent.resolve()
-    require(parent == allowed or allowed in parent.parents, f'--out must be below {ALLOWED_OUT}: {resolved}')
+    require(parent == allowed or allowed in parent.parents, f'--out must be below {allowed}: {resolved}')
     home = Path.home()
     for name in REAL_PROFILES:
         real = home / name
@@ -366,7 +385,7 @@ RELEASE_ASSET_NAME = re.compile(r'(?:[0-9]+-)?MeowChan-1\.0\.2-[A-Za-z0-9._-]+')
 # ---- steps -------------------------------------------------------------------------------------------------
 
 def step_preflight(ctx):
-    guard_out(ctx.out)
+    guard_out(ctx.out, ctx.out_root)
     namespace_tool = 'bwrap' if ctx.namespace_backend in ('bwrap', 'bwrap-root') else 'unshare'
     for tool in ('git', 'python3', 'dotnet', 'flock', 'nice', 'timeout') + ((namespace_tool,) if ctx.netns else ()):
         require(shutil.which(tool), 'missing tool: ' + tool)
@@ -378,9 +397,19 @@ def step_preflight(ctx):
         require(probe is not None and probe.returncode == 0,
                 f'{ctx.namespace_backend} namespace capability is unavailable ({detail}); '
                 'the replay requires an OS-level private network namespace and will not fall back silently')
-    require(FEED.is_dir(), f'offline package feed missing: {FEED}')
-    ALLOWED_OUT.mkdir(parents=True, exist_ok=True)
-    require(shutil.disk_usage(ALLOWED_OUT).free >= MIN_FREE_BYTES, 'less than 6 GiB free for the build and the profile')
+    require(ctx.feed.is_dir() and ctx.feed == ctx.feed.resolve(), f'offline package feed missing or symlinked: {ctx.feed}')
+    require(ctx.lock == ctx.lock.resolve() and not ctx.lock.is_dir(), 'invalid heavy lock path')
+    if ctx.lock.exists():
+        candidate_lib.ordinary_path(ctx.lock, 'heavy lock')
+    require(ctx.root != ctx.lock and ctx.root not in ctx.lock.parents, 'heavy lock must be outside candidate')
+    require(ctx.out != ctx.lock and ctx.out not in ctx.lock.parents, 'heavy lock must be outside fresh output')
+    require(ctx.feed != ctx.root and ctx.root not in ctx.feed.parents and ctx.feed not in ctx.root.parents,
+            'offline feed must be disjoint from candidate')
+    require(ctx.out not in ctx.feed.parents and ctx.out != ctx.feed and ctx.feed not in ctx.out.parents,
+            'offline feed must be warmed outside fresh output')
+    ctx.out_root.mkdir(parents=True, exist_ok=True)
+    ctx.lock.parent.mkdir(parents=True, exist_ok=True)
+    require(shutil.disk_usage(ctx.out_root).free >= MIN_FREE_BYTES, 'less than 6 GiB free for the build and the profile')
     require(candidate_lib.product_version(ctx.root) == EXPECTED_VERSION, f'product version is not {EXPECTED_VERSION}')
     state = candidate_lib.require_frozen(ctx.root, ctx.sha)
     candidate_lib.require_fresh_outputs(ctx.root)
@@ -397,9 +426,13 @@ def step_preflight(ctx):
         require(probe is not None and probe.returncode == 0,
                 f'{ctx.namespace_backend} accessible writable bind is unavailable ({detail}); '
                 'the replay refuses to run without its explicit bind design')
+        ctx.namespace_verified = True
     capture_status(ctx, 'status-before.txt')
-    ctx.nuget_config.write_text('<configuration><packageSources><clear /><add key="local-cache" value="' + str(FEED)
-                                + '" /></packageSources></configuration>\n', encoding='utf-8')
+    config = ET.Element('configuration')
+    sources = ET.SubElement(config, 'packageSources')
+    ET.SubElement(sources, 'clear')
+    ET.SubElement(sources, 'add', key='local-cache', value=str(ctx.feed))
+    ET.ElementTree(config).write(ctx.nuget_config, encoding='utf-8', xml_declaration=True)
     return (f"commit={ctx.sha} clean=yes fresh=yes version={EXPECTED_VERSION} "
             f"network={ctx.namespace_backend if ctx.netns else 'handler-only'} lock-wait={ctx.lock_wait}s {note}")
 
@@ -632,7 +665,7 @@ STEPS = (('preflight', step_preflight), ('candidate', step_candidate), ('release
 
 # ---- report ------------------------------------------------------------------------------------------------
 
-def verdict(records, final_problems, package_bound, sums_checked):
+def verdict(records, final_problems, package_bound, sums_checked, network_isolated=True):
     """PASS needs every step PASS, an unchanged frozen candidate and the bound 1.1.0 package set: the Linux package
     manifest whose source_commit is the candidate AND the SHA256SUMS of the same stable-candidate run. A complete run
     without them is SOURCE-ONLY, a diagnosis and never an acceptance; --allow-no-package only permits running it."""
@@ -642,7 +675,7 @@ def verdict(records, final_problems, package_bound, sums_checked):
     observed = tuple(r.get('name') for r in records)
     if observed != expected or any(r.get('status') != 'PASS' for r in records):
         return 'INCOMPLETE'
-    if not (package_bound and sums_checked):
+    if not (package_bound and sums_checked and network_isolated):
         return 'SOURCE-ONLY'
     return 'PASS'
 
@@ -664,7 +697,7 @@ def render(tokens, records, final_problems, result, out):
     elif not final_problems:
         lines.append(f'{prefix(tokens)} step=final-verify status=NOT-RUN run was incomplete; acceptance was not verified')
     if result == 'SOURCE-ONLY':
-        lines.append(f'{prefix(tokens)} NOTE no 1.1.0 package manifest and SHA256SUMS bound: source-only diagnosis, NOT an AP04 acceptance')
+        lines.append(f'{prefix(tokens)} NOTE package binding or OS network isolation absent: source-only diagnosis, NOT an AP04 acceptance')
     lines.append(f'{prefix(tokens)} VERDICT={result}')
     lines.append(f'{prefix(tokens)} SCOPE source-upgrade evidence only: synthetic profile written by the released 1.0.2 code from the pinned Git object; '
                  'DesktopSessionHost and PluginSession processes, no window; loose-file tag conversion at store level; packaged-release verification '
@@ -674,7 +707,7 @@ def render(tokens, records, final_problems, result, out):
 
 def dry_run(ctx):
     print('AP04 DRY RUN: nothing is executed, nothing is written, no evidence is produced.')
-    print(f'candidate={ctx.sha} out={ctx.out} network={ctx.namespace_backend if ctx.netns else "handler-only"} lock={LOCK} '
+    print(f'candidate={ctx.sha} out={ctx.out} network={ctx.namespace_backend if ctx.netns else "handler-only"} lock={ctx.lock} '
           f'lock-wait<={ctx.lock_wait}s per heavy command')
     package = (f'package set of {ctx.args.linux_package_dir} + {ctx.args.sha256sums}' if ctx.args.linux_package_dir
                else 'NO package: source-only diagnosis, the verdict cannot be PASS')
@@ -705,6 +738,9 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--candidate-sha', required=True, help='the frozen full commit id the worktree must be at')
     parser.add_argument('--out', type=Path, required=True, help=f'new directory below {ALLOWED_OUT} (short path)')
+    parser.add_argument('--out-root', type=Path, default=ALLOWED_OUT, help='allowed evidence parent; no symlink components')
+    parser.add_argument('--offline-feed', type=Path, default=FEED, help='prewarmed local NuGet feed; no downloads')
+    parser.add_argument('--heavy-lock', type=Path, default=LOCK, help='shared serialization lock path')
     parser.add_argument('--root', type=Path, default=ROOT, help='clean detached worktree of the candidate (default: this checkout)')
     parser.add_argument('--linux-package-dir', type=Path, help='stable-candidate `linux-packages` directory (manifest source_commit must equal the SHA)')
     parser.add_argument('--rid', default='linux-x64')
@@ -765,11 +801,16 @@ def main(argv=None):
     if stopped_at:
         final_problems.append(f'run stopped after {stopped_at}; final acceptance was not verified')
     package = ctx.candidate.get('package') if ctx.candidate else None
-    result = verdict(records, final_problems, package is not None, bool(package and package.get('sha256sums_checked')))
+    result = verdict(records, final_problems, package is not None, bool(package and package.get('sha256sums_checked')),
+                     network_isolated=ctx.netns)
     lines = render(ctx.tokens(), records, final_problems, result, str(ctx.out))
     (ctx.out / 'report.txt').write_text('\n'.join(lines) + '\n', encoding='utf-8')
     (ctx.out / 'report.json').write_text(json.dumps({'candidate': ctx.tokens(), 'verdict': result, 'steps': records,
                                                      'final_problems': final_problems,
+                                                     'execution': {'root': str(ctx.root), 'netns': ctx.netns, 'namespace_backend': ctx.namespace_backend,
+                                                                   'namespace_verified': ctx.namespace_verified,
+                                                                   'offline_feed': str(ctx.feed), 'heavy_lock': str(ctx.lock),
+                                                                   'out_root': str(ctx.out_root)},
                                                      'source_upgrade': {'synthetic_profile': True, 'released_revision': RELEASE_REVISION,
                                                                        'executed': bool(ctx.candidate and not stopped_at)},
                                                      'packaged_release': {'verification': 'not-executed',

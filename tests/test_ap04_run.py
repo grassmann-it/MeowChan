@@ -465,8 +465,8 @@ class RunnerTests(unittest.TestCase):
 
             class Args:
                 root, candidate_sha, out, no_netns, lock_wait = ROOT, SHA, Path(temp) / 'o', True, 1
-            ctx = run.Context(Args)
             with unittest.mock.patch.object(run, 'LOCK', lock):
+                ctx = run.Context(Args)
                 with lock.open('rb') as held:
                     fcntl.flock(held, fcntl.LOCK_EX)
                     # check=False as for the test step: a lock not acquired must still fail as such.

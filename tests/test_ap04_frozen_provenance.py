@@ -54,6 +54,8 @@ class FrozenProvenanceTests(unittest.TestCase):
         self.sums = self.base / 'SHA256SUMS'
         self.write_packages(self.sha)
         self.out = self.base / 'out'
+        self.feed = self.base / 'feed'
+        self.feed.mkdir()
 
     def write_packages(self, sha, payload=b'original'):
         rows = []
@@ -69,7 +71,8 @@ class FrozenProvenanceTests(unittest.TestCase):
 
     def context(self):
         return runner.Context(SimpleNamespace(root=self.root, candidate_sha=self.sha, out=self.out,
-                                             no_netns=True, lock_wait=1, linux_package_dir=self.packages,
+                                             no_netns=True, lock_wait=1, out_root=self.base, offline_feed=self.feed,
+                                             heavy_lock=self.base / "heavy.lock", linux_package_dir=self.packages,
                                              sha256sums=self.sums, rid='linux-x64', allow_no_package=False))
 
     def identity(self):
@@ -353,7 +356,7 @@ class FrozenProvenanceTests(unittest.TestCase):
         """Exercise real identity, final verify, verdict and serialized reports, not dotnet.
 
         Other steps return synthetic success so that ONLY the tested gate determines the
-        result. In particular, the control's PASS does not assert an actual 1.0.2 upgrade.
+        result. In particular, the control's SOURCE-ONLY does not assert an actual 1.0.2 upgrade.
         """
         def prepare(ctx):
             ctx.out.mkdir()
@@ -392,8 +395,9 @@ class FrozenProvenanceTests(unittest.TestCase):
 
     def test_adjudication_control_records_only_source_evidence_and_bound_provenance(self):
         code, report, text = self.run_adjudication(cycle_exit=0)
-        self.assertEqual(0, code)
-        self.assertEqual('PASS', report['verdict'])  # synthetic adjudication control, NOT a release run
+        self.assertEqual(1, code)
+        self.assertEqual('SOURCE-ONLY', report['verdict'])  # --no-netns can never accept, even with bound packages
+        self.assertFalse(report['execution']['netns'])
         self.assertEqual(self.sha, report['candidate']['commit'])
         self.assertEqual([], report['final_problems'])
         self.assertEqual(runner.RELEASE_REVISION, report['source_upgrade']['released_revision'])
