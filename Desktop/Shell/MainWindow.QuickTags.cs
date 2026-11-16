@@ -62,7 +62,7 @@ public partial class MainWindow
             MediaTagSubject? target = request.TagsBlocked == null ? MediaTagSubjects.Of(match, out unavailable) : null;
             string label = match.Asset.OriginalFileName ?? Path.GetFileName(match.Asset.Path);
             decision = DecisionFor(new[] { match }, request.FocusRating);
-            QuickTagPopoverOptions options = PopoverOptions(context, hostCurrent, restoreFocus: false, "MediaTagPopover") with { Decision = decision };
+            QuickTagPopoverOptions options = PopoverOptions(context, hostCurrent, restoreFocus: false, "MediaTagPopover") with { Decision = decision, TooltipKeyContext = "media" };
             QuickTagPopover popover;
             if (target == null)
             {
@@ -113,7 +113,7 @@ public partial class MainWindow
             // Not taggable (a Danbooru medium, a file shared by several posts): the stars stay, the reason is said as text.
             QuickTagPopover.OpenBlocked(anchor, label, request.TagsBlocked
                 ?? MediaMenuReasons.Tags(unavailable, BooruMediaIdentity.IsBooruThread(entry.Key.Thread)),
-                new QuickTagPopoverOptions { IsCurrent = isCurrent, Decision = decision });
+                new QuickTagPopoverOptions { IsCurrent = isCurrent, Decision = decision, TooltipKeyContext = "reader" });
             return;
         }
         _galleryTagDialogOpen = true;
@@ -122,7 +122,7 @@ public partial class MainWindow
         try
         {
             MediaTagSession session = new(target, _session.GetPublishedPrivateTagSnapshot, _session.DefineAndSetMediaSubjectTagAsync, _session.SetMediaSubjectTagAsync);
-            QuickTagPopoverOptions options = PopoverOptions(context, isCurrent, restoreFocus: true, "ArchiveTagPopover") with { Decision = decision };
+            QuickTagPopoverOptions options = PopoverOptions(context, isCurrent, restoreFocus: true, "ArchiveTagPopover") with { Decision = decision, TooltipKeyContext = "reader" };
             QuickTagPopover popover = QuickTagPopover.Open(anchor, options.NewSession(QuickTagTarget.For(session)), label, options);
             origin = popover.Origin;
             ArchiveTagPopover = popover;

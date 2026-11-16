@@ -135,7 +135,7 @@ internal sealed partial class GalleryViewer
             if (!textChanged) return;
             AutomationProperties.SetName(button, status.Text ?? string.Empty);
             string label = CommandCatalog.Label("media.rating.edit");
-            ToolTip.SetTip(button, CommandCatalog.ShortcutDisplay("media.rating.edit") is { } gesture ? label + " · " + gesture : label);
+            ToolTip.SetTip(button, CommandCatalog.ShortcutTooltipDisplay("media.rating.edit", "gallery") is { } gesture ? label + " · " + gesture : label);
         }
         status.PropertyChanged += (_, e) =>
         {

@@ -317,8 +317,8 @@ public sealed class ViewerQuickWinsTests : IDisposable
     public void TheFavoriteKeysOfTheShortcutConceptStayAndSpeedHasTheBracketsAndXAndC()
     {
         EffectiveShortcutBindings bindings = EffectiveShortcutBindings.Build(null, ShortcutPlatform.Linux);
-        // Revision 13: M mutes ("Add favorite" moved to B), D is the slideshow (S saves the frame).
-        Assert.Contains(bindings.For("favorites.add"), gesture => gesture.Key == "B" && gesture.Modifiers.Count == 0);
+        // Revision 13: D is the slideshow (S saves the frame). Revision 20: M adds a favourite, Shift+M mutes; revision 21 took the second key B away.
+        Assert.Equal(new[] { "M" }, bindings.For("favorites.add").Select(gesture => gesture.Key).ToArray());
         Assert.Contains(bindings.For("favorites.remove"), gesture => gesture.Key == "U" && gesture.Modifiers.Count == 0);
         Assert.Contains(bindings.For("favorites.toggle"), gesture => gesture.Key == "F" && gesture.Modifiers.Count == 0);
         Assert.Contains(bindings.For("gallery.slideshow-toggle"), gesture => gesture.Key == "D" && gesture.Modifiers.Count == 0);

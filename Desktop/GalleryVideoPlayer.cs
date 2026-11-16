@@ -654,7 +654,7 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
     {
         void ActionName(Control control, string id, string label)
         {
-            string tip = CommandCatalog.ShortcutDisplay(id) is string gesture ? label + " · " + gesture : label;
+            string tip = CommandCatalog.ShortcutTooltipDisplay(id) is string gesture ? label + " · " + gesture : label;
             AutomationProperties.SetName(control, label);
             AutomationProperties.SetHelpText(control, tip);
             ToolTip.SetTip(control, tip);
@@ -673,7 +673,7 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
         _speed.Content = RateLabel(Rate);
         string speed = Texts.T("viewer.video.speed", RateLabel(Rate));
         string speedKeys = string.Join(" · ", new[] { "video.speed-down", "video.speed-up", "video.speed-reset" }
-            .Select(id => CommandCatalog.ShortcutDisplay(id)).Where(gesture => gesture != null));
+            .Select(id => CommandCatalog.ShortcutTooltipDisplay(id)).Where(gesture => gesture != null));
         string speedTip = speed + " · " + Texts.T("viewer.video.speedHelp") + (speedKeys.Length > 0 ? " · " + speedKeys : string.Empty);
         speedTip += " · " + Texts.T("viewer.video.speedMore");
         AutomationProperties.SetName(_speed, speed);

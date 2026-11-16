@@ -256,6 +256,7 @@ public partial class ArchivePage
                 ReadSourceTags = _sourceTagSuggestions.Read,
                 IsCurrent = () => !_ended && _available && ReferenceEquals(_thread, thread) && _selectedThread == threadId,
                 Name = "ArchiveSelectionTagPopover",
+                TooltipKeyContext = "reader",
                 Decision = DecisionFor?.Invoke(decided, focusRating)
             });
             _mediaSelectionTagPopover = popover;

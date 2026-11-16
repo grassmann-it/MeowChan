@@ -2334,6 +2334,7 @@
     "shortcuts.issue.fixedNavigation": "Tab a Escape jsou pevná navigace",
     "shortcuts.issue.altGrText": "Ctrl+Alt může vytvářet text přes AltGr",
     "shortcuts.issue.reservedSystem": "Vyhrazená systémová zkratka",
+    "shortcuts.issue.reservedMacSystem": "Vyhrazeno systémem macOS: systém tuto klávesu zpracuje dřív, než ji MeowChan uvidí",
     "shortcuts.issue.unsupportedSymbol": "Nepodporovaný symbol",
     "shortcuts.issue.unsupportedSchema": "Nepodporované schéma zkratek; platí výchozí",
     "shortcuts.issue.unknownAction": "Neznámá akce ponechána",

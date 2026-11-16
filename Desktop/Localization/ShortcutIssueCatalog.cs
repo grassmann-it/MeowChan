@@ -19,6 +19,7 @@ internal static class ShortcutIssueCatalog
         ("shortcuts.issue.fixedNavigation", "Tab and Escape are fixed navigation", "Tab und Escape bleiben feste Navigation"),
         ("shortcuts.issue.altGrText", "Ctrl+Alt can produce AltGr text", "Strg+Alt kann AltGr-Text erzeugen"),
         ("shortcuts.issue.reservedSystem", "Reserved system shortcut", "Reserviertes Systemkürzel"),
+        ("shortcuts.issue.reservedMacSystem", "Reserved by macOS: the system takes this key before MeowChan sees it", "Von macOS reserviert: Das System behandelt diese Taste, bevor MeowChan sie sieht"),
         ("shortcuts.issue.unsupportedSymbol", "Unsupported symbol", "Nicht unterstütztes Symbol"),
         ("shortcuts.issue.unsupportedSchema", "Unsupported shortcut schema; defaults active", "Unbekanntes Kürzelschema; Standards aktiv"),
         ("shortcuts.issue.unknownAction", "Unknown action retained", "Unbekannte Aktion erhalten"),

@@ -14,10 +14,15 @@ namespace MeowChan.Desktop.Commands;
 /// slideshow. The older plain letters of the gallery (<c>F</c> toggles a favourite, <c>I</c> details, <c>Q</c> queue, <c>R</c> rating,
 /// <c>T</c> show in thread) stay.</item>
 /// <item><b>Favourites, uniformly everywhere</b> (Tom's decision of 15.11.2026, revision 20): <c>M</c> adds, <c>U</c> removes and <c>F</c> toggles, in the gallery as in
-/// the reader, its media sidebar, the archive's media and the Media page's grid and panel. <c>B</c> (revision 13's "add") stays a second key of "add".</item>
+/// the reader, its media sidebar, the archive's media and the Media page's grid and panel. <c>B</c> (revision 13's "add") is gone since revision 21 (Tom's decision #132 of 16.11.2026); a binding saved with B keeps it.</item>
 /// <item><b>Exceptions to the Shift rule</b>: <c>Shift+M</c> mutes (revision 20; <c>M</c> is "add favourite") and <c>Shift+R</c> turns the medium. Both act on the
 /// shown medium rather than showing or hiding a block (<see cref="ShiftLetterActionIds"/>).</item>
-/// <item><b>Ctrl (⌘)</b> stays for commands of the whole application; ⌘ is never used for panels (macOS owns ⌘H, ⌘M, ⌘Q, ⌘W).</item>
+/// <item><b>Ctrl (⌘)</b> stays for commands of the whole application; inside the gallery ⌘ is never used for panels (macOS owns ⌘H, ⌘M, ⌘Q, ⌘W). The one panel switch with
+/// Primary+Shift is outside the gallery: <c>Primary+Shift+M</c> (⇧⌘M) turns the reader's media sidebar and the Media page's media panel on or off (revisions 9 and 18). ⇧⌘M is no system key
+/// (⌘M minimizes, ⇧⌘M is free), and the gallery has no such switch.</item>
+/// <item><b>The rule is a test</b> (<c>ShiftLetterSchemeTests</c>): every default of the form Shift + one letter is a panel switch, unless the command is listed in
+/// <see cref="ShiftLetterActionIds"/> (acts on the medium) or <see cref="ShiftLetterOtherPanelIds"/> (a panel or mode switch of another page that uses the same form).
+/// A new Shift+letter default must land in one of the lists on purpose.</item>
 /// </list>
 /// The defaults themselves live in <see cref="CommandCatalog"/> (and <see cref="EffectiveShortcutBindings.Defaults(CommandDefinition, ShortcutPlatform)"/>);
 /// this class holds what the rule tests and the layout commands of the work still on their branch need: which commands are show / hide
@@ -43,6 +48,11 @@ public static class GalleryShortcutScheme
 
     /// <summary>The Shift-letter defaults that act on the shown medium instead of showing or hiding a block: mute (Shift+M, revision 20) and rotate (Shift+R).</summary>
     public static IReadOnlyList<string> ShiftLetterActionIds { get; } = Array.AsReadOnly(new[] { "video.mute", "gallery.rotate" });
+
+    /// <summary>The Shift-letter defaults of another page that switch what that page shows (the Media page's focus mode, Shift+F next to the favourite's F). They are
+    /// panel-like switches, not actions on a medium, and are no gallery commands, so they sit in neither <see cref="PanelToggleIds"/> nor <see cref="ShiftLetterActionIds"/>.
+    /// <c>ShiftLetterSchemeTests</c> accepts exactly these three lists for a default of the form Shift + one letter.</summary>
+    public static IReadOnlyList<string> ShiftLetterOtherPanelIds { get; } = Array.AsReadOnly(new[] { "media.focus-mode" });
 
     /// <summary>The favourite keys (revision 20), the same on every surface that shows or selects a medium: M adds, U removes, F toggles.</summary>
     public static IReadOnlyList<string> FavoriteKeyIds { get; } = Array.AsReadOnly(new[] { "favorites.add", "favorites.remove", "favorites.toggle" });

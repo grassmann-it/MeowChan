@@ -284,6 +284,7 @@
     "shortcuts.issue.fixedNavigation": "Tab 和 Escape 是固定的导航键",
     "shortcuts.issue.altGrText": "Ctrl+Alt 可能产生 AltGr 字符",
     "shortcuts.issue.reservedSystem": "系统保留的快捷键",
+    "shortcuts.issue.reservedMacSystem": "macOS 已保留：系统会先于 MeowChan 处理此快捷键",
     "shortcuts.issue.unsupportedSymbol": "不支持的符号",
     "shortcuts.issue.unsupportedSchema": "不支持的快捷键架构；已启用默认设置",
     "shortcuts.issue.unknownAction": "已保留未知操作",

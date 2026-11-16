@@ -303,7 +303,7 @@ public sealed class HelpPopoverTests : IDisposable
     {
         string id = "archive.select-page";
         string label = CommandCatalog.Label(id);
-        string? shortcut = CommandCatalog.ShortcutDisplay(id);
+        string? shortcut = CommandCatalog.ShortcutTooltipDisplay(id);
         string headline = shortcut is null ? label : label + " · " + shortcut;
         string hint = CommandCatalog.ScopeHint(id)!;
         Assert.Equal(headline + "\n" + hint, CommandBindings.Tooltip(id));

@@ -286,6 +286,7 @@
     "key.ctrl": "Ctrl",
     "key.shift": "Mayús",
     "shortcuts.issue.reservedSystem": "Atajo del sistema reservado",
+    "shortcuts.issue.reservedMacSystem": "Reservado por macOS: el sistema usa esta tecla antes de que MeowChan la reciba",
     "shortcuts.issue.unsupportedSymbol": "Símbolo no admitido",
     "shortcuts.issue.unsupportedSchema": "Esquema de atajos no admitido; valores predeterminados activos",
     "shortcuts.issue.unknownAction": "Acción desconocida conservada",

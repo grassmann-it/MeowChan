@@ -115,7 +115,7 @@ public sealed class EffectiveShortcutBindings
     private static long _nextVersion;
     /// <summary>Revision of the default table. Raise it, and list the command in
     /// <see cref="DefaultChangedInRevision"/>, whenever a default gesture is added to or changed on a command.</summary>
-    public const int DefaultsRevision = 20;
+    public const int DefaultsRevision = 21;
     /// <summary>Command ids that existed in an earlier build and were removed on purpose (the previous/next media-panel keys).
     /// A saved binding for one is dead data, not a typo: <see cref="Build"/> skips it without an issue and the next save drops it
     /// (<see cref="ShortcutBindingsSection.WithoutRetired"/>). A truly unknown id is still reported and kept. The defaults revision does not change.</summary>
@@ -217,7 +217,7 @@ public sealed class EffectiveShortcutBindings
         // gallery.slideshow-toggle are in the table since revisions 2 and 5; their entries stay). New: Shift+H hides the tools, Shift+O switches the
         // controls overlay, and Shift+I / Shift+N show the info line and the hint row of the Layout menu (GL3, applied when those commands exist). The card mode of the tagging
         // mode moved from K to Shift+K (the cards are a block).
-        // "Add favorite" moved from M (now mute) to B; a binding saved for any of them stays untouched. (Revision 20 gave M back to "Add favorite", below.)
+        // "Add favorite" moved from M (now mute) to B; a binding saved for any of them stays untouched. (Revision 20 gave M back to "Add favorite", below; revision 21 dropped B.)
         ["gallery.context-toggle"] = 13, ["gallery.tools-toggle"] = 13, ["gallery.overlay-toggle"] = 13,
         ["gallery.layout.info"] = 13, ["gallery.layout.hints"] = 13,
         // Revision 14 (Tom's decision of 15.11.2026): video speed gets the extra keys X (slower) and C (faster), because [ and ] sit behind AltGr on
@@ -266,11 +266,16 @@ public sealed class EffectiveShortcutBindings
         ["media.tile-size.reset"] = 20, ["archive.media-tile-size.larger"] = 20, ["archive.media-tile-size.smaller"] = 20, ["archive.media-tile-size.reset"] = 20,
         // - favourites everywhere (Tom's decision of 15.11.2026): M adds and U removes a favourite, F toggles, uniformly in the reader (the medium of the
         //   shared resolver), its media sidebar, the archive's media, the Media page's grid and panel and the gallery (scopes Reader, Media, Archive and
-        //   Gallery). B stays a second key of "Add favorite" (revision 13's). Mute moved from M to Shift+M in every scope (Shift+M was free in all of them).
+        //   Gallery). (B, a second key of "Add favorite" from revision 13, went in revision 21.) Mute moved from M to Shift+M in every scope (Shift+M was free in all of them).
         //   The revision is extended rather than raised (20 is not released): the three ids only move here, so a saved binding of another command on M,
         //   Shift+M, U or B still wins over the new key, and a saved binding of one of them (a mute on M, say) stays exactly as it was.
         //   F (favorites.toggle) reaches the archive's media for the first time, so it yields there too.
         ["favorites.add"] = 20, ["favorites.remove"] = 20, ["favorites.toggle"] = 20, ["video.mute"] = 20,
+        // Revision 21 (Tom's decision #132 of 16.11.2026, sweep S3): B is no longer a second default key of "Add favorite" ("einheitlich M und U"; B only
+        // survived from revision 13, when M was mute, and made every star tooltip say "F / M / B"). Taking a default away needs no entry here: nothing
+        // new can collide with a saved binding. What a saved profile holds stays exactly as it is: a binding saved for "Add favorite" that lists B
+        // (the editor freezes the whole list when a person adds a key) keeps B, and a saved binding of another command on B no longer has a default to
+        // silence it (B is free in the gallery, the reader, the Media page and the archive).
     };
     public static IReadOnlyCollection<string> YieldingDefaultCommandIds => DefaultChangedInRevision.Keys.ToArray();
     // Commands whose default changed only in the macOS table: on Windows and Linux their gesture is the old stable one
@@ -380,8 +385,7 @@ public sealed class EffectiveShortcutBindings
             // (no previous frame) and Shift+. is the next frame, so no "<" / ">" alias.
             case "video.speed-down": list.Add(ShortcutGesture.Parse("X")); break;
             case "video.speed-up": list.Add(ShortcutGesture.Parse("C")); break;
-            // Revision 20: M adds a favourite everywhere (the catalog's key); B, the gallery's "add" key of revision 13, stays as a second key.
-            case "favorites.add": list.Add(ShortcutGesture.Parse("B")); break;
+            // Revision 20: M adds a favourite everywhere (the catalog's key). Revision 21 dropped B, the gallery's "add" key of revision 13: M is the only default.
             default: list.AddRange(GalleryShortcutScheme.LayoutDefault(command.Id)); break;
         }
         return list.AsReadOnly();
@@ -448,6 +452,26 @@ public sealed class EffectiveShortcutBindings
             || key is "Add" or "Subtract" or "Multiply" or "Divide" or "OemPlus" or "OemMinus" or "OemComma" or "OemPeriod" or "OemQuestion"
                 or "OemOpenBrackets" or "OemCloseBrackets";
     }
+    /// <summary>
+    /// The gestures macOS takes for itself before any application sees them (Tom's decision list of sweep S3, 16.11.2026), so a binding on one could never
+    /// fire and the editor refuses it: ⌘H hide and ⌥⌘H hide others, ⌘Q quit, ⇧⌘Q log out and ⌃⌘Q lock the screen, ⌥⌘D show or hide the Dock, ⇧⌘3 / ⇧⌘4 /
+    /// ⇧⌘5 screenshots, ⌃ with an arrow (Spaces and Mission Control) and ⌃Space (the input source). ⌘Space, Tab, Escape and Alt+F4 are refused on their own
+    /// (<see cref="InvalidIssueReason"/>). ⌘M, ⌘W, ⌘, and ⌃⌘F reach the application and stay allowed (the defaults use them).
+    /// </summary>
+    internal static bool IsMacSystemKey(Key key, KeyModifiers modifiers)
+    {
+        const KeyModifiers Cmd = KeyModifiers.Meta, Opt = KeyModifiers.Alt, Ctrl = KeyModifiers.Control, Shift = KeyModifiers.Shift;
+        return (modifiers, key) switch
+        {
+            (Cmd, Key.H) or (Cmd | Opt, Key.H) => true,
+            (Cmd, Key.Q) or (Cmd | Shift, Key.Q) or (Cmd | Ctrl, Key.Q) => true,
+            (Cmd | Opt, Key.D) => true,
+            (Cmd | Shift, Key.D3 or Key.D4 or Key.D5) => true,
+            (Ctrl, Key.Left or Key.Right or Key.Up or Key.Down) => true,
+            (Ctrl, Key.Space) => true,
+            _ => false
+        };
+    }
     public static string? InvalidReason(ShortcutGesture gesture, ShortcutPlatform platform)
         => InvalidIssueReason(gesture, platform)?.LegacyMessage;
     internal static ShortcutIssueReason? InvalidIssueReason(ShortcutGesture gesture, ShortcutPlatform platform)
@@ -463,6 +487,8 @@ public sealed class EffectiveShortcutBindings
                 platform == ShortcutPlatform.MacOS && g.KeyModifiers.HasFlag(KeyModifiers.Meta) && g.Key == Key.Space ||
                 g.KeyModifiers.HasFlag(KeyModifiers.Alt) && g.Key == Key.F4)
                 return new("reservedSystem", "Reserved system shortcut / Reserviertes Systemkürzel");
+            if (platform == ShortcutPlatform.MacOS && IsMacSystemKey(g.Key, g.KeyModifiers))
+                return new("reservedMacSystem", "Reserved macOS system shortcut / Reserviertes macOS-Systemkürzel");
             if (gesture.Symbol != null && gesture.Symbol is not "?" and not "+") return new("unsupportedSymbol", "Unsupported symbol / Nicht unterstütztes Symbol");
             return null;
         }

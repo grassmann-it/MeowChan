@@ -89,7 +89,7 @@ internal sealed partial class GalleryViewer
         if (controller.Decisions is { } decisions)
         {
             _decisionRow = new GalleryDecisionRow(TagPanelName + "Decision")
-            { FieldFocused = () => surface.Input.IsKeyboardFocusWithin, ReturnFocus = () => surface.FocusField() };
+            { FieldFocused = () => surface.Input.IsKeyboardFocusWithin, ReturnFocus = () => surface.FocusField(), KeyContext = "gallery" };
             _decisionRow.FavoriteRequested += OnDecisionFavoriteRequested;
             _decisionRow.RatingRequested += RequestDecisionRating;
             surface.DecisionContent = _decisionRow;

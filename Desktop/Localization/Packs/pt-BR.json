@@ -2324,6 +2324,7 @@
     "shortcuts.issue.fixedNavigation": "Tab e Escape são navegação fixa",
     "shortcuts.issue.altGrText": "Ctrl+Alt pode gerar texto via AltGr",
     "shortcuts.issue.reservedSystem": "Atalho reservado do sistema",
+    "shortcuts.issue.reservedMacSystem": "Reservado pelo macOS: o sistema trata esta tecla antes de o MeowChan recebê-la",
     "shortcuts.issue.unsupportedSymbol": "Símbolo não suportado",
     "shortcuts.issue.unsupportedSchema": "Esquema de atalhos não suportado; padrões ativos",
     "shortcuts.issue.unknownAction": "Ação desconhecida mantida",

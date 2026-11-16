@@ -76,16 +76,18 @@ internal static class FavoriteKeys
     }
 
     /// <summary>
-    /// The tooltip of a favourite star (every star of the app that toggles), on one line: what a click does now, then every key that does the same in
-    /// <paramref name="context"/> (the toggle, and add while it is no favourite or remove while it is): "Add to favorites · F / M / B",
-    /// "Remove from favorites · F / U". A key that does nothing in this state (U on a medium that is no favourite) is not named. Only the effective
-    /// bindings of that context count (<see cref="EffectiveKeys"/>), so a rebinding or a key yielded to another command never makes it lie.
+    /// The tooltip of a favourite star (every star of the app that toggles), on one line: what a click does now, then the key that does the same in
+    /// <paramref name="context"/> and at most one alias (<see cref="CommandCatalog.TooltipGestureLimit"/>, Tom's decision #135): the toggle first, then add
+    /// while it is no favourite or remove while it is: "Add to favorites · F / M", "Remove from favorites · F / U". A key that does nothing in this state
+    /// (U on a medium that is no favourite) is not named. Only the effective bindings of that context count (<see cref="EffectiveKeys"/>), so a rebinding or a
+    /// key yielded to another command never makes it lie. A surface that knows where it runs names it (the Media tile "media", the gallery "gallery", the
+    /// reader's stars "reader").
     /// </summary>
-    internal static string Tooltip(bool marked, string? context = null)
+    internal static string Tooltip(bool marked, string? context = null, EffectiveShortcutBindings? bindings = null)
     {
         string label = Texts.T(marked ? "viewer.favorite.remove" : "viewer.favorite.add");
-        string[] keys = EffectiveKeys(ToggleId, context).Concat(EffectiveKeys(marked ? RemoveId : AddId, context))
-            .Distinct(StringComparer.Ordinal).ToArray();
+        string[] keys = EffectiveKeys(ToggleId, context, bindings).Concat(EffectiveKeys(marked ? RemoveId : AddId, context, bindings))
+            .Distinct(StringComparer.Ordinal).Take(CommandCatalog.TooltipGestureLimit).ToArray();
         return keys.Length == 0 ? label : label + " · " + string.Join(" / ", keys);
     }
 

@@ -29,13 +29,13 @@ public sealed class FavoritesEverywhereTests : IDisposable
     // ---- the keys ----
 
     [Theory, MemberData(nameof(Platforms))]
-    public void MAddsUBRemovesFTogglesAndShiftMIsMuteOnEveryPlatform(ShortcutPlatform platform)
+    public void MAddsURemovesFTogglesAndShiftMIsMuteOnEveryPlatform(ShortcutPlatform platform)
     {
         EffectiveShortcutBindings bindings = EffectiveShortcutBindings.Build(null, platform);
         FavoriteKeyAction Of(Key key, KeyModifiers modifiers = KeyModifiers.None) =>
             FavoriteKeys.Classify(id => bindings.Matches(new KeyEventArgs { Key = key, KeyModifiers = modifiers }, id));
         Assert.Equal(FavoriteKeyAction.Add, Of(Key.M));
-        Assert.Equal(FavoriteKeyAction.Add, Of(Key.B));
+        Assert.Equal(FavoriteKeyAction.None, Of(Key.B)); // revision 21: B is free
         Assert.Equal(FavoriteKeyAction.Remove, Of(Key.U));
         Assert.Equal(FavoriteKeyAction.Toggle, Of(Key.F));
         Assert.Equal(FavoriteKeyAction.None, Of(Key.M, KeyModifiers.Shift));
@@ -85,13 +85,13 @@ public sealed class FavoritesEverywhereTests : IDisposable
     public void TheStarTooltipIsOneLineWithExactlyTheKeysThatDoWhatTheClickDoesInTheReader(ShortcutPlatform platform)
     {
         // Tom's screenshot (16.11.): the Media tab tile's star said "Add to favorites · F" and, on a second line, "Add favorite · M / B · Remove favorite · U".
-        // F, M and B do act on that tile (the reader's keys, TryRouteFavoriteKey); U does nothing on a medium that is no favourite. One line, effective keys only.
+        // F and M act on that tile (the reader's keys, TryRouteFavoriteKey; B went in revision 21); U does nothing on a medium that is no favourite. One line, effective keys only.
         EffectiveShortcutBindings bindings = EffectiveShortcutBindings.Build(null, platform);
         string[] add = FavoriteKeys.EffectiveKeys(FavoriteKeys.AddId, "reader", bindings).ToArray();
         string[] toggle = FavoriteKeys.EffectiveKeys(FavoriteKeys.ToggleId, "reader", bindings).ToArray();
         string[] remove = FavoriteKeys.EffectiveKeys(FavoriteKeys.RemoveId, "reader", bindings).ToArray();
         Assert.Equal(new[] { "F" }, toggle);
-        Assert.Equal(new[] { "M", "B" }, add);
+        Assert.Equal(new[] { "M" }, add);
         Assert.Equal(new[] { "U" }, remove);
         // Every named key really acts in the reader's context, as the action the tooltip implies.
         foreach ((string[] keys, FavoriteKeyAction action) in new[] { (toggle, FavoriteKeyAction.Toggle), (add, FavoriteKeyAction.Add), (remove, FavoriteKeyAction.Remove) })
@@ -104,11 +104,14 @@ public sealed class FavoritesEverywhereTests : IDisposable
     {
         string unmarked = FavoriteKeys.Tooltip(false, "reader");
         Assert.DoesNotContain("\n", unmarked);
+        // The first key plus at most one alias (Tom's decision #135): the toggle first, then the explicit key.
         Assert.Equal(Texts.T("viewer.favorite.add") + " · " + string.Join(" / ", FavoriteKeys.EffectiveKeys(FavoriteKeys.ToggleId, "reader")
-            .Concat(FavoriteKeys.EffectiveKeys(FavoriteKeys.AddId, "reader")).Distinct()), unmarked);
+            .Concat(FavoriteKeys.EffectiveKeys(FavoriteKeys.AddId, "reader")).Distinct().Take(2)), unmarked);
+        Assert.EndsWith("· F / M", unmarked);
         string marked = FavoriteKeys.Tooltip(true, "reader");
         Assert.Equal(Texts.T("viewer.favorite.remove") + " · " + string.Join(" / ", FavoriteKeys.EffectiveKeys(FavoriteKeys.ToggleId, "reader")
-            .Concat(FavoriteKeys.EffectiveKeys(FavoriteKeys.RemoveId, "reader")).Distinct()), marked);
+            .Concat(FavoriteKeys.EffectiveKeys(FavoriteKeys.RemoveId, "reader")).Distinct().Take(2)), marked);
+        Assert.EndsWith("· F / U", marked);
         Assert.DoesNotContain("\n", marked);
         // The star has one tooltip source: a rebinding re-runs its own Refresh, never the catalog's "Add / remove favorite · F".
         string button = Source("Desktop/ArchiveFavoriteButton.cs");
@@ -171,9 +174,9 @@ public sealed class FavoritesEverywhereTests : IDisposable
         Assert.Contains("panel.ConfigureFavorite(PanelFavoriteAvailable", Source("Desktop/Views/Media/MediaPage.Panel.cs")); // the Media page's panel
         string tile = Source("Desktop/MediaLibraryTileView.cs");                                             // the Media page's tile corner
         Assert.Contains("await toggle(row.Entry)", tile);
-        Assert.Contains("FavoriteKeys.Tooltip(marked)", tile);
+        Assert.Contains("FavoriteKeys.Tooltip(marked, \"media\")", tile);
         Assert.Contains("FavoriteToggle = ToggleTileFavoriteAsync", Source("Desktop/Views/Media/MediaPage.cs"));
-        Assert.Contains("FavoriteKeys.Tooltip(_favoriteSelected)", Source("Desktop/GalleryViewer.Favorites.cs")); // the gallery badge
+        Assert.Contains("FavoriteKeys.Tooltip(_favoriteSelected, \"gallery\")", Source("Desktop/GalleryViewer.Favorites.cs")); // the gallery badge
         Assert.Contains("ToggleArchiveMediaFavoriteAsync(entry)", Source("Desktop/Views/Archive/ArchivePage.MediaCommands.cs"));
     }
 

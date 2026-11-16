@@ -56,7 +56,7 @@ internal sealed partial class GalleryViewer
     {
         if (_postDecision == null)
         {
-            _postDecision = new GalleryDecisionRow(PostDecisionName);
+            _postDecision = new GalleryDecisionRow(PostDecisionName) { KeyContext = "gallery" };
             _postDecision.FavoriteRequested += OnPostFavoriteRequested;
             _postDecision.RatingRequested += OnPostRatingRequested;
             // An assertive live region: a failed write is said at once, the next click on a star tries again (the dialog's retry is gone).

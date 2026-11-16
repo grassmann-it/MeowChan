@@ -286,6 +286,7 @@
     "key.ctrl": "Ctrl",
     "key.shift": "Shift",
     "shortcuts.issue.reservedSystem": "Зарезервированное системное сочетание клавиш",
+    "shortcuts.issue.reservedMacSystem": "Зарезервировано macOS: система обрабатывает это сочетание раньше, чем MeowChan его получит",
     "shortcuts.issue.unsupportedSymbol": "Неподдерживаемый символ",
     "shortcuts.issue.unsupportedSchema": "Неподдерживаемая схема сочетаний клавиш; действуют значения по умолчанию",
     "shortcuts.issue.unknownAction": "Неизвестное действие сохранено",

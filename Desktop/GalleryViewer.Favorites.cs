@@ -90,7 +90,7 @@ internal sealed partial class GalleryViewer
         string label = Texts.T("gallery.decision.favorite");
         if (_favoritePending) label += " · " + Texts.T("gallery.saving");
         // The keys of every favourite star (F toggles, M adds, U removes: FavoriteKeys.Tooltip).
-        string tip = FavoriteKeys.Tooltip(_favoriteSelected);
+        string tip = FavoriteKeys.Tooltip(_favoriteSelected, "gallery");
         foreach (ToggleButton badge in new[] { _favoriteIndicator, _nativeFavoriteIndicator })
         {
             ShowFavoriteBadgeState(badge, _favoriteSelected, _favoritePending, label, tip);

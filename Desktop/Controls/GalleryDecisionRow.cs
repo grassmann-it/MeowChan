@@ -34,6 +34,7 @@ internal sealed class GalleryDecisionRow : StackPanel
     private GalleryDecisionView _view = GalleryDecisionView.Unavailable;
     private bool _restoreFocus;
     private bool _attached;
+    private string? _keyContext;
 
     internal GalleryDecisionRow(string name)
     {
@@ -164,6 +165,17 @@ internal sealed class GalleryDecisionRow : StackPanel
         AutomationProperties.SetHelpText(_favorite, GalleryDecisionText.Favorite(view));
     }
 
+    /// <summary>
+    /// The execution context the row's keys run in ("gallery", "media", "reader"; null: not named), asked for by the tooltips of the stars: under a partial
+    /// yield (a saved binding of another command on Shift+3 in one page) a tip never names a rating key that does nothing where the row is. Set it before
+    /// the row is shown, or call <see cref="Localize"/> afterwards.
+    /// </summary>
+    internal string? KeyContext
+    {
+        get => _keyContext;
+        set { if (string.Equals(_keyContext, value, StringComparison.Ordinal)) return; _keyContext = value; Localize(); }
+    }
+
     /// <summary>Names, tooltips (with the gestures as bound now) and the group name, in the current language.</summary>
     internal void Localize()
     {
@@ -176,11 +188,11 @@ internal sealed class GalleryDecisionRow : StackPanel
             string id = "media.rating.set-" + number;
             string label = CommandCatalog.Label(id);
             AutomationProperties.SetName(_stars[number - 1], label);
-            ToolTip.SetTip(_stars[number - 1], CommandCatalog.ShortcutDisplay(id) is { } gesture ? label + " · " + gesture : label);
+            ToolTip.SetTip(_stars[number - 1], CommandCatalog.ShortcutTooltipDisplay(id, _keyContext) is { } gesture ? label + " · " + gesture : label);
         }
         string clear = CommandCatalog.Label("media.rating.clear");
         WorkspaceIcons.MakeSquare(_clear, WorkspaceIcons.Close, clear,
-            CommandCatalog.ShortcutDisplay("media.rating.clear") is { } clearGesture ? clear + " · " + clearGesture : clear);
+            CommandCatalog.ShortcutTooltipDisplay("media.rating.clear", _keyContext) is { } clearGesture ? clear + " · " + clearGesture : clear);
         AutomationProperties.SetName(_group, MediaRatingText.Label);
         // The stars are one group of toggle buttons that act as a radio group: a screen reader names the group "Rating" with the summary as its help.
         AutomationProperties.SetAccessibilityView(_group, AccessibilityView.Content);

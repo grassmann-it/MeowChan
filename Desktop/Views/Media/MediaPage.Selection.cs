@@ -282,6 +282,7 @@ public sealed partial class MediaPage
                 ReadSourceTags = ReadBooruCatalog,
                 IsCurrent = () => !_lifetime.IsCancellationRequested && IsEffectivelyVisible,
                 RestoreFocus = false,
+                TooltipKeyContext = "media",
                 // The rating (and favourite where the shell offers it) of every selected tile rides on top of the tag field.
                 Decision = DecisionForEntries?.Invoke(tiles.Select(tile => tile.Entry).ToArray(), focusRating)
             });

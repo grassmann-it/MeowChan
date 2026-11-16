@@ -22,7 +22,7 @@ namespace MeowChan.Desktop.Commands;
 /// letter that is still in the name or tells the story: E for m<b>E</b>dia (Ctrl+Shift+M is the reader's media sidebar and ⌘M minimizes on a
 /// Mac), U for r<b>U</b>les, X for e<b>X</b>tensions like in VS Code (Plugins), K for the tagging mode's <b>K</b>arten and its K key. Taken are
 /// Ctrl+Shift+T (media tags), R (continue reading), I (import), P (pause), F (filters), O (open source), L (follow live), N (new posts),
-/// M (media sidebar), G (find previous), and a Mac reserves ⌘⇧Q (log out) and ⌘⇧W; H is left alone for the same reason. The invariants are in
+/// M (the media sidebar and the Media page's panel), G (find previous), and a Mac reserves ⌘⇧Q (log out) and ⌘⇧W; H is left alone because ⌘H hides. The invariants are in
 /// <c>PageKeySchemeTests</c>: unique, free on every platform and in every context, never Ctrl+Alt, never a reserved Mac letter.</para>
 /// <para><b>Settings</b> is not in the table: its fixed key is <c>Ctrl/Cmd+,</c> on every platform (the platform's own convention, also in the
 /// ⋯ menu), so it already has one and needs no letter. Diagnostics and Statistics are segments of Status and have none.</para>
@@ -49,8 +49,10 @@ public static class PageKeyScheme
         });
 
     /// <summary>
-    /// Letters no page may take, whatever else is free: on a Mac ⌘⇧Q logs out and ⌘⇧W closes windows, ⌘H and ⌘M hide and minimize (their ⇧ forms
-    /// sit next to them), and Ctrl+Shift+C/V/Z are the copy and paste variants and redo that text fields of the platform answer.
+    /// Letters no page may take, whatever else is free: on a Mac ⌘⇧Q logs out and ⌘⇧W closes windows, ⌘H hides (⇧⌘H is the Finder's Home, a habit kept
+    /// clear) and ⌘M minimizes. ⇧⌘M itself is not a system key and is not left unused: it is the panel switch of the reader's media sidebar and the Media
+    /// page's media panel (<c>reader.sidebar.toggle</c>, <c>media.panel.toggle</c>), so M is no page letter. Ctrl+Shift+C/V/Z are the copy and paste
+    /// variants and redo that text fields of the platform answer.
     /// </summary>
     public static IReadOnlyList<string> ReservedLetters { get; } = Array.AsReadOnly(new[] { "Q", "W", "H", "M", "C", "V", "Z" });
 
