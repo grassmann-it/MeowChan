@@ -34,9 +34,10 @@ internal static partial class MediaPageChecks
     // Files named dup-* share one content on purpose; every other file gets its own bytes (a trailing note after the PNG data),
     // because the page merges equal bytes into one tile.
     // snd-*, mute-* and odd-* are real MP4 bytes with sound, real MP4 bytes without, and bytes no probe can decide.
+    // The WebM path uses the checked-in decoder fixture; the odd case stays deliberately undecodable.
     private static byte[] BytesOf(string name) => name.StartsWith("snd-", StringComparison.Ordinal) ? SoundMp4.Value
         : name.StartsWith("mute-", StringComparison.Ordinal) ? SilentMp4.Value
-        : name.StartsWith("odd-", StringComparison.Ordinal) ? [.. VideoBytes, .. System.Text.Encoding.UTF8.GetBytes(name)]
+        : name.StartsWith("odd-", StringComparison.Ordinal) ? [.. UndecodableVideoBytes, .. System.Text.Encoding.UTF8.GetBytes(name)]
         : name.EndsWith(".webm", StringComparison.Ordinal) ? VideoBytes : name.StartsWith("dup-", StringComparison.Ordinal) ? Png : [.. Png, .. System.Text.Encoding.UTF8.GetBytes(name)];
 
     private static readonly Lazy<byte[]> SoundMp4 = new(() => File.ReadAllBytes(FixturePath("tests/Fixtures/release102/playback-h264-audio.mp4")));
@@ -1074,7 +1075,8 @@ internal static partial class MediaPageChecks
         }
     }
 
-    private static readonly byte[] VideoBytes = [0x1A, 0x45, 0xDF, 0xA3, 1, 2, 3, 4, 5, 6, 7, 8];
+    private static readonly byte[] VideoBytes = File.ReadAllBytes(FixturePath("tests/Fixtures/gallery-playback-vp8.webm"));
+    private static readonly byte[] UndecodableVideoBytes = [0x1A, 0x45, 0xDF, 0xA3, 1, 2, 3, 4, 5, 6, 7, 8];
 
     // Two threads hold the same video bytes (one byte group). Only the poster the reader would have generated exists.
     private static async Task SeedVideosAsync(string profile)
