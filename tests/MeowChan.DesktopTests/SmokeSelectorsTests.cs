@@ -208,7 +208,23 @@ public sealed class SmokeSelectorsTests
             foreach (Match match in Regex.Matches(File.ReadAllText(file), "GetEnvironmentVariable\\(\"(MEOWCHAN_[A-Z0-9_]+_ONLY)\"\\)"))
                 read.Add(match.Groups[1].Value);
         Assert.Empty(read.Except(SmokeSelectors.KnownNames, StringComparer.Ordinal));
-        Assert.Empty(SmokeSelectors.ChildRequirements.Select(child => child.Name).Except(read, StringComparer.Ordinal));
+
+        // Dedicated reader journeys are selected through registry metadata, not literal
+        // GetEnvironmentVariable calls. Admit only explicit switch arms: the fallback
+        // still needs a direct read in ReaderUxChecks, as do all nested selectors.
+        string dispatch = File.ReadAllText(Path.Combine(root, "SmokeScenarios.Runs.cs"));
+        int start = dispatch.IndexOf("internal static Task RunReaderAlternativeAsync", StringComparison.Ordinal);
+        Assert.True(start >= 0, "The metadata-based reader dispatcher is missing.");
+        int end = dispatch.IndexOf("};", start, StringComparison.Ordinal);
+        Assert.True(end > start, "The reader dispatch switch is incomplete.");
+        HashSet<string> readerArms = Regex.Matches(dispatch[start..end], "\"([a-z-]+)\"")
+            .Select(match => match.Groups[1].Value).ToHashSet(StringComparer.Ordinal);
+        IEnumerable<string> metadataReads = SmokeScenarios.All
+            .Where(entry => entry.Kind == SmokeScenarioKind.Nested
+                && entry.Group == "--reader-ux" && readerArms.Contains(entry.Id))
+            .Select(entry => entry.Selector);
+        Assert.Empty(SmokeSelectors.ChildRequirements.Select(child => child.Name)
+            .Except(read.Concat(metadataReads), StringComparer.Ordinal));
         Assert.Equal(SmokeSelectors.KnownNames.Count(), SmokeSelectors.KnownNames.Distinct(StringComparer.Ordinal).Count());
     }
 
