@@ -68,7 +68,14 @@ internal static class ReaderStabilityChecks
         page.FindControl<ListBox>("ArchiveThreads")!.SelectedIndex = 0;
         Grid pane = page.FindControl<Grid>("ArchiveReaderPane")!;
         KeyboardNavigationMode originalTab = KeyboardNavigation.GetTabNavigation(pane);
-        Click(page.FindControl<Button>("ArchiveReadPosts")!);
+        Button readPosts = page.FindControl<Button>("ArchiveReadPosts")!;
+        // Selecting a row starts the inline preview asynchronously at this width.
+        // The real Read handler refuses busy input; wait for its enabled state,
+        // rather than losing the only click while that preview is still loading.
+        await Program.WaitUntilAsync(() => !page.IsBusy && page.CurrentThread?.Summary.Id == Thread
+            && readPosts.IsEffectivelyEnabled,
+            () => $"reader selection readiness: busy={page.IsBusy}, thread={page.CurrentThread?.Summary.Id}, readEnabled={readPosts.IsEffectivelyEnabled}");
+        Click(readPosts);
         ContentControl host = window.FindControl<ContentControl>("ReaderHost")!;
         await Program.WaitUntilAsync(() => host.IsVisible && !page.IsBusy && page.CurrentThread?.Summary.Id == Thread);
         await page.MediaLoadTask;
@@ -206,15 +213,33 @@ internal static class ReaderStabilityChecks
         await Flush(window);
         Require(KeyboardNavigation.GetTabNavigation(pane) == originalTab,
             "Attach retained the detached reader's Tab-cycle override.");
-        // A deliberately set pre-existing value must survive another lifecycle.
-        pane.SetValue(KeyboardNavigation.TabNavigationProperty, KeyboardNavigationMode.Continue);
-        Click(page.FindControl<Button>("ArchiveReadPosts")!);
-        await Program.WaitUntilAsync(() => host.IsVisible);
-        Require(KeyboardNavigation.GetTabNavigation(pane) == KeyboardNavigationMode.Cycle, "Detached reader has no cyclic Tab scope.");
-        Click(page.FindControl<Button>("ArchiveCloseReader")!);
-        Require(KeyboardNavigation.GetTabNavigation(pane) == KeyboardNavigationMode.Continue,
-            "Attach lost a pre-existing local Tab value.");
-        pane.ClearValue(KeyboardNavigation.TabNavigationProperty);
+        // This lifecycle checks the pane's own override. With the sidebar shown,
+        // the enclosing frame correctly owns the cycle instead; explicitly choose
+        // pane-only layout here, after the unchanged sidebar/navigation coverage.
+        ReaderMediaPreferences previousMedia = ReaderSmokeSetup.Choose(page, sidebar: false);
+        Exception? tabFailure = null;
+        try
+        {
+            // A deliberately set pre-existing value must survive another lifecycle.
+            pane.SetValue(KeyboardNavigation.TabNavigationProperty, KeyboardNavigationMode.Continue);
+            Click(page.FindControl<Button>("ArchiveReadPosts")!);
+            await Program.WaitUntilAsync(() => host.IsVisible);
+            Require(KeyboardNavigation.GetTabNavigation(pane) == KeyboardNavigationMode.Cycle, "Detached reader has no cyclic Tab scope.");
+            Click(page.FindControl<Button>("ArchiveCloseReader")!);
+            Require(KeyboardNavigation.GetTabNavigation(pane) == KeyboardNavigationMode.Continue,
+                "Attach lost a pre-existing local Tab value.");
+            pane.ClearValue(KeyboardNavigation.TabNavigationProperty);
+        }
+        catch (Exception error) { tabFailure = error; throw; }
+        finally
+        {
+            await SmokeCleanup.RunAsync(tabFailure, () =>
+            {
+                pane.ClearValue(KeyboardNavigation.TabNavigationProperty);
+                ReaderSmokeSetup.Restore(page, previousMedia);
+                return Task.CompletedTask;
+            }, error => Console.Error.WriteLine("SMOKE cleanup failed restoring reader Tab fixture: " + error));
+        }
         Console.WriteLine("SMOKE mixed reader stability: 168 variable posts, all forward/backward boundaries, settled target visibility, native scopes, pagination, selection availability, virtualized realization and reversible Tab scope passed.");
 
         async Task Navigate(Key key, string expected)
