@@ -51,7 +51,13 @@ if (phase is "stage-B" or "start-B" or "stage-C" or "start-C")
 {
     if (phase == "stage-C")
     {
-        fixture = fixture with { Third = await Deliver("target", fixture.Material ? 'C' : 'c') };
+        // A further relocation needs its own exact consent. An established, same-path
+        // non-widening update instead follows the existing #130 in-place policy.
+        string update = args.Length > 4 ? args[4] : "relocated";
+        if (update is not ("relocated" or "in-place" or "widened"))
+            throw new ArgumentException("Unknown third-delivery scenario.");
+        fixture = fixture with { Third = await Deliver(update == "relocated" ? "third" : "target",
+            update == "widened" ? 'W' : fixture.Material ? 'C' : 'c') };
         await File.WriteAllBytesAsync(inputPath, SdkJson.Serialize(fixture));
     }
     var state = await store.ReadAsync(lifetime.Token);

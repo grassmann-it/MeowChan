@@ -9,8 +9,14 @@ private binding injection, new persistence semantics or product hooks.
 Two paths are covered: unchanged declarations with inherited permissions, and
 changed declarations requiring both review and permission acknowledgement.
 The probe executable also exports a tiny SDK-only plugin. Appending a trailing
-A/B/C marker yields distinct, runtime-loadable synthetic PE images; the marker
-controls the fixture's description/result. This is **not** compiler rebuild,
+A/B/C/W marker yields distinct, runtime-loadable synthetic PE images; the marker
+controls the fixture's description/result. C is normally delivered from a third
+folder: B's exact consent cannot authorize a further relocation. Separate cases
+exercise decision #130's established same-path, non-widening update policy and
+keep same-path replacements blocked before B's first activation or when W adds a
+new HTTP host declaration. Replaying B's frozen consent row with the latest profile
+revision must fail in every case, without changing persisted bytes.
+This is **not** compiler rebuild,
 DesktopSessionHost, genuine-profile migration, packaging or release acceptance.
 The real worker must describe the exact active release, return its marker and
 persisted setting, and round-trip a scoped synthetic image grant. HTTP fails

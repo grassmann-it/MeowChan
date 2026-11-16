@@ -100,7 +100,16 @@ public sealed class PluginReauthorizationProcessTests(ITestOutputHelper output) 
         if (enabled) Assert.NotEqual(first.WorkerPid, second.WorkerPid);
         Assert.Equal(backupFiles, probe.BackupFiles());
 
+        // C is another relocation, not an established in-place rebuild (#130).
+        // Assert that fixture boundary before asserting that new consent is required.
         var third = await probe.Run("stage-C");
+        var thirdRow = Assert.IsType<BundledCandidateRepair>(third.Row);
+        Assert.NotEqual(review.Row!.NewCandidateId, thirdRow.NewCandidateId);
+        Assert.NotEqual(review.Row.NewPath, thirdRow.NewPath);
+        Assert.Equal(review.Row.SlotId, thirdRow.SlotId);
+        Assert.False(thirdRow.CanConfirm);
+        Assert.Equal(material, thirdRow.CanReviewChanges);
+        Assert.Equal(!material, thirdRow.CanReauthorize);
         Assert.Null(Plugin(third).Active);
         Assert.NotEqual(third.TargetExecution, third.ThirdExecution);
         Assert.Equal(third.ThirdExecution, third.Row!.NewExecutionRevision);
@@ -114,9 +123,129 @@ public sealed class PluginReauthorizationProcessTests(ITestOutputHelper output) 
         var deniedC = await probe.Run("start-C");
         Assert.Null(Plugin(deniedC).Active);
         Assert.Null(deniedC.WorkerPid);
+        Assert.Null(deniedC.Text);
         Assert.Equal(0, deniedC.ImageReads);
         AssertRetained(seed, deniedC);
         Assert.Equal(backupFiles, probe.BackupFiles());
+    }
+
+    // #130 is an independent startup policy, not permission to replay an old frozen row.
+    // Cover its positive side explicitly rather than weakening the relocated-C assertions above.
+    [Theory]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    public async Task EstablishedInPlaceUpdateDoesNotReuseAStaleConsentRow(bool material, bool enabled)
+    {
+        Probe probe = NewProbe();
+        var seed = await probe.Run("seed", material.ToString(), enabled.ToString());
+        await probe.Run("stage-B");
+        var review = await probe.Run("review");
+        AssertReview(seed, review, material);
+        var consent = await probe.Run("consent");
+        Assert.Null(consent.Rejection);
+        Assert.Null(Plugin(consent).Active);
+        var established = await probe.Run("start-B");
+        Assert.Equal(consent.TargetExecution, Plugin(established).Active!.ExecutionRevision);
+        var backups = probe.BackupFiles();
+
+        var third = await probe.Run("stage-C", "in-place");
+        var candidate = Assert.Single(Plugin(third).Candidates, candidate => candidate.IsPresent);
+        Assert.Equal(review.Row!.NewCandidateId, candidate.CandidateId);
+        Assert.Equal(review.Row.NewPath, candidate.CandidatePath);
+        Assert.NotEqual(third.TargetExecution, third.ThirdExecution);
+        Assert.Equal(third.ThirdExecution, Plugin(third).Active!.ExecutionRevision);
+        Assert.Null(third.Row);
+        var before = probe.StoreFiles();
+        var stale = await probe.Run("consent");
+        Assert.Equal("InvalidOperationException", stale.Rejection);
+        Assert.Equal(before, probe.StoreFiles());
+
+        var first = await probe.Run("start-C");
+        var second = await probe.Run("start-C");
+        Assert.NotEqual(first.Pid, second.Pid);
+        foreach (var restarted in new[] { first, second })
+        {
+            Assert.Null(restarted.Rejection);
+            EqualJson(Plugin(third).Active, Plugin(restarted).Active);
+            EqualJson(Plugin(established).Active, Plugin(restarted).LastGood);
+            EqualJson(Plugin(seed).Active!.Configuration, Plugin(restarted).Active!.Configuration);
+            Assert.Null(Plugin(restarted).Pending);
+            Assert.Null(Plugin(restarted).Problem);
+            Assert.Null(restarted.Row);
+            AssertRetained(seed, restarted);
+            Assert.Equal(enabled, restarted.WorkerPid is not null);
+            Assert.Equal(enabled ? (material ? "C:73" : "c:73") : null, restarted.Text);
+            Assert.Equal(enabled ? 1 : 0, restarted.ImageReads);
+            Assert.Equal(consent.BackupHash, restarted.BackupHash);
+        }
+        Assert.Equal(third.StoreHash, first.StoreHash);
+        Assert.Equal(first.StoreHash, second.StoreHash);
+        if (enabled) Assert.NotEqual(first.WorkerPid, second.WorkerPid);
+        Assert.Equal(backups, probe.BackupFiles());
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task InPlaceReplacementNeedsFreshReviewUnlessEstablishedAndNonWidening(bool material, bool activateB)
+    {
+        Probe probe = NewProbe();
+        var seed = await probe.Run("seed", material.ToString(), "true");
+        await probe.Run("stage-B");
+        var review = await probe.Run("review");
+        AssertReview(seed, review, material);
+        var consent = await probe.Run("consent");
+        Assert.Null(consent.Rejection);
+        Assert.Null(Plugin(consent).Active);
+        Assert.Equal(consent.TargetExecution, Plugin(consent).Pending!.ExecutionRevision);
+        if (activateB)
+        {
+            var established = await probe.Run("start-B");
+            Assert.Equal(consent.TargetExecution, Plugin(established).Active!.ExecutionRevision);
+        }
+        var backups = probe.BackupFiles();
+
+        // Before B ever activates, even a compatible same-path C cannot inherit B's consent.
+        // After B activates, widening its host declaration still requires a fresh review.
+        var third = await probe.Run("stage-C", activateB ? "widened" : "in-place");
+        var row = Assert.IsType<BundledCandidateRepair>(third.Row);
+        Assert.Equal(review.Row!.NewCandidateId, row.NewCandidateId);
+        Assert.Equal(review.Row.NewPath, row.NewPath);
+        Assert.Equal(review.Row.SlotId, row.SlotId);
+        Assert.NotEqual(review.Row.NewExecutionRevision, row.NewExecutionRevision);
+        Assert.Equal(third.ThirdExecution, row.NewExecutionRevision);
+        Assert.False(row.CanConfirm);
+        Assert.Equal(material || activateB, row.CanReviewChanges);
+        Assert.Equal(!material && !activateB, row.CanReauthorize);
+        if (activateB)
+        {
+            var changes = SdkJson.Deserialize<BundledPluginChangeReview>(Encoding.UTF8.GetBytes(row.ChangeReviewJson!));
+            Assert.Single(Assert.Single(changes.PreviousDescription.Sources).HttpHosts);
+            Assert.Contains(Assert.Single(changes.NewDescription.Sources).HttpHosts,
+                host => host.Host == "unreviewed.invalid" && host.Purpose == HttpHostPurpose.Metadata);
+        }
+        Assert.Null(Plugin(third).Active);
+        AssertRetained(seed, third);
+        var before = probe.StoreFiles();
+        var stale = await probe.Run("consent"); // B's frozen row, but the current profile revision.
+        Assert.Equal("InvalidOperationException", stale.Rejection);
+        Assert.Equal(before, probe.StoreFiles());
+        for (int restart = 0; restart < 2; restart++)
+        {
+            var denied = await probe.Run("start-C");
+            Assert.Null(Plugin(denied).Active);
+            Assert.Equal(activateB ? consent.TargetExecution : seed.OldExecution, Plugin(denied).LastGood!.ExecutionRevision);
+            EqualJson(Plugin(third).Pending, Plugin(denied).Pending);
+            Assert.Null(denied.WorkerPid);
+            Assert.Null(denied.Text);
+            Assert.Equal(0, denied.ImageReads);
+            AssertRetained(seed, denied);
+        }
+        Assert.Equal(backups, probe.BackupFiles());
     }
 
     [Theory]
