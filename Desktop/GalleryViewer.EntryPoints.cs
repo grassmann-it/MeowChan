@@ -1,6 +1,7 @@
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.VisualTree;
 using MeowChan.Desktop.MediaActions;
 using MeowChan.Gallery;
@@ -60,6 +61,65 @@ internal sealed partial class GalleryViewer
         Visual[] chain = visual.GetSelfAndVisualAncestors().ToArray();
         if (chain.Contains(_filmstrip) || _video?.TransportControl is { } transport && chain.Contains(transport)) return false;
         return chain.Contains(_chrome) || chain.Contains(_infoOverlay);
+    }
+
+    // ---- the Menu key and Shift+F10 (sweep S2 F4, 16.11.2026) ----
+    // A focused control with a menu of its own gets the key first, as its right-click does: a chip of the tag panel (add to / remove from
+    // the stamp), the slideshow toggle (its settings flyout), the speed button (its speed choices). Only otherwise the gallery routes the key
+    // to the layout menu (a dock tool) or the media menu (the picture, the filmstrip, the video bar). The key the gallery handled has a
+    // key-up that Avalonia may answer with a positionless ContextRequested of its own on the focused control (a second menu over the first,
+    // or the media menu reopened): that one key-up is consumed.
+
+    // The key of the context key-down the gallery handled; its key-up is consumed once. Any other key-down in the viewer ends it.
+    private Key? _contextKeyUpPending;
+
+    /// <summary>The focused control (or its ancestor below the viewer) that owns a menu of its own for the Menu key and Shift+F10: one with
+    /// an own ContextMenu (tag chips, the speed button), or the slideshow toggle (its settings flyout). The gallery's media and layout menus,
+    /// attached to their origin only while open, are not a control's own. Null when the gallery's own routing applies.</summary>
+    internal Control? ContextKeyOwner(object? source)
+    {
+        if (source is not Visual visual || _terminalRetirement) return null;
+        foreach (Visual node in visual.GetSelfAndVisualAncestors())
+        {
+            if (ReferenceEquals(node, this) || ReferenceEquals(node, _nativeVideoOverlay)) break;
+            if (node is not Control control) continue;
+            if (ReferenceEquals(control, _slideshowToggle)) return control;
+            if (control.ContextMenu is { } menu && !ReferenceEquals(menu, _mediaMenuPresenter.Menu) && !ReferenceEquals(menu, LayoutContextMenu))
+                return control;
+        }
+        return null;
+    }
+
+    // The owner's menu opens through the same request a right-click raises (positionless: under the control), so the menu composes as it
+    // does there (the ContextMenu's Opening fills the stamp entries and the checked speed). True when something opened it; a request the owner
+    // declines (the toggle under "More") goes on to the dock's and the viewer's handlers, as the right-click's does.
+    private bool OpenOwnContextMenu(Control owner)
+    {
+        ContextRequestedEventArgs request = new() { RoutedEvent = ContextRequestedEvent, Source = owner };
+        owner.RaiseEvent(request);
+        return request.Handled;
+    }
+
+    // The gallery opened a menu for this key-down: the key is handled and its key-up will be consumed.
+    private void ConsumeContextKey(KeyEventArgs e)
+    {
+        e.Handled = true;
+        _contextKeyUpPending = e.Key;
+    }
+
+    // A new key-down ends the wait for the key-up of an earlier context key (a modifier, the Shift of Shift+F10, does not).
+    private void ForgetContextKeyUp(KeyEventArgs e)
+    {
+        if (e.Key is not (Key.LeftShift or Key.RightShift or Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt or Key.RightAlt or Key.LWin or Key.RWin))
+            _contextKeyUpPending = null;
+    }
+
+    // The key-up of the context key the gallery handled: handled here, so Avalonia raises no second, positionless request for it.
+    private void OnContextKeyUp(object? sender, KeyEventArgs e)
+    {
+        if (_contextKeyUpPending is not { } key || e.Key != key) return;
+        _contextKeyUpPending = null;
+        e.Handled = true;
     }
 
     /// <summary>A frame can be saved now: the shown video is ready and its transport usable (the "⋯" row, S and the player menu agree).</summary>

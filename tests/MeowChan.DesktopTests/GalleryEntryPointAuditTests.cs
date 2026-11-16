@@ -1,6 +1,7 @@
 using System.Reflection;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform;
@@ -138,7 +139,100 @@ public sealed class GalleryEntryPointAuditTests
         Assert.False(viewer.IsLayoutMenuKeySource(viewer));            // the picture: the media menu
         Assert.False(viewer.IsLayoutMenuKeySource(viewer.Filmstrip));  // a thumbnail: the shown medium's media menu
         Assert.False(viewer.IsLayoutMenuKeySource(null));
+
+        // Sweep S2 F4: a control with a menu of its own gets the key before the layout and the media menu. The slideshow toggle is a dock tool
+        // (IsLayoutMenuKeySource) but its own flyout comes first; chips and the speed button own a ContextMenu; the gallery's tools do not.
+        ToggleButton toggle = Get<ToggleButton>(viewer, "_slideshowToggle");
+        Assert.True(viewer.IsLayoutMenuKeySource(toggle));
+        Assert.Same(toggle, viewer.ContextKeyOwner(toggle));
+        Button chip = new() { Name = "GalleryTagPanelAssignedChip", ContextMenu = new ContextMenu() };
+        Assert.Same(chip, viewer.ContextKeyOwner(chip));
+        Button speed = new() { Name = "GalleryVideoSpeed", ContextMenu = new ContextMenu() };
+        Assert.Same(speed, viewer.ContextKeyOwner(speed));
+        Assert.Null(viewer.ContextKeyOwner(Get<Button>(viewer, "_fit")));
+        Assert.Null(viewer.ContextKeyOwner(viewer.OverflowButton));
+        Assert.Null(viewer.ContextKeyOwner(viewer));
+        Assert.Null(viewer.ContextKeyOwner(viewer.Filmstrip));
+        Assert.Null(viewer.ContextKeyOwner(null));
     });
+
+    // WRONG TARGET (sweep S2 F4): the Menu key and Shift+F10 on a tag chip, the slideshow toggle or the speed button opened the gallery's media or
+    // layout menu instead of the control's own (the stamp menu, the slideshow settings, the speed choices). The key now raises the control's own
+    // request (the one its right-click raises) exactly once, opens neither gallery menu, and its key-up is consumed once so Avalonia's
+    // positionless request on the key-up cannot open a second menu over the first.
+    [Fact]
+    public void TheMenuKeyOnAControlWithItsOwnMenuOpensThatMenuOnce() => WithViewer(viewer =>
+    {
+        Set(viewer, "_entry", LooseImage()); // with a medium shown the old routing opened the media menu for these keys
+        ToggleButton toggle = Get<ToggleButton>(viewer, "_slideshowToggle");
+        Button chip = new() { Name = "GalleryTagPanelAssignedChip", ContextMenu = new ContextMenu() };
+        Button speed = new() { Name = "GalleryVideoSpeed", ContextMenu = new ContextMenu() };
+        MethodInfo keyUp = typeof(GalleryViewer).GetMethod("OnContextKeyUp", Fields)!;
+        foreach (Control owner in new Control[] { chip, toggle, speed })
+            foreach (var (key, modifiers) in new[] { (Avalonia.Input.Key.Apps, KeyModifiers.None), (Avalonia.Input.Key.F10, KeyModifiers.Shift) })
+            {
+                int requests = 0;
+                EventHandler<ContextRequestedEventArgs> answer = (_, e) => { requests++; Assert.False(e.TryGetPosition(owner, out _)); e.Handled = true; };
+                owner.AddHandler(Control.ContextRequestedEvent, answer, RoutingStrategies.Tunnel);
+                try
+                {
+                    KeyEventArgs press = new() { RoutedEvent = InputElement.KeyDownEvent, Key = key, KeyModifiers = modifiers, Source = owner };
+                    viewer.RouteKeyForTests(press);
+                    Assert.True(press.Handled);
+                    Assert.Equal(1, requests);
+                    Assert.Null(viewer.MediaMenu);
+                    Assert.Null(viewer.LayoutContextMenu);
+
+                    KeyEventArgs release = new() { RoutedEvent = InputElement.KeyUpEvent, Key = key, KeyModifiers = modifiers, Source = owner };
+                    keyUp.Invoke(viewer, [owner, release]);
+                    Assert.True(release.Handled); // no second, positionless request from Avalonia's key-up path
+                    KeyEventArgs later = new() { RoutedEvent = InputElement.KeyUpEvent, Key = key, Source = owner };
+                    keyUp.Invoke(viewer, [owner, later]);
+                    Assert.False(later.Handled); // consumed once, not every later key-up of that key
+                }
+                finally { owner.RemoveHandler(Control.ContextRequestedEvent, answer); }
+            }
+    });
+
+    // A key-up is consumed only for the context key the gallery handled itself: another key-down in between ends the wait, so a later Menu key
+    // that a text field or another control answers keeps its key-up.
+    [Fact]
+    public void AnotherKeyEndsTheWaitForTheContextKeyUp() => WithViewer(viewer =>
+    {
+        Button chip = new() { Name = "GalleryTagPanelAssignedChip", ContextMenu = new ContextMenu() };
+        chip.AddHandler(Control.ContextRequestedEvent, (_, e) => e.Handled = true, RoutingStrategies.Tunnel);
+        MethodInfo keyUp = typeof(GalleryViewer).GetMethod("OnContextKeyUp", Fields)!;
+        viewer.RouteKeyForTests(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Avalonia.Input.Key.Apps, Source = chip });
+        viewer.RouteKeyForTests(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Avalonia.Input.Key.LeftShift, Source = chip });
+        KeyEventArgs afterModifier = new() { RoutedEvent = InputElement.KeyUpEvent, Key = Avalonia.Input.Key.Apps, Source = chip };
+        keyUp.Invoke(viewer, [chip, afterModifier]);
+        Assert.True(afterModifier.Handled); // a modifier (the Shift of Shift+F10) does not end it
+
+        viewer.RouteKeyForTests(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Avalonia.Input.Key.Apps, Source = chip });
+        viewer.RouteKeyForTests(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Avalonia.Input.Key.F13, Source = chip });
+        KeyEventArgs afterKey = new() { RoutedEvent = InputElement.KeyUpEvent, Key = Avalonia.Input.Key.Apps, Source = chip };
+        keyUp.Invoke(viewer, [chip, afterKey]);
+        Assert.False(afterKey.Handled);
+    });
+
+    // The real owners are what the rule sees: the stamp menu sits on the chip as its ContextMenu, the speed choices on the speed button, and the
+    // toggle's request opens the slideshow flyout; the gallery routes through the owner before the layout and the media menu.
+    [Fact]
+    public void TheRealChipSpeedAndToggleCarryTheirOwnMenus()
+    {
+        string? directory = AppContext.BaseDirectory;
+        while (directory != null && !File.Exists(Path.Combine(directory, "MeowChan.csproj"))) directory = Path.GetDirectoryName(directory);
+        string Source(string path) => File.ReadAllText(Path.Combine(directory!, path));
+        Assert.Contains("chip.ContextMenu = menu;", Source("Desktop/Controls/QuickTagSurface.cs"));
+        Assert.Contains("_speed.ContextMenu = _speedMenu;", Source("Desktop/GalleryVideoPlayer.Transport.cs"));
+        Assert.Contains("_slideshowToggle.ContextRequested +=", Source("Desktop/GalleryViewer.SlideshowMenu.cs"));
+        string viewer = Source("Desktop/GalleryViewer.cs");
+        int own = viewer.IndexOf("ContextKeyOwner(e.Source)", StringComparison.Ordinal);
+        int layout = viewer.IndexOf("IsLayoutMenuKeySource(e.Source) && ShowLayoutContextMenu()", StringComparison.Ordinal);
+        Assert.True(own > 0 && layout > own);
+        Assert.Contains("AddHandler(KeyUpEvent, OnContextKeyUp, RoutingStrategies.Tunnel, handledEventsToo: true)", viewer);
+        Assert.Contains("_nativeVideoOverlay.AddHandler(KeyUpEvent, OnContextKeyUp, RoutingStrategies.Tunnel, handledEventsToo: true)", viewer);
+    }
 
     // Quote chips of the post panel present "Show quoted post" like the reader's quote buttons, so a key bound to it opens the focused chip.
     [Fact]
