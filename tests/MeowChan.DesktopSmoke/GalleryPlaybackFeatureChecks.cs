@@ -641,7 +641,13 @@ internal static partial class GalleryPlaybackFeatureChecks
                 Require(ProvesNativeUnavailable(volumeEvidence) && volumeEvidence.State == "Playing"
                     && !volume.IsEffectivelyEnabled && !mute.IsEffectivelyEnabled && !player.CanAdjustVolume,
                     "Native no-output edge check requires disabled controls and actual unavailable evidence.");
-                await native.MoveAsync(volume, await MediaInteractionSmokeHelpers.TrackPointAsync(volume, .60));
+                // Windows can keep the disabled volume slider in its hover popup
+                // visually stale after the speaker transfers into the native video
+                // overlay. This branch proves disabled-input invariance, not slider
+                // editing; target the current, always-present speaker host instead
+                // of making MediaNativeInput wait for an unavailable popup child.
+                Control volumeHost = Find<Control>(viewer, "GalleryVideoVolumeHost");
+                await native.MoveAsync(volumeHost);
                 await native.ButtonAsync(true);
                 await native.ButtonAsync(false);
                 await MediaInteractionSmokeHelpers.HoldStateAsync(player, "Playing", "Disabled bottom-edge volume interaction");
