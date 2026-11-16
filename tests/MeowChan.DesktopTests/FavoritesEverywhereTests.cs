@@ -168,7 +168,7 @@ public sealed class FavoritesEverywhereTests : IDisposable
         // The sidebar: the medium it shows (or the strip's thumbnail).
         Assert.Contains("SidebarMediaContext(ancestors)", archive);
         Assert.Contains("SidebarStripContext(ancestors)", archive);
-        Assert.Contains("FavoriteKeys.Targets(action, marked)", archive);
+        Assert.Contains("FavoriteKeys.Writes(action, marked)", archive);
         Assert.Contains("TryRouteFavoriteKey(posts, e)", Source("Desktop/Views/Archive/ArchivePage.Reader.cs"));
         Assert.Contains("TryRouteFavoriteKey(list, e)", Source("Desktop/Views/Archive/ArchivePage.Gallery.cs"));
         Assert.Contains("TryRouteFavoriteKey(sidebar, e)", Source("Desktop/Views/Archive/ArchivePage.MediaSidebar.cs"));

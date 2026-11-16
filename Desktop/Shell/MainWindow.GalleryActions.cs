@@ -199,6 +199,18 @@ public partial class MainWindow
         return SetGalleryFavoriteAsync(entry, !_favoriteChanges.Target(key, _session.IsFavorite(entry)));
     }
 
+    // The archive's favourite value once a pending write lands: the pending target, else the saved state.
+    private bool EffectiveArchiveFavorite(GalleryEntry entry) =>
+        _favoriteChanges.Target(FavoriteAssetKey.From(entry.Key.Thread, entry.Asset), _session.IsFavorite(entry));
+
+    // The archive's explicit favourite write. A write that is pending (the gallery's, the Media page's) owns the persistence: this only updates its target.
+    private async Task SetArchiveFavoriteAsync(GalleryEntry entry, bool selected)
+    {
+        if (_favoriteChanges.IsPending(FavoriteAssetKey.From(entry.Key.Thread, entry.Asset))) await SetGalleryFavoriteAsync(entry, selected);
+        else await _session.SetFavoriteAsync(entry, selected);
+        RefreshGalleryFavorite();
+    }
+
     private async Task SetGalleryFavoriteAsync(GalleryEntry entry, bool selected)
     {
         if (_isClosing) return; // New UI intents stop; already accepted sequences still drain.
