@@ -7,6 +7,7 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
+using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Threading;
 using MeowChan.Gallery;
@@ -38,6 +39,13 @@ internal sealed partial class GalleryViewer
     private Action<string>? _videoNoticeHandler;
     private Action<bool>? _videoPlaybackHandler;
     private readonly ComboBox _playbackMode = new() { Name = "GalleryPlaybackModeSelector", MinWidth = 120 };
+    // macOS can close a native ComboBox popup before the Escape event reaches the
+    // owning window. Keep the close ownership for a short bounded grace so that the
+    // same Escape cannot fall through and close the gallery (which would retire
+    // the native video and look like a delayed pause/stop).
+    private const int PlaybackMenuEscapeGraceMs = 500;
+    private ComboBox? _recentlyClosedPlaybackMenu;
+    private long _playbackMenuCloseRevision;
     // How long each image stays in the slideshow (1–300 s, typed or stepped ±1, PageUp/PageDown ±10); shown only in slideshow
     // mode, written through the same preferences as the settings page.
     private readonly AccessibleNumberInput _slideshowSeconds = SlideshowNumber("GallerySlideshowSecondsInput",
@@ -124,7 +132,12 @@ internal sealed partial class GalleryViewer
         _slideshowHome = new StackPanel { Name = "GalleryPlaybackTools", Spacing = 2 };
         AddOverflowItem(_videoRepeatToggle, "video.loop", check: true, keepOpen: true,
             label: () => GalleryPlaybackCatalog.Get("viewer.playback.repeat"), host: _slideshowHome);
-        _videoRepeatToggle.Click += (_, _) => ChangePlaybackPreferences(_playbackPreferences with { VideoRepeat = !_playbackPreferences.VideoRepeat });
+        _videoRepeatToggle.Click += (_, _) =>
+        {
+            bool enabled = !_playbackPreferences.VideoRepeat;
+            if (enabled) ReleaseSlideshowForVideoRepeat();
+            ChangePlaybackPreferences(_playbackPreferences with { VideoRepeat = enabled });
+        };
         // One inset for everything in the menu: a choice box starts where a row's lead mark starts and ends where its shortcut ends,
         // a caption is a field label of the box below it (Space.4 between them), and the box leaves Space.4 before the next row.
         foreach (Control choice in new Control[] { _playbackMode, _slideshowSeconds, _videoRule, _videoSeconds, _videoRepeats })
@@ -153,7 +166,11 @@ internal sealed partial class GalleryViewer
         foreach (ComboBox choice in new[] { _playbackMode, _videoRule })
         {
             choice.DropDownOpened += (_, _) => { HoldSlideshowAdvance(); RefreshPlaybackControls(); };
-            choice.DropDownClosed += (_, _) => RefreshPlaybackControls();
+            choice.DropDownClosed += (_, _) =>
+            {
+                RememberPlaybackMenuClose(choice);
+                RefreshPlaybackControls();
+            };
         }
         _playbackMode.SelectionChanged += (_, _) =>
         {
@@ -250,6 +267,28 @@ internal sealed partial class GalleryViewer
         string text = ApplyStatusDwell(_shownSlideshowStatus, shown ? SlideshowStatusText(_shownSlideshowStatus) : string.Empty); // GL5c: "ready" fades out after the dwell time
         if (_slideshowStatus.Text != text) _slideshowStatus.Text = text;
         _slideshowStatus.IsVisible = text.Length > 0;
+    }
+
+    private void RememberPlaybackMenuClose(ComboBox choice)
+    {
+        _recentlyClosedPlaybackMenu = choice;
+        long revision = ++_playbackMenuCloseRevision;
+        // A pointer selection also closes the popup. Do not let that close arm a
+        // future Escape indefinitely; the bounded grace covers native popup
+        // teardown and delayed key delivery on macOS.
+        DispatcherTimer.RunOnce(() =>
+        {
+            if (revision == _playbackMenuCloseRevision) _recentlyClosedPlaybackMenu = null;
+        }, TimeSpan.FromMilliseconds(PlaybackMenuEscapeGraceMs));
+    }
+
+    internal bool ConsumeRecentlyClosedPlaybackMenuEscape(KeyEventArgs e)
+    {
+        if (e.Key != Key.Escape || e.KeyModifiers != KeyModifiers.None || _recentlyClosedPlaybackMenu == null) return false;
+        _recentlyClosedPlaybackMenu = null;
+        ++_playbackMenuCloseRevision;
+        e.Handled = true;
+        return true;
     }
 
     private void ChangePlaybackPreferences(GalleryPlaybackPreferences prefs)
@@ -387,7 +426,8 @@ internal sealed partial class GalleryViewer
         TimeSpan.FromSeconds(_playbackPreferences.VideoSeconds), _playbackPreferences.VideoRepeats);
 
     // The player repeats a video by itself only outside a running slideshow; inside, the slideshow's video rule decides
-    // (two loops must never compete). The loop button then shows the saved choice as unavailable and says why.
+    // (two loops must never compete). An explicit Repeat intent can hand the current video back to the player
+    // and stop slideshow navigation without issuing a native pause.
     private void ApplyEffectiveVideoLoop()
     {
         if (_video == null || _slideshow == null) return;
@@ -458,7 +498,18 @@ internal sealed partial class GalleryViewer
 
 
     // The transport's loop button: the same "Repeat video" preference as the menu row; the playback mode stays as it is.
-    private void OnVideoLoopChanged(bool enabled) => ChangePlaybackPreferences(_playbackPreferences with { VideoRepeat = enabled });
+    // Enabling it is an explicit takeover of the current video, not a native pause command.
+    private void OnVideoLoopChanged(bool enabled)
+    {
+        if (enabled) ReleaseSlideshowForVideoRepeat();
+        ChangePlaybackPreferences(_playbackPreferences with { VideoRepeat = enabled });
+    }
+
+    private void ReleaseSlideshowForVideoRepeat()
+    {
+        if (_slideshow.IsRunning && _entry?.Kind == SavedMediaKind.Video)
+            PauseSlideshow(pauseVideo: false);
+    }
 
     // The slideshow's video rule asks for another pass of the same video: replay it from the start (silently, as the
     // slideshow's own playback). Selection and generation stay; a newer selection has already rebound these signals.

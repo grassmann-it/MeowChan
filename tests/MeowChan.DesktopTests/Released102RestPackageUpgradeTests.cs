@@ -98,14 +98,26 @@ public sealed class Released102RestPackageUpgradeTests(ITestOutputHelper output)
         }
         else if (namespaceBackend is "bwrap" or "bwrap-root")
         {
-            string bwrap = Environment.GetEnvironmentVariable("MEOWCHAN_RELEASED102_BWRAP_PATH") ?? "bwrap";
             bool privilegedSetup = namespaceBackend == "bwrap-root";
+            string bwrap = privilegedSetup
+                ? RequiredValue("MEOWCHAN_RELEASED102_BWRAP_PATH")
+                : Environment.GetEnvironmentVariable("MEOWCHAN_RELEASED102_BWRAP_PATH") ?? "bwrap";
             if (privilegedSetup)
             {
-                string sudo = Environment.GetEnvironmentVariable("MEOWCHAN_RELEASED102_BWRAP_SUDO") ?? "sudo";
+                string sudo = RequiredValue("MEOWCHAN_RELEASED102_BWRAP_SUDO");
+                // The launcher runs as root only while staging aliases for
+                // writable binds. bwrap must then enter the child as exactly
+                // the runner UID/GID; the probe proves the same transition.
+                string realBwrap = RequiredValue("MEOWCHAN_RELEASED102_REAL_BWRAP_PATH");
                 start = new(sudo);
                 start.ArgumentList.Add("-n");
                 start.ArgumentList.Add(bwrap);
+                // sudo may apply env_reset; pass the real executable as an
+                // explicit launcher argument so root setup cannot fall back
+                // to PATH or accidentally execute a different bwrap.
+                start.ArgumentList.Add("--real-bwrap");
+                start.ArgumentList.Add(realBwrap);
+                start.Environment["MEOWCHAN_RELEASED102_REAL_BWRAP_PATH"] = realBwrap;
             }
             else
             {
@@ -129,7 +141,9 @@ public sealed class Released102RestPackageUpgradeTests(ITestOutputHelper output)
             start.ArgumentList.Add("--tmpfs"); start.ArgumentList.Add("/tmp");
             // sudo applies env_reset on hosted runners; keep the no-update contract explicit inside bwrap.
             start.ArgumentList.Add("--setenv"); start.ArgumentList.Add("MEOWCHAN_DISABLE_UPDATE_CHECK"); start.ArgumentList.Add("1");
-            // The child owns these writes; all other host paths remain read-only.
+            // The root launcher stages these sources through /var/tmp before
+            // invoking bwrap. They remain aliases, so writes still land in the
+            // runner-owned paths; the root filesystem itself stays read-only.
             start.ArgumentList.Add("--bind"); start.ArgumentList.Add(profile); start.ArgumentList.Add(profile);
             string resultsDirectory = Path.GetDirectoryName(result)!;
             start.ArgumentList.Add("--bind"); start.ArgumentList.Add(resultsDirectory); start.ArgumentList.Add(resultsDirectory);

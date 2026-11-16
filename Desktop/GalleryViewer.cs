@@ -1830,7 +1830,16 @@ internal sealed partial class GalleryViewer : UserControl
     {
         if (!CanRouteGalleryShortcut(_nativeVideoOverlay, e)) return;
         if (e.Key == Key.Escape && e.Source is Visual source &&
-            source.GetVisualAncestors().Prepend(source).OfType<ComboBox>().Any(combo => combo.IsDropDownOpen)) return;
+            source.GetVisualAncestors().Prepend(source).OfType<ComboBox>()
+                .Any(combo => combo.IsDropDownOpen || combo.IsKeyboardFocusWithin))
+        {
+            // Native ComboBox handling closes the drop-down before this parent
+            // handler runs on some platforms. Keep that same Escape from falling
+            // through to the shell and closing the gallery as a second action.
+            e.Handled = true;
+            return;
+        }
+        if (ConsumeRecentlyClosedPlaybackMenuEscape(e)) return;
         ShellKeyRequested?.Invoke(this, e);
     }
     private double DisplayScale => TopLevel.GetTopLevel(this)?.RenderScaling ?? 1;

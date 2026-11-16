@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.VisualTree;
 
 namespace MeowChan.DesktopSmoke;
@@ -10,6 +11,7 @@ internal sealed class MediaNativeInput : IDisposable
 {
     private readonly nint _display;
     private readonly Window _owner;
+    private readonly Action<string, object>? _trace;
     private int _x, _y;
     private readonly HashSet<uint> _heldKeys = new();
     private uint _heldButton;
@@ -17,9 +19,10 @@ internal sealed class MediaNativeInput : IDisposable
     internal string Backend => OperatingSystem.IsWindows() ? "Windows Win32 SendInput; explicit disposable desktop"
         : OperatingSystem.IsMacOS() ? "macOS CGEvent; explicit disposable single-display desktop" : "X11 XTest (libXtst.so.6); private Xvfb; Linux software video";
 
-    internal MediaNativeInput(Window owner)
+    internal MediaNativeInput(Window owner, Action<string, object>? trace = null)
     {
         _owner = owner;
+        _trace = trace;
         if (OperatingSystem.IsWindows() || OperatingSystem.IsMacOS())
         {
             if (Environment.GetEnvironmentVariable("MEOWCHAN_DESKTOP_SMOKE_NATIVE_ALLOWED") != "1")
@@ -50,47 +53,98 @@ internal sealed class MediaNativeInput : IDisposable
     private const int MaxTargetAttempts = 24;
     private static readonly TimeSpan TargetRetryDelay = TimeSpan.FromMilliseconds(25);
 
-    internal Task MoveAsync(Control target, Point? point = null) =>
-        MoveAsync(() => Task.FromResult(target), _ => Task.FromResult(point));
+    internal Task MoveAsync(Control target, Point? point = null, bool requireEnabled = true, bool requireHitTest = true) =>
+        MoveAsync(() => Task.FromResult(target), _ => Task.FromResult(point), requireEnabled, requireHitTest);
 
     /// <summary>
-    /// Moves to a current visual-tree target. The resolver is deliberately part of the
-    /// native operation: GalleryControlTransfer may retire the returned control after a
-    /// readiness probe, so retrying PointToScreen on that same instance is not safe.
+    /// Moves to a current visual-tree target. The resolver, readiness checks and
+    /// coordinate conversion are deliberately one bounded operation: a transfer can
+    /// retire the returned control after a readiness probe, so no stale point is reused.
     /// </summary>
-    internal async Task MoveAsync<T>(Func<Task<T>> resolveTarget, Func<T, Task<Point?>>? resolvePoint = null)
+    internal async Task MoveAsync<T>(Func<Task<T>> resolveTarget, Func<T, Task<Point?>>? resolvePoint = null,
+        bool requireEnabled = true, bool requireHitTest = true)
         where T : Control
     {
-        for (int attempt = 0; ; attempt++)
+        for (int attempt = 1; attempt <= MaxTargetAttempts; attempt++)
         {
+            T? target = null;
+            Point? point = null;
             try
             {
-                T target = await resolveTarget();
-                await MoveOnceAsync(target, resolvePoint == null ? null : await resolvePoint(target));
+                target = await resolveTarget();
+                await PrepareTargetAsync(target, requireEnabled, requireHitTest);
+                point = resolvePoint == null ? null : await resolvePoint(target);
+                await MoveOnceAsync(target, point, requireEnabled, requireHitTest);
                 return;
             }
-            catch (ArgumentException) when (attempt < MaxTargetAttempts - 1)
+            catch (ArgumentException) when (attempt < MaxTargetAttempts)
             {
                 // Re-resolve the control on the next dispatcher turn. A cross-root
                 // conversion failure means this instance is stale, not that a routed
                 // or synthetic event should be substituted.
                 await Task.Delay(TargetRetryDelay);
             }
+            catch (ArgumentException)
+            {
+                TraceFinalArgument("move", attempt, target, point, requireEnabled, requireHitTest);
+                throw;
+            }
         }
     }
 
-    private async Task MoveOnceAsync(Control target, Point? point)
+    private async Task PrepareTargetAsync(Control target, bool requireEnabled, bool requireHitTest)
     {
-        // The gallery volume opens above the speaker when it is pointed at (plan V1): point there first, as a person does.
+        // The gallery volume opens above the speaker when it is pointed at (plan V1):
+        // point at the live host first, then re-check this same current control.
         if (!target.IsEffectivelyVisible && target.Name == "GalleryVideoVolume"
             && target.GetVisualAncestors().OfType<Control>().FirstOrDefault(control => control.Name == "GalleryVideoVolumeHost") is { } speaker)
         {
             await MoveAsync(speaker);
-            await Program.WaitUntilAsync(() => target.IsEffectivelyVisible && target.Bounds.Height > 0,
+            await Program.WaitUntilAsync(
+                () => IsNativeGeometryReady(target, requireEnabled),
                 () => "The volume above the speaker did not open: " + target.Name);
         }
-        if (!target.IsEffectivelyVisible || target.Bounds.Width <= 0 || target.Bounds.Height <= 0)
-            throw new InvalidOperationException("Native pointer target is not laid out/visible: " + target.Name);
+        if (!IsNativeGeometryReady(target, requireEnabled)
+            || requireHitTest && !IsNativeHitTargetReady(target, requireEnabled))
+            throw new ArgumentException("Native pointer target presentation is not ready.", nameof(target));
+    }
+
+    private static bool IsNativeGeometryReady(Control target, bool requireEnabled)
+    {
+        return target.IsAttachedToVisualTree() && target.IsArrangeValid && target.IsEffectivelyVisible
+            && (!requireEnabled || target.IsEffectivelyEnabled)
+            && target.Bounds.Width > 0 && target.Bounds.Height > 0
+            && TopLevel.GetTopLevel(target) is { IsVisible: true };
+    }
+
+    private static bool IsNativeHitTargetReady(Control target, bool requireEnabled, Point? point = null)
+    {
+        if (!IsNativeGeometryReady(target, requireEnabled)) return false;
+        try
+        {
+            TopLevel root = TopLevel.GetTopLevel(target)!;
+            Point targetPoint = point ?? new Point(target.Bounds.Width / 2, target.Bounds.Height / 2);
+            PixelPoint pixel = target.PointToScreen(targetPoint);
+            Visual? rootHit = root.InputHitTest(root.PointToClient(pixel)) as Visual;
+            if (rootHit != null && rootHit.GetSelfAndVisualAncestors().Contains(target)) return true;
+            // Avalonia's top-level hit walk can temporarily return an adorner or
+            // the window background while a media surface is transferring its
+            // overlay. Validate the same coordinate in the current target root as
+            // well; this still requires a live descendant of the requested target
+            // and does not synthesize or retry delivery.
+            Visual? targetHit = target.InputHitTest(targetPoint) as Visual;
+            return targetHit != null && targetHit.GetSelfAndVisualAncestors().Contains(target);
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
+    }
+
+    private async Task MoveOnceAsync(Control target, Point? point, bool requireEnabled, bool requireHitTest)
+    {
+        if (requireHitTest && !IsNativeHitTargetReady(target, requireEnabled, point))
+            throw new ArgumentException("Native pointer hit target changed before delivery.", nameof(target));
         PixelPoint pixel = target.PointToScreen(point ?? new Point(target.Bounds.Width / 2, target.Bounds.Height / 2));
         if (_display == 0)
         {
@@ -118,29 +172,42 @@ internal sealed class MediaNativeInput : IDisposable
         Flush(); await Task.Delay(70);
     }
 
-    internal Task ClickAsync(Control target, Point? point = null) =>
-        ClickAsync(() => Task.FromResult(target), _ => Task.FromResult(point));
+    internal Task ClickAsync(Control target, Point? point = null, bool requireHitTest = true) =>
+        ClickAsync(() => Task.FromResult(target), _ => Task.FromResult(point), requireHitTest);
 
-    /// <summary>Clicks a freshly resolved target; coordinate conversion and native delivery are one bounded operation.</summary>
-    internal async Task ClickAsync<T>(Func<Task<T>> resolveTarget, Func<T, Task<Point?>>? resolvePoint = null)
+    /// <summary>
+    /// Clicks a freshly resolved target; readiness, coordinate conversion and native delivery are one bounded operation.
+    /// A popup may opt out of the framework hit-test probe when its current native root
+    /// has valid geometry but Avalonia reports a stale hit-test result during reparenting.
+    /// The click is still delivered only through the real OS input backend.
+    /// </summary>
+    internal async Task ClickAsync<T>(Func<Task<T>> resolveTarget, Func<T, Task<Point?>>? resolvePoint = null,
+        bool requireHitTest = true)
         where T : Control
     {
-        for (int attempt = 0; ; attempt++)
+        for (int attempt = 1; attempt <= MaxTargetAttempts; attempt++)
         {
+            T? target = null;
+            Point? point = null;
             try
             {
-                T target = await resolveTarget();
-                if (!target.IsEffectivelyEnabled) throw new InvalidOperationException("Native click target is disabled: " + target.Name);
-                await MoveOnceAsync(target, resolvePoint == null ? null : await resolvePoint(target));
+                target = await resolveTarget();
+                await PrepareTargetAsync(target, requireEnabled: true, requireHitTest);
+                point = resolvePoint == null ? null : await resolvePoint(target);
+                await MoveOnceAsync(target, point, true, requireHitTest);
                 await ButtonAsync(true); await ButtonAsync(false);
                 return;
             }
-            catch (ArgumentException) when (attempt < MaxTargetAttempts - 1)
+            catch (ArgumentException) when (attempt < MaxTargetAttempts)
             {
-                // The target may have crossed presentation roots between readiness,
-                // PointToScreen and the OS call. Retry the complete current-target
-                // transaction; never reuse its stale coordinate or synthesize input.
+                // Retry the complete current-target transaction; never reuse its stale
+                // coordinate or synthesize input.
                 await Task.Delay(TargetRetryDelay);
+            }
+            catch (ArgumentException)
+            {
+                TraceFinalArgument("click", attempt, target, point, requireEnabled: true, requireHitTest);
+                throw;
             }
         }
     }
@@ -151,21 +218,56 @@ internal sealed class MediaNativeInput : IDisposable
     private async Task RightClickAsync<T>(Func<Task<T>> resolveTarget, Func<T, Task<Point?>>? resolvePoint = null)
         where T : Control
     {
-        for (int attempt = 0; ; attempt++)
+        for (int attempt = 1; attempt <= MaxTargetAttempts; attempt++)
         {
+            T? target = null;
+            Point? point = null;
             try
             {
-                T target = await resolveTarget();
-                if (!target.IsEffectivelyEnabled) throw new InvalidOperationException("Native click target is disabled: " + target.Name);
-                await MoveOnceAsync(target, resolvePoint == null ? null : await resolvePoint(target));
+                target = await resolveTarget();
+                await PrepareTargetAsync(target, requireEnabled: true, requireHitTest: true);
+                point = resolvePoint == null ? null : await resolvePoint(target);
+                await MoveOnceAsync(target, point, true, true);
                 try { await ButtonAsync(3, true); }
                 finally { if (_heldButton == 3) await ButtonAsync(3, false); }
                 return;
             }
-            catch (ArgumentException) when (attempt < MaxTargetAttempts - 1)
+            catch (ArgumentException) when (attempt < MaxTargetAttempts)
             {
                 await Task.Delay(TargetRetryDelay);
             }
+            catch (ArgumentException)
+            {
+                TraceFinalArgument("right-click", attempt, target, point, requireEnabled: true, requireHitTest: true);
+                throw;
+            }
+        }
+    }
+
+    private void TraceFinalArgument(string operation, int attempts, Control? target, Point? point,
+        bool requireEnabled, bool requireHitTest)
+    {
+        if (_trace == null) return;
+        try
+        {
+            _trace("native-input-final-argument", new
+            {
+                operation, attempts, requireEnabled, requireHitTest,
+                point = point?.ToString(),
+                target = target == null ? null : new
+                {
+                    type = target.GetType().Name, name = target.Name,
+                    attached = target.IsAttachedToVisualTree(), arrangeValid = target.IsArrangeValid,
+                    visible = target.IsEffectivelyVisible, enabled = target.IsEffectivelyEnabled,
+                    bounds = target.Bounds.ToString(), root = TopLevel.GetTopLevel(target)?.GetType().Name
+                },
+                ownerActive = _owner.IsActive,
+                ownedActive = _owner.OwnedWindows.Any(window => window.IsActive && window.IsVisible)
+            });
+        }
+        catch
+        {
+            // Trace evidence must never replace the final native ArgumentException.
         }
     }
 

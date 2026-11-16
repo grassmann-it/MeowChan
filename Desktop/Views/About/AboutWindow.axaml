@@ -80,6 +80,20 @@
                             <Button x:Name="DonationLink" Classes="link" HorizontalAlignment="Left"
                                     Tag="https://www.paypal.com/donate/?hosted_button_id=5BR4MK748PDSQ" Click="OnLinkClick"/>
                         </StackPanel>
+                        <Border x:Name="CommunitySection" Classes="workspace-section">
+                            <StackPanel Spacing="{StaticResource Workspace.Space.8}">
+                                <TextBlock x:Name="CommunityTitle" Classes="section-title"/>
+                                <TextBlock x:Name="CommunityDescription"/>
+                                <WrapPanel x:Name="CommunityLinks" ItemSpacing="{StaticResource Workspace.Space.16}" LineSpacing="{StaticResource Workspace.Space.8}">
+                                    <Button x:Name="ContributeLink" Classes="link"
+                                            Tag="https://github.com/grassmann-it/MeowChan/pulls" Click="OnLinkClick"/>
+                                    <Button x:Name="ReportIssueLink" Classes="link"
+                                            Tag="https://github.com/grassmann-it/MeowChan/issues/new" Click="OnLinkClick"/>
+                                    <Button x:Name="TranslationLink" Classes="link"
+                                            Tag="https://github.com/grassmann-it/MeowChan/blob/main/Desktop/Localization/README.md" Click="OnLinkClick"/>
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>

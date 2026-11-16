@@ -256,6 +256,14 @@ public sealed class ViewerTransportTests : IDisposable
         Assert.Equal(5, GalleryVideoPlayer.VolumeWheelStep);
         // The slider lies on a canvas (zero layout size) above the speaker; an icon or symbol label on every control.
         Assert.Contains("_volumeCanvas.Children.Add(_volumePopup)", transport, StringComparison.Ordinal);
+        // Native Windows can retain the pointer while the transport crosses roots;
+        // popup admission must therefore also run from the real pointer route, not
+        // only from IsPointerOver property notifications.
+        Assert.Contains("_volumeHost.PointerEntered", transport, StringComparison.Ordinal);
+        Assert.Contains("_volumeHost.PointerMoved", transport, StringComparison.Ordinal);
+        Assert.Contains("UpdateVolumePopup();\n            return;", transport, StringComparison.Ordinal);
+        string player = ReadSource("Desktop/GalleryVideoPlayer.cs");
+        Assert.Contains("Dispatcher.UIThread.Post(UpdateVolumePopup, DispatcherPriority.Loaded)", player, StringComparison.Ordinal);
         Assert.Contains("TransportIcon(\"video.frame-step\"", transport, StringComparison.Ordinal);
         Assert.Contains("TransportIcon(\"window.fullscreen\"", transport, StringComparison.Ordinal);
         Assert.Contains("WorkspaceIcons.Create(WorkspaceIcons.More)", transport, StringComparison.Ordinal);

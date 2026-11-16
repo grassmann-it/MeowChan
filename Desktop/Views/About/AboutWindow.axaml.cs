@@ -85,6 +85,14 @@ public partial class AboutWindow : Window
         SupportTitle.Text = Texts.T("about.supportTitle");
         SupportDescription.Text = Texts.T("about.supportDescription");
         DonationLink.Content = Texts.T("about.donate");
+        CommunityTitle.Text = Texts.T("about.communityTitle");
+        CommunityDescription.Text = Texts.T("about.communityDescription");
+        ContributeLink.Content = Texts.T("about.contribute");
+        ReportIssueLink.Content = Texts.T("about.reportIssue");
+        TranslationLink.Content = Texts.T("about.translation");
+        AutomationProperties.SetName(ContributeLink, Texts.T("about.contribute"));
+        AutomationProperties.SetName(ReportIssueLink, Texts.T("about.reportIssue"));
+        AutomationProperties.SetName(TranslationLink, Texts.T("about.translation"));
         HistoryText.Text = Texts.T("about.history");
         VideoCreditsText.Text = Texts.T("about.videoCredits");
         UICreditsText.Text = Texts.T("about.uiCredits");

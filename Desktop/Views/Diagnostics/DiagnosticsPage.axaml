@@ -34,7 +34,7 @@
                 <!-- Only while a filter is set or rows are selected: "a / b entries · c selected". -->
                 <TextBlock x:Name="DiagnosticFilterSummary" wv:WorkViewElement.Id="diagnostics.filter-summary" Grid.Row="1" Classes="workspace-help" TextWrapping="Wrap"
                            IsVisible="False" AutomationProperties.LiveSetting="Polite" />
-                <Grid x:Name="DiagnosticSplit" Grid.Row="2" ColumnDefinitions="*,0" RowDefinitions="*,Auto" RowSpacing="{StaticResource Workspace.Space.12}">
+                <Grid x:Name="DiagnosticSplit" Grid.Row="2" ColumnDefinitions="*,0" RowDefinitions="Auto,Auto" RowSpacing="{StaticResource Workspace.Space.12}">
                     <Border x:Name="DiagnosticListPane" wv:WorkViewElement.Id="diagnostics.table" Classes="workspace-section-flush">
                         <!-- The platform facts live in their own group below, so this table holds requests and problems only and
                              its "nothing to show" text can sit over the empty grid. -->

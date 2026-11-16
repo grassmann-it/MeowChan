@@ -144,7 +144,11 @@ internal sealed partial class GalleryViewer
                     post ? MeowChan.Desktop.Controls.WorkspaceIcons.ChevronLeft : MeowChan.Desktop.Controls.WorkspaceIcons.ChevronUp, inheritForeground: false);
                 chevron.Stroke = new SolidColorBrush(Color.FromArgb(100, 150, 150, 150));
                 chevron.Opacity = 0;
-                return chevron;
+                // Keep the complete transparent handle in the native hit-test map.
+                // A bare Path only owns its stroked pixels, so the button's center can
+                // fall through to the gallery surface even while its 44-DIP bounds are
+                // visible and arranged.
+                return new Border { Background = Brushes.Transparent, Child = chevron };
             })
         };
         SetEdgeIndicatorLabel(indicator, EdgeIndicatorLabel(post));
@@ -235,7 +239,12 @@ internal sealed partial class GalleryViewer
         UpdateCornerChrome();
         // Keep a hovered handle hit-testable through reveal until the pointer leaves.
         // Otherwise its pending click/tap could land on the media or transport below.
-        bool controls = OverlayControlsEffective && (_overlayHidden || _pointerOnControlsIndicator);
+        // Keep the bottom affordance visible for the same short motion window as
+        // the chevron. Real centre motion also reveals the footer, but the edge
+        // affordance must remain observable and native-targetable until that motion
+        // hint expires; otherwise the footer reveal consumes the only visual cue.
+        bool motionHint = EdgeIndicatorArtworkVisible(_controlsEdgeIndicator);
+        bool controls = OverlayControlsEffective && (_overlayHidden || _pointerOnControlsIndicator || motionHint);
         bool post = PostOverlayEffective && (!_contextOpen || _pointerOnPostIndicator) && _entry != null;
         bool controlsHadFocus = _controlsEdgeIndicator.IsKeyboardFocusWithin;
         bool postHadFocus = _postEdgeIndicator.IsKeyboardFocusWithin;
@@ -258,21 +267,35 @@ internal sealed partial class GalleryViewer
         }
     }
 
-    private void UpdateEdgeIndicatorArtwork()
+    private bool EdgeIndicatorArtworkVisible(Button indicator)
     {
         TimeSpan? age = _lastIndicatorMotion is long motion ? Stopwatch.GetElapsedTime(motion) : null;
+        return GalleryEdgeMotion.IsVisible(age, indicator.IsKeyboardFocusWithin);
+    }
+
+    private void UpdateEdgeIndicatorArtwork()
+    {
         foreach (Button indicator in new[] { _controlsEdgeIndicator, _postEdgeIndicator })
         {
             indicator.ApplyTemplate();
-            bool shown = GalleryEdgeMotion.IsVisible(age, indicator.IsKeyboardFocusWithin);
-            if (indicator.GetVisualChildren().OfType<Avalonia.Controls.Shapes.Path>().FirstOrDefault() is { } chevron)
+            bool shown = EdgeIndicatorArtworkVisible(indicator);
+            // The transparent hit-test surface wraps the chevron so the full 44-DIP
+            // handle remains native-targetable. Search the template descendants,
+            // rather than only the direct child, so motion still reveals the artwork.
+            if (indicator.GetVisualDescendants().OfType<Avalonia.Controls.Shapes.Path>().FirstOrDefault() is { } chevron)
                 chevron.Opacity = shown ? 1 : 0;
             // Keep the transparent 44-DIP handle hit-testable for touch and native
             // pointer entry even after its transient chevron has faded. Otherwise an
             // idle edge has no way to renew the hint or activate it without first
             // finding a pixel that happens to be drawn.
-            indicator.IsHitTestVisible = indicator.IsVisible || shown
-                || (ReferenceEquals(indicator, _postEdgeIndicator) ? _pointerOnPostIndicator : _pointerOnControlsIndicator);
+            // A transient bottom glyph may sit over the now-visible footer after
+            // centre motion. Keep it painted, but let the real transport receive
+            // native pointer motion until the footer is hidden again; otherwise a
+            // later move to the transport is rejected as a changed hit target.
+            bool controlsHandleOwnsInput = !ReferenceEquals(indicator, _controlsEdgeIndicator)
+                || _overlayHidden || _pointerOnControlsIndicator;
+            indicator.IsHitTestVisible = controlsHandleOwnsInput && (indicator.IsVisible || shown
+                || (ReferenceEquals(indicator, _postEdgeIndicator) ? _pointerOnPostIndicator : _pointerOnControlsIndicator));
         }
     }
 
@@ -620,6 +643,11 @@ internal sealed partial class GalleryViewer
         if (e.Pointer.Type == PointerType.Mouse && _lastPointerScreen is PixelPoint current
             && previous != current)
         {
+            // A real mouse move is an input-modality transition even when Avalonia
+            // keeps keyboard focus on the last playback action. Without clearing the
+            // modality here, KeyboardPanelFocus rejects this motion as a keyboard task
+            // and the hidden controls never receive the production center-reveal path.
+            _keyboardInteraction = false;
             _lastIndicatorMotion = Stopwatch.GetTimestamp();
             _indicatorExpiryTimer ??= new DispatcherTimer { Interval = GalleryEdgeMotion.Lifetime };
             _indicatorExpiryTimer.Tick -= OnIndicatorExpiry;

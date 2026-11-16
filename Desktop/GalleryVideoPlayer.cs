@@ -314,12 +314,15 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
 
     internal void ToggleLoop()
     {
-        if (IsDisposed || !_loop.IsEnabled) return;
+        // The visible transport stays disabled while slideshow automation owns
+        // repetition, but the explicit keyboard/command intent is still allowed
+        // to hand the current video back to the player.
+        if (IsDisposed || !_loop.IsEnabled && !_repeatOwnedBySlideshow) return;
         SetLoopEnabled(!LoopEnabled, notify: true);
     }
 
     /// <summary>While a slideshow runs, its video rule (not the loop button) decides about repetition: the button is then
-    /// unavailable and its tooltip says why. The saved "Repeat video" choice is unchanged.</summary>
+    /// unavailable and its tooltip says why. An explicit keyboard/command Repeat intent may still take over.</summary>
     internal void SetRepeatOwnedBySlideshow(bool owned, string reason)
     {
         Dispatcher.UIThread.VerifyAccess();
@@ -473,6 +476,10 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
             Window? window = TopLevel.GetTopLevel(_transportPanel) as Window;
             _transportWindow = ReferenceEquals(window, _ownerWindow) ? null : window;
             if (_transportWindow != null) _transportWindow.Deactivated += OnWindowDeactivated;
+            // A cross-root transport move can retain the native pointer over the
+            // speaker without raising IsPointerOver again. Re-evaluate the retained
+            // volume popup after the new root has attached and laid out.
+            Dispatcher.UIThread.Post(UpdateVolumePopup, DispatcherPriority.Loaded);
         };
         _transportPanel.DetachedFromVisualTree += (_, _) =>
         {

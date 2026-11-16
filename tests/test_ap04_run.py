@@ -81,9 +81,13 @@ class WorkflowControlTests(unittest.TestCase):
             '--dev /dev --tmpfs /tmp',
             'MEOWCHAN_RELEASED102_NETWORK_NAMESPACE=bwrap-root',
             'MEOWCHAN_RELEASED102_BWRAP_PATH',
+            'MEOWCHAN_RELEASED102_REAL_BWRAP_PATH',
+            '--bind "$profile" "$profile"',
+            'test -d "$MEOWCHAN_EXPECTED_PROFILE"',
             'sudo_path="$(command -v sudo || true)"',
             'sudo_root_uid="$(sudo -n id -u 2>/dev/null || true)"',
-            'sudo -n "$bwrap_path"',
+            'bwrap_launcher="$GITHUB_WORKSPACE/tests/fixtures/upgrade-v1.0.2/bwrap-root-accessible.sh"',
+            'sudo -n "$bwrap_launcher"',
             '--uid "$expected_uid" --gid "$expected_gid"',
             'MEOWCHAN_RELEASED102_BWRAP_SUDO',
             'MEOWCHAN_RELEASED102_BWRAP_UID',
@@ -573,6 +577,45 @@ class NamespaceLauncherContractTests(unittest.TestCase):
         self.assertEqual('bwrap-root', env['MEOWCHAN_RELEASED102_NETWORK_NAMESPACE'])
         self.assertEqual(str(os.getuid()), env['MEOWCHAN_RELEASED102_BWRAP_UID'])
         self.assertEqual(str(os.getgid()), env['MEOWCHAN_RELEASED102_BWRAP_GID'])
+
+    def test_root_backend_proves_root_setup_transitions_to_runner_before_child(self):
+        class Args:
+            root, candidate_sha, out, no_netns, lock_wait = ROOT, SHA, run.ALLOWED_OUT / 'namespace-root-transition', False, 1
+            namespace_backend = 'bwrap-root'
+
+        ctx = run.Context(Args())
+        command = ctx.isolated(['dotnet', 'consumer.dll'])
+        uid_at = command.index('--uid')
+        gid_at = command.index('--gid')
+        root_at = command.index('--ro-bind')
+        child_at = command.index('--')
+        self.assertEqual(['sudo', '-n'], [Path(command[0]).name, command[1]])
+        self.assertEqual(str(run.BWRAP_ROOT_LAUNCHER), command[2])
+        self.assertEqual(str(os.getuid()), command[uid_at + 1])
+        self.assertEqual(str(os.getgid()), command[gid_at + 1])
+        self.assertNotEqual('0', command[uid_at + 1], 'root setup must not become a root child')
+        self.assertLess(uid_at, root_at, 'bwrap must set the runner identity before the read-only root is entered')
+        self.assertEqual('unshare', Path(command[child_at + 1]).name)
+        self.assertEqual('--net', command[child_at + 2])
+        self.assertEqual('setpriv', Path(command[child_at + 4]).name)
+        self.assertEqual(str(shutil.which('bwrap') or ''), ctx.test_env()['MEOWCHAN_RELEASED102_REAL_BWRAP_PATH'])
+        self.assertEqual(str(run.BWRAP_ROOT_LAUNCHER), ctx.test_env()['MEOWCHAN_RELEASED102_BWRAP_PATH'])
+
+    def test_root_launcher_stages_writable_sources_without_host_fallback(self):
+        launcher = (FIXTURE / 'bwrap-root-accessible.sh').read_text(encoding='utf-8')
+        for marker in (
+            'mktemp -d /var/tmp/meowchan-ap04-bind.XXXXXX',
+            '/usr/bin/mount --bind "$source" "$alias"',
+            '--real-bwrap',
+            'rewritten+=(--bind "$alias" "$destination")',
+            'read-only root',
+            'there is no host-namespace fallback',
+            'MEOWCHAN_RELEASED102_REAL_BWRAP_PATH',
+        ):
+            self.assertIn(marker, launcher)
+        self.assertIn('[ -d "$source" ]', launcher)
+        self.assertIn('cleanup', launcher)
+        self.assertNotIn('command -v bwrap', launcher, 'the root launcher must not silently select a host bwrap')
 
     def test_no_netns_is_only_selected_by_explicit_flag(self):
         class Args:

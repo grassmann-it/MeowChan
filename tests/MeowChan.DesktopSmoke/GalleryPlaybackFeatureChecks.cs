@@ -461,8 +461,10 @@ internal static partial class GalleryPlaybackFeatureChecks
         using (MediaNativeInput native = new(fixture.Window))
         {
             // The video transport is retained while the slideshow changes the
-            // presentation root. Resolve the current, hit-testable slider after that
-            // transfer instead of calling Single() on the previous visual snapshot.
+            // presentation root. Reveal the auto-hidden transport and settle its
+            // layout before resolving the current, hit-testable slider instead of
+            // calling Single() on the previous visual snapshot.
+            await RevealAutoHiddenTransportAsync(fixture);
             Slider seek = await NativeTargetAsync<Slider>(viewer, "GalleryVideoSeek");
             await native.ClickAsync(seek, await MediaInteractionSmokeHelpers.TrackPointAsync(seek, .10));
             await UntilAsync(async () =>
@@ -525,7 +527,23 @@ internal static partial class GalleryPlaybackFeatureChecks
         async Task BottomAsync()
         {
             Console.WriteLine("EDGE before move: " + JsonSerializer.Serialize(ObserveEdges()));
-            await native.MoveAsync(viewer, new Point(viewer.Bounds.Width * .45, viewer.Bounds.Height - 2));
+            // The bottom edge can be hosted by a different current presentation
+            // root from the GalleryViewer (the transparent native video overlay).
+            // Resolve the control that owns the point in this turn instead of
+            // pairing a viewer-relative bottom coordinate with a stale root. When
+            // the footer is visible, its current surface owns the transport; after
+            // auto-hide, the edge handle owns the reveal. MoveAsync keeps the
+            // strict native hit-test and re-resolves this selector on every bounded
+            // transaction retry.
+            await native.MoveAsync(
+                () =>
+                {
+                    Control footer = Find<Control>(viewer, "GalleryOverlayFooter");
+                    if (footer.IsEffectivelyVisible && footer.IsHitTestVisible)
+                        return Task.FromResult(footer);
+                    return Task.FromResult<Control>(Find<Button>(viewer, "GalleryControlsEdgeIndicator"));
+                },
+                target => Task.FromResult<Point?>(new Point(target.Bounds.Width / 2, target.Bounds.Height / 2)));
             Console.WriteLine("EDGE after move: " + JsonSerializer.Serialize(ObserveEdges()));
         }
         await CenterAsync();
@@ -535,23 +553,26 @@ internal static partial class GalleryPlaybackFeatureChecks
         Require(!Visible(post), "Post overlay was visible before its right-edge activation.");
         // Targets remain available at idle; only their borderless chevron artwork is transient.
         Button controlsHint = RequireEdgeIndicator(viewer, "GalleryControlsEdgeIndicator");
-        bool HintsVisible() => MediaInteractionSmokeHelpers.EdgeHintVisible(controlsHint)
+        // Center motion reveals the footer while both transient edge affordances
+        // remain visible during the short motion window.
+        bool CenterMotionVisible() => Visible(controls)
+            && MediaInteractionSmokeHelpers.EdgeHintVisible(controlsHint)
             && MediaInteractionSmokeHelpers.EdgeHintVisible(postIndicator);
-        bool HintsHidden() => !MediaInteractionSmokeHelpers.EdgeHintVisible(controlsHint)
+        bool CenterMotionHidden() => !Visible(controls)
+            && !MediaInteractionSmokeHelpers.EdgeHintVisible(controlsHint)
             && !MediaInteractionSmokeHelpers.EdgeHintVisible(postIndicator);
         await native.MoveAsync(viewer, new Point(viewer.Bounds.Width * .40, viewer.Bounds.Height * .32));
-        await UntilAsync(HintsVisible, "Actual center motion did not expose both edge hints.");
-        Require(!Visible(post), "Center hint motion opened the post panel."); // the controls follow any real motion (16.11.), the post panel only its edge
+        await UntilAsync(CenterMotionVisible, "Actual center motion did not reveal controls and both edge hints.");
+        Require(!Visible(post), "Center motion opened the post panel.");
         Program.CaptureWindow(fixture.Window, "smoke-gallery-edge-motion-hints.png");
-        await UntilAsync(HintsHidden, "Edge hints did not expire after native pointer idle.");
-        await UntilAsync(() => !Visible(controls), "The controls did not hide again after the idle delay.");
-        await HoldAsync(TimeSpan.FromMilliseconds(1600), () => Require(HintsHidden()
-            && !Visible(controls) && !Visible(post), "Stationary timer ticks revived hints or opened panels."));
+        await UntilAsync(CenterMotionHidden, "Center-motion controls/hint did not expire after native pointer idle.");
+        await HoldAsync(TimeSpan.FromMilliseconds(1600), () => Require(CenterMotionHidden()
+            && !Visible(controls) && !Visible(post), "Stationary timer ticks revived controls or opened panels."));
         Program.CaptureWindow(fixture.Window, "smoke-gallery-edge-idle-hints.png");
         await native.MoveAsync(viewer, new Point(viewer.Bounds.Width * .48, viewer.Bounds.Height * .34));
-        await UntilAsync(HintsVisible, "New native center motion did not renew expired hints.");
-        Require(!Visible(post), "Renewing hints opened the post panel.");
-        Console.WriteLine("SMOKE edge hint lifecycle PASS: native center motion -> hints only -> idle expiry -> stationary ticks stay hidden -> new motion renews.");
+        await UntilAsync(CenterMotionVisible, "New native center motion did not renew controls and both edge hints.");
+        Require(!Visible(post), "Renewing center motion opened the post panel.");
+        Console.WriteLine("SMOKE edge hint lifecycle PASS: native center motion -> controls plus both edge hints -> idle expiry -> stationary ticks stay hidden -> new motion renews.");
         await BottomAsync();
         await UntilAsync(() => Visible(controls), "Bottom-edge hover did not reveal transport.");
         await native.ClickAsync(Find<Button>(viewer, "GallerySlideshowToggle"));
@@ -580,8 +601,21 @@ internal static partial class GalleryPlaybackFeatureChecks
         }, "Edge transport seek changed native Playing intent.");
         foreach (string name in new[] { "GalleryVideoVolume", "GalleryVideoLoop" })
         {
-            Control transport = Find<Control>(viewer, name);
-            await native.MoveAsync(transport);
+            // The individual action can be disabled (Repeat while Slideshow owns
+            // playback) and can move between the dock and the overlay root. Keep the
+            // enabled transport as the strict native target, then calculate the named
+            // action's point from that same current transport instance. This avoids
+            // pairing a stale child control with a newly transferred presentation.
+            await native.MoveAsync(
+                () => NativeTargetAsync<Border>(viewer, "GalleryVideoTransport"),
+                currentTransport =>
+                {
+                    Control currentAction = currentTransport.GetVisualDescendants().OfType<Control>()
+                        .Single(control => control.Name == name);
+                    return Task.FromResult<Point?>(currentAction.TranslatePoint(
+                        new Point(currentAction.Bounds.Width / 2, currentAction.Bounds.Height / 2), currentTransport)
+                        ?? throw new ArgumentException("Gallery transport action has no current transport transform.", nameof(name)));
+                });
             await HoldAsync(TimeSpan.FromMilliseconds(700), () => Require(Visible(controls) && !Visible(post)
                 && !viewer.CaptureState().ContextOpen && Running(viewer),
                 "Hovering bottom transport leaked into right-post reveal or stopped slideshow: " + name));
@@ -607,7 +641,15 @@ internal static partial class GalleryPlaybackFeatureChecks
                 Require(ProvesNativeUnavailable(volumeEvidence) && volumeEvidence.State == "Playing"
                     && !volume.IsEffectivelyEnabled && !mute.IsEffectivelyEnabled && !player.CanAdjustVolume,
                     "Native no-output edge check requires disabled controls and actual unavailable evidence.");
-                await native.MoveAsync(volume, await MediaInteractionSmokeHelpers.TrackPointAsync(volume, .60));
+                // Re-enter the current speaker before resolving the disabled popup
+                // slider. This remains real native motion and strict hit-test
+                // admission; the production host refresh above handles the case
+                // where a cross-root move retained the pointer over the speaker.
+                await native.MoveAsync(() => CurrentNamedTargetAsync<Control>(viewer, "GalleryVideoVolumeHost"));
+                await native.MoveAsync(
+                    () => CurrentNamedTargetAsync<Slider>(viewer, "GalleryVideoVolume"),
+                    current => Task.FromResult((Point?)MediaInteractionSmokeHelpers.TrackPoint(current, .60)),
+                    requireEnabled: false, requireHitTest: true);
                 await native.ButtonAsync(true);
                 await native.ButtonAsync(false);
                 await MediaInteractionSmokeHelpers.HoldStateAsync(player, "Playing", "Disabled bottom-edge volume interaction");
@@ -626,7 +668,7 @@ internal static partial class GalleryPlaybackFeatureChecks
         }
         else
         {
-            await NativeSliderClickAsync(native, volume, .60);
+            await NativeSliderClickAsync(native, viewer, "GalleryVideoVolume", .60);
         }
         await MediaInteractionSmokeHelpers.HoldStateAsync(player, "Playing", "Bottom-edge volume interaction");
         Require(Running(viewer) && !Visible(post) && !viewer.CaptureState().ContextOpen,
@@ -738,7 +780,11 @@ internal static partial class GalleryPlaybackFeatureChecks
         GalleryViewer viewer = fixture.Viewer;
         viewer.ConfigurePlayback(new(GalleryPlaybackMode.Slideshow, 1));
         await viewer.ShowAsync(clip, CancellationToken.None);
-        Click(Find<Button>(viewer, "GallerySlideshowToggle"));
+        // Video startup can outlive the overlay idle timer on slower native hosts.
+        // Reveal the production transport and focus the current action before Space/click.
+        await RevealAutoHiddenTransportAsync(fixture);
+        Button slideshow = await KeyboardReachableSlideshowActionAsync(fixture);
+        Click(slideshow);
         GalleryVideoPlayer player = viewer.GetGalleryVisualDescendants().OfType<GalleryVideoPlayer>().Single();
         await UntilAsync(async () => (await player.InspectPlaybackAsync()).Time > 250,
             "The video did not start before the repeat-mode transition.");
@@ -838,26 +884,11 @@ internal static partial class GalleryPlaybackFeatureChecks
         }
         viewer.MoveRequested += delta => transition = ShowNextAsync(delta);
         // After the ended video the auto-hidden transport is no longer a visible
-        // keyboard target. Opening More is the stable way to reveal it before starting.
-        viewer.SetOverflowOpen(true);
-        await UntilAsync(() => viewer.IsOverflowOpen, "Playback controls overflow menu did not open after video end.");
-        // The open More flyout is a popup and deliberately blocks starting a
-        // slideshow. It still has to reveal the auto-hidden footer, so settle that
-        // lifecycle first, close the popup, then resolve the current toolbar target.
-        viewer.SetOverflowOpen(false);
-        await UntilAsync(() => !viewer.IsOverflowOpen, "Playback controls overflow menu did not close before starting slideshow.");
-        Button? currentAction = null;
-        await UntilAsync(() =>
-        {
-            // The chosen slideshow is kept on the split toolbar control (R6). Use
-            // that current owner after the popup closes, not the viewer-wide
-            // descendant snapshot which also contains the retained More rows.
-            currentAction = viewer.SlideshowSplit.GetVisualDescendants().OfType<Button>()
-                .FirstOrDefault(button => button.Name == "GallerySlideshowToggle");
-            return currentAction is { IsEffectivelyVisible: true, IsEffectivelyEnabled: true }
-                && currentAction.IsAttachedToVisualTree();
-        }, "Slideshow action did not become visible and enabled after opening playback controls.");
-        Click(currentAction!);
+        // keyboard target. Opening More is the stable way to reveal it before
+        // resolving the current toolbar action.
+        await RevealAutoHiddenTransportAsync(fixture);
+        Button currentAction = await KeyboardReachableSlideshowActionAsync(fixture);
+        Click(currentAction);
         Require(Running(viewer), "Explicit Start after an ended video failed to create a runnable replay generation.");
         GalleryVideoPlayer.PlaybackEvidence replay = await player.InspectPlaybackAsync();
         await UntilAsync(async () =>
@@ -929,6 +960,35 @@ internal static partial class GalleryPlaybackFeatureChecks
         Require(button.IsEffectivelyVisible && button.IsEffectivelyEnabled && button.Focus(NavigationMethod.Tab),
             "Feature action is not visibly keyboard reachable: " + button.Name);
         SendKey(button, Key.Space); // Ordinary Button/ToggleButton activation, including its checked state.
+    }
+    private static async Task RevealAutoHiddenTransportAsync(Fixture fixture)
+    {
+        GalleryViewer viewer = fixture.Viewer;
+        // More is the production entry point that reveals auto-hidden transport. Close
+        // its popup before resolving a toolbar target: an open popup intentionally gates
+        // slideshow navigation and can leave the old presentation root hit-testable.
+        viewer.SetOverflowOpen(true);
+        await UntilAsync(() => viewer.IsOverflowOpen,
+            "Playback controls overflow menu did not open while revealing auto-hidden transport.");
+        viewer.SetOverflowOpen(false);
+        await UntilAsync(() => !viewer.IsOverflowOpen,
+            "Playback controls overflow menu did not close after revealing auto-hidden transport.");
+        await LayoutAsync(fixture.Window);
+    }
+    private static async Task<Button> KeyboardReachableSlideshowActionAsync(Fixture fixture)
+    {
+        Button? action = null;
+        await UntilAsync(async () =>
+        {
+            await LayoutAsync(fixture.Window);
+            action = fixture.Viewer.SlideshowSplit.GetVisualDescendants().OfType<Button>()
+                .FirstOrDefault(button => button.Name == "GallerySlideshowToggle");
+            return action is { IsEffectivelyVisible: true, IsEffectivelyEnabled: true }
+                && action.IsAttachedToVisualTree()
+                && action.Focus(NavigationMethod.Tab)
+                && action.IsKeyboardFocusWithin;
+        }, "Slideshow action did not become keyboard reachable after layout settled.");
+        return action!;
     }
     private static async Task LayoutAsync(Window window) => await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
     private static async Task HoldAsync(TimeSpan duration, Action assertion)
