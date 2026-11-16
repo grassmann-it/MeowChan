@@ -14,13 +14,15 @@ PROJECTS = (
     ('desktop', 'tests/MeowChan.DesktopTests/MeowChan.DesktopTests.csproj'),
 )
 
-# Candidate validation gets a little more room without making a hang
-# unbounded. 360s + 780s leaves three minutes in the 22-minute workflow step
+# Candidate validation uses the smallest evidence-based headroom over run
+# 43806146605: macOS core reached 372.16s and desktop 788.56s while the
+# completed desktop process exited 0 and cleanup found no live members. The
+# budgets remain bounded and leave two minutes in the 22-minute workflow step
 # for timeout sampling, process-group cleanup, and writing bounded evidence.
 STANDARD_CORE_TIMEOUT = 300
 STANDARD_DESKTOP_TIMEOUT = 600
-CANDIDATE_CORE_TIMEOUT = 360
-CANDIDATE_DESKTOP_TIMEOUT = 780
+CANDIDATE_CORE_TIMEOUT = 390
+CANDIDATE_DESKTOP_TIMEOUT = 810
 
 # Keep MSBuild single-node and let vstest terminate a genuinely stalled test host
 # before the suite watchdog has to kill the whole process group. The latter is

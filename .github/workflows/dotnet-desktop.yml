@@ -172,8 +172,8 @@ jobs:
         continue-on-error: true
         if: matrix.full && (runner.os == 'macOS' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all'))
         # Ordinary validation keeps the 300s core / 600s desktop bounds. Candidate
-        # validation opts into 360s + 780s (1140s total), leaving three minutes of
-        # the outer 22m step for diagnostics, cleanup and bounded evidence.
+        # validation opts into the evidence-based 390s + 810s (1200s total), leaving
+        # two minutes of the outer 22m step for diagnostics, cleanup and evidence.
         timeout-minutes: 22
         run: |
           watchdog_args=(--timeout 300 --desktop-timeout 600)
