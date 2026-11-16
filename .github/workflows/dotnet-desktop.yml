@@ -392,10 +392,11 @@ jobs:
             # setpriv removes every capability before the replay. This is a hard
             # capability gate: no handler-only fallback.
             bwrap_path="$(command -v bwrap || true)"
+            bwrap_launcher="$GITHUB_WORKSPACE/tests/fixtures/upgrade-v1.0.2/bwrap-root-accessible.sh"
             unshare_path="$(command -v unshare || true)"
             setpriv_path="$(command -v setpriv || true)"
             sudo_path="$(command -v sudo || true)"
-            if [[ -z "$bwrap_path" || -z "$unshare_path" || -z "$setpriv_path" || -z "$sudo_path" ]]; then
+            if [[ -z "$bwrap_path" || ! -x "$bwrap_launcher" || -z "$unshare_path" || -z "$setpriv_path" || -z "$sudo_path" ]]; then
               echo "::error::1.0.2 replay requires bwrap, unshare, setpriv and non-interactive sudo for its isolated user+network namespace" >&2
               exit 1
             fi
@@ -412,6 +413,7 @@ jobs:
           test "$(readlink /proc/self/ns/net)" != "$MEOWCHAN_HOST_NETNS"
           test "$(id -u)" = "$MEOWCHAN_EXPECTED_UID"
           test "$(id -g)" = "$MEOWCHAN_EXPECTED_GID"
+          test -d "$MEOWCHAN_EXPECTED_PROFILE"
           for cap in CapInh CapPrm CapEff CapBnd CapAmb; do
             test "$(awk -v key="$cap:" '$1 == key { print $2 }' /proc/self/status)" = 0000000000000000
           done
@@ -419,13 +421,15 @@ jobs:
           awk 'NR > 1 && NF { bad=1 } END { exit bad+0 }' /proc/net/route
           PROBE
           )"
-            if ! sudo -n "$bwrap_path" --die-with-parent --unshare-user \
+            if ! sudo -n "$bwrap_launcher" --real-bwrap "$bwrap_path" --die-with-parent --unshare-user \
                 --uid "$expected_uid" --gid "$expected_gid" \
                 --cap-add CAP_SYS_ADMIN --cap-add CAP_SETPCAP --disable-userns \
                 --ro-bind / / --proc /proc --dev /dev --tmpfs /tmp \
+                --bind "$profile" "$profile" \
                 --setenv MEOWCHAN_HOST_NETNS "$host_netns" \
                 --setenv MEOWCHAN_EXPECTED_UID "$expected_uid" \
-                --setenv MEOWCHAN_EXPECTED_GID "$expected_gid" -- \
+                --setenv MEOWCHAN_EXPECTED_GID "$expected_gid" \
+                --setenv MEOWCHAN_EXPECTED_PROFILE "$profile" -- \
                 "$unshare_path" --net -- "$setpriv_path" \
                 --bounding-set=-all --inh-caps=-all --ambient-caps=-all --nnp -- \
                 /bin/sh -eu -c "$probe_script"; then
@@ -433,7 +437,12 @@ jobs:
               exit 1
             fi
             export MEOWCHAN_RELEASED102_NETWORK_NAMESPACE=bwrap-root
-            export MEOWCHAN_RELEASED102_BWRAP_PATH="$bwrap_path"
+            # The adapter is mandatory: it stages each writable bind source
+            # through /var/tmp, where root-owned setup can resolve it, while
+            # preserving the original destination/inode. No raw workspace
+            # bind and no host-namespace fallback are allowed.
+            export MEOWCHAN_RELEASED102_BWRAP_PATH="$bwrap_launcher"
+            export MEOWCHAN_RELEASED102_REAL_BWRAP_PATH="$bwrap_path"
             export MEOWCHAN_RELEASED102_BWRAP_SUDO="$sudo_path"
             export MEOWCHAN_RELEASED102_BWRAP_UID="$expected_uid"
             export MEOWCHAN_RELEASED102_BWRAP_GID="$expected_gid"
