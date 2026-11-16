@@ -553,17 +553,16 @@ internal static partial class GalleryPlaybackFeatureChecks
         Require(!Visible(post), "Post overlay was visible before its right-edge activation.");
         // Targets remain available at idle; only their borderless chevron artwork is transient.
         Button controlsHint = RequireEdgeIndicator(viewer, "GalleryControlsEdgeIndicator");
-        // Since real center motion now reveals the controls, the controls chevron is
-        // intentionally replaced by the full footer. The right/post hint remains the
-        // transient edge affordance; do not preserve the obsolete "both chevrons" contract.
+        // Center motion reveals the footer while both transient edge affordances
+        // remain visible during the short motion window.
         bool CenterMotionVisible() => Visible(controls)
-            && !MediaInteractionSmokeHelpers.EdgeHintVisible(controlsHint)
+            && MediaInteractionSmokeHelpers.EdgeHintVisible(controlsHint)
             && MediaInteractionSmokeHelpers.EdgeHintVisible(postIndicator);
         bool CenterMotionHidden() => !Visible(controls)
             && !MediaInteractionSmokeHelpers.EdgeHintVisible(controlsHint)
             && !MediaInteractionSmokeHelpers.EdgeHintVisible(postIndicator);
         await native.MoveAsync(viewer, new Point(viewer.Bounds.Width * .40, viewer.Bounds.Height * .32));
-        await UntilAsync(CenterMotionVisible, "Actual center motion did not reveal controls and the post edge hint.");
+        await UntilAsync(CenterMotionVisible, "Actual center motion did not reveal controls and both edge hints.");
         Require(!Visible(post), "Center motion opened the post panel.");
         Program.CaptureWindow(fixture.Window, "smoke-gallery-edge-motion-hints.png");
         await UntilAsync(CenterMotionHidden, "Center-motion controls/hint did not expire after native pointer idle.");
@@ -571,9 +570,9 @@ internal static partial class GalleryPlaybackFeatureChecks
             && !Visible(controls) && !Visible(post), "Stationary timer ticks revived controls or opened panels."));
         Program.CaptureWindow(fixture.Window, "smoke-gallery-edge-idle-hints.png");
         await native.MoveAsync(viewer, new Point(viewer.Bounds.Width * .48, viewer.Bounds.Height * .34));
-        await UntilAsync(CenterMotionVisible, "New native center motion did not renew controls and the post hint.");
+        await UntilAsync(CenterMotionVisible, "New native center motion did not renew controls and both edge hints.");
         Require(!Visible(post), "Renewing center motion opened the post panel.");
-        Console.WriteLine("SMOKE edge hint lifecycle PASS: native center motion -> controls plus post hint -> idle expiry -> stationary ticks stay hidden -> new motion renews.");
+        Console.WriteLine("SMOKE edge hint lifecycle PASS: native center motion -> controls plus both edge hints -> idle expiry -> stationary ticks stay hidden -> new motion renews.");
         await BottomAsync();
         await UntilAsync(() => Visible(controls), "Bottom-edge hover did not reveal transport.");
         await native.ClickAsync(Find<Button>(viewer, "GallerySlideshowToggle"));
