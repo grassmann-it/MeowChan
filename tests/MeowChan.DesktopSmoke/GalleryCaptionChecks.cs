@@ -239,8 +239,19 @@ internal static class GalleryCaptionChecks
                 foreach (string name in new[] { "GalleryContext", "GalleryOverlayControls", "GalleryOverlayInfo" })
                 {
                     Border panel = Find<Border>(viewer, name);
+                    // Visibility and theme are separate contracts: an idle overlay can hide with a correct palette.
+                    // Report both before failing so a docked-caption fixture mismatch is not diagnosed as a theme regression.
+                    string state = JsonSerializer.Serialize(new
+                    {
+                        panel = name, requestedTheme = variant.ToString(), actualTheme = panel.ActualThemeVariant.ToString(),
+                        windowTheme = window.ActualThemeVariant.ToString(), viewerTheme = viewer.ActualThemeVariant.ToString(),
+                        panel.IsVisible, panel.IsEffectivelyVisible,
+                        hiddenAncestors = panel.GetVisualAncestors().OfType<Control>()
+                            .Where(control => !control.IsVisible).Select(control => control.Name ?? control.GetType().Name).ToArray()
+                    });
+                    Console.WriteLine("SMOKE gallery live theme panel: " + state);
                     if (!panel.IsEffectivelyVisible || panel.ActualThemeVariant != variant)
-                        throw new InvalidOperationException(name + " lost its visible host theme during live theme change.");
+                        throw new InvalidOperationException(name + " lost its visible host theme during live theme change: " + state);
                     Color background = Solid(panel.Background);
                     colors.Add(name + ".background", background);
                     // Native button/selector text has its own state surfaces; its contrast
