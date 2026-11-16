@@ -24,7 +24,10 @@
             <TabItem x:Name="StatisticsSegmentTab" Header="Statistics" />
             <TabItem x:Name="DiagnosticsSegmentTab" Header="Diagnostics" />
         </TabControl>
-        <ContentControl x:Name="StatisticsPageHost" Grid.Row="2" />
-        <ContentControl x:Name="DiagnosticsPageHost" Grid.Row="2" IsVisible="False" />
+        <!-- Segment hosts are the actual content viewport. Stretch the hosted page to that viewport so its fixed action row
+             cannot be measured against a stale desired-size page (notably on native Windows after a compact resize). -->
+        <ContentControl x:Name="StatisticsPageHost" Grid.Row="2" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
+        <ContentControl x:Name="DiagnosticsPageHost" Grid.Row="2" IsVisible="False" ClipToBounds="True"
+                        HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
     </Grid>
 </UserControl>

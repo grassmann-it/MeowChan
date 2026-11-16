@@ -189,7 +189,14 @@ public sealed class StatusNavigationTests : IDisposable
         Assert.Equal(["StatisticsSegmentTab", "DiagnosticsSegmentTab"], bar.Elements().Where(e => e.Name.LocalName == "TabItem").Select(Name).ToArray());
         Assert.Equal(new[] { 0, 1 }, new[] { StatusSegment.Statistics, StatusSegment.Diagnostics }.Select(segment => (int)segment));
         foreach (string host in new[] { "StatisticsPageHost", "DiagnosticsPageHost" })
-            Assert.Equal("ContentControl", Assert.Single(markup.Descendants(), e => Name(e) == host).Name.LocalName);
+        {
+            XElement element = Assert.Single(markup.Descendants(), e => Name(e) == host);
+            Assert.Equal("ContentControl", element.Name.LocalName);
+            Assert.Equal("Stretch", (string?)element.Attribute("HorizontalContentAlignment"));
+            Assert.Equal("Stretch", (string?)element.Attribute("VerticalContentAlignment"));
+        }
+        XElement diagnosticsHost = Assert.Single(markup.Descendants(), e => Name(e) == "DiagnosticsPageHost");
+        Assert.Equal("True", (string?)diagnosticsHost.Attribute("ClipToBounds"));
         Assert.Contains(markup.Descendants(), e => Name(e) == "StatusStrip");
     }
 
