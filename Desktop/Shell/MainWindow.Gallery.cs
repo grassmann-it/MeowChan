@@ -393,7 +393,11 @@ public partial class MainWindow
     private async Task ReadEmptyGalleryPostsAsync()
     {
         ResourceId? thread = _galleryThreads.FirstOrDefault();
-        if (thread == null || !NavigateWorkspace(WorkspacePage.Archive, activateArchive: false)) return;
+        if (thread == null) return;
+        int request = _galleryRequest;
+        // F1: the gallery stays open (and says so) for a thread the archive does not hold, before anything is suspended.
+        if (!await ArchiveHoldsJumpTargetAsync(thread, () => request == _galleryRequest && _gallery != null && !_isClosing)) return;
+        if (!NavigateWorkspace(WorkspacePage.Archive, activateArchive: false)) return;
         OpenGalleryReader();
         SuspendGallery();
         await ArchivePage.LoadThreadAsync(thread);
@@ -452,8 +456,12 @@ public partial class MainWindow
 
     private async Task ReadGalleryPostAsync(GalleryEntry entry)
     {
-        if (entry.Post == null || !NavigateWorkspace(WorkspacePage.Archive, activateArchive: false)) return;
+        if (entry.Post == null) return;
         int request = _galleryRequest;
+        // F1: the gallery stays open (and says so) for a thread the archive does not hold, before anything is suspended.
+        if (!await ArchiveHoldsJumpTargetAsync(entry.Key.Thread, () => request == _galleryRequest && _gallery != null && !_isClosing)) return;
+        if (!NavigateWorkspace(WorkspacePage.Archive, activateArchive: false)) return;
+        request = _galleryRequest;
         OpenGalleryReader();
         SuspendGallery();
         await ArchivePage.LoadThreadAsync(entry.Key.Thread);

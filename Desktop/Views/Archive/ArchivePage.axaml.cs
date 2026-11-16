@@ -344,7 +344,14 @@ public partial class ArchivePage : UserControl
         CancellationToken cancellationToken = loading.Token;
         CancelMediaLoad();
         ClosePreview();
-        if (resetPage || _selectedThread != id) _postOffset = 0;
+        if (resetPage || _selectedThread != id)
+        {
+            _postOffset = 0;
+            // F2 (16.11.2026): the way back to the last read place belongs to the thread it was made in. A load of another thread (a jump from
+            // Media, Tagging or the gallery, whose list selection runs under _updatingList and so never reaches the list's own clear) starts
+            // without it; the same thread re-read in place (live follow, a list page) keeps it.
+            _history.Clear();
+        }
         _retainedMediaPosition = CaptureMediaPosition();
         _mediaProjectionPending = true;
         if (_selectedThread != id) _ = ReleaseInlineVideos(); // R10: another thread starts without players
@@ -1152,7 +1159,7 @@ public partial class ArchivePage : UserControl
         CommandBindings.Apply(ArchiveOpenGallery, "gallery.open", iconWithLabel: true);
         CommandBindings.Apply(ArchiveReadPosts, "reader.expand", iconWithLabel: true);
         CommandBindings.Apply(ArchiveGalleryReturn, "gallery.return", iconWithLabel: true);
-        CommandBindings.Apply(ArchiveMediaReturn, "media.return", iconWithLabel: true);
+        ApplyMediaReturnLabel();
         CommandBindings.Apply(ExportArchiveButton, "export.open-html-dialog", iconWithLabel: true);
         CommandBindings.Apply(ReaderPreviousThread, "reader.previous-thread", iconOnly: true);
         CommandBindings.Apply(ReaderPreviousPost, "reader.previous-post", iconOnly: true);

@@ -48,7 +48,23 @@ public partial class ArchivePage
     private void OnGalleryReturnClick(object? sender, RoutedEventArgs e) => GalleryReturn?.Invoke();
     /// <summary>Back to the Medien page after its "show in thread"; the shell owns the return point and shows the button.</summary>
     internal Action? MediaReturn { get; set; }
-    internal void ShowMediaReturn(bool visible) => ArchiveMediaReturn.IsVisible = visible;
+    // F5: the same command names the page it goes back to ("Back to Tagging" after the Tagging page's jump); null is the catalog's "Back to media".
+    private string? _mediaReturnLabelKey;
+    internal void ShowMediaReturn(bool visible, string? labelKey = null)
+    {
+        ArchiveMediaReturn.IsVisible = visible;
+        if (_mediaReturnLabelKey == labelKey) return;
+        _mediaReturnLabelKey = labelKey;
+        ApplyMediaReturnLabel();
+    }
+    private void ApplyMediaReturnLabel()
+    {
+        if (_mediaReturnLabelKey is { } key)
+            MeowChan.Desktop.Commands.CommandBindings.ApplyLabeled(ArchiveMediaReturn, "media.return", MeowChan.Desktop.Localization.Texts.T(key));
+        else MeowChan.Desktop.Commands.CommandBindings.Apply(ArchiveMediaReturn, "media.return", iconWithLabel: true);
+    }
+    internal string MediaReturnLabel => _mediaReturnLabelKey is { } key
+        ? MeowChan.Desktop.Localization.Texts.T(key) : MeowChan.Desktop.Commands.CommandCatalog.Label("media.return");
     private void OnMediaReturnClick(object? sender, RoutedEventArgs e) => MediaReturn?.Invoke();
     private static GalleryEntry[] BuildVisibleGalleryEntries(ArchivedThreadView thread,
         ArchiveAssetRow[] assets, ArchiveAssetRow[] visible)
