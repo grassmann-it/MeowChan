@@ -703,7 +703,11 @@ internal static partial class GalleryPlaybackFeatureChecks
             hitName = (fixture.Window.InputHitTest(fixture.Window.PointToClient(rightPixel)) as Control)?.Name,
             roots = new[] { "_body", "_visualRoot" }.ToDictionary(name => name,
                 name => ((Control)typeof(GalleryViewer).GetField(name, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(viewer)!).Bounds.ToString()) }));
-        await native.MoveAsync(viewer, rightPoint);
+        // The decorated Windows host owns the final resize pixels, so the gallery
+        // edge strip can have valid native geometry while Avalonia reports the outer
+        // chrome as the hit-test target. This is an intentional edge probe: retain
+        // real OS motion and geometry validation, but not that framework probe.
+        await native.MoveAsync(viewer, rightPoint, requireHitTest: false);
         Console.WriteLine("EDGE after right: " + JsonSerializer.Serialize(ObserveEdges()));
         await UntilAsync(() => Visible(post) && viewer.CaptureState().ContextOpen, "Right edge did not reveal captured post context.");
         await MediaInteractionSmokeHelpers.HoldStateAsync(player, "Playing", "Reading right-edge post");

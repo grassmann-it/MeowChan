@@ -447,6 +447,12 @@ internal static partial class GalleryPlaybackFeatureChecks
         Require(!Running(viewer), "Closing post context silently resumed automatic advancement.");
         await native.ClickAsync(Find<Button>(viewer, "GallerySlideshowToggle"));
         await UntilAsync(() => Running(viewer), "Could not restart automation before menu intent check.");
+        // Keep the short synthetic audio fixture away from its natural terminal
+        // boundary while exercising the menu. Slower native runners can consume most
+        // of its twelve seconds during the preceding transport assertions; rewinding
+        // is deterministic setup, not a relaxation of the menu contract.
+        Require(player.SeekRelative(TimeSpan.FromSeconds(-8)), "Menu intent setup could not rewind the seekable video.");
+        await ObservePlayingAsync(player, "rewound menu intent setup");
         // The playback selector stays in the shared "More" flyout while the slideshow
         // toggle moves onto the toolbar. Opening the flyout is part of the user flow:
         // without it the selector is intentionally detached from any native hit root.
