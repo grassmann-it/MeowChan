@@ -97,8 +97,13 @@ public sealed class ShortcutsWindowTests : IDisposable
         Assert.Equal(new[] { "1*", "1*" }, find.ColumnDefinitions.Select(c => c.Width.ToString()));
         Assert.Same(editor.SearchInput, find.Children[0]);
         Assert.Same(Field(editor, "_area"), find.Children[1]);
-        Panel options = Assert.IsAssignableFrom<Panel>(toolbar.Children[1]);
-        Assert.Equal(new object[] { Field(editor, "_assignedOnly"), Field(editor, "_grouped"), Field(editor, "_conflicts") }, options.Children.Cast<object>());
+        // The filters wrap in the star column (a narrow window, a long language); the conflict badge keeps the right edge.
+        Grid options = Assert.IsType<Grid>(toolbar.Children[1]);
+        Assert.Equal(new[] { "1*", "Auto" }, options.ColumnDefinitions.Select(c => c.Width.ToString()));
+        WrapPanel filters = Assert.IsType<WrapPanel>(options.Children[0]);
+        Assert.Equal(new object[] { Field(editor, "_assignedOnly"), Field(editor, "_grouped") }, filters.Children.Cast<object>());
+        Assert.Same(Field(editor, "_conflicts"), options.Children[1]);
+        Assert.Equal(1, Grid.GetColumn((Control)options.Children[1]));
     }
 
     [Fact]

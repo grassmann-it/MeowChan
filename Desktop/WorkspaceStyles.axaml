@@ -893,6 +893,9 @@
              decorative line colour (2.32:1 on Raised in Light) closes the head. -->
         <Setter Property="BorderThickness" Value="0,0,0,1" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Border}" />
     </Style>
+    <!-- Narrow-window sweep (16.11.2026): a column head that is narrower than its localized name ("En attente" over the 85 dip Queued
+         column) ends in an ellipsis instead of being cut off mid-letter by the column edge; the Columns menu names every column in full. -->
+    <Style Selector="DataGridColumnHeader TextBlock"><Setter Property="TextTrimming" Value="CharacterEllipsis" /></Style>
     <Style Selector="DataGridCell"><Setter Property="Padding" Value="12,0" /><Setter Property="ClipToBounds" Value="True" /></Style>
     <Style Selector="DataGridRow:selected"><Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" /></Style>
     <!-- UX review 2026-11-13: a hovered row is the Hover fill with a 1-px ControlBorder start edge (the fill alone was 1.13:1 / 1.24:1); drawn

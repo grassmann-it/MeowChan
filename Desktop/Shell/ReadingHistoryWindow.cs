@@ -62,7 +62,10 @@ internal static class ReadingHistoryWindow
             Control icon = CommandBindings.Icon(ReadingHistoryMenu.ContinueCommandId);
             icon.VerticalAlignment = VerticalAlignment.Center;
             StackPanel lines = new() { Spacing = 2, Children = { titleText, detailText } };
-            StackPanel row = new() { Orientation = Orientation.Horizontal, Spacing = 12, Margin = new Thickness(4, 8), Children = { icon, lines } };
+            // A grid, not a horizontal stack: a stack measures its children without a width limit, so a long thread title never wrapped
+            // and ran past the list edge at the window's minimum width (narrow-window sweep, 16.11.2026).
+            Grid row = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*"), ColumnSpacing = 12, Margin = new Thickness(4, 8), Children = { icon, lines } };
+            Grid.SetColumn(lines, 1);
             AutomationProperties.SetName(row, title + ", " + detail);
             ToolTip.SetTip(row, ReadingHistoryMenu.EntryTip(entry.Position));
             return row;

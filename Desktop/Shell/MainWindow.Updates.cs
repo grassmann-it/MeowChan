@@ -23,18 +23,17 @@ public partial class MainWindow
     private void InitializeUpdates()
     {
         // A compact, keyboard-accessible status action is present in every workspace mode.
-        if (this.FindControl<TextBlock>("WorkspaceStatus")?.Parent is Grid status)
+        // The status row (ShrinkRowPanel) shortens its widest item first: the notice stands second, after the state and before the
+        // limit warning and the counters. (The former grid gave the notice the warning's column, so the two overlapped.)
+        if (this.FindControl<TextBlock>("WorkspaceStatus")?.Parent is Panel status)
         {
-            status.ColumnDefinitions.Insert(1, new ColumnDefinition(GridLength.Auto));
-            if (this.FindControl<TextBlock>("WorkspaceCounts") is { } counts) Grid.SetColumn(counts, 2);
             _updateNotice = new Button
             {
                 Name = "UpdateNoticeButton", Padding = new Thickness(4, 0), MinHeight = 0,
-                IsVisible = false, Classes = { "subtle" }
+                IsVisible = false, Classes = { "subtle" }, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center
             }.CaptionText();
-            Grid.SetColumn(_updateNotice, 1);
             _updateNotice.Click += OnUpdateNoticeClick;
-            status.Children.Add(_updateNotice);
+            status.Children.Insert(Math.Min(1, status.Children.Count), _updateNotice);
         }
         if (this.FindControl<MenuItem>("WorkspaceMenuItem") is { } menu)
         {

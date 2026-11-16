@@ -122,7 +122,8 @@ internal sealed class TagManagerDialog : Window
         var confirmActions = new WrapPanel { ItemSpacing = 8, LineSpacing = 8 };
         confirmActions.Children.Add(_keep); confirmActions.Children.Add(_confirmDelete);
         _confirm.Children.Add(_confirmText); _confirm.Children.Add(confirmActions);
-        _mergeTarget.ItemTemplate = new FuncDataTemplate<TagManagerRow>((row, _) => new TextBlock { Text = row?.Name ?? string.Empty });
+        // A long tag name shortens inside the selector at the dialog's minimum width instead of running past its edge.
+        _mergeTarget.ItemTemplate = new FuncDataTemplate<TagManagerRow>((row, _) => new TextBlock { Text = row?.Name ?? string.Empty, TextTrimming = TextTrimming.CharacterEllipsis });
         var mergeTargetRow = new WrapPanel { ItemSpacing = 8, LineSpacing = 8 };
         mergeTargetRow.Children.Add(_mergeTargetLabel); mergeTargetRow.Children.Add(_mergeTarget);
         var mergeActions = new WrapPanel { ItemSpacing = 8, LineSpacing = 8 };

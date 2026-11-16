@@ -401,15 +401,19 @@ public sealed partial class ShortcutBindingsEditor : UserControl
         Grid.SetColumn(_area, 1);
         find.Children.Add(_area);
         toolbar.Children.Add(find);
-        var options = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,Auto,*,Auto"), ColumnSpacing = 16, MinHeight = 32 };
+        // The two filters wrap onto a second line when the window is narrow (the F1 window's minimum, a long language: "Только
+        // назначенные" + "Группировать по области" + the badge are wider than 448 dip); the conflict badge keeps the right edge. Auto
+        // columns let the row run past the window edge (narrow-window sweep, 16.11.2026).
+        var options = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 16, MinHeight = 32 };
+        var filters = new WrapPanel { Name = "ShortcutsFilters", ItemSpacing = 16, LineSpacing = 4, VerticalAlignment = VerticalAlignment.Center };
         foreach (Control option in new Control[] { _assignedOnly, _grouped, _conflicts }) option.VerticalAlignment = VerticalAlignment.Center;
         Localized(_assignedOnly, () => Texts.T("shortcuts.window.assignedOnly"));
-        options.Children.Add(_assignedOnly);
+        filters.Children.Add(_assignedOnly);
         Localized(_grouped, () => Texts.T("shortcuts.window.grouped"));
-        Grid.SetColumn(_grouped, 1);
-        options.Children.Add(_grouped);
+        filters.Children.Add(_grouped);
+        options.Children.Add(filters);
         _conflicts.HorizontalAlignment = HorizontalAlignment.Right;
-        Grid.SetColumn(_conflicts, 3);
+        Grid.SetColumn(_conflicts, 1);
         options.Children.Add(_conflicts);
         toolbar.Children.Add(options);
         _root.Children.Add(toolbar);
@@ -587,10 +591,12 @@ public sealed partial class ShortcutBindingsEditor : UserControl
     {
         var chevron = new Border { Width = 16, Height = 16, VerticalAlignment = VerticalAlignment.Center,
             RenderTransform = collapsed ? null : new RotateTransform(90) };
-        var title = new TextBlock { VerticalAlignment = VerticalAlignment.Center };
+        // The group title ends in an ellipsis (full text as tooltip) instead of running past the list edge in a narrow window.
+        var title = new TrimTipTextBlock { VerticalAlignment = VerticalAlignment.Center };
         title.Classes.Add("section-title");
-        var content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, MinHeight = TableRowHeight };
+        var content = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*"), ColumnSpacing = 8, MinHeight = TableRowHeight };
         content.Children.Add(chevron);
+        Grid.SetColumn(title, 1);
         content.Children.Add(title);
         var item = new ListBoxItem { Tag = new GroupTag(group.Key), Content = content, HorizontalContentAlignment = HorizontalAlignment.Stretch };
         item.Classes.Add("shortcuts-group");

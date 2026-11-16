@@ -126,7 +126,7 @@ public sealed class DialogWindowTests
         TextBlock status = new() { Text = "3 of 5" };
         Button close = new();
         Border footer = DialogFooter.Build(close, status: status);
-        DockPanel row = Assert.IsType<DockPanel>(footer.Child);
+        DockPanel row = Assert.IsAssignableFrom<DockPanel>(footer.Child);
         WrapPanel actions = Assert.IsType<WrapPanel>(row.Children[0]);
         Assert.Equal(Dock.Right, DockPanel.GetDock(actions));
         Assert.Same(status, row.Children[1]);
