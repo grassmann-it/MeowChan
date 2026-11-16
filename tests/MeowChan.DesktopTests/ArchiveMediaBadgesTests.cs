@@ -93,9 +93,13 @@ public sealed class ArchiveMediaBadgesTests : IDisposable
     }
 
     [Fact]
-    public void AnAttachmentRowFeedsFavouriteAndKindButACompactListRowNeverShowsTheFileFavourite()
+    public void AnAttachmentRowFeedsKindButNeverTheFileFavouriteBecauseItsFileLineStarIsTheOne()
     {
-        Assert.Equal(new MediaBadgeState(Favorite: true, Kind: MediaBadgeKind.Video), ArchiveMediaBadges.ForAttachment(AttachmentRow("clip.webm", favorite: true)));
+        // Reader post (Tom, 16.11.2026): the round star over the thumbnail duplicated the star on the file line, so a favourite adds no badge.
+        Assert.Equal(new MediaBadgeState(Kind: MediaBadgeKind.Video), ArchiveMediaBadges.ForAttachment(AttachmentRow("clip.webm", favorite: true)));
+        Assert.False(ArchiveMediaBadges.ForAttachment(AttachmentRow("a.png", favorite: true, available: true)).Favorite);
+        // The saved-media tiles keep theirs.
+        Assert.True(ArchiveMediaBadges.ForAsset(AssetRow("a.png", favorite: true)).Favorite);
         Assert.Equal(new MediaBadgeState(Kind: MediaBadgeKind.Gif), ArchiveMediaBadges.ForAttachment(AttachmentRow("loop.gif")));
         Assert.Equal(default, ArchiveMediaBadges.ForAttachment(AttachmentRow(null)));
         // The thread list never wires the file favourite, and even a wired one is not drawn on a compact row (its star is hidden there too).
@@ -193,12 +197,15 @@ public sealed class ArchiveMediaBadgesTests : IDisposable
         ArchiveAttachmentRow row = AttachmentRow("clip.webm");
         row.IsFavorite = () => favorite;
         ArchiveAttachmentView view = new() { DataContext = row };
-        Assert.Equal(new MediaBadgeState(Favorite: true, Kind: MediaBadgeKind.Video), view.Badges.State);
+        // A favourite reader attachment draws no star over the picture and does not name one on the picture button either (the file line's star does).
+        Assert.Equal(new MediaBadgeState(Kind: MediaBadgeKind.Video), view.Badges.State);
+        Assert.False(view.Badges.Plan.Badges.Any(placed => placed.Badge.Id == MediaBadgeId.Favorite));
         Assert.Equal(MediaBadgeOptions.Archive, view.Badges.Options);
         string name = AutomationProperties.GetName(view.PreviewButton)!;
         Assert.StartsWith(row.Label, name, StringComparison.Ordinal);
-        Assert.EndsWith("Favorite · Video", name, StringComparison.Ordinal);
-        Assert.Equal("Favorite · Video", AutomationProperties.GetHelpText(view.PreviewButton));
+        Assert.EndsWith("Video", name, StringComparison.Ordinal);
+        Assert.DoesNotContain("Favorite", name);
+        Assert.Equal("Video", AutomationProperties.GetHelpText(view.PreviewButton));
         Assert.Equal(row.Label, (string)ToolTip.GetTip(view.PreviewButton)!);
         Assert.False(view.Badges.IsHitTestVisible);
         Assert.Equal(AccessibilityView.Raw, AutomationProperties.GetAccessibilityView(view.Badges));
