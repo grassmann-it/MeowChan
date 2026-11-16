@@ -298,25 +298,31 @@ internal static partial class GalleryPlaybackFeatureChecks
         viewer.SetWarnings("synthetic provenance warning");
         viewer.SetNotice("synthetic preferences failure");
         await viewer.SetMediaUnavailable("stale shell resolution failure", viewer.MediaRequestGeneration - 1);
-        // Diagnostic updates can be delivered while the shared info line is still
-        // transferring between the managed gallery root and the native video root.
-        // Do not inspect the old root in that interval; wait for the current visual
-        // tree, then keep the exact control assertions below.
-        await UntilAsync(() =>
+        // Diagnostic updates can arrive while the retained transport is moving between
+        // the player, dock and overlay roots. Wait for that actual ownership transfer;
+        // hidden Button content (notably the rating TextBlock) is intentionally not a
+        // visual descendant until its presenter is realized.
+        await UntilAsync(async () =>
         {
-            Control[] diagnostics = viewer.GetGalleryVisualDescendants().OfType<Control>().ToArray();
-            return diagnostics.Count(control => control.Name == "GalleryFavoriteError") == 1
-                && diagnostics.Count(control => control.Name == "GalleryWarnings") == 1
-                && diagnostics.Count(control => control.Name == "GalleryRatingStatus") == 1;
+            await LayoutAsync(fixture.Window);
+            if (TopLevel.GetTopLevel(player.TransportControl) is Window transportWindow
+                && !ReferenceEquals(transportWindow, fixture.Window))
+                await LayoutAsync(transportWindow);
+            return player.TransportControl.IsAttachedToVisualTree()
+                && TopLevel.GetTopLevel(player.TransportControl) != null
+                && ErrorField<Border>(viewer, "_infoOverlay").IsAttachedToVisualTree();
         }, "Diagnostic info line did not settle after the native transport update.");
         Require(reports.Count == 4 && reports.All(n => n.Entry?.Key == clip.Key && !n.MediaUnavailable),
             "Notification identity/classification did not reach the central bridge.");
         Require(ReferenceEquals(focused, inputRoot.FocusManager?.GetFocusedElement()), "Notification stole focus.");
         Require(viewer.CaptureState() == selection, "Notification changed selection/context/zoom.");
         Require(!ErrorField<bool>(viewer, "_mediaFailed"), "Notification marked valid playback unavailable.");
-        Require(!Find<Control>(viewer, "GalleryFavoriteError").IsEffectivelyVisible
-            && string.IsNullOrEmpty(Find<TextBlock>(viewer, "GalleryWarnings").Text)
-            && !Find<TextBlock>(viewer, "GalleryRatingStatus").Text!.Contains("synthetic"), "Technical inline error banner survived.");
+        SelectableTextBlock favoriteError = ErrorField<SelectableTextBlock>(viewer, "_favoriteError");
+        TextBlock warnings = ErrorField<TextBlock>(viewer, "_warnings");
+        TextBlock ratingStatus = ErrorField<TextBlock>(viewer, "_ratingStatus");
+        Require(!favoriteError.IsEffectivelyVisible
+            && string.IsNullOrEmpty(warnings.Text)
+            && !ratingStatus.Text!.Contains("synthetic"), "Technical inline error banner survived.");
         if (overlay) Require(!Visible(controls), "Notification immediately revealed controls.");
         await MediaInteractionSmokeHelpers.HoldStateAsync(player, expected, "technical notification");
         var after = await player.InspectPlaybackAsync();
