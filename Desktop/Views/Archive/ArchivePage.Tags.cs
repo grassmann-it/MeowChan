@@ -193,10 +193,11 @@ public partial class ArchivePage
     }
 
     /// <summary>The thread the Tags shortcut acts on: the thread read in the large reader, otherwise the one selected
-    /// thread (a batch has no Tags entry in the menu either). Null while the page cannot act.</summary>
+    /// thread (a batch has no Tags entry in the menu either); with no row of the list selected, the thread the reader shows
+    /// (a jump can open one the list does not hold). Null while the page cannot act.</summary>
     internal ResourceId? ThreadTagsShortcutTarget => _ended || !_available || _busy || IsReaderDialogOpen ? null
         : _largeReader ? _thread?.Summary.Id
-        : FrozenArchiveSelection() is { Length: 1 } single ? single[0] : null;
+        : FrozenArchiveSelection() switch { { Length: 1 } single => single[0], { Length: 0 } when _showReader => _thread?.Summary.Id, _ => null };
 
     internal void OpenThreadTagsByShortcut()
     {

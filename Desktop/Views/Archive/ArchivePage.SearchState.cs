@@ -12,8 +12,10 @@ public partial class ArchivePage
 {
     // Editor controls are the draft; a load is frozen before the first await, and
     // the applied request changes only together with the complete rendered page.
+    // ReloadShownThread: a committed page reads the thread the reader shows again (a refresh). A jump that loads its own thread right after
+    // the list (ArchivePage.ThreadReveal.cs) turns it off.
     private sealed record ListLoad(ArchiveSearchRequest Request, int Offset,
-        IReadOnlyDictionary<string, ThreadWorkSnapshot> Work, Action? AfterCommit = null);
+        IReadOnlyDictionary<string, ThreadWorkSnapshot> Work, Action? AfterCommit = null, bool ReloadShownThread = true);
     private ArchiveSearchRequest? _appliedSearch;
     private ListLoad? _runningList;
     private IReadOnlyDictionary<string, ThreadWorkSnapshot> _appliedWork = new Dictionary<string, ThreadWorkSnapshot>();

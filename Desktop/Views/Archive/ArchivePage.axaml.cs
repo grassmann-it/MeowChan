@@ -301,7 +301,7 @@ public partial class ArchivePage : UserControl
             if (!_ended && generation == _contentRequest)
             { _busy = false; UpdateActions(); }
         }
-        if (committed && _showReader && selected != null && !_ended && generation == _contentRequest)
+        if (committed && pending.ReloadShownThread && _showReader && selected != null && !_ended && generation == _contentRequest)
             await LoadThreadAsync(selected, resetPage: false);
         return committed;
     }
@@ -698,8 +698,7 @@ public partial class ArchivePage : UserControl
         ArchivePostNavigation.IsVisible = shownPosts > ReaderPageSize;
         PreviewArchiveMediaButton.IsEnabled = ready && SelectedMediaRow() != null;
         ArchiveOpenGallery.IsEnabled = ready && _selectedThread != null;
-        ArchiveReadPosts.IsEnabled = readReady && _selectedThread != null
-            && FrozenArchiveSelection().Length == 1;
+        ArchiveReadPosts.IsEnabled = CanExpandReader;
         ArchiveResultsGallery.IsEnabled = ready && _listTotal > 0;
         ArchiveThreadPage.Text = PageLabel(_listOffset, _listTotal);
         ArchivePostPage.Text = PageLabel(_postOffset, shownPosts, ReaderPageSize);

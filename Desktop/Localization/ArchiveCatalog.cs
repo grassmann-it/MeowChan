@@ -32,6 +32,8 @@ internal static class ArchiveCatalog
         ("archive.textChip", "Text: {0}", "Text: {0}"),
         ("archive.sourceChip", "Source: {0}", "Quelle: {0}"),
         ("archive.boardChip", "Board: {0}", "Board: {0}"),
+        ("archive.reveal.searchReplaced", "The archive search was set to the board {0} so the opened thread is in the list.", "Die Archivsuche wurde auf das Board {0} gesetzt, damit der geöffnete Thread in der Liste steht."),
+        ("archive.reveal.restoreSearch", "Restore previous search", "Vorherige Suche wiederherstellen"),
         ("archive.dateChip", "First registered locally: {0} – {1} · {2}", "Erstmals lokal registriert: {0} – {1} · {2}"),
         ("archive.pageAction", "Result page {0} of {1}", "Ergebnisseite {0} von {1}"),
         ("savedSearch.openManager", "Saved searches…", "Gespeicherte Suchen…"),

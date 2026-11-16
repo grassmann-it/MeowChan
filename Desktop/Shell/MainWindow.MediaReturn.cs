@@ -1,10 +1,13 @@
+using System;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Notifications;
 using Avalonia.Input;
 using Avalonia.VisualTree;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 
 namespace MeowChan;
@@ -29,11 +32,34 @@ public partial class MainWindow
         _mediaReturn = point;
         ArchivePage.MediaReturn = ReturnToMedia;
         UpdateMediaReturn();
-        await ArchivePage.LoadThreadAsync(entry.Thread);
-        // A later jump or a return meanwhile owns the archive now; this one must not move its focus.
-        if (request != _mediaJumpRequest || _isClosing || _selectedPage != WorkspacePage.Archive) return;
-        await ArchivePage.FocusPostAsync(entry.PostId);
+        await ShowThreadPostInLargeReaderAsync(entry.Thread, entry.PostId, request);
     }
+
+    // "Show in thread" from the Media and the Tagging page (16.11.2026), like the gallery's: the large reader on the post. First the archive is
+    // made to agree with it (the thread selected in the list, ArchivePage.ThreadReveal.cs) and the thread loaded there, then the large reader
+    // opens over that archive: closing it stays on the archive with this thread selected and shown, its focus back on the list. The return
+    // point of a Media jump is in the reader's header (the pane moves into the large reader with it) and Alt+Left is the window's.
+    // A later jump, a return or leaving the archive meanwhile owns the page (_mediaJumpRequest): this one stops before its next step.
+    private async Task ShowThreadPostInLargeReaderAsync(ResourceId thread, string postId, int request)
+    {
+        bool Current() => request == _mediaJumpRequest && !_isClosing && _selectedPage == WorkspacePage.Archive;
+        ArchivePage archive = ArchivePage;
+        ArchivePage.ThreadReveal reveal = await archive.RevealThreadInListAsync(thread);
+        if (reveal.RestoreSearch is { } restore && !_isClosing) ShowRevealedSearchToast(thread, restore);
+        if (!Current()) return;
+        await archive.LoadThreadAsync(thread);
+        if (!Current() || _gallery != null) return;
+        if (!_largeReaderOpen) OpenLargeReader(archive.ThreadListFocusTarget);
+        if (!_largeReaderOpen) return; // a dialog of the reader keeps it inline
+        await archive.FocusPostAsync(postId);
+        if (Current() && _largeReaderOpen) archive.EnsureLargeReaderFocus();
+    }
+
+    // Only a thread the archive's search did not find replaces that search (by its board); the toast says so and puts the previous search back.
+    private void ShowRevealedSearchToast(ResourceId thread, Func<Task<bool>> restore) => ShowActionNotification(Texts.T("nav.archive"),
+        Texts.T("archive.reveal.searchReplaced", ArchivePage.RevealedBoardLabel(thread)), NotificationType.Information,
+        new[] { new FeedbackToastAction(Texts.T("archive.reveal.restoreSearch"), restore, "rotate-ccw") },
+        context: thread.Source + "/" + thread.Board + "/" + thread.Thread, operation: "archive.reveal");
 
     private void ForgetMediaReturn()
     {

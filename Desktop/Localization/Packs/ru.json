@@ -842,6 +842,8 @@
     "archive.textChip": "Текст: {0}",
     "archive.sourceChip": "Источник: {0}",
     "archive.boardChip": "Доска: {0}",
+    "archive.reveal.searchReplaced": "Поиск в архиве переключён на доску {0}, чтобы открытый тред был в списке.",
+    "archive.reveal.restoreSearch": "Вернуть прежний поиск",
     "archive.dateChip": "Первая локальная регистрация: {0} – {1} · {2}",
     "archive.pageAction": "Страница результатов {0} из {1}",
     "savedSearch.openManager": "Сохранённые поиски…",

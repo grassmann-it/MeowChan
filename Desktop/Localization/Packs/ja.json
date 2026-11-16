@@ -798,6 +798,8 @@
     "archive.textChip": "テキスト: {0}",
     "archive.sourceChip": "ソース: {0}",
     "archive.boardChip": "板: {0}",
+    "archive.reveal.searchReplaced": "開いたスレッドが一覧に表示されるよう、アーカイブの検索を板 {0} に切り替えました。",
+    "archive.reveal.restoreSearch": "前の検索に戻す",
     "archive.dateChip": "ローカル初回登録日: {0} – {1} · {2}",
     "archive.pageAction": "結果ページ {0} / {1}",
     "savedSearch.openManager": "保存した検索…",
