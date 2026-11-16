@@ -36,7 +36,7 @@ public partial class PluginsPage
     }
 
     private async void OnReviewBundledRepairsClick(object? sender, RoutedEventArgs e) =>
-        await ReviewBundledBuildsAsync();
+        await OpenActions.RunAsync(ReviewBundledBuildsAsync, "plugins.bundled.review");
 
     // Shared with the Danbooru sdk-mismatch recovery route. Includes explicit reselections
     // (not only automatic repairs), so a pin remains intact until the review is confirmed.
