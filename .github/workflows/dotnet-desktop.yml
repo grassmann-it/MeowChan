@@ -318,6 +318,8 @@ jobs:
         if: (matrix.full || (inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only'))) && (github.event_name != 'workflow_dispatch' || (inputs.scenario != 'gallery-errors' && inputs.scenario != 'gallery-features' && inputs.scenario != 'gif-playback' && inputs.scenario != 'media-input'))
         # Each normal scope has a fresh process/profile and its own bounded evidence.
         shell: bash
+        env:
+          GUI_CI_SCENARIO: ${{ inputs.scenario || 'all' }}
         run: |
           python scripts/run-gui-ci-scenes.py \
             --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll \
@@ -565,9 +567,10 @@ jobs:
           python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll ${{ runner.os != 'Linux' && '--allow-native-desktop' || '' }} --mode normal --timeout 300 --output artifacts/closure-scoped-diagnostics
       - name: Exercise GIF playback and ownership on the actual platform
         id: gif_playback
+        # Default all/gui-only run independent leaf roots in smoke_normal.
         # Keep independent checks running so one failure yields a complete evidence set.
         continue-on-error: true
-        if: (((inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')) && ((runner.os == 'macOS' && matrix.mac_shard == 5) || (runner.os != 'macOS' && matrix.lane == 'lane-b'))) || (matrix.full && !(inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')))) && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only' || inputs.scenario == 'gif-playback')
+        if: matrix.full && github.event_name == 'workflow_dispatch' && inputs.scenario == 'gif-playback'
         shell: bash
         env:
           MEOWCHAN_GIF_PLAYBACK_ONLY: '1'
@@ -578,9 +581,10 @@ jobs:
           python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll ${{ runner.os != 'Linux' && '--allow-native-desktop' || '' }} --mode normal --timeout 300 --output artifacts/closure-gif-playback
       - name: Exercise gallery error interaction on the actual platform
         id: gallery_errors
+        # Default all/gui-only run independent leaf roots in smoke_normal.
         # Keep independent checks running so one failure yields a complete evidence set.
         continue-on-error: true
-        if: (((inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')) && ((runner.os == 'macOS' && matrix.mac_shard == 6) || (runner.os != 'macOS' && matrix.lane == 'lane-c'))) || (matrix.full && !(inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')))) && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only' || inputs.scenario == 'gallery-errors')
+        if: matrix.full && github.event_name == 'workflow_dispatch' && inputs.scenario == 'gallery-errors'
         shell: bash
         env:
           MEOWCHAN_GALLERY_ERROR_ONLY: '1'

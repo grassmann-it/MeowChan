@@ -8,6 +8,7 @@ import signal
 from pathlib import Path
 import subprocess
 import sys
+import time
 from types import SimpleNamespace
 
 NORMAL = ['normal-core', 'normal-grid', 'normal-settings-page', 'normal-diagnostics',
@@ -17,9 +18,11 @@ NORMAL = ['normal-core', 'normal-grid', 'normal-settings-page', 'normal-diagnost
 READER = ['reader-navigation', 'reader-owned-navigation', 'reader-gallery-roundtrip',
           'reader-list-gallery-return', 'reader-returns', 'reader-stability',
           'reader-groups', 'gallery-close', 'video-lifecycle', 'window-minimum']
-NEW_READER = {'reader-owned-navigation', 'reader-gallery-roundtrip', 'reader-list-gallery-return',
-              'video-lifecycle', 'window-minimum'}
 MODES = ['locked-profile', 'no-tray', 'tray-failure', 'download-session', 'selection']
+
+GIF = ['gif-playback-core', 'gif-successors', 'gif-verified-failures', 'gif-reader-association', 'gif-ownership']
+GALLERY_ERRORS = ['gallery-errors-retirement-clip', 'gallery-errors-layout-roots',
+                  'gallery-errors-notifications', 'gallery-errors-failure-reader-return']
 
 
 def reader_baseline(entries):
@@ -83,6 +86,7 @@ def collect(entries, required, assembly, output, timeout, native=False, run=boun
     for identifier in required:
         row = dict(id=identifier, passed=False)
         launched = False
+        started = time.monotonic()
         try:
             if unsafe:
                 raise ValueError('Blocked: previous scene process cleanup failed; desktop unsafe')
@@ -95,25 +99,46 @@ def collect(entries, required, assembly, output, timeout, native=False, run=boun
             environment = {k: v for k, v in os.environ.items()
                            if k not in {'MEOWCHAN_GALLERY_TRANSITION_REVIEW', 'MEOWCHAN_GALLERY_HELP_REVIEW'}
                            and (not k.startswith('MEOWCHAN_') or not (k.endswith('_ONLY') or k in SELECTORS))}
+            scene_timeout = 300 if identifier in GIF + GALLERY_ERRORS else timeout
+            audio_report = None
+            audio_passed = True
+            forwarded = []
             for pair in entry['environment']:
                 key, value = pair.split('=', 1)
-                environment[key] = value.replace('{repo}', str(Path.cwd()))
+                value = value.replace('{repo}', str(Path.cwd()))
+                if key == 'MEOWCHAN_REQUIRE_FUNCTIONAL_AUDIO' and sys.platform != 'linux':
+                    continue  # Preserve the prior native Windows/macOS audio contract.
+                environment[key] = value
+                forwarded.append(key + '=' + value)
             destination = output / identifier
             command = [sys.executable, 'scripts/run-desktop-smoke.py', '--assembly', str(assembly),
                        '--mode', entry['mode'], '--expect-scenario', entry['scenario'],
-                       '--timeout', str(timeout), '--output', str(destination)]
+                       '--timeout', str(scene_timeout), '--output', str(destination)]
             if native:
                 command.append('--allow-native-desktop')
+            if sys.platform == 'linux' and identifier in GALLERY_ERRORS:
+                audio_report = destination / 'private-audio.json'
+                command = [sys.executable, 'scripts/with-private-null-audio.py', '--report', str(audio_report),
+                           '--', 'env', *forwarded, *command]
+
             destination.mkdir(parents=True, exist_ok=True)
             # Retain runner diagnostics even if it fails before writing child results.
             with (destination / 'runner.log').open('w') as log:
                 launched = True
-                result = run(command, env=environment, stdout=log, stderr=subprocess.STDOUT, timeout=timeout + 45)
+                result = run(command, env=environment, stdout=log, stderr=subprocess.STDOUT, timeout=scene_timeout + 45 + (45 if audio_report else 0))
             row['outer_timeout'] = getattr(result, 'outer_timeout', False)
             if row['outer_timeout'] or getattr(result, 'forced_kill', False):
                 raise RuntimeError('Runner outer deadline/forced termination: desktop safety unproven')
             if result.returncode:
                 print((destination / 'runner.log').read_text(errors='replace')[-8000:], flush=True)
+            if audio_report:
+                audio = json.loads(audio_report.read_text())
+                if audio.get('cleanup', {}).get('complete') is not True:
+                    raise RuntimeError('Private audio cleanup unproven')
+                audio_passed = (audio.get('status') == 'passed' and bool(audio.get('readiness', {}).get('before'))
+                                and bool(audio.get('readiness', {}).get('after')))
+                if 'child' not in audio['cleanup'].get('processes', {}):
+                    raise RunnerNotStarted('Private audio failed before child launch; cleanup complete')
             evidence = json.loads((destination / 'results.json').read_text())
             receipts = evidence.get('results', [])
             if (evidence.get('selected_modes') != [entry['mode']] or len(receipts) != 1
@@ -124,7 +149,7 @@ def collect(entries, required, assembly, output, timeout, native=False, run=boun
                 unsafe = True
                 (output / 'unsafe-cleanup').write_text(identifier + '\n')
             row['cleanup_proven'] = not unsafe
-            row.update(exit_code=result.returncode, passed=not unsafe and not row['outer_timeout'] and result.returncode == 0 and
+            row.update(exit_code=result.returncode, passed=audio_passed and not unsafe and not row['outer_timeout'] and result.returncode == 0 and
                        evidence.get('passed') is True and evidence.get('selected_modes') == [entry['mode']]
                        and len(evidence.get('results', [])) == 1
                        and evidence['results'][0].get('scenario') == entry['scenario']
@@ -136,6 +161,7 @@ def collect(entries, required, assembly, output, timeout, native=False, run=boun
             if launched:
                 unsafe = True
                 (output / 'unsafe-cleanup').write_text(identifier + ': ' + str(error) + '\n')
+        row['duration_seconds'] = round(time.monotonic() - started, 3)
         rows.append(row)
         write(False)
         print(f"GUI {identifier}: {'PASS' if row['passed'] else 'FAIL'}", flush=True)
@@ -154,7 +180,7 @@ def main():
     parser.add_argument('--selection-only', action='store_true')
     parser.add_argument('--allow-native-desktop', action='store_true')
     args = parser.parse_args()
-    required = ['selection'] if args.selection_only else NORMAL + MODES + READER
+    required = ['selection'] if args.selection_only else NORMAL + MODES + READER + GIF + GALLERY_ERRORS
     args.output.mkdir(parents=True, exist_ok=True)
     manifest = args.output / 'scene-shard.json'
     if manifest.exists():
@@ -169,16 +195,18 @@ def main():
         # Clear every registered selector, including branch selectors without _ONLY.
         SELECTORS.update(pair.split('=', 1)[0] for e in entries for pair in e['environment'])
         baseline = reader_baseline(entries)
-        required = ['selection'] if args.selection_only else NORMAL + MODES + baseline
+        required = ['selection'] if args.selection_only else NORMAL + MODES + baseline + GIF + GALLERY_ERRORS
         inventory = list(required)
         if args.shard is not None:
             plan_spec = importlib.util.spec_from_file_location('gui_plan', Path(__file__).with_name('gui-ci-plan.py'))
             plan = importlib.util.module_from_spec(plan_spec)
             plan_spec.loader.exec_module(plan)
             required = plan.scenes_for(required, args.shard, args.workers)
+            runner_os = 'macOS' if sys.platform == 'darwin' else 'Windows' if sys.platform == 'win32' else 'Linux'
+            budget = plan.budgets(inventory, args.shard, runner_os, os.environ.get('GUI_CI_SCENARIO', 'all'))
         manifest.write_text(json.dumps(dict(source=os.environ.get('GITHUB_SHA'), shard=args.shard,
             workers=args.workers, inventory=inventory, required=required, timeout_seconds=args.timeout,
-            reader_decomposed=True), indent=2) + '\n')
+            reader_decomposed=True, budgets=budget if args.shard is not None else None), indent=2) + '\n')
     except Exception as error:
         (args.output / 'collection.json').write_text(json.dumps(dict(required=required,
             results=[], complete=False, passed=False, error=str(error)), indent=2) + '\n')

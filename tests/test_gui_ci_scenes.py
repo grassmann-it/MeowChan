@@ -71,7 +71,7 @@ class CollectionTests(unittest.TestCase):
         self.assertEqual(gui.reader_baseline(entries), gui.READER)
         with self.assertRaises(ValueError):
             gui.reader_baseline([{'id': 'reader-owned-navigation'}, {'id': 'reader-ux'}])
-        required = gui.NORMAL + gui.MODES + gui.READER
+        required = gui.NORMAL + gui.MODES + gui.READER + gui.GIF + gui.GALLERY_ERRORS
         self.assertEqual(len(required), len(set(required)))
         self.assertNotIn('reader-ux', required)
         self.assertEqual(len(gui.NORMAL), 9)
@@ -113,6 +113,68 @@ class CollectionTests(unittest.TestCase):
             self.assertEqual(len(calls), 1)
             self.assertTrue((Path(tmp) / 'unsafe-cleanup').exists())
 
+    def test_all_gallery_leaves_keep_private_audio_and_exact_receipts(self):
+        import sys
+        from unittest.mock import patch
+        calls = []
+        entries = [dict(id=n, mode='normal', scenario='normal+' + n, error=None, skip=None,
+                       environment=['MEOWCHAN_GALLERY_TEST_ONLY=1', 'MEOWCHAN_REQUIRE_FUNCTIONAL_AUDIO=1',
+                                    'MEOWCHAN_VIDEO_FIXTURE={repo}/fixture.webm']) for n in gui.GALLERY_ERRORS]
+        def run(command, **kwargs):
+            calls.append(command)
+            self.assertIn('scripts/with-private-null-audio.py', command)
+            self.assertIn('MEOWCHAN_REQUIRE_FUNCTIONAL_AUDIO=1', command)
+            self.assertEqual(command[command.index('--timeout') + 1], '300')
+            self.assertEqual(kwargs['timeout'], 390)
+            output = Path(command[command.index('--output') + 1])
+            (output / 'results.json').write_text(json.dumps(dict(passed=True, selected_modes=['normal'],
+                results=[dict(mode='normal', scenario='normal+' + output.name, error=None, passed=True, exit_code=0)])))
+            (output / 'private-audio.json').write_text(json.dumps(dict(status='passed',
+                readiness=dict(before={'ready': True}, after={'ready': True}),
+                cleanup=dict(complete=True, processes={'child': {'exit_code': 0}}))))
+            return SimpleNamespace(returncode=0)
+        with tempfile.TemporaryDirectory() as tmp, patch.object(sys, 'platform', 'linux'):
+            self.assertEqual(gui.collect(entries, gui.GALLERY_ERRORS, Path('a'), Path(tmp), 180, run=run), 0)
+            self.assertEqual(len(calls), 4)
+            self.assertTrue(json.loads((Path(tmp) / 'collection.json').read_text())['coverage_complete'])
+
+    def test_split_families_are_exact_and_unsplit_modes_not_in_default(self):
+        self.assertEqual(len(gui.GIF), 5)
+        self.assertEqual(len(gui.GALLERY_ERRORS), 4)
+        inventory = gui.NORMAL + gui.MODES + gui.READER + gui.GIF + gui.GALLERY_ERRORS
+        self.assertEqual(len(inventory), 33)
+        self.assertNotIn('gif-playback', inventory)
+        self.assertNotIn('gallery-error', inventory)
+        self.assertNotIn('reader-ux', inventory)
+
+    def test_real_runner_deadline_reaps_owned_process(self):
+        import io
+        import sys
+        import time
+        started = time.monotonic()
+        with tempfile.TemporaryFile(mode='w+') as log:
+            result = gui.bounded_runner([sys.executable, '-c', 'import time; time.sleep(30)'],
+                env={}, stdout=log, stderr=-2, timeout=.05)
+        self.assertTrue(result.outer_timeout)
+        self.assertLess(time.monotonic() - started, 10)
+        self.assertIsNotNone(result.returncode)
+
+    def test_missing_gif_leaf_fails_without_hiding_other_leaves(self):
+        calls = []
+        entries = [self.entry(n) for n in gui.GIF[1:]]
+        def run(command, **kwargs):
+            calls.append(command)
+            output = Path(command[command.index('--output') + 1])
+            (output / 'results.json').write_text(json.dumps(dict(passed=True, selected_modes=['reader-ux'],
+                results=[dict(mode='reader-ux', scenario='reader-ux+' + output.name, error=None, passed=True, exit_code=0)])))
+            return SimpleNamespace(returncode=0)
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(gui.collect(entries, gui.GIF, Path('a'), Path(tmp), 180, run=run), 1)
+            self.assertEqual(len(calls), 4)
+            report = json.loads((Path(tmp) / 'collection.json').read_text())
+            self.assertFalse(report['coverage_complete'])
+            self.assertFalse(report['passed'])
+
     def test_discovery_failure_retains_report_and_manifest(self):
         import sys
         from unittest.mock import patch
@@ -137,18 +199,19 @@ class NativeShardTests(unittest.TestCase):
 
     def test_required_scenes_exactly_once_and_bounded(self):
         from collections import Counter
-        required = gui.NORMAL + gui.MODES + gui.READER
+        required = gui.NORMAL + gui.MODES + gui.READER + gui.GIF + gui.GALLERY_ERRORS
         for workers in (4, 8):
             groups = [self.plan.scenes_for(required, shard, workers) for shard in range(1, workers + 1)]
             self.assertEqual(Counter(n for group in groups for n in group), Counter(required))
-            self.assertLessEqual(max(map(len, groups)), 7 if workers == 4 else 4)
-            for shard, group in enumerate(groups, 1):
-                dedicated = [n for n, owner in self.plan.owners(workers).items() if owner == shard]
-                seconds = len(group) * (180 if workers == 4 else 300) + sum(
-                    240 if n == 'media_input' else 180 if n == 'tray_lifecycle' else 300 for n in dedicated)
-                # Existing offline step deadlines are unchanged. Reserve >=10min
-                # beyond their sum with GUI timeouts, not a whole-job guarantee.
-                self.assertLessEqual(seconds + (35 if workers == 4 else 22) * 60, 65 * 60)
+            self.assertLessEqual(max(map(len, groups)), 11 if workers == 4 else 5)
+            for runner_os in (('Linux', 'Windows') if workers == 4 else ('macOS',)):
+                for shard in range(1, workers + 1):
+                    report = self.plan.budgets(required, shard, runner_os)
+                    self.assertFalse(report['whole_job_worst_case_fits'])
+                    self.assertEqual(report['job_timeout_seconds'], 4500)
+                    # This is the declared app + offline sum ONLY, not a claim
+                    # that build/capture/audio/cleanup/upload fit in the remainder.
+                    self.assertLessEqual(report['declared_app_plus_offline_seconds'], (73 if workers == 4 else 56) * 60)
 
     def test_workflow_owners_and_gates_match_for_every_worker(self):
         import re
