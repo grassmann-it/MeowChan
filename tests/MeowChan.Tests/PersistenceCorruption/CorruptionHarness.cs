@@ -412,6 +412,7 @@ internal static class CorruptionScenarios
         try
         {
             string target = Path.Combine(outside, "target.json");
+            string? danglingTarget = null;
             byte[]? targetBytes = null;
             string marker = Path.Combine(primary, "marker.txt");
             File.Delete(primary);
@@ -427,7 +428,8 @@ internal static class CorruptionScenarios
                     File.CreateSymbolicLink(primary, target);
                     break;
                 default:
-                    File.CreateSymbolicLink(primary, Path.Combine(outside, "missing.json"));
+                    danglingTarget = Path.Combine(outside, "missing.json");
+                    File.CreateSymbolicLink(primary, danglingTarget);
                     break;
             }
             string context = $"{adapter.Name} [{kind}]";
@@ -461,7 +463,19 @@ internal static class CorruptionScenarios
                 Assert.True(adapter.Policy == StorePolicy.Rebuild,
                     $"{context}: a write succeeded with a {kind} in place of the file.");
 
+            if (danglingTarget != null && read.Kind == ReadKind.Data && AtomicJsonFile.CanAtomicallyReplaceSymbolicLink)
+            {
+                // A store that reads a dangling link as its empty document must be able to save over it, and must keep the
+                // user's link: the primary becomes a regular file and the link survives as one sidecar with the same target.
+                Assert.True(outcome == null, $"{context}: a save over the dangling link failed ({outcome?.GetType().Name}).");
+                Assert.True(File.Exists(primary) && new FileInfo(primary).LinkTarget == null, $"{context}: the primary is not a regular file after the save.");
+                string[] sidecars = Directory.EnumerateFileSystemEntries(directory, adapter.PrimaryName + ".dangling-link-*").ToArray();
+                Assert.True(sidecars.Length == 1, $"{context}: expected one dangling-link sidecar, found {sidecars.Length}.");
+                Assert.Equal(danglingTarget, new FileInfo(sidecars[0]).LinkTarget);
+            }
+
             // Nothing behind the entry may change, whatever the store did with the entry itself.
+            if (danglingTarget != null) Assert.True(!Directory.EnumerateFileSystemEntries(outside).Any(), $"{context}: something was created behind the dangling link.");
             if (targetBytes != null) Assert.True(Same(targetBytes, File.ReadAllBytes(target)), $"{context}: the linked file was written through.");
             if (kind == "directory" && (adapter.Policy != StorePolicy.Rebuild || outcome != null))
             {

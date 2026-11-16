@@ -36,23 +36,26 @@ internal static class AtomicJsonFile
 
             // Cancellation must not report failure after a new snapshot has been committed.
             cancellationToken.ThrowIfCancellationRequested();
-            // File.Exists follows the final component and therefore reports false for
-            // a dangling link. Treat the link itself as an occupied destination so a
-            // replacement never falls through to a platform-specific create/move
-            // error (and never exposes that error's private path).
+            // File.Exists is not a reliable link test (it follows the final component
+            // on some platforms and falls back to the link itself on others). Treat
+            // any link entry as an occupied destination so a replacement never falls
+            // through to a platform-specific create/move error (and never exposes
+            // that error's private path).
             bool destinationExists = File.Exists(filePath) || IsReparsePoint(filePath);
             if (!destinationExists)
             {
                 File.Move(temporaryPath, filePath);
             }
-            else if (backupCurrentFile && IsDanglingSymbolicLink(filePath))
+            else if (IsDanglingSymbolicLink(filePath))
             {
-                // File.Replace asks the platform to inspect the destination before
-                // doing its replacement. On macOS that inspection follows a
-                // dangling link and reports ENOENT, even though rename(2) can
-                // correctly replace the link entry itself. The link is already an
-                // unusable primary; keep an existing valid backup and atomically
-                // publish the new generation over the link.
+                // A dangling link is an unusable primary whatever the caller asked for:
+                // File.Copy (PreserveFile) cannot read through it, and on macOS
+                // File.Replace inspects the destination through the link and reports
+                // ENOENT. Keep the user's link first as a sibling link with the same
+                // raw target text, then let rename(2) replace the link entry itself,
+                // so the primary path is never absent. An existing backup stays as it
+                // is. A crash between the two steps leaves one extra sidecar link.
+                PreserveDanglingLink(filePath);
                 File.Move(temporaryPath, filePath, overwrite: true);
             }
             else if (backupCurrentFile)
@@ -84,13 +87,49 @@ internal static class AtomicJsonFile
         return info.LinkTarget != null || (info.Exists && (info.Attributes & FileAttributes.ReparsePoint) != 0);
     }
 
-    private static bool IsDanglingSymbolicLink(string filePath) =>
-        new FileInfo(filePath).LinkTarget != null && !File.Exists(filePath) && !Directory.Exists(filePath);
+    // File.Exists cannot tell: on Unix .NET falls back to lstat and reports true for a dangling
+    // link. Resolve the chain instead and look at the final entry, which is never a link.
+    private static bool IsDanglingSymbolicLink(string filePath)
+    {
+        FileInfo info = new(filePath);
+        if (info.LinkTarget == null) return false;
+        try
+        {
+            FileSystemInfo? target = info.ResolveLinkTarget(returnFinalTarget: true);
+            return target == null || !(File.Exists(target.FullName) || Directory.Exists(target.FullName));
+        }
+        catch (IOException)
+        {
+            // A loop or an over-long chain never resolves either; it is as unusable as a dangling link.
+            return true;
+        }
+    }
 
+    /// <summary>
+    /// Keeps a copy of <paramref name="filePath"/> next to it. A dangling symbolic link has no bytes to copy; it is kept as a
+    /// sibling link with the same target text instead (see <see cref="PreserveDanglingLink"/>).
+    /// </summary>
     public static string PreserveFile(string filePath)
     {
+        if (IsDanglingSymbolicLink(filePath))
+            return PreserveDanglingLink(filePath);
         string preservedPath = $"{filePath}.corrupt-{DateTime.UtcNow:yyyyMMddTHHmmssfffZ}-{Guid.NewGuid():N}";
         File.Copy(filePath, preservedPath, overwrite: false);
+        return preservedPath;
+    }
+
+    /// <summary>
+    /// Creates <c>{path}.dangling-link-{timestamp}-{guid}</c> as a new symbolic link carrying the raw (possibly relative) target
+    /// text of the dangling link at <paramref name="filePath"/>. Nothing is renamed: <c>File.Move</c> without overwrite goes through
+    /// link(2), which follows a symbolic link on macOS and fails with ENOENT for a dangling one. Throws when the sibling cannot be
+    /// created, so the caller does not replace a link it could not keep.
+    /// </summary>
+    private static string PreserveDanglingLink(string filePath)
+    {
+        string target = new FileInfo(filePath).LinkTarget
+            ?? throw new IOException("The symbolic link changed while it was being preserved.");
+        string preservedPath = $"{filePath}.dangling-link-{DateTime.UtcNow:yyyyMMddTHHmmssfffZ}-{Guid.NewGuid():N}";
+        File.CreateSymbolicLink(preservedPath, target);
         return preservedPath;
     }
 
