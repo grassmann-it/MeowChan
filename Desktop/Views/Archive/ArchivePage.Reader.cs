@@ -1099,8 +1099,14 @@ public partial class ArchivePage
                 ? FindReaderMediaTarget(resource, post, assets, row => File.Exists(row.Asset.Path))
                 : FindReaderMediumTarget(resource, post, only, assets, row => File.Exists(row.Asset.Path)), cancellation.Token);
             if (target == null || !Current()) return;
+            // The routed Space event can originate at the posts ListBox itself. Resolve the
+            // current realized selected row only now, after all awaits; never use a container
+            // captured from another row. Keep the original source in Current() so selection,
+            // cancellation, and stale-origin checks remain tied to the event that started this.
+            Control? galleryOrigin = ResolveReaderMediaGalleryOrigin(origin, post);
+            if (galleryOrigin == null || !Current()) return;
             ReaderMediaActivationGuard = Current;
-            try { await open!(resource, target.Key, origin); }
+            try { await open!(resource, target.Key, galleryOrigin); }
             finally { ReaderMediaActivationGuard = null; }
         }
         catch (OperationCanceledException) { }
@@ -1113,6 +1119,22 @@ public partial class ArchivePage
             if (ReferenceEquals(_readerMediaActivationCancellation, cancellation)) _readerMediaActivationCancellation = null;
             cancellation.Dispose();
         }
+    }
+
+    private Control? ResolveReaderMediaGalleryOrigin(Control source, ArchivePostRow post)
+    {
+        return ArchivePosts.ContainerFromItem(post) is Control selectedContainer
+            ? ResolveReaderMediaGalleryOrigin(source, selectedContainer, ArchivePosts)
+            : null;
+    }
+
+    // Kept separate from the handoff so the routed-event path can prove that a ListBox
+    // source is translated to the selected row, while a source already inside that row
+    // remains the focus-return origin.
+    internal static Control? ResolveReaderMediaGalleryOrigin(Control source, Control selectedContainer, ListBox posts)
+    {
+        if (ReferenceEquals(source, posts)) return selectedContainer;
+        return source.GetSelfAndVisualAncestors().Contains(selectedContainer) ? source : null;
     }
 
     internal sealed record ReaderMediaTarget(ArchiveAssetRow Row, GalleryEntryKey Key);
