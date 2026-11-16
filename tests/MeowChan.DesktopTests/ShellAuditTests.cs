@@ -118,10 +118,10 @@ public sealed class ShellAuditTests
             Assert.Contains($"\"{id}\"", shortcuts, StringComparison.Ordinal);
     }
 
-    // "Close" (About) and "Back to image" (gallery) are catalog entries without any control or handler: a key bound to them ran nothing.
+    // "Close" (About) is a catalog entry without any control or handler: a key bound to it ran nothing. ("Back to image" in the gallery
+    // is wired by GalleryViewer.EntryPoints and stays available.)
     [Theory]
     [InlineData("about.close")]
-    [InlineData("gallery.context-close")]
     public void CommandsWithoutAnyControlOrHandlerAreListedAsUnavailable(string id)
     {
         CommandDefinition command = CommandCatalog.Get(id);

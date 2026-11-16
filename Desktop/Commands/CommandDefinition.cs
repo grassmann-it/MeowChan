@@ -17,9 +17,9 @@ public sealed record CommandDefinition(
 {
     public bool IsImplemented => Id is not ("post.open-source" or "viewer.focus-mode"
         or "table.reset-layout" or "admission.monitor-all"
-        // Audit 16.11.: no control and no handler carries these two. The About window has no lone Close button (× and Escape close it) and
-        // the gallery's "Back to image" label is unused; a key bound to either ran nothing, so they are listed as unavailable until wired.
-        or "about.close" or "gallery.context-close") && !IsAwaitingHandler;
+        // Audit 16.11.: no control and no handler carries this one. The About window has no lone Close button (× and Escape close it);
+        // a key bound to it ran nothing, so it is listed as unavailable until wired. ("gallery.context-close" is wired by the gallery audit.)
+        or "about.close") && !IsAwaitingHandler;
     /// <summary>Registered and given a default gesture ahead of its handler (quick tagging, <see cref="QuickTagCommands"/>): the
     /// command is listed as unavailable, its default stays inactive and raises no issue until the package that wires the
     /// handler adds the id to the wired list of <see cref="QuickTagCommands"/>.</summary>
