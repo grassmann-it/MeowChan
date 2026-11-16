@@ -52,8 +52,8 @@
                          is the bar's one joined, outlined element (segments, no gap between them). Groups: the view | what to look at | what to
                          take away or open, with saved searches beside Export. -->
                     <desktop:ActionToolBar x:Name="ArchiveResultActions" Grid.Row="4" Margin="0,8,0,0">
-                        <ToggleButton x:Name="ArchiveLayoutList" wv:WorkViewElement.Id="archive.results.layout-list" Content="List" Classes="segment segment-first" MinWidth="64" MinHeight="32" ursa:ToolBar.OverflowMode="AsNeeded" />
-                        <ToggleButton x:Name="ArchiveLayoutTable" wv:WorkViewElement.Id="archive.results.layout-table" Content="Table" Classes="segment segment-last" MinWidth="64" MinHeight="32" ursa:ToolBar.OverflowMode="AsNeeded" />
+                        <ToggleButton x:Name="ArchiveLayoutList" desktop:ActionToolBar.Stretch="True" wv:WorkViewElement.Id="archive.results.layout-list" Content="List" Classes="segment segment-first" MinWidth="64" MinHeight="32" ursa:ToolBar.OverflowMode="AsNeeded" />
+                        <ToggleButton x:Name="ArchiveLayoutTable" desktop:ActionToolBar.Stretch="True" wv:WorkViewElement.Id="archive.results.layout-table" Content="Table" Classes="segment segment-last" MinWidth="64" MinHeight="32" ursa:ToolBar.OverflowMode="AsNeeded" />
                         <Button x:Name="ArchiveResultsGallery" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="archive.results.gallery" Tag="gallery.results" Classes="localized" ursa:ToolBar.OverflowMode="AsNeeded" />
                         <Button x:Name="ArchiveResultsOpenInMedia" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="archive.results.open-in-media" ursa:ToolBar.OverflowMode="AsNeeded" />
                         <Button x:Name="ArchiveThreadColumnsButton" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="archive.results.columns" Content="Columns" ursa:ToolBar.OverflowMode="AsNeeded" IsVisible="False" />
