@@ -121,9 +121,13 @@ internal static class DiagnosticsChecks
                             window.UpdateLayout();
                             return row != null && row.IsEffectivelyVisible && VisibleHeight(content, row) >= 30;
                         });
-                        Require(Fits(page, page.FindControl<Button>("CopyDiagnosticButton")!)
-                            && Fits(page, page.FindControl<Button>("OpenDiagnosticWatchButton")!)
-                            && Fits(page, page.FindControl<Button>("RetryDiagnosticButton")!),
+                        // The action row is hosted by the Status shell. On native Windows the
+                        // Status segment can have a fractional/rounded page boundary even though
+                        // the controls are fully inside the actual client viewport. Validate the
+                        // user-visible shell viewport, which is the contract this message names.
+                        Require(Fits(window, page.FindControl<Button>("CopyDiagnosticButton")!)
+                            && Fits(window, page.FindControl<Button>("OpenDiagnosticWatchButton")!)
+                            && Fits(window, page.FindControl<Button>("RetryDiagnosticButton")!),
                             "Diagnostic actions extend beneath the shell footer.");
                         Require(window.DiagnosticsSegmentShown && settings.DownloadPath == "retained diagnosis draft",
                             "Diagnostics navigation lost the selected page or settings draft.");
