@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Text;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Plugins;
@@ -83,6 +84,27 @@ public sealed class ChanSiteSwitchesTests
         Assert.Equal(content, File.ReadAllText(file));
         Assert.False(switches.IsEnabled(ChanSourceFamilies.Vichan, "wizchan"));
     }
+
+    // Durability cannot be unit-tested. The retirement of the old single-site plugin records relies on this file having
+    // reached the disk before the profile write, so guard the write path itself: write-through temp file, flush to disk, then rename.
+    [Fact]
+    public void TheSwitchFileIsFlushedToDiskBeforeItIsRenamedIntoPlace()
+    {
+        string source = File.ReadAllText(Path.Combine(RepositoryRoot(), "Desktop", "ChanSiteSwitches.cs"));
+        int write = source.IndexOf("private bool Write(", StringComparison.Ordinal);
+        Assert.True(write >= 0, "ChanSiteSwitches.Write was not found.");
+        string body = source[write..];
+        int create = body.IndexOf("FileOptions.WriteThrough", StringComparison.Ordinal);
+        int flush = body.IndexOf("Flush(flushToDisk: true)", StringComparison.Ordinal);
+        int move = body.IndexOf("File.Move(", StringComparison.Ordinal);
+        Assert.True(create >= 0, "The temporary file must be opened with FileOptions.WriteThrough.");
+        Assert.True(flush > create, "The temporary file must be flushed to disk after it is written.");
+        Assert.True(move > flush, "The rename must come after the flush.");
+        Assert.DoesNotContain("File.WriteAllBytes(", body);
+    }
+
+    private static string RepositoryRoot([CallerFilePath] string sourcePath = "") =>
+        Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sourcePath)!, "../.."));
 
     private static PluginProfileSnapshot Profile(params (string PluginId, bool Enabled)[] plugins) => new(1,
         plugins.Select(plugin => new PluginActivationSnapshot(plugin.PluginId, plugin.Enabled, 1, null, null, null, null, null,

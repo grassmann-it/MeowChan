@@ -2734,12 +2734,15 @@ namespace MeowChan
             {
                 json = ReadSettingsText(filePath);
             }
-            catch (FileNotFoundException)
+            catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
             {
-                return LoadStatus.Missing;
-            }
-            catch (DirectoryNotFoundException)
-            {
+                // A dangling symbolic link reads like a missing file, but the entry is there: damaged, not missing (as SessionStore does).
+                // The next save keeps the link as a sidecar and replaces the entry (AtomicJsonFile).
+                if (new FileInfo(filePath).LinkTarget != null)
+                {
+                    error = "symbolic link target is missing";
+                    return LoadStatus.Invalid;
+                }
                 return LoadStatus.Missing;
             }
             catch (InvalidDataException ex)

@@ -140,9 +140,16 @@ internal sealed class ChanSiteSwitches
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-            File.WriteAllBytes(temporary, JsonSerializer.SerializeToUtf8Bytes(new Document(Version,
+            byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(new Document(Version,
                 enabled.OrderBy(pair => pair.Key, StringComparer.Ordinal).ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal),
-                migrated.Order(StringComparer.Ordinal).ToList()), new JsonSerializerOptions { WriteIndented = true }));
+                migrated.Order(StringComparer.Ordinal).ToList()), new JsonSerializerOptions { WriteIndented = true });
+            // The retirement of the old single-site records relies on this file being durable: the bytes must be on disk
+            // before the rename, as the plugin profile store does for its own writes (WriteThrough plus Flush(true)).
+            using (FileStream stream = new(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough))
+            {
+                stream.Write(bytes);
+                stream.Flush(flushToDisk: true);
+            }
             File.Move(temporary, _path, overwrite: true);
             return true;
         }

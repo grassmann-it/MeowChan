@@ -9,8 +9,9 @@ namespace MeowChan.PluginHost.Configuration;
 /// The table is host-owned; it is never inferred from a plugin's self-declared identity.
 /// </summary>
 /// <remarks>
-/// A replaced identity is never rewritten or deleted: its saved record (enabled state, history, explicit
-/// choices) stays as it was, so an older release still finds it. It only stops claiming its source IDs,
+/// A replaced identity's saved record (enabled state, history, explicit choices) is kept only until its
+/// site switch has taken over its state; it is then retired from the profile, with the exact
+/// pre-retirement copy kept. Until then it only stops claiming its source IDs,
 /// and only while all of these hold: it has no present candidate and no pinned build, and the successor
 /// covers every source the replaced identity ever declared — at startup through a delivered, problem-free
 /// candidate, afterwards through the successor's own activated release. A local copy of the old plugin, a
