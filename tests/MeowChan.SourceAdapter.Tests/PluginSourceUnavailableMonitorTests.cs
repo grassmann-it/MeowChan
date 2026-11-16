@@ -61,7 +61,7 @@ public sealed class PluginSourceUnavailableMonitorTests
             // Explicit check requests only re-test the source; they never reach the worker or flip the state.
             for (int i = 0; i < 5; i++)
             {
-                thread.RequestCheck();
+                ((MeowChan.Boards.Base.BaseThread)thread).RequestCheck();
                 await Task.Delay(40);
             }
             Assert.Equal(0, Volatile.Read(ref reads));
