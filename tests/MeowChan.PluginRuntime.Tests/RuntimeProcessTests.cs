@@ -159,11 +159,19 @@ public sealed class RuntimeProcessTests
     public async Task UncooperativeTimeoutKillsProcessAndExplicitRetryUsesNewInstance()
     {
         using Workspace workspace = new();
-        await using PluginWorkerManager manager = new(new() { OperationTimeout = TimeSpan.FromMilliseconds(200), CancellationGrace = TimeSpan.FromMilliseconds(100) });
+        // The operation deadline is shared by the hanging call and the first call on the replacement
+        // process. A fresh worker pays cold start (JIT, pipes, process-tree setup), which on Windows
+        // CI exceeds a 200 ms deadline, so the deadline stays short (but above cold start) while the
+        // elapsed bound below still proves the hang is cut off by the deadline plus grace, not later.
+        TimeSpan operationTimeout = TimeSpan.FromSeconds(2), grace = TimeSpan.FromMilliseconds(100);
+        await using PluginWorkerManager manager = new(new() { OperationTimeout = operationTimeout, CancellationGrace = grace });
         await using IPluginWorkerClient worker = await manager.StartAsync(Launch(workspace.Path), Artifact(), Configuration, new Services());
         int pid = worker.Snapshot.ProcessId!.Value; string instance = worker.Identity.InstanceId;
+        System.Diagnostics.Stopwatch clock = System.Diagnostics.Stopwatch.StartNew();
         PluginWorkerException exception = await Assert.ThrowsAsync<PluginWorkerException>(() => worker.ReadThreadAsync(Thread("hang"), Operation));
+        clock.Stop();
         Assert.Equal("timeout", exception.Code);
+        Assert.InRange(clock.Elapsed, operationTimeout - TimeSpan.FromMilliseconds(50), operationTimeout + grace + TimeSpan.FromSeconds(8));
         await WaitExited(pid);
         await worker.RetryAsync();
         Assert.NotEqual(instance, worker.Identity.InstanceId);
