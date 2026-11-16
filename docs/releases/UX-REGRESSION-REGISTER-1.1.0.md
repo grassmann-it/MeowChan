@@ -47,6 +47,22 @@ Source-level fixes or contract tests alone do not prove native mouse/keyboard de
 - **Cross-view review:** Thread list/table, reader header, favorite overview and any other passive metadata badges. Slow/failed plugin startup must not indefinitely block unrelated local state.
 - **Regression evidence:** Delay startup deliberately, then publish the snapshot; assert visible state catches up. Cover favorite writes during load, failure/retry, host/profile rebinding and disposal. Old completions must never paint a newly opened profile.
 
+### UX-05 — Duplicate state indicators on one medium
+
+- **Report:** A favorited reader attachment shows a star beside the file and a second star over its thumbnail.
+- **Expected:** One clear favorite affordance/state indicator for that medium in the post; no redundant thumbnail overlay when the adjacent star already supplies it.
+- **Status:** Bounded integration/source investigation requested. The screenshot is from the old build. Sidebar badge removal `729341b9d` must not be assumed to cover post thumbnails without checking the actual control path.
+- **Cross-view review:** Reader post attachments, inline player poster, media sidebar, gallery filmstrip and archive thread preview. Distinguish thread favorites from media favorites; do not remove an independent, necessary thread indicator.
+- **Regression evidence:** Favorite/unfavorite through mouse and keyboard, unloaded/loaded poster, image/video/GIF, selected and unselected card. Verify one visible state indicator, accessible name, and no lost toggle action.
+
+### Integration check — Fixed source versus running application
+
+For every claimed already-fixed defect, verify the fixing commit is an ancestor of the candidate,
+inspect the actual current control implementation, and record the running assembly's source identity.
+The final review must explicitly distinguish an unmerged patch, a later regression, an incomplete fix
+on a sibling surface, and simply running an older checkout. Never resolve that distinction by blindly
+merging every worker branch or discarding another worker's changes.
+
 ## Final Astra pass and acceptance record
 
 For each class, record the final commit/build identity, surface, window dimensions/scaling, theme/language,
