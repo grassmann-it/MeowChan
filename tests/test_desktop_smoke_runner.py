@@ -562,23 +562,55 @@ class DesktopSmokeRunnerTests(unittest.TestCase):
 
     @unittest.skipIf(os.name == "nt", "POSIX process-group fixture")
     def test_timeout_kills_only_the_owned_group_including_its_child(self):
+        self.check_timeout_group_cleanup(startup_delay=0)
+
+    @unittest.skipIf(os.name == "nt", "POSIX process-group fixture")
+    def test_timeout_group_fixture_waits_for_child_readiness_after_slow_startup(self):
+        # Longer than the app timeout: previously this killed the parent before it could write child.pid.
+        self.check_timeout_group_cleanup(startup_delay=0.75)
+
+    def check_timeout_group_cleanup(self, startup_delay):
         # A fake dotnet process forks a child that ignores TERM. No window or display is involved.
         executable = self.root / "dotnet"
         marker = self.root / "child.pid"
         executable.write_text(f"#!{sys.executable}\nimport os, signal, time\n"
+                              f"time.sleep({startup_delay!r})\n"
                               "child = os.fork()\n"
                               "if child == 0:\n"
                               " signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
+                              f" with open({str(marker) + '.tmp'!r}, 'w') as ready: ready.write(str(os.getpid()))\n"
+                              f" os.replace({str(marker) + '.tmp'!r}, {str(marker)!r})\n"
                               " while True: time.sleep(1)\n"
-                              f"open({str(marker)!r}, 'w').write(str(child))\n"
                               "while True: time.sleep(1)\n")
         executable.chmod(0o700)
         environment = os.environ.copy()
         environment["PATH"] = str(self.root) + os.pathsep + environment.get("PATH", "")
         unrelated = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"], start_new_session=True)
         child = None
+        popen = subprocess.Popen
+        def start_ready(command, **kwargs):
+            nonlocal child
+            process = popen(command, **kwargs)
+            if command[0] != "dotnet":
+                return process
+            # Start the cleanup-test clock only once its TERM-resistant descendant exists.
+            # This bounds fixture startup separately; it does not extend the production app timeout.
+            try:
+                deadline = time.monotonic() + 10
+                while not marker.exists() and process.poll() is None and time.monotonic() < deadline:
+                    time.sleep(0.01)
+                self.assertTrue(marker.exists(), "Fake dotnet child did not become ready before fixture deadline")
+                child = int(marker.read_text())
+                self.assertNotEqual(child, process.pid)
+                self.assertEqual(os.getpgid(child), process.pid)
+                self.assertTrue(self.process_is_live(child))
+                return process
+            except BaseException:
+                runner.stop_owned_processes(process)
+                raise
         try:
-            result = runner.run_mode("normal", self.assembly, self.output, environment, False, 0.5)
+            with mock.patch.object(runner.subprocess, "Popen", side_effect=start_ready):
+                result = runner.run_mode("normal", self.assembly, self.output, environment, False, 0.5)
             self.assertTrue(result["timed_out"])
             self.assertEqual(124, result["exit_code"])
             self.assertFalse(result["passed"])
