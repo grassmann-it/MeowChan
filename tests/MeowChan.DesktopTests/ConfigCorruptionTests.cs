@@ -296,6 +296,28 @@ public sealed class ConfigCorruptionTests
         finally { Directory.Delete(outside, recursive: true); }
     }
 
+    // A dangling settings.json link is an entry that exists but cannot be read: damaged (the "damaged" window), not "no settings file".
+    [Fact]
+    public void ADanglingSettingsLinkWithoutABackupIsDamagedNotMissing()
+    {
+        if (OperatingSystem.IsWindows()) return; // symbolic links need privileges there
+        using Profile profile = new();
+        File.Delete(profile.Primary);
+        File.Delete(profile.Backup);
+        string missingTarget = Path.Combine(profile.Directory, "missing-target.json");
+        File.CreateSymbolicLink(profile.Primary, missingTarget);
+        string[] names = profile.Names();
+
+        Config config = Load(profile.Directory);
+
+        Assert.Equal(ProfileOrigin.Damaged, config.Origin);
+        Assert.Equal(SettingsLoadProblem.DefaultsInUse, config.LoadProblem);
+        Assert.Contains("symbolic link target is missing", config.LoadWarning);
+        Assert.Throws<InvalidOperationException>(() => config.SaveConfig(profile.Directory));
+        Assert.True(names.SequenceEqual(profile.Names()), "The directory changed.");
+        Assert.Equal(missingTarget, new FileInfo(profile.Primary).LinkTarget);
+    }
+
     // The read ceiling is inclusive (a file of exactly 4 MiB is read, one byte more is damaged) and has a write side.
     [Fact]
     public void ASettingsFileOfExactlyTheCeilingIsReadAndOneByteMoreIsDamage()
