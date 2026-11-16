@@ -368,25 +368,29 @@ public partial class SourcesPage : UserControl
         }, DispatcherPriority.Loaded);
     }
 
+    private const int SourceFocusMaxPasses = 3;
     private int _focusRequest;
     private void FocusSourceControlAfterLayout(Control target)
     {
         int request = ++_focusRequest;
-        void FocusWhenReady()
+        void FocusWhenReady(int pass)
         {
             if (_ended || request != _focusRequest || !IsEffectivelyVisible) return;
             // SizeChanged can run before the new visibility/column state has been arranged. Force
             // the owning page through that layout pass before deciding that the target is not reachable.
             UpdateLayout();
-            if (!target.IsEffectivelyVisible || !target.IsEffectivelyEnabled)
+            if (target.IsEffectivelyVisible && target.IsEffectivelyEnabled)
             {
-                Dispatcher.UIThread.Post(FocusWhenReady, DispatcherPriority.Background);
-                return;
+                // BringIntoView may itself queue a native/layout update. Focus once before it and
+                // once on the next bounded pass so Linux, ARM and Windows agree on the settled target.
+                target.BringIntoView();
+                target.Focus();
+                if (pass > 0 && target.IsFocused) return;
             }
-            target.BringIntoView();
-            target.Focus();
+            if (pass + 1 >= SourceFocusMaxPasses) return;
+            Dispatcher.UIThread.Post(() => FocusWhenReady(pass + 1), DispatcherPriority.Background);
         }
-        Dispatcher.UIThread.Post(FocusWhenReady, DispatcherPriority.Loaded);
+        Dispatcher.UIThread.Post(() => FocusWhenReady(0), DispatcherPriority.Loaded);
     }
 
     private SourceWatchRow? SelectedWatch => this.FindControl<ListBox>("SourceWatchesList")!.SelectedItem as SourceWatchRow;
