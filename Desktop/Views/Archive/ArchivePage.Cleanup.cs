@@ -86,6 +86,13 @@ public partial class ArchivePage
             }
         }
     }
+    /// <summary>
+    /// S4 F4: the app is quitting. A running preview, preparation or cleanup of the cleanup dialog is cancelled now (a cleanup stops
+    /// before its next step; what it committed stays), so the session's stop does not wait for it until the shutdown time limit ends
+    /// the process in its middle. The dialog itself closes with the page (ui-teardown), so nothing reloads the archive meanwhile.
+    /// </summary>
+    internal void CancelLongOperations() => _cleanupDialog?.CancelForShutdown();
+
     private void EndArchiveCleanupLifetime()
     {
         _cleanupDialog?.RequestClose();

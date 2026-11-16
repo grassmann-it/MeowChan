@@ -157,6 +157,30 @@ public sealed class ManualImportDesktopTests : IDisposable
         Assert.Equal((ManualImportStage.Selecting, "import.check.cancelled"), (session.Stage, session.MessageKey));
     }
 
+    // S4 F4: the shutdown start cancels a running import through the dialog's session (MainWindow.CancelLongOperationsForShutdown), so the
+    // session's stop does not wait for the whole copy until the time limit ends the process in its middle. The copy sees the cancellation.
+    [Fact]
+    public async Task CancelAtTheShutdownStartStopsTheRunningImport()
+    {
+        TaskCompletionSource<CancellationToken> copying = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        ManualImportSession session = new((_, _, _) => Task.FromResult(Plan(Candidate("a.png", ManualImportDisposition.New))),
+            async (_, _, _, token) => { copying.SetResult(token); await Task.Delay(Timeout.Infinite, token); return null!; },
+            DateTimeOffset.UnixEpoch);
+        session.AddRoots(new[] { "/tmp/large-import" });
+        await session.WorkTask;
+        Assert.True(session.CanImport);
+        Task import = session.ImportAsync();
+        CancellationToken token = await copying.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.True(session.Busy);
+
+        session.Cancel(); // what the shutdown start does
+        await import.WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.True(token.IsCancellationRequested);
+        Assert.False(session.Busy);
+        Assert.Equal((ManualImportStage.Ready, "import.run.cancelled"), (session.Stage, session.MessageKey));
+    }
+
     [Fact]
     public void DroppedFilesAndFoldersCarryTheirLocalPathsForTheImportDialog()
     {

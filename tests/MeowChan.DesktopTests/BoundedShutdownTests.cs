@@ -143,6 +143,195 @@ public sealed class BoundedShutdownTests
         Assert.Contains("if (_shutdownRunning) return;", restore[..restore.IndexOf("Show();", StringComparison.Ordinal)]);
     }
 
+    // ---- S4 (16.11.2026): completing the shutdown ----
+
+    // F2: a call that throws while the shutdown starts must not leave the visible, dead window. Each preparing call is a step of its own:
+    // a throw is recorded with the step's name, the steps after it still run (the hide among them), and the end is the ordinary one.
+    [Fact]
+    public void AThrowingPreparingStepIsRecordedByNameAndTheShutdownStillRunsToItsEnd()
+    {
+        (ILogger log, CollectingSink sink) = Logger();
+        ShutdownBudget budget = new(TimeSpan.FromSeconds(10), log);
+        List<string> ran = new();
+
+        ShutdownStepOutcome clipboard = budget.Run("clipboard-monitor", () => throw new InvalidOperationException("clipboard gone"));
+        ShutdownStepOutcome pages = budget.Run("page-lifetimes", () => ran.Add("page-lifetimes"));
+        ShutdownStepOutcome state = budget.Run("interaction-state", () => throw new NullReferenceException("a control was gone"));
+        ran.Add("hide"); // HideForShutdown is not a step: it catches its own failure
+        ShutdownStepOutcome operations = budget.Run("long-operations", () => ran.Add("long-operations"));
+
+        Assert.Equal(new[] { ShutdownStepOutcome.Failed, ShutdownStepOutcome.Completed, ShutdownStepOutcome.Failed, ShutdownStepOutcome.Completed },
+            new[] { clipboard, pages, state, operations });
+        Assert.Equal(new[] { "page-lifetimes", "hide", "long-operations" }, ran);
+        Assert.Equal("clipboard-monitor", budget.FailedStep); // the first failure is kept, with its step
+        Assert.IsType<InvalidOperationException>(budget.Failure);
+        Assert.False(budget.TimedOut);
+        Assert.Equal(2, sink.Events.Count(e => e.Level == LogEventLevel.Warning && e.MessageTemplate.Text.Contains("failed")));
+        // Everything released, a preparing step failed: the window shows the error once and its next close exits (never the dead window).
+        Assert.Equal(ShutdownEnd.AcknowledgeFailure, ShutdownOutcome.Decide(budget.TimedOut, true, budget.Failure != null, processExitAllowed: true));
+        Assert.Null(new ShutdownBudget(TimeSpan.FromSeconds(1), log).FailedStep);
+    }
+
+    [Fact]
+    public void BetweenTheVetoAndTheTryOnlyTheBudgetAndTheWatchdogAreSetUpAndEveryPreparingCallIsAStep()
+    {
+        string close = CloseApplication();
+        int recheck = close.IndexOf("if (_shutdownRunning || _allowClose || _isClosing)", StringComparison.Ordinal);
+        int tryIndex = close.IndexOf("        try\n        {", recheck, StringComparison.Ordinal);
+        Assert.True(recheck > 0 && tryIndex > recheck, "the re-check after the veto, then the try");
+        string between = close[recheck..tryIndex];
+        between = between[(between.IndexOf("return;", StringComparison.Ordinal) + "return;".Length)..];
+        string[] allowed =
+        {
+            "//", "{", "}", "ShutdownBudget budget = _shutdownBudget = new ShutdownBudget(", "Config.ShutdownTimeLimitSecondsMinimum,",
+            "if (ShutdownExit.ProcessExitAllowed)", "_shutdownWatchdog ??= new ShutdownWatchdog();", "_shutdownWatchdog.Arm(budget.Limit",
+            "Log.Information(\"Application shutdown started", "bool nativeOwnershipReleased = false;",
+        };
+        foreach (string line in between.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+        {
+            string trimmed = line.Trim();
+            if (trimmed.Length == 0) continue;
+            Assert.True(allowed.Any(start => trimmed.StartsWith(start, StringComparison.Ordinal)),
+                "Only the budget and the watchdog may sit between the veto and the try; a call here could leave the window dead: " + trimmed);
+        }
+        // The closing state is set inside the try, and the calls that used to run unguarded before it are steps now.
+        Assert.True(close.IndexOf("_isClosing = true;", StringComparison.Ordinal) > tryIndex);
+        foreach (string step in new[]
+        {
+            "budget.Run(\"input-flush\"", "budget.Run(\"clipboard-monitor\", StopClipboardMonitor);", "budget.Run(\"session-rows\", DropPendingSessionRowsForShutdown);",
+            "budget.Run(\"bookmark-dialogs\"", "budget.Run(\"page-lifetimes\"", "budget.Run(\"interaction-state\", UpdateInteractionState);",
+            "budget.Run(\"owned-windows\", CaptureOwnedWindowsForShutdown);", "budget.Run(\"long-operations\", CancelLongOperationsForShutdown);",
+        })
+            Assert.Contains(step, close);
+        string body = close[..close.IndexOf("private Task ReleaseShellVideosForShutdown()", StringComparison.Ordinal)];
+        foreach (string call in new[] { "StopClipboardMonitor();", "UpdateInteractionState();", "_restoreDownloadSelection?.Dispose();" })
+            Assert.DoesNotContain(call, body);
+    }
+
+    // F1: Avalonia's Window.Hide hides and disowns the owned windows, so the final Close no longer closes them and the lifetime would wait
+    // for them until the watchdog ends a clean close with exit code 3. (A windowed check with F1 help open belongs to the smoke harness.)
+    [Fact]
+    public void TheOwnedWindowsAreRememberedBeforeTheHideAndClosedBeforeTheFinalCloseAndAfterAFailure()
+    {
+        string source = Source("Desktop/Shell/MainWindow.Shutdown.cs");
+        string close = CloseApplication();
+        int capture = close.IndexOf("CaptureOwnedWindowsForShutdown", StringComparison.Ordinal);
+        int hide = close.IndexOf("HideForShutdown();", StringComparison.Ordinal);
+        Assert.True(capture > 0 && capture < hide, "the owned windows are remembered before the hide disowns them");
+        int closeOwned = close.IndexOf("budget.Run(\"owned-windows-close\", CloseOwnedWindowsForShutdown);", StringComparison.Ordinal);
+        int finalClose = close.IndexOf("_allowClose = true;\n            Close();", StringComparison.Ordinal);
+        Assert.True(closeOwned > 0 && closeOwned < finalClose, "the remembered windows close before the window's own final close");
+        string acknowledge = source[source.IndexOf("private void AcknowledgeShutdownFailure()", StringComparison.Ordinal)..];
+        acknowledge = acknowledge[..acknowledge.IndexOf("_allowClose = true;", StringComparison.Ordinal)];
+        Assert.Contains("CloseOwnedWindowsForShutdown();", acknowledge);
+        string capturing = source[source.IndexOf("private void CaptureOwnedWindowsForShutdown()", StringComparison.Ordinal)..];
+        Assert.Contains("OwnedWindows.ToArray()", capturing[..capturing.IndexOf("private void OnShutdownOwnedWindowClosed", StringComparison.Ordinal)]);
+        // A window that refused its close cannot hold the lifetime: after the main window closed, the app shuts down over it.
+        string closed = source[source.IndexOf("protected override void OnClosed(EventArgs e)", StringComparison.Ordinal)..];
+        closed = closed[..closed.IndexOf("private static string DescribeWindow", StringComparison.Ordinal)];
+        Assert.True(closed.IndexOf("if (!ShutdownExit.ProcessExitAllowed) return;", StringComparison.Ordinal)
+            < closed.IndexOf("EndLifetimeAfterWindowClosed", StringComparison.Ordinal), "only where the process may end itself");
+        Assert.Contains("if (desktop.Windows.Count == 0) return;", closed);
+        Assert.Contains("desktop.Shutdown();", closed);
+    }
+
+    // F3: a quick setting still waiting in its pause when the app quits is saved. The applier flushes at the shutdown start; the session
+    // takes the write after BeginShutdown and keeps it with the final preferences; only the seal of session-stop refuses later writes.
+    [Fact]
+    public async Task AQuickSettingWaitingInItsPauseWhenTheAppQuitsIsSavedWithTheFinalPreferences()
+    {
+        using TempDirectory directory = new();
+        new Config().SaveConfig(directory.Path);
+        DesktopSessionHost host = new(directory.Path, Array.Empty<MeowChan.Interfaces.IImageBoard>(), (_, _) => new EmptySessionStore());
+        bool disposed = false;
+        try
+        {
+            await host.StartAsync().WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.Equal(ReaderFontSizeSteps.Default, host.Config.ReadingFontSize);
+            // The pause is long: only the flush at the shutdown start can save it (what MainWindow.SaveQuickSettingsAsync does while closing).
+            QuickSettingsApplier applier = new(change => host.SaveViewPreferencesAsync(change), TimeSpan.FromHours(1));
+            List<IReadOnlyList<string>> failed = new();
+            applier.Failed += (ids, _) => failed.Add(ids);
+            Assert.True(applier.Set(ReaderFontSizeSteps.Field, "Large"));
+            Assert.Equal(1, applier.PendingCount);
+
+            Task quickSettings = applier.FlushAsync(); // CloseApplicationAsync: before _isClosing, before BeginShutdown
+            Task engineDrain = host.BeginShutdown();
+            await quickSettings.WaitAsync(TimeSpan.FromSeconds(10));
+            await host.FlushPreferencesAsync().WaitAsync(TimeSpan.FromSeconds(10)); // FlushFinalPreferencesAsync after the shell writes
+            await engineDrain.WaitAsync(TimeSpan.FromSeconds(10));
+            await host.StopAsync().WaitAsync(TimeSpan.FromSeconds(10));
+
+            Assert.Empty(failed);
+            Assert.Equal(0, applier.PendingCount);
+            // After the seal the session refuses the write itself, and the applier reports it as any failed save.
+            await Assert.ThrowsAsync<InvalidOperationException>(() => host.SaveViewPreferencesAsync(config => config.ReadingFontSize = "Small"));
+            await host.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10));
+            disposed = true;
+            Assert.Equal("Large", Config.LoadConfig(directory.Path).ReadingFontSize);
+        }
+        finally { if (!disposed) await host.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10)); }
+    }
+
+    [Fact]
+    public void TheQuickSettingsAreFlushedBeforeTheClosingStateAndAWriteWhileClosingIsNotRefusedByTheWindow()
+    {
+        string close = CloseApplication();
+        int flush = close.IndexOf("_archivePage?.FlushQuickSettingsAsync()", StringComparison.Ordinal);
+        Assert.True(flush > 0 && flush < close.IndexOf("_isClosing = true;", StringComparison.Ordinal));
+        Assert.Contains("FlushFinalPreferencesAsync(windowPreferences, galleryPreferences, readingPosition, quickSettings)", close);
+        string quick = Source("Desktop/Shell/MainWindow.QuickSettings.cs");
+        string save = quick[quick.IndexOf("private async Task SaveQuickSettingsAsync", StringComparison.Ordinal)..];
+        save = save[..save.IndexOf("\n    }", StringComparison.Ordinal)];
+        Assert.DoesNotContain("throw", save);
+        Assert.Contains("await _session.SaveViewPreferencesAsync(change);", save);
+        string page = Source("Desktop/Views/Archive/ArchivePage.QuickSettings.cs");
+        string pageFlush = page[page.IndexOf("internal Task FlushQuickSettingsAsync()", StringComparison.Ordinal)..];
+        pageFlush = pageFlush[..pageFlush.IndexOf("private void CloseQuickSettings()", StringComparison.Ordinal)];
+        Assert.Contains("_readerQuickSettings?.Surface.FlushAsync()", pageFlush);
+        Assert.Contains("_readerFontApplier?.FlushAsync()", pageFlush);
+    }
+
+    // F4: long operations whose owners end only in ui-teardown (after session-stop) are cancelled before the session stops; the
+    // permanent deletion, which cannot stop half-way, is asked at the veto point instead of being cut by the time limit.
+    [Fact]
+    public void LongOperationsAreCancelledBeforeTheSessionStopsAndARunningDeletionIsAskedAtTheVeto()
+    {
+        string source = Source("Desktop/Shell/MainWindow.Shutdown.cs");
+        string close = CloseApplication();
+        int cancel = close.IndexOf("budget.Run(\"long-operations\", CancelLongOperationsForShutdown);", StringComparison.Ordinal);
+        Assert.True(cancel > 0 && cancel < close.IndexOf("_session.BeginShutdown()", StringComparison.Ordinal));
+        string operations = source[source.IndexOf("private void CancelLongOperationsForShutdown()", StringComparison.Ordinal)..];
+        Assert.Contains("import.Session.Cancel();", operations);
+        Assert.Contains("_archivePage?.CancelLongOperations();", operations);
+        Assert.Contains("_cleanupDialog?.CancelForShutdown()", Source("Desktop/Views/Archive/ArchivePage.Cleanup.cs"));
+
+        // The deletion question is the first check of the veto, so the editors are asked with what they hold after the wait.
+        int veto = close.IndexOf("ShutdownPreparation.ConfirmAsync", StringComparison.Ordinal);
+        string checks = close[veto..close.IndexOf("});", veto, StringComparison.Ordinal)];
+        Assert.True(checks.IndexOf("ConfirmCloseDuringArchiveDeletionAsync,", StringComparison.Ordinal)
+            < checks.IndexOf("_postBookmarkEditor?.PrepareToCloseAsync()", StringComparison.Ordinal));
+        // Every step the deletion dialog runs without a way to stop half-way marks the run, and every end clears it.
+        string deletion = Source("Desktop/Shell/MainWindow.ArchiveDeletion.cs");
+        Assert.Equal(3, Occurrences(deletion, "executing = true; BeginArchiveDeletionRun();").Count());
+        Assert.Equal(Occurrences(deletion, "executing = true;").Count(), Occurrences(deletion, "executing = true; BeginArchiveDeletionRun();").Count());
+        Assert.Equal(Occurrences(deletion, "finally { executing = false;").Count(), Occurrences(deletion, "finally { executing = false; EndArchiveDeletionRun();").Count());
+        int marked = deletion.IndexOf("executing = true; BeginArchiveDeletionRun(); delete.IsEnabled", StringComparison.Ordinal);
+        Assert.True(marked > 0 && marked < deletion.IndexOf("await _session.DeleteArchivePermanentlyAsync(plan)", StringComparison.Ordinal));
+        string ask = deletion[deletion.IndexOf("private async Task<bool> ConfirmCloseDuringArchiveDeletionAsync()", StringComparison.Ordinal)..];
+        ask = ask[..ask.IndexOf("\n    }\n", StringComparison.Ordinal)];
+        Assert.Contains("if (_archiveDeletionRun == null) return true;", ask);
+        Assert.Contains("if (!quitAfter) return false;", ask);
+        Assert.Contains("await run.Task;", ask);
+        foreach (string key in new[] { "shutdown.deletion.running", "shutdown.deletion.quitAfter", "shutdown.deletion.keepOpen" })
+        {
+            Assert.Contains("Texts.T(\"" + key + "\")", ask);
+            Assert.Contains("(\"" + key + "\", ", Source("Desktop/Localization/BuiltInCatalog.cs"));
+        }
+        // The data-safety note no longer claims that ending the process loses at most one write.
+        Assert.DoesNotContain("loses at most the write still in flight", Source("Desktop/BoundedShutdown.cs"));
+    }
+
     // ---- the setting ----
 
     [Fact]
@@ -258,5 +447,18 @@ public sealed class BoundedShutdownTests
     private static string Root([CallerFilePath] string sourcePath = "") =>
         System.IO.Path.GetFullPath(System.IO.Path.Combine(System.IO.Path.GetDirectoryName(sourcePath)!, "../.."));
 
-    private static string Source(string relative) => File.ReadAllText(System.IO.Path.Combine(Root(), relative));
+    private static string Source(string relative) => File.ReadAllText(System.IO.Path.Combine(Root(), relative)).Replace("\r\n", "\n");
+
+    private static string CloseApplication()
+    {
+        string source = Source("Desktop/Shell/MainWindow.Shutdown.cs");
+        return source[source.IndexOf("private async Task CloseApplicationAsync()", StringComparison.Ordinal)..];
+    }
+
+    private sealed class EmptySessionStore : MeowChan.Persistence.ISessionStore
+    {
+        public Task<MeowChan.Persistence.SessionLoadResult> LoadAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(new MeowChan.Persistence.SessionLoadResult(new MeowChan.Persistence.SessionSnapshot(), null, false));
+        public Task SaveAsync(MeowChan.Persistence.SessionSnapshot snapshot, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    }
 }
