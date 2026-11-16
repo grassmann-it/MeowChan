@@ -57,11 +57,11 @@ internal static class MediaInteractionSmokeHelpers
             throw new InvalidOperationException("Edge indicator is clipped outside the usable gallery/host: " + target.Name);
     }
 
-    internal static bool IsPointerTargetReady(Control target)
+    internal static bool IsPointerTargetReady(Control target, bool requireEnabled = true)
     {
         try
         {
-            if (!IsNativeGeometryReady(target) || TopLevel.GetTopLevel(target) is not { } root) return false;
+            if (!IsNativeGeometryReady(target, requireEnabled) || TopLevel.GetTopLevel(target) is not { } root) return false;
             PixelPoint pixel = target.PointToScreen(new Point(target.Bounds.Width / 2, target.Bounds.Height / 2));
             return root.InputHitTest(root.PointToClient(pixel)) is Visual hit
                 && hit.GetSelfAndVisualAncestors().Contains(target);
@@ -76,10 +76,10 @@ internal static class MediaInteractionSmokeHelpers
     }
 
     /// <summary>Checks the current native popup-root geometry without trusting a stale cross-root hit-test cache.</summary>
-    internal static bool IsNativeGeometryReady(Control target)
+    internal static bool IsNativeGeometryReady(Control target, bool requireEnabled = true)
     {
         if (!target.IsAttachedToVisualTree() || !target.IsArrangeValid || !target.IsEffectivelyVisible
-            || !target.IsEffectivelyEnabled || target.Bounds.Width <= 0 || target.Bounds.Height <= 0
+            || requireEnabled && !target.IsEffectivelyEnabled || target.Bounds.Width <= 0 || target.Bounds.Height <= 0
             || TopLevel.GetTopLevel(target) is not { IsVisible: true } root) return false;
         try
         {
@@ -115,6 +115,16 @@ internal static class MediaInteractionSmokeHelpers
         double thumb = track.Thumb?.Bounds.Width ?? 12;
         return track.TranslatePoint(new Point(thumb / 2 + fraction * (track.Bounds.Width - thumb), track.Bounds.Height / 2), slider)
             ?? throw new InvalidOperationException("Native slider track has no transform.");
+    }
+
+    internal static Point ReadyTrackPoint(Slider slider, double fraction, bool requireEnabled = true)
+    {
+        bool ready = requireEnabled
+            ? IsPointerTargetReady(slider)
+            : IsNativeGeometryReady(slider, requireEnabled);
+        if (!ready)
+            throw new ArgumentException("Native slider geometry is not ready.", nameof(slider));
+        return TrackPoint(slider, fraction);
     }
 
     internal static async Task<Point> TrackPointAsync(Slider slider, double fraction)
