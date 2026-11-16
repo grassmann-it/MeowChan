@@ -476,6 +476,10 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
             Window? window = TopLevel.GetTopLevel(_transportPanel) as Window;
             _transportWindow = ReferenceEquals(window, _ownerWindow) ? null : window;
             if (_transportWindow != null) _transportWindow.Deactivated += OnWindowDeactivated;
+            // A cross-root transport move can retain the native pointer over the
+            // speaker without raising IsPointerOver again. Re-evaluate the retained
+            // volume popup after the new root has attached and laid out.
+            Dispatcher.UIThread.Post(UpdateVolumePopup, DispatcherPriority.Loaded);
         };
         _transportPanel.DetachedFromVisualTree += (_, _) =>
         {
