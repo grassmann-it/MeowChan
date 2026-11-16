@@ -45,12 +45,12 @@ internal static class UpdateGuiChecks
             await Program.WaitUntilAsync(() => about.FindControl<TextBlock>("AvailableUpdateText")!.Text!.Contains("9.8.7"));
             Require(handler.Requests == 1, "Help update action did not perform exactly one fixture request.");
             about.FindControl<Button>("UpdateReleaseButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            await Program.WaitUntilAsync(() => File.ReadAllLines(browserCapture).Length >= 21);
+            await Program.WaitUntilAsync(() => File.ReadAllLines(browserCapture).Length >= 42);
             about.FindControl<Button>("UpdateDownloadButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            await Program.WaitUntilAsync(() => File.ReadAllLines(browserCapture).Length >= 28);
+            await Program.WaitUntilAsync(() => File.ReadAllLines(browserCapture).Length >= 49);
             string[] handoffs = File.ReadAllLines(browserCapture);
-            Require(handoffs[16] == Handler.ReleaseUrl && handoffs[23] == Handler.DownloadUrl,
-                "Update browser handoff differs: " + handoffs[16] + " | " + handoffs[23] + "; runtime=" + System.Runtime.InteropServices.RuntimeInformation.RuntimeIdentifier);
+            Require(handoffs[37] == Handler.ReleaseUrl && handoffs[44] == Handler.DownloadUrl,
+                "Update browser handoff differs: " + handoffs[37] + " | " + handoffs[44] + "; runtime=" + System.Runtime.InteropServices.RuntimeInformation.RuntimeIdentifier);
             about.Close();
             about = null;
 

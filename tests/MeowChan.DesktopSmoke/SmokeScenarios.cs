@@ -90,7 +90,7 @@ internal static partial class SmokeScenarios
         Nested("reader-groups-restore", "MEOWCHAN_READER_GROUPS_RESTORE_ONLY", "MEOWCHAN_URSA_NATIVE_SUITE=groups", "--reader-ux"),
         Mode("selection", "native watch/archive multi-selection, focus-safe commands, batch export return, watch-only Delete and board admission modal"),
         Mode("tray-host", "private StatusNotifier host: independent tray settings, native registration/activation, hide/restore and host/watcher loss"),
-        Mode("about-links", "About project and PayPal links reached the selected private browser fixture with new-window requests, intact URLs and clean runtime paths"),
+        Mode("about-links", "About support, contribution, issue and translation links reached the selected private browser fixture with new-window requests, intact URLs and clean runtime paths"),
         Mode("board-admission", "board admission: local rule clearing, multi-board validation, retry, cancel, EN/DE, themes and minimum dialog layout"),
         Mode("reading-position", "local reading position, explicit process restart and settings semantics"),
         Mode("accessibility-probe", "native accessibility fixture stages completed; external AT-SPI/Orca results are separate") with { NightlySkip = ExternalDriver },
