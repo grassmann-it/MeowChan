@@ -188,7 +188,8 @@ public sealed class ArchiveColumnFitTests : IDisposable
     public void FavouriteColumnIsFixedNarrowSortableAndLeavesTheTitleCell()
     {
         string table = ThreadTableXaml();
-        string favorite = table[table.LastIndexOf("<DataGridTemplateColumn ", StringComparison.Ordinal)..];
+        // "Found in" (Relevance) is appended after the favourite key, so the favourite column is found by its header, not as the last element.
+        string favorite = Column(table, "Header=\"Favorite\"");
         Assert.Contains("Header=\"Favorite\"", favorite);
         Assert.Contains("SortMemberPath=\"FavoriteSortKey\"", favorite);
         Assert.Contains("Width=\"48\" MinWidth=\"48\" MaxWidth=\"48\"", favorite);
@@ -245,7 +246,8 @@ public sealed class ArchiveColumnFitTests : IDisposable
     public void TheStarIsTheLastKeyAndThePinnedKeySoOlderIndexesStayValid()
     {
         string preferences = Source("Desktop/Views/Archive/ArchivePage.ViewPreferences.cs");
-        Assert.Contains("\"lastCapture\", \"tags\", \"favorite\"];", preferences);
+        // "foundIn" (Relevance) is appended after "favorite" the same way: the indexes 0..8 of saved layouts keep their meaning.
+        Assert.Contains("\"lastCapture\", \"tags\", \"favorite\", \"foundIn\"];", preferences);
         Assert.Equal("favorite", ArchivePage.PinnedColumnKey);
     }
 
