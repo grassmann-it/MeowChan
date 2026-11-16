@@ -6,12 +6,14 @@ using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Templates;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using Ursa.Controls;
 
 namespace MeowChan.Desktop;
@@ -194,6 +196,13 @@ public sealed class ActionToolBar : ToolBar
             OverflowHost.RemoveHandler(Button.ClickEvent, OnOverflowActionClick);
         }
         base.OnApplyTemplate(e);
+        // Ursa's presenter is left-aligned even when the toolbar fills its row. That
+        // shrinks our panel's arrange slot to its natural width, leaving the stretch
+        // segments no room to use beside the right-docked More button. Keep natural
+        // measurement for overflow decisions; only give arrangement the full slot.
+        foreach (ItemsPresenter presenter in this.GetVisualDescendants().OfType<ItemsPresenter>())
+            if (ReferenceEquals(presenter.TemplatedParent, this))
+                presenter.HorizontalAlignment = HorizontalAlignment.Stretch;
         OverflowHost = e.NameScope.Find<Panel>(PART_OverflowPanel);
         More = e.NameScope.Find<ToggleButton>("button");
         // Toolbar UX review 15.11.: "⋮" stands one item gap after the last item on the bar, with no line before it. The gap is the
