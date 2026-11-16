@@ -5102,6 +5102,20 @@
     "settings.galleryWheel.zoom": "Zoom (Ctrl+rotellina scorre)",
     "settings.galleryWheel.browse": "Scorri i contenuti (Ctrl+rotellina ingrandisce)",
     "gallery.wheelBrowse": "La rotellina del mouse scorre i contenuti",
-    "gallery.wheelBrowse.help": "Attivo: la rotellina passa al contenuto successivo o precedente e Ctrl+rotellina ingrandisce. Disattivo: la rotellina ingrandisce e Ctrl+rotellina passa al contenuto successivo o precedente."
+    "gallery.wheelBrowse.help": "Attivo: la rotellina passa al contenuto successivo o precedente e Ctrl+rotellina ingrandisce. Disattivo: la rotellina ingrandisce e Ctrl+rotellina passa al contenuto successivo o precedente.",
+    "archive.relevanceSort": "Pertinenza",
+    "savedSearch.sort.Relevance": "Pertinenza",
+    "archive.filter.textScope": "Cerca in",
+    "archive.filter.textScopeHint": "Dove deve comparire il testo cercato. Il titolo comprende anche la board e il numero del thread.",
+    "archive.textScope.title": "Titolo",
+    "archive.textScope.titleAndOpening": "Titolo e post di apertura",
+    "archive.textScope.allPosts": "Tutti i post",
+    "archive.textScopeChip": "Cerca in: {0}",
+    "archive.matchGroup.title": "Nel titolo · {0}",
+    "archive.matchGroup.opening": "Nel post di apertura · {0}",
+    "archive.matchGroup.other": "In altri post · {0}",
+    "archive.foundIn.opening": "Post di apertura",
+    "archive.foundIn.other": "Altri post",
+    "archive.columns.foundIn": "Trovato in"
   }
 }

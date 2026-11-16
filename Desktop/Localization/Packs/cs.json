@@ -5145,6 +5145,20 @@
     "settings.galleryWheel.zoom": "Zvětšení (Ctrl+kolečko prochází)",
     "settings.galleryWheel.browse": "Procházení médií (Ctrl+kolečko zvětšuje)",
     "gallery.wheelBrowse": "Kolečko myši prochází média",
-    "gallery.wheelBrowse.help": "Zapnuto: kolečko přejde na další nebo předchozí médium a Ctrl+kolečko zvětšuje. Vypnuto: kolečko zvětšuje a Ctrl+kolečko přejde na další nebo předchozí médium."
+    "gallery.wheelBrowse.help": "Zapnuto: kolečko přejde na další nebo předchozí médium a Ctrl+kolečko zvětšuje. Vypnuto: kolečko zvětšuje a Ctrl+kolečko přejde na další nebo předchozí médium.",
+    "archive.relevanceSort": "Podle relevance",
+    "savedSearch.sort.Relevance": "Podle relevance",
+    "archive.filter.textScope": "Hledat v",
+    "archive.filter.textScopeHint": "Kde se musí hledaný text vyskytovat. Název zahrnuje i board a číslo vlákna.",
+    "archive.textScope.title": "Název",
+    "archive.textScope.titleAndOpening": "Název a úvodní příspěvek",
+    "archive.textScope.allPosts": "Všechny příspěvky",
+    "archive.textScopeChip": "Hledat v: {0}",
+    "archive.matchGroup.title": "V názvu · {0}",
+    "archive.matchGroup.opening": "V úvodním příspěvku · {0}",
+    "archive.matchGroup.other": "V ostatních příspěvcích · {0}",
+    "archive.foundIn.opening": "Úvodní příspěvek",
+    "archive.foundIn.other": "Ostatní příspěvky",
+    "archive.columns.foundIn": "Nalezeno v"
   }
 }

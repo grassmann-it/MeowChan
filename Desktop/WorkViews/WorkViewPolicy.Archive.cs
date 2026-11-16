@@ -32,6 +32,7 @@ public static partial class WorkViewPolicy
         new("archive.filters.capture", WorkViewPage.Archive, WorkViewKind.Element, Overflow, Overflow, Direct),
         new("archive.filters.posts", WorkViewPage.Archive, WorkViewKind.Element, Overflow, Overflow, Direct),
         new("archive.filters.work", WorkViewPage.Archive, WorkViewKind.Element, Overflow, Overflow, Direct),
+        new("archive.filters.text-scope", WorkViewPage.Archive, WorkViewKind.Element, Overflow, Direct, Direct),
         Same("archive.filters.sort", WorkViewPage.Archive, WorkViewKind.Element, Direct),
         new("archive.filters.date", WorkViewPage.Archive, WorkViewKind.Element, Overflow, Direct, Direct),
         new("archive.filters.zone", WorkViewPage.Archive, WorkViewKind.Element, Overflow, Overflow, Direct),
@@ -58,6 +59,8 @@ public static partial class WorkViewPolicy
         Same(ArchiveColumnId(ArchiveThreads, "media"), WorkViewPage.Archive, WorkViewKind.Column, Direct),
         // A2: the favourite star has its own pinned first column, shown in every view (it used to sit in the title cell, which always showed).
         Same(ArchiveColumnId(ArchiveThreads, "favorite"), WorkViewPage.Archive, WorkViewKind.Column, Direct),
+        // Relevance: shown only while the result is ranked by where the text was found (ArchivePage.Relevance).
+        Same(ArchiveColumnId(ArchiveThreads, "foundIn"), WorkViewPage.Archive, WorkViewKind.Column, Direct),
         new(ArchiveColumnId(ArchiveThreads, "source"), WorkViewPage.Archive, WorkViewKind.Column, Overflow, Direct, Direct),
         new(ArchiveColumnId(ArchiveThreads, "work"), WorkViewPage.Archive, WorkViewKind.Column, Overflow, Overflow, Direct),
         new(ArchiveColumnId(ArchiveThreads, "lastCapture"), WorkViewPage.Archive, WorkViewKind.Column, Overflow, Overflow, Direct),
@@ -78,7 +81,7 @@ public static partial class WorkViewPolicy
     public static IReadOnlyList<string> ArchiveFilterGroupIds() =>
     [
         "archive.filters.source", "archive.filters.board", "archive.filters.state", "archive.filters.tags", "archive.filters.tag-mode",
-        "archive.filters.capture", "archive.filters.posts", "archive.filters.work", "archive.filters.sort", "archive.filters.date",
+        "archive.filters.capture", "archive.filters.posts", "archive.filters.work", "archive.filters.text-scope", "archive.filters.sort", "archive.filters.date",
         "archive.filters.zone"
     ];
 

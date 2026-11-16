@@ -26,6 +26,7 @@ public sealed class WorkViewArchiveTests
         { "archive.filters.sort", Presence.Direct, Presence.Direct, Presence.Direct },
         { "archive.filters.state", Presence.Overflow, Presence.Direct, Presence.Direct },
         { "archive.filters.date", Presence.Overflow, Presence.Direct, Presence.Direct },
+        { "archive.filters.text-scope", Presence.Overflow, Presence.Direct, Presence.Direct },
         { "archive.filters.tag-mode", Presence.Overflow, Presence.Direct, Presence.Direct },
         { "archive.filters.capture", Presence.Overflow, Presence.Overflow, Presence.Direct },
         { "archive.filters.posts", Presence.Overflow, Presence.Overflow, Presence.Direct },
@@ -57,7 +58,7 @@ public sealed class WorkViewArchiveTests
     public void FilterFieldsUnderMoreGrowWithTheReduction()
     {
         Assert.Equal(["archive.filters.state", "archive.filters.tag-mode", "archive.filters.capture", "archive.filters.posts",
-            "archive.filters.work", "archive.filters.date", "archive.filters.zone"], WorkViewPolicy.ArchiveFiltersUnderMore(WorkView.Barebones));
+            "archive.filters.work", "archive.filters.text-scope", "archive.filters.date", "archive.filters.zone"], WorkViewPolicy.ArchiveFiltersUnderMore(WorkView.Barebones));
         Assert.Equal(["archive.filters.capture", "archive.filters.posts", "archive.filters.work", "archive.filters.zone"],
             WorkViewPolicy.ArchiveFiltersUnderMore(WorkView.Simple));
         Assert.Empty(WorkViewPolicy.ArchiveFiltersUnderMore(WorkView.Advanced));
@@ -75,7 +76,7 @@ public sealed class WorkViewArchiveTests
         }
         // Only the field that holds the value moves out; its neighbours stay reduced.
         Assert.Equal(["archive.filters.tag-mode", "archive.filters.capture", "archive.filters.posts", "archive.filters.work",
-            "archive.filters.date", "archive.filters.zone"],
+            "archive.filters.text-scope", "archive.filters.date", "archive.filters.zone"],
             WorkViewPolicy.ArchiveFiltersUnderMore(WorkView.Barebones, id => id == "archive.filters.state"));
     }
 

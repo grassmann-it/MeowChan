@@ -5148,6 +5148,20 @@
     "settings.galleryWheel.zoom": "Powiększanie (Ctrl+kółko przegląda)",
     "settings.galleryWheel.browse": "Przeglądanie plików (Ctrl+kółko powiększa)",
     "gallery.wheelBrowse": "Kółko myszy przegląda pliki",
-    "gallery.wheelBrowse.help": "Włączone: kółko przechodzi do następnego lub poprzedniego pliku, a Ctrl+kółko powiększa. Wyłączone: kółko powiększa, a Ctrl+kółko przechodzi do następnego lub poprzedniego pliku."
+    "gallery.wheelBrowse.help": "Włączone: kółko przechodzi do następnego lub poprzedniego pliku, a Ctrl+kółko powiększa. Wyłączone: kółko powiększa, a Ctrl+kółko przechodzi do następnego lub poprzedniego pliku.",
+    "archive.relevanceSort": "Trafność",
+    "savedSearch.sort.Relevance": "Trafność",
+    "archive.filter.textScope": "Szukaj w",
+    "archive.filter.textScopeHint": "Gdzie musi wystąpić szukany tekst. Tytuł obejmuje też tablicę i numer wątku.",
+    "archive.textScope.title": "Tytuł",
+    "archive.textScope.titleAndOpening": "Tytuł i post otwierający",
+    "archive.textScope.allPosts": "Wszystkie posty",
+    "archive.textScopeChip": "Szukaj w: {0}",
+    "archive.matchGroup.title": "W tytule · {0}",
+    "archive.matchGroup.opening": "W poście otwierającym · {0}",
+    "archive.matchGroup.other": "W innych postach · {0}",
+    "archive.foundIn.opening": "Post otwierający",
+    "archive.foundIn.other": "Inne posty",
+    "archive.columns.foundIn": "Znaleziono w"
   }
 }

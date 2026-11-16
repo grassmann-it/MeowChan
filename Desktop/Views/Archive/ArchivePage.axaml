@@ -133,6 +133,11 @@
                                     <TextBlock x:Name="ArchiveWorkFilterLabel" Classes="workspace-field-label" TextWrapping="Wrap" />
                                     <ComboBox x:Name="ArchiveWorkFilter" HorizontalAlignment="Stretch" SelectedIndex="0" AutomationProperties.LabeledBy="{Binding #ArchiveWorkFilterLabel}" />
                                 </StackPanel>
+                                <!-- Where the search text has to occur: Title · Title and opening post · All posts (the default). -->
+                                <StackPanel x:Name="ArchiveFilterGroupTextScope" wv:WorkViewElement.Id="archive.filters.text-scope" Spacing="{StaticResource Workspace.Space.8}">
+                                    <TextBlock x:Name="ArchiveTextScopeLabel" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                    <ComboBox x:Name="ArchiveTextScope" HorizontalAlignment="Stretch" SelectedIndex="2" AutomationProperties.LabeledBy="{Binding #ArchiveTextScopeLabel}" />
+                                </StackPanel>
                                 <StackPanel x:Name="ArchiveFilterGroupSort" wv:WorkViewElement.Id="archive.filters.sort" Spacing="{StaticResource Workspace.Space.8}">
                                     <TextBlock x:Name="ArchiveSortLabel" Classes="workspace-field-label" TextWrapping="Wrap" />
                                     <ComboBox x:Name="ArchiveSort" HorizontalAlignment="Stretch" SelectedIndex="0" AutomationProperties.LabeledBy="{Binding #ArchiveSortLabel}" />
@@ -167,6 +172,14 @@
                             <ListBox.Styles><Style Selector="ListBoxItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /></Style></ListBox.Styles>
                             <ListBox.ItemTemplate>
                                 <DataTemplate x:DataType="desktop:ArchiveThreadRow">
+                                    <!-- Relevance: the first row of each tier carries the group header ("In title · 3"). It is part of the row, not
+                                         an item, so selection, keyboard steps and marking only see threads; a click on it does nothing (ArchivePage.Relevance). -->
+                                    <StackPanel>
+                                    <Border IsVisible="{Binding HasMatchGroupHeader}" Background="Transparent" Padding="8,6,8,2"
+                                            PointerPressed="OnArchiveMatchGroupHeaderPressed" PointerReleased="OnArchiveMatchGroupHeaderReleased"
+                                            Tapped="OnArchiveMatchGroupHeaderTapped" DoubleTapped="OnArchiveMatchGroupHeaderTapped">
+                                        <TextBlock Text="{Binding MatchGroupHeader}" Classes="workspace-meta" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                    </Border>
                                     <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="{StaticResource Workspace.Space.8}" Margin="8">
                                         <Grid.ContextMenu>
                                             <ContextMenu Opening="OnArchiveSelectionMenuOpening" />
@@ -183,6 +196,7 @@
                                             <TextBlock Text="{Binding TagsText}" ToolTip.Tip="{Binding TagsText}" IsVisible="{Binding HasTags}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" Classes="workspace-meta" />
                                         </StackPanel>
                                     </Grid>
+                                    </StackPanel>
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
                         </ListBox>
@@ -212,6 +226,8 @@
                                      display (ArchivePage.ViewPreferences pins it at DisplayIndex 0). 48 dip, not resizable or movable; the button is a 24 dip square
                                      (the width the 12 dip cell padding leaves) with the 18 dip star. -->
                                 <DataGridTemplateColumn Header="Favorite" SortMemberPath="FavoriteSortKey" Width="48" MinWidth="48" MaxWidth="48" CanUserResize="False" CanUserReorder="False"><DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="desktop:ArchiveThreadRow"><desktop:ArchiveThreadFavoriteButton Width="24" Height="24" MinWidth="24" MinHeight="24" Padding="2" HorizontalAlignment="Center" VerticalAlignment="Center" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                <!-- Relevance: where the search text was found; appended after the favourite key so saved layouts keep their meaning, shown only for a ranked result. -->
+                                <DataGridTemplateColumn Header="Found in" SortMemberPath="FoundInSortKey" Width="140" MinWidth="90" IsVisible="False"><DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="desktop:ArchiveThreadRow"><TextBlock Text="{Binding FoundIn}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" ToolTip.Tip="{Binding FoundIn}" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
                             </DataGrid.Columns>
                             <DataGrid.ContextMenu><ContextMenu Opening="OnArchiveSelectionMenuOpening" /></DataGrid.ContextMenu>
                         </DataGrid>

@@ -5122,6 +5122,20 @@
     "settings.galleryWheel.zoom": "Масштаб (Ctrl+колесо листает)",
     "settings.galleryWheel.browse": "Листание файлов (Ctrl+колесо масштабирует)",
     "gallery.wheelBrowse": "Колесо мыши листает файлы",
-    "gallery.wheelBrowse.help": "Включено: колесо переходит к следующему или предыдущему файлу, а Ctrl+колесо масштабирует. Выключено: колесо масштабирует, а Ctrl+колесо переходит к следующему или предыдущему файлу."
+    "gallery.wheelBrowse.help": "Включено: колесо переходит к следующему или предыдущему файлу, а Ctrl+колесо масштабирует. Выключено: колесо масштабирует, а Ctrl+колесо переходит к следующему или предыдущему файлу.",
+    "archive.relevanceSort": "По релевантности",
+    "savedSearch.sort.Relevance": "По релевантности",
+    "archive.filter.textScope": "Искать в",
+    "archive.filter.textScopeHint": "Где должен встречаться искомый текст. Заголовок включает также доску и номер треда.",
+    "archive.textScope.title": "Заголовок",
+    "archive.textScope.titleAndOpening": "Заголовок и начальный пост",
+    "archive.textScope.allPosts": "Все посты",
+    "archive.textScopeChip": "Искать в: {0}",
+    "archive.matchGroup.title": "В заголовке · {0}",
+    "archive.matchGroup.opening": "В начальном посте · {0}",
+    "archive.matchGroup.other": "В других постах · {0}",
+    "archive.foundIn.opening": "Начальный пост",
+    "archive.foundIn.other": "Другие посты",
+    "archive.columns.foundIn": "Найдено в"
   }
 }

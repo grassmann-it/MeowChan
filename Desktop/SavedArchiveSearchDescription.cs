@@ -14,6 +14,7 @@ internal static class SavedArchiveSearchDescription
         List<string> fields = new();
         void Add(string key, string value) => fields.Add(Texts.T(key) + ": " + value);
         if (spec.Text.Length > 0) Add("savedSearch.text", spec.Text);
+        if (spec.Scope != ArchiveSearchScope.AllPosts) Add("archive.filter.textScope", ArchivePage.TextScopeLabel(spec.Scope));
         if (spec.Sources.Count > 0) Add("savedSearch.sources", string.Join(", ", spec.Sources));
         if (spec.Boards.Count > 0) Add("savedSearch.boards", string.Join(", ", spec.Boards.Select(b => (b.Source ?? "*") + "/" + b.Board)));
         if (spec.SourceStates.Count > 0) Add("savedSearch.states", string.Join(", ", spec.SourceStates.Select(s => Texts.T("savedSearch.state." + s))));

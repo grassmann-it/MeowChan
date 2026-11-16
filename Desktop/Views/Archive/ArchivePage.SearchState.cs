@@ -67,8 +67,11 @@ public partial class ArchivePage
             field == "board" ? spec.Boards.Where(item => BoardKey(item) != value) : spec.Boards,
             field == "state" ? spec.SourceStates.Where(item => item.ToString() != value) : spec.SourceStates,
             field == "capture" ? null : spec.CaptureEnabled, field == "posts" ? null : spec.HasPosts,
-            spec.Sort, field == "work" ? MeowChan.Archive.ArchiveWorkFilter.All : spec.WorkFilter,
-            field == "date" ? null : spec.DateRange).WithTags(CopyTagFilter(spec.Tags, field, value));
+            // Removing the text chip moves a default Relevance order back to the default without text (DefaultSortFor).
+            field == "text" ? SortAfterTextChange(spec.Sort, spec.Text, "") : spec.Sort,
+            field == "work" ? MeowChan.Archive.ArchiveWorkFilter.All : spec.WorkFilter,
+            field == "date" ? null : spec.DateRange).WithTags(CopyTagFilter(spec.Tags, field, value))
+            .WithScope(field == "scope" ? MeowChan.Archive.ArchiveSearchScope.AllPosts : spec.Scope);
     private static string BoardKey(ArchiveBoardConstraint board) =>
         (board.Source == null ? "*" : board.Source.Length + ":" + board.Source) + "/" + board.Board;
 }
