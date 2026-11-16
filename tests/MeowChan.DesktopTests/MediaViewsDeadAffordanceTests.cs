@@ -62,7 +62,7 @@ public sealed class MediaViewsDeadAffordanceTests : IDisposable
         Assert.Same(PointerCursors.Hand, sidebar.Frame.Cursor);
         // A post without media: the reason is shown, but nothing opens.
         sidebar.Describe("No. 8", string.Empty, string.Empty, canOpen: false);
-        sidebar.Dim("No media");
+        sidebar.ShowNoMedia("No media");
         Assert.False(sidebar.FrameClickable);
         Assert.Null(sidebar.Frame.Cursor);
         // Back to empty.

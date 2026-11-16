@@ -8,7 +8,7 @@ internal enum ReaderMediaLoadingLook
 {
     /// <summary>Nothing changes: the load is stale or already answered, or the picture shown is this medium's (a decode at another size swaps in place).</summary>
     Keep,
-    /// <summary>The previous medium's picture stays, dimmed, under the loading text (as beside a post without media): the frame does not flash empty.</summary>
+    /// <summary>The previous medium's picture stays, dimmed, under the loading text: the frame does not flash empty. Only while loading; a final text (a post without media, an error) empties the frame.</summary>
     DimPrevious,
     /// <summary>Nothing is shown: the placeholder carries the loading text.</summary>
     Placeholder,
@@ -95,14 +95,14 @@ internal sealed class ReaderMediaSidebarLoadState
         _awaiting = false;
     }
 
-    /// <summary>The view dimmed its picture under a text (a post without media, a medium still loading): the picture is only a trace now.</summary>
+    /// <summary>The view dimmed its picture under the loading text of another medium: the picture is only a trace now.</summary>
     internal void Dimmed()
     {
         ShownKey = null;
         _awaiting = false;
     }
 
-    /// <summary>The view shows no picture (the placeholder with a text, the empty state, a picture given back).</summary>
+    /// <summary>The view shows no picture (the placeholder with a text, a post without media, the empty state, a picture given back).</summary>
     internal void Cleared()
     {
         HasPicture = false;

@@ -239,6 +239,58 @@ public sealed class ReaderMediaSidebarLoadStateTests : IDisposable
         Assert.Contains((Bitmap)second, released);
     });
 
+    // Tom (16.11.2026, screenshot of No. 2627830): the selected post has no media, the sidebar showed the previous post's picture dimmed under
+    // "No. 2627830 has no media". A final text empties the frame; only a medium that is still loading keeps the previous picture dimmed.
+    [Fact]
+    public void APostWithoutMediaShowsAnEmptyFrameWithItsReasonAndNoStalePicture() => OnOwnDispatcher(() =>
+    {
+        ReaderMediaSidebar sidebar = new();
+        List<Bitmap> released = new();
+        using WriteableBitmap previous = Picture(40, 64);
+        sidebar.ShowPicture(previous, released.Add, playable: false, double.PositiveInfinity, double.PositiveInfinity, "a", new PixelSize(40, 64));
+        sidebar.ShowNoMedia("No. 2627830 has no media");
+        Assert.Null(sidebar.Shown);
+        Assert.Null(sidebar.Picture.Source);
+        Assert.False(sidebar.Picture.IsVisible);
+        Assert.False(sidebar.IsDimmed);
+        Assert.Equal(new[] { (Bitmap)previous }, released);
+        Assert.Equal("No. 2627830 has no media", sidebar.StatusText);
+        Assert.False(sidebar.Load.HasPicture);
+        Assert.Null(sidebar.Load.ShownKey);
+        // The next medium that is not ready yet shows the loading placeholder, never a trace of the earlier picture.
+        ReaderMediaLoadTicket next = sidebar.Load.Begin("b", (40, 64));
+        Assert.Equal(ReaderMediaLoadingLook.Placeholder, sidebar.Load.LoadingLook(next.Request));
+    });
+
+    [Fact]
+    public void APostWithoutMediaAfterALoadingTraceAlsoReleasesTheDimmedPicture() => OnOwnDispatcher(() =>
+    {
+        ReaderMediaSidebar sidebar = new();
+        List<Bitmap> released = new();
+        using WriteableBitmap first = Picture(40, 64);
+        sidebar.ShowPicture(first, released.Add, playable: false, double.PositiveInfinity, double.PositiveInfinity, "a", new PixelSize(40, 64));
+        // Another medium is loading: the previous picture is dimmed under "Loading…" (the anti-flash rule stays).
+        ReaderMediaLoadTicket loading = sidebar.Load.Begin("b", (40, 64));
+        sidebar.ShowLoading(sidebar.Load.LoadingLook(loading.Request), "Loading…");
+        Assert.Same(first, sidebar.Shown);
+        Assert.True(sidebar.IsDimmed);
+        // The selection moves on to a post without media before it finished: the dimmed trace goes too.
+        sidebar.Load.Cancel();
+        sidebar.ShowNoMedia("No. 9 has no media");
+        Assert.Null(sidebar.Shown);
+        Assert.False(sidebar.IsDimmed);
+        Assert.Equal(new[] { (Bitmap)first }, released);
+        Assert.Equal("No. 9 has no media", sidebar.StatusText);
+    });
+
+    [Fact]
+    public void TheReaderGivesAPostWithoutMediaTheFinalTextNotTheDimmedTrace()
+    {
+        string page = Read("Desktop/Views/Archive/ArchivePage.MediaSidebar.cs");
+        Assert.Contains("sidebar.ShowNoMedia(reason);", page);
+        Assert.DoesNotContain("sidebar.Dim(reason)", page);
+    }
+
     // ---- the hosts ----------------------------------------------------------------------------------------------------------------
 
     private static string RepositoryRoot()
