@@ -155,6 +155,10 @@ public partial class ArchivePage
         // Another tab (Posts, Media, References) closes the preview of the one left.
         ArchiveContentTabs.SelectionChanged += (_, e) => { if (ReferenceEquals(e.Source, ArchiveContentTabs)) CloseQuotePreview(); };
         Border card = QuotePreviewCard;
+        // Keep the entire card hit-testable before its popup joins the resource tree.
+        // SetCurrentValue preserves the dynamic theme binding for attachment/theme changes.
+        if (card.Background == null)
+            card.SetCurrentValue(Border.BackgroundProperty, Brushes.Transparent);
         // The preview is as wide as its medium (a portrait picture does not spread the text over the whole box), at least as wide as without one.
         _quotePreviewMedia = new QuotePreviewMedia
         {
@@ -358,9 +362,6 @@ public partial class ArchivePage
         QuotePreviewPopup.PlacementRect = _quotePreviewArea.Width > 0 ? _quotePreviewArea : null;
         // Only a pointer move after the preview opened tells where the pointer goes when it leaves the reference.
         _quotePreviewPointerHost = null;
-        // A click on the card opens the quoted post: the hand shows from the moment the card exists with its themed fill (the Background token
-        // resolves only once the popup is open; before, a hand over a card without a hit surface would promise what it cannot do).
-        QuotePreviewCard.Cursor = new Cursor(StandardCursorType.Hand);
         QuotePreviewPopup.IsOpen = true;
     }
 

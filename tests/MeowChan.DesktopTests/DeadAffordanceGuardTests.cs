@@ -73,6 +73,22 @@ public sealed class DeadAffordanceGuardTests
         finally { (page as IDisposable)?.Dispose(); }
     });
 
+    [Fact]
+    public void QuoteCardKeepsItsHitSurfaceAndDynamicThemeBinding() => WithCursors(() =>
+    {
+        EnsureTokens();
+        ArchivePage page = new();
+        try
+        {
+            Border card = page.FindControl<Border>("QuotePreviewCard")!;
+            Assert.NotNull(card.Background);
+            Assert.NotNull(card.Cursor);
+            card.Resources["Workspace.Card"] = Avalonia.Media.Brushes.Magenta;
+            Assert.Same(Avalonia.Media.Brushes.Magenta, card.Background);
+        }
+        finally { page.EndLifetime(); }
+    });
+
     // ---- the guard itself: what it accepts and what it reports ----
 
     private static void WithCursors(Action test) => BooruComponentDispatcher.Run(() =>
