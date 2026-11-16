@@ -237,6 +237,8 @@ internal sealed class FilenameSearchDialog : Window
         // I1b: the tools carry a catalog icon before their text (the primary Close stays text).
         MeowChan.Desktop.Controls.IconButtons.WithText(_search, "search"); MeowChan.Desktop.Controls.IconButtons.WithText(_cancel, "x"); MeowChan.Desktop.Controls.IconButtons.WithText(_previous, "chevron-left"); MeowChan.Desktop.Controls.IconButtons.WithText(_next, "chevron-right"); MeowChan.Desktop.Controls.IconButtons.WithText(_select, "corner-up-right");
         _results.SelectionChanged += OnSelection;
+        // A double click or Enter on a result runs "Select" (refused exactly when the button is disabled).
+        MeowChan.Desktop.Controls.ListRowActions.OnActivate(_results, () => { if (_select.IsEnabled) OnSelect(_select, new Avalonia.Interactivity.RoutedEventArgs()); });
         Opened += OnOpened; Closed += OnClosed;
         DialogEscape.Attach(this);
         _session.Changed += OnChanged; Texts.Changed += OnLanguageChanged;

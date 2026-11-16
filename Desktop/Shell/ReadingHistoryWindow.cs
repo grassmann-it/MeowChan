@@ -31,6 +31,24 @@ internal static class ReadingHistoryWindow
         dialog.Name = "ReadingHistoryWindow";
         LocalReadingPosition? chosen = null;
         void Choose(LocalReadingPosition place) { chosen = place; dialog.Close(); }
+        ListBox list = BuildList(entries, now, place => Choose(place));
+        TextBlock hint = new() { Text = Texts.T("resume.history.dialogHint"), TextWrapping = Avalonia.Media.TextWrapping.Wrap };
+        hint.Classes.Add("workspace-help");
+        Grid layout = DialogFrame.Build(hint, list, footer: null, fillBody: true);
+        DialogWindow.Frame(dialog, layout, modal: true);
+        DialogEscape.Attach(dialog);
+        dialog.Opened += (_, _) =>
+        {
+            if (entries.Count > 0) list.SelectedIndex = 0;
+            list.Focus();
+        };
+        await dialog.ShowDialog(owner);
+        return chosen;
+    }
+
+    /// <summary>The list of the window (a seam for tests: no window needed). <paramref name="choose"/> receives the place of the row that was clicked or entered.</summary>
+    internal static ListBox BuildList(IReadOnlyList<LocalReadingHistoryEntry> entries, DateTimeOffset now, Action<LocalReadingPosition> choose)
+    {
         ListBox list = new() { Name = ListName, ItemsSource = entries, SelectionMode = SelectionMode.Single };
         AutomationProperties.SetName(list, Texts.T("resume.history.menu"));
         list.ItemTemplate = new FuncDataTemplate<LocalReadingHistoryEntry>((entry, _) =>
@@ -49,29 +67,23 @@ internal static class ReadingHistoryWindow
             ToolTip.SetTip(row, ReadingHistoryMenu.EntryTip(entry.Position));
             return row;
         });
-        // A click on a row opens it; the arrow keys only move, Enter opens the selected row.
+        // A click on a row opens it; the arrow keys only move.
         list.AddHandler(InputElement.PointerReleasedEvent, (_, e) =>
         {
             if (e.InitialPressMouseButton != MouseButton.Left) return;
-            if ((e.Source as Visual)?.FindAncestorOfType<ListBoxItem>()?.DataContext is LocalReadingHistoryEntry entry) Choose(entry.Position);
+            if ((e.Source as Visual)?.FindAncestorOfType<ListBoxItem>()?.DataContext is LocalReadingHistoryEntry entry) choose(entry.Position);
         }, RoutingStrategies.Bubble, handledEventsToo: true);
-        list.KeyDown += (_, e) =>
+        // Enter opens the row that has the focus. A focused ListBoxItem consumes Enter before a bubble handler of the list sees it (Avalonia 12), so the
+        // key is taken in the tunnel phase; with the list itself focused, the selected row counts. The rows hold no interactive parts.
+        list.AddHandler(InputElement.KeyDownEvent, (_, e) =>
         {
-            if (e.Key is not (Key.Enter or Key.Return) || list.SelectedItem is not LocalReadingHistoryEntry entry) return;
+            if (!ItemActivation.IsPrimaryKey(e)) return;
+            LocalReadingHistoryEntry? entry = ItemActivation.ItemAt<LocalReadingHistoryEntry>(e.Source, list)
+                ?? (ReferenceEquals(e.Source, list) ? list.SelectedItem as LocalReadingHistoryEntry : null);
+            if (entry == null) return;
             e.Handled = true;
-            Choose(entry.Position);
-        };
-        TextBlock hint = new() { Text = Texts.T("resume.history.dialogHint"), TextWrapping = Avalonia.Media.TextWrapping.Wrap };
-        hint.Classes.Add("workspace-help");
-        Grid layout = DialogFrame.Build(hint, list, footer: null, fillBody: true);
-        DialogWindow.Frame(dialog, layout, modal: true);
-        DialogEscape.Attach(dialog);
-        dialog.Opened += (_, _) =>
-        {
-            if (entries.Count > 0) list.SelectedIndex = 0;
-            list.Focus();
-        };
-        await dialog.ShowDialog(owner);
-        return chosen;
+            choose(entry.Position);
+        }, RoutingStrategies.Tunnel);
+        return list;
     }
 }

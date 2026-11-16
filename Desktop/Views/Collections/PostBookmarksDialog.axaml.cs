@@ -89,9 +89,9 @@ internal partial class PostBookmarksDialog : Window
         Bind("Save", "post-bookmarks.save", SaveAsync, () => CanSave);
         Bind("Remove", "post-bookmarks.remove", RemoveAsync, () => CanRemove);
         Bind("OpenTarget", "post-bookmarks.open-target", OpenAsync, () => CanOpen);
-        // Dead-affordance audit: a double click on a bookmark opens its exact local post (the "Open" button); a right-click, Menu key or
+        // Dead-affordance audit: a double click or Enter on a bookmark opens its exact local post (the "Open" button); a right-click, Menu key or
         // Shift+F10 offers Open and Remove, the buttons' own actions.
-        MeowChan.Desktop.Controls.ListRowActions.OnDoubleClick(List, () => { if (CanOpen) OpenActions.Start(OpenAsync, "post-bookmarks.open-target"); });
+        MeowChan.Desktop.Controls.ListRowActions.OnActivate(List, () => { if (CanOpen) OpenActions.Start(OpenAsync, "post-bookmarks.open-target"); });
         _rowMenu = MeowChan.Desktop.Controls.ListRowActions.AttachMenu(List, ComposeRowMenu);
         B("Reload").Content = Texts.T("bookmarks.retry");
         B("Reload").Click += async (_, _) => await ReloadAsync(preserveDraft: true);

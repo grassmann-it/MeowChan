@@ -89,9 +89,9 @@ public partial class SavedArchiveSearchesDialog : Window
         Wire("SavedSearchRename", "rename", () => Begin(EditKind.Rename), CanEditSelection);
         Wire("SavedSearchReplace", "replace", () => Begin(EditKind.Replace), () => CanEditSelection() && CanCapture());
         Wire("SavedSearchDelete", "delete", () => Begin(EditKind.Delete), CanEditSelection);
-        // Dead-affordance audit: a double click on a saved search applies it (the "Apply" button); a right-click, Menu key or Shift+F10 offers the
+        // Dead-affordance audit: a double click or Enter on a saved search applies it (the "Apply" button); a right-click, Menu key or Shift+F10 offers the
         // footer's own actions for the selected search. Each runs the button's command, so it is refused exactly when the button is disabled.
-        ListRowActions.OnDoubleClick(List, () => Invoke("SavedSearchApply"));
+        ListRowActions.OnActivate(List, () => Invoke("SavedSearchApply"));
         _rowMenu = ListRowActions.AttachMenu(List, ComposeRowMenu);
         Button("SavedSearchConfirm").Click += async (_, _) => await ConfirmAsync();
         Button("SavedSearchCancelEdit").Click += (_, _) => CancelEdit();
