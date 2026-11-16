@@ -143,7 +143,7 @@ public partial class PluginsPage
             {
                 receipts.Children.Clear();
                 foreach (var receipt in approval.Receipts) receipts.Children.Add(BundledReceiptCard(receipt));
-                // Plugins switch builds only during startup (PluginSession.StartAsync → ApplyBundledStartupAsync); there is no
+                // Plugins switch builds only during startup (the session's bundled startup activation); there is no
                 // in-session activation and no relaunch of the same profile, so a saved approval says plainly how to use it now.
                 if (BundledRepairPresentation.NeedsRestartNote(approval.Receipts.Select(receipt => receipt.State)))
                 {
