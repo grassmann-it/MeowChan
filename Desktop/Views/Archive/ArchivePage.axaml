@@ -175,7 +175,7 @@
                                     <!-- Relevance: the first row of each tier carries the group header ("In title · 3"). It is part of the row, not
                                          an item, so selection, keyboard steps and marking only see threads; a click on it does nothing (ArchivePage.Relevance). -->
                                     <StackPanel>
-                                    <Border IsVisible="{Binding HasMatchGroupHeader}" Background="Transparent" Padding="8,6,8,2"
+                                    <Border IsVisible="{Binding HasMatchGroupHeader}" Background="Transparent" Padding="8,8,8,2"
                                             PointerPressed="OnArchiveMatchGroupHeaderPressed" PointerReleased="OnArchiveMatchGroupHeaderReleased"
                                             Tapped="OnArchiveMatchGroupHeaderTapped" DoubleTapped="OnArchiveMatchGroupHeaderTapped">
                                         <TextBlock Text="{Binding MatchGroupHeader}" Classes="workspace-meta" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
@@ -652,8 +652,8 @@
                                     <desktop:ActionToolBar x:Name="ReaderMediaTools" PrioritizedOverflow="True">
                                         <!-- 16.11.: the Tiles/Table choice is the Archive results bar's joined pair (segment classes, icon before text, the one on is highlighted),
                                              not one button that names the other view. -->
-                                        <ToggleButton x:Name="ArchiveMediaLayoutTiles" wv:WorkViewElement.Id="reader.media.layout-tiles" Content="Tiles" Classes="segment segment-first" MinWidth="64" MinHeight="32" IsChecked="True" Click="OnMediaLayoutClick" />
-                                        <ToggleButton x:Name="ArchiveMediaLayoutTable" wv:WorkViewElement.Id="reader.media.layout-table" Content="Table" Classes="segment segment-last" MinWidth="64" MinHeight="32" Click="OnMediaLayoutClick" />
+                                        <ToggleButton x:Name="ArchiveMediaLayoutTiles" wv:WorkViewElement.Id="reader.media.layout-tiles" Content="Tiles" Classes="segment segment-first" MinWidth="64" MinHeight="{StaticResource Workspace.Size.Control}" IsChecked="True" Click="OnMediaLayoutClick" />
+                                        <ToggleButton x:Name="ArchiveMediaLayoutTable" wv:WorkViewElement.Id="reader.media.layout-table" Content="Table" Classes="segment segment-last" MinWidth="64" MinHeight="{StaticResource Workspace.Size.Control}" Click="OnMediaLayoutClick" />
                                         <Button x:Name="ArchiveMediaColumnsButton" wv:WorkViewElement.Id="reader.media.columns" Content="Columns" Click="OnArchiveColumnsClick" IsVisible="False" />
                                         <Button x:Name="ArchiveFavoritesFilter" wv:WorkViewElement.Id="reader.media.favorites-filter" Content="Favorites only" Click="OnArchiveFavoritesFilterClick" />
                                         <ComboBox x:Name="ArchiveRatingFilter" wv:WorkViewElement.Id="reader.media.rating-filter" MinWidth="140" SelectionChanged="OnMediaRatingFilterChanged" />

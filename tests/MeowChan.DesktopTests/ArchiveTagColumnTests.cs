@@ -101,8 +101,8 @@ public sealed class ArchiveTagColumnTests : IDisposable
         Assert.Contains("Text=\"{Binding TagColumnText}\"", lastColumn);
         Assert.Contains("ToolTip.Tip=\"{Binding TagColumnTip}\"", lastColumn);
         string preferences = Source("Desktop/Views/Archive/ArchivePage.ViewPreferences.cs");
-        Assert.Contains("\"lastCapture\", \"tags\", \"favorite\"];", preferences);
-        Assert.Contains("[150, 0, 70, 120, 90, 110, 145, 170, 48];", preferences);
+        Assert.Contains("\"lastCapture\", \"tags\", \"favorite\", \"foundIn\"];", preferences);
+        Assert.Contains("[150, 0, 70, 120, 90, 110, 145, 170, 48, 140];", preferences);
         Assert.Contains("CustomSortComparer = ArchiveThreadRow.TagColumnComparer.Instance", Source("Desktop/Views/Archive/ArchivePage.Tags.cs"));
         // Rows follow every published tag view in place; no reload of the list is involved.
         string tags = Source("Desktop/Views/Archive/ArchivePage.Tags.cs");
