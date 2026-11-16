@@ -338,7 +338,7 @@ internal static class MediaInteractionChecks
             }, () => $"The {name} control did not settle as a native hit target.");
             return target!;
         }
-        async Task<T> NativeOverflowTargetAsync<T>(string name) where T : Control
+        async Task<T> NativeOverflowTargetAsync<T>(string name, bool requireHitTest = true) where T : Control
         {
             // Opening the overflow menu reparents its rows into the popup. Do not keep
             // the pre-open control returned by Named<T>: it may be the retained template
@@ -389,7 +389,9 @@ internal static class MediaInteractionChecks
                     return target.IsAttachedToVisualTree()
                         && popup is not null
                         && !ReferenceEquals(popup, window)
-                        && MediaInteractionSmokeHelpers.IsPointerTargetReady(target);
+                        && (requireHitTest
+                            ? MediaInteractionSmokeHelpers.IsPointerTargetReady(target)
+                            : MediaInteractionSmokeHelpers.IsNativeGeometryReady(target));
                 }
                 catch (ArgumentException)
                 {
@@ -697,7 +699,15 @@ internal static class MediaInteractionChecks
             }
             if (expected == "Playing") await SeekClickAsync(.05);
             await native.ClickAsync(() => NativeTargetAsync<Button>("GalleryMore"));
-            await native.ClickAsync(() => NativeOverflowTargetAsync<ComboBox>("GalleryPlaybackModeSelector"));
+            // On macOS Avalonia's PopupRoot can expose the current ComboBox with
+            // valid native geometry one dispatcher turn before its hit-test cache
+            // includes the freshly reparented row. Keep current-target resolution
+            // and real CGEvent delivery, but do not reject that live target on the
+            // stale framework hit-test probe. Other platforms retain the strict probe.
+            bool requirePopupHitTest = !OperatingSystem.IsMacOS();
+            await native.ClickAsync(
+                () => NativeOverflowTargetAsync<ComboBox>("GalleryPlaybackModeSelector", requirePopupHitTest),
+                requireHitTest: requirePopupHitTest);
             Require(Named<ComboBox>("GalleryPlaybackModeSelector").IsDropDownOpen, "Native mode click failed to open the menu.");
             await MediaInteractionSmokeHelpers.HoldStateAsync(Player(), expected, "Playback menu open");
             await native.KeyAsync(MediaNativeInput.Escape);
@@ -758,7 +768,12 @@ internal static class MediaInteractionChecks
                     await native!.MoveAsync(viewer, new Point(viewer.Bounds.Width * .45, viewer.Bounds.Height - 2),
                         requireHitTest: false);
                     await Program.WaitUntilAsync(() => Named<Border>("GalleryOverlayControls").IsEffectivelyVisible);
-                    await native.ClickAsync(Named<Button>("GalleryFit"));
+                    // Navigation can expose the retained image toolbar before the
+                    // decoder has re-enabled its fit commands. Resolve the current
+                    // enabled presentation at delivery time; passing Named() here
+                    // pins a temporarily disabled button and makes macOS native input
+                    // fail with ArgumentException instead of retrying the transition.
+                    await native.ClickAsync(() => NativeTargetAsync<Button>("GalleryFit"));
                     await native.MoveAsync(viewer, new Point(viewer.Bounds.Width * .45, viewer.Bounds.Height * .30),
                         requireHitTest: false);
                     await Program.WaitUntilAsync(() => !Named<Border>("GalleryOverlayControls").IsEffectivelyVisible);

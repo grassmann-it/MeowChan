@@ -172,11 +172,17 @@ internal sealed class MediaNativeInput : IDisposable
         Flush(); await Task.Delay(70);
     }
 
-    internal Task ClickAsync(Control target, Point? point = null) =>
-        ClickAsync(() => Task.FromResult(target), _ => Task.FromResult(point));
+    internal Task ClickAsync(Control target, Point? point = null, bool requireHitTest = true) =>
+        ClickAsync(() => Task.FromResult(target), _ => Task.FromResult(point), requireHitTest);
 
-    /// <summary>Clicks a freshly resolved target; readiness, coordinate conversion and native delivery are one bounded operation.</summary>
-    internal async Task ClickAsync<T>(Func<Task<T>> resolveTarget, Func<T, Task<Point?>>? resolvePoint = null)
+    /// <summary>
+    /// Clicks a freshly resolved target; readiness, coordinate conversion and native delivery are one bounded operation.
+    /// A popup may opt out of the framework hit-test probe when its current native root
+    /// has valid geometry but Avalonia reports a stale hit-test result during reparenting.
+    /// The click is still delivered only through the real OS input backend.
+    /// </summary>
+    internal async Task ClickAsync<T>(Func<Task<T>> resolveTarget, Func<T, Task<Point?>>? resolvePoint = null,
+        bool requireHitTest = true)
         where T : Control
     {
         for (int attempt = 1; attempt <= MaxTargetAttempts; attempt++)
@@ -186,9 +192,9 @@ internal sealed class MediaNativeInput : IDisposable
             try
             {
                 target = await resolveTarget();
-                await PrepareTargetAsync(target, requireEnabled: true, requireHitTest: true);
+                await PrepareTargetAsync(target, requireEnabled: true, requireHitTest);
                 point = resolvePoint == null ? null : await resolvePoint(target);
-                await MoveOnceAsync(target, point, true, true);
+                await MoveOnceAsync(target, point, true, requireHitTest);
                 await ButtonAsync(true); await ButtonAsync(false);
                 return;
             }
@@ -200,7 +206,7 @@ internal sealed class MediaNativeInput : IDisposable
             }
             catch (ArgumentException)
             {
-                TraceFinalArgument("click", attempt, target, point, requireEnabled: true, requireHitTest: true);
+                TraceFinalArgument("click", attempt, target, point, requireEnabled: true, requireHitTest);
                 throw;
             }
         }
