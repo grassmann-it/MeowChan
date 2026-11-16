@@ -428,24 +428,67 @@ class StableFixtures(PrereleaseFixtures):
 
 
 class CandidateWorkflowFixtures(unittest.TestCase):
-    # Keep the contract model aligned with validate's weighted include matrix.
-    # The lanes deliberately share an OS while only lane-a runs the full suite.
-    VALIDATE_MATRIX = (
-        {'os': 'ubuntu-24.04', 'lane': 'lane-a', 'full': True},
-        {'os': 'ubuntu-24.04', 'lane': 'lane-b', 'full': False},
-        {'os': 'ubuntu-24.04', 'lane': 'lane-c', 'full': False},
-        {'os': 'ubuntu-24.04', 'lane': 'lane-d', 'full': False},
-        {'os': 'ubuntu-24.04-arm', 'lane': 'lane-a', 'full': True},
-        {'os': 'ubuntu-24.04-arm', 'lane': 'lane-b', 'full': False},
-        {'os': 'ubuntu-24.04-arm', 'lane': 'lane-c', 'full': False},
-        {'os': 'ubuntu-24.04-arm', 'lane': 'lane-d', 'full': False},
-        {'os': 'windows-2022', 'lane': 'lane-a', 'full': True},
-        {'os': 'windows-2022', 'lane': 'lane-b', 'full': False},
-        {'os': 'windows-2022', 'lane': 'lane-c', 'full': False},
-        {'os': 'windows-2022', 'lane': 'lane-d', 'full': False},
-        {'os': 'macos-15', 'lane': 'native', 'full': True},
-        {'os': 'macos-15-intel', 'lane': 'native', 'full': True},
-    )
+    # Independent expected matrix: full/gui-only use all existing GUI workers;
+    # focused selectors retain one native primary and four non-macOS lanes.
+    NON_MAC_MATRIX = tuple(
+        {'os': platform, 'lane': 'lane-' + lane, 'full': lane == 'a'}
+        for platform in ('ubuntu-24.04', 'ubuntu-24.04-arm', 'windows-2022')
+        for lane in 'abcd')
+    VALIDATE_MATRIX = NON_MAC_MATRIX + tuple(
+        {'os': platform, 'lane': 'native' if shard == 1 else f'native-{shard:02}',
+         'full': shard == 1, 'mac_shard': shard}
+        for platform in ('macos-15', 'macos-15-intel') for shard in range(1, 9))
+    FOCUSED_MATRIX = NON_MAC_MATRIX + tuple(
+        {'os': platform, 'lane': 'native', 'full': True, 'mac_shard': 1}
+        for platform in ('macos-15', 'macos-15-intel'))
+    # Explicit contract, not derived from the production planner under test.
+    DEDICATED_OWNERS = {
+        'first_run': (2, 2), 'preference_startup': (3, 1),
+        'scoped_diagnostics': (4, 4), 'reader_media': (7, 4),
+        'gallery_features': (8, 2), 'media_input': (2, 3), 'tray_lifecycle': (3, 1),
+    }
+
+    def matrix(self, scenario='all', event='workflow_dispatch'):
+        from tests.test_dotnet_desktop_workflow_contract import DotnetDesktopWorkflowContractTests
+        rows = DotnetDesktopWorkflowContractTests().matrix(scenario=scenario, event=event)
+        expected = self.VALIDATE_MATRIX if event != 'workflow_dispatch' or scenario in ('all', 'gui-only') else self.FOCUSED_MATRIX
+        self.assertEqual(list(expected), rows)
+        return rows
+
+    @staticmethod
+    def runner(matrix):
+        os = ('macOS' if matrix['os'].startswith('macos-') else
+              'Windows' if matrix['os'].startswith('windows-') else 'Linux')
+        arch = 'ARM64' if matrix['os'] in ('ubuntu-24.04-arm', 'macos-15') else 'X64'
+        return os, arch
+
+    def scene_expected(self, identifier, matrix, scenario, event='workflow_dispatch', mode='validate'):
+        os, arch = self.runner(matrix)
+        full = matrix['full']
+        if event != 'workflow_dispatch':
+            scenario = 'all'
+        focused = {'gallery-errors': 'gallery_errors', 'gallery-features': 'gallery_features',
+                   'gif-playback': 'gif_playback', 'media-input': 'media_input', 'selection': 'smoke_normal'}
+        if scenario in focused:
+            return full and identifier == focused[scenario]
+        self.assertIn(scenario, ('all', 'gui-only'))
+        if identifier == 'smoke_normal':
+            return True  # Every distributed worker owns a disjoint scene subset.
+        if identifier in ('gallery_errors', 'gif_playback'):
+            return False  # Split families are in smoke_normal, not duplicated here.
+        if identifier in self.DEDICATED_OWNERS:
+            native, other = self.DEDICATED_OWNERS[identifier]
+            owner = matrix['mac_shard'] == native if os == 'macOS' else matrix['lane'] == 'lane-' + 'abcd'[other - 1]
+            return owner and (scenario == 'all' or identifier not in ('media_input', 'tray_lifecycle'))
+        if identifier == 'smoke_plugins':
+            return full and os == 'Linux'
+        if identifier == 'smoke_1_1_registry':
+            return full and os == 'Linux' and arch == 'X64' and event == 'workflow_dispatch' and mode in ('prerelease-candidate', 'stable-candidate')
+        if identifier == 'upgrade_replay':
+            return full and scenario == 'all'
+        if identifier == 'tray_host':
+            return full and os == 'Linux' and scenario == 'all'
+        self.fail('Unmodelled GUI step: ' + identifier)
 
     @classmethod
     def setUpClass(cls):
@@ -462,6 +505,7 @@ class CandidateWorkflowFixtures(unittest.TestCase):
         symbols = {'github.event_name': event, 'inputs.mode': mode,
                    'inputs.scenario': scenario, 'inputs.platform': platform}
         if matrix is not None:
+            symbols.update({'matrix.mac_shard': None})  # Missing Actions property is null, not an undefined symbol.
             symbols.update({f'matrix.{key}': value for key, value in matrix.items()})
         for key, value in symbols.items():
             expression = expression.replace(key, repr(value))
@@ -554,72 +598,42 @@ class CandidateWorkflowFixtures(unittest.TestCase):
         gallery = selectors['gallery-errors']
         scenes = {name: body for name, body in steps.items()
                   if 'scripts/run-desktop-smoke.py' in body
+                  or 'scripts/run-gui-ci-scenes.py' in body
                   or 'scripts/test-media-interaction-smoke.py' in body
                   or name.startswith('Replay genuine')}
         self.assertGreater(len(scenes), 10)
-        startup = 'Exercise native graphical startup and fallback paths'
-        full_only = {
-            'Replay genuine 1.0.0 and 1.0.1 profiles with confirmed new selections',
-            'Exercise real OS media input (not synthetic routed keys)',
-            'Exercise tray lifecycle separately on the disposable runner',
-            'Check native Linux tray host lifecycle on private DBus',
-            'Exercise selected 1.1 registry workflows on Linux x64',
-        }
-        linux_only = {
-            'Exercise explicit bundled new-selection confirmation on the actual platform',
-            'Check native Linux tray host lifecycle on private DBus',
-            'Exercise selected 1.1 registry workflows on Linux x64',
-        }
-        candidate_only = {'Exercise selected 1.1 registry workflows on Linux x64'}
-        runner_os = {
-            'ubuntu-24.04': 'Linux',
-            'ubuntu-24.04-arm': 'Linux',
-            'windows-2022': 'Windows',
-            'macos-15': 'macOS',
-            'macos-15-intel': 'macOS',
-        }
-        for matrix in self.VALIDATE_MATRIX:
-            os = runner_os[matrix['os']]
-            arch = 'ARM64' if matrix['os'].endswith('-arm') else 'X64'
+        self.assertIn('Exercise native graphical startup and fallback paths', scenes)
+        scene_ids = {name: re.search(r'^        id: (\S+)', body, re.M)[1] for name, body in scenes.items()}
+        self.assertEqual(set(scene_ids.values()), set(self.DEDICATED_OWNERS) | {
+            'smoke_normal', 'smoke_plugins', 'smoke_1_1_registry', 'upgrade_replay',
+            'gif_playback', 'gallery_errors', 'tray_host'})
+        for event in ('workflow_dispatch', 'push', 'pull_request'):
             for scenario in ('all', 'gui-only', 'selection', *selectors):
-                for name, body in scenes.items():
-                    condition = re.search(r'^        if: (.+)$', body, re.M)
-                    expression = condition.group(1) if condition else 'True'
-                    expression = expression.replace('runner.os', repr(os))
-                    # The registry smoke is a candidate-only Linux-x64 step.  The
-                    # candidate matrix separately rejects non-`all` scenarios, so
-                    # model its valid dispatch with the candidate mode here.
-                    expression = expression.replace('runner.arch', repr(arch))
-                    mode = 'prerelease-candidate' if name in candidate_only and scenario == 'all' else 'validate'
-                    if scenario in selectors:
-                        expected = matrix['full'] and name == selectors[scenario]
-                    elif scenario == 'selection':
-                        expected = matrix['full'] and name == startup
-                    else:
-                        expected = matrix['full'] and (scenario == 'all' or name not in full_only)
-                        if name in linux_only:
-                            expected = expected and os == 'Linux'
-                        if name in candidate_only:
-                            expected = expected and arch == 'X64'
-                    with self.subTest(os=os, lane=matrix['lane'], full=matrix['full'],
-                                      scenario=scenario, scene=name):
-                        self.assertEqual(expected, self.evaluate(
-                            expression, mode=mode, scenario=scenario, matrix=matrix))
-                        push_expected = matrix['full'] and (name not in linux_only or os == 'Linux')
-                        if name in candidate_only:
-                            push_expected = False
-                        self.assertEqual(
-                            push_expected,
-                            self.evaluate(
-                                expression,
-                                mode='prerelease-candidate' if name in candidate_only else 'validate',
-                                event='push', matrix=matrix))
-        for name in ('Record SDK and source commit',
-                     'Restore graphical harness with reviewed dependencies',
+                for matrix in self.matrix(scenario, event):
+                    os, arch = self.runner(matrix)
+                    for name, body in scenes.items():
+                        condition = re.search(r'^        if: (.+)$', body, re.M)
+                        expression = condition.group(1) if condition else 'True'
+                        expression = expression.replace('runner.os', repr(os)).replace('runner.arch', repr(arch))
+                        mode = 'prerelease-candidate' if scenario == 'all' else 'validate'
+                        expected = self.scene_expected(scene_ids[name], matrix, scenario, event, mode)
+                        with self.subTest(os=matrix['os'], lane=matrix['lane'], event=event,
+                                          scenario=scenario, scene=name):
+                            self.assertEqual(expected, self.evaluate(
+                                expression, mode=mode, scenario=scenario, event=event, matrix=matrix))
+        self.assertNotRegex(steps['Record SDK and source commit'], r'^        if:')
+        for name in ('Restore graphical harness with reviewed dependencies',
                      'Retain exact graphical harness dependency graph',
                      'Build graphical harness',
                      'Verify plugin delivery in desktop and transitive harness outputs'):
-            self.assertNotRegex(steps[name], r'^        if:', name)
+            expression = re.search(r'^        if: (.+)$', steps[name], re.M)[1]
+            for event in ('workflow_dispatch', 'push', 'pull_request'):
+                for scenario in ('all', 'gui-only', 'selection', *selectors):
+                    for row in self.matrix(scenario, event):
+                        expected = row['full'] or event != 'workflow_dispatch' or scenario in ('all', 'gui-only')
+                        with self.subTest(preparation=name, scenario=scenario, event=event, row=row):
+                            self.assertEqual(expected, self.evaluate(expression, scenario=scenario,
+                                                                     event=event, matrix=row))
         self.assertIn("MEOWCHAN_GALLERY_ERROR_ONLY: '1'", steps[gallery])
         self.assertIn('--mode normal --timeout 300 --output artifacts/closure-gallery-errors',
                       steps[gallery])
@@ -671,6 +685,99 @@ class CandidateWorkflowFixtures(unittest.TestCase):
                             self.assertFalse(self.condition(job, 'validate', scenario, platform))
             for mode in ('prerelease-candidate', 'stable-candidate'):
                 self.assertFalse(self.condition('library-package', mode, scenario=scenario))
+
+    def test_distributed_gui_inventory_has_exact_once_coverage_and_matching_required_gates(self):
+        def load(name):
+            spec = importlib.util.spec_from_file_location(name.replace('-', '_'), ROOT / 'scripts' / (name + '.py'))
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            return module
+
+        runner = load('run-gui-ci-scenes')
+        plan = load('gui-ci-plan')
+        gate = load('compute-validation-required')
+        # Independent, complete inventory: deletion/duplication in the runner or
+        # planner must fail, even if its own self-reported coverage says PASS.
+        families = {
+            'NORMAL': ['normal-core', 'normal-grid', 'normal-settings-page', 'normal-diagnostics',
+                       'sources-page', 'normal-board-admission', 'pause-controls', 'rules-page', 'settings-core'],
+            'MODES': ['locked-profile', 'no-tray', 'tray-failure', 'download-session', 'selection'],
+            'READER': ['reader-navigation', 'reader-owned-navigation', 'reader-gallery-roundtrip',
+                       'reader-list-gallery-return', 'reader-returns', 'reader-stability',
+                       'reader-groups', 'gallery-close', 'video-lifecycle', 'window-minimum'],
+            'GIF': ['gif-playback-core', 'gif-successors', 'gif-verified-failures', 'gif-reader-association', 'gif-ownership'],
+            'GALLERY_ERRORS': ['gallery-errors-retirement-clip', 'gallery-errors-layout-roots',
+                               'gallery-errors-notifications', 'gallery-errors-failure-reader-return'],
+        }
+        for family, expected in families.items():
+            self.assertEqual(expected, getattr(runner, family), family)
+        inventory = sum(families.values(), [])
+        self.assertEqual(33, len(inventory))
+        self.assertEqual(len(inventory), len(set(inventory)))
+        self.assertEqual(families['READER'], runner.reader_baseline([{'id': name} for name in inventory]))
+        for missing in families['READER']:
+            with self.subTest(missing=missing), self.assertRaises(ValueError):
+                runner.reader_baseline([{'id': name} for name in inventory if name != missing])
+        for workers, column in ((8, 0), (4, 1)):
+            self.assertEqual({name: owners[column] for name, owners in self.DEDICATED_OWNERS.items()},
+                             plan.owners(workers))
+            shards = [plan.scenes_for(inventory, shard, workers) for shard in range(1, workers + 1)]
+            self.assertTrue(all(shards), 'No distributed worker may silently lose its scene subset')
+            self.assertCountEqual(inventory, sum(shards, []))  # multiplicity, not just set equality
+            self.assertEqual(33, len(set(sum(shards, []))))
+
+        bodies = dict(re.findall(r'^      - name: ([^\n]+)\n(.*?)(?=^      - |\Z)',
+                                 self.jobs['validate'], re.M | re.S))
+        scenes = {re.search(r'^        id: (\S+)', body, re.M)[1]: body
+                  for name, body in bodies.items()
+                  if any(script in body for script in ('scripts/run-gui-ci-scenes.py',
+                         'scripts/run-desktop-smoke.py', 'scripts/test-media-interaction-smoke.py'))
+                  or name.startswith('Replay genuine')}
+        for event, scenario, mode in (
+                ('push', 'all', 'validate'), ('pull_request', 'all', 'validate'),
+                ('workflow_dispatch', 'all', 'validate'),
+                ('workflow_dispatch', 'all', 'prerelease-candidate'),
+                ('workflow_dispatch', 'all', 'stable-candidate'),
+                ('workflow_dispatch', 'gui-only', 'validate')):
+            rows = self.matrix(scenario, event)
+            for platform in {row['os'] for row in rows}:
+                actual_coverage = []
+                dedicated_coverage = []
+                for row in (row for row in rows if row['os'] == platform):
+                    os, arch = self.runner(row)
+                    shard = row['mac_shard'] if os == 'macOS' else 'abcd'.index(row['lane'][-1]) + 1
+                    workers = 8 if os == 'macOS' else 4
+                    selected = set()
+                    for identifier, body in scenes.items():
+                        expression = re.search(r'^        if: (.+)$', body, re.M)[1]
+                        expression = expression.replace('runner.os', repr(os)).replace('runner.arch', repr(arch))
+                        if self.evaluate(expression, event=event, scenario=scenario, mode=mode, matrix=row):
+                            selected.add(identifier)
+                    required = plan.overlay(gate.required_steps(event, mode, scenario, row['lane'], os, arch),
+                                            shard, os, scenario)
+                    with self.subTest(platform=platform, shard=shard, event=event, scenario=scenario, mode=mode):
+                        self.assertEqual(selected, set(required) & scenes.keys(),
+                                         'Selected GUI steps and final required gates diverged')
+                        self.assertTrue(set(plan.PREREQUISITES).issubset(required))
+                        self.assertIn('linux_setup' if os == 'Linux' else 'prepare_desktop', required)
+                        self.assertNotIn('gallery_errors', required)
+                        self.assertNotIn('gif_playback', required)
+                    if 'smoke_normal' in selected:
+                        actual_coverage.extend(plan.scenes_for(inventory, shard, workers))
+                    dedicated_coverage.extend(selected & self.DEDICATED_OWNERS.keys())
+                with self.subTest(platform=platform, event=event, scenario=scenario, mode=mode):
+                    self.assertCountEqual(inventory, actual_coverage)
+                    self.assertCountEqual([name for name in self.DEDICATED_OWNERS
+                                           if scenario == 'all' or name not in ('media_input', 'tray_lifecycle')],
+                                          dedicated_coverage)
+        # Keep real collector dispatch and final fail-closed aggregation connected.
+        self.assertIn('scripts/run-gui-ci-scenes.py', scenes['smoke_normal'])
+        self.assertIn('matrix.mac_shard', scenes['smoke_normal'])
+        self.assertIn('--workers {1}', scenes['smoke_normal'])
+        final_gate = bodies['Fail validation after collecting all evidence']
+        self.assertIn('scripts/gui-ci-plan.py --required "$required_csv"', final_gate)
+        self.assertIn('scripts/aggregate-release-gates.py steps', final_gate)
+        self.assertIn('--required "$required_csv"', final_gate)
 
     def test_downloads_stay_in_current_run_and_candidate_channel_is_explicit(self):
         job = self.jobs['current-source-inventory']
