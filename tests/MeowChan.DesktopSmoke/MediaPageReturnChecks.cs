@@ -252,12 +252,15 @@ internal static partial class MediaPageChecks
             await UntilAsync(() => mediaHost.IsVisible && FocusOn(viaGallery));
             Require(Selected() == "r-610.png", "Closing the gallery must return to the Medien tile.");
 
-            // 6. Leaving the archive while the jump still loads ends it: no late focus, no return point.
+            // 6. Leaving during target admission or archive loading ends the jump: no late focus or return point.
             int late = IndexOf("r-615.png");
             await ShowTileAsync(page, late);
             await ClickTileAsync(page, shell, late);
             Task jump = page.ShowSelectedInThreadAsync();
-            Require(shell.MediaReturnAvailableForTests, "The jump must record its return point at once.");
+            // The archive existence check is asynchronous. A return point is published only
+            // after that check succeeds and navigation commits, never speculatively at invocation.
+            Require(!shell.MediaReturnAvailableForTests || archiveHost.IsVisible,
+                "The jump published a return point before archive navigation.");
             shell.FindControl<Button>("DownloadsNavigationButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await jump.WaitAsync(Deadline);
             await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
