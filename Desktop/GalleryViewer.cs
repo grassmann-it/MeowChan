@@ -481,6 +481,7 @@ internal sealed partial class GalleryViewer : UserControl
         InitializeFavoriteConfirm();
         _nativeVideoOverlay.AddHandler(KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel, handledEventsToo: true);
         _nativeVideoOverlay.AddHandler(KeyUpEvent, OnFavoriteKeyUp, RoutingStrategies.Tunnel, handledEventsToo: true);
+        _nativeVideoOverlay.AddHandler(KeyUpEvent, OnContextKeyUp, RoutingStrategies.Tunnel, handledEventsToo: true);
         _nativeVideoOverlay.AddHandler(KeyDownEvent, OnNativeOverlayKeyDown, RoutingStrategies.Bubble);
         _nativeVideoOverlay.ContextRequested += OnMediaContextRequested;
         SizeChanged += (_, _) =>
@@ -511,6 +512,7 @@ internal sealed partial class GalleryViewer : UserControl
         AddHandler(ContextRequestedEvent, OnKeyboardContextRequested);
         AddHandler(KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel, handledEventsToo: true);
         AddHandler(KeyUpEvent, OnFavoriteKeyUp, RoutingStrategies.Tunnel, handledEventsToo: true);
+        AddHandler(KeyUpEvent, OnContextKeyUp, RoutingStrategies.Tunnel, handledEventsToo: true); // the key-up of a context key the gallery handled
         AttachedToVisualTree += (_, _) =>
         {
             if (_terminalRetirement) return;
@@ -1586,6 +1588,7 @@ internal sealed partial class GalleryViewer : UserControl
         // Every key here is handled in the gallery's context: a default that a saved binding of another page took away (a saved archive command on F, say)
         // stays active in the gallery, where nothing else has it (EffectiveShortcutBindings.YieldedContexts).
         using var keyContext = EffectiveShortcutBindings.EnterKeyContext("gallery");
+        ForgetContextKeyUp(e);
         RouteKeyDown(sender, e);
     }
     private void RouteKeyDown(object? sender, KeyEventArgs e)
@@ -1603,6 +1606,7 @@ internal sealed partial class GalleryViewer : UserControl
     internal void RouteKeyForTests(KeyEventArgs e)
     {
         using var keyContext = EffectiveShortcutBindings.EnterKeyContext("gallery");
+        ForgetContextKeyUp(e);
         if (!e.Handled && !ShortcutService.IsCapturing) RouteAdmittedKey(this, e);
     }
 
@@ -1615,11 +1619,14 @@ internal sealed partial class GalleryViewer : UserControl
         if (_helpOpen) return;
         if (IsFavoriteConfirmOpen) { RouteFavoriteConfirmKey(e); return; }
         // The Menu key and Shift+F10 open the same media menu as a right-click, for the medium shown now.
-        // With the focus on a control of the dock (a tool, the info line; not the filmstrip or the video bar) they open the layout menu, as a
-        // right-click on free dock area does (GL3).
+        // A focused control with a menu of its own (a tag chip, the slideshow toggle, the speed button) opens that one, as its right-click does
+        // (sweep S2 F4). With the focus on another control of the dock (a tool, the info line; not the filmstrip or the video bar) they open the
+        // layout menu, as a right-click on free dock area does (GL3). The handled key's key-up is consumed (ConsumeContextKey): no second menu.
+        if (MeowChan.Desktop.MediaActions.MediaMenuPresenter.IsContextKey(e) && ContextKeyOwner(e.Source) is { } menuOwner && OpenOwnContextMenu(menuOwner))
+        { ConsumeContextKey(e); return; }
         if (MeowChan.Desktop.MediaActions.MediaMenuPresenter.IsContextKey(e) && IsLayoutMenuKeySource(e.Source) && ShowLayoutContextMenu())
-        { e.Handled = true; return; }
-        if (_entry != null && MeowChan.Desktop.MediaActions.MediaMenuPresenter.IsContextKey(e)) { ShowMediaMenu(); e.Handled = true; return; }
+        { ConsumeContextKey(e); return; }
+        if (_entry != null && MeowChan.Desktop.MediaActions.MediaMenuPresenter.IsContextKey(e)) { ShowMediaMenu(); ConsumeContextKey(e); return; }
         if (RouteDecisionRowKey(e)) return; // the stars of the panel rove with the arrows and Esc returns to the picture
         if ((ReferenceEquals(routingOwner, _nativeVideoOverlay) ? _nativeRatingRouter : _ratingRouter)?.Route(e) == true) return;
         if (_contextOpen && _sidePanel.RouteSegmentKey(e)) return;
