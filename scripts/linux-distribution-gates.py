@@ -903,7 +903,10 @@ def local_docker(runtime, image_names):
 
 
 def docker_command(args, image_id, name, owner, work, evidence, scripts, fixtures):
-    command = ['docker', 'run', '--pull=never', '--name', name, '--label', 'meowchan.owner=' + owner,
+    # Desktop wrappers can leave orphaned grandchildren after their leader exits.
+    # A real PID 1 must reap them: zombies otherwise keep the owned process group
+    # present even after SIGKILL, correctly failing the strict cleanup gate.
+    command = ['docker', 'run', '--init', '--pull=never', '--name', name, '--label', 'meowchan.owner=' + owner,
                '--network=none', '--read-only', '--cap-drop=ALL', '--security-opt=no-new-privileges',
                '--pids-limit=256', '--memory=6g', '--cpus=4', '--shm-size=256m',
                '--user', f'{os.getuid()}:{os.getgid()}', '--tmpfs', '/tmp:rw,nosuid,noexec,size=64m',
