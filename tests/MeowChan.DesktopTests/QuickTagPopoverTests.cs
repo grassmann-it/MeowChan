@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -22,6 +23,8 @@ public sealed class QuickTagPopoverTests : IDisposable
 
     public QuickTagPopoverTests() { Texts.Initialize(); Texts.SetLanguage("en"); }
     public void Dispose() { Texts.Initialize(); Texts.SetLanguage("en"); }
+
+    private static string ThisFile([CallerFilePath] string path = "") => path;
 
     private static MediaLibraryEntry Entry(string thread, char hash) =>
         new(new ResourceId("s", "b", thread), "T" + thread, 1, Day, Day, "1", 1, null, 0,
@@ -67,7 +70,9 @@ public sealed class QuickTagPopoverTests : IDisposable
         Assert.False(popover.IsClosed);
         Assert.Null(popover.Reason);
         Assert.Same(anchor, popover.Anchor);
+        Assert.Equal(440, QuickTagPopover.Width); // wider than the 360 of the first design: Tom, 16.11.2026 ("quite narrow")
         Assert.Equal(QuickTagPopover.Width, popover.Frame.Width);
+        Assert.Equal(new Avalonia.Thickness(12), popover.Frame.Padding);
         Assert.Equal(QuickTagPopover.MaximumHeight, popover.Frame.MaxHeight);
         Assert.Equal(KeyboardNavigationMode.Cycle, KeyboardNavigation.GetTabNavigation(popover.Frame));
         Assert.Same(popover.Surface, popover.Frame.Child);
@@ -78,6 +83,58 @@ public sealed class QuickTagPopoverTests : IDisposable
         Assert.False(popover.Surface.NavigationEnabled);
         Assert.Contains("fa.png", popover.Surface.TargetLabel);
         popover.Close();
+    }
+
+    // The width is a layout constant (not a setting). It never exceeds the window minus a 16 dip margin on both sides, so the narrow reader and gallery
+    // still hold the whole popover; the floor keeps the five star cells and the remove button usable.
+    [Theory]
+    [InlineData(1380.0, 440.0)]
+    [InlineData(760.0, 440.0)]   // the window minimum
+    [InlineData(472.0, 440.0)]   // the narrowest window that still holds the default (440 + 2 x 16)
+    [InlineData(471.0, 439.0)]
+    [InlineData(400.0, 368.0)]
+    [InlineData(320.0, 288.0)]
+    [InlineData(300.0, 280.0)]   // the floor
+    [InlineData(100.0, 280.0)]
+    [InlineData(0.0, 440.0)]     // not measured yet: the default
+    [InlineData(double.NaN, 440.0)]
+    [InlineData(double.PositiveInfinity, 440.0)]
+    public void TheWidthIsTheDefaultNarrowedToTheWindowAndNeverBelowTheFloor(double host, double expected)
+    {
+        Assert.Equal(expected, QuickTagPopover.WidthFor(host));
+        Assert.InRange(QuickTagPopover.WidthFor(host), QuickTagPopover.MinimumWidth, QuickTagPopover.Width);
+        Assert.Equal(16, QuickTagPopover.HostMargin);
+    }
+
+    [Fact]
+    public void TheFrameIsFittedToTheWindowWhenTheFlyoutOpensAndTheSurfaceHostsAreNotTouched()
+    {
+        string popover = File.ReadAllText(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(ThisFile())!, "../../Desktop/Controls/QuickTagPopover.cs")));
+        Assert.Contains("_flyout.Opening += OnFlyoutOpening;", popover);
+        Assert.Contains("_frame.Width = WidthFor(TopLevel.GetTopLevel(_anchor)?.ClientSize.Width ?? 0);", popover);
+        // The presenter's ceiling stays above the widest popover.
+        string styles = File.ReadAllText(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(ThisFile())!, "../../Desktop/WorkspaceStyles.axaml")));
+        int at = styles.IndexOf("<Style Selector=\"FlyoutPresenter.quick-tag-popover\">", StringComparison.Ordinal);
+        Assert.True(at >= 0);
+        string block = styles[at..styles.IndexOf("</Style>", at, StringComparison.Ordinal)];
+        Assert.Contains("Property=\"MaxWidth\" Value=\"480\"", block);
+        Assert.True(480 >= QuickTagPopover.Width + 2);
+    }
+
+    [Fact]
+    public void ThePopoverSaysTheRatingCaptionPolitelyAndTheBlockedOneToo()
+    {
+        using Fixture fixture = new();
+        DecisionHost host = new() { Rating = 3 };
+        QuickTagPopover popover = QuickTagPopover.Create(new Border(), fixture.Session(), "x",
+            new QuickTagPopoverOptions { RestoreFocus = false, Decision = host.Make() });
+        Assert.Equal(Avalonia.Automation.AutomationLiveSetting.Polite, Avalonia.Automation.AutomationProperties.GetLiveSetting(popover.DecisionRow!.Summary));
+        popover.Close();
+        QuickTagPopover blocked = QuickTagPopover.CreateBlocked(new Border(), "p.jpg", "reason", new QuickTagPopoverOptions { RestoreFocus = false, Decision = host.Make() });
+        Assert.Equal(Avalonia.Automation.AutomationLiveSetting.Polite, Avalonia.Automation.AutomationProperties.GetLiveSetting(blocked.DecisionRow!.Summary));
+        blocked.Close();
+        // The gallery panel announces through its own status line: its row has no live caption.
+        Assert.Equal(Avalonia.Automation.AutomationLiveSetting.Off, Avalonia.Automation.AutomationProperties.GetLiveSetting(new GalleryDecisionRow("PanelRow").Summary));
     }
 
     [Fact]

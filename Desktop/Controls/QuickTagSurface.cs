@@ -248,8 +248,8 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     internal const double FooterGap = 8;
     /// <summary>Horizontal gap between suggestion chips (the strip's wrap panel).</summary>
     private const double StripItemSpacing = 8;
-    /// <summary>Gaps between assigned pills: 8 across, and 4 between rows because a pill is 28 high beside its 32 dip remove button (so 8 dip of air).</summary>
-    private const double AssignedItemSpacing = 8, AssignedLineSpacing = 4;
+    /// <summary>Gaps between assigned pills: 8 across and 8 between rows (a pill is 28 high, its remove half joined to it is 28 high too).</summary>
+    private const double AssignedItemSpacing = 8, AssignedLineSpacing = 8;
     /// <summary>The most the assigned chips and the extra section take above the suggestions in a popover, in dip.</summary>
     private const double UpperMaxHeight = 160;
     /// <summary>Delay of the re-fit after the panel was resized, in milliseconds (a drag fires many size changes).</summary>
@@ -270,6 +270,8 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     // The field with what sits around it: an optional decision row above (PT6), the field, the marks bar under it.
     private readonly StackPanel _fieldArea;
     private Control? _decisionContent;
+    // The hairline between the decision row and the field (12 dip of air on both sides: the field area's 8 plus the line's own 4).
+    private Border? _decisionDivider;
     private IQuickTagExtraUndo? _extraUndo;
     private readonly TextBlock _title = new() { FontWeight = FontWeight.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 1, VerticalAlignment = VerticalAlignment.Center };
     private readonly Button _close = new();
@@ -539,8 +541,14 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         {
             if (ReferenceEquals(_decisionContent, value)) return;
             if (_decisionContent != null) _fieldArea.Children.Remove(_decisionContent);
+            if (_decisionDivider != null) { _fieldArea.Children.Remove(_decisionDivider); _decisionDivider = null; }
             _decisionContent = value;
-            if (value != null) _fieldArea.Children.Insert(0, value);
+            if (value == null) return;
+            _fieldArea.Children.Insert(0, value);
+            // One divider between what is decided (favourite, rating) and what is typed (tags): the one line of the popover and the panel.
+            _decisionDivider = new Border { Classes = { "quick-tag-divider" }, IsHitTestVisible = false, Name = _name + "DecisionDivider" };
+            AutomationProperties.SetAccessibilityView(_decisionDivider, AccessibilityView.Raw);
+            _fieldArea.Children.Insert(1, _decisionDivider);
         }
     }
 
@@ -977,20 +985,21 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         }
         else
         {
-            // Two buttons take their text, the last one the rest of the row and trims when a language needs more.
+            // Two buttons take their text on the left; the last one ("Edit tags…", it leaves the surface) sits at the right edge, in the column that takes the
+            // rest of the row, and trims when a language needs more.
             Footer.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
             Footer.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
             Footer.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
             Footer.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
             Footer.RowSpacing = 0;
             Footer.ColumnSpacing = FooterGap;
-            Footer.HorizontalAlignment = HorizontalAlignment.Left;
+            Footer.HorizontalAlignment = HorizontalAlignment.Stretch;
         }
         for (int index = 0; index < buttons.Length; index++)
         {
             Grid.SetRow(buttons[index], stacked ? index : 0);
             Grid.SetColumn(buttons[index], stacked ? 0 : index);
-            buttons[index].HorizontalAlignment = stacked ? HorizontalAlignment.Stretch : HorizontalAlignment.Left;
+            buttons[index].HorizontalAlignment = stacked ? HorizontalAlignment.Stretch : index == buttons.Length - 1 ? HorizontalAlignment.Right : HorizontalAlignment.Left;
         }
     }
 
@@ -1488,9 +1497,10 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
 
     private sealed class AssignedChip
     {
-        private const string CheckGeometry = "M1,6.4 L4.6,10 L11,2.4";
-        private const string PartialOutline = "M1.5,1.5 L10.5,1.5 L10.5,10.5 L1.5,10.5 Z";
-        private const string PartialFill = "M1.5,10.5 L10.5,1.5 L10.5,10.5 Z";
+        // The dash of a pill that is on some of a selection (a 12 dip wide line through the middle of the 12 dip glyph box).
+        private const string DashGeometry = "M1.5,6 L10.5,6";
+        /// <summary>The chip half of an assigned pill (left corners rounded, no right edge) and its remove half (right corners rounded, no left edge); WorkspaceStyles.axaml.</summary>
+        internal const string JoinedClass = "tag-pill-joined", RemoveClass = "tag-pill-remove";
         internal required Control Host { get; init; }
         internal required Button Button { get; init; }
         internal required Button Remove { get; init; }
@@ -1501,12 +1511,15 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         {
             string display = assignment.Tag.Name.Display;
             StackPanel content = new() { Orientation = Orientation.Horizontal, Classes = { WorkspaceChips.TagPillContent } };
-            content.Children.Add(StateGlyph(assignment.State));
+            // On all (or on the one file): no mark; the accent tint, the "On this media file" section and the joined cross say it. On some: a dash.
+            if (StateGlyph(assignment.State) is { } glyph) content.Children.Add(glyph);
             content.Children.Add(ChipLabel(display));
             Button chip = new() { Name = name, Content = content };
-            // All: the accent-tinted pill with a check; some: the quiet pill with an accent edge, the half-square glyph says it too.
+            // All: the accent-tinted pill; some: the quiet pill with an accent edge and a dash (Tom, 16.11.2026: the check on assigned chips is dropped).
             if (assignment.State == TagToggleState.All) WorkspaceChips.MarkTagPill(WorkspaceChips.MarkOwn(chip), WorkspaceChips.TagPillAssigned);
             else WorkspaceChips.MarkTagPill(WorkspaceChips.MarkOffered(chip), WorkspaceChips.TagPillPartial);
+            // One pill with two hit halves: the chip is the rounded start of it, the remove half (below) its rounded end; no gap between them.
+            chip.Classes.Add(JoinedClass);
             string accessible = AccessibleName(assignment, selection);
             AutomationProperties.SetName(chip, accessible);
             ToolTip.SetTip(chip, accessible);
@@ -1514,30 +1527,28 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
             string removeName = Texts.T(selection ? "tags.quick.chip.removeAll" : "tags.quick.chip.remove", display);
             remove.Content = WorkspaceIcons.Create(WorkspaceIcons.CloseSmall);
             remove.Classes.Add(WorkspaceIcons.SquareClass);
-            remove.Classes.Add("bar-flat"); // flat at rest like the toolbar buttons: the pill beside it is the one outlined shape
+            // The end of the pill: 28 square (the class overrides the 32 dip square), the fill and edge of the pill's state, the cross muted until the pointer is on it.
+            remove.Classes.Add(RemoveClass);
+            remove.Classes.Add(assignment.State == TagToggleState.All ? WorkspaceChips.TagPillAssigned : WorkspaceChips.TagPillPartial);
+            // Delete on the chip removes the tag as well (its name says so), so the Tab order has one stop per tag; the cross stays clickable and named.
+            remove.IsTabStop = false;
             AutomationProperties.SetName(remove, removeName);
             ToolTip.SetTip(remove, removeName);
-            StackPanel host = new() { Orientation = Orientation.Horizontal, Spacing = 2, Children = { chip, remove } };
+            StackPanel host = new() { Orientation = Orientation.Horizontal, Spacing = 0, Children = { chip, remove } };
             return new AssignedChip { Host = host, Button = chip, Remove = remove, Tag = assignment.Tag.Id, State = assignment.State };
         }
 
-        // State is never colour alone: a check on a filled chip (all), a half-filled square on an outlined chip (some).
-        private static Control StateGlyph(TagToggleState state)
+        // State is never colour alone: "on all" is the accent-tinted pill without a mark, "on some" is the quiet pill with an accent edge and a dash, so the
+        // two stay told apart by form as well. The dash is drawn (stroke 2, the icon weight), never a text character.
+        private static Control? StateGlyph(TagToggleState state)
         {
-            // Stroke 2 for the check, 1.5 for the square outline (the icon weights); the half fill has no stroke.
-            Path Part(string data, double stroke)
-            {
-                Path path = new() { Width = 12, Height = 12, Stretch = Stretch.None, IsHitTestVisible = false,
-                    StrokeLineCap = PenLineCap.Round, StrokeJoin = PenLineJoin.Round, VerticalAlignment = VerticalAlignment.Center };
-                path.StrokeThickness = stroke;
-                path.Bind(stroke > 0 ? Shape.StrokeProperty : Shape.FillProperty, path.GetObservable(TextElement.ForegroundProperty));
-                path.AttachedToVisualTree += (_, _) => path.Data ??= Geometry.Parse(data);
-                return path;
-            }
-            Control glyph = state == TagToggleState.All ? Part(CheckGeometry, 2)
-                : new Grid { Width = 12, Height = 12, VerticalAlignment = VerticalAlignment.Center, Children = { Part(PartialOutline, 1.5), Part(PartialFill, 0) } };
-            AutomationProperties.SetAccessibilityView(glyph, AccessibilityView.Raw);
-            return glyph;
+            if (state == TagToggleState.All) return null;
+            Path dash = new() { Width = 12, Height = 12, Stretch = Stretch.None, IsHitTestVisible = false, StrokeThickness = 2,
+                StrokeLineCap = PenLineCap.Round, StrokeJoin = PenLineJoin.Round, VerticalAlignment = VerticalAlignment.Center };
+            dash.Bind(Shape.StrokeProperty, dash.GetObservable(TextElement.ForegroundProperty));
+            dash.AttachedToVisualTree += (_, _) => dash.Data ??= Geometry.Parse(DashGeometry);
+            AutomationProperties.SetAccessibilityView(dash, AccessibilityView.Raw);
+            return dash;
         }
     }
 

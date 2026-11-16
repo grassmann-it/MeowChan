@@ -580,7 +580,7 @@ public sealed class QuickTagSurfaceTests : IDisposable
             Assert.Equal(WorkspaceIcons.Close, WorkspaceIcons.KeyOf(surface.CloseButton.Content));
             Assert.Equal("Close", AutomationProperties.GetName(surface.CloseButton));
             Assert.Equal("Close · Esc", ToolTip.GetTip(surface.CloseButton));
-            Assert.Equal(HorizontalAlignment.Left, surface.Footer.HorizontalAlignment);
+            Assert.Equal(HorizontalAlignment.Stretch, surface.Footer.HorizontalAlignment); // the tag editor sits at the right edge of the row
             Assert.Equal(new Control[] { surface.UndoButton, surface.StampButton, surface.AdvancedButton }, surface.Footer.Children.ToArray());
             Assert.DoesNotContain(surface.CloseButton, surface.Footer.Children);
             Assert.False(surface.UndoButton.IsEnabled); // nothing to undo yet
@@ -637,12 +637,12 @@ public sealed class QuickTagSurfaceTests : IDisposable
 
             // Wide host: one row, the buttons keep their natural width, the last one takes what is left.
             Assert.False(surface.FooterStacked);
-            Assert.Equal(HorizontalAlignment.Left, surface.Footer.HorizontalAlignment);
+            Assert.Equal(HorizontalAlignment.Stretch, surface.Footer.HorizontalAlignment);
             Assert.Single(surface.Footer.RowDefinitions);
             Assert.Equal(3, surface.Footer.ColumnDefinitions.Count);
             Assert.Equal(new[] { 0, 1, 2 }, buttons.Select(Grid.GetColumn));
             Assert.All(buttons, button => Assert.Equal(0, Grid.GetRow(button)));
-            Assert.All(buttons, button => Assert.Equal(HorizontalAlignment.Left, button.HorizontalAlignment));
+            Assert.Equal(new[] { HorizontalAlignment.Left, HorizontalAlignment.Left, HorizontalAlignment.Right }, buttons.Select(button => button.HorizontalAlignment));
             AssertLabels();
 
             // Side panel width (the default panel is 320 dip wide): one column, one button per line, each at full width, 8 dip apart.
@@ -841,6 +841,64 @@ public sealed class QuickTagSurfaceTests : IDisposable
             await session.ToggleAsync(red);
             surface.Refresh();
             Assert.All(surface.AssignedButtons, item => Assert.Contains("on all 2", AutomationProperties.GetName(item.Chip)));
+        }
+    }
+
+    // Design plan "Rate and tag…" (16.11.2026): an assigned tag is one joined pill. The chip is the start, the cross the end, no gap; the pill's state class sits
+    // on both halves; the cross is not a tab stop; the check mark is gone (on all = tint only), a dash marks a tag that is on some of a selection.
+    [Fact]
+    public void AnAssignedTagIsOneJoinedPillWithTheCrossAsItsEndAndNoCheckMark()
+    {
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        PrivateTagStore store = new(temp.Path, lease);
+        MediaLibraryEntry first = Entry("a", 'a'), second = Entry("b", 'b');
+        TagId red = store.Define("red").Tag, blue = store.Define("blue").Tag;
+        store.SetMedia(red, MediaLibraryFilterEngine.TagTarget(first)!, true);
+        store.SetMedia(blue, MediaLibraryFilterEngine.TagTarget(first)!, true);
+        store.SetMedia(blue, MediaLibraryFilterEngine.TagTarget(second)!, true);
+        (QuickTagSurface surface, QuickTagSession session) = Surface(store, QuickTagTarget.For(Selection(store, first, second)));
+        using (session)
+        using (surface)
+        {
+            var chips = surface.AssignedButtons;
+            (Button all, Button allRemove, _) = chips[0];   // blue: on both
+            (Button some, Button someRemove, _) = chips[1]; // red: on one of two
+            Assert.Contains(WorkspaceChips.TagPillAssigned, allRemove.Classes);
+            Assert.Contains(WorkspaceChips.TagPillPartial, someRemove.Classes);
+            Assert.DoesNotContain(WorkspaceChips.TagPillPartial, allRemove.Classes);
+            Assert.All(new[] { all, some }, chip => Assert.Contains("tag-pill-joined", chip.Classes));
+            Assert.All(new[] { allRemove, someRemove }, remove =>
+            {
+                Assert.Contains("tag-pill-remove", remove.Classes);
+                Assert.Contains(WorkspaceIcons.SquareClass, remove.Classes); // kept: the 28 dip size of the pill's class replaces the 32
+                Assert.DoesNotContain("bar-flat", remove.Classes);
+                Assert.False(remove.IsTabStop); // Delete on the chip removes too: one stop per tag
+                Assert.True(remove.Focusable);  // still clickable and in the automation tree
+                Assert.Equal(WorkspaceIcons.CloseSmall, WorkspaceIcons.KeyOf(remove.Content));
+            });
+            Assert.True(all.IsTabStop);
+            Assert.True(some.IsTabStop);
+
+            // No gap between the halves: the host puts the cross right after the chip.
+            StackPanel host = Assert.IsType<StackPanel>(all.Parent);
+            Assert.Equal(0, host.Spacing);
+            Assert.Equal(new Control[] { all, allRemove }, host.Children.ToArray());
+            all.Width = 80; all.Height = 28; allRemove.Width = 28; allRemove.Height = 28;
+            host.Measure(new Avalonia.Size(400, 100));
+            host.Arrange(new Avalonia.Rect(0, 0, 400, 28));
+            Assert.Equal(all.Bounds.Right, allRemove.Bounds.Left);
+            Assert.Equal(all.Bounds.Height, allRemove.Bounds.Height);
+
+            // The pill's content: on all, only the label (no check); on some, the dash and the label. Names are unchanged.
+            StackPanel allContent = Assert.IsType<StackPanel>(all.Content), someContent = Assert.IsType<StackPanel>(some.Content);
+            Assert.Single(allContent.Children);
+            Assert.IsType<TextBlock>(allContent.Children[0]);
+            Assert.Equal(2, someContent.Children.Count);
+            Assert.IsType<Avalonia.Controls.Shapes.Path>(someContent.Children[0]);
+            Assert.Equal(Avalonia.Automation.Peers.AccessibilityView.Raw, AutomationProperties.GetAccessibilityView(someContent.Children[0]));
+            Assert.Equal("blue, on all 2 selected media files. Delete removes it from all.", AutomationProperties.GetName(all));
+            Assert.Equal("Remove red from all", AutomationProperties.GetName(someRemove));
         }
     }
 

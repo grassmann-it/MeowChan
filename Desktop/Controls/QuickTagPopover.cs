@@ -116,8 +116,22 @@ internal sealed record QuickTagPopoverOptions
 /// </summary>
 internal sealed class QuickTagPopover
 {
-    /// <summary>Width of the popover in dip (plan §3.2).</summary>
-    internal const double Width = 360;
+    /// <summary>
+    /// Default width of the popover in dip (plan §3.2 had 360; widened to 440 on 16.11.2026 - "the tagging dialog can be wider"): with the 12 dip frame padding
+    /// the content is 416 dip, which gives the suggestion strip about four chips per line and shows a file name of 24 characters in the title. A layout
+    /// constant, not a setting; <see cref="WidthFor"/> narrows it where the window is narrower.
+    /// </summary>
+    internal const double Width = 440;
+    /// <summary>The narrowest the popover gets in a very narrow window, in dip: the stars (5 x 24) and the remove button still fit with room to spare.</summary>
+    internal const double MinimumWidth = 280;
+    /// <summary>Air kept between the popover and each edge of the window it opens in, in dip.</summary>
+    internal const double HostMargin = 16;
+    /// <summary>
+    /// The width the popover takes in a window of <paramref name="hostWidth"/> dip: <see cref="Width"/>, never wider than the window minus
+    /// <see cref="HostMargin"/> on both sides and never narrower than <see cref="MinimumWidth"/>. An unknown width (0, not a number) keeps <see cref="Width"/>.
+    /// </summary>
+    internal static double WidthFor(double hostWidth) =>
+        double.IsNaN(hostWidth) || double.IsInfinity(hostWidth) || hostWidth <= 0 ? Width : Math.Min(Width, Math.Max(MinimumWidth, hostWidth - 2 * HostMargin));
     /// <summary>Technical bound of the height; the body of the surface scrolls beyond it. A layout measure, not a user limit.</summary>
     internal const double MaximumHeight = 520;
     private static readonly TimeSpan GuardInterval = TimeSpan.FromMilliseconds(250);
@@ -126,7 +140,7 @@ internal sealed class QuickTagPopover
     private readonly Control _anchor;
     private readonly QuickTagPopoverOptions _options;
     private readonly TaskCompletionSource<QuickTagPopoverCloseReason> _result = new(TaskCreationOptions.RunContinuationsAsynchronously);
-    private readonly Border _frame = new() { Padding = new Thickness(8), Width = Width, MaxHeight = MaximumHeight };
+    private readonly Border _frame = new() { Padding = new Thickness(12), Width = Width, MaxHeight = MaximumHeight };
     private readonly Action? _unsubscribe;
     private readonly QuickTagSession? _session;
     private readonly GalleryDecisionRow? _decisionRow;
@@ -153,6 +167,8 @@ internal sealed class QuickTagPopover
         _flyout.FlyoutPresenterClasses.Add("quick-tag-popover");
         _flyout.Content = _frame;
         _flyout.Closed += OnFlyoutClosed;
+        // The window may be narrower than the default width (a small window, the narrow reader or gallery): fitted when the flyout opens.
+        _flyout.Opening += OnFlyoutOpening;
         anchor.DetachedFromVisualTree += OnAnchorDetached;
         if (session != null) session.Updated += OnSessionUpdated;
     }
@@ -267,6 +283,8 @@ internal sealed class QuickTagPopover
     {
         GalleryDecisionRow row = new(options.Name + "Decision") { FavoriteVisible = decision.SetFavorite != null, KeyContext = options.TooltipKeyContext };
         row.Show(SafeView(decision));
+        // The caption (the rating value) is said when it changes; the gallery panel announces through its status line instead.
+        AutomationProperties.SetLiveSetting(row.Summary, AutomationLiveSetting.Polite);
         return row;
     }
 
@@ -350,6 +368,8 @@ internal sealed class QuickTagPopover
         }
         CheckCurrent();
     }
+
+    private void OnFlyoutOpening(object? sender, EventArgs e) => _frame.Width = WidthFor(TopLevel.GetTopLevel(_anchor)?.ClientSize.Width ?? 0);
 
     private void OnSessionUpdated() => CheckCurrent();
 

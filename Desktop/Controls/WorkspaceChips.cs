@@ -55,9 +55,9 @@ internal static class WorkspaceChips
     /// added to a chip button or a source-tag outline. Rest is a quiet filled pill, hover and pressed follow the toolbar buttons.
     /// </summary>
     internal const string TagPill = "tag-pill";
-    /// <summary>A tag pill that is assigned (accent tint, accent edge); the check or the label's tooltip states it too.</summary>
+    /// <summary>A tag pill that is assigned (accent tint, accent edge, no check mark); the section it sits in and the label's tooltip state it too.</summary>
     internal const string TagPillAssigned = "tag-pill-assigned";
-    /// <summary>A tag pill that is on some of a selection (quiet fill, accent edge, half-filled square).</summary>
+    /// <summary>A tag pill that is on some of a selection (quiet fill, accent edge, a dash).</summary>
     internal const string TagPillPartial = "tag-pill-partial";
     /// <summary>The content row of a tag pill (glyph or key hint, label); its gap is the Workspace.Space.TagKey token.</summary>
     internal const string TagPillContent = "tag-pill-content";
