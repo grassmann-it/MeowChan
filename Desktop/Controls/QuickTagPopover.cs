@@ -418,6 +418,7 @@ internal sealed class QuickTagPopover
         if (e.Handled) return;
         // Left, Right, Home and End rove along a focused star group (never read as moving the caret or the list).
         if (_decisionRow is { IsRatingFocused: true } stars && stars.RouteStarKey(e)) { e.Handled = true; return; }
+        if (!ShortcutService.IsCapturing && TryRouteDecisionKey(e, ShortcutService.Current)) { e.Handled = true; return; }
         if (Surface == null)
         {
             // A blocked popover has no list to close first: Esc closes it.
@@ -425,6 +426,23 @@ internal sealed class QuickTagPopover
             return;
         }
         if (!ShortcutService.IsCapturing && TryRouteCommand(Surface, e, ShortcutService.Current)) e.Handled = true;
+    }
+
+    /// <summary>
+    /// The keys the row's tooltips name: Shift+1 to Shift+5 rate, Shift+0 removes the rating (as in the gallery's tag panel: not while the field holds
+    /// text or its list is open, where a typed "!" or ")" stays typing) and, with the keyboard on the row itself, M adds, U removes and F toggles the
+    /// favourite. Without these the popover showed "Rating: 3 of 5 · Shift+3" and ignored the key. True when the row took the key.
+    /// </summary>
+    internal bool TryRouteDecisionKey(KeyEventArgs e, EffectiveShortcutBindings bindings)
+    {
+        if (_decisionRow is not { } row || _options.Decision == null) return false;
+        if (Surface is { } surface && surface.Input.IsKeyboardFocusWithin && (!string.IsNullOrEmpty(surface.Input.Text) || surface.Input.IsDropDownOpen)) return false;
+        for (int value = 1; value <= 5; value++)
+            if (bindings.Matches(e, "media.rating.set-" + value)) return row.RequestRating(value);
+        if (bindings.Matches(e, "media.rating.clear")) return row.RequestRating(null);
+        if (!row.IsKeyboardFocusWithin) return false; // M, U and F are letters: they only mean "favourite" while the keyboard is on the row, never in the field
+        FavoriteKeyAction action = FavoriteKeys.Classify(id => bindings.Matches(e, id));
+        return action != FavoriteKeyAction.None && row.RequestFavorite(action);
     }
 
     /// <summary>

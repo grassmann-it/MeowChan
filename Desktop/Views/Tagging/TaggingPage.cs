@@ -56,7 +56,9 @@ public sealed partial class TaggingPage : UserControl
     private readonly TextBlock _filterLabel = new() { VerticalAlignment = VerticalAlignment.Center };
     private readonly ComboBox _filter = new() { Name = "TaggingFilter", MinWidth = 160 };
     private readonly HelpButton _help = new() { Name = "TaggingHelp", HelpKey = "help.taggingPage" };
-    private readonly Grid _columnHeader = new() { Name = "TaggingColumns", ColumnDefinitions = TaggingQueueRowView.BuildColumns(true), ColumnSpacing = TaggingQueueRowView.ColumnGap, Margin = new Thickness(12, 0, 12, 0) };
+    private readonly Grid _columnHeader = new() { Name = "TaggingColumns", ColumnDefinitions = TaggingQueueRowView.BuildColumns(true), ColumnSpacing = TaggingQueueRowView.ColumnGap, Margin = new Thickness(12, 0, 12, 0),
+        // A right-click between the header words has to find the header too (it carries the column menu), so it takes a transparent fill.
+        Background = Brushes.Transparent };
     private readonly ListBox _list = new() { Name = "TaggingList", SelectionMode = SelectionMode.Multiple };
     private readonly TextBlock _empty = new() { Name = "TaggingEmpty" };
     private readonly WorkspaceEmptyState _emptyState = new() { Name = "TaggingEmptyState", IsVisible = false };
@@ -82,6 +84,9 @@ public sealed partial class TaggingPage : UserControl
         _queueWork = new TaggingQueueController(host);
         _thumbnails = new TaggingThumbnails(_lifetime.Token);
         Name = "TaggingPage";
+        // Every key of the page runs in the "tagging" context, as the commands of its queue list are declared (tagging.remove, media.tile-size.*): a default
+        // that a saved binding took away only elsewhere (a partial yield) stays active here (EffectiveShortcutBindings.EnterKeyContext).
+        MeowChan.Desktop.Controls.KeyContextHost.Install(this, _ => "tagging");
         Content = BuildLayout();
         _start.Click += (_, _) => OpenActions.Start(() => StartAsync(null), "tagging.start");
         _lastShown.Click += (_, _) => OpenActions.Start(() => StartAsync(null), "tagging.start");
@@ -265,6 +270,7 @@ public sealed partial class TaggingPage : UserControl
     internal async Task RetryLoadAsync()
     {
         if (!_queueWork.CanReload) return;
+        bool hadFocus = _retryLoad.IsFocused;
         ShowStatus(Texts.T("tagging.page.loading"));
         _retryLoad.IsEnabled = false;
         UpdateActions();
@@ -272,6 +278,10 @@ public sealed partial class TaggingPage : UserControl
         if (_queueWork.Ended) return;
         Show();
         ShowStatus(null);
+        // The banner (and with it the button that had the focus) is gone when the file could be read: the keyboard goes on to the list.
+        if (!hadFocus) return;
+        if (_queueWork.ErrorText == null) FocusContent();
+        else if (_retryLoad.IsEffectivelyEnabled) _retryLoad.Focus(); // still unreadable: the button the keyboard was on stays its place
     }
 
     /// <summary>Shows the host's last committed queue when it differs from the shown one (another surface added or decided).</summary>

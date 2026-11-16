@@ -76,10 +76,11 @@ public sealed partial class TaggingPage
         };
         _gridMenuHost = new ContextMenuHost(_grid, ComposeRowMenu, fallbackFocus: () => FocusContent());
         _grid.AddHandler(KeyDownEvent, OnListKeyDown, RoutingStrategies.Tunnel);
+        // Like the list: a double-click that cannot continue says why (ExecuteRowCommandAsync explains) instead of doing nothing.
         _grid.DoubleTapped += (_, e) =>
         {
-            if (e.Source is Visual visual && visual.FindAncestorOfType<ListBoxItem>(includeSelf: true) != null && CanRowCommand(TaggingCommands.ContinueHere))
-                OpenActions.Start(() => ExecuteRowCommandAsync(TaggingCommands.ContinueHere), "tagging.grid.doubleClick");
+            if (e.Source is Visual visual && visual.FindAncestorOfType<ListBoxItem>(includeSelf: true) != null)
+                OpenActions.Start(() => ExecuteRowCommandAsync(TaggingCommands.ContinueHere, explain: true), "tagging.grid.doubleClick");
         };
         _grid.SelectionChanged += OnSelectionChanged;
         InstallMiddleClick(_grid);

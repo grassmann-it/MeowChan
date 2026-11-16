@@ -125,7 +125,7 @@ public sealed class TaggingPageLinksTests : IDisposable
     {
         string commands = Source("Desktop/Views/Tagging/TaggingPage.Commands.cs");
         Assert.Contains("_list.DoubleTapped += (_, e) =>", commands);
-        Assert.Contains("OpenActions.Start(() => ExecuteRowCommandAsync(\"tagging.continue-here\"), \"tagging.list.doubleClick\");", commands);
+        Assert.Contains("OpenActions.Start(() => ExecuteRowCommandAsync(\"tagging.continue-here\", explain: true), \"tagging.list.doubleClick\");", commands);
         Assert.Contains("TaggingCommands.ContinueHere => StartAsync(lead.Index),", commands);
         Assert.Contains("ShowStatus(Texts.T(\"tagging.page.continue.notOpen\"));", commands);
         Assert.Equal("Enter", MeowChan.Desktop.Commands.CommandCatalog.Get("tagging.continue-here").Shortcut);

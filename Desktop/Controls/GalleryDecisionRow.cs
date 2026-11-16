@@ -105,6 +105,34 @@ internal sealed class GalleryDecisionRow : StackPanel
         return true;
     }
 
+    /// <summary>
+    /// A rating key (Shift+1 to Shift+5, Shift+0): the request a click on that star (or on the remove button) makes. False when the row cannot rate now
+    /// (nothing shown, disabled), so the key is not taken.
+    /// </summary>
+    internal bool RequestRating(int? value)
+    {
+        if (!_view.Available || value is < 1 or > 5) return false;
+        if (value == null && !_view.Rating.HasValue && !_view.RatingMixed) return true; // nothing to remove: the key is the row's, it changes nothing
+        Show(_view);
+        RatingRequested?.Invoke(value);
+        return true;
+    }
+
+    /// <summary>
+    /// A favourite key (M adds, U removes, F toggles): the request the button makes, as an explicit flag. A key that changes nothing (add on a
+    /// favourite) is the row's and does nothing; false when the row has no favourite call or cannot act.
+    /// </summary>
+    internal bool RequestFavorite(FavoriteKeyAction action)
+    {
+        if (!_view.Available || !FavoriteVisible || action == FavoriteKeyAction.None) return false;
+        bool wanted = action switch { FavoriteKeyAction.Add => true, FavoriteKeyAction.Remove => false, _ => _view.NextFavorite };
+        bool all = _view.Favorite == GalleryDecisionCoverage.All, none = _view.Favorite == GalleryDecisionCoverage.None;
+        if (action == FavoriteKeyAction.Add && all || action == FavoriteKeyAction.Remove && none) return true;
+        Show(_view);
+        FavoriteRequested?.Invoke(wanted);
+        return true;
+    }
+
     /// <summary>The favorite button was pressed: the flag the targets should get (every target not yet a favorite becomes one).</summary>
     internal event Action<bool>? FavoriteRequested;
     /// <summary>A star (1–5) or the remove button (null) was pressed.</summary>

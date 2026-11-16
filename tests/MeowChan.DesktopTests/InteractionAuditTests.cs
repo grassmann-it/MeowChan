@@ -227,8 +227,8 @@ public sealed class InteractionAuditTests
         Assert.Equal(2, Count(shortcuts, "StartRecording(replace: true);"));
         // Tagging list and grid: continue here, the Enter command of the list.
         Assert.Equal("Enter", CommandCatalog.Get("tagging.continue-here").Shortcut);
-        Assert.Contains("ExecuteRowCommandAsync(TaggingCommands.ContinueHere)", Read("Desktop/Views/Tagging/TaggingPage.Grid.cs"));
-        Assert.Contains("ExecuteRowCommandAsync(\"tagging.continue-here\")", Read("Desktop/Views/Tagging/TaggingPage.Commands.cs"));
+        Assert.Contains("ExecuteRowCommandAsync(TaggingCommands.ContinueHere, explain: true)", Read("Desktop/Views/Tagging/TaggingPage.Grid.cs"));
+        Assert.Contains("ExecuteRowCommandAsync(\"tagging.continue-here\", explain: true)", Read("Desktop/Views/Tagging/TaggingPage.Commands.cs"));
         // Archive media list and tiles: the gallery at the asset, from both gestures.
         Assert.Equal(2, Count(Read("Desktop/Views/Archive/ArchivePage.Gallery.cs"), "OpenAssetGalleryAsync(row, e.Source as Control), \"archive.media.open\""));
         // Sources watch list and Downloads boards: only on a row, never on empty space.
