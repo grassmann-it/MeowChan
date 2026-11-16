@@ -357,7 +357,13 @@ internal static partial class GalleryPlaybackFeatureChecks
             Require(ProvesNativeUnavailable(before) && before.State == "Playing"
                 && !volume.IsEffectivelyEnabled && !mute.IsEffectivelyEnabled && !player.CanAdjustVolume,
                 "Native no-output volume check requires disabled controls and actual unavailable evidence.");
-            await native.MoveAsync(volume, SliderPoint(volume, .65));
+            // The disabled popup slider is a geometry-only invariance probe. Resolve
+            // its current presentation and track point together, but do not require
+            // disabled-control hit-test ownership; enabled edits remain strict below.
+            await native.MoveAsync(
+                () => Task.FromResult(volume),
+                current => Task.FromResult((Point?)SliderPoint(current, .65)),
+                requireEnabled: false, requireHitTest: false);
             await native.ButtonAsync(true);
             await native.ButtonAsync(false);
             await ObservePlayingAsync(player, "disabled volume click");
