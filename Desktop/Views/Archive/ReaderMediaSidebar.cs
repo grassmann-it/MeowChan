@@ -317,6 +317,11 @@ internal sealed class ReaderMediaSidebar : Border
     internal double HeaderHeight { get => _header.Height; set => _header.Height = value; }
     internal Image Picture => _image;
     internal Bitmap? Shown => _bitmap;
+    /// <summary>
+    /// The load state of the picture (which load is the latest, which medium is shown and how large): the host asks it before it decodes, the view
+    /// tells it what it shows, so the picture never flashes back to "Loading…" (<see cref="ReaderMediaSidebarLoadState"/>).
+    /// </summary>
+    internal ReaderMediaSidebarLoadState Load { get; } = new();
     internal string LiveText => _live.Text ?? string.Empty;
     internal string StatusText => _status.IsVisible ? _status.Text ?? string.Empty : string.Empty;
     internal bool IsDimmed => _image.Opacity < 1;
@@ -574,8 +579,13 @@ internal sealed class ReaderMediaSidebar : Border
         RefreshHeader();
     }
 
-    /// <summary>Shows a decoded picture; the previous one is given back. <paramref name="release"/> gives this one back later.</summary>
-    internal void ShowPicture(Bitmap bitmap, Action<Bitmap> release, bool playable, double maximumWidth, double maximumHeight)
+    /// <summary>
+    /// Shows a decoded picture; the previous one is given back in the same step (a larger decode of the same medium swaps in place, nothing in between).
+    /// <paramref name="release"/> gives this one back later. <paramref name="mediumKey"/> names the medium (<see cref="Load"/>: shown again, it is not
+    /// decoded again while this picture still covers the frame); <paramref name="source"/> is its source size when known.
+    /// </summary>
+    internal void ShowPicture(Bitmap bitmap, Action<Bitmap> release, bool playable, double maximumWidth, double maximumHeight,
+        string? mediumKey = null, PixelSize? source = null)
     {
         ReleasePicture();
         _bitmap = bitmap;
@@ -592,6 +602,25 @@ internal sealed class ReaderMediaSidebar : Border
         _badgesOn = true; _playable = playable;
         UpdateBadges();
         UpdateFrameCursor();
+        Load.Showed(mediumKey, bitmap.PixelSize, source);
+    }
+
+    /// <summary>The largest logical size of the shown picture again (the gallery's fit limit changed while the picture itself still fits).</summary>
+    internal void LimitPicture(double maximumWidth, double maximumHeight)
+    {
+        if (_bitmap == null) return;
+        _image.MaxWidth = maximumWidth;
+        _image.MaxHeight = maximumHeight;
+    }
+
+    /// <summary>
+    /// A medium that is not ready after <see cref="ReaderMediaSidebarRules.PlaceholderDelayMs"/>, as <see cref="ReaderMediaSidebarLoadState.LoadingLook"/>
+    /// decided: the previous picture dims under the text, or the placeholder carries it; <see cref="ReaderMediaLoadingLook.Keep"/> changes nothing.
+    /// </summary>
+    internal void ShowLoading(ReaderMediaLoadingLook look, string text)
+    {
+        if (look == ReaderMediaLoadingLook.DimPrevious && _bitmap != null) Dim(text);
+        else if (look != ReaderMediaLoadingLook.Keep) ShowPlaceholder(text);
     }
 
     /// <summary>The placeholder with a short text (loading, cannot be shown); the previous picture is given back.</summary>
@@ -628,6 +657,7 @@ internal sealed class ReaderMediaSidebar : Border
         _status.Text = text;
         _status.IsVisible = text.Length > 0;
         UpdateFrameCursor();
+        Load.Dimmed();
     }
 
     /// <summary>No post is selected (or the reader closed): nothing kept.</summary>
@@ -794,6 +824,7 @@ internal sealed class ReaderMediaSidebar : Border
         _bitmap = null;
         _release = null;
         _image.Source = null;
+        Load.Cleared();
         if (bitmap != null) release?.Invoke(bitmap);
     }
 }

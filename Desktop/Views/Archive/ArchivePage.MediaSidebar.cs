@@ -44,10 +44,12 @@ public partial class ArchivePage
     private DispatcherTimer? _sidebarFollowTimer, _sidebarAnnounceTimer, _sidebarPlaceholderTimer;
     private CancellationTokenSource? _sidebarLoading;
     private CancellationTokenSource? _sidebarStripLoading;
-    private int _sidebarRequest, _sidebarPlaceholderRequest;
+    // The load tokens, the shown medium and its decoded size live in the view's load state (ReaderMediaSidebarLoadState); the page keeps the token the
+    // loading timer stands for and the pixel line of the shown picture (a refresh of the same medium writes it again without a decode).
+    private int _sidebarPlaceholderRequest;
     private string? _sidebarPostKey;
     private int _sidebarIndex;
-    private PixelSize? _sidebarSource;
+    private string _sidebarShownDetail = string.Empty;
     private string _sidebarAnnouncement = string.Empty;
     private GalleryFitPreferences _sidebarFit = new();
 
@@ -101,6 +103,8 @@ public partial class ArchivePage
         frame.Children.Add(pane);
         _mediaSidebarAppliedWidth = double.NaN;
         LayoutMediaSidebar(force: true);
+        // The move kept the picture for this host; a large reader that does not show the sidebar gives it back.
+        if (!_mediaSidebarShown) ReleaseKeptMediaSidebarPicture();
         return frame;
     }
 
@@ -115,8 +119,13 @@ public partial class ArchivePage
             _frameTabScope?.Dispose();
             _frameTabScope = null;
             _tabScopeOnFrame = false;
-            if (_mediaSidebarShown) SetMediaSidebarShown(false);
-            Dispatcher.UIThread.Post(() => { if (!_ended && !_largeReader) LayoutMediaSidebar(force: true); }, DispatcherPriority.Loaded);
+            // The picture stays for the archive view, which shows the same medium at once if it shows the sidebar; otherwise it is given back then.
+            if (_mediaSidebarShown) SetMediaSidebarShown(false, keepPicture: true);
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (!_ended && !_largeReader) LayoutMediaSidebar(force: true);
+                if (!_mediaSidebarShown) ReleaseKeptMediaSidebarPicture();
+            }, DispatcherPriority.Loaded);
         }
         return pane;
     }
@@ -188,7 +197,9 @@ public partial class ArchivePage
         _movingMediaSidebar = true;
         try
         {
-            if (_mediaSidebarShown) SetMediaSidebarShown(false);
+            // Hidden for the move, the picture stays: the new host shows the same medium without flashing it away (WrapLargeReader gives it back
+            // when that host does not show the sidebar).
+            if (_mediaSidebarShown) SetMediaSidebarShown(false, keepPicture: true);
             Grid pane = ArchiveReaderPane;
             if (_mediaSidebarHost is { } previous)
             {
@@ -304,7 +315,7 @@ public partial class ArchivePage
         _tabScopeOnFrame = sidebarShown;
     }
 
-    private void SetMediaSidebarShown(bool shown)
+    private void SetMediaSidebarShown(bool shown, bool keepPicture = false)
     {
         _mediaSidebarShown = shown;
         if (shown)
@@ -313,12 +324,14 @@ public partial class ArchivePage
             _sidebarPostKey = null;
             RefreshMediaSidebar();
         }
-        else HideMediaSidebarContent();
+        else HideMediaSidebarContent(keepPicture);
         // Last: the setter re-applies the live media options, which lays the sidebar out again (now a no-op).
         FocusedMediaPresentedElsewhere = shown;
     }
 
-    private void HideMediaSidebarContent()
+    // Hidden: every load and timer stops. The picture is given back, unless the sidebar only moves to the other host (keepPicture): then it stays,
+    // without its strip, until the new host shows the sidebar (the same medium then needs no placeholder) or ReleaseKeptMediaSidebarPicture.
+    private void HideMediaSidebarContent(bool keepPicture = false)
     {
         CancelMediaSidebarLoad();
         _sidebarFollowTimer?.Stop();
@@ -326,10 +339,18 @@ public partial class ArchivePage
         _sidebarPlaceholderTimer?.Stop();
         _sidebarThrottle.Reset();
         _sidebarPostKey = null;
-        _sidebarSource = null;
         _mediaSidebarDirty = false;
         CancelSidebarStripLoad();
         OfferSidebarVideo(null, null);
+        if (keepPicture) _mediaSidebar?.ClearStrip();
+        else ReleaseKeptMediaSidebarPicture();
+    }
+
+    // The hidden sidebar keeps nothing (the picture goes back to its cache).
+    private void ReleaseKeptMediaSidebarPicture()
+    {
+        if (_mediaSidebarShown) return;
+        _sidebarShownDetail = string.Empty;
         _mediaSidebar?.ShowEmpty();
     }
 
@@ -482,12 +503,13 @@ public partial class ArchivePage
     }
 
     // A wider or taller picture frame than the shown decode covers asks for one larger decode (through the same throttle).
+    // Within NeedsLargerDecode's margin (the alignment's inset corrections, sub-dip layout jitter) nothing is decoded; the larger decode swaps in place.
     private void OnMediaSidebarFrameResized()
     {
         if (!_mediaSidebarShown || _mediaSidebar is not { Shown: { } shown } sidebar) return;
         (double Width, double Height) needed = ReaderMediaSidebarRules.PhysicalTarget(sidebar.Frame.Bounds.Size,
             TopLevel.GetTopLevel(sidebar)?.RenderScaling ?? 1);
-        if (!ReaderMediaSidebarRules.NeedsLargerDecode(shown.PixelSize, needed, _sidebarSource)) return;
+        if (!ReaderMediaSidebarRules.NeedsLargerDecode(shown.PixelSize, needed, sidebar.Load.ShownSource)) return;
         OnMediaSidebarSelectionChanged();
     }
 
@@ -499,7 +521,7 @@ public partial class ArchivePage
 
     private void CancelMediaSidebarLoad()
     {
-        ++_sidebarRequest;
+        _mediaSidebar?.Load.Cancel();
         CancellationTokenSource? loading = _sidebarLoading;
         _sidebarLoading = null;
         try { loading?.Cancel(); } catch (ObjectDisposedException) { }
@@ -513,7 +535,6 @@ public partial class ArchivePage
         if (_obscuredByGallery) { _mediaSidebarDirty = true; return; }
         _mediaSidebarDirty = false;
         CancelMediaSidebarLoad();
-        int request = _sidebarRequest;
         ArchivePostRow? post = ArchivePosts.SelectedItem as ArchivePostRow;
         string? key = post == null ? null : _thread?.Summary.Id + "\n" + post.Id;
         bool samePost = string.Equals(key, _sidebarPostKey, StringComparison.Ordinal);
@@ -545,15 +566,35 @@ public partial class ArchivePage
         // The position of the medium in its post is the strip's and the announcement's; the header line names the post, the file and its size.
         string postLine = post.NumberLabel;
         string size = file.Size is > 0 and long bytes ? SizeText.Format(bytes) : string.Empty;
+        // Tom (16.11.2026): the medium already shown (a rebuilt page, a refreshed thread, a larger frame, the sidebar back from the other host) keeps
+        // its picture: no load at all while it covers the frame, otherwise a larger decode that swaps in place (ReaderMediaSidebarLoadState).
+        string mediumKey = SidebarMediumKey(post, row);
+        (double Width, double Height) target = MediaSidebarTarget(sidebar);
+        ReaderMediaLoadTicket ticket = sidebar.Load.Begin(mediumKey, target);
         sidebar.Describe(postLine, file.Name, size, row.OpenPreview != null, post.CopyNumberLabel);
+        if (ticket.SameMedium && _sidebarShownDetail.Length > 0) sidebar.SetDetail(_sidebarShownDetail);
         sidebar.ConfigureFavorite(row);
         UpdateSidebarStrip(sidebar, post, samePost);
         OfferSidebarVideo(post, row);
         ScheduleSidebarAnnouncement(ReaderMediaSidebarRules.RegionText(post.Id, _sidebarIndex, count, file));
         CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         _sidebarLoading = loading;
-        MediaSidebarTask = LoadMediaSidebarAsync(sidebar, post, row, size, request, loading.Token);
+        if (ticket.UpToDate)
+        {
+            // Nothing to decode: only the gallery's fit limit may have changed (the picture's largest size); a video's autoplay is offered as after
+            // a load (it starts nothing that already plays) and the neighbours are warmed again.
+            if (sidebar.Load.ShownSource is { } source)
+                sidebar.LimitPicture(ReaderMediaSidebarRules.MaximumDisplay(source.Width, _sidebarFit), ReaderMediaSidebarRules.MaximumDisplay(source.Height, _sidebarFit));
+            ScheduleSidebarVideoAutoplay();
+            MediaSidebarTask = RewarmMediaSidebarNeighboursAsync(post, target, loading.Token);
+            return;
+        }
+        MediaSidebarTask = LoadMediaSidebarAsync(sidebar, post, row, size, mediumKey, ticket, target, loading.Token);
     }
+
+    // The identity of a medium in the sidebar: the thread, the post and the attachment (as the inline video's slot keys it), stable across rebuilt rows.
+    private string SidebarMediumKey(ArchivePostRow post, ArchiveAttachmentRow row) =>
+        _thread?.Summary.Id + "\n" + post.Id + "\n" + ReaderInlineVideoSlot.KeyOf(row.Attachment);
 
     // ---- the thumbnail strip of a post with several files (R11) ----------------------------------------------------------------------
 
@@ -617,7 +658,7 @@ public partial class ArchivePage
         timer.Start();
     }
 
-    private bool IsCurrentSidebarRequest(int request) => !_ended && _mediaSidebarShown && request == _sidebarRequest;
+    private bool IsCurrentSidebarRequest(int request) => !_ended && _mediaSidebarShown && _mediaSidebar is { } sidebar && sidebar.Load.IsCurrent(request);
 
     // The frame's size in physical pixels; before the first layout an estimate from the configured width and the window height.
     private (double Width, double Height) MediaSidebarTarget(ReaderMediaSidebar sidebar)
@@ -631,26 +672,33 @@ public partial class ArchivePage
         return ReaderMediaSidebarRules.PhysicalTarget(frame, TopLevel.GetTopLevel(sidebar)?.RenderScaling ?? TopLevel.GetTopLevel(this)?.RenderScaling ?? 1);
     }
 
-    private async Task LoadMediaSidebarAsync(ReaderMediaSidebar sidebar, ArchivePostRow post, ArchiveAttachmentRow row, string size,
-        int request, CancellationToken token)
+    private async Task LoadMediaSidebarAsync(ReaderMediaSidebar sidebar, ArchivePostRow post, ArchiveAttachmentRow row, string size, string key,
+        ReaderMediaLoadTicket ticket, (double Width, double Height) target, CancellationToken token)
     {
-        // A warm cache answers within a frame and the old picture simply gives way; a cold one shows the placeholder (with the file
-        // line already above it) after PlaceholderDelayMs instead of a stale picture.
+        int request = ticket.Request;
+        // A warm cache answers within a frame and the old picture simply gives way. A cold one: after PlaceholderDelayMs the previous medium's picture
+        // dims under "Loading…" (with the file line already above it), the placeholder only stands in when nothing is shown. A larger decode of the
+        // medium already shown starts no timer: its picture stays until the new one swaps in. The timer stops the moment this load shows its picture or
+        // its final text, not after the neighbours it preloads (Tom, 16.11.2026: the picture flashed up and then turned into "Loading…").
         DispatcherTimer placeholder = _sidebarPlaceholderTimer ??= CreateSidebarTimer(() =>
         {
-            if (IsCurrentSidebarRequest(_sidebarPlaceholderRequest)) _mediaSidebar?.ShowPlaceholder(Texts.T("reader.sidebar.loading"));
+            if (IsCurrentSidebarRequest(_sidebarPlaceholderRequest) && _mediaSidebar is { } shown)
+                shown.ShowLoading(shown.Load.LoadingLook(_sidebarPlaceholderRequest), Texts.T("reader.sidebar.loading"));
         });
-        _sidebarPlaceholderRequest = request;
         placeholder.Stop();
-        placeholder.Interval = TimeSpan.FromMilliseconds(ReaderMediaSidebarRules.PlaceholderDelayMs);
-        placeholder.Start();
+        if (!ticket.SameMedium)
+        {
+            _sidebarPlaceholderRequest = request;
+            placeholder.Interval = TimeSpan.FromMilliseconds(ReaderMediaSidebarRules.PlaceholderDelayMs);
+            placeholder.Start();
+        }
         try
         {
-            (double Width, double Height) target = MediaSidebarTarget(sidebar);
             GalleryEntry? entry = row.ResolveEntry == null ? null : await row.ResolveEntry(token);
             if (!IsCurrentSidebarRequest(request)) return;
             if (entry == null)
             {
+                placeholder.Stop();
                 sidebar.ShowPlaceholder(Texts.T("archive.notSaved"));
                 return;
             }
@@ -659,22 +707,30 @@ public partial class ArchivePage
                 (Bitmap bitmap, GalleryImageInfo info) = await GalleryImageCache.DecodeAsync(entry,
                     new GalleryDecodeRequest.Fit(target.Width, target.Height), token);
                 if (!IsCurrentSidebarRequest(request)) { GalleryImageCache.Shared.Release(bitmap); return; }
-                _sidebarSource = new PixelSize(info.Width, info.Height);
+                placeholder.Stop();
                 sidebar.ShowPicture(bitmap, GalleryImageCache.Shared.Release, info.StillFrame,
-                    ReaderMediaSidebarRules.MaximumDisplay(info.Width, _sidebarFit), ReaderMediaSidebarRules.MaximumDisplay(info.Height, _sidebarFit));
-                sidebar.SetDetail((size.Length > 0 ? size + " · " : string.Empty) + $"{info.Width}×{info.Height}");
+                    ReaderMediaSidebarRules.MaximumDisplay(info.Width, _sidebarFit), ReaderMediaSidebarRules.MaximumDisplay(info.Height, _sidebarFit),
+                    key, new PixelSize(info.Width, info.Height));
+                _sidebarShownDetail = (size.Length > 0 ? size + " · " : string.Empty) + $"{info.Width}×{info.Height}";
+                sidebar.SetDetail(_sidebarShownDetail);
             }
             else if (entry.Kind == SavedMediaKind.Video && row.LoadSized is { } poster)
             {
                 Bitmap? bitmap = await poster((int)target.Width, (int)target.Height, token);
                 if (!IsCurrentSidebarRequest(request)) { if (bitmap != null) MediaTileThumbnails.Release(bitmap); return; }
-                _sidebarSource = null;
-                if (bitmap == null) sidebar.ShowPlaceholder(Texts.T("reader.sidebar.unavailable"));
-                else sidebar.ShowPicture(bitmap, MediaTileThumbnails.Release, playable: true, double.PositiveInfinity, double.PositiveInfinity);
+                placeholder.Stop();
+                // No poster at the new size: a poster of this video that is already shown stays.
+                if (bitmap == null) { if (!string.Equals(sidebar.Load.ShownKey, key, StringComparison.Ordinal)) sidebar.ShowPlaceholder(Texts.T("reader.sidebar.unavailable")); }
+                else
+                {
+                    sidebar.ShowPicture(bitmap, MediaTileThumbnails.Release, playable: true, double.PositiveInfinity, double.PositiveInfinity, key);
+                    _sidebarShownDetail = size;
+                }
                 ScheduleSidebarVideoAutoplay();
             }
             else
             {
+                placeholder.Stop();
                 sidebar.ShowPlaceholder(Texts.T("reader.sidebar.unavailable"));
                 return;
             }
@@ -683,16 +739,24 @@ public partial class ArchivePage
         catch (OperationCanceledException) { }
         catch (Exception error)
         {
-        {
-            // The shown medium's own failure: a localized sentence, the cause in the log (never the exception's English text).
+            // The shown medium's own failure: a localized sentence, the cause in the log (never the exception's English text). A picture of this
+            // medium that is already shown (a larger decode failed, or a later step) stays.
             Serilog.Log.Warning(error, "Showing a media sidebar item failed");
-            if (IsCurrentSidebarRequest(request)) sidebar.ShowPlaceholder(Texts.T("reader.sidebar.unavailable"));
-        }
+            if (IsCurrentSidebarRequest(request) && !string.Equals(sidebar.Load.ShownKey, key, StringComparison.Ordinal))
+                sidebar.ShowPlaceholder(Texts.T("reader.sidebar.unavailable"));
         }
         finally
         {
             if (IsCurrentSidebarRequest(request)) placeholder.Stop();
         }
+    }
+
+    // A refresh that found the shown picture up to date warms the neighbours again (the load it replaced may have been cancelled before it did).
+    private async Task RewarmMediaSidebarNeighboursAsync(ArchivePostRow post, (double Width, double Height) target, CancellationToken token)
+    {
+        try { await PreloadMediaSidebarNeighboursAsync(post, target, token); }
+        catch (OperationCanceledException) { }
+        catch (Exception error) { Serilog.Log.Debug(error, "The media sidebar's neighbours could not be warmed again"); }
     }
 
     // The next medium of this post and the first of the posts before and after it, decoded in the background into the gallery cache

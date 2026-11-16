@@ -42,8 +42,8 @@ public sealed partial class MediaPage
     private readonly Stopwatch _panelClock = Stopwatch.StartNew();
     private DispatcherTimer? _panelFollowTimer, _panelAnnounceTimer, _panelPlaceholderTimer;
     private CancellationTokenSource? _panelLoading;
-    private int _panelRequest, _panelPlaceholderRequest;
-    private PixelSize? _panelSource;
+    // The load tokens, the shown medium and its decoded size live in the view's load state (ReaderMediaSidebarLoadState).
+    private int _panelPlaceholderRequest;
     private string _panelAnnouncement = string.Empty;
     private GalleryFitPreferences _panelFit = new();
     private readonly PressOpenedContextGate _panelPointerContext = new();
@@ -199,7 +199,6 @@ public sealed partial class MediaPage
         _panelAnnounceTimer?.Stop();
         _panelPlaceholderTimer?.Stop();
         _panelThrottle.Reset();
-        _panelSource = null;
         _panelRow = _panelWanted = null;
         _panelSizeText = _panelDimensions = string.Empty;
         OfferPanelVideo(null);
@@ -291,20 +290,20 @@ public sealed partial class MediaPage
     {
         if (!_panelShown || _panel is not { Shown: { } shown } panel) return;
         (double Width, double Height) needed = ReaderMediaSidebarRules.PhysicalTarget(panel.Frame.Bounds.Size, TopLevel.GetTopLevel(panel)?.RenderScaling ?? 1);
-        if (!ReaderMediaSidebarRules.NeedsLargerDecode(shown.PixelSize, needed, _panelSource)) return;
+        if (!ReaderMediaSidebarRules.NeedsLargerDecode(shown.PixelSize, needed, panel.Load.ShownSource)) return;
         RequestPanel(_panelRow);
     }
 
     private void CancelPanelLoad()
     {
-        ++_panelRequest;
+        _panel?.Load.Cancel();
         CancellationTokenSource? loading = _panelLoading;
         _panelLoading = null;
         try { loading?.Cancel(); } catch (ObjectDisposedException) { }
         loading?.Dispose();
     }
 
-    private bool IsCurrentPanelRequest(int request) => !_lifetime.IsCancellationRequested && _panelShown && request == _panelRequest;
+    private bool IsCurrentPanelRequest(int request) => !_lifetime.IsCancellationRequested && _panelShown && _panel is { } panel && panel.Load.IsCurrent(request);
 
     // ---- showing the medium -------------------------------------------------------------------------------------------------------
 
@@ -315,7 +314,6 @@ public sealed partial class MediaPage
         if (_panelObscured) { _panelDirty = true; return; }
         _panelDirty = false;
         CancelPanelLoad();
-        int request = _panelRequest;
         MediaLibraryTileRow? row = _panelWanted;
         bool same = row != null && _panelRow != null && MediaLibraryTileKey.Of(row.Tile) == MediaLibraryTileKey.Of(_panelRow.Tile);
         _panelRow = row;
@@ -329,15 +327,31 @@ public sealed partial class MediaPage
         }
         MediaLibraryEntry entry = row.Entry;
         _panelSizeText = entry.Length is > 0 and long bytes ? SizeText.Format(bytes) : string.Empty;
+        // Tom (16.11.2026): the medium already shown (a larger frame, a changed fit limit, a rebuilt grid) keeps its picture: no load while it covers the
+        // frame, otherwise a larger decode that swaps in place (ReaderMediaSidebarLoadState).
+        string mediumKey = PanelVideoKey(entry);
+        (double Width, double Height) target = PanelTarget(panel);
+        ReaderMediaLoadTicket ticket = panel.Load.Begin(mediumKey, target);
         DescribePanel(panel, row);
         OfferPanelVideo(row);
         // A refresh of the same medium (a larger frame, a changed setting) is no news for a screen reader: only another medium is announced.
         if (!same)
             ScheduleAnnouncement(Texts.T("media.panel.region", row.Index + 1, _tiles.Count,
                 ReaderMediaSidebarRules.FileText(new CapturedAttachmentText(row.Name, entry.Length))));
+        if (ticket.UpToDate)
+        {
+            // Nothing to decode: only the gallery's fit limit may have changed (the picture's largest size); the pixel line comes from the shown picture.
+            if (panel.Load.ShownSource is { } source)
+            {
+                panel.LimitPicture(ReaderMediaSidebarRules.MaximumDisplay(source.Width, _panelFit), ReaderMediaSidebarRules.MaximumDisplay(source.Height, _panelFit));
+                _panelDimensions = $"{source.Width}×{source.Height}";
+                panel.SetDetail(PanelDetail());
+            }
+            return;
+        }
         CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         _panelLoading = loading;
-        PanelTask = LoadPanelAsync(panel, row, request, loading.Token);
+        PanelTask = LoadPanelAsync(panel, row, mediumKey, ticket, target, loading.Token);
     }
 
     private string PanelDetail() => _panelDimensions.Length == 0 ? _panelSizeText
@@ -381,25 +395,32 @@ public sealed partial class MediaPage
             !asset.IsCurrent, entry.Unassigned);
     }
 
-    private async Task LoadPanelAsync(ReaderMediaSidebar panel, MediaLibraryTileRow row, int request, CancellationToken token)
+    private async Task LoadPanelAsync(ReaderMediaSidebar panel, MediaLibraryTileRow row, string key, ReaderMediaLoadTicket ticket,
+        (double Width, double Height) target, CancellationToken token)
     {
-        // A warm cache answers within a frame and the old picture simply gives way; a cold one shows the placeholder (with the file
-        // line already above it) after PlaceholderDelayMs instead of a stale picture.
+        int request = ticket.Request;
+        // A warm cache answers within a frame and the old picture simply gives way. A cold one: after PlaceholderDelayMs the previous medium's picture
+        // dims under "Loading…" (with the file line already above it), the placeholder only stands in when nothing is shown. A larger decode of the
+        // medium already shown starts no timer: its picture stays until the new one swaps in.
         DispatcherTimer placeholder = _panelPlaceholderTimer ??= CreatePanelTimer(() =>
         {
-            if (IsCurrentPanelRequest(_panelPlaceholderRequest)) _panel?.ShowPlaceholder(Texts.T("reader.sidebar.loading"));
+            if (IsCurrentPanelRequest(_panelPlaceholderRequest) && _panel is { } shown)
+                shown.ShowLoading(shown.Load.LoadingLook(_panelPlaceholderRequest), Texts.T("reader.sidebar.loading"));
         });
-        _panelPlaceholderRequest = request;
         placeholder.Stop();
-        placeholder.Interval = TimeSpan.FromMilliseconds(ReaderMediaSidebarRules.PlaceholderDelayMs);
-        placeholder.Start();
+        if (!ticket.SameMedium)
+        {
+            _panelPlaceholderRequest = request;
+            placeholder.Interval = TimeSpan.FromMilliseconds(ReaderMediaSidebarRules.PlaceholderDelayMs);
+            placeholder.Start();
+        }
         try
         {
-            (double Width, double Height) target = PanelTarget(panel);
             GalleryEntry? entry = await ResolvePanelEntryAsync(row.Entry, token);
             if (!IsCurrentPanelRequest(request)) return;
             if (entry == null)
             {
+                placeholder.Stop();
                 panel.ShowPlaceholder(Texts.T("archive.notSaved"));
                 return;
             }
@@ -407,9 +428,10 @@ public sealed partial class MediaPage
             {
                 (Bitmap bitmap, GalleryImageInfo info) = await GalleryImageCache.DecodeAsync(entry, new GalleryDecodeRequest.Fit(target.Width, target.Height), token);
                 if (!IsCurrentPanelRequest(request)) { GalleryImageCache.Shared.Release(bitmap); return; }
-                _panelSource = new PixelSize(info.Width, info.Height);
+                placeholder.Stop();
                 panel.ShowPicture(bitmap, GalleryImageCache.Shared.Release, info.StillFrame,
-                    ReaderMediaSidebarRules.MaximumDisplay(info.Width, _panelFit), ReaderMediaSidebarRules.MaximumDisplay(info.Height, _panelFit));
+                    ReaderMediaSidebarRules.MaximumDisplay(info.Width, _panelFit), ReaderMediaSidebarRules.MaximumDisplay(info.Height, _panelFit),
+                    key, new PixelSize(info.Width, info.Height));
                 _panelDimensions = $"{info.Width}×{info.Height}";
                 panel.SetDetail(PanelDetail());
             }
@@ -419,18 +441,25 @@ public sealed partial class MediaPage
                 Bitmap? bitmap = await MediaTileThumbnails.LoadPosterAsync(entry.Manifest, entry.Asset, PosterCacheDirectory, width, height,
                     MediaTileThumbnails.PosterKey(entry.Asset, width, height), token);
                 if (!IsCurrentPanelRequest(request)) { if (bitmap != null) MediaTileThumbnails.Release(bitmap); return; }
-                _panelSource = null;
-                if (bitmap == null) panel.ShowPlaceholder(Texts.T("reader.sidebar.unavailable"));
-                else panel.ShowPicture(bitmap, MediaTileThumbnails.Release, playable: true, double.PositiveInfinity, double.PositiveInfinity);
+                placeholder.Stop();
+                // No poster at the new size: a poster of this video that is already shown stays.
+                if (bitmap == null) { if (!string.Equals(panel.Load.ShownKey, key, StringComparison.Ordinal)) panel.ShowPlaceholder(Texts.T("reader.sidebar.unavailable")); }
+                else panel.ShowPicture(bitmap, MediaTileThumbnails.Release, playable: true, double.PositiveInfinity, double.PositiveInfinity, key);
             }
-            else panel.ShowPlaceholder(Texts.T("reader.sidebar.unavailable"));
+            else
+            {
+                placeholder.Stop();
+                panel.ShowPlaceholder(Texts.T("reader.sidebar.unavailable"));
+            }
         }
         catch (OperationCanceledException) { }
         catch (Exception error) when (error is not OutOfMemoryException)
         {
-            // The shown medium's own failure: a localized sentence, the cause in the log (never the exception's English text).
+            // The shown medium's own failure: a localized sentence, the cause in the log (never the exception's English text). A picture of this
+            // medium that is already shown (a larger decode failed) stays.
             Serilog.Log.Warning(error, "Showing a media panel item failed");
-            if (IsCurrentPanelRequest(request)) panel.ShowPlaceholder(Texts.T("reader.sidebar.unavailable"));
+            if (IsCurrentPanelRequest(request) && !string.Equals(panel.Load.ShownKey, key, StringComparison.Ordinal))
+                panel.ShowPlaceholder(Texts.T("reader.sidebar.unavailable"));
         }
         finally
         {
