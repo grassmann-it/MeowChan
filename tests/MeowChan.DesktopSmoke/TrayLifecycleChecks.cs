@@ -22,7 +22,10 @@ internal static class TrayLifecycleChecks
         {
             for (int iteration = 0; iteration < 16; iteration++)
             {
-                MainWindow window = new MainWindow(new DesktopSessionHost(profile, Array.Empty<IImageBoard>()));
+                DesktopSessionHost host = new(profile, Array.Empty<IImageBoard>());
+                MainWindow window = new MainWindow(host);
+                bool closed = false;
+                window.Closed += (_, _) => closed = true;
                 Exception? failureBeforeCleanup = null;
                 try
                 {
@@ -32,7 +35,10 @@ internal static class TrayLifecycleChecks
                         throw new InvalidOperationException("A rapid window did not attach its native tray icon.");
                     // Close as soon as restoration permits, without waiting for DBus registration to settle.
                     window.Close();
-                    await Program.WaitUntilAsync(() => !window.IsVisible);
+                    // Hide is only the start of bounded shutdown; Closed follows drain, lease release and tray disposal.
+                    await Program.WaitUntilAsync(() => closed);
+                    if (!host.IsProfileReleased || host.State != DesktopSessionState.Stopped)
+                        throw new InvalidOperationException("Rapid close completed before releasing its session owner.");
                     if ((TrayIcon.GetIcons(Application.Current!)?.Count ?? 0) != trayIcons)
                         throw new InvalidOperationException("Rapid close leaked an application tray icon.");
                     using ProfileLease lease = ProfileLease.Acquire(profile);
@@ -42,10 +48,10 @@ internal static class TrayLifecycleChecks
                 {
                     await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
                     {
-                        if (window.IsVisible)
+                        if (!closed)
                         {
                             window.Close();
-                            await Program.WaitUntilAsync(() => !window.IsVisible);
+                            await Program.WaitUntilAsync(() => closed);
                         }
                     }, exception => Console.Error.WriteLine("SMOKE cleanup failed in TrayLifecycleChecks: " + exception));
                 }

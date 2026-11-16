@@ -268,6 +268,7 @@ internal static class PreferenceStartupChecks
         var restore = new HeldStore(honorCancellation: false);
         DesktopSessionHost? host = null;
         MainWindow? shell = null;
+        bool closed = false;
         Exception? failure = null;
         var cleanupFailures = new List<Exception>();
         try
@@ -289,6 +290,7 @@ internal static class PreferenceStartupChecks
                 host.Config.CopyFrom(FixtureConfig());
             }
             shell = new MainWindow(host);
+            shell.Closed += (_, _) => closed = true;
             shell.Show(owner);
             Task startup = host.StartAsync();
             if (!readyIo) await restore.Entered.Task.WaitAsync(Deadline, token);
@@ -342,7 +344,9 @@ internal static class PreferenceStartupChecks
             {
                 await UntilAsync(() => host.State == DesktopSessionState.Stopping && Get<bool>(shell, "_shutdownRunning"),
                     scenario + " close waiting for restore", token);
-                Require(shell.IsVisible && !Get<bool>(shell, "_allowClose") && !startup.IsCompleted,
+                // A hidden draining window is not the visible safe-error outcome or a closed owner.
+                Require(!shell.IsVisible && !closed && !host.IsProfileReleased
+                    && !Get<bool>(shell, "_allowClose") && !startup.IsCompleted,
                     "A live restore owner was mistaken for a safe error/close outcome.");
                 RequireLeaseHeld(directory);
                 RequireNoSettings(directory);
@@ -394,7 +398,7 @@ internal static class PreferenceStartupChecks
             var counts = host.PreferenceWriteCounts;
             byte[]? restoredBytes = readyIo ? await File.ReadAllBytesAsync(settings, token) : null;
             shell.Close(); // _allowClose permits the SECOND request directly; no persistence retry against a released owner.
-            await UntilAsync(() => !shell.IsVisible, scenario + " second close exits", token);
+            await UntilAsync(() => closed, scenario + " second close exits", token);
             await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
             await Task.Delay(600, token); // Past the shell's 500ms debounce; supplement terminal-task/sealed-writer proof.
             Require(host.IsProfileReleased && host.PreferenceWriteCounts == counts

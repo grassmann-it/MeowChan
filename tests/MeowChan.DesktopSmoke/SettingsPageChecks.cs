@@ -344,6 +344,8 @@ internal static class SettingsPageChecks
         DesktopSessionHost host = new DesktopSessionHost(profile, Array.Empty<IImageBoard>(), (directory, lease) =>
             store = new GateStore(new SessionStore(directory, lease)));
         MainWindow window = new MainWindow(host);
+        bool closed = false;
+        window.Closed += (_, _) => closed = true;
         window.Show(owner);
         TaskCompletionSource? pending = null;
         Exception? failureBeforeCleanup = null;
@@ -399,12 +401,16 @@ internal static class SettingsPageChecks
                 previousBusy = editor.IsBusy; previousAvailable = editor.IsAvailable; previousTimer = editor.RecheckTimer;
             };
             window.Close();
-            Require(window.IsVisible, "Shutdown did not wait for the accepted settings commit.");
+            // Bounded shutdown hides immediately, but must not close or release the owner of the accepted write.
+            Require(!window.IsVisible && !closed && host.State == DesktopSessionState.Stopping
+                && !host.IsProfileReleased && !pending.Task.IsCompleted,
+                "Shutdown did not retain the owner of the accepted settings commit.");
+            RequireLeaseHeld(profile);
             if (failShutdownSave)
                 pending.SetException(new IOException("Synthetic accepted settings save failure after shutdown began."));
             else
                 pending.SetResult();
-            await Program.WaitUntilAsync(() => !window.IsVisible && !editor.IsBusy);
+            await Program.WaitUntilAsync(() => closed && !editor.IsBusy);
             int expectedRecheckTimer = failShutdownSave ? 120 : 121;
             Console.WriteLine("SMOKE pending settings shutdown: " + System.Text.Json.JsonSerializer.Serialize(new
             {
@@ -425,10 +431,17 @@ internal static class SettingsPageChecks
             await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
             {
                 pending?.TrySetResult();
-                if (window.IsVisible) { window.Close(); await Program.WaitUntilAsync(() => !window.IsVisible); }
+                if (!closed) { window.Close(); await Program.WaitUntilAsync(() => closed); }
                 Directory.Delete(profile, true);
             }, exception => Console.Error.WriteLine("SMOKE cleanup failed in SettingsPageChecks: " + exception));
         }
+    }
+
+    private static void RequireLeaseHeld(string profile)
+    {
+        try { using ProfileLease unexpected = ProfileLease.Acquire(profile); }
+        catch (IOException) { return; }
+        throw new InvalidOperationException("Shutdown released the profile while an accepted settings commit was held.");
     }
 
     private static async Task CheckPickerCloseAsync(MainWindow owner)
@@ -442,6 +455,8 @@ internal static class SettingsPageChecks
         provider.Result = pending.Task;
         DesktopSessionHost host = new DesktopSessionHost(profile, Array.Empty<IImageBoard>());
         MainWindow window = new MainWindow(host);
+        bool closed = false;
+        window.Closed += (_, _) => closed = true;
         window.Show(owner);
         Exception? failureBeforeCleanup = null;
         try
@@ -460,7 +475,7 @@ internal static class SettingsPageChecks
             Require(provider.PickerCalls == 1 && window.SettingsPageVisible
                 && !window.FindControl<Button>("ThemeToggleButton")!.IsEnabled, "Picker allowed duplicate work or navigation.");
             window.Close();
-            await Program.WaitUntilAsync(() => !window.IsVisible);
+            await Program.WaitUntilAsync(() => closed);
             bool lateUpdate = false;
             editor.PropertyChanged += (_, _) => lateUpdate = true;
             SettingsChecks.FixtureStorageFolder selected = new SettingsChecks.FixtureStorageFolder(new Uri(Path.Combine(profile, "late-picker")));
@@ -475,7 +490,7 @@ internal static class SettingsPageChecks
             await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
             {
                 pending.TrySetResult(Array.Empty<Avalonia.Platform.Storage.IStorageFolder>());
-                if (window.IsVisible) { window.Close(); await Program.WaitUntilAsync(() => !window.IsVisible); }
+                if (!closed) { window.Close(); await Program.WaitUntilAsync(() => closed); }
                 Directory.Delete(profile, true);
             }, exception => Console.Error.WriteLine("SMOKE cleanup failed in SettingsPageChecks: " + exception));
         }
