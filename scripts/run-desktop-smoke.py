@@ -160,55 +160,72 @@ def prepare_environment(base: dict[str, str], isolated: bool, directory: Path) -
 
 
 def owned_process_group_is_empty(process: subprocess.Popen) -> bool:
-    """Best-effort liveness check for a group whose signal was denied during teardown.
+    """Confirm absence, not permission to signal, using a complete POSIX process table.
 
-    macOS can reject a group signal while the last member is already exiting.  In
-    that narrow race the process has completed and ``ps`` is the only reliable
-    way to distinguish an empty group from a still-running descendant.
+    Do not use ``ps -g``: its selector is not portable between BSD/macOS and
+    Linux, and a no-match exit status is not proof that the query succeeded.
+    Only an exited leader plus a successful, well-formed inventory is evidence.
     """
     if os.name == "nt" or process.poll() is None:
         return False
     try:
-        probe = subprocess.run(["ps", "-o", "pid=", "-g", str(process.pid)],
+        probe = subprocess.run(["ps", "-A", "-o", "pid=,pgid="],
                                capture_output=True, text=True, check=False, timeout=5)
-    except (OSError, subprocess.SubprocessError):
+        if probe.returncode != 0 or not probe.stdout.strip():
+            return False
+        groups = []
+        for line in probe.stdout.splitlines():
+            pid, pgid = map(int, line.split())
+            if pid <= 0 or pgid <= 0:
+                return False
+            groups.append(pgid)
+        return process.pid not in groups
+    except (OSError, subprocess.SubprocessError, ValueError):
         return False
-    return probe.returncode == 0 and not probe.stdout.strip()
 
 
 def stop_owned_processes(process: subprocess.Popen) -> None:
-    """Only touch the process/tree or POSIX group created by this invocation."""
+    """Only signal the tree/group created by Popen(start_new_session=True).
+
+    Never rediscover ownership from a name or current parent PID, nor send a
+    final signal after observing group disappearance. A reaped leader alone
+    does not prove that its descendants have exited.
+    """
     if os.name == "nt":
         if process.poll() is None:
-            subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"], check=False,
-                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
-    else:
+            result = subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"], check=False,
+                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
+            if result.returncode != 0:
+                raise OSError(f"taskkill failed for owned process tree (exit {result.returncode})")
+        process.wait(timeout=10)
+        return
+
+    def signal_group(sig: int) -> bool:
         try:
-            os.killpg(process.pid, signal.SIGTERM)
-            deadline = time.monotonic() + 2
-            while time.monotonic() < deadline:
-                process.poll()  # Reap the leader; its children may still need cleanup.
-                try:
-                    os.killpg(process.pid, 0)
-                except ProcessLookupError:
-                    break
-                time.sleep(0.05)
+            os.killpg(process.pid, sig)
+            return True
         except ProcessLookupError:
-            pass
+            return False
         except PermissionError:
-            # macOS may report EPERM after the process group has already
-            # disappeared. Do not turn that teardown race into a product
-            # failure, but never ignore it while a descendant is alive.
-            if not owned_process_group_is_empty(process):
-                raise
-        finally:
-            try:
-                os.killpg(process.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
-            except PermissionError:
-                if not owned_process_group_is_empty(process):
-                    raise
+            # EPERM is not absence. Accept only independently verified absence;
+            # an alive child, failed ps, or malformed inventory remains fatal.
+            if owned_process_group_is_empty(process):
+                return False
+            raise
+
+    def wait_for_group(seconds: float) -> bool:
+        deadline = time.monotonic() + seconds
+        while True:
+            process.poll()  # Reap the leader without overlooking descendants.
+            if not signal_group(0):
+                return True
+            if time.monotonic() >= deadline:
+                return False
+            time.sleep(0.05)
+
+    if signal_group(signal.SIGTERM) and not wait_for_group(2):
+        if signal_group(signal.SIGKILL) and not wait_for_group(10):
+            raise subprocess.TimeoutExpired("owned process group cleanup", 10)
     process.wait(timeout=10)
 
 

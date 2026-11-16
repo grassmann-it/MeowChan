@@ -29,6 +29,100 @@ class DesktopSmokeRunnerTests(unittest.TestCase):
         self.output = self.root / "evidence"
         self.args = ["--assembly", str(self.assembly), "--output", str(self.output)]
 
+    def test_posix_cleanup_platform_contracts(self):
+        for platform in ("darwin", "linux"):
+            for calls, expected in (
+                ([ProcessLookupError()], [signal.SIGTERM]),
+                ([None, ProcessLookupError()], [signal.SIGTERM, 0]),
+                ([None, None, None, None, ProcessLookupError()],
+                 [signal.SIGTERM, 0, signal.SIGKILL, 0, 0]),
+            ):
+                with self.subTest(platform=platform, expected=expected), \
+                        mock.patch.object(runner.sys, "platform", platform), \
+                        mock.patch.object(runner.os, "name", "posix"), \
+                        mock.patch.object(runner.os, "killpg", side_effect=calls) as kill, \
+                        mock.patch.object(runner.time, "monotonic", side_effect=[0, 3, 4, 5]), \
+                        mock.patch.object(runner.time, "sleep"):
+                    process = mock.Mock(pid=12345)
+                    runner.stop_owned_processes(process)
+                    self.assertEqual([mock.call(12345, sig) for sig in expected], kill.call_args_list)
+                    process.wait.assert_called_once_with(timeout=10)
+
+    def test_eperm_requires_exited_leader_and_complete_group_inventory(self):
+        for platform in ("darwin", "linux"):
+            for poll, status, table, absent in (
+                (None, 0, "1 1\n", False),
+                (0, 0, "1 1\n99 12345\n", False),
+                (0, 0, "1 1\n99 99\n", True),
+                (0, 1, "", False),
+                (0, 0, "", False),
+                (0, 0, "bad table\n", False),
+            ):
+                with self.subTest(platform=platform, poll=poll, table=table), \
+                        mock.patch.object(runner.sys, "platform", platform), \
+                        mock.patch.object(runner.os, "name", "posix"), \
+                        mock.patch.object(runner.os, "killpg", side_effect=PermissionError(1, "denied")) as kill, \
+                        mock.patch.object(runner.subprocess, "run", return_value=mock.Mock(
+                            returncode=status, stdout=table)) as inventory:
+                    process = mock.Mock(pid=12345)
+                    process.poll.return_value = poll
+                    if absent:
+                        runner.stop_owned_processes(process)
+                        process.wait.assert_called_once_with(timeout=10)
+                    else:
+                        with self.assertRaises(PermissionError):
+                            runner.stop_owned_processes(process)
+                        process.wait.assert_not_called()
+                    kill.assert_called_once_with(12345, signal.SIGTERM)
+                    if poll is not None:
+                        self.assertEqual(["ps", "-A", "-o", "pid=,pgid="], inventory.call_args.args[0])
+                    else:
+                        inventory.assert_not_called()
+
+    def test_permission_denial_during_probe_or_escalation_stays_fatal(self):
+        for calls in ([None, PermissionError(1, "probe denied")],
+                      [None, None, PermissionError(1, "kill denied")]):
+            with self.subTest(calls=calls), mock.patch.object(runner.os, "name", "posix"), \
+                    mock.patch.object(runner.os, "killpg", side_effect=calls) as kill, \
+                    mock.patch.object(runner, "owned_process_group_is_empty", return_value=False), \
+                    mock.patch.object(runner.time, "monotonic", side_effect=[0, 3]):
+                with self.assertRaises(PermissionError):
+                    runner.stop_owned_processes(mock.Mock(pid=12345))
+                self.assertEqual(len(calls), kill.call_count)
+
+    def test_inventory_failure_is_not_proof_of_absence(self):
+        for error in (OSError("ps unavailable"), subprocess.TimeoutExpired("ps", 5)):
+            with self.subTest(error=error), mock.patch.object(runner.os, "name", "posix"), \
+                    mock.patch.object(runner.subprocess, "run", side_effect=error):
+                process = mock.Mock(pid=12345)
+                process.poll.return_value = 0
+                self.assertFalse(runner.owned_process_group_is_empty(process))
+
+    def test_group_surviving_sigkill_is_cleanup_failure(self):
+        with mock.patch.object(runner.os, "name", "posix"), \
+                mock.patch.object(runner.os, "killpg") as kill, \
+                mock.patch.object(runner.time, "monotonic", side_effect=[0, 3, 4, 15]):
+            process = mock.Mock(pid=12345)
+            process.poll.return_value = 0  # Leader gone, descendant group still present.
+            with self.assertRaises(subprocess.TimeoutExpired):
+                runner.stop_owned_processes(process)
+            self.assertEqual([signal.SIGTERM, 0, signal.SIGKILL, 0],
+                             [call.args[1] for call in kill.call_args_list])
+
+    def test_windows_cleanup_checks_taskkill_and_reaps_child(self):
+        for status in (0, 1):
+            with self.subTest(status=status), mock.patch.object(runner.os, "name", "nt"), \
+                    mock.patch.object(runner.subprocess, "run", return_value=mock.Mock(returncode=status)) as kill:
+                process = mock.Mock(pid=12345)
+                process.poll.return_value = None
+                if status:
+                    with self.assertRaises(OSError):
+                        runner.stop_owned_processes(process)
+                else:
+                    runner.stop_owned_processes(process)
+                    process.wait.assert_called_once_with(timeout=10)
+                self.assertEqual(["taskkill", "/PID", "12345", "/T", "/F"], kill.call_args.args[0])
+
     def test_fixture_children_drop_all_git_routing_and_config_overrides(self):
         environment = runner.prepare_environment({
             "GIT_DIR": "/project/.git", "GIT_WORK_TREE": "/frozen/source",
