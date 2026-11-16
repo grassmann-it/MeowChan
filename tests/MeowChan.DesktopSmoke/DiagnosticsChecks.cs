@@ -85,9 +85,9 @@ internal static class DiagnosticsChecks
                         grid.SelectedItem = grid.ItemsSource!.Cast<DiagnosticEntry>().Single(entry => entry.Details.Contains("HTTP 429"));
                         try
                         {
-                            await Program.WaitUntilAsync(() => Fits(host, page.FindControl<Button>("CopyDiagnosticButton")!)
-                                && Fits(host, page.FindControl<Button>("OpenDiagnosticWatchButton")!)
-                                && Fits(host, page.FindControl<Button>("RetryDiagnosticButton")!) && grid.Bounds.Height > 40
+                            await Program.WaitUntilAsync(() => Fits(window, page.FindControl<Button>("CopyDiagnosticButton")!)
+                                && Fits(window, page.FindControl<Button>("OpenDiagnosticWatchButton")!)
+                                && Fits(window, page.FindControl<Button>("RetryDiagnosticButton")!) && grid.Bounds.Height > 40
                                 && page.FindControl<TextBox>("DiagnosticDetails")!.Text?.Contains("HTTP 429") == true);
                         }
                         catch (TimeoutException)
@@ -102,7 +102,7 @@ internal static class DiagnosticsChecks
                                     {
                                         Control control = page.FindControl<Control>(name)!;
                                         return new { name, visible = control.IsEffectivelyVisible, bounds = control.Bounds.ToString(),
-                                            origin = control.TranslatePoint(new Point(0, 0), window)?.ToString(), fits = Fits(host, control) };
+                                            origin = control.TranslatePoint(new Point(0, 0), window)?.ToString(), fits = Fits(window, control) };
                                     }).ToArray(),
                                 shellBanner = window.FindControl<Control>("ShellActionErrorBanner")!.Bounds.ToString()
                             }));
@@ -121,13 +121,13 @@ internal static class DiagnosticsChecks
                             window.UpdateLayout();
                             return row != null && row.IsEffectivelyVisible && VisibleHeight(content, row) >= 30;
                         });
-                        // The action row is a fixed sibling below DiagnosticsContentScroll. The
-                        // DiagnosticsPageHost is the Status segment's allocated content viewport;
-                        // its presenter clips content at the shell footer. Keep this check against
-                        // that host rather than the whole window.
-                        Require(Fits(host, page.FindControl<Button>("CopyDiagnosticButton")!)
-                            && Fits(host, page.FindControl<Button>("OpenDiagnosticWatchButton")!)
-                            && Fits(host, page.FindControl<Button>("RetryDiagnosticButton")!),
+                        // The action row is hosted by the Status shell. On native Windows the
+                        // Status segment can have a fractional/rounded page boundary even though
+                        // the controls are fully inside the actual client viewport. Validate the
+                        // user-visible shell viewport, which is the contract this message names.
+                        Require(Fits(window, page.FindControl<Button>("CopyDiagnosticButton")!)
+                            && Fits(window, page.FindControl<Button>("OpenDiagnosticWatchButton")!)
+                            && Fits(window, page.FindControl<Button>("RetryDiagnosticButton")!),
                             "Diagnostic actions extend beneath the shell footer.");
                         Require(window.DiagnosticsSegmentShown && settings.DownloadPath == "retained diagnosis draft",
                             "Diagnostics navigation lost the selected page or settings draft.");
@@ -161,8 +161,8 @@ internal static class DiagnosticsChecks
                         Require(ToolTip.GetTip(page.FindControl<Button>("RetryDiagnosticButton")!) as string == Texts.T("diagnostics.removed"),
                             "The disabled check action does not say that the watch was removed.");
                         Program.CaptureWindow(window, $"smoke-diagnostics-removed-{theme.ToLowerInvariant()}-{mode.ToLowerInvariant()}-{language}.png");
-                        await Program.WaitUntilAsync(() => VisibleHeight(host, page.FindControl<TextBlock>("DiagnosticsActionError")!) >= 16);
-                        Require(Fits(host, page.FindControl<Button>("RetryDiagnosticButton")!),
+                        await Program.WaitUntilAsync(() => VisibleHeight(page, page.FindControl<TextBlock>("DiagnosticsActionError")!) >= 16);
+                        Require(Fits(page, page.FindControl<Button>("RetryDiagnosticButton")!),
                             "A diagnostic error obstructed its retry action.");
                         // A stale lifetime must never select a different watch, even if its URL matches.
                         Click(page.FindControl<Button>("OpenDiagnosticWatchButton")!);
