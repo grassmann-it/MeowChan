@@ -20,10 +20,11 @@ internal static class ReaderSidebarStepKeys
     private static bool SourceAllowsStep(KeyEventArgs e, ListBox posts, ListBox? strip)
     {
         if (e.Source is not Visual source) return false;
-        // Do not take activation away from a row even when a saved binding uses Enter/Space.
-        if (e.Key is Key.Enter or Key.Space)
-            foreach (Visual node in source.GetSelfAndVisualAncestors())
-                if (node is ListBoxItem or DataGridRow) return false;
+        // Enter and Space belong to the focused selecting control (and to buttons/video
+        // activators). Never let a saved media-step binding turn either activation key
+        // into sidebar navigation, including when Avalonia reports the list itself as
+        // the source rather than its realized item.
+        if (e.Key is Key.Enter or Key.Space) return false;
         if (!CommandRouter.IsNativeInput(source, e.Key)) return true;
 
         // The advertised Alt+Shift+Left/Right is not ListBox selection/typeahead. Only the reader's own

@@ -176,7 +176,12 @@ public partial class ArchivePage
     {
         Control context = sender as Control ?? ArchiveReaderPane;
         if (e.Handled || _ended || ShortcutService.IsCapturing || !CommandRouter.IsRoutingContextActive(context, e.Source)
-            || IsReaderDialogOpen || _thread == null || ReaderSelectionOwnsActivationKey(e)) return;
+            || IsReaderDialogOpen || _thread == null || ReaderSelectionOwnsActivationKey(e)
+            // Reader view options are page commands, but a selecting control still owns
+            // its arrows/Home/End/Page keys. This matters for user bindings: a view
+            // option must not silently replace list navigation just because it has a
+            // saved gesture that happens to be an arrow.
+            || CommandRouter.IsNativeInput(e.Source, e.Key)) return;
         foreach (ReaderViewOption option in OrderedViewOptions())
         {
             if (option.ShortcutViaRouter || !CommandBindings.Matches(e, option.CommandId)) continue;

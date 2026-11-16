@@ -154,6 +154,20 @@ public sealed class ReaderSidebarShortcutTests
     [Theory]
     [InlineData(Key.Enter)]
     [InlineData(Key.Space)]
+    public void SavedActivationBindingsLeaveTheListRootLocalToo(Key key)
+    {
+        List posts = new();
+        ShortcutBindingsSection saved = new ShortcutBindingsSection().Set("reader.sidebar.next-media", [ShortcutGesture.Parse(key.ToString())]);
+
+        // Avalonia can report the ListBox itself as the source when focus is on its
+        // chrome. The media-step route must not rely on a realized ListBoxItem to
+        // preserve activation ownership.
+        Assert.Equal(0, Route(posts, key, KeyModifiers.None, posts, null, saved));
+    }
+
+    [Theory]
+    [InlineData(Key.Enter)]
+    [InlineData(Key.Space)]
     public void SavedActivationBindingsLeaveRowsAndButtonsLocal(Key key)
     {
         List posts = new();
@@ -161,6 +175,22 @@ public sealed class ReaderSidebarShortcutTests
         ShortcutBindingsSection saved = new ShortcutBindingsSection().Set("reader.sidebar.next-media", [ShortcutGesture.Parse(key.ToString())]);
         Assert.Equal(0, Route(item, key, KeyModifiers.None, posts, null, saved));
         Assert.Equal(0, Route(new Button(), key, KeyModifiers.None, posts, null, saved));
+    }
+
+    [Fact]
+    public void ReaderViewOptionsRespectNativeSelectionNavigation()
+    {
+        string readerView = Source("Desktop/Views/Archive/ArchivePage.ReaderView.cs");
+        int start = readerView.IndexOf("private void OnReaderViewKeyDown", StringComparison.Ordinal);
+        Assert.True(start >= 0);
+        string handler = readerView[start..];
+        Assert.Contains("CommandRouter.IsNativeInput(e.Source, e.Key)", handler);
+
+        // This is the native-input family that a user binding must never steal.
+        Assert.True(CommandRouter.IsNativeInput(new ListBox(), Key.Up));
+        Assert.True(CommandRouter.IsNativeInput(new ListBox(), Key.Down));
+        Assert.True(CommandRouter.IsNativeInput(new ListBox(), Key.Home));
+        Assert.True(CommandRouter.IsNativeInput(new ListBox(), Key.PageDown));
     }
 
     [Fact]
