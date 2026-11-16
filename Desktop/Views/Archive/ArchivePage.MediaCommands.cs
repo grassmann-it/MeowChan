@@ -127,7 +127,7 @@ public partial class ArchivePage
     // The Menu key and Shift+F10 open the same media menu as a right-click, for the focused row or attachment.
     private void OnArchiveMediaContextKey(object? sender, KeyEventArgs e)
     {
-        _sidebarPointerContextPending = false; // a key ends a pointer gesture whose release never came
+        _sidebarPointerContext.Reset(); // a key ends a pointer gesture whose release never came
         if (_ended || !_available || IsReaderDialogOpen || e.Source is not Control source || !MediaMenuPresenter.IsContextKey(e)) return;
         Control[] path = source.GetSelfAndVisualAncestors().OfType<Control>().ToArray();
         if (!path.Any(control => control is ArchiveAttachmentView || control.Name is "ArchiveMediaGrid" or "ArchiveMediaTiles")
@@ -141,12 +141,12 @@ public partial class ArchivePage
     // selects it first): the press itself opens the menu (nothing the player does with the pointer can swallow it), and the ContextRequested that Avalonia
     // sends while it processes the release of that click is consumed once. The flag lives from the press until that release is through: Avalonia 12 sends the
     // request on the release (a click lasts far longer than a Background tick), so a flag that was dropped right after the press let the release re-open the menu
-    // in place of the first one.
-    private bool _sidebarPointerContextPending;
+    // in place of the first one. The shared gate (PressOpenedContextGate) is the one the media page's grid and panel use.
+    private readonly PressOpenedContextGate _sidebarPointerContext = new();
 
     private void OnSidebarPointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        _sidebarPointerContextPending = false; // each press starts its own gesture
+        _sidebarPointerContext.BeginPress(); // each press starts its own gesture
         if (e.Handled || _ended || !_available || !_mediaSidebarShown || _mediaSidebar is not { } sidebar || e.Source is not Control source
             || !e.GetCurrentPoint(sidebar).Properties.IsRightButtonPressed || MediaMenuPresenter.IsNativeTextSource(source)) return;
         Control[] ancestors = source.GetSelfAndVisualAncestors().OfType<Control>().ToArray();
@@ -155,15 +155,12 @@ public partial class ArchivePage
         source.RaiseEvent(request);
         if (!request.Handled) return;
         e.Handled = true;
-        _sidebarPointerContextPending = true;
+        _sidebarPointerContext.MenuOpenedByPress();
     }
 
-    // The release of that right click: the request Avalonia sends with it comes through the handlers after this one, so the flag ends on the next tick.
-    private void OnSidebarPointerReleased(object? sender, PointerReleasedEventArgs e)
-    {
-        if (!_sidebarPointerContextPending || e.InitialPressMouseButton != MouseButton.Right) return;
-        Avalonia.Threading.Dispatcher.UIThread.Post(() => _sidebarPointerContextPending = false, Avalonia.Threading.DispatcherPriority.Background);
-    }
+    // The release of that right click: the request Avalonia sends with it comes through the handlers after this one, so the gate ends after it
+    // (only the right button: e.InitialPressMouseButton != MouseButton.Right leaves it open).
+    private void OnSidebarPointerReleased(object? sender, PointerReleasedEventArgs e) => _sidebarPointerContext.Released(e.InitialPressMouseButton);
 
     private void OnArchiveMediaContextRequested(object? sender, ContextRequestedEventArgs e)
     {
@@ -171,9 +168,9 @@ public partial class ArchivePage
         // Text inputs and selectable text keep their own native menu.
         if (MediaMenuPresenter.IsNativeTextSource(source)) return;
         Control[] ancestors = source.GetSelfAndVisualAncestors().OfType<Control>().ToArray();
-        if (_sidebarPointerContextPending && _mediaSidebar != null && ancestors.Any(control => ReferenceEquals(control, _mediaSidebar)))
+        if (_sidebarPointerContext.IsPending && _mediaSidebar != null && ancestors.Any(control => ReferenceEquals(control, _mediaSidebar))
+            && _sidebarPointerContext.TryConsume()) // the menu opened with the press
         {
-            _sidebarPointerContextPending = false; // the menu opened with the press
             e.Handled = true;
             return;
         }

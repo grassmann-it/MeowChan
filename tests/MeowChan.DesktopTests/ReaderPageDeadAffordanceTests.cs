@@ -44,7 +44,8 @@ public sealed class ReaderPageDeadAffordanceTests
         int released = commands.IndexOf("private void OnSidebarPointerReleased", StringComparison.Ordinal);
         string pressBody = commands[press..released];
         Assert.DoesNotContain("Dispatcher.UIThread.Post", pressBody); // the press no longer drops the flag on a tick
-        Assert.Contains("_sidebarPointerContextPending = true;", pressBody);
+        Assert.Contains("_sidebarPointerContext.MenuOpenedByPress();", pressBody); // the shared PressOpenedContextGate
+        Assert.Contains("_sidebarPointerContext.Released(e.InitialPressMouseButton)", commands);
         string sidebar = Source("Desktop/Views/Archive/ArchivePage.MediaSidebar.cs");
         Assert.Contains("sidebar.AddHandler(PointerReleasedEvent, OnSidebarPointerReleased, RoutingStrategies.Tunnel, handledEventsToo: true)", sidebar);
     }
