@@ -496,11 +496,12 @@ public sealed class RateAndTagSurfaceTests : IDisposable
         Assert.DoesNotContain("pane.KeyDown +=", rating);
 
         string sidebar = Source("Desktop/Views/Archive/ArchivePage.MediaSidebar.cs");
-        int sidebarTunnel = sidebar.IndexOf("sidebar.AddHandler(KeyDownEvent, (_, e) => RouteSidebarRatingKey(e), RoutingStrategies.Tunnel)",
-            StringComparison.Ordinal);
-        int sidebarBubble = sidebar.IndexOf("sidebar.AddHandler(KeyDownEvent, (_, e) =>", sidebarTunnel + 1, StringComparison.Ordinal);
-        Assert.True(sidebarTunnel >= 0 && sidebarBubble > sidebarTunnel,
+        int sidebarRating = sidebar.IndexOf("RouteSidebarRatingKey(e)", StringComparison.Ordinal);
+        int sidebarTunnel = sidebarRating < 0 ? -1 : sidebar.LastIndexOf("sidebar.AddHandler(KeyDownEvent", sidebarRating, StringComparison.Ordinal);
+        int sidebarBubble = sidebarRating < 0 ? -1 : sidebar.IndexOf("RoutingStrategies.Bubble", sidebarRating, StringComparison.Ordinal);
+        Assert.True(sidebarRating >= 0 && sidebarTunnel >= 0 && sidebarBubble > sidebarRating,
             "The sidebar must give R a tunnel route before its ListBox/type-ahead bubble route.");
+        Assert.Contains("ReaderSelectionOwnsActivationKey(e)", sidebar[sidebarTunnel..sidebarBubble]);
 
         // The route is deliberately broad for reader controls (including a mouse-focused star/button),
         // but the shared router still leaves actual editors and dropdowns native.
@@ -508,6 +509,61 @@ public sealed class RateAndTagSurfaceTests : IDisposable
         Assert.False(CommandRouter.IsNativeInput(new Button(), Avalonia.Input.Key.R));
         Assert.True(CommandRouter.IsNativeInput(new TextBox(), Avalonia.Input.Key.R));
         Assert.True(CommandRouter.IsNativeInput(new ComboBox(), Avalonia.Input.Key.R));
+    }
+
+    [Fact]
+    public void ReaderMediaAndPostFilterRoutesAreTunnelOnlyForOwnedKeys()
+    {
+        string reader = Source("Desktop/Views/Archive/ArchivePage.Reader.cs");
+        int posts = reader.IndexOf("posts.AddHandler(KeyDownEvent", StringComparison.Ordinal);
+        int postsEnd = posts < 0 ? -1 : reader.IndexOf("posts.AddHandler(PointerWheelChangedEvent", posts, StringComparison.Ordinal);
+        Assert.True(posts >= 0 && postsEnd > posts);
+        string postRoute = reader[posts..postsEnd];
+        Assert.Contains("RoutingStrategies.Tunnel", postRoute);
+        Assert.Contains("CommandRouter.IsRoutingContextActive(posts, e.Source)", postRoute);
+        Assert.Contains("TryRouteFavoriteKey(posts, e)", postRoute);
+        Assert.Contains("TryRouteArchiveMediaShortcut(posts, e)", postRoute);
+        Assert.Contains("ReaderSelectionOwnsActivationKey(e)", postRoute);
+        Assert.DoesNotContain("RoutingStrategies.Bubble", postRoute);
+
+        string sidebar = Source("Desktop/Views/Archive/ArchivePage.MediaSidebar.cs");
+        int selector = sidebar.IndexOf("TryRouteSidebarSelectionShortcut", StringComparison.Ordinal);
+        int selectorEnd = selector < 0 ? -1 : sidebar.IndexOf("// Puts the (hidden) sidebar", selector, StringComparison.Ordinal);
+        Assert.True(selector >= 0 && selectorEnd > selector);
+        string sidebarRoute = sidebar[selector..selectorEnd];
+        Assert.Contains("CommandRouter.IsRoutingContextActive(sidebar, e.Source)", sidebar[..selector]);
+        Assert.Contains("TryRouteSidebarVideoKey(e)", sidebarRoute);
+        Assert.Contains("TryRouteFavoriteKey(sidebar, e)", sidebarRoute);
+        Assert.Contains("TryRouteArchiveMediaShortcut(sidebar, e)", sidebarRoute);
+        Assert.Contains("sidebar.Strip", sidebarRoute);
+        Assert.Contains("ReaderSelectionOwnsActivationKey(e)", sidebarRoute);
+        Assert.Contains("CommandRouter.IsNativeInput(e.Source, e.Key)", Source("Desktop/Views/Archive/ArchivePage.InlineVideo.cs"));
+
+        string filters = Source("Desktop/Views/Archive/ArchivePage.PostFilter.cs");
+        Assert.Contains("ArchiveReaderPane.AddHandler(KeyDownEvent, OnPostFilterKeyDown, RoutingStrategies.Tunnel);", filters);
+        Assert.Contains("CommandRouter.IsRoutingContextActive(ArchiveReaderPane, e.Source)", filters);
+    }
+
+    public static IEnumerable<object[]> NativeInputBoundaries() =>
+    [
+        ["TextBox", Key.F, true], ["ComboBox", Key.F, true], ["NumericUpDown", Key.F, true],
+        ["TextBox", Key.L, true], ["ComboBox", Key.L, true],
+        ["ListBoxItem", Key.F, false], ["ListBoxItem", Key.L, false], ["Button", Key.F, false]
+    ];
+
+    [Theory, MemberData(nameof(NativeInputBoundaries))]
+    public void TunnelRoutesUseNativeEditorsButRemainEligibleForSelectionItems(string controlName, Key key, bool native)
+    {
+        Control control = controlName switch
+        {
+            "TextBox" => new TextBox(),
+            "ComboBox" => new ComboBox(),
+            "NumericUpDown" => new NumericUpDown(),
+            "ListBoxItem" => new ListBoxItem(),
+            "Button" => new Button(),
+            _ => throw new ArgumentOutOfRangeException(nameof(controlName))
+        };
+        Assert.Equal(native, CommandRouter.IsNativeInput(control, key));
     }
 
     // ---- the gallery ------------------------------------------------------------------------------------------------------

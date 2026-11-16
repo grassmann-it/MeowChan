@@ -255,7 +255,13 @@ public partial class ArchivePage
         };
         ArchiveContentTabs.SelectionChanged += (_, _) => { CancelReaderMediaActivation(); AlignPostsOnShow(); };
         // M / U / F on the selected post's medium (the shared resolver) first, then the media menu's other keys.
-        posts.AddHandler(KeyDownEvent, (_, e) => { if (!TryRouteFavoriteKey(posts, e)) TryRouteArchiveMediaShortcut(posts, e); }, RoutingStrategies.Bubble);
+        // These are page-owned shortcuts, not list type-ahead: enter the route before a ListBoxItem can consume a letter.
+        // Each resolver keeps native editors, text selection, popups and foreign top-levels out of the route.
+        posts.AddHandler(KeyDownEvent, (_, e) =>
+        {
+            if (!CommandRouter.IsRoutingContextActive(posts, e.Source) || ReaderSelectionOwnsActivationKey(e)) return;
+            if (!TryRouteFavoriteKey(posts, e)) TryRouteArchiveMediaShortcut(posts, e);
+        }, RoutingStrategies.Tunnel);
         posts.AddHandler(PointerWheelChangedEvent, (_, _) => ++_readerInteractionRevision, RoutingStrategies.Tunnel, handledEventsToo: true);
         posts.AddHandler(PointerPressedEvent, (_, _) => ++_readerInteractionRevision, RoutingStrategies.Tunnel, handledEventsToo: true);
         posts.AddHandler(KeyDownEvent, (_, e) =>

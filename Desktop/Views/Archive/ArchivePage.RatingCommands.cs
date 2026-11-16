@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -55,9 +56,18 @@ public partial class ArchivePage
         // the rating router on the bubble path made R disappear when keyboard focus was
         // on a post, media tile or another selecting control. CommandRouter still owns
         // the native-input and popup guards, so text fields and open overlays keep their
-        // keys.
-        pane.AddHandler(KeyDownEvent, (_, e) => _ratingCommands?.Route(e), RoutingStrategies.Tunnel);
+        // keys. A list item's Enter/Space activation remains local even if a saved
+        // rating binding uses one of those gestures.
+        pane.AddHandler(KeyDownEvent, (_, e) =>
+        {
+            if (!ReaderSelectionOwnsActivationKey(e)) _ratingCommands?.Route(e);
+        }, RoutingStrategies.Tunnel);
     }
+
+    /// <summary>True when a selecting row owns Enter/Space activation instead of a page shortcut.</summary>
+    private static bool ReaderSelectionOwnsActivationKey(KeyEventArgs e) =>
+        e.KeyModifiers == KeyModifiers.None && e.Key is Key.Enter or Key.Space && e.Source is Visual source
+        && source.GetSelfAndVisualAncestors().Any(node => node is ListBoxItem or DataGridRow);
 
     /// <summary>The rating keys from the media sidebar, which sits beside the pane in the large reader (in the archive view its keys bubble to the pane).</summary>
     private bool RouteSidebarRatingKey(KeyEventArgs e) => _ratingCommands?.Route(e) == true;

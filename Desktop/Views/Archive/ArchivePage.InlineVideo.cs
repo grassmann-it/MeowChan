@@ -131,7 +131,8 @@ public partial class ArchivePage
     // The sidebar's own focus (its strip, its header buttons): the video keys act on the video it presents.
     private bool TryRouteSidebarVideoKey(KeyEventArgs e)
     {
-        if (e.Handled || !_mediaSidebarShown || _sidebarVideo is not { IsOffered: true } slot || e.Source is Button) return false;
+        if (e.Handled || CommandRouter.IsNativeInput(e.Source, e.Key) || !_mediaSidebarShown
+            || _sidebarVideo is not { IsOffered: true } slot || e.Source is Button) return false;
         ReaderVideoAction action = ReaderVideoKeys.ClassifyUnclaimed(id => CommandBindings.Matches(e, id));
         if (action == ReaderVideoAction.None) return false;
         e.Handled = true;

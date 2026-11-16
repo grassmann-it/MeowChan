@@ -252,7 +252,8 @@ public sealed class ReaderToolbarRl1Tests : IDisposable
     {
         // Ctrl+Shift+M (sidebar) goes through the option's key handler on the reader pane; Ctrl+Shift+L is routed by the shell.
         string view = File.ReadAllText(Root("Desktop/Views/Archive/ArchivePage.ReaderView.cs"));
-        Assert.Contains("ArchiveReaderPane.AddHandler(KeyDownEvent, OnReaderViewKeyDown, RoutingStrategies.Bubble);", view);
+        Assert.Contains("ArchiveReaderPane.AddHandler(KeyDownEvent, OnReaderViewKeyDown, RoutingStrategies.Tunnel);", view);
+        Assert.Contains("CommandRouter.IsRoutingContextActive(context, e.Source)", view);
         Assert.Contains("CommandBindings.Matches(e, option.CommandId)", view);
         Assert.Contains("internal bool ToggleReaderViewOption(string commandId)", view);
         Assert.Contains("RegisterViewOption(\"reader.view.media-only\"", view);

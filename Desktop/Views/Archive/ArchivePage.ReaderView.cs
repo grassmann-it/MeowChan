@@ -96,7 +96,9 @@ public partial class ArchivePage
         _readerView.Changed += (_, _) => RequestProjectionRebuild();
         _readerView.Changed += (_, _) => RefreshReaderSettings();
         // On the pane itself, so the shortcuts work in the embedded and in the detached reader.
-        ArchiveReaderPane.AddHandler(KeyDownEvent, OnReaderViewKeyDown, RoutingStrategies.Bubble);
+        // A user may bind a view option to a letter; tunnel it before ListBox type-ahead,
+        // but leave a selecting row's Enter/Space activation to the row.
+        ArchiveReaderPane.AddHandler(KeyDownEvent, OnReaderViewKeyDown, RoutingStrategies.Tunnel);
         LocalizeReaderView();
     }
 
@@ -172,7 +174,9 @@ public partial class ArchivePage
 
     private void OnReaderViewKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Handled || _ended || ShortcutService.IsCapturing || IsReaderDialogOpen || _thread == null) return;
+        Control context = sender as Control ?? ArchiveReaderPane;
+        if (e.Handled || _ended || ShortcutService.IsCapturing || !CommandRouter.IsRoutingContextActive(context, e.Source)
+            || IsReaderDialogOpen || _thread == null || ReaderSelectionOwnsActivationKey(e)) return;
         foreach (ReaderViewOption option in OrderedViewOptions())
         {
             if (option.ShortcutViaRouter || !CommandBindings.Matches(e, option.CommandId)) continue;

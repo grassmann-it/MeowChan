@@ -165,11 +165,20 @@ public partial class ArchivePage
         // The sidebar's keys reach the reader's view shortcuts too (the toggle, the reader's other switches), in either host.
         // M / U / F act on the medium it shows (revision 20), like the stars of its header.
         // R, the rating keys and the media menu's keys act on it too (audit 16.11.2026: in the large reader they reached nothing from here).
-        // The strip is a ListBox: its type-ahead can consume R before a bubble
-        // handler reaches the sidebar. Route the pane-owned rating command in the
-        // tunnel, just like the reader pane, while CommandRouter preserves real
-        // editor/dropdown input and popup ownership.
-        sidebar.AddHandler(KeyDownEvent, (_, e) => RouteSidebarRatingKey(e), RoutingStrategies.Tunnel);
+        // The strip is a ListBox: its type-ahead can consume a letter before a bubble
+        // handler reaches the sidebar. Route the page-owned routes in the tunnel,
+        // while every resolver preserves native input and the context guard preserves
+        // popups and foreign top-levels. The strip's Space/Enter selection remains
+        // local; only the other playback bindings are lifted before type-ahead.
+        sidebar.AddHandler(KeyDownEvent, (_, e) =>
+        {
+            if (!ReaderSelectionOwnsActivationKey(e)) RouteSidebarRatingKey(e);
+        }, RoutingStrategies.Tunnel);
+        sidebar.AddHandler(KeyDownEvent, (_, e) =>
+        {
+            if (!CommandRouter.IsRoutingContextActive(sidebar, e.Source)) return;
+            TryRouteSidebarSelectionShortcut(sidebar, e);
+        }, RoutingStrategies.Tunnel);
         sidebar.AddHandler(KeyDownEvent, (_, e) =>
         {
             if (!TryRouteSidebarVideoKey(e) && !TryRouteFavoriteKey(sidebar, e) && !RouteSidebarRatingKey(e) && !TryRouteArchiveMediaShortcut(sidebar, e))
@@ -190,6 +199,18 @@ public partial class ArchivePage
         // (Avalonia runs one element's tunnel handlers in reverse order), like the pane's (WireReaderSurface).
         MeowChan.Desktop.Controls.KeyContextHost.Install(sidebar, _ => "reader");
         return sidebar;
+    }
+
+    // A focused thumbnail is a selecting control: lift only the page-owned media routes before its type-ahead.
+    // Space is deliberately left to ReaderMediaSidebar.OnStripKeyDown, and the actual inline-video surface keeps its own
+    // slot handler. Header buttons and the picture have no ListBox type-ahead and continue through the bubble route.
+    private bool TryRouteSidebarSelectionShortcut(ReaderMediaSidebar sidebar, KeyEventArgs e)
+    {
+        if (ReaderSelectionOwnsActivationKey(e)) return false;
+        bool inStrip = e.Source is Visual source
+            && source.GetSelfAndVisualAncestors().Any(node => ReferenceEquals(node, sidebar.Strip));
+        if (inStrip && TryRouteSidebarVideoKey(e)) return true;
+        return TryRouteFavoriteKey(sidebar, e) || TryRouteArchiveMediaShortcut(sidebar, e);
     }
 
     // Puts the (hidden) sidebar and its splitter into the large reader's frame or the archive view's pane. The archive view shows it as a

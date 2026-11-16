@@ -29,7 +29,13 @@ public partial class ArchivePage
                 () => !_ended, () => OpenActions.Start(() => SetMediaLayoutAsync(!_mediaTiles), "archive.media-layout"), Priority: 100));
         };
         pane.DetachedFromVisualTree += (_, _) => { _mediaViewCommands?.Dispose(); _mediaViewCommands = null; };
-        pane.KeyDown += (_, e) => _mediaViewCommands?.Route(e);
+        // archive.media-view has no built-in letter, but saved bindings may use one and a Media-tab ListBox
+        // would consume it as type-ahead. The shared router keeps editors, popups and foreign top-levels isolated;
+        // a row's Enter/Space activation remains local.
+        pane.AddHandler(KeyDownEvent, (_, e) =>
+        {
+            if (!ReaderSelectionOwnsActivationKey(e)) _mediaViewCommands?.Route(e);
+        }, RoutingStrategies.Tunnel);
     }
 
     private void LocalizeMediaLayoutSwitch()

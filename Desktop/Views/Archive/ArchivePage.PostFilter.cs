@@ -58,7 +58,9 @@ public partial class ArchivePage
     partial void AttachPostFilter()
     {
         RegisterPostClassifier(_postFilter);
-        ArchiveReaderPane.AddHandler(KeyDownEvent, OnPostFilterKeyDown, RoutingStrategies.Bubble);
+        // H is a real reader shortcut, not ListBox type-ahead. Route it before a post item
+        // can consume the letter; the handler below still rejects native editors, popups and foreign top-levels.
+        ArchiveReaderPane.AddHandler(KeyDownEvent, OnPostFilterKeyDown, RoutingStrategies.Tunnel);
         ArchiveReaderPane.AddHandler(KeyDownEvent, OnPostCopyLinkKeyDown, RoutingStrategies.Bubble);
     }
 
@@ -108,7 +110,8 @@ public partial class ArchivePage
 
     private void OnPostFilterKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Handled || ShortcutService.IsCapturing || IsReaderDialogOpen || !CanChangePostFilters || _thread == null
+        if (e.Handled || ShortcutService.IsCapturing || !CommandRouter.IsRoutingContextActive(ArchiveReaderPane, e.Source)
+            || IsReaderDialogOpen || !CanChangePostFilters || _thread == null
             || ArchivePosts.SelectedItem is not ArchivePostRow row || _thread.FindPostIndex(row.Id) < 0) return;
         ResourceId thread = _thread.Summary.Id;
         bool hidden = _postFilters!.IsHidden(thread, row.Id);
