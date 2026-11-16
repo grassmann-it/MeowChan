@@ -143,6 +143,24 @@ class WorkflowConsistencyTests(unittest.TestCase):
                     self.assertTrue(
                         predicate(steps[step], event, "", "", True, os_, arch), f"{step} skipped on {event}/{os_}")
 
+    def test_each_native_offline_shard_requires_real_test_success_without_gui_repeats(self):
+        steps = workflow_steps()
+        for shard in range(2, 9):
+            lane = f"native-{shard:02}"
+            required = compute.required_steps("workflow_dispatch", "stable-candidate", "all", lane, "macOS", "X64")
+            self.assertIn("mac_tests", required)
+            self.assertIn("build_all", required)
+            self.assertIn("restore_release", required)
+            self.assertIn("candidate_matrix", required)
+            self.assertNotIn("media_input", required)
+            for step in required:
+                self.assertTrue(predicate(steps[step], "workflow_dispatch", "stable-candidate", "all", False, "macOS", "X64"), step)
+            self.assertFalse(aggregate.step_gate(outcomes(required, skipped={"mac_tests"}), required)["passed"])
+            self.assertFalse(aggregate.step_gate(outcomes(required, failed={"mac_tests"}), required)["passed"])
+            for step in ("prepare_desktop", "smoke_build", "smoke_normal", "media_input", "gallery_features"):
+                self.assertFalse(predicate(steps[step], "workflow_dispatch", "stable-candidate", "all", False, "macOS", "X64"), step)
+        self.assertFalse(predicate(steps["mac_tests"], "workflow_dispatch", "validate", "media-input", True, "macOS", "X64"))
+
     def test_workflow_keeps_continue_on_error_fail_fast_false_and_script_gate(self):
         text = WORKFLOW.read_text(encoding="utf-8")
         self.assertIn("fail-fast: false", text)

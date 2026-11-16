@@ -50,7 +50,9 @@ def required_steps(event_name: str, mode: str, scenario: str, lane: str, runner_
             raise ValueError(f"offline-retest rejects lane={lane} os={runner_os} scenario={scenario}")
         return list(OFFLINE_RETEST_REQUIRED)
     scenario = effective_scenario(event_name, scenario)
-    is_full = runner_os == "macOS" or lane == "lane-a"
+    is_full = (runner_os == "macOS" and lane == "native") or lane == "lane-a"
+    if runner_os == "macOS" and lane not in ("native", *(f"native-{i:02}" for i in range(2, 9))):
+        raise ValueError(f"unknown native shard lane: {lane}")
     candidate = mode in ("prerelease-candidate", "stable-candidate")
     if scenario == "all":
         full = (["candidate_matrix"] if candidate else []) + FULL_LANE_REQUIRED
@@ -62,7 +64,10 @@ def required_steps(event_name: str, mode: str, scenario: str, lane: str, runner_
         if runner_os == "Windows" and lane == "lane-a":
             return full + ["prepare_desktop", "core_tests"]
         if runner_os == "macOS":
-            return full + ["prepare_desktop", "mac_tests"]
+            if lane == "native":
+                return full + ["prepare_desktop", "mac_tests"]
+            return (["candidate_matrix"] if candidate else []) + [
+                "record_source", "dev_build", "restore_release", "retain_release_assets", "build_all", "mac_tests"]
         return ["record_source", "core_tests"]
     if scenario not in TARGETED_STEPS:
         raise ValueError(f"unknown scenario: {scenario}")

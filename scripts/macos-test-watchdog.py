@@ -141,12 +141,12 @@ def run_one(name, command, output, timeout):
 
 
 def bound_evidence(output):
-    # Keep normal TRX intact. Oversized evidence is visibly marked and retains its tail.
+    # Coverage/gate evidence is never truncated. Bound only diagnostic logs/samples.
     limit = 8 * 1024 * 1024
     changes = []
     remaining = 64 * 1024 * 1024
     for path in sorted(output.rglob('*')):
-        if not path.is_file():
+        if not path.is_file() or path.suffix in ('.trx', '.json', '.runsettings'):
             continue
         original = path.stat().st_size
         allowance = min(limit, max(0, remaining))

@@ -76,7 +76,7 @@ jobs:
     if: github.event_name != 'workflow_dispatch' || inputs.mode == 'validate' || inputs.mode == 'offline-retest' || inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate'
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON((github.event_name == 'workflow_dispatch' && inputs.mode == 'offline-retest') && ((!inputs.platform || inputs.platform == 'all') && format('{{"include":[{{"os":"ubuntu-24.04","lane":"{0}","full":false}},{{"os":"ubuntu-24.04-arm","lane":"{0}","full":false}},{{"os":"windows-2022","lane":"{0}","full":false}}]}}', inputs.offline_lane) || format('{{"include":[{{"os":"{0}","lane":"{1}","full":false}}]}}', inputs.platform, inputs.offline_lane)) || (github.event_name != 'workflow_dispatch' || !inputs.platform || inputs.platform == 'all') && '{"include":[{"os":"ubuntu-24.04","lane":"lane-a","full":true},{"os":"ubuntu-24.04","lane":"lane-b","full":false},{"os":"ubuntu-24.04","lane":"lane-c","full":false},{"os":"ubuntu-24.04","lane":"lane-d","full":false},{"os":"ubuntu-24.04-arm","lane":"lane-a","full":true},{"os":"ubuntu-24.04-arm","lane":"lane-b","full":false},{"os":"ubuntu-24.04-arm","lane":"lane-c","full":false},{"os":"ubuntu-24.04-arm","lane":"lane-d","full":false},{"os":"windows-2022","lane":"lane-a","full":true},{"os":"windows-2022","lane":"lane-b","full":false},{"os":"windows-2022","lane":"lane-c","full":false},{"os":"windows-2022","lane":"lane-d","full":false},{"os":"macos-15","lane":"native","full":true},{"os":"macos-15-intel","lane":"native","full":true}]}' || (inputs.platform == 'macos-15' || inputs.platform == 'macos-15-intel') && format('{{"include":[{{"os":"{0}","lane":"native","full":true}}]}}', inputs.platform) || format('{{"include":[{{"os":"{0}","lane":"lane-a","full":true}},{{"os":"{0}","lane":"lane-b","full":false}},{{"os":"{0}","lane":"lane-c","full":false}},{{"os":"{0}","lane":"lane-d","full":false}}]}}', inputs.platform)) }}
+      matrix: ${{ fromJSON((github.event_name == 'workflow_dispatch' && inputs.mode == 'offline-retest') && ((!inputs.platform || inputs.platform == 'all') && format('{{"include":[{{"os":"ubuntu-24.04","lane":"{0}","full":false}},{{"os":"ubuntu-24.04-arm","lane":"{0}","full":false}},{{"os":"windows-2022","lane":"{0}","full":false}}]}}', inputs.offline_lane) || format('{{"include":[{{"os":"{0}","lane":"{1}","full":false}}]}}', inputs.platform, inputs.offline_lane)) || (github.event_name != 'workflow_dispatch' || !inputs.platform || inputs.platform == 'all') && ((github.event_name != 'workflow_dispatch' || !inputs.scenario || inputs.scenario == 'all') && '{"include":[{"os":"ubuntu-24.04","lane":"lane-a","full":true},{"os":"ubuntu-24.04","lane":"lane-b","full":false},{"os":"ubuntu-24.04","lane":"lane-c","full":false},{"os":"ubuntu-24.04","lane":"lane-d","full":false},{"os":"ubuntu-24.04-arm","lane":"lane-a","full":true},{"os":"ubuntu-24.04-arm","lane":"lane-b","full":false},{"os":"ubuntu-24.04-arm","lane":"lane-c","full":false},{"os":"ubuntu-24.04-arm","lane":"lane-d","full":false},{"os":"windows-2022","lane":"lane-a","full":true},{"os":"windows-2022","lane":"lane-b","full":false},{"os":"windows-2022","lane":"lane-c","full":false},{"os":"windows-2022","lane":"lane-d","full":false},{"os":"macos-15","lane":"native","full":true,"mac_shard":1},{"os":"macos-15","lane":"native-02","full":false,"mac_shard":2},{"os":"macos-15","lane":"native-03","full":false,"mac_shard":3},{"os":"macos-15","lane":"native-04","full":false,"mac_shard":4},{"os":"macos-15","lane":"native-05","full":false,"mac_shard":5},{"os":"macos-15","lane":"native-06","full":false,"mac_shard":6},{"os":"macos-15","lane":"native-07","full":false,"mac_shard":7},{"os":"macos-15","lane":"native-08","full":false,"mac_shard":8},{"os":"macos-15-intel","lane":"native","full":true,"mac_shard":1},{"os":"macos-15-intel","lane":"native-02","full":false,"mac_shard":2},{"os":"macos-15-intel","lane":"native-03","full":false,"mac_shard":3},{"os":"macos-15-intel","lane":"native-04","full":false,"mac_shard":4},{"os":"macos-15-intel","lane":"native-05","full":false,"mac_shard":5},{"os":"macos-15-intel","lane":"native-06","full":false,"mac_shard":6},{"os":"macos-15-intel","lane":"native-07","full":false,"mac_shard":7},{"os":"macos-15-intel","lane":"native-08","full":false,"mac_shard":8}]}' || '{"include":[{"os":"ubuntu-24.04","lane":"lane-a","full":true},{"os":"ubuntu-24.04","lane":"lane-b","full":false},{"os":"ubuntu-24.04","lane":"lane-c","full":false},{"os":"ubuntu-24.04","lane":"lane-d","full":false},{"os":"ubuntu-24.04-arm","lane":"lane-a","full":true},{"os":"ubuntu-24.04-arm","lane":"lane-b","full":false},{"os":"ubuntu-24.04-arm","lane":"lane-c","full":false},{"os":"ubuntu-24.04-arm","lane":"lane-d","full":false},{"os":"windows-2022","lane":"lane-a","full":true},{"os":"windows-2022","lane":"lane-b","full":false},{"os":"windows-2022","lane":"lane-c","full":false},{"os":"windows-2022","lane":"lane-d","full":false},{"os":"macos-15","lane":"native","full":true,"mac_shard":1},{"os":"macos-15-intel","lane":"native","full":true,"mac_shard":1}]}') || (inputs.platform == 'macos-15' || inputs.platform == 'macos-15-intel') && ((github.event_name != 'workflow_dispatch' || !inputs.scenario || inputs.scenario == 'all') && format('{{"include":[{{"os":"{0}","lane":"native","full":true,"mac_shard":1}},{{"os":"{0}","lane":"native-02","full":false,"mac_shard":2}},{{"os":"{0}","lane":"native-03","full":false,"mac_shard":3}},{{"os":"{0}","lane":"native-04","full":false,"mac_shard":4}},{{"os":"{0}","lane":"native-05","full":false,"mac_shard":5}},{{"os":"{0}","lane":"native-06","full":false,"mac_shard":6}},{{"os":"{0}","lane":"native-07","full":false,"mac_shard":7}},{{"os":"{0}","lane":"native-08","full":false,"mac_shard":8}}]}}', inputs.platform) || format('{{"include":[{{"os":"{0}","lane":"native","full":true,"mac_shard":1}}]}}', inputs.platform)) || format('{{"include":[{{"os":"{0}","lane":"lane-a","full":true}},{{"os":"{0}","lane":"lane-b","full":false}},{{"os":"{0}","lane":"lane-c","full":false}},{{"os":"{0}","lane":"lane-d","full":false}}]}}', inputs.platform)) }}
     runs-on: ${{ matrix.os }}
     # Existing checks, scoped native regressions and two genuine old-release replays.
     timeout-minutes: 75
@@ -191,21 +191,22 @@ jobs:
         timeout-minutes: 35
         shell: bash
         run: python scripts/run-dotnet-shards.py --lane "${{ matrix.lane }}" --results-root test-results/offline-shards
-      - name: Run both complete macOS offline suites with bounded diagnostics
+      - name: Run native macOS offline test shard with bounded diagnostics
         id: mac_tests
         # Keep independent checks running so one failure yields a complete evidence set.
         continue-on-error: true
-        if: matrix.full && (runner.os == 'macOS' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all'))
-        # Ordinary validation keeps the 300s core / 600s desktop bounds. Candidate
-        # validation opts into the evidence-based 390s + 810s (1200s total), leaving
-        # two minutes of the outer 22m step for diagnostics, cleanup and evidence.
+        if: runner.os == 'macOS' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all')
+        # Eight native machines partition each compiled inventory; no suite replay.
+        # Discovery is INCLUDED in the unchanged 300/600s (candidate 390/810s)
+        # bounds. Leave two minutes for diagnostic sampling and group cleanup.
         timeout-minutes: 22
         run: |
-          watchdog_args=(--timeout 300 --desktop-timeout 600)
+          watchdog_args=()
           if [[ "${{ inputs.mode }}" == prerelease-candidate || "${{ inputs.mode }}" == stable-candidate ]]; then
             watchdog_args=(--candidate-validation)
           fi
-          python3 scripts/macos-test-watchdog.py "${watchdog_args[@]}"
+          python3 scripts/run-macos-test-shards.py run --shard "${{ matrix.mac_shard }}" \
+            --platform "${{ matrix.os }}" --source "$(git rev-parse HEAD)" "${watchdog_args[@]}"
       - name: Check package layout fixtures
         id: package_fixtures
         # Keep independent checks running so one failure yields a complete evidence set.
@@ -228,6 +229,8 @@ jobs:
           python -m unittest discover -s tests -p test_ci_desktop_preparation.py -v || fixture_status=$?
           python -m unittest discover -s tests -p test_validation_gate.py -v || fixture_status=$?
           python -m unittest discover -s tests -p test_macos_test_watchdog.py -v || fixture_status=$?
+          python -m unittest discover -s tests -p test_macos_test_shards.py -v || fixture_status=$?
+          python -m unittest discover -s tests -p test_dotnet_desktop_workflow_contract.py -v || fixture_status=$?
           exit "$fixture_status"
       - name: Check local library package contract fixtures
         id: local_package
@@ -720,6 +723,14 @@ jobs:
             --json-env VALIDATION_STEPS \
             --required "$required_csv" \
             --report artifacts/build-evidence/release-validation-gate.json
+      - name: Upload native macOS shard coverage
+        if: always() && runner.os == 'macOS' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all')
+        uses: actions/upload-artifact@v7
+        with:
+          name: macos-offline-${{ matrix.os }}-${{ matrix.mac_shard }}-${{ runner.arch }}
+          path: artifacts/macos-test-shards/**
+          if-no-files-found: error
+          retention-days: 14
       - name: Upload regression and graphical evidence
         if: always()
         uses: actions/upload-artifact@v7
@@ -754,6 +765,39 @@ jobs:
             artifacts/macos-test-diagnosis/**
           if-no-files-found: warn
           retention-days: ${{ github.event_name == 'workflow_dispatch' && inputs.scenario == 'selection' && 2 || 14 }}
+
+  # Matrix success alone is insufficient: verify matching source/inventory,
+  # all eight workers per selected native platform, and every actual TRX row.
+  macos-offline-gate:
+    name: Native macOS offline coverage (fail-closed)
+    if: ${{ always() && (github.event_name != 'workflow_dispatch' || ((inputs.mode == 'validate' || inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate') && inputs.scenario == 'all' && (!inputs.platform || inputs.platform == 'all' || inputs.platform == 'macos-15' || inputs.platform == 'macos-15-intel'))) }}
+    needs: validate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: macos-offline-macos-*
+          path: artifacts/macos-offline-inputs
+      - name: Verify exact native offline coverage
+        if: always()
+        shell: bash
+        run: |
+          platforms=(--platform macos-15 --platform macos-15-intel)
+          if [[ "${{ inputs.platform }}" == macos-* ]]; then
+            platforms=(--platform "${{ inputs.platform }}")
+          fi
+          python3 scripts/run-macos-test-shards.py aggregate \
+            --input artifacts/macos-offline-inputs --source "$(git rev-parse HEAD)" \
+            "${platforms[@]}" --report artifacts/macos-offline-gate.json
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: macos-offline-coverage-${{ github.sha }}
+          path: artifacts/macos-offline-gate.json
+          if-no-files-found: error
+          retention-days: 14
 
   library-package:
     if: ${{ always() && (github.event_name != 'workflow_dispatch' || ((inputs.mode == 'validate' || (inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate')) && inputs.scenario == 'all')) }}
@@ -1416,7 +1460,7 @@ jobs:
   release-candidate-gate:
     name: Release candidate gate (fail-closed)
     if: ${{ always() && github.event_name == 'workflow_dispatch' && (inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate') }}
-    needs: [validate, library-package, macos-package, package-media, linux-distribution, macos-source-candidate, current-source-inventory]
+    needs: [validate, macos-offline-gate, library-package, macos-package, package-media, linux-distribution, macos-source-candidate, current-source-inventory]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -1428,7 +1472,7 @@ jobs:
         run: |
           python3 scripts/aggregate-release-gates.py needs \
             --json-env RELEASE_NEEDS \
-            --required validate,library-package,macos-package,package-media,linux-distribution,macos-source-candidate,current-source-inventory \
+            --required validate,macos-offline-gate,library-package,macos-package,package-media,linux-distribution,macos-source-candidate,current-source-inventory \
             --report artifacts/release-candidate-gate.json
       - name: Retain candidate gate decision
         if: always()

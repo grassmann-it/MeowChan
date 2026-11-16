@@ -257,7 +257,7 @@ class DotnetShardRunnerTests(unittest.TestCase):
     def test_workflow_uses_two_shard_lanes_and_keeps_macos_watchdog_separate(self):
         workflow = (ROOT / ".github" / "workflows" / "dotnet-desktop.yml").read_text()
         start = workflow.index("      - name: Run core and desktop offline test shards")
-        end = workflow.index("      - name: Run both complete macOS offline suites", start)
+        end = workflow.index("      - name: Run native macOS offline test shard", start)
         shard_step = workflow[start:end]
         self.assertIn("python scripts/run-dotnet-shards.py --lane \"${{ matrix.lane }}\"", shard_step)
         self.assertIn("timeout-minutes: 35", shard_step)
@@ -269,8 +269,8 @@ class DotnetShardRunnerTests(unittest.TestCase):
         self.assertIn('lane-a', workflow)
         self.assertIn('lane-d', workflow)
         mac_step = workflow[end : workflow.index("      - name: Check package layout fixtures", end)]
-        self.assertIn("python3 scripts/macos-test-watchdog.py", mac_step)
-        self.assertIn("--timeout 300 --desktop-timeout 600", mac_step)
+        self.assertIn("python3 scripts/run-macos-test-shards.py run", mac_step)
+        self.assertIn("--shard \"${{ matrix.mac_shard }}\"", mac_step)
         self.assertNotIn("run-dotnet-shards.py", mac_step)
 
 

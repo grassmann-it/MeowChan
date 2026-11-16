@@ -35,7 +35,7 @@ class DotnetDesktopWorkflowContractTests(unittest.TestCase):
     def setUpClass(cls):
         workflow = WORKFLOW.read_text(encoding="utf-8")
         start = workflow.index("      - name: Run core and desktop offline test shards")
-        end = workflow.index("      - name: Run both complete macOS offline suites", start)
+        end = workflow.index("      - name: Run native macOS offline test shard", start)
         cls.step = workflow[start:end]
 
     def test_non_macos_step_uses_selected_two_shard_lane_runner(self):
@@ -71,7 +71,7 @@ class DotnetDesktopWorkflowContractTests(unittest.TestCase):
             self.assertGreaterEqual(depth, 0, "Unexpected closing parenthesis in matrix expression")
         self.assertEqual(0, depth)
 
-    def test_matrix_has_four_non_macos_lanes_and_one_native_lane_per_macos(self):
+    def test_matrix_has_four_non_macos_lanes_and_eight_native_shards_per_macos(self):
         workflow = WORKFLOW.read_text(encoding="utf-8")
         self.assertIn('matrix: ${{ fromJSON(', workflow)
         for os_name in ("ubuntu-24.04", "ubuntu-24.04-arm", "windows-2022"):
@@ -92,7 +92,7 @@ class DotnetDesktopWorkflowContractTests(unittest.TestCase):
             if line.strip().startswith("matrix: ${{ fromJSON(")
         )
         literals = re.findall(r"format\('([^']+)', inputs\.platform\)", matrix_line)
-        self.assertEqual(2, len(literals))
+        self.assertEqual(3, len(literals))
         self.assertTrue(all("{{" in literal and "}}" in literal for literal in literals))
         self.assertNotIn("format('{\"include\"", matrix_line)
 
@@ -100,12 +100,68 @@ class DotnetDesktopWorkflowContractTests(unittest.TestCase):
             return literal.replace("{{", "{").replace("}}", "}").replace("{0}", platform)
 
         macos = json.loads(render(literals[0], "macos-15"))
-        self.assertEqual([{"os": "macos-15", "lane": "native", "full": True}], macos["include"])
-        linux = json.loads(render(literals[1], "ubuntu-24.04"))
+        self.assertEqual(list(range(1, 9)), [row["mac_shard"] for row in macos["include"]])
+        self.assertEqual(1, sum(row["full"] for row in macos["include"]))
+        focused = json.loads(render(literals[1], "macos-15"))
+        self.assertEqual([{"os": "macos-15", "lane": "native", "full": True, "mac_shard": 1}], focused["include"])
+        linux = json.loads(render(literals[2], "ubuntu-24.04"))
         self.assertEqual(4, len(linux["include"]))
         self.assertEqual("ubuntu-24.04", linux["include"][0]["os"])
         self.assertEqual("lane-d", linux["include"][-1]["lane"])
 
+
+    def matrix(self, *, event="workflow_dispatch", platform="all", scenario="all", mode="validate"):
+        from types import SimpleNamespace
+        line = next(l for l in WORKFLOW.read_text().splitlines() if l.strip().startswith("matrix: ${{ fromJSON("))
+        expression = line.split("${{", 1)[1].rsplit("}}", 1)[0].strip()
+        strings = {}
+        def literal(match):
+            key = "literal_" + str(len(strings))
+            strings[key] = match[0][1:-1].replace("''", "'")
+            return key
+        expression = re.sub(r"'(?:[^']|'')*'", literal, expression)
+        expression = re.sub(r"!(?!=)", " not ", expression).replace("&&", " and ").replace("||", " or ")
+        return eval(expression, {"__builtins__": {}}, {
+            **strings, "fromJSON": json.loads, "format": lambda text, *args: text.format(*args),
+            "github": SimpleNamespace(event_name=event),
+            "inputs": SimpleNamespace(platform=platform, scenario=scenario, mode=mode, offline_lane="lane-c"),
+        })["include"]
+
+    def test_evaluated_full_matrix_has_eight_native_workers_and_gui_once_per_platform(self):
+        for event, mode, scenario in (("push", "", ""), ("pull_request", "", ""),
+                                      ("workflow_dispatch", "validate", "all"),
+                                      ("workflow_dispatch", "prerelease-candidate", "all"),
+                                      ("workflow_dispatch", "stable-candidate", "all")):
+            rows = self.matrix(event=event, mode=mode, scenario=scenario)
+            self.assertEqual(28, len(rows))
+            for os_name in ("macos-15", "macos-15-intel"):
+                native = [r for r in rows if r["os"] == os_name]
+                self.assertEqual(list(range(1, 9)), [r["mac_shard"] for r in native])
+                self.assertEqual(["native"], [r["lane"] for r in native if r["full"]])
+                single = self.matrix(platform=os_name, mode=mode, scenario="all")
+                self.assertEqual(native, single)
+
+    def test_focused_media_input_and_other_scenarios_never_expand_mac_shards(self):
+        for scenario in ("media-input", "gallery-features", "gui-only", "selection"):
+            for platform in ("all", "macos-15", "macos-15-intel"):
+                rows = self.matrix(platform=platform, scenario=scenario)
+                native = [r for r in rows if r["os"].startswith("macos-")]
+                self.assertEqual(2 if platform == "all" else 1, len(native))
+                self.assertTrue(all(r["full"] and r["mac_shard"] == 1 for r in native))
+
+    def test_candidate_gate_explicitly_requires_cross_worker_coverage_gate(self):
+        workflow = WORKFLOW.read_text()
+        gate = workflow.split("  release-candidate-gate:\n")[1].split("  macos-diagnose:")[0]
+        self.assertIn("needs: [validate, macos-offline-gate,", gate)
+        self.assertIn("--required validate,macos-offline-gate,", gate)
+        offline_gate = workflow.split("  macos-offline-gate:\n")[1].split("  library-package:")[0]
+        self.assertIn("needs: validate", offline_gate)
+        self.assertIn("always()", offline_gate)
+        self.assertIn("inputs.scenario == 'all'", offline_gate)
+        self.assertIn("pattern: macos-offline-macos-*", offline_gate)
+        self.assertIn("scripts/run-macos-test-shards.py aggregate", offline_gate)
+        self.assertIn("--platform macos-15 --platform macos-15-intel", offline_gate)
+        self.assertNotIn("continue-on-error", offline_gate)
 
     def retest_literals(self):
         workflow = WORKFLOW.read_text(encoding="utf-8")
