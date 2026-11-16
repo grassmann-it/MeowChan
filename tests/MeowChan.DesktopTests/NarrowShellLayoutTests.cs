@@ -295,7 +295,7 @@ public sealed class NarrowShellLayoutTests : IDisposable
         string transfer = Source("Desktop/Shell/MainWindow.Transfer.cs");
         Assert.Contains("&& HeaderMonitorFitsMeasured();", transfer);
         Assert.Contains("ApplyHeaderMonitorVisibility(); // the words of another language", transfer);
-        XDocument main = XDocument.Load(Source("Desktop/Shell/MainWindow.axaml"));
+        XDocument main = XDocument.Parse(Source("Desktop/Shell/MainWindow.axaml"));
         XElement header = Named(main, "WorkspaceHeader");
         Assert.Equal("True", (string?)header.Attribute("ClipToBounds")); // nothing paints over the window controls
         foreach (string part in new[] { "WorkspaceBrand", "WorkspaceHeaderTools", "WorkspaceMenuBar" })
@@ -307,7 +307,7 @@ public sealed class NarrowShellLayoutTests : IDisposable
     [Fact]
     public void TheStatusLineIsOneShrinkingRowWithTheStateFirst()
     {
-        XDocument main = XDocument.Load(Source("Desktop/Shell/MainWindow.axaml"));
+        XDocument main = XDocument.Parse(Source("Desktop/Shell/MainWindow.axaml"));
         XElement row = Named(main, "WorkspaceStatusRow");
         Assert.Equal("ShrinkRowPanel", row.Name.LocalName);
         Assert.Equal("True", (string?)row.Attribute("FillFirst"));

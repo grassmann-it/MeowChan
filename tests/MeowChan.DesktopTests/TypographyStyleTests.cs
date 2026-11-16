@@ -37,7 +37,7 @@ public sealed class TypographyStyleTests
     public void BooruCardTitlesCarryTheCardTitleClassInsteadOfALiteralSize()
     {
         string booru = File.ReadAllText(Root("Desktop/Views/Booru/BooruWorkbenchView.cs"));
-        Assert.Contains("Classes = { \"card-title\" } });", booru);
+        Assert.Contains("Classes = { \"card-title\" }, TextWrapping = TextWrapping.Wrap });", booru);
         Assert.Contains("Classes = { \"mono\", \"card-title\" }", booru);
         Assert.DoesNotContain("FontSize = 14", booru);
     }
