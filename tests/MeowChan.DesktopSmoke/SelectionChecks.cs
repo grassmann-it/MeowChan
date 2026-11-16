@@ -247,12 +247,12 @@ internal static class SelectionChecks
         // slot too instead of silently ignoring extra commands or sorting tags.
         var expected = new List<string>
         {
-            "thread.favorite-toggle", "thread.read", "gallery.open", "thread.details", "export.open-html-dialog",
+            "thread.favorite-toggle", "thread.read", "gallery.open", "thread.details", "thread.show-in-media", "export.open-html-dialog",
             "selection.copy-links", "location.open-folder", "location.open-source", "watch.check", "watch.retry-media",
             "rules.edit-scope", "watch.remove", "archive.delete-permanently"
         };
-        // One thread only: its own tags follow the details; the URL-text export follows the HTML export.
-        if (single) { expected.Insert(4, "thread.tags"); expected.Insert(6, "export.open-urltext-dialog"); }
+        // One thread only: its own tags follow Show in Media; the URL-text export follows the HTML export.
+        if (single) { expected.Insert(5, "thread.tags"); expected.Insert(7, "export.open-urltext-dialog"); }
         string[] actual = menu.Items.OfType<MenuItem>().Where(item => item.Tag is string)
             .Select(item => (string)item.Tag!).ToArray();
         Require(actual.SequenceEqual(expected),
