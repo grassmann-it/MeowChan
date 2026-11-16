@@ -186,7 +186,12 @@ public sealed class SearchScopeChip : Button
             }
         }
         MenuItem? current = menu.Items.OfType<MenuItem>().FirstOrDefault(item => Equals(item.Tag, "search.scope." + _scope));
-        menu.Closed += (_, _) => { if (ReferenceEquals(OpenMenu, menu)) OpenMenu = null; };
+        menu.Closed += (_, _) =>
+        {
+            if (ReferenceEquals(OpenMenu, menu)) OpenMenu = null;
+            // The checked scope and the carry entries are values of this open: not kept for a later right-click, every open composes anew (ShowMenu).
+            if (ReferenceEquals(ContextMenu, menu)) ContextMenu = null;
+        };
         ContextMenu = menu;
         OpenMenu = menu;
         // A work view may have taken the chip off the field (it is hidden while the scope is Text): the menu then opens at the field.

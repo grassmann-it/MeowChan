@@ -428,6 +428,8 @@ internal sealed partial class GalleryVideoPlayer
     {
         Dispatcher.UIThread.VerifyAccess();
         if (IsDisposed || !_speed.IsEnabled || !_speed.IsEffectivelyVisible) return;
+        // ContextMenu.Open does not raise Opening: compose the checkmarks, labels and enabled state first.
+        RefreshRateItems(_speedMenuRates);
         _speedMenu.Open(_speed);
     }
 

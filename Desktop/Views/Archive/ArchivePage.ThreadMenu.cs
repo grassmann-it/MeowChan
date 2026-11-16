@@ -32,8 +32,14 @@ public partial class ArchivePage
         if (_ended || sender is not Control origin) return;
         ContextMenu menu = BuildReaderThreadMenu();
         origin.ContextMenu = menu;
-        menu.Open(origin);
+        // The menu captured this thread (summary, row, id): once it is closed the button must not keep it for a later right-click or Menu key,
+        // which would open it unrebuilt for whatever thread is open by then. It stays attached while open (the toolbar overflow watches it).
+        menu.Closed += (_, _) => { if (ReferenceEquals(origin.ContextMenu, menu)) origin.ContextMenu = null; };
+        ShowThreadMenu(menu, origin);
     }
+
+    /// <summary>How the "Thread" menu is shown at its button (a test records it instead of opening a popup).</summary>
+    internal Action<ContextMenu, Control> ShowThreadMenu { get; set; } = static (menu, origin) => menu.Open(origin);
 
     /// <summary>Nothing runs and no dialog is open: the open thread is shown and the page is idle.</summary>
     private bool ThreadMenuReady => !_ended && !IsFilenameSearchOpen && _available && !_busy && !IsReaderDialogOpen && _thread != null;
