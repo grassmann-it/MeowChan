@@ -15,6 +15,8 @@ namespace MeowChan.Archive;
 public sealed partial class ArchiveReader : IAsyncDisposable
 {
     private int _disposed;
+    private readonly object _readGate = new();
+    private readonly HashSet<Task> _reads = new();
     private ArchiveReader(string path) { DatabasePath = path; }
     public string DatabasePath { get; }
 
@@ -180,25 +182,41 @@ public sealed partial class ArchiveReader : IAsyncDisposable
     }
 
     private Task<T> ReadAsync<T>(Func<SqliteConnection, SqliteTransaction, T> read, CancellationToken cancellationToken)
-        => Task.Run(() =>
+    {
+        lock (_readGate)
         {
-            ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
-            cancellationToken.ThrowIfCancellationRequested();
-            using SqliteConnection connection = ArchiveSql.OpenConnection(DatabasePath, SqliteOpenMode.ReadOnly);
-            using SqliteTransaction transaction = connection.BeginTransaction(deferred: true);
-            ArchiveSql.ValidateSchema(connection, transaction);
-            T value;
-            try { value = read(connection, transaction); }
-            catch (Exception) when (cancellationToken.IsCancellationRequested) { throw new OperationCanceledException(cancellationToken); }
-            cancellationToken.ThrowIfCancellationRequested();
-            transaction.Commit();
-            return value;
-        }, cancellationToken);
+            ObjectDisposedException.ThrowIf(_disposed != 0, this);
+            Task<T> pending = Task.Run(() =>
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                using SqliteConnection connection = ArchiveSql.OpenConnection(DatabasePath, SqliteOpenMode.ReadOnly);
+                using SqliteTransaction transaction = connection.BeginTransaction(deferred: true);
+                ArchiveSql.ValidateSchema(connection, transaction);
+                T value;
+                try { value = read(connection, transaction); }
+                catch (Exception) when (cancellationToken.IsCancellationRequested) { throw new OperationCanceledException(cancellationToken); }
+                cancellationToken.ThrowIfCancellationRequested();
+                transaction.Commit();
+                return value;
+            }, cancellationToken);
+            _reads.Add(pending);
+            _ = pending.ContinueWith(completed =>
+            {
+                lock (_readGate) _reads.Remove(completed);
+            }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+            return pending;
+        }
+    }
 
-    /// <summary>Closes admission; already-running reads own their connections and may finish.</summary>
+    /// <summary>Closes admission and waits for admitted reads to release their connections.</summary>
     public ValueTask DisposeAsync()
     {
-        Interlocked.Exchange(ref _disposed, 1);
-        return ValueTask.CompletedTask;
+        lock (_readGate)
+        {
+            Volatile.Write(ref _disposed, 1);
+            // Reads report their own cancellation/failure to their callers; disposal is a resource barrier.
+            return new ValueTask(Task.WhenAll(_reads.Select(read => read.ContinueWith(
+                _ => { }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default))));
+        }
     }
 }

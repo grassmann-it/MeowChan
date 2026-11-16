@@ -139,6 +139,22 @@ public sealed class NavJumpsTests
     }
 
     [Fact]
+    public async Task ReaderDisposalDrainsAdmittedReadsBeforeProfileCleanup()
+    {
+        using TempDirectory temp = new();
+        await SeedAsync(temp.Path);
+        await using ArchiveReader reader = await ArchiveReader.OpenAsync(temp.Path);
+        Task[] reads = Enumerable.Range(0, 32).Select(_ => reader.ReadThreadAsync(Shown)).ToArray();
+
+        await reader.DisposeAsync();
+
+        Assert.All(reads, read => Assert.True(read.IsCompleted, "Disposal must release every read connection."));
+        await Task.WhenAll(reads);
+        await Assert.ThrowsAsync<ObjectDisposedException>(() => reader.ReadThreadAsync(Shown));
+        using FileStream exclusive = new(Path.Combine(temp.Path, "archive.db"), FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+    }
+
+    [Fact]
     public void OnlyALoadOfAnotherThreadOrANewPageClearsTheHistory()
     {
         // The same thread re-read in place (live follow, a list page: resetPage false) keeps the way back.
@@ -277,12 +293,38 @@ public sealed class NavJumpsTests
         });
     }
 
-    private static void WithReadingPage(string profile, Action<MeowChan.ArchivePage> test) => WithPage(
-        () => new MeowChan.ArchivePage(token => ArchiveReader.OpenAsync(profile, token), (_, _) => Task.CompletedTask, _ => { }), page =>
+    private static void WithReadingPage(string profile, Action<MeowChan.ArchivePage> test)
+    {
+        // Rendering starts background reads as well as the navigation we explicitly await.
+        // Own every opened reader until the page has stopped admitting work and all reads have drained.
+        List<Task<ArchiveReader>> readers = new();
+        try
         {
-            page.IsAvailable = true;
-            test(page);
-        });
+            WithPage(() => new MeowChan.ArchivePage(token =>
+            {
+                Task<ArchiveReader> reader = ArchiveReader.OpenAsync(profile, token);
+                readers.Add(reader);
+                return reader;
+            }, (_, _) => Task.CompletedTask, _ => { }), page =>
+            {
+                page.IsAvailable = true;
+                test(page);
+            });
+        }
+        finally
+        {
+            Pump(async () =>
+            {
+                foreach (Task<ArchiveReader> opening in readers)
+                {
+                    ArchiveReader reader;
+                    try { reader = await opening; }
+                    catch (OperationCanceledException) { continue; }
+                    await reader.DisposeAsync();
+                }
+            });
+        }
+    }
 
     private static void WithPage(Func<MeowChan.ArchivePage> create, Action<MeowChan.ArchivePage> test)
     {
@@ -297,7 +339,7 @@ public sealed class NavJumpsTests
             page.IsReadable = true;
             test(page);
         }
-        finally { (page as IDisposable)?.Dispose(); }
+        finally { page.EndLifetime(); }
     }
 
     private sealed class TokenApplication : Application
