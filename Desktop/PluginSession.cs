@@ -41,7 +41,10 @@ internal sealed partial class PluginSession : IAsyncDisposable
     private readonly ILogger _logger;
     private readonly Config _config;
     private readonly string _shippedDirectory;
-    private readonly string[] _repairRestrictedSourceIds;
+    // The saved size/MD5 exceptions as this session started with them; narrowed by RepairRestrictedSourceIds.
+    private readonly SourceMediaIntegrityPermission[] _savedSourcePermissions;
+    // Written only by startup (Volatile), read by the store's live restriction callback.
+    private string[] _repairRestrictedSourceIds;
     private readonly PluginWorkerLaunch _launch;
     private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
     private readonly Dictionary<PluginSourceImageBoard, string> _sourceOwners = new();
@@ -74,8 +77,9 @@ internal sealed partial class PluginSession : IAsyncDisposable
         PluginDirectory = Path.Combine(profileDirectory, "plugins");
         SiteSwitches = new ChanSiteSwitches(profileDirectory, logger);
         _shippedDirectory = Path.Combine(applicationDirectory, "plugins");
-        _repairRestrictedSourceIds = config.SourceMediaIntegrityPermissions
-            .Where(pair => pair.Value.AllowProviderSizeMd5Mismatch).Select(pair => pair.Value.SourceId).Distinct(StringComparer.Ordinal).ToArray();
+        _savedSourcePermissions = config.SourceMediaIntegrityPermissions.Values.Where(permission => permission.AllowProviderSizeMd5Mismatch).ToArray();
+        // Until the plugin profile is read, every saved exception restricts (nothing is known to be retired yet).
+        _repairRestrictedSourceIds = RepairRestrictedSourceIds(_savedSourcePermissions, null, Array.Empty<PluginCandidateObservation>());
         string compilerDirectory = Path.Combine(applicationDirectory, "plugin-compiler");
         string executableSuffix = OperatingSystem.IsWindows() ? ".exe" : string.Empty;
         CompilationService = new PluginCompilationService(new PluginCompilerOptions(
@@ -86,7 +90,7 @@ internal sealed partial class PluginSession : IAsyncDisposable
         {
             lock (_state)
                 return Sources.Where(source => source.MediaIntegrityPolicy is SourceMediaIntegrityPolicyService policy && policy.GetView().IsGranted)
-                    .Select(source => source.Name).Concat(_repairRestrictedSourceIds).Distinct(StringComparer.Ordinal).ToArray();
+                    .Select(source => source.Name).Concat(Volatile.Read(ref _repairRestrictedSourceIds)).Distinct(StringComparer.Ordinal).ToArray();
         }, sourcePermissionCommitGate) { SupersededBundledPlugins = ChanSourceFamilies.Successors };
         Runtime = new PluginWorkerManager(new PluginWorkerOptions
         {
@@ -177,6 +181,8 @@ internal sealed partial class PluginSession : IAsyncDisposable
         }
         (PluginProfileSnapshot previous, PluginInstallationCandidate[] ordered, HashSet<string> shippedIds,
             PluginCandidateObservation[] probed, List<string> warnings) = probe;
+        // An exception owned by a replaced single-site plugin that already left the profile restricts nothing any more.
+        Volatile.Write(ref _repairRestrictedSourceIds, RepairRestrictedSourceIds(_savedSourcePermissions, previous, probed));
         // Before any adapter exists: a site of a family plugin takes over its replaced single-site plugin's state.
         SiteSwitches.MigrateFrom(previous);
         List<PluginCandidateObservation> observations = new();
@@ -208,11 +214,13 @@ internal sealed partial class PluginSession : IAsyncDisposable
         provenance.Dispose();
         PluginStartupDiagnostics.RecordResources("plugin.startup.activation", "begin");
         PluginProfileSnapshot activated = await MeasureStartupAsync("activation", null,
-            () => ProfileStore.ApplyBundledStartupAsync(observations, delivered, _repairRestrictedSourceIds, previous.Revision, token)).ConfigureAwait(false);
+            () => ProfileStore.ApplyBundledStartupAsync(observations, delivered, Volatile.Read(ref _repairRestrictedSourceIds), previous.Revision, token)).ConfigureAwait(false);
         PluginStartupDiagnostics.RecordResources("plugin.startup.activation", "end");
         // A replaced single-site chan plugin whose site switch holds its state leaves the profile (backup kept) and its
         // cached builds go through the cache cleanup; its record would only show a stale state and keep files alive.
         activated = await RetireReplacedSingleSitePluginsAsync(activated, token).ConfigureAwait(false);
+        // The plugins retired just now leave their (owner-keyed, unusable) exceptions behind as well.
+        Volatile.Write(ref _repairRestrictedSourceIds, RepairRestrictedSourceIds(_savedSourcePermissions, activated, probed));
         foreach (PluginActivationSnapshot activation in activated.Plugins)
             PluginStartupDiagnostics.LogActivationProblem(_logger, activation);
         long adaptersStarted = Stopwatch.GetTimestamp();
@@ -306,6 +314,29 @@ internal sealed partial class PluginSession : IAsyncDisposable
         { _logger.Warning(exception, "The cached builds of the retired plugins stay in the plugin cache"); }
         return retirement.Profile;
     }
+
+    /// <summary>
+    /// The sources whose saved size/MD5 exception keeps a changed bundled build that declares them in repair review.
+    /// An exception is keyed by its owner plugin. Once that owner is a replaced 1.0.x single-site chan plugin that has
+    /// been retired from the plugin profile, nothing can use the exception again (the family successor starts strict,
+    /// and the Sources page can neither show nor revoke it), so it must not keep the family's updates in review. It keeps
+    /// counting while the profile is not known yet (<paramref name="profile"/> null), while the old record is still in
+    /// the profile, while a candidate with the old identity is installed, and for any other owner or source.
+    /// </summary>
+    internal static string[] RepairRestrictedSourceIds(IEnumerable<SourceMediaIntegrityPermission> permissions,
+        PluginProfileSnapshot? profile, IEnumerable<PluginCandidateObservation> candidates)
+    {
+        HashSet<string>? present = profile is null ? null : profile.Plugins.Select(plugin => plugin.PluginId)
+            .Concat(candidates.Select(candidate => candidate.PluginId)).ToHashSet(StringComparer.Ordinal);
+        return permissions.Where(permission => permission.AllowProviderSizeMd5Mismatch
+                && (present is null || !OwnedByRetiredReplacedPlugin(permission, present)))
+            .Select(permission => permission.SourceId).Distinct(StringComparer.Ordinal).ToArray();
+    }
+
+    private static bool OwnedByRetiredReplacedPlugin(SourceMediaIntegrityPermission permission, IReadOnlySet<string> present) =>
+        ChanSourceFamilies.Replaced.TryGetValue(permission.PluginOwnerId, out (string Family, string SourceId) replaced)
+        && string.Equals(replaced.SourceId, permission.SourceId, StringComparison.Ordinal)
+        && !present.Contains(permission.PluginOwnerId);
 
     private static void CancelQuietly(CancellationTokenSource source)
     {
