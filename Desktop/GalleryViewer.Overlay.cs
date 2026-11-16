@@ -577,11 +577,16 @@ internal sealed partial class GalleryViewer
     private void RevealControlsOnMotion()
     {
         if (_terminalRetirement || _viewerInteractionStopped || !OverlayControlsEffective) return;
-        if (!_overlayHidden) { _lastOverlayActivity = Stopwatch.GetTimestamp(); return; }
-        if (!GalleryEdgeHover.MotionMayReveal(IsGalleryWindowActive, _interactionAvailable, HasGalleryDialog || HasGalleryPopup,
+        // The guards come first: motion over a gallery that is not the active, usable surface (another window has the focus, a dialog or popup is over it,
+        // a drag or a selection is under way) is not activity of the controls, so it neither shows them nor renews the clock that hides them again.
+        bool mayReveal = GalleryEdgeHover.MotionMayReveal(IsGalleryWindowActive, _interactionAvailable, HasGalleryDialog || HasGalleryPopup,
             _dragging || _pressedPointers.Count != 0 || _lastPointer?.Captured != null,
-            HasSelectedPostText || HasSelectedControlsText, KeyboardPanelFocus, _helpOpen)) return;
-        RevealOverlayControls();
+            HasSelectedPostText || HasSelectedControlsText, KeyboardPanelFocus, _helpOpen);
+        switch (GalleryEdgeHover.MotionEffect(mayReveal, _overlayHidden))
+        {
+            case GalleryMotionEffect.RenewClock: _lastOverlayActivity = Stopwatch.GetTimestamp(); break;
+            case GalleryMotionEffect.Reveal: RevealOverlayControls(); break;
+        }
     }
 
     private void RevealHoveredPanels()

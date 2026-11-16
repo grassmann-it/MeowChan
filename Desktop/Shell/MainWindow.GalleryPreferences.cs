@@ -42,6 +42,7 @@ public partial class MainWindow
         if (_gallery != null) _gallery.ControlsIdleHideMs = _config.ControlsIdleHideMs;
         if (_gallery != null) _gallery.VideoSeekStepSeconds = _config.GalleryVideoSeekStepSeconds;
         if (_gallery != null) _gallery.StatusDwellMs = _config.GalleryStatusDwellMs;
+        if (_gallery != null) _gallery.PostTagChipLimit = _config.GalleryPostTagChipLimit;
         if (_gallery != null) _gallery.PanelWidth = GalleryPanelWidthPreference();
         ConfigureGalleryFilmstrip();
         if (_archivePage != null)

@@ -132,6 +132,7 @@ public static class SettingsTransfer
             ReaderNavigationShowPosition = source.ReaderNavigationShowPosition,
             GalleryWheelMode = source.GalleryWheelMode,
             GalleryStatusDwellMs = source.GalleryStatusDwellMs,
+            GalleryPostTagChipLimit = source.GalleryPostTagChipLimit,
             StatsHistorySamples = source.StatsHistorySamples,
             StatsBackgroundIntervalMs = source.StatsBackgroundIntervalMs,
             StatsTrayTooltip = source.StatsTrayTooltip,

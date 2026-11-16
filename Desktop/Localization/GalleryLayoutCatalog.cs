@@ -11,6 +11,9 @@ internal static class GalleryLayoutCatalog
         // GL5c: how long a transient status of the info line stays.
         ("settings.galleryStatusDwell", "Show status messages for", "Statusmeldungen anzeigen für"),
         ("settings.galleryStatusDwellHint", "How long a short status of the gallery's info line, such as “ready” of the slideshow, stays on the screen. A running slideshow, reasons for a pause and errors stay. Default {0} ms, from {1} to {2} ms.", "Wie lange ein kurzer Status der Infozeile der Galerie, etwa „Bereit“ der Diashow, sichtbar bleibt. Eine laufende Diashow, Pausengründe und Fehler bleiben stehen. Standard {0} ms, von {1} bis {2} ms."),
+        // Review 15.11.: how many tags the Post segment lists as chips.
+        ("settings.galleryPostTagChipLimit", "Tags listed in the Post panel", "Tags im Post-Panel"),
+        ("settings.galleryPostTagChipLimitHint", "How many tags the Post segment of the gallery lists as chips. The rest becomes one “+N more” chip; the whole list is one click away in the Tags segment. Default {0}, from {1} to {2}.", "Wie viele Tags der Post-Abschnitt der Galerie als Chips auflistet. Der Rest wird zu einem einzigen Chip „+N weitere“; die ganze Liste ist im Tags-Abschnitt einen Klick entfernt. Standard {0}, von {1} bis {2}."),
         // GL3: the layout menu (the "Layout" button beside "More" and the right click on free dock area).
         ("gallery.layout.button", "Layout", "Layout"),
         ("gallery.layout.help", "Choose which blocks the gallery shows: filmstrip, tools, info line and hints.", "Wähle, welche Blöcke die Galerie zeigt: Filmstreifen, Werkzeuge, Infozeile und Hinweise."),

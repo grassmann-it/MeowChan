@@ -4844,6 +4844,8 @@
     "settings.galleryStatusDwellHint": "ギャラリーの情報行に出る短い状態表示（スライドショーの「準備完了」など）が画面に残る時間です。実行中のスライドショー、一時停止の理由、エラーは残り続けます。既定 {0} ミリ秒、{1}～{2} ミリ秒。",
     "settings.galleryFilmstripTileGap": "フィルムストリップのサムネイルの間隔",
     "settings.galleryFilmstripTileGapHint": "ギャラリーのフィルムストリップで、2 つのサムネイルの間隔です。既定値は {0}、範囲は {1} から {2} です。",
+    "settings.galleryPostTagChipLimit": "投稿パネルに表示するタグ数",
+    "settings.galleryPostTagChipLimitHint": "ギャラリーの投稿セグメントにチップとして並べるタグの数です。残りは「他N件」のチップ1つにまとまり、全件はタグセグメントからワンクリックで開けます。既定 {0}、{1}～{2}。",
     "settings.reader.navigation": "リーダーのナビゲーション",
     "settings.reader.navigation.hint": "大きなリーダーの右下に、前後のスレッドと投稿へ移る矢印をカウンター付きで表示します。キーはどの設定でも使えます。隠れるまでの時間は「コントロールを隠すまでの時間」で決まります。",
     "settings.reader.navigation.auto": "自動的に隠す",

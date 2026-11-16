@@ -4979,6 +4979,8 @@
     "settings.galleryStatusDwellHint": "Jak dlouho zůstane na obrazovce krátký stav informačního řádku galerie, například „Připraveno“ u prezentace. Běžící prezentace, důvody pauzy a chyby zůstávají. Výchozí {0} ms, od {1} do {2} ms.",
     "settings.galleryFilmstripTileGap": "Mezera mezi náhledy v pásu náhledů",
     "settings.galleryFilmstripTileGapHint": "Mezera mezi dvěma náhledy v pásu náhledů galerie. Výchozí {0}, od {1} do {2}.",
+    "settings.galleryPostTagChipLimit": "Počet štítků v panelu příspěvku",
+    "settings.galleryPostTagChipLimitHint": "Kolik štítků ukáže část Příspěvek v galerii jako čipy. Zbytek se sloučí do jednoho čipu „+N dalších“; celý seznam je o jedno kliknutí dál v části Štítky. Výchozí {0}, rozsah {1} až {2}.",
     "settings.reader.navigation": "Navigace ve čtečce",
     "settings.reader.navigation.hint": "Šipky s počítadly na předchozí a další vlákno a příspěvek, vpravo dole ve velké čtečce. Klávesy fungují při každém nastavení; dobu do skrytí určuje „Skrýt ovládání po“.",
     "settings.reader.navigation.auto": "Skrývat automaticky",

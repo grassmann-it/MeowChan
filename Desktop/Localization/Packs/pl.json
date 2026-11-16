@@ -4982,6 +4982,8 @@
     "settings.galleryStatusDwellHint": "Jak długo na ekranie pozostaje krótki stan wiersza informacji galerii, na przykład „Gotowe” przy pokazie slajdów. Trwający pokaz, powody pauzy i błędy zostają. Domyślnie {0} ms, od {1} do {2} ms.",
     "settings.galleryFilmstripTileGap": "Odstęp między miniaturami na pasku miniatur",
     "settings.galleryFilmstripTileGapHint": "Odstęp między dwiema miniaturami na pasku miniatur galerii. Domyślnie {0}, od {1} do {2}.",
+    "settings.galleryPostTagChipLimit": "Liczba tagów w panelu wpisu",
+    "settings.galleryPostTagChipLimitHint": "Ile tagów segment Wpis galerii wyświetla jako chipy. Reszta trafia do jednego chipa „+N więcej”; pełna lista jest o jedno kliknięcie dalej w segmencie Tagi. Domyślnie {0}, od {1} do {2}.",
     "settings.reader.navigation": "Nawigacja w czytniku",
     "settings.reader.navigation.hint": "Strzałki z licznikami do poprzedniego i następnego wątku oraz posta, w prawym dolnym rogu dużego czytnika. Klawisze działają przy każdym ustawieniu; czas do ukrycia określa „Ukryj sterowanie po”.",
     "settings.reader.navigation.auto": "Ukrywaj automatycznie",

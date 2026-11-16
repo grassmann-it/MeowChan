@@ -24,8 +24,20 @@ namespace MeowChan.Desktop;
 internal sealed partial class GalleryViewer
 {
     internal const string PostDecisionName = "GalleryPostDecision";
-    /// <summary>The most tags the Post segment lists as chips; the rest is one "+N more" chip (the full list is one click away in Tags).</summary>
-    internal const int PostTagChipLimit = 30;
+    private int _postTagChipLimit = Config.GalleryPostTagChipLimitDefault;
+    /// <summary>The most tags the Post segment lists as chips; the rest is one "+N more" chip (the full list is one click away in Tags).
+    /// A setting (<see cref="Config.GalleryPostTagChipLimit"/>, clamped to its range); a changed value rebuilds the open panel.</summary>
+    internal int PostTagChipLimit
+    {
+        get => _postTagChipLimit;
+        set
+        {
+            int limit = Math.Clamp(value, Config.GalleryPostTagChipLimitMinimum, Config.GalleryPostTagChipLimitMaximum);
+            if (limit == _postTagChipLimit) return;
+            _postTagChipLimit = limit;
+            if (_entry != null) UpdateContext(); // an open Post segment lists its tags again
+        }
+    }
 
     private GalleryDecisionRow? _postDecision;
     private StackPanel? _postDecisionSection;
@@ -108,9 +120,10 @@ internal sealed partial class GalleryViewer
             AutomationProperties.SetName(chips, Texts.T("tags.rowLabel", string.Join(", ", names)));
             AutomationProperties.SetAccessibilityView(chips, AccessibilityView.Content);
             // Dead-affordance review 15.11.: a chip (and "+N more") is a button that opens the Tags segment, as the link below does. The chips stay out
-            // of the Tab order (up to 30 stops) and out of the accessibility tree; the keyboard and a screen reader have the one link.
-            foreach (string name in names.Take(PostTagChipLimit)) chips.Children.Add(TagChip(name, more: false, openTags));
-            if (count > PostTagChipLimit) chips.Children.Add(TagChip(Texts.T("gallery.post.tags.more", count - PostTagChipLimit), more: true, openTags));
+            // of the Tab order and out of the accessibility tree; the keyboard and a screen reader have the one link.
+            int limit = _postTagChipLimit;
+            foreach (string name in names.Take(limit)) chips.Children.Add(TagChip(name, more: false, openTags));
+            if (count > limit) chips.Children.Add(TagChip(Texts.T("gallery.post.tags.more", count - limit), more: true, openTags));
             section.Children.Add(chips);
         }
         Button edit = command(section, "GalleryPostTagsEdit", Texts.T("gallery.post.tags.edit"), openTags);

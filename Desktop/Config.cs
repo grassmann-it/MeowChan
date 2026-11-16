@@ -1179,6 +1179,10 @@ namespace MeowChan
         [JsonConverter(typeof(DesktopPreferenceGalleryStatusDwellMsConverter))]
         public int GalleryStatusDwellMs { get; set; } = GalleryStatusDwellMsDefault;
         internal const int GalleryStatusDwellMsDefault = 3000, GalleryStatusDwellMsMinimum = 1000, GalleryStatusDwellMsMaximum = 10_000;
+        /// <summary>How many tags the gallery's Post segment lists as chips; the rest is one "+N more" chip (the whole list is one click away in the Tags segment).</summary>
+        [JsonConverter(typeof(DesktopPreferenceGalleryPostTagChipLimitConverter))]
+        public int GalleryPostTagChipLimit { get; set; } = GalleryPostTagChipLimitDefault;
+        internal const int GalleryPostTagChipLimitDefault = 30, GalleryPostTagChipLimitMinimum = 5, GalleryPostTagChipLimitMaximum = 200;
         /// <summary>The filmstrip of the gallery (thumbnails of the media before and after the shown one at the top): shown or not.</summary>
         public bool GalleryFilmstrip { get; set; } = true;
         /// <summary>Height of the filmstrip thumbnails in dip (the tiles are square).</summary>
@@ -1655,6 +1659,8 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(ControlsIdleHideMs), "ControlsIdleHideMs is outside its supported range (" + ControlsIdleHideMsMinimum + " to " + ControlsIdleHideMsMaximum + ").");
             if (GalleryStatusDwellMs is < GalleryStatusDwellMsMinimum or > GalleryStatusDwellMsMaximum)
                 throw new ArgumentOutOfRangeException(nameof(GalleryStatusDwellMs), "GalleryStatusDwellMs is outside its supported range (" + GalleryStatusDwellMsMinimum + " to " + GalleryStatusDwellMsMaximum + ").");
+            if (GalleryPostTagChipLimit is < GalleryPostTagChipLimitMinimum or > GalleryPostTagChipLimitMaximum)
+                throw new ArgumentOutOfRangeException(nameof(GalleryPostTagChipLimit), "GalleryPostTagChipLimit is outside its supported range (" + GalleryPostTagChipLimitMinimum + " to " + GalleryPostTagChipLimitMaximum + ").");
             if (GalleryFilmstripHeight is < GalleryFilmstripHeightMinimum or > GalleryFilmstripHeightMaximum)
                 throw new ArgumentOutOfRangeException(nameof(GalleryFilmstripHeight), "GalleryFilmstripHeight is outside its supported range (" + GalleryFilmstripHeightMinimum + " to " + GalleryFilmstripHeightMaximum + ").");
             if (GalleryFilmstripTileGap is < GalleryFilmstripTileGapMinimum or > GalleryFilmstripTileGapMaximum)
@@ -1894,6 +1900,7 @@ namespace MeowChan
                 ReaderNavigationShowPosition = ReaderNavigationShowPosition,
                 GalleryWheelMode = GalleryWheelMode,
                 GalleryStatusDwellMs = GalleryStatusDwellMs,
+                GalleryPostTagChipLimit = GalleryPostTagChipLimit,
                 GalleryFilmstrip = GalleryFilmstrip,
                 GalleryLayout = GalleryLayout,
                 GalleryFilmstripHeight = GalleryFilmstripHeight,
@@ -2160,6 +2167,7 @@ namespace MeowChan
             ReaderNavigationShowPosition = source.ReaderNavigationShowPosition;
             GalleryWheelMode = source.GalleryWheelMode;
             GalleryStatusDwellMs = source.GalleryStatusDwellMs;
+            GalleryPostTagChipLimit = source.GalleryPostTagChipLimit;
             GalleryFilmstrip = source.GalleryFilmstrip;
             GalleryLayout = source.GalleryLayoutResetRequested ? null : source.GalleryLayout; // (a draft that asked for the reset: nothing chosen)
             GalleryFilmstripHeight = source.GalleryFilmstripHeight;
@@ -2384,6 +2392,7 @@ namespace MeowChan
             ReaderNavigationShowPosition = source.ReaderNavigationShowPosition;
             GalleryWheelMode = source.GalleryWheelMode;
             GalleryStatusDwellMs = source.GalleryStatusDwellMs;
+            GalleryPostTagChipLimit = source.GalleryPostTagChipLimit;
             // GL4: the layout is a direct preference of the gallery and is not taken from a draft, except its reset. The filmstrip box of the
             // settings page is the old setting: only a box the person changed sets the filmstrip choice of both modes. Changed means against
             // the layout after the reset when the draft asked for one, otherwise against the box as the draft loaded it (its baseline); the

@@ -294,16 +294,52 @@ public sealed class EffectiveShortcutBindings
     public IReadOnlyList<ShortcutIssue> Issues { get; }
     public IReadOnlyDictionary<string, IReadOnlyList<ShortcutGesture>> Gestures { get; }
     public IReadOnlyDictionary<string, IReadOnlyList<ShortcutGesture>> RequestedGestures { get; }
-    private EffectiveShortcutBindings(ShortcutPlatform platform, Dictionary<string, IReadOnlyList<ShortcutGesture>> gestures, List<ShortcutIssue> issues, Dictionary<string, IReadOnlyList<ShortcutGesture>> requested, bool singleKeys)
-    { Platform = platform; SingleKeyShortcuts = singleKeys; Gestures = new ReadOnlyDictionary<string, IReadOnlyList<ShortcutGesture>>(gestures); Issues = issues.AsReadOnly(); RequestedGestures = new ReadOnlyDictionary<string, IReadOnlyList<ShortcutGesture>>(requested); }
+    /// <summary>A default gesture that a saved binding took away in some contexts only: it stays active in the others.</summary>
+    private readonly record struct ContextYield(ShortcutGesture Gesture, IReadOnlyList<string> Contexts);
+    private readonly Dictionary<string, List<ContextYield>> _contextYields;
+    private EffectiveShortcutBindings(ShortcutPlatform platform, Dictionary<string, IReadOnlyList<ShortcutGesture>> gestures, List<ShortcutIssue> issues, Dictionary<string, IReadOnlyList<ShortcutGesture>> requested, bool singleKeys,
+        Dictionary<string, List<ContextYield>>? contextYields = null)
+    { Platform = platform; SingleKeyShortcuts = singleKeys; _contextYields = contextYields ?? new(StringComparer.Ordinal); Gestures = new ReadOnlyDictionary<string, IReadOnlyList<ShortcutGesture>>(gestures); Issues = issues.AsReadOnly(); RequestedGestures = new ReadOnlyDictionary<string, IReadOnlyList<ShortcutGesture>>(requested); }
     public static ShortcutPlatform CurrentPlatform => OperatingSystem.IsMacOS() ? ShortcutPlatform.MacOS : OperatingSystem.IsWindows() ? ShortcutPlatform.Windows : ShortcutPlatform.Linux;
     public IReadOnlyList<ShortcutGesture> For(string id) => Gestures.TryGetValue(id, out var value) ? value : Array.Empty<ShortcutGesture>();
     public string? Display(string id) => For(id).Count == 0 ? null : string.Join(" / ", For(id).Select(g => g.Display(Platform)));
-    public bool Matches(KeyEventArgs e, string id) => For(id).Any(g =>
+    [ThreadStatic] private static string? _keyContext;
+    /// <summary>Tells every <see cref="Matches(KeyEventArgs, string)"/> on this thread, until the scope is disposed, which execution context (see
+    /// <see cref="ExecutionContexts"/>) the key is handled in. The gallery's key handler wraps itself in it, so a default that a saved binding of another
+    /// page took away stays active there.</summary>
+    public static KeyContextScope EnterKeyContext(string context) => new(context);
+    public readonly struct KeyContextScope : IDisposable
+    {
+        private readonly string? _previous;
+        internal KeyContextScope(string context) { _previous = _keyContext; _keyContext = context; }
+        public void Dispose() => _keyContext = _previous;
+    }
+    /// <summary>Whether the key is a gesture of <paramref name="id"/>. A default that a saved binding took away in some contexts only (see
+    /// <see cref="YieldedContexts"/>) counts as not matching when the caller does not say where it runs (<see cref="EnterKeyContext"/>): a saved
+    /// binding is never overridden.</summary>
+    public bool Matches(KeyEventArgs e, string id) => Matches(e, id, _keyContext);
+    /// <summary><see cref="Matches(KeyEventArgs, string)"/> for a caller that knows its execution context (see <see cref="ExecutionContexts"/>): a default that
+    /// a saved binding took away elsewhere still matches here, where nothing else has the gesture.</summary>
+    public bool Matches(KeyEventArgs e, string id, string? context) => For(id).Any(g =>
     {
         var resolved = g.Resolve(Platform);
-        return resolved.KeyModifiers == e.KeyModifiers && (resolved.Key == e.Key || g.Symbol != null && g.Symbol == e.KeySymbol);
+        return resolved.KeyModifiers == e.KeyModifiers && (resolved.Key == e.Key || g.Symbol != null && g.Symbol == e.KeySymbol)
+            && !IsYielded(id, g, context);
     });
+    /// <summary>The contexts in which the gesture of <paramref name="id"/> gives way to a saved binding of another command (empty when it does not;
+    /// a gesture that gives way everywhere is not in <see cref="Gestures"/> at all). The default is per command, not per context, so it stays active
+    /// in every other context of the command.</summary>
+    public IReadOnlyList<string> YieldedContexts(string id, ShortcutGesture gesture)
+    {
+        if (!_contextYields.TryGetValue(id, out var yields)) return Array.Empty<string>();
+        return yields.Where(y => Equivalent(y.Gesture, gesture, Platform)).SelectMany(y => y.Contexts).Distinct(StringComparer.Ordinal).ToArray();
+    }
+    private bool IsYielded(string id, ShortcutGesture gesture, string? context)
+    {
+        if (_contextYields.Count == 0 || !_contextYields.ContainsKey(id)) return false;
+        IReadOnlyList<string> yielded = YieldedContexts(id, gesture);
+        return yielded.Count > 0 && (context == null || yielded.Contains(context, StringComparer.Ordinal));
+    }
     public static IReadOnlyList<ShortcutGesture> Defaults(CommandDefinition command) => Defaults(command, CurrentPlatform);
     public static IReadOnlyList<ShortcutGesture> Defaults(CommandDefinition command, ShortcutPlatform platform)
     {
@@ -478,20 +514,33 @@ public sealed class EffectiveShortcutBindings
         // existing explicit effective gesture merely by being introduced on upgrade.
         // This is deliberately NOT a general priority rule: two explicit bindings (or
         // existing conflicts) still receive the ordinary symmetric conflict rejection.
+        // A default is per command, not per context. When the saved binding collides in only some of the command's contexts (a saved archive command on F
+        // against favorites.toggle, which also runs in the gallery), the default stays active in the others and records where it gives way.
+        var contextYields = new Dictionary<string, List<ContextYield>>(StringComparer.Ordinal);
         if (section.IsEditable)
         foreach (string id in DefaultChangedInRevision.Keys)
         {
             if (section.HasOverride(id) || !values.ContainsKey(id) || !YieldsOn(id, os)) continue;
             var retained = new List<ShortcutGesture>();
+            IReadOnlyList<string> own = ConflictContexts(id);
             foreach (ShortcutGesture gesture in values[id])
             {
-                string? owner = CommandCatalog.All.Where(c => c.IsImplemented && c.Id != id
-                    && section.HasOverride(c.Id) && ContextsOverlap(id, c.Id))
-                    .Select(c => c.Id).FirstOrDefault(other => values[other].Any(g => Equivalent(gesture, g, os)));
-                if (owner is null) retained.Add(gesture);
-                else issues.Add(ShortcutIssue.FromReason(id,
+                string[] owners = CommandCatalog.All.Where(c => c.IsImplemented && c.Id != id
+                    && section.HasOverride(c.Id) && ContextsOverlap(id, c.Id)
+                    && values[c.Id].Any(g => Equivalent(gesture, g, os))).Select(c => c.Id).ToArray();
+                if (owners.Length == 0) { retained.Add(gesture); continue; }
+                // Where the saved binding works: all execution contexts of its command, also those where a video key gives way to its page's commands
+                // (ConflictContexts), because a default that kept the key there would take it from the saved binding.
+                string[] yielded = own.Where(context => owners.Any(owner => ContextsOverlap(new[] { context }, ExecutionContexts(owner)))).ToArray();
+                if (yielded.Length < own.Count)
+                {
+                    retained.Add(gesture);
+                    if (!contextYields.TryGetValue(id, out var list)) contextYields[id] = list = new();
+                    list.Add(new(gesture, Array.AsReadOnly(yielded)));
+                }
+                issues.Add(ShortcutIssue.FromReason(id,
                     new("defaultYields", "New default yields to your saved binding / Neuer Standard lässt deine gespeicherte Belegung unverändert"),
-                    owner, blocksSave: false));
+                    owners[0], blocksSave: false));
             }
             values[id] = retained.AsReadOnly();
         }
@@ -510,7 +559,7 @@ public sealed class EffectiveShortcutBindings
         {
             if (!ContextsOverlap(ids[a], ids[b])) continue;
             foreach (var first in values[ids[a]]) foreach (var second in values[ids[b]])
-                if (Equivalent(first, second, os))
+                if (Equivalent(first, second, os) && ContextsOverlap(ContextsOf(ids[a], first), ContextsOf(ids[b], second)))
                 {
                     issues.Add(ShortcutIssue.FromReason(ids[a], new("conflictingActions", "Conflicting actions / Kollidierende Aktionen"), ids[b]));
                     if (!rejected.ContainsKey(ids[a])) rejected[ids[a]] = new();
@@ -519,13 +568,22 @@ public sealed class EffectiveShortcutBindings
                 }
         }
         foreach (var pair in rejected) values[pair.Key] = Array.AsReadOnly(values[pair.Key].Where(g => !pair.Value.Contains(g)).ToArray());
-        return new(os, values, issues, requested, singleKeys);
+        return new(os, values, issues, requested, singleKeys, contextYields);
+
+        // The contexts in which a gesture competes: those of its command, less the ones where it gave way to a saved binding.
+        IReadOnlyList<string> ContextsOf(string id, ShortcutGesture gesture)
+        {
+            IReadOnlyList<string> contexts = ConflictContexts(id);
+            if (!contextYields.TryGetValue(id, out var yields)) return contexts;
+            var gone = yields.Where(y => Equivalent(y.Gesture, gesture, os)).SelectMany(y => y.Contexts).ToHashSet(StringComparer.Ordinal);
+            return gone.Count == 0 ? contexts : contexts.Where(context => !gone.Contains(context)).ToArray();
+        }
     }
     public static bool Equivalent(ShortcutGesture a, ShortcutGesture b, ShortcutPlatform platform)
     { var x = a.Resolve(platform); var y = b.Resolve(platform); return x.KeyModifiers == y.KeyModifiers && (x.Key == y.Key || a.Symbol != null && a.Symbol == b.Symbol); }
-    public static bool ContextsOverlap(string first, string second)
+    public static bool ContextsOverlap(string first, string second) => ContextsOverlap(ConflictContexts(first), ConflictContexts(second));
+    private static bool ContextsOverlap(IReadOnlyList<string> a, IReadOnlyList<string> b)
     {
-        var a = ConflictContexts(first); var b = ConflictContexts(second);
         static bool OnlyModal(IReadOnlyList<string> contexts) => contexts.All(c => c.StartsWith("dialog:", StringComparison.Ordinal));
         return a.Contains("shell") && !OnlyModal(b) || b.Contains("shell") && !OnlyModal(a) || a.Intersect(b).Any();
     }

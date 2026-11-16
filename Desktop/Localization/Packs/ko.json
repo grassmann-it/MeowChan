@@ -4844,6 +4844,8 @@
     "settings.galleryStatusDwellHint": "갤러리 정보 줄의 짧은 상태 표시(예: 슬라이드쇼 “준비됨”)가 화면에 남는 시간입니다. 실행 중인 슬라이드쇼, 일시 중지 이유, 오류는 계속 남습니다. 기본값 {0}ms, {1}~{2}ms.",
     "settings.galleryFilmstripTileGap": "필름스트립 미리보기 간격",
     "settings.galleryFilmstripTileGapHint": "갤러리 필름스트립에서 두 미리보기 사이의 간격입니다. 기본값 {0}, 범위 {1}~{2}.",
+    "settings.galleryPostTagChipLimit": "게시물 패널에 표시할 태그 수",
+    "settings.galleryPostTagChipLimitHint": "갤러리의 게시물 구간에 칩으로 나열할 태그 수입니다. 나머지는 “+N개 더” 칩 하나로 묶이며, 전체 목록은 태그 구간에서 한 번의 클릭으로 열립니다. 기본값 {0}, {1}~{2}.",
     "settings.reader.navigation": "리더 탐색",
     "settings.reader.navigation.hint": "큰 리더의 오른쪽 아래에 이전·다음 스레드와 게시물로 이동하는 화살표를 카운터와 함께 표시합니다. 키는 어떤 설정에서도 작동하며, 숨기기까지의 시간은 “컨트롤 숨기기까지의 시간”입니다.",
     "settings.reader.navigation.auto": "자동으로 숨기기",

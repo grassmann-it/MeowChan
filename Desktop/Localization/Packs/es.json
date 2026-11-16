@@ -4933,6 +4933,8 @@
     "settings.galleryStatusDwellHint": "Cuánto tiempo permanece en pantalla un estado breve de la línea de información de la galería, por ejemplo «Listo» de la presentación. Una presentación en marcha, los motivos de una pausa y los errores permanecen. Predeterminado {0} ms, de {1} a {2} ms.",
     "settings.galleryFilmstripTileGap": "Espacio entre las miniaturas de la tira",
     "settings.galleryFilmstripTileGapHint": "El espacio entre dos miniaturas de la tira de la galería. Valor predeterminado {0}, de {1} a {2}.",
+    "settings.galleryPostTagChipLimit": "Etiquetas en el panel de la publicación",
+    "settings.galleryPostTagChipLimitHint": "Cuántas etiquetas muestra como chips el segmento Publicación de la galería. El resto pasa a un solo chip «+N más»; la lista completa está a un clic en el segmento Etiquetas. Por defecto {0}, de {1} a {2}.",
     "settings.reader.navigation": "Navegación del lector",
     "settings.reader.navigation.hint": "Flechas con contadores hacia el hilo y la publicación anteriores y siguientes, abajo a la derecha del lector grande. Las teclas funcionan con cualquier opción; el tiempo hasta que se oculta es «Ocultar los controles tras».",
     "settings.reader.navigation.auto": "Ocultar automáticamente",
