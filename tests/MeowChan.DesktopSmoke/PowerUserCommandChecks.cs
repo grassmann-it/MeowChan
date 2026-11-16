@@ -54,11 +54,22 @@ internal static class PowerUserCommandChecks
                 Require(ToolTip.GetTip(window.FindControl<Button>(name)!) is string tip
                     && tip.StartsWith(CommandCatalog.Label(id) + " \u00b7 " + CommandCatalog.ShortcutDisplay(id), StringComparison.Ordinal),
                     "The footer tooltip of " + id + " does not name its shortcut.");
-            Require(!Press(url, "navigation.archive").Handled && window.SelectedPage == MainWindow.WorkspacePage.Downloads,
-                "A page shortcut intercepted a native text input.");
+            Require(url.Focus(), "The safe-chord fixture could not focus the URL input.");
+            Require(Press(url, "navigation.archive").Handled && window.SelectedPage == MainWindow.WorkspacePage.Archive,
+                "A safe page chord did not navigate from a native input.");
+            Require(Press(window, "navigation.downloads").Handled, "Could not return to the URL input.");
+            Button inputPause = window.FindControl<Button>("PauseButton")!;
             bool beforeTextPause = window.SessionHost.IsPaused;
-            Require(!Press(url, "session.pause").Handled && window.SessionHost.IsPaused == beforeTextPause
-                && Config.LoadConfig().DownloadsPaused == beforeTextPause, "Pause intercepted a native input.");
+            Require(url.Focus() && Press(url, "session.pause").Handled, "A safe pause chord was blocked in a native input.");
+            await Program.WaitUntilAsync(() => inputPause.IsEnabled && !window.SessionHost.IsPauseTransitioning
+                && window.SessionHost.IsPaused != beforeTextPause);
+            Require(Config.LoadConfig().DownloadsPaused == !beforeTextPause, "Input pause did not persist.");
+            Require(Press(url, "session.pause").Handled, "The input resume chord was blocked.");
+            await Program.WaitUntilAsync(() => inputPause.IsEnabled && !window.SessionHost.IsPauseTransitioning
+                && window.SessionHost.IsPaused == beforeTextPause);
+            Require(Config.LoadConfig().DownloadsPaused == beforeTextPause, "Input resume did not persist.");
+            RequireDrafts();
+            await CheckTypingRemapsAsync(window, url);
             foreach (string language in new[] { "en", "de" })
             {
                 Texts.SetLanguage(language);
@@ -74,6 +85,10 @@ internal static class PowerUserCommandChecks
                 string generic = CommandCatalog.ScopeHint("navigation.rules")!;
                 Require(!help.Contains(generic, StringComparison.Ordinal) && help.Contains(Texts.T("help.scope.generalNote"), StringComparison.Ordinal)
                     && help.Split(Texts.T("help.scope.generalNote")).Length == 2, "F1 repeats the generic scope qualifier or lacks its single note.");
+                // Explicitly return native focus to the owner: modeless help does not own its shortcuts.
+                window.Activate();
+                await Program.WaitUntilAsync(() => window.IsActive);
+                Require(url.Focus(), "The modeless-help fixture could not focus the owner input.");
                 // The window is modeless: the owner's page shortcuts keep working while it is open.
                 Require(Press(window, "navigation.archive").Handled && window.SelectedPage == MainWindow.WorkspacePage.Archive,
                     "A page shortcut was blocked by the modeless shortcuts window.");
@@ -112,6 +127,7 @@ internal static class PowerUserCommandChecks
             pause.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await Program.WaitUntilAsync(() => pause.IsEnabled && window.SessionHost.IsPaused == paused);
             await CheckNativeButtonActivationAsync(window, pause);
+            RequireDrafts();
         }
         finally
         {
@@ -124,7 +140,57 @@ internal static class PowerUserCommandChecks
             await PresentationChecks.SwitchModeAsync(window, originalMode);
             Press(window, "navigation.downloads");
         }
+        void RequireDrafts() => Require(window.SettingsEditor.DownloadPath == "retained shortcut settings draft"
+            && url.Text == "retained shortcut URL draft" && rules.ActiveScope == draftScope
+            && rules.ExtensionsText == "image/jpeg" && rules.HasValidationError, "Input shortcuts lost a draft.");
         Console.WriteLine("SMOKE poweruser: B/S/A direct navigation, retained drafts, native-input/dialog/help guards, scoped EN/DE F1, focused-button durable pause and native Enter/Space passed.");
+    }
+
+    private static async Task CheckTypingRemapsAsync(MainWindow window, TextBox url)
+    {
+        Config original = window.SessionHost.Config.Clone();
+        Exception? failure = null;
+        try
+        {
+            foreach (string chord in new[] { "J", "Shift+J", "Alt+J" })
+            foreach (string command in new[] { "navigation.archive", "session.pause" })
+            {
+                Config candidate = original.Clone();
+                candidate.ShortcutBindings = candidate.ShortcutBindings.Set(command, new[] { ShortcutGesture.Parse(chord) });
+                long revision = ShortcutService.Revision;
+                await window.SessionHost.ApplySettingsAsync(candidate);
+                await Program.WaitUntilAsync(() => ShortcutService.Revision > revision);
+                Button pause = window.FindControl<Button>("PauseButton")!;
+                bool paused = window.SessionHost.IsPaused;
+                // Prove this is a live binding before testing the input guard.
+                Require(Press(window, command).Handled, "Inactive typing remap: " + command + " " + chord);
+                if (command == "session.pause")
+                {
+                    await Program.WaitUntilAsync(() => pause.IsEnabled && !window.SessionHost.IsPauseTransitioning
+                        && window.SessionHost.IsPaused != paused);
+                    Require(Config.LoadConfig().DownloadsPaused == !paused, "Live pause remap did not persist.");
+                    pause.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    await Program.WaitUntilAsync(() => pause.IsEnabled && !window.SessionHost.IsPauseTransitioning
+                        && window.SessionHost.IsPaused == paused);
+                }
+                else Require(window.SelectedPage == MainWindow.WorkspacePage.Archive, "Live typing remap did not navigate.");
+                Require(Press(window, "navigation.downloads").Handled, "Could not return for typing protection.");
+                Require(url.Focus(), "Typing fixture could not focus the URL input.");
+                Require(!Press(url, command).Handled && window.SelectedPage == MainWindow.WorkspacePage.Downloads
+                    && window.SessionHost.IsPaused == paused && Config.LoadConfig().DownloadsPaused == paused
+                    && url.Text == "retained shortcut URL draft", "A shell remap stole typing: " + command + " " + chord);
+            }
+        }
+        catch (Exception thrown) { failure = thrown; throw; }
+        finally
+        {
+            await SmokeCleanup.RunAsync(failure, async () =>
+            {
+                long revision = ShortcutService.Revision;
+                await window.SessionHost.ApplySettingsAsync(original);
+                await Program.WaitUntilAsync(() => ShortcutService.Revision > revision);
+            }, exception => Console.Error.WriteLine("SMOKE typing-remap cleanup failed: " + exception));
+        }
     }
 
     private static async Task CheckNativeButtonActivationAsync(MainWindow window, Button pause)
