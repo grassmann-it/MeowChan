@@ -80,12 +80,11 @@ public partial class ArchivePage
     {
         RegisterViewOption("reader.sidebar.toggle", () => ReaderMediaSidebarRules.IsOn(ReaderMedia, _largeReader), ToggleMediaSidebar, note: MediaSidebarHint);
         ArchivePosts.SelectionChanged += (_, _) => OnMediaSidebarSelectionChanged();
-        // The archive view: the reader pane gets the sidebar's columns (posts card, splitter, sidebar); its header row spans all three.
-        // A hidden sidebar leaves the posts card alone in the first, star column.
+        // The archive view: the reader pane gets the sidebar's columns (posts card, splitter, sidebar). Its header rows (title, toolbar, status)
+        // stand over the posts card's column only: the sidebar's own header line sits in the strip above its frame, on the side of the card
+        // (ReaderSidebarAlignment). A hidden sidebar leaves the posts card and its header rows alone in the first, star column.
         Grid pane = ArchiveReaderPane;
         pane.ColumnDefinitions = new ColumnDefinitions("*,0,0");
-        foreach (Control child in pane.Children)
-            if (!ReferenceEquals(child, ArchiveReaderContent)) Grid.SetColumnSpan(child, 3);
         pane.SizeChanged += (_, _) => { if (!_largeReader) LayoutMediaSidebar(); };
         pane.PropertyChanged += (_, e) => { if (e.Property == IsVisibleProperty && !_largeReader) LayoutMediaSidebar(); };
     }
@@ -142,6 +141,9 @@ public partial class ArchivePage
         splitter.DragCompleted += (_, _) => SaveMediaSidebarWidth();
         splitter.KeyUp += (_, _) => SaveMediaSidebarWidth();
         sidebar.Frame.SizeChanged += (_, _) => OnMediaSidebarFrameResized();
+        // The header line has a fixed height, so the frame's top and bottom follow from the posts box by arithmetic (ArchivePage.MediaSidebarAlignment.cs).
+        sidebar.HeaderHeight = ReaderMediaSidebar.HeaderLineHeight;
+        sidebar.LayoutUpdated += (_, _) => AlignMediaSidebarFrame();
         sidebar.Open.Click += (_, e) => { e.Handled = true; OpenMediaSidebarMedia(); };
         sidebar.StripSelected += (_, index) => SelectMediaSidebarIndex(index);
         sidebar.StripActivated += (_, index) => { SelectMediaSidebarIndex(index); OpenMediaSidebarMedia(); };
@@ -198,17 +200,11 @@ public partial class ArchivePage
             sidebar.IsVisible = splitter.IsVisible = false;
             Grid.SetRow(sidebar, archiveView ? 1 : 0);
             Grid.SetRow(splitter, archiveView ? 1 : 0);
-            if (archiveView)
-            {
-                sidebar.Classes.Add("workspace-section-flush");
-                sidebar.ClearValue(Border.BorderThicknessProperty);
-                sidebar.ClearValue(Border.BorderBrushProperty);
-            }
-            else
-            {
-                sidebar.Classes.Remove("workspace-section-flush");
-                sidebar[!Border.BorderBrushProperty] = new Avalonia.Markup.Xaml.MarkupExtensions.DynamicResourceExtension("Workspace.CardEdge");
-            }
+            // Tom (16.11.2026): the sidebar's media frame has the posts box's top and bottom. The archive view therefore has no section card around
+            // the sidebar any more (its frame has its own edge); the header line is lifted into the strip above the box (MediaPage's panel does the same).
+            ApplyMediaSidebarInsets(sidebar, archiveView);
+            if (archiveView) sidebar.BorderThickness = new Thickness(0);
+            else sidebar[!Border.BorderBrushProperty] = new Avalonia.Markup.Xaml.MarkupExtensions.DynamicResourceExtension("Workspace.CardEdge");
             host.Children.Add(sidebar);
             host.Children.Add(splitter);
             _mediaSidebarHost = host;
@@ -232,6 +228,7 @@ public partial class ArchivePage
         foreach (ColumnDefinition column in columns) { column.MinWidth = 0; column.MaxWidth = double.PositiveInfinity; }
         pane.ColumnSpacing = 0;
         Grid.SetColumn(ArchiveReaderContent, 0);
+        if (ReaderHeaderRows is { } header) Grid.SetColumn(header, 0);
     }
 
     // Columns, side, width, visibility and the Tab scope from the preferences and the reader's width, in the host of the current view.
@@ -268,6 +265,8 @@ public partial class ArchivePage
             Grid.SetColumn(sidebar, sidebarColumn);
             Grid.SetColumn(splitter, 1);
             Grid.SetColumn(posts, postsColumn);
+            // The archive view's header rows stand over the posts card's column, not over the sidebar's.
+            if (!large && ReaderHeaderRows is { } headerRows) Grid.SetColumn(headerRows, postsColumn);
             ColumnDefinitions columns = host.ColumnDefinitions;
             ColumnDefinition side = columns[sidebarColumn], postsTrack = columns[postsColumn];
             side.Width = shown ? new GridLength(width) : new GridLength(0);

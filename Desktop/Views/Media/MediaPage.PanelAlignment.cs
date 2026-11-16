@@ -14,7 +14,7 @@ namespace MeowChan;
 public sealed partial class MediaPage
 {
     /// <summary>The height of the page header's last line (the 32 dip line of the selection row and the summary, Workspace.Size.Control) and of the panel's header line.</summary>
-    internal const double PanelHeaderLineHeight = 32;
+    internal const double PanelHeaderLineHeight = ReaderMediaSidebar.HeaderLineHeight;
     /// <summary>The page header's bottom margin, the space between its last line and the grid card (MediaPage's header margin).</summary>
     private const double HeaderBottomMargin = 8;
 
