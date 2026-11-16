@@ -141,7 +141,7 @@ internal static class DesignLintScanner
         new("Desktop/Shell/MainWindow.axaml", "WorkspaceBody", Array.Empty<string>()), // Downloads
         // Sources is a SourceContent payload inside PluginsPage; ScanMergedSourcesInset checks the composed owner below.
         new("Desktop/Views/Plugins/PluginsPage.axaml", null, new[] { "Grid" }),
-        new("Desktop/Views/Diagnostics/DiagnosticsPage.axaml", null, new[] { "Grid" }),
+        new("Desktop/Views/Diagnostics/DiagnosticsPage.axaml", null, new[] { "DockPanel" }),
         new("Desktop/Views/Statistics/StatisticsPage.axaml", "StatisticsScroll", new[] { "StackPanel" }),
         new("Desktop/Views/Archive/ArchivePage.axaml", "ArchiveRoot", Array.Empty<string>()),
         new("Desktop/Views/Rules/RulesPage.axaml", null, new[] { "Grid", "Grid" }), // inner page area; the footer below it is full width
