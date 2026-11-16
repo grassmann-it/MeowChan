@@ -845,7 +845,7 @@ public partial class ArchivePage
         if (_thread != null && ReaderFindBar.IsVisible && TryMoveThreadFindByShortcut(e)) return;
         if (e.Source is Visual source)
         {
-            if (source.GetSelfAndVisualAncestors().Any(control => control is TextBox or ComboBox or NumericUpDown or MenuItem or Slider or ScrollBar)) return;
+            if (KeyBelongsToNativeEditor(e)) return;
             if (source.GetVisualAncestors().Prepend(source).OfType<SelectableTextBlock>()
                 .Any(text => text.SelectionStart != text.SelectionEnd)) return;
         }
@@ -945,20 +945,20 @@ public partial class ArchivePage
         return true;
     }
 
-    // The beside-the-list preview has no reader tunnel: its post list passes the same gesture on from its own bubble.
-    // With the Media tab shown the posts list is not on screen: the same gesture pages the posts from the tab (its list and its header) in the background.
-    // The handler is a plain bubble one, so a key the media list handled itself (it keeps those) never pages.
-    private void InitializePostPageKeys()
-    {
-        ArchivePosts.KeyDown += (_, e) =>
+    // The inline reader (and the beside-the-list preview) has no reader tunnel: the paging gesture is one tunnel handler on the content tabs, so it
+    // reaches the posts list, the Media tile list and table and the References before their own key handling. A focused tile or row would
+    // otherwise consume Alt+PageUp/PageDown (a ListBox and a DataGrid take PageUp/PageDown whatever the modifier). Paging is a reader command, not a
+    // list key, as in the large reader (whose pane tunnel pages first); the keys the lists need (arrows, Home/End, plain and Shift/Ctrl PageUp/PageDown,
+    // Space/Enter, Select All) are not among its default gestures. Native editors keep their keys (the media sort, the page-size field).
+    private void InitializePostPageKeys() =>
+        ArchiveContentTabs.AddHandler(KeyDownEvent, (_, e) =>
         {
-            if (!_largeReader && !IsReaderDialogOpen) TryPageByShortcut(e);
-        };
-        ArchiveContentTabs.KeyDown += (_, e) =>
-        {
-            if (!_largeReader && !IsReaderDialogOpen && ReaderPostsInBackground) TryPageByShortcut(e);
-        };
-    }
+            if (!_largeReader && !IsReaderDialogOpen && !KeyBelongsToNativeEditor(e)) TryPageByShortcut(e);
+        }, RoutingStrategies.Tunnel);
+
+    // Native editors and menus keep their keys in every reader: a key from a text box, a combo box, a number field, a menu item, a slider or a scroll bar.
+    private static bool KeyBelongsToNativeEditor(KeyEventArgs e) =>
+        e.Source is Visual source && source.GetSelfAndVisualAncestors().Any(control => control is TextBox or ComboBox or NumericUpDown or MenuItem or Slider or ScrollBar);
 
     private void CancelReaderMediaActivation() => _readerMediaActivationCancellation?.Cancel();
 
@@ -1227,15 +1227,22 @@ public partial class ArchivePage
         };
     }
 
+    /// <summary>The place the reader would retain now (the post and its offset in the list), for the checks of the anchor rules.</summary>
+    internal (string PostId, double Top)? CurrentReaderAnchor => CaptureReaderAnchor() is { } anchor ? (anchor.PostId, anchor.Top) : null;
+
     private ReaderAnchor? CaptureReaderAnchor()
     {
         if (_thread == null) return null;
         ListBox list = ArchivePosts;
         string? selected = (list.SelectedItem as ArchivePostRow)?.Id;
-        // Behind another tab the list shows nothing (its realized cards are stale): the anchor is the selected post or the page's first.
-        var visible = ArchiveContentTabs.SelectedIndex != 0 ? default : list.GetVisualDescendants().OfType<ListBoxItem>()
+        // The realized cards keep their scroll position behind another tab (Media, References) and stay the anchor there. They are stale only after
+        // a background step or page is waiting for alignment (_postsAlignOnShow): then the anchor is the selected post or the page's first. A card
+        // whose row is not in the current ItemsSource belongs to a page that was replaced behind the tab and is never the anchor.
+        IEnumerable<ArchivePostRow>? current = list.ItemsSource as IEnumerable<ArchivePostRow>;
+        var visible = _postsAlignOnShow != null ? default : list.GetVisualDescendants().OfType<ListBoxItem>()
             .Select(item => (Item: item, Top: item.TranslatePoint(default, list)?.Y ?? double.NaN))
-            .Where(item => item.Item.DataContext is ArchivePostRow && item.Top < list.Bounds.Height && item.Top + item.Item.Bounds.Height > 0)
+            .Where(item => item.Item.DataContext is ArchivePostRow candidate && current?.Contains(candidate) == true
+                && item.Top < list.Bounds.Height && item.Top + item.Item.Bounds.Height > 0)
             .OrderBy(item => item.Top).FirstOrDefault();
         if (visible.Item?.DataContext is ArchivePostRow row)
             return new ReaderAnchor(_thread.Summary.Id, row.Id, visible.Top, selected);
