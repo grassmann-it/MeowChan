@@ -287,13 +287,21 @@ internal static partial class GalleryPlaybackFeatureChecks
             PixelPoint pixel = target.PointToScreen(point);
             var screen = root.Screens.ScreenFromPoint(pixel);
             Visual? hit = root.InputHitTest(root.PointToClient(pixel)) as Visual;
+            Visual? localHit = target.InputHitTest(point) as Visual;
             Console.WriteLine($"SMOKE closing-root native readiness: external={externalRoot}, postOverlay={postOverlay}, "
                 + $"position={root.Position}, client={root.ClientSize}, scale={root.RenderScaling}, active={root.IsActive}, "
-                + $"pixel={pixel}, working-area={screen?.WorkingArea}, hit={(hit as Control)?.Name ?? hit?.GetType().Name}");
+                + $"pixel={pixel}, working-area={screen?.WorkingArea}, hit={(hit as Control)?.Name ?? hit?.GetType().Name}, "
+                + $"local-hit={(localHit as Control)?.Name ?? localHit?.GetType().Name}");
             Require(screen != null && screen.WorkingArea.Contains(pixel),
                 "Closing-root pointer target is outside the native working area.");
-            Require(hit != null && hit.GetSelfAndVisualAncestors().Contains(target),
-                "Closing-root pointer target is obscured in its actual top-level hit test.");
+            // ARM 43938129569: active, on-screen first root reported GalleryViewport
+            // here before any motion was submitted. Layout/activation do not prove
+            // the compositor's top-level hit snapshot is current. Match the shared
+            // native driver's live local-hit readiness, but never treat that as
+            // delivery: BOTH probes below must actually route through this target.
+            Require(hit?.GetSelfAndVisualAncestors().Contains(target) == true
+                || localHit?.GetSelfAndVisualAncestors().Contains(target) == true,
+                "Closing-root pointer target has no live painted hit geometry.");
             if (!primed)
             {
                 // Seed a known OS position, even if the runner initially left
@@ -309,6 +317,8 @@ internal static partial class GalleryPlaybackFeatureChecks
             {
                 Point actual = args.GetPosition(root);
                 if (args.Source is Visual source && ReferenceEquals(TopLevel.GetTopLevel(source), root)
+                    && source.GetSelfAndVisualAncestors().Contains(target)
+                    && target.IsPointerOver
                     && GalleryNativePointerProbe.IsAt(actual, expected))
                     moved.TrySetResult(true);
             }
@@ -321,7 +331,8 @@ internal static partial class GalleryPlaybackFeatureChecks
             catch (TimeoutException)
             {
                 throw new TimeoutException($"Closing-root OS motion was not delivered: external={externalRoot}, "
-                    + $"postOverlay={postOverlay}, pixel={pixel}, position={root.Position}, active={root.IsActive}.");
+                    + $"postOverlay={postOverlay}, pixel={pixel}, position={root.Position}, active={root.IsActive}, "
+                    + $"target-over={target.IsPointerOver}; required motion source inside target subtree.");
             }
             finally { root.RemoveHandler(InputElement.PointerMovedEvent, OnMoved); }
         }

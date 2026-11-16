@@ -51,8 +51,8 @@ failed raw task and retained draft, preserved native intent, explicit durable
 retry) and `CheckRealShellReaderReturnAsync` (real reader-return path). Existing
 real-frame/audio evidence requirements, unavailable-audio branch, decoder errors,
 operation deadlines and hold intervals are unchanged. No invalid fixture is
-caught to continue with a shortened suite. Every check implementation, including
-the native-pointer routine, is byte-identical to the base.
+caught to continue with a shortened suite. The decomposition left every check implementation byte-identical to the base.
+The later reviewed native-readiness amendment is documented under Pinned reference.
 
 ### Independent fixture/lifetime ownership
 
@@ -100,15 +100,27 @@ discovery ran it. No discovery/CI wiring is added by this follow-up.
 
 ### Pinned reference and future changes
 
-Reference provenance: `GalleryErrorInteractionChecks.cs` at full commit
+Original reference provenance: `GalleryErrorInteractionChecks.cs` at full commit
 `ba1842af424bc1275ec0d440fa89be009f7a072f`, after native pointer fix `ef5de36a4`.
+Reviewed amendment after ARM run `43938129569`, job `133548071463`: based on
+`b3339ec86`, only `EnterClosingRootAsync` changes in the implementation suffix.
+The amended source is identified by Git content blob `dbd46fffb7f9a86fd5d71913c9b6ffa79f1ae6c5`
+(identifier only; no Git lookup at test time). The preflight now accepts a live
+local hit when the top-level snapshot disagrees, matching `MediaNativeInput`.
+Both native motion acknowledgements now additionally require the actual event
+source in the target subtree and `target.IsPointerOver`. Screen containment,
+activation, two coordinates, two-second delivery deadlines, final footer/root
+over-state and terminal retirement assertions remain unchanged. No other check
+body or matrix changes. Native evidence and verification limits are recorded in
+`NativeReadinessEvidence.md` beside this file.
+
 The reference covers the suffix beginning at the exact `BOUNDARY` declaration in
 `check_contract.py` through EOF. Decode as UTF-8 with universal-newline
 normalization, then encode as UTF-8 and hash with SHA-256. Thus CRLF checkouts and
 LF source archives agree. Expected digest:
 
 ```text
-e31752624558bbc02785e79db6dd666540ae899761c2b6a79aa99995009ef6a2
+30e0249daba7892eb73f24fa429487bc7b5857f7dc00d2bd868bdc1d7a1ada98
 ```
 
 The digest is checked in, not obtained from Git at test time. It protects the
@@ -120,8 +132,10 @@ the same reviewed change. Update the boundary if the method is renamed. Never
 blindly refresh the hash to silence a failing preservation check. Scheduling
 changes above the boundary are covered separately by the executable contract.
 
-Local result: **2/2 Python contracts PASS**, also from a copied source tree without
-`.git`; extracted C# scheduling/guard/cleanup contracts PASS. Residual native verification: execute all four selectors in separate
+Prior history-independence validation: **2/2 Python contracts PASS**, also from a
+copied source tree without `.git`. After the native-readiness amendment: **3/3
+contracts PASS**, including a source guard for target-specific native delivery;
+extracted C# scheduling/guard/cleanup contracts PASS. Residual native verification: execute all four selectors in separate
 authorized macOS processes with the pinned fixture, require every mapped matrix
 case and normal stage completion; ensure a failed group does not suppress launch
 of other independent processes. The actual failing process must still report
