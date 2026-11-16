@@ -11,12 +11,11 @@ namespace MeowChan.PluginHost.Configuration.Tests;
 public sealed partial class PluginProfileStoreTests
 {
     // Only synthetic temporary profiles and delivered fixtures; no installed user profile is read.
+    // Since decision #130 a same-path (in-place) rebuild carries these rights over without review
+    // (PluginProfileStoreTests.InPlaceTrust); explicit consent remains the path for a relocated build.
     [Theory]
-    [InlineData(true, true, false)]
     [InlineData(false, true, false)]
-    [InlineData(true, false, true)]
     [InlineData(false, false, true)]
-    [InlineData(true, true, true)]
     [InlineData(false, true, true)]
     public async Task ExactBundledPermissionConsentSurvivesFreshStoreRestartWithoutChangingRights(
         bool samePath, bool sourceRights, bool filterRights)
@@ -82,10 +81,10 @@ public sealed partial class PluginProfileStoreTests
         // A consumed/pending repair row may disappear; do not require CanConfirm after consent.
     }
 
+    // C comes from a third folder: a further relocation. (A same-path rebuild of an activated B is an in-place
+    // update since #130 and carries B's reviewed rights over; the in-place fixture itself no longer reaches review.)
     [Theory]
-    [InlineData(true, true)]
     [InlineData(false, true)]
-    [InlineData(true, false)]
     [InlineData(false, false)]
     public async Task ReauthorizationForBDoesNotAuthorizeCBeforeOrAfterBActivation(bool samePath, bool activateB)
     {
@@ -98,7 +97,7 @@ public sealed partial class PluginProfileStoreTests
             state = await Store().ApplyBundledStartupAsync([fixture.Target], [fixture.Proof], ["shared"], state.Revision);
             Assert.Equal(fixture.Target.Artifact!.ExecutionRevision, Active(state).ExecutionRevision);
         }
-        var third = await Delivered(samePath ? "consent-old" : "consent-target", "C", source: true);
+        var third = await Delivered(samePath ? "consent-old" : "consent-third", "C", source: true);
         state = await Store().ApplyBundledStartupAsync([third.Candidate], [third.Proof], ["shared"], state.Revision);
         Assert.NotEqual(third.Candidate.Artifact!.ExecutionRevision, state.Plugins[0].Active?.ExecutionRevision);
         Assert.Equal(grants, SdkJson.Serialize(state.Grants));

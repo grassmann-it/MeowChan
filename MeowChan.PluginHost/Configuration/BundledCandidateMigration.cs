@@ -277,6 +277,12 @@ internal static class BundledCandidateMigration
     // A normal in-place app/development rebuild is not a change of plugin owner.
     // Only current host-observed delivery evidence may authorize this exception;
     // persisted inventory alone, local plugins and unproven pending history cannot.
+    // Decision #130 (16.11.2026): such an update carries the plugin's EXISTING rights over
+    // (filter grants, size/MD5 exceptions of its sources, owner choices, its repair binding)
+    // and accepts a declaration change that only removes or narrows. Both extensions need the
+    // exact same shipped manifest path and an already established release; relocation, a
+    // user-installed plugin, any new host/route/capability/filter/access/source and anything
+    // the structural comparer does not understand still require the explicit repair review.
     internal static bool CanAutomaticallyUpdateKnownBundle(BundledProfileDocument document,
         PluginActivationSnapshot plugin, PluginCandidateSnapshot? candidate, PreReplacementBasis previous,
         IReadOnlyList<DeliveredCandidateProvenance>? currentDelivery, int presentCount)
@@ -321,13 +327,130 @@ internal static class BundledCandidateMigration
             || document.Bindings.Any(binding => binding.PluginId == plugin.PluginId
                 && binding.SelectedCandidateId == plugin.SelectedCandidateId
                 && binding.TargetCandidateId == candidate.CandidateId && binding.SlotId == previous.Provenance.SlotId);
-        if (!selectedIdentity || HasInheritedRights(document, plugin, candidate, changed: true)
-            || HasOwnerConflict(document.Profile, plugin.PluginId, candidate.Description)
-            || !SdkJson.Serialize(previous.Release.Description).AsSpan().SequenceEqual(SdkJson.Serialize(candidate.Description))
+        bool sameDescription = SdkJson.Serialize(previous.Release.Description).AsSpan().SequenceEqual(SdkJson.Serialize(candidate.Description));
+        bool carriesRights = HasInheritedRights(document, plugin, candidate, changed: true);
+        if (!selectedIdentity || HasOwnerConflict(document.Profile, plugin.PluginId, candidate.Description)
+            || !sameDescription && !IsNonWideningDescriptionChange(previous.Release.Description, candidate.Description)
             || SdkValidation.ValidateConfiguration(candidate.Description, plugin.Pending?.Configuration ?? previous.Release.Configuration).Count != 0) return false;
+        // The #130 extensions (carried rights, narrowed declarations) apply only to the exact same
+        // shipped manifest file whose release already ran; never to a first activation or a moved file.
+        if ((carriesRights || !sameDescription) && (established is null
+            || !string.Equals(previous.Provenance.CandidatePath, candidate.CandidatePath, StringComparison.Ordinal))) return false;
         DeliveredCandidateProvenance[] currentSlot = currentDelivery
             .Where(proof => proof.SlotId == previous.Provenance.SlotId).ToArray();
+        // Matches also binds the current proof to this exact candidate path (the app's own plugins folder).
         return currentSlot.Length == 1 && Matches(currentSlot[0], candidate);
+    }
+
+    /// <summary>What an automatic in-place bundled update carried over without review, or null when nothing trust-relevant was carried.</summary>
+    internal static string? DescribeInPlaceCarryOver(BundledProfileDocument document, PluginActivationSnapshot plugin,
+        PluginCandidateSnapshot candidate, PreReplacementBasis previous)
+    {
+        List<string> carried = new();
+        int grants = document.Profile.Grants.Count(g => g.PluginId == plugin.PluginId && g.Access != FilterDataAccess.None);
+        if (grants != 0) carried.Add(grants + " filter grant(s)");
+        string[] exceptions = (candidate.Description?.Sources.Select(s => s.SourceId) ?? [])
+            .Where(id => document.RestrictedSourceIds.Contains(id, StringComparer.Ordinal)).Distinct(StringComparer.Ordinal).ToArray();
+        if (exceptions.Length != 0) carried.Add("size/MD5 exception(s) for " + string.Join(", ", exceptions));
+        string[] owners = document.Profile.SelectedSourceOwners.Where(pair => pair.Value == plugin.PluginId)
+            .Select(pair => pair.Key).Order(StringComparer.Ordinal).ToArray();
+        if (owners.Length != 0) carried.Add("source owner choice(s) for " + string.Join(", ", owners));
+        if (document.Bindings.Any(b => b.PluginId == plugin.PluginId)) carried.Add("its confirmed repair binding");
+        if (previous.Release is { } release && candidate.Description is { } description &&
+            !SdkJson.Serialize(release.Description).AsSpan().SequenceEqual(SdkJson.Serialize(description)))
+            carried.Add("a narrowing-only description change");
+        return carried.Count == 0 ? null : string.Join("; ", carried);
+    }
+
+    private static readonly SourceCapabilities KnownCapabilities =
+        Enum.GetValues<SourceCapabilities>().Aggregate(SourceCapabilities.None, (all, value) => all | value);
+    private static readonly HttpHostPurpose KnownPurposes =
+        Enum.GetValues<HttpHostPurpose>().Aggregate(HttpHostPurpose.None, (all, value) => all | value);
+    private static readonly FilterDataAccess KnownAccess =
+        Enum.GetValues<FilterDataAccess>().Aggregate(FilterDataAccess.None, (all, value) => all | value);
+
+    private static bool SameJson<T>(T left, T right) => SdkJson.Serialize(left).AsSpan().SequenceEqual(SdkJson.Serialize(right));
+
+    private static bool UniqueOrdinal(IEnumerable<string?> values)
+    {
+        HashSet<string> seen = new(StringComparer.Ordinal);
+        foreach (string? value in values) if (value is null || !seen.Add(value)) return false;
+        return true;
+    }
+
+    /// <summary>Structural, fail-closed comparison of a bundled plugin's declaration across an in-place update (#130).
+    /// True only when <paramref name="candidate"/> adds nothing trust-relevant to <paramref name="previous"/>:
+    /// same plugin id, exact same SDK version, settings schemas and source base URIs; a subset of the sources,
+    /// and per source a subset of the capabilities, of the exact routes and of the host/purpose pairs; a subset
+    /// of the filters, and per filter a subset of the data access and MIME types; and no Blocked → Available
+    /// declaration. Only display text (names, version label, description, information, author and
+    /// documentation links, source maturity label) may change freely. Every other field, including fields
+    /// added to the SDK records later, must serialize byte-identically, so anything not understood here fails closed.</summary>
+    internal static bool IsNonWideningDescriptionChange(PluginDescription previous, PluginDescription candidate)
+    {
+        if (previous is null || candidate is null || previous.Sources is null || candidate.Sources is null ||
+            previous.Filters is null || candidate.Filters is null) return false;
+        if (!string.Equals(previous.PluginId, candidate.PluginId, StringComparison.Ordinal) ||
+            !string.Equals(previous.SdkVersion, candidate.SdkVersion, StringComparison.Ordinal) ||
+            !Enum.IsDefined(previous.DeclarationStatus) || !Enum.IsDefined(candidate.DeclarationStatus) ||
+            candidate.DeclarationStatus != previous.DeclarationStatus && candidate.DeclarationStatus != PluginDeclarationStatus.Blocked) return false;
+        if (previous.Sources.Any(s => s is null) || candidate.Sources.Any(s => s is null) ||
+            previous.Filters.Any(f => f is null) || candidate.Filters.Any(f => f is null) ||
+            !UniqueOrdinal(previous.Sources.Select(s => s.SourceId)) || !UniqueOrdinal(candidate.Sources.Select(s => s.SourceId)) ||
+            !UniqueOrdinal(previous.Filters.Select(f => f.Key)) || !UniqueOrdinal(candidate.Filters.Select(f => f.Key))) return false;
+        foreach (SourceDescription source in candidate.Sources)
+        {
+            SourceDescription? before = previous.Sources.FirstOrDefault(s => s.SourceId == source.SourceId);
+            if (before is null || !IsNarrowedSource(before, source)) return false;
+        }
+        foreach (FilterDescription filter in candidate.Filters)
+        {
+            FilterDescription? before = previous.Filters.FirstOrDefault(f => f.Key == filter.Key);
+            if (before is null || !IsNarrowedFilter(before, filter)) return false;
+        }
+        // Project the free display fields and the collections checked above back onto the old values;
+        // what remains (id, SDK version, plugin settings schema and any unknown field) must be identical.
+        PluginDescription projected = candidate with
+        {
+            Name = previous.Name, PluginVersion = previous.PluginVersion, Description = previous.Description,
+            Information = previous.Information, Author = previous.Author, AuthorUrl = previous.AuthorUrl,
+            DocumentationUrl = previous.DocumentationUrl, Sources = previous.Sources, Filters = previous.Filters,
+            DeclarationStatus = previous.DeclarationStatus
+        };
+        return SameJson(projected, previous);
+    }
+
+    private static bool IsNarrowedSource(SourceDescription before, SourceDescription source)
+    {
+        if (before.Routes is null || source.Routes is null || before.HttpHosts is null || source.HttpHosts is null ||
+            (before.Capabilities & ~KnownCapabilities) != 0 || (source.Capabilities & ~KnownCapabilities) != 0 ||
+            (source.Capabilities & ~before.Capabilities) != 0 ||
+            !Enum.IsDefined(before.Maturity) || !Enum.IsDefined(source.Maturity)) return false;
+        // Routes are URL patterns: each must be exactly one of the old routes (record equality, every option included).
+        if (before.Routes.Any(r => r is null) || source.Routes.Any(route => route is null || !before.Routes.Contains(route))) return false;
+        if (before.HttpHosts.Any(h => h is null || h.Host is null || (h.Purpose & ~KnownPurposes) != 0)) return false;
+        foreach (HttpHostDeclaration host in source.HttpHosts)
+        {
+            if (host is null || host.Host is null || (host.Purpose & ~KnownPurposes) != 0) return false;
+            // Same exact host (and every other field); its purposes a subset of the old ones for that host.
+            HttpHostDeclaration[] matching = before.HttpHosts.Where(old => old with { Purpose = host.Purpose } == host).ToArray();
+            HttpHostPurpose allowed = matching.Aggregate(HttpHostPurpose.None, (all, old) => all | old.Purpose);
+            if (matching.Length == 0 || (host.Purpose & ~allowed) != 0) return false;
+        }
+        SourceDescription projected = source with { Name = before.Name, Capabilities = before.Capabilities,
+            Routes = before.Routes, HttpHosts = before.HttpHosts, Maturity = before.Maturity };
+        return SameJson(projected, before);
+    }
+
+    private static bool IsNarrowedFilter(FilterDescription before, FilterDescription filter)
+    {
+        if (before.SupportedMimeTypes is null || filter.SupportedMimeTypes is null ||
+            (before.RequiredAccess & ~KnownAccess) != 0 || (filter.RequiredAccess & ~KnownAccess) != 0 ||
+            (filter.RequiredAccess & ~before.RequiredAccess) != 0 ||
+            filter.SupportedMimeTypes.Any(type => type is null || !before.SupportedMimeTypes.Contains(type, StringComparer.Ordinal))) return false;
+        FilterDescription projected = filter with { Name = before.Name, Description = before.Description,
+            RequiredAccess = before.RequiredAccess, SupportedMimeTypes = before.SupportedMimeTypes };
+        return SameJson(projected, before);
     }
 
     // This is not a general executable equivalence or permission reauthorization. The

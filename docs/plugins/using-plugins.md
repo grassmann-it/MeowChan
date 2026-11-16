@@ -278,14 +278,29 @@ saved. See [settings and grants](filters-and-settings.md) before enabling a filt
 ## Updates of bundled plugins
 
 An app update or rebuild replaces the bytes of bundled plugins. At startup the host
-compares each new bundled build with the last approved one. A build that matches
-the app's delivery record, whose plugin description is unchanged and that has no
-rights to carry over (no filter grant, no
-restricted source with size/MD5 exception) is taken over automatically. A changed
-build that would keep existing rights stays off until you review it in **Review
-bundled repairs** and explicitly authorize those rights for that exact new
-execution revision. A change to capabilities, routes, hosts, filters, settings,
-names or metadata requires a separate, explicit decision. For a uniquely proven
+compares each new bundled build with the last approved one. An **in-place update** is
+taken over automatically, without **Review this repair**: the new build is the same
+manifest file in the running app's own `plugins` folder (same path, so the same
+identity), it matches the app's delivery record (checked again under the profile
+write lock), the plugin already ran there before, it is the only candidate and not
+pinned. Such an update keeps the plugin's existing rights: filter grants, the
+size/MD5 difference permission of its sources, source owner choices, settings and a
+confirmed repair. Its description may change as long as it adds nothing: no new
+source, host, host purpose, route, capability, filter, data access or file type, the
+same plugin ID, SDK version and settings forms, and no switch from blocked to
+available. Removing or narrowing is fine; names, version label, descriptions, author
+and documentation links and information texts may change. The description is
+compared field by field; anything the comparison does not recognise needs a review.
+The log records one line per update that carried rights or a description change
+over this way.
+
+A review is still required for a build from another folder (for example a worktree
+or a moved installation, since the identity follows the file path), a user-installed
+plugin, a first activation, and any description change that adds something. A build
+from another folder that would keep existing rights stays off until you review it in
+**Review bundled repairs** and explicitly authorize those rights for that exact new
+execution revision. A description change that adds capabilities, routes, hosts,
+filters or changes settings forms requires a separate, explicit decision. For a uniquely proven
 bundled target with the same source identities, **Review bundled repairs** now
 shows that review in the same dialog: compare the old and new declaration, correct
 settings in the embedded form, and acknowledge the changes. Any existing special
@@ -335,8 +350,8 @@ description is otherwise unchanged.
 The exception applies only to this exact change and only once per plugin. Reverse
 (`1.1.0` → `1.0.0`) and unknown versions, an SDK change combined with any other
 description difference, and any later rebuild after a 1.1.0 build was activated
-(also when that build later failed to load) follow the ordinary rules above: a
-build with rights needs explicit review again. If the startup check refuses an
+(also when that build later failed to load) follow the ordinary rules above: an
+SDK version change is never accepted again without review. If the startup check refuses an
 SDK-only build, **Review bundled repairs** shows the ordinary reason (source owner
 conflict, incompatible settings or existing rights) and its confirm or authorize
 action, not a blocked description change.

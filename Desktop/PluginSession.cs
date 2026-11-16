@@ -93,7 +93,7 @@ internal sealed partial class PluginSession : IAsyncDisposable
             lock (_state)
                 return Sources.Where(source => source.MediaIntegrityPolicy is SourceMediaIntegrityPolicyService policy && policy.GetView().IsGranted)
                     .Select(source => source.Name).Concat(Volatile.Read(ref _repairRestrictedSourceIds)).Distinct(StringComparer.Ordinal).ToArray();
-        }, sourcePermissionCommitGate) { SupersededBundledPlugins = ChanSourceFamilies.Successors };
+        }, sourcePermissionCommitGate) { SupersededBundledPlugins = ChanSourceFamilies.Successors, Logger = logger };
         Runtime = new PluginWorkerManager(new PluginWorkerOptions
         {
             MaximumProductionWorkers = config.PluginMaximumProductionWorkers,

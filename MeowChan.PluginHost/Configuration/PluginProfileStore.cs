@@ -51,6 +51,10 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
     /// Empty by default: no identity is ever treated as replaced unless the host says so.</summary>
     public IReadOnlyDictionary<string, string> SupersededBundledPlugins { get; init; } = new Dictionary<string, string>(StringComparer.Ordinal);
 
+    /// <summary>Optional diagnostics sink. Startup writes one Information line per automatic in-place bundled
+    /// update that carried existing rights or accepted a narrowing-only declaration change without review (#130).</summary>
+    public Serilog.ILogger? Logger { get; init; }
+
     public string StorePath => path;
     /// <summary>Immutable original v1 envelope, not an automatic recovery source. Restore only
     /// with the application closed and the matching full profile snapshot; older readers reject v2.</summary>
@@ -104,7 +108,9 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
         foreach (PluginCandidateObservation candidate in observations) ValidateObservation(candidate);
         if (observations.Select(item => item.CandidateId).Distinct(StringComparer.Ordinal).Count() != observations.Length)
             throw new ArgumentException("Startup inventory contains duplicate candidate identities.");
-        return MutateStartupDocumentAsync(expectedRevision, async document =>
+        // Logged only after the profile write succeeded, so no line claims an update that was not saved.
+        List<(string PluginId, string From, string To, string Path, string Carried)> carryOvers = new();
+        return LogCarryOversAfter(carryOvers, MutateStartupDocumentAsync(expectedRevision, async document =>
         {
             if (proofs is not null)
             {
@@ -169,6 +175,7 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
                     LifecycleRevision = checked(old.LifecycleRevision + 1), Problem = null };
                 PluginReleaseSnapshot? release = null;
                 BundledRepairBinding? automaticBinding = null;
+                (string From, string Path, string Carried)? carryOver = null;
                 bool sdkUpgrade = false;
                 if (superseded.Contains(pluginId))
                     next = next with { Problem = "Replaced by the bundled plugin '" + SupersededBundledPlugins[pluginId] + "', which serves the same sources." };
@@ -207,6 +214,9 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
                         BundledCandidateMigration.CanAutomaticallyUpdateKnownBundle(document, old, candidate, previous, proofs, present.Length);
                     string? sdkPermissions = sdkUpgrade
                         ? BundledRepairPermissionReview.Json(document, old, candidate!) : null;
+                    // #130: the exact existing rights an in-place update carries over, frozen before async IO.
+                    string? inPlacePermissions = automaticBundleUpdate && !sdkUpgrade
+                        ? BundledRepairPermissionReview.Json(document, old, candidate!) : null;
                     string? automaticUpdateProblem = null;
                     if (automaticBundleUpdate)
                     {
@@ -226,19 +236,32 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
                                     initialLiveRestrictions.SequenceEqual(currentLiveRestrictions, StringComparer.Ordinal)) &&
                                     BundledCandidateMigration.CanAutomaticallyUpgradeSdk(document, old, candidate, previous, proofs, present.Length) &&
                                     sdkPermissions == BundledRepairPermissionReview.Json(document, old, candidate!)
-                                : BundledCandidateMigration.CanAutomaticallyUpdateKnownBundle(document, old, candidate, previous, proofs, present.Length);
+                                : BundledCandidateMigration.CanAutomaticallyUpdateKnownBundle(document, old, candidate, previous, proofs, present.Length) &&
+                                    // Never carry over a right that appeared or changed during the verification IO.
+                                    inPlacePermissions == BundledRepairPermissionReview.Json(document, old, candidate!);
                             if (!authorityUnchanged)
                             {
                                 automaticBundleUpdate = false;
                                 sdkUpgrade = false;
                                 automaticUpdateProblem = "Bundled update authority changed during integrity verification.";
                             }
-                            else if (binding is not null)
+                            else
                             {
-                                // Explicit consent always belongs to the old exact executable, never this build.
-                                automaticBinding = binding with { TargetExecutionRevision = candidate.Artifact!.ExecutionRevision,
-                                    ReauthorizedPermissionFingerprint = null };
-                                bindingMatches = true;
+                                if (binding is not null)
+                                {
+                                    // Explicit consent always belongs to the old exact executable, never this build.
+                                    // A narrowing-only declaration accepted here (#130) becomes the reviewed one,
+                                    // otherwise the next start would report the confirmed target as changed.
+                                    automaticBinding = binding with { TargetExecutionRevision = candidate.Artifact!.ExecutionRevision,
+                                        ReauthorizedPermissionFingerprint = null,
+                                        ReviewedDescriptionFingerprint = sdkUpgrade || binding.ReviewedDescriptionFingerprint is null
+                                            ? binding.ReviewedDescriptionFingerprint
+                                            : BundledCandidateMigration.DescriptionHash(candidate.Description!) };
+                                    bindingMatches = true;
+                                }
+                                if (!sdkUpgrade && previous.ExecutionRevision is { } fromExecution &&
+                                    BundledCandidateMigration.DescribeInPlaceCarryOver(document, old, candidate!, previous) is { } carried)
+                                    carryOver = (fromExecution, candidate!.CandidatePath ?? "", carried);
                             }
                         }
                         catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException or JsonException)
@@ -261,7 +284,8 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
                         next = next with { Problem = PluginActivationProblems.ExecutableChanged };
                     // Persisted consent cannot replace serialization of a live permission authority.
                     // Legacy callers without its shared gate retain the raw inheritance guard.
-                    else if (deliveredCandidate && !sdkUpgrade && (repairRestrictedSources is not null && repairPermissionGate is null
+                    // An accepted automatic update (SDK bridge or #130 in-place carry-over) rechecked its rights above.
+                    else if (deliveredCandidate && !automaticBundleUpdate && (repairRestrictedSources is not null && repairPermissionGate is null
                         ? BundledCandidateMigration.HasInheritedRights(document, old, candidate, buildChanged)
                         : BundledCandidateMigration.HasUnreviewedInheritedRights(document, old, candidate, buildChanged)))
                         next = next with { Problem = PluginActivationProblems.InheritedGrantsBlocked };
@@ -312,6 +336,8 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
                         if (automaticBinding is { } acceptedBinding)
                             document = document with { Bindings = document.Bindings
                                 .Select(value => value.PluginId == pluginId ? acceptedBinding : value).ToArray() };
+                        if (carryOver is { } accepted && accepted.From != release.ExecutionRevision)
+                            carryOvers.Add((pluginId, accepted.From, release.ExecutionRevision, accepted.Path, accepted.Carried));
                         // Any accepted 1.1.0 build, automatic or explicitly reviewed, uses up the SDK bridge.
                         if (release.Description.SdkVersion == "1.1.0" && document.Provenance.Any(p => p.PluginId == pluginId) &&
                             !document.AcceptedSdkUpgrades.Any(u => u.PluginId == pluginId))
@@ -326,7 +352,18 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
                 plugins.Add(SameExceptRevision(old, next) ? old : next);
             }
             return document with { Profile = state with { Plugins = plugins } };
-        }, cancellationToken);
+        }, cancellationToken));
+    }
+
+    private async Task<PluginProfileSnapshot> LogCarryOversAfter(
+        List<(string PluginId, string From, string To, string Path, string Carried)> carryOvers, Task<PluginProfileSnapshot> write)
+    {
+        PluginProfileSnapshot result = await write.ConfigureAwait(false);
+        if (Logger is { } logger)
+            foreach ((string pluginId, string from, string to, string candidatePath, string carried) in carryOvers)
+                logger.Information("Plugin {PluginId}: automatic in-place bundled update {FromExecution} -> {ToExecution} carried over {Carried} without a repair review, because it is the same manifest {CandidatePath} in this app's own plugins folder with verified current delivery proof and its declaration adds no host, route, capability, filter, data access or source.",
+                    pluginId, from, to, carried, candidatePath);
+        return result;
     }
 
     private static bool SameExceptRevision(PluginActivationSnapshot old, PluginActivationSnapshot next) =>
