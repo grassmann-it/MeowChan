@@ -269,7 +269,10 @@ internal static class WorkspaceChips
     {
         ArgumentNullException.ThrowIfNull(remove);
         if (negatable) ArgumentNullException.ThrowIfNull(toggle);
-        TextBlock text = new() { Text = label, MaxWidth = 320, TextTrimming = TextTrimming.CharacterEllipsis };
+        // A plain chip's tooltip names its label ("Remove filter: …"); a negatable chip's tooltip is its help, so its label carries the full text itself
+        // while the 320 dip cap trims it (narrow-window sweep, 16.11.2026: a long tag name used to end in "…" with no way to read the rest).
+        TextBlock text = negatable ? new TrimTipTextBlock { Text = label, MaxWidth = 320 }
+            : new TextBlock { Text = label, MaxWidth = 320, TextTrimming = TextTrimming.CharacterEllipsis };
         // Give the label only its final owner. Setting Content=text before inserting the
         // same label into the toggle panel makes the later Content replacement clear
         // its parent while it is still in the panel's LogicalChildren.

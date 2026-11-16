@@ -32,7 +32,8 @@ internal sealed class MediaTagSidebar : UserControl
     /// <summary>The default width of the column in dip (MP5: the user's width is a setting, <see cref="MeowChan.Config.MediaTagListWidthMinimum"/> to <see cref="MeowChan.Config.MediaTagListWidthMaximum"/>; the page's body row sets it).</summary>
     internal const double ColumnWidth = MeowChan.Config.MediaTagListWidthDefault;
 
-    private readonly TextBlock _title = new() { Name = "MediaTagSidebarTitle", Classes = { "section-title" }, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
+    // Narrow-window sweep: the title shares the head with the order box in a list that can be 180 dip narrow; trimmed, its full text is the tooltip.
+    private readonly TextBlock _title = new TrimTipTextBlock { Name = "MediaTagSidebarTitle", Classes = { "section-title" }, VerticalAlignment = VerticalAlignment.Center };
     private readonly TwoWayToggle _sort = new() { Name = "MediaTagSidebarSort", VerticalAlignment = VerticalAlignment.Center };
     private readonly SearchBox _search = new() { Name = "MediaTagSidebarSearch", Debounce = TimeSpan.FromMilliseconds(150), MaxLength = MediaFilterTerm.MaximumSourceTagLength };
     private readonly TextBlock _status = new() { Name = "MediaTagSidebarStatus", Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap, IsVisible = false };

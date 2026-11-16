@@ -132,12 +132,28 @@ internal sealed class TrimTipTextBlock : TextBlock
         TextTrimming = TextTrimming.CharacterEllipsis;
     }
 
+    private bool _alwaysTip;
+
+    /// <summary>
+    /// Keeps the full text as the tooltip while it fits too (a compact list row's file line, whose tooltip is always its name). Off by default:
+    /// the tip exists only while the text is shortened. The text may also wrap (set TextWrapping and MaxLines after construction): a text cut
+    /// after its last allowed line counts as shortened.
+    /// </summary>
+    internal bool AlwaysTip
+    {
+        get => _alwaysTip;
+        set { if (_alwaysTip == value) return; _alwaysTip = value; InvalidateArrange(); }
+    }
+
+    /// <summary>Whether the text is shortened in the current layout (its last line collapsed by the ellipsis).</summary>
+    internal bool IsTrimmed => !string.IsNullOrEmpty(Text) && TextLayout.TextLines.Any(line => line.HasCollapsed);
+
     protected override Size ArrangeOverride(Size finalSize)
     {
         Size arranged = base.ArrangeOverride(finalSize);
-        bool trimmed = !string.IsNullOrEmpty(Text) && TextLayout.TextLines.Any(line => line.HasCollapsed);
+        bool trimmed = IsTrimmed;
         // Recycled rows change the text, so the tip is compared with the current text, not only with the trimmed state.
-        object? tip = trimmed ? Text : null;
+        object? tip = trimmed || (_alwaysTip && !string.IsNullOrEmpty(Text)) ? Text : null;
         if (!Equals(ToolTip.GetTip(this), tip)) ToolTip.SetTip(this, tip);
         return arranged;
     }

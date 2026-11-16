@@ -62,7 +62,8 @@ public sealed partial class TaggingPage : UserControl
     private readonly ListBox _list = new() { Name = "TaggingList", SelectionMode = SelectionMode.Multiple };
     private readonly TextBlock _empty = new() { Name = "TaggingEmpty" };
     private readonly WorkspaceEmptyState _emptyState = new() { Name = "TaggingEmptyState", IsVisible = false };
-    private readonly StackPanel _emptyActions = new() { Name = "TaggingEmptyActions", Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Center };
+    // Up to three actions side by side, centred; they wrap to a second line on a narrow page instead of running off both edges (like the Media page's).
+    private readonly WrapPanel _emptyActions = new() { Name = "TaggingEmptyActions", ItemSpacing = 8, LineSpacing = 8, HorizontalAlignment = HorizontalAlignment.Center };
     private readonly Button _emptyMedia = new() { Name = "TaggingEmptyMedia", Classes = { "primary" } };
     private readonly Button _emptyHow = new() { Name = "TaggingEmptyHow", Classes = { "link" } };
     private readonly Button _emptyClearDone = new() { Name = "TaggingEmptyClearDone" };
@@ -146,7 +147,9 @@ public sealed partial class TaggingPage : UserControl
         AutomationProperties.SetLiveSetting(_errorSource, AutomationLiveSetting.Polite);
 
         _bar.VerticalAlignment = VerticalAlignment.Center;
-        StackPanel counters = new() { Orientation = Orientation.Horizontal, Spacing = 12, Children = { _progressText, _bar, _percent } };
+        // Narrow-window sweep (16.11.2026): a horizontal StackPanel measured the counters at their full length, so the wrapping text never wrapped
+        // and a long language pushed the bar and the percentage off a narrow page; in a WrapPanel the text gets the row's width.
+        WrapPanel counters = new() { ItemSpacing = 12, LineSpacing = 4, Children = { _progressText, _bar, _percent } };
         _progress.Children.Add(counters);
         _progress.Children.Add(_lastShown);
 
@@ -457,10 +460,11 @@ public sealed partial class TaggingPage : UserControl
         {
             // The preview column has no header word: the picture needs none, and "Preview" / "Vorschau" does not fit 56 dip (the column
             // menu keeps the word).
-            TextBlock header = new()
+            // One line per header word: a narrow column trims it with the full word as the tooltip instead of breaking the word over two lines.
+            TextBlock header = new TrimTipTextBlock
             {
                 Text = column switch { 0 => "#", 1 => string.Empty, _ => Texts.T(keys[column]) }, Classes = { "workspace-meta" },
-                TextAlignment = column is 0 or 6 ? TextAlignment.Right : TextAlignment.Left, TextTrimming = TextTrimming.CharacterEllipsis,
+                TextAlignment = column is 0 or 6 ? TextAlignment.Right : TextAlignment.Left,
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = column switch { 0 => TaggingQueueRowView.NumberMargin(ShowPreviewColumn), 7 => TaggingQueueRowView.StateMargin, _ => default }
             };
