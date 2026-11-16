@@ -156,7 +156,7 @@ public partial class SourcesPage
         SelectionList list = this.FindControl<SelectionList>("SourceCards")!;
         if (CommandBindings.Matches(e, "menu.context-open"))
         {
-            if (_selectedId is { } id && _sourceCards.TryGetValue(id, out var card)) card.Control.ContextMenu?.Open(card.Control);
+            if (_selectedId is { } id && _sourceCards.TryGetValue(id, out var card)) OpenSourceContextMenu(card.Control, id);
             e.Handled = true; return;
         }
         if (e.Key == Key.Enter && Selected != null)

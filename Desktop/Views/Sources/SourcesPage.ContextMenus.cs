@@ -34,35 +34,51 @@ public partial class SourcesPage
     private void AttachSourceContextMenu(SelectionListItem button, string sourceId)
     {
         button.ContextMenu = ContextMenuBuilder.Empty();
-        button.ContextMenu.Opening += (_, args) =>
+        button.ContextMenu.Opening += (_, args) => args.Cancel = !BuildSourceContextMenu(button, sourceId);
+    }
+
+    /// <summary>Opens the card's menu from the keyboard. Avalonia's explicit <c>Open</c> skips <c>Opening</c>, so the menu is
+    /// composed first; with nothing to show it stays closed.</summary>
+    internal bool OpenSourceContextMenu(SelectionListItem button, string sourceId)
+    {
+        if (button.ContextMenu is not { } menu || !BuildSourceContextMenu(button, sourceId)) return false;
+        menu.Open(button);
+        return true;
+    }
+
+    private bool BuildSourceContextMenu(SelectionListItem button, string sourceId)
+    {
+        ContextMenu menu = button.ContextMenu!;
+        SourceListRow? source = _rows.FirstOrDefault(row => row.Id == sourceId);
+        if (source == null || _ended) return false;
+        bool Ready() => !_ended && !IsBusy;
+        string reason = UnavailableReason();
+        ContextMenuBuilder builder = new ContextMenuBuilder().Named(source.Name);
+        // Selecting and opening the address need no session; rules and diagnostics do (same gates as the detail buttons).
+        void Add(string id, Action action, bool available = true, bool needsSession = true)
         {
-            ContextMenu menu = button.ContextMenu!;
-            SourceListRow? source = _rows.FirstOrDefault(row => row.Id == sourceId);
-            if (source == null || _ended) { args.Cancel = true; return; }
-            bool Ready() => !_ended && _available && !IsBusy;
-            string reason = UnavailableReason();
-            ContextMenuBuilder builder = new ContextMenuBuilder().Named(source.Name);
-            void Add(string id, Action action, bool available = true)
-            {
-                bool CanExecute() => Ready() && available;
-                builder.Command(id, action, CanExecute(), CanExecute() ? null : reason,
-                    availableWhen: CanExecute, reasonWhen: () => CanExecute() ? null : reason);
-            }
-            Add("sources.select", () =>
-            {
-                if (_ended || !_rows.Any(row => row.Id == source.Id)) return;
-                _selectedId = source.Id; _showDetails = true; RenderDetails();
-            });
-            Add("location.open-source", () => _ = OpenFrozenSourceAsync(source.Address));
-            Add("rules.edit-scope", () => _editRules?.Invoke(source.Id), _editRules != null);
-            Add("navigation.diagnostics", () => _openDiagnostics?.Invoke(source.Id), _openDiagnostics != null);
-            if (source.Plugin is { } plugin)
-            {
-                if (!IsBusy) { SetSelectedSource(sourceId); RenderDetails(); }
-                SourcePluginManagement.AppendSourcePluginActions(builder, plugin.Key, button);
-            }
-            builder.Populate(menu);
-        };
+            bool CanExecute() => Ready() && available && (!needsSession || _available);
+            builder.Command(id, action, CanExecute(), CanExecute() ? null : reason,
+                availableWhen: CanExecute, reasonWhen: () => CanExecute() ? null : reason);
+        }
+        Add("sources.select", () =>
+        {
+            if (_ended || !_rows.Any(row => row.Id == source.Id)) return;
+            if (_selectedId != source.Id) SetActionError(string.Empty);
+            SetSelectedSource(source.Id);
+            _showDetails = true; RenderDetails();
+            FocusSourceControlAfterLayout(this.FindControl<TextBlock>("SourceHeading")!);
+        }, needsSession: false);
+        Add("location.open-source", () => _ = OpenFrozenSourceAsync(source.Address), needsSession: false);
+        Add("rules.edit-scope", () => _editRules?.Invoke(source.Id), _editRules != null);
+        Add("navigation.diagnostics", () => _openDiagnostics?.Invoke(source.Id), _openDiagnostics != null);
+        if (source.Plugin is { } plugin)
+        {
+            if (!IsBusy) { SetSelectedSource(sourceId); RenderDetails(); }
+            SourcePluginManagement.AppendSourcePluginActions(builder, plugin.Key, button);
+        }
+        builder.Populate(menu);
+        return true;
     }
 
     private async Task OpenFrozenSourceAsync(string address)

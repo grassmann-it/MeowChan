@@ -65,6 +65,66 @@ public sealed class SourcesItemEnterTests
         Assert.True((bool)showDetails.GetValue(fixture.Page)!, "Enter on the focused source card must open the details of the source.");
     });
 
+
+    // Menu audit (16 Nov 2026): Avalonia 12's explicit ContextMenu.Open skips the menu's Opening event, which is where the card menu was composed,
+    // so the keyboard route (the rebindable "Open context menu") showed an empty or stale menu. The entries are composed before it opens.
+    [Fact]
+    public void TheContextOpenKeyOnTheSelectedSourceCardComposesItsMenuBeforeOpening() => Run(fixture =>
+    {
+        SelectionList cards = fixture.Page.FindControl<SelectionList>("SourceCards")!;
+        cards.SelectedIndex = 0;
+        SelectionListItem card = Assert.IsAssignableFrom<SelectionListItem>(cards.Items[0]);
+        Assert.Equal(0, card.ContextMenu!.ItemCount);
+
+        fixture.Press(card, Key.Apps);
+
+        string[] tags = card.ContextMenu.Items.OfType<MenuItem>().Select(item => (string)item.Tag!).ToArray();
+        Assert.Contains("sources.select", tags);
+        Assert.Contains("location.open-source", tags);
+    });
+
+    [Fact]
+    public void SelectSourceInACardMenuSelectsThatCardAndShowsItsDetails() => Run(fixture =>
+    {
+        SelectionList cards = fixture.Page.FindControl<SelectionList>("SourceCards")!;
+        cards.SelectedIndex = 0;
+        SelectionListItem other = Assert.IsAssignableFrom<SelectionListItem>(cards.Items[1]);
+        FieldInfo showDetails = typeof(SourcesPage).GetField("_showDetails", InstanceNonPublic)!;
+        showDetails.SetValue(fixture.Page, false);
+
+        MenuItem select = fixture.CardMenuItem(other, "sources.select");
+        Assert.True(select.IsEnabled);
+        select.Command!.Execute(null);
+
+        Assert.Same(other, cards.SelectedItem);
+        Assert.True((bool)showDetails.GetValue(fixture.Page)!);
+    });
+
+    [Fact]
+    public void OpenSourceAndSelectStayAvailableWhenNoSessionIsConnectedWhileRulesAndDiagnosticsAreNot() => Run(fixture =>
+    {
+        fixture.Refresh(available: false);
+        SelectionList cards = fixture.Page.FindControl<SelectionList>("SourceCards")!;
+        SelectionListItem card = Assert.IsAssignableFrom<SelectionListItem>(cards.Items[0]);
+
+        Assert.True(fixture.CardMenuItem(card, "location.open-source").IsEnabled);
+        Assert.True(fixture.CardMenuItem(card, "sources.select").IsEnabled);
+        Assert.False(fixture.CardMenuItem(card, "rules.edit-scope").IsEnabled);
+        Assert.False(fixture.CardMenuItem(card, "navigation.diagnostics").IsEnabled);
+    });
+
+    [Fact]
+    public void TheContextOpenKeyOnTheFocusedWatchRowComposesAndOpensItsMenu() => Run(fixture =>
+    {
+        SelectingItemsControl watches = fixture.Page.FindControl<SelectingItemsControl>("SourceWatchesList")!;
+        watches.SelectedIndex = 0;
+        Assert.Equal(0, watches.ContextMenu!.ItemCount);
+
+        fixture.Press(Container(watches, 0), Key.Apps);
+
+        Assert.Contains("watch.show-in-downloads", watches.ContextMenu.Items.OfType<MenuItem>().Select(item => (string)item.Tag!));
+    });
+
     private static Control Container(SelectingItemsControl list, int index) => list.ContainerFromIndex(index)
         ?? throw new InvalidOperationException("The row " + index + " has no container.");
 
@@ -88,6 +148,7 @@ public sealed class SourcesItemEnterTests
     private sealed class Fixture : IDisposable
     {
         private readonly Root _root = new();
+        private readonly DesktopSessionView _view;
 
         internal SourcesPage Page { get; }
         internal List<DiagnosticTarget> OpenedWatches { get; } = new();
@@ -113,13 +174,29 @@ public sealed class SourcesItemEnterTests
                 "https://boards.4chan.org/g/thread/123", "Thread", "/media/123", ThreadActivity.Checking, ThreadSourceState.Active,
                 new RequestPolicyProgress(RequestPolicyPhase.Sending, TimeSpan.Zero, 0), 3, 0,
                 new Dictionary<string, FailureInfo>(), null, new DownloadCounts(0, 0)), "4chan", "g");
-            DesktopSessionView view = new([thread], [], [], DesktopSessionState.Ready, null);
-            Page.Refresh([Provider("4chan"), Provider("8kun")], view, available: true);
+            _view = new([thread], [], [], DesktopSessionState.Ready, null);
+            Refresh(available: true);
             foreach (SelectingItemsControl list in new[] { Page.FindControl<SelectingItemsControl>("SourceWatchesList")!, Page.FindControl<SelectingItemsControl>("SourceCards")! })
             {
                 list.ApplyTemplate();
                 foreach (ItemsPresenter presenter in list.GetVisualDescendants().OfType<ItemsPresenter>()) presenter.ApplyTemplate();
             }
+        }
+
+        internal void Refresh(bool available) => Page.Refresh([Provider("4chan"), Provider("8kun")], _view, available);
+
+        /// <summary>Composes the menu of <paramref name="card"/> the way its Opening does and returns the entry for <paramref name="commandId"/>.</summary>
+        internal MenuItem CardMenuItem(SelectionListItem card, string commandId)
+        {
+            Dictionary<string, SelectionListItem> byId = new();
+            foreach (object pair in (System.Collections.IEnumerable)typeof(SourcesPage).GetField("_sourceCards", InstanceNonPublic)!.GetValue(Page)!)
+            {
+                object value = pair.GetType().GetProperty("Value")!.GetValue(pair)!;
+                byId[(string)pair.GetType().GetProperty("Key")!.GetValue(pair)!] = (SelectionListItem)value.GetType().GetProperty("Control")!.GetValue(value)!;
+            }
+            string id = byId.Single(pair => ReferenceEquals(pair.Value, card)).Key;
+            Assert.True((bool)typeof(SourcesPage).GetMethod("BuildSourceContextMenu", InstanceNonPublic)!.Invoke(Page, [card, id])!);
+            return card.ContextMenu!.Items.OfType<MenuItem>().Single(item => Equals(item.Tag, commandId));
         }
 
         internal void Press(Control source, Key key)

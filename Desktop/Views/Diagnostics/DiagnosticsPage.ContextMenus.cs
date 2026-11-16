@@ -46,8 +46,11 @@ public partial class DiagnosticsPage
     internal void OpenDiagnosticKeyboardMenu(DataGrid grid)
     {
         if (_ended || grid.SelectedItem is not DiagnosticEntry || grid.ContextMenu is not { } menu) return;
-        _diagnosticContextPrepared = false;
-        menu.Open(grid);
+        // Avalonia's explicit Open skips the menu's Opening event, so the menu is composed here (once, marked prepared) and only
+        // opened when it has entries; a stale or empty menu must never pop up.
+        BuildDiagnosticContextMenu(grid);
+        _diagnosticContextPrepared = true;
+        if (menu.ItemCount > 0) menu.Open(grid); else _diagnosticContextPrepared = false;
     }
 
     private bool _diagnosticPointerContextHandled;
