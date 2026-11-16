@@ -214,15 +214,32 @@ public partial class MainWindow
         {
             if (!grid.SelectedItems.Contains(item)) grid.SelectedItem = item;
             grid.Focus();
-            if (grid.ContextMenu is ContextMenu menu)
-            {
-                // ContextMenu.Open(control) bypasses Opening in Avalonia 12.
-                BuildDownloadMenu(grid, menu);
-                if (menu.ItemCount > 0) menu.Open(grid);
-            }
+            // The handler is registered in the tunnel phase. Avalonia's DataGrid applies the
+            // selection in its later class/bubble handling, so composing the menu here reads
+            // the previous selection and can disable the single-thread Read command. Open it
+            // after the pointer route has finished, once SelectedItems is authoritative.
+            object contextItem = item;
+            Dispatcher.UIThread.Post(() => OpenDownloadContextMenu(grid, contextItem), DispatcherPriority.Input);
         }
         e.Handled = true;
         RefreshWorkspace();
+    }
+
+    private void OpenDownloadContextMenu(DataGrid grid, object contextItem)
+    {
+        if (_sessionRowsApplying || _isClosing || !grid.IsEffectivelyVisible || !grid.IsEffectivelyEnabled
+            || grid.ItemsSource is not System.Collections.IEnumerable items || !items.Cast<object>().Contains(contextItem)) return;
+        if (!grid.SelectedItems.Contains(contextItem))
+        {
+            // A right-click on an unselected row means “this row”; preserve an existing
+            // multi-selection only when it already contains the pointer target.
+            grid.SelectedItems.Clear();
+            grid.SelectedItems.Add(contextItem);
+        }
+        if (grid.ContextMenu is not ContextMenu menu || grid.SelectedItems.Count == 0) return;
+        // ContextMenu.Open(control) bypasses Opening in Avalonia 12.
+        BuildDownloadMenu(grid, menu);
+        if (menu.ItemCount > 0) menu.Open(grid);
     }
 
     private readonly HashSet<Control> _downloadPointerContextHandled = new();
@@ -308,7 +325,7 @@ public partial class MainWindow
             else if (LeadThread is ThreadRow row)
             {
                 if (DownloadsMatches(e, "gallery.open")) await OpenActions.RunAsync(() => OpenGalleryAsync(row.Snapshot.Id, origin: grid), "downloads.list.gallery");
-                else if (grid.SelectedItems.Count == 1 && SelectedThreads().Length == 1)
+                else if (SelectedThreads().Length == 1)
                     await OpenActions.RunAsync(() => OpenDownloadReaderAsync(row.Snapshot.Id, grid), "downloads.list.read");
             }
             return;

@@ -73,7 +73,7 @@ public partial class MainWindow
         if (!frozen.Boards)
         {
             Add("thread.read", () => OpenActions.Start(() => OpenFrozenReaderAsync(frozen, grid), "downloads.menu.read"),
-                frozen.Threads.Length == 1 && grid.SelectedItems.Count == 1);
+                frozen.Threads.Length == 1);
             Add("gallery.open", () => OpenActions.Start(() => OpenGalleryAsync(frozen.Lead, origin: grid), "downloads.menu.gallery"));
             // A selection of several threads shows them all, as one thread set (QW-A #7 follow-up); one thread keeps its thread: chip.
             Add("thread.show-in-media", () => ShowSelectedThreadsInMedia(frozen.Threads, frozen.Lead,
