@@ -137,4 +137,32 @@ public sealed class ReaderPostStarTests : IDisposable
         Assert.True(render >= 0 && page.IndexOf("if (refreshMedia) RenderMedia(); else ConfigureArchiveMediaFavorites();", render, StringComparison.Ordinal)
             < page.IndexOf("private readonly record struct PostRowContext", StringComparison.Ordinal));
     }
+
+    [Fact]
+    public void TheReadersThumbnailDrawsNoStarBecauseTheFileLinesStarIsTheOneAndStaysTheToggle()
+    {
+        // Tom, 16.11.2026: each post with media showed two stars, the file line's toggle and a round badge over the thumbnail. The badge is gone
+        // from the post attachment (inline and large reader alike); the file line's star is untouched and still the favourite's toggle.
+        Wired favourite = new("fav") { Favorite = true };
+        Assert.False(ArchiveMediaBadges.ForAttachment(favourite.Row).Favorite);
+        ArchiveAttachmentRow large = new(new CapturedAttachment(0, "big", OriginalFileName: "big.jpg")) { LargePreview = true, IsFavorite = () => true, FavoriteAvailable = () => true };
+        Assert.False(ArchiveMediaBadges.ForAttachment(large).Favorite);
+        // The star on the file line is still wired to the row and still toggles it (the keys M/U/F go through the same row delegates).
+        var star = ArchiveFavoriteButton.Callbacks(favourite.Row);
+        Assert.Equal((true, true, (string?)null), ArchiveFavoriteButton.ReadState(star.Available, star.Marked, star.Error));
+        star.Toggle();
+        Assert.Equal((1, false), (favourite.Writes, favourite.Favorite));
+        star.Toggle();
+        Assert.Equal((2, true), (favourite.Writes, favourite.Favorite));
+        // Its place (the file line, right of the name, shown in reader posts), its hit area and its accessible name are as before.
+        string view = Source("Desktop/ArchiveAttachmentView.cs");
+        Assert.Contains("fileLine.Children.Add(_label); fileLine.Children.Add(_favorite);", view);
+        Assert.Contains("_favorite.IsVisible = !compact;", view);
+        string button = Source("Desktop/ArchiveFavoriteButton.cs");
+        Assert.Contains("Padding = new Avalonia.Thickness(8);", button);
+        Assert.Contains("AutomationProperties.SetName(this, description);", button);
+        Assert.Contains("Texts.T(marked ? \"viewer.favorite.remove\" : \"viewer.favorite.add\")", button);
+        // The badges that remain on the other surfaces still draw their favourite (tiles of the Media tab and page).
+        Assert.Contains("Favorite: IsFavorite(row.FavoriteAvailable, row.IsFavorite)", Source("Desktop/ArchiveMediaBadges.cs"));
+    }
 }

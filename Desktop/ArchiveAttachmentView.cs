@@ -75,7 +75,7 @@ public sealed class ArchiveAttachmentView : UserControl
         VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center }.MetaText();
     // MB1b: the shared media badges lie over exactly the shown picture (the frame panel gives the view its size on every layout): the play
     // mark of a video (scaled to the picture, 20 to 44 dip, centred, dark in both themes: the archive-play fix, now drawn by the badge view),
-    // the star of a favourite, the GIF chip and a missing file. Not hit-testable, not in the accessibility tree: the picture button stays the
+    // the GIF chip and a missing file (no favourite star here: the file line's own toggle is the one star of a reader post). Not hit-testable, not in the accessibility tree: the picture button stays the
     // click target at any size and carries the words (MediaBadgeText.Describe).
     private readonly MediaBadgeView _badges = new() { Name = "ArchiveMediaBadges", Options = MediaBadgeOptions.Archive };
     private bool _missing;
@@ -610,7 +610,7 @@ public sealed class ArchiveAttachmentView : UserControl
     private void UpdateButtonName(ArchiveAttachmentRow? row)
     {
         bool inline = row != null && InlineVideoOffered;
-        // MB1b: what the badges show (favourite, video or GIF, file missing) is part of the button's name and help, as one short sentence.
+        // MB1b: what the badges show (video or GIF, file missing; the favourite state is the file-line star's own name) is part of the button's name and help, as one short sentence.
         string badges = row == null ? string.Empty : MediaBadgeSentences.Get(_badges.State, _badges.Options);
         Avalonia.Automation.AutomationProperties.SetName(_button, ArchiveMediaBadges.Append(inline
             ? Texts.T("reader.video.play", row!.Attachment.OriginalFileName ?? row.Attachment.MediaId ?? Texts.T("reader.video.unnamed"))

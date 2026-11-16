@@ -38,12 +38,13 @@ internal static class ArchiveMediaBadges
             Missing: missing || row.Manifest.Status == MediaManifestStatus.Missing);
 
     /// <summary>
-    /// The badges of a thread-list row or a reader post's attachment. A compact list row never shows the file favourite (its star is not
-    /// wired there; the thread's own star is on the right), so it carries no favourite badge either.
+    /// The badges of a thread-list row or a reader post's attachment. Neither carries a favourite badge: a compact list row has no file
+    /// star (the thread's own star is on the right), and a reader post already shows the file's star, the toggle on its file line, so a
+    /// second round star over the picture only duplicated it (Tom, 16.11.2026). The favourite badge stays on the media tiles, the Media
+    /// page, the tagging tiles and the gallery filmstrip (<see cref="ForAsset"/> and their own views).
     /// </summary>
     internal static MediaBadgeState ForAttachment(ArchiveAttachmentRow row, bool missing = false, TimeSpan? duration = null) =>
-        new(Favorite: !row.Compact && IsFavorite(row.FavoriteAvailable, row.IsFavorite), Kind: KindOf(row.Attachment.OriginalFileName),
-            Duration: duration, Missing: missing);
+        new(Kind: KindOf(row.Attachment.OriginalFileName), Duration: duration, Missing: missing);
 
     /// <summary>A load that failed because the file is not (or no longer) there, as opposed to one that is merely not decodable.</summary>
     internal static bool IsMissingFile(Exception? error)
