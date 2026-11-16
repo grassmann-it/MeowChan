@@ -288,8 +288,14 @@ internal sealed partial class GalleryViewer
             // pointer entry even after its transient chevron has faded. Otherwise an
             // idle edge has no way to renew the hint or activate it without first
             // finding a pixel that happens to be drawn.
-            indicator.IsHitTestVisible = indicator.IsVisible || shown
-                || (ReferenceEquals(indicator, _postEdgeIndicator) ? _pointerOnPostIndicator : _pointerOnControlsIndicator);
+            // A transient bottom glyph may sit over the now-visible footer after
+            // centre motion. Keep it painted, but let the real transport receive
+            // native pointer motion until the footer is hidden again; otherwise a
+            // later move to the transport is rejected as a changed hit target.
+            bool controlsHandleOwnsInput = !ReferenceEquals(indicator, _controlsEdgeIndicator)
+                || _overlayHidden || _pointerOnControlsIndicator;
+            indicator.IsHitTestVisible = controlsHandleOwnsInput && (indicator.IsVisible || shown
+                || (ReferenceEquals(indicator, _postEdgeIndicator) ? _pointerOnPostIndicator : _pointerOnControlsIndicator));
         }
     }
 
