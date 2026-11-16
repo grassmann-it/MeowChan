@@ -327,6 +327,14 @@ internal static class MediaInteractionChecks
                     target = null;
                     return false;
                 }
+                catch (ArgumentException)
+                {
+                    // Avalonia can reject a cross-root conversion while the retained
+                    // control is moving into its current native transport root. Retry
+                    // the probe so input is sent only to the settled current instance.
+                    target = null;
+                    return false;
+                }
             }, () => $"The {name} control did not settle as a native hit target.");
             return target!;
         }
@@ -338,48 +346,59 @@ internal static class MediaInteractionChecks
             Button? target = null;
             await Program.WaitUntilAsync(() =>
             {
-                if (viewer is not { IsOverflowOpen: true }
-                    || !viewer.OverflowMenuContent.IsAttachedToVisualTree()
-                    || !viewer.OverflowMenuContent.IsEffectivelyVisible
-                    || viewer.OverflowMenuContent.Bounds.Width <= 0
-                    || viewer.OverflowMenuContent.Bounds.Height <= 0)
-                    return false;
-
-                target = viewer.OverflowMenuContent.GetVisualDescendants()
-                    .OfType<Button>()
-                    .FirstOrDefault(control => control.Name == name);
-                if (target is null) return false;
-
-                // The row can be current and attached while still outside the visible
-                // ScrollViewer viewport. Bring this current instance into view before
-                // asking for screen geometry; a retained row from a previous popup must
-                // never be reused for native input. Avalonia processes BringIntoView on
-                // the popup's dispatcher turn, so update both the popup and its bounded
-                // scroller before converting the row to screen coordinates.
-                ScrollViewer? scroller = viewer.OverflowFlyout.Content as ScrollViewer;
-                TopLevel? popup = TopLevel.GetTopLevel(target);
-                popup?.UpdateLayout();
-                scroller?.UpdateLayout();
-                target.BringIntoView();
-                if (scroller != null && target.TranslatePoint(default, scroller) is { } origin)
+                try
                 {
-                    // The help row is below the bounded menu on the 3200x2000 Linux
-                    // smoke desktop. BringIntoView is routed asynchronously and can
-                    // miss the first popup layout; correct the current ScrollViewer
-                    // offset from the current row geometry, never from a stale row.
-                    double y = scroller.Offset.Y;
-                    if (origin.Y < 0) y += origin.Y;
-                    else if (origin.Y + target.Bounds.Height > scroller.Viewport.Height)
-                        y += origin.Y + target.Bounds.Height - scroller.Viewport.Height;
-                    double max = Math.Max(0, scroller.Extent.Height - scroller.Viewport.Height);
-                    scroller.Offset = new Vector(scroller.Offset.X, Math.Clamp(y, 0, max));
+                    if (viewer is not { IsOverflowOpen: true }
+                        || !viewer.OverflowMenuContent.IsAttachedToVisualTree()
+                        || !viewer.OverflowMenuContent.IsEffectivelyVisible
+                        || viewer.OverflowMenuContent.Bounds.Width <= 0
+                        || viewer.OverflowMenuContent.Bounds.Height <= 0)
+                        return false;
+
+                    target = viewer.OverflowMenuContent.GetVisualDescendants()
+                        .OfType<Button>()
+                        .FirstOrDefault(control => control.Name == name);
+                    if (target is null) return false;
+
+                    // The row can be current and attached while still outside the visible
+                    // ScrollViewer viewport. Bring this current instance into view before
+                    // asking for screen geometry; a retained row from a previous popup must
+                    // never be reused for native input. Avalonia processes BringIntoView on
+                    // the popup's dispatcher turn, so update both the popup and its bounded
+                    // scroller before converting the row to screen coordinates.
+                    ScrollViewer? scroller = viewer.OverflowFlyout.Content as ScrollViewer;
+                    TopLevel? popup = TopLevel.GetTopLevel(target);
+                    popup?.UpdateLayout();
+                    scroller?.UpdateLayout();
+                    target.BringIntoView();
+                    if (scroller != null && target.TranslatePoint(default, scroller) is { } origin)
+                    {
+                        // The help row is below the bounded menu on the 3200x2000 Linux
+                        // smoke desktop. BringIntoView is routed asynchronously and can
+                        // miss the first popup layout; correct the current ScrollViewer
+                        // offset from the current row geometry, never from a stale row.
+                        double y = scroller.Offset.Y;
+                        if (origin.Y < 0) y += origin.Y;
+                        else if (origin.Y + target.Bounds.Height > scroller.Viewport.Height)
+                            y += origin.Y + target.Bounds.Height - scroller.Viewport.Height;
+                        double max = Math.Max(0, scroller.Extent.Height - scroller.Viewport.Height);
+                        scroller.Offset = new Vector(scroller.Offset.X, Math.Clamp(y, 0, max));
+                    }
+                    scroller?.UpdateLayout();
+                    popup?.UpdateLayout();
+                    return target.IsAttachedToVisualTree()
+                        && popup is not null
+                        && !ReferenceEquals(popup, window)
+                        && MediaInteractionSmokeHelpers.IsPointerTargetReady(target);
                 }
-                scroller?.UpdateLayout();
-                popup?.UpdateLayout();
-                return target.IsAttachedToVisualTree()
-                    && popup is not null
-                    && !ReferenceEquals(popup, window)
-                    && MediaInteractionSmokeHelpers.IsPointerTargetReady(target);
+                catch (ArgumentException)
+                {
+                    // PopupRoot replacement can race BringIntoView/TranslatePoint.
+                    // Re-run the complete current-row probe rather than using a stale
+                    // row or reporting this transient cross-root conversion as failure.
+                    target = null;
+                    return false;
+                }
             }, () => $"The {name} control did not settle as a native popup target.");
             return target!;
         }
