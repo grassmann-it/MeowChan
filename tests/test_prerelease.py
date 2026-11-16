@@ -468,7 +468,8 @@ class CandidateWorkflowFixtures(unittest.TestCase):
         if event != 'workflow_dispatch':
             scenario = 'all'
         focused = {'gallery-errors': 'gallery_errors', 'gallery-features': 'gallery_features',
-                   'gif-playback': 'gif_playback', 'media-input': 'media_input', 'selection': 'smoke_normal'}
+                   'gif-playback': 'gif_playback', 'media-input': 'media_input', 'selection': 'smoke_normal',
+                   'tray-lifecycle': 'tray_lifecycle'}
         if scenario in focused:
             return full and identifier == focused[scenario]
         self.assertIn(scenario, ('all', 'gui-only'))
@@ -540,7 +541,7 @@ class CandidateWorkflowFixtures(unittest.TestCase):
                      'macos-15', 'macos-15-intel')
         modes = ('validate', 'prerelease-candidate', 'stable-candidate', 'offline-retest',
                  'package-media', 'linux-distribution', 'macos-package', 'macos-diagnose', 'homebrew-macos')
-        scenarios = ('all', 'gui-only', 'selection', 'gallery-errors', 'gallery-features', 'gif-playback', 'media-input')
+        scenarios = ('all', 'gui-only', 'selection', 'gallery-errors', 'gallery-features', 'gif-playback', 'media-input', 'tray-lifecycle')
         for mode in modes:
             for scenario in scenarios:
                 for platform in platforms:
@@ -618,7 +619,9 @@ class CandidateWorkflowFixtures(unittest.TestCase):
                                                ('all', 'gif-playback', 1),
                                                ('macos-15', 'gif-playback', 1),
                                                ('all', 'media-input', 1),
-                                               ('windows-2022', 'media-input', 1)):
+                                               ('windows-2022', 'media-input', 1),
+                                               ('all', 'tray-lifecycle', 1),
+                                               ('macos-15-intel', 'tray-lifecycle', 1)):
             command = guard.replace('${{ inputs.platform }}', platform).replace('${{ inputs.scenario }}', scenario)
             with self.subTest(platform=platform, scenario=scenario):
                 result = subprocess.run([bash, '-e', '-c', command], capture_output=True, text=True)
@@ -661,6 +664,7 @@ class CandidateWorkflowFixtures(unittest.TestCase):
             'gallery-features': 'Exercise changed gallery features on the actual platform',
             'gif-playback': 'Exercise GIF playback and ownership on the actual platform',
             'media-input': 'Exercise real OS media input (not synthetic routed keys)',
+            'tray-lifecycle': 'Exercise tray lifecycle separately on the disposable runner',
         }
         gallery = selectors['gallery-errors']
         scenes = {name: body for name, body in steps.items()

@@ -29,6 +29,7 @@ TARGETED_STEPS = {
     "gallery-features": ["gallery_features"],
     "gif-playback": ["gif_playback"],
     "media-input": ["package_fixtures", "media_input"],
+    "tray-lifecycle": ["tray_lifecycle"],
 }
 
 

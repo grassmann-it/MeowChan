@@ -47,7 +47,7 @@ on:
           - lane-c
           - lane-d
       scenario:
-        description: Native GUI scenarios (Focused gallery/GIF/media-input diagnostics; candidates require all)
+        description: Native GUI scenarios (Focused gallery/GIF/media-input/tray diagnostics; candidates require all)
         type: choice
         required: false
         default: all
@@ -59,6 +59,7 @@ on:
           - gallery-features
           - gif-playback
           - media-input
+          - tray-lifecycle
 
 permissions:
   contents: read
@@ -233,6 +234,7 @@ jobs:
           python -m unittest discover -s tests -p test_public_api_policy.py -v || fixture_status=$?
           python -m unittest discover -s tests -p test_ci_desktop_preparation.py -v || fixture_status=$?
           python -m unittest discover -s tests -p test_validation_gate.py -v || fixture_status=$?
+          python -m unittest discover -s tests -p test_tray_lifecycle_selector.py -v || fixture_status=$?
           python -m unittest discover -s tests -p test_macos_test_watchdog.py -v || fixture_status=$?
           python -m unittest discover -s tests -p test_macos_test_shards.py -v || fixture_status=$?
           python -m unittest discover -s tests -p test_desktop_four_lane_shards.py -v || fixture_status=$?
@@ -321,7 +323,7 @@ jobs:
         id: smoke_normal
         # Keep independent checks running so one failure yields a complete evidence set.
         continue-on-error: true
-        if: (matrix.full || (inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only'))) && (github.event_name != 'workflow_dispatch' || (inputs.scenario != 'gallery-errors' && inputs.scenario != 'gallery-features' && inputs.scenario != 'gif-playback' && inputs.scenario != 'media-input'))
+        if: (matrix.full || (inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only'))) && (github.event_name != 'workflow_dispatch' || (inputs.scenario != 'gallery-errors' && inputs.scenario != 'gallery-features' && inputs.scenario != 'gif-playback' && inputs.scenario != 'media-input' && inputs.scenario != 'tray-lifecycle'))
         # Each normal scope has a fresh process/profile and its own bounded evidence.
         shell: bash
         env:
@@ -656,7 +658,7 @@ jobs:
         id: tray_lifecycle
         # Keep independent checks running so one failure yields a complete evidence set.
         continue-on-error: true
-        if: (((inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')) && ((runner.os == 'macOS' && matrix.mac_shard == 3) || (runner.os != 'macOS' && matrix.lane == 'lane-a'))) || (matrix.full && !(inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')))) && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all')
+        if: (((inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')) && ((runner.os == 'macOS' && matrix.mac_shard == 3) || (runner.os != 'macOS' && matrix.lane == 'lane-a'))) || (matrix.full && !(inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')))) && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'tray-lifecycle')
         shell: bash
         run: |
           python scripts/gui-ci-safety.py
