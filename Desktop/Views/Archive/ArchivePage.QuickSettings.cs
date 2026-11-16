@@ -10,6 +10,7 @@ using Avalonia.Data;
 using Avalonia.Layout;
 using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
+using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
@@ -48,10 +49,13 @@ public partial class ArchivePage
 
     private void OnReaderSettingsClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => OpenReaderQuickSettings();
 
-    // The gear, or what stands in for it when the toolbar folded it into "More" (its parent is then the closed overflow).
+    // Overflow items keep their logical visibility even while detached; while open the gear
+    // belongs to a temporary PopupRoot that the toolbar dismisses after its Click bubbles.
+    // In both cases anchor to the stable More button, not to the overflow's gear.
     private Avalonia.Controls.Control QuickSettingsAnchor() =>
-        ReaderSettingsOpen.IsEffectivelyVisible ? ReaderSettingsOpen
-        : ReaderToolbar.More is { IsEffectivelyVisible: true } more ? more
+        ReaderToolbar.OverflowHost?.Children.Contains(ReaderSettingsOpen) != true
+            && ReaderSettingsOpen.IsAttachedToVisualTree() && ReaderSettingsOpen.IsEffectivelyVisible ? ReaderSettingsOpen
+        : ReaderToolbar.More is { IsEffectivelyVisible: true } more && more.IsAttachedToVisualTree() ? more
         : ReaderToolbar;
 
     /// <summary>

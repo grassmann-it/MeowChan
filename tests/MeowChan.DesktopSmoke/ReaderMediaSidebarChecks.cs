@@ -24,6 +24,8 @@ internal static class ReaderMediaSidebarChecks
         await page.ApplySearchAsync();
         page.FindControl<ListBox>("ArchiveThreads")!.SelectedIndex = 0;
         await Program.WaitUntilAsync(() => !page.IsBusy && page.CurrentThread != null);
+        // The large reader snapshots embedded media; do not detach before its load completes.
+        await page.MediaLoadTask;
         Grid pane = page.FindControl<Grid>("ArchiveReaderPane")!;
         int embeddedColumn = Grid.GetColumn(pane);
         Require(page.ReaderMedia.Sidebar, "The media sidebar is not on by default.");
@@ -43,6 +45,7 @@ internal static class ReaderMediaSidebarChecks
 
         ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
         // R11/RL1: while the sidebar is off and the reader wide enough, its row in the settings popover names the shortcut (and nothing turned it on).
+        await ReaderSettingsProbe.CheckGearRoutesAsync(page, window);
         QuickSettingsSurface settings = await ReaderSettingsProbe.OpenAsync(page);
         string? shortcut = MeowChan.Desktop.Commands.CommandCatalog.ShortcutDisplay("reader.sidebar.toggle");
         Require(shortcut == null || settings.ShortcutTextOf("reader.sidebar.toggle").Contains(shortcut, StringComparison.Ordinal),
@@ -167,6 +170,7 @@ internal static class ReaderMediaSidebarChecks
         Require(pane.Parent == page.FindControl<Grid>("ArchiveSplit") && Grid.GetColumn(pane) == embeddedColumn,
             "The pane did not return to its archive split column.");
         await CheckArchiveViewAsync(page, pane, posts);
+        await ReaderSettingsProbe.CheckDisposalAsync(window);
         Console.WriteLine("SMOKE reader media sidebar: on by default, compact header with the gallery button, no overlay arrows or counter (strip for several media), framed large reader, View-menu switch, follow with throttle, live region, several-file strip with counter, grid layout, discovery hint, right side, width collapse, Escape and return, archive view (Always) passed.");
     }
 
