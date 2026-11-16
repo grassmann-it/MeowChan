@@ -623,6 +623,13 @@ class CandidateWorkflowFixtures(unittest.TestCase):
         self.assertIn("MEOWCHAN_GALLERY_ERROR_ONLY: '1'", steps[gallery])
         self.assertIn('--mode normal --timeout 300 --output artifacts/closure-gallery-errors',
                       steps[gallery])
+        self.assertIn('if [[ "$RUNNER_OS" == Linux ]]; then', steps[gallery])
+        self.assertIn('scripts/with-private-null-audio.py --report artifacts/private-audio/gallery-errors.json --', steps[gallery])
+        self.assertIn('env MEOWCHAN_GALLERY_ERROR_ONLY=1 MEOWCHAN_REQUIRE_FUNCTIONAL_AUDIO=1', steps[gallery])
+        self.assertEqual(2, steps[gallery].count('--mode normal --timeout 300 --output artifacts/closure-gallery-errors'))
+        self.assertIn('--allow-native-desktop --mode normal', steps[gallery])
+        registry = (ROOT / 'tests/MeowChan.DesktopSmoke/SmokeScenarios.cs').read_text()
+        self.assertRegex(registry, r'Root\("gallery-error"[^\n]+NightlyEnvironment = \[Video, FunctionalAudio\]')
         self.assertIn('artifacts/closure-gallery-errors/**', self.jobs['validate'])
         self.assertIn('artifacts/build-evidence/**', self.jobs['validate'])
         self.assertIn("if: always()", self.jobs['validate'])

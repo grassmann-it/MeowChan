@@ -171,7 +171,10 @@ internal static partial class SmokeScenarios
         Root("preference-startup", "MEOWCHAN_PREFERENCE_STARTUP_ONLY", "startup preferences: private held-restore/Ready/native column input/reopen, current source; platform limits explicit"),
         Root("native-drain-boundary", "MEOWCHAN_NATIVE_DRAIN_BOUNDARY_ONLY", "native drain boundary: a faulted native gallery cleanup keeps the shell open and the profile lease held against a second process; the lease is free after the child ends; no decoder"),
         Root("compact-diagnostics", "MEOWCHAN_COMPACT_DIAGNOSTICS_ONLY", "compact and diagnostics: all-mode projection, frozen scope/revalidation/context/acknowledgement; native XTest/SendInput/CGEvent row-and-blank pointer/focus check on an explicitly disposable desktop plus managed checks"),
-        Root("gallery-error", "MEOWCHAN_GALLERY_ERROR_ONLY", "gallery diagnostics-only notices: central acknowledgement, no transport/focus/autohide side effects; true failure safe") with { NightlyEnvironment = [Video] },
+        // This scene deliberately loads VP8+Vorbis (including paused cleanup). An
+        // isolated display without an owned audio service can strand native Stop in
+        // ALSA/PipeWire device-open teardown; use the existing private sink owner.
+        Root("gallery-error", "MEOWCHAN_GALLERY_ERROR_ONLY", "gallery diagnostics-only notices: central acknowledgement, no transport/focus/autohide side effects; true failure safe") with { NightlyEnvironment = [Video, FunctionalAudio] },
         Root("feedback", "MEOWCHAN_FEEDBACK_ONLY", "feedback: real rendered banner/toast dismissal, matching duplicates, queue, stale close and passive expiry"),
         Root("gallery-playback-features", "MEOWCHAN_GALLERY_PLAYBACK_FEATURES_ONLY", env => env("MEOWCHAN_GALLERY_EDGE_ONLY") == "1"
             ? "native edge-hover panels: slideshow pointer-focus hide, bottom transport/right post, no central-motion reveal or preference write"

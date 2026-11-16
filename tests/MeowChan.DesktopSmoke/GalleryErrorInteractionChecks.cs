@@ -1,4 +1,6 @@
 using Avalonia.Layout;
+using System.Text.Json;
+using MeowChan.Diagnostics;
 using System.Reflection;
 using Avalonia.Controls;
 using Avalonia.Controls.Notifications;
@@ -31,6 +33,28 @@ internal static partial class GalleryPlaybackFeatureChecks
             throw new InvalidOperationException("Error interaction checks require an authorized disposable native desktop.");
         string video = Environment.GetEnvironmentVariable("MEOWCHAN_VIDEO_FIXTURE")
             ?? throw new InvalidOperationException("Error interaction checks require the pinned synthetic video fixture.");
+        // Flush bounded existing native-operation evidence before an external watchdog
+        // can terminate a stuck cleanup. This observer never acquires the native gate.
+        using var trace = Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_CLEANUP_TRACE") == "1"
+            ? PerformanceDiagnostics.BeginRun("gallery-errors", "local-cleanup-diagnostic", "gallery-fixture") : null;
+        long lastSequence = 0;
+        object traceSync = new();
+        void FlushTrace()
+        {
+            if (trace == null) return;
+            lock (traceSync)
+            {
+                var snapshot = trace.Snapshot();
+                var events = snapshot.Events.Where(e => e.Sequence > lastSequence
+                    && (e.Phase.StartsWith("video.cleanup", StringComparison.Ordinal)
+                        || e.Phase.StartsWith("video.native.", StringComparison.Ordinal)
+                        || e.Phase is "video.stop" or "video.show" or "video.operations.wait")).ToArray();
+                if (snapshot.Events.Length > 0) lastSequence = snapshot.Events[^1].Sequence;
+                if (events.Length > 0) Console.WriteLine("SMOKE gallery cleanup trace "
+                    + JsonSerializer.Serialize(snapshot with { Events = events }));
+            }
+        }
+        using var traceTimer = trace == null ? null : new Timer(_ => FlushTrace(), null, 2000, 2000);
         string directory = TemporaryWorkspacePaths.CreateDirectory("meowchan-gallery-errors-");
         try
         {
@@ -50,7 +74,7 @@ internal static partial class GalleryPlaybackFeatureChecks
             foreach (bool paused in new[] { false, true })
                 await CheckShellFailureAndReaderReturnAsync(owner, clip, paused);
         }
-        finally { Directory.Delete(directory, recursive: true); }
+        finally { traceTimer?.Change(Timeout.Infinite, Timeout.Infinite); FlushTrace(); Directory.Delete(directory, recursive: true); }
     }
 
     private static async Task CheckNativeClipFeedbackAsync(MainWindow owner)
@@ -269,6 +293,7 @@ internal static partial class GalleryPlaybackFeatureChecks
 
     private static async Task CheckNotificationTransportAsync(MainWindow owner, GalleryEntry clip, bool overlay, bool paused)
     {
+        Console.WriteLine($"SMOKE gallery notification begin: overlay={overlay}, paused={paused}");
         await using Fixture fixture = new(owner);
         await fixture.ReadyAsync();
         GalleryViewer viewer = fixture.Viewer;

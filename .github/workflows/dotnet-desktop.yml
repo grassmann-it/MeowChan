@@ -562,7 +562,15 @@ jobs:
           MEOWCHAN_GALLERY_ERROR_ONLY: '1'
         run: |
           export MEOWCHAN_VIDEO_FIXTURE="$GITHUB_WORKSPACE/tests/Fixtures/gallery-playback-vp8.webm"
-          python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll ${{ runner.os != 'Linux' && '--allow-native-desktop' || '' }} --mode normal --timeout 300 --output artifacts/closure-gallery-errors
+          if [[ "$RUNNER_OS" == Linux ]]; then
+            # The fixture uses real VP8+Vorbis, including paused terminal cleanup.
+            # Own a private output rather than entering the host ALSA/PipeWire fallback.
+            python scripts/with-private-null-audio.py --report artifacts/private-audio/gallery-errors.json -- \
+              env MEOWCHAN_GALLERY_ERROR_ONLY=1 MEOWCHAN_REQUIRE_FUNCTIONAL_AUDIO=1 MEOWCHAN_VIDEO_FIXTURE="$MEOWCHAN_VIDEO_FIXTURE" \
+              python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll --mode normal --timeout 300 --output artifacts/closure-gallery-errors
+          else
+            python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll --allow-native-desktop --mode normal --timeout 300 --output artifacts/closure-gallery-errors
+          fi
       - name: Exercise reader media activation input on the actual platform
         id: reader_media
         # Keep independent checks running so one failure yields a complete evidence set.

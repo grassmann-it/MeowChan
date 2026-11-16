@@ -1076,10 +1076,20 @@ internal static partial class GalleryPlaybackFeatureChecks
             }
             foreach (Control control in externalControls) control.AttachedToVisualTree += Attached;
             Console.WriteLine($"SMOKE gallery fixture terminal stop begin: externalControls={externalControls.Length}");
+            GalleryVideoPlayer? diagnosticPlayer = Viewer.GetVisualDescendants().OfType<GalleryVideoPlayer>().FirstOrDefault();
+            int samples = 0;
+            using var cleanupTimer = Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_CLEANUP_TRACE") != "1"
+                ? null : new Timer(_ =>
+                {
+                    if (Interlocked.Increment(ref samples) <= 6)
+                        Console.WriteLine("SMOKE gallery fixture cleanup ownership "
+                            + JsonSerializer.Serialize(diagnosticPlayer?.InspectPlaybackLifecycle()));
+                }, null, 5000, 5000);
             try
             {
                 // Actual cleanup is awaited before closing the owned native window or deleting files.
                 await Viewer.StopAsync();
+                Console.WriteLine("SMOKE gallery fixture owner stop returned");
                 Require(retiredHostAttachments == 0,
                     "Terminal gallery retirement moved native overlay controls back into the host root.");
                 await LayoutAsync(Window);
