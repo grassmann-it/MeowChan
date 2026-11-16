@@ -725,7 +725,8 @@ public sealed partial class MediaPage : UserControl
     {
         if (OpenGallery == null) return;
         (IReadOnlyList<MediaLibraryEntry> window, int start) = MediaLibraryView.GalleryWindow(_shown, PresentPositions, row.Index);
-        if (start < 0) return;
+        // A tile whose file is not saved (shown with "missing files") has nothing to show: say so instead of a click or Enter that does nothing.
+        if (start < 0) { ShowSelectionNote(MediaMenuReasons.NotSaved); return; }
         _ = PausePanelVideo();
         await OpenGallery(window, start);
     }
@@ -884,7 +885,7 @@ public sealed partial class MediaPage : UserControl
                     await RunMediaCommandByShortcutAsync(id);
                     return;
                 }
-            if (e.Key != Key.Enter || e.KeyModifiers != KeyModifiers.None || SelectedRow == null) return;
+            if (!IsOpenKey(e) || SelectedRow == null) return;
             e.Handled = true;
             // Several selected tiles open together; one opens around itself.
             if (_grid.Selection.Count > 1) await OpenSelectionGalleryAsync(); else await OpenSelectedAsync();
@@ -1070,13 +1071,15 @@ public sealed partial class MediaPage : UserControl
             MediaMenuSession blank = new(MediaMenuSurface.MediaPage, null, Current);
             Task RunBlank(Func<Task> action) => RunMenuActionAsync(action, blank);
             // MP5: empty grid space offers the layout entries (the same as the toolbar's Layout menu) below the two actions on the whole grid.
-            List<Control> blankItems = new()
+            List<Control> blankItems = new();
+            if (_building != null) { blankItems.Add(MediaMenuBuilder.Note(Texts.T("media.selection.reason.building"))); blankItems.Add(new Separator()); }
+            blankItems.AddRange(new Control[]
             {
                 MediaMenuBuilder.ContextItem(blank, "media.exportAll", ExportAllAsync, () => _exportAll.IsEnabled, RunBlank, icon: MenuIcon("export.open-all-results-html-dialog")),
                 MediaMenuBuilder.ContextItem(blank, "media.queue.all", AddAllShownToQueueAsync, () => AddToTagQueue != null && _tiles.Count > 0, RunBlank,
                     MediaMenuReasons.Unavailable, MenuIcon("media.queue.all")),
                 new Separator()
-            };
+            });
             blankItems.AddRange(LayoutMenuItems());
             if (QueueGroupMenu(blank, _tiles.Select(tile => tile.Entry).ToArray(), RunBlank) is { } blankGroups) blankItems.Add(blankGroups);
             ContextMenu blankMenu = new() { ItemsSource = blankItems };
@@ -1168,7 +1171,10 @@ public sealed partial class MediaPage : UserControl
             ? queueTiles.Select(tileEntry => tileEntry.Entry).ToArray() : new[] { entry };
         if (QueueGroupMenu(session, queueEntries, Run) is { } groups) context.Add(groups);
         // The media panel's menu of a video starts with the playback group (play / pause, mute, repeat), as the reader's menu of a video does.
-        ContextMenu menu = MediaMenuBuilder.Build(session, model, handlers, Run, context, ShowSelectionNote, ReaderPlaybackMenu.MenuItems(playback, session, Run));
+        // While the index is being built every action of the menu refuses (the guard above), like the selection bar's: the menu says why, on top.
+        List<Control>? leading = ReaderPlaybackMenu.MenuItems(playback, session, Run);
+        if (_building != null) (leading ??= new()).Insert(0, MediaMenuBuilder.Note(Texts.T("media.selection.reason.building")));
+        ContextMenu menu = MediaMenuBuilder.Build(session, model, handlers, Run, context, ShowSelectionNote, leading);
         _mediaMenuPresenter.Show(menu, session, origin, attachToOrigin: true, fallbackFocus: () => FocusGrid(Current));
     }
 

@@ -531,7 +531,7 @@ public sealed partial class MediaPage
     private void OnPanelKeyDown(object? sender, KeyEventArgs e)
     {
         _panelPointerContext.Reset(); // a key ends a pointer gesture whose release never came
-        TryRoutePanelKey(e, fromPanel: true);
+        if (!TryRoutePanelKey(e, fromPanel: true)) TryRoutePanelPageKey(e); // the page's own keys (R, T, Q, I, Ctrl+E ...): MediaPage.PanelKeys.cs
     }
 
     private bool TryRoutePanelKey(KeyEventArgs e, bool fromPanel)
