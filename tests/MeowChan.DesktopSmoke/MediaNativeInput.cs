@@ -123,9 +123,17 @@ internal sealed class MediaNativeInput : IDisposable
         try
         {
             TopLevel root = TopLevel.GetTopLevel(target)!;
-            PixelPoint pixel = target.PointToScreen(point ?? new Point(target.Bounds.Width / 2, target.Bounds.Height / 2));
-            return root.InputHitTest(root.PointToClient(pixel)) is Visual hit
-                && hit.GetSelfAndVisualAncestors().Contains(target);
+            Point targetPoint = point ?? new Point(target.Bounds.Width / 2, target.Bounds.Height / 2);
+            PixelPoint pixel = target.PointToScreen(targetPoint);
+            Visual? rootHit = root.InputHitTest(root.PointToClient(pixel)) as Visual;
+            if (rootHit != null && rootHit.GetSelfAndVisualAncestors().Contains(target)) return true;
+            // Avalonia's top-level hit walk can temporarily return an adorner or
+            // the window background while a media surface is transferring its
+            // overlay. Validate the same coordinate in the current target root as
+            // well; this still requires a live descendant of the requested target
+            // and does not synthesize or retry delivery.
+            Visual? targetHit = target.InputHitTest(targetPoint) as Visual;
+            return targetHit != null && targetHit.GetSelfAndVisualAncestors().Contains(target);
         }
         catch (ArgumentException)
         {

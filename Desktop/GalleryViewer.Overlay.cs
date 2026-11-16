@@ -239,12 +239,10 @@ internal sealed partial class GalleryViewer
         UpdateCornerChrome();
         // Keep a hovered handle hit-testable through reveal until the pointer leaves.
         // Otherwise its pending click/tap could land on the media or transport below.
-        // Keep the bottom affordance visible for the same short motion window as
-        // the chevron. Real centre motion also reveals the footer, but the edge
-        // affordance must remain observable and native-targetable until that motion
-        // hint expires; otherwise the footer reveal consumes the only visual cue.
-        bool motionHint = EdgeIndicatorArtworkVisible(_controlsEdgeIndicator);
-        bool controls = OverlayControlsEffective && (_overlayHidden || _pointerOnControlsIndicator || motionHint);
+        // The bottom affordance is the entry point for a hidden footer. Once real
+        // centre motion has revealed that footer, keep the post affordance available
+        // but remove the redundant controls chevron from the surface.
+        bool controls = OverlayControlsEffective && (_overlayHidden || _pointerOnControlsIndicator);
         bool post = PostOverlayEffective && (!_contextOpen || _pointerOnPostIndicator) && _entry != null;
         bool controlsHadFocus = _controlsEdgeIndicator.IsKeyboardFocusWithin;
         bool postHadFocus = _postEdgeIndicator.IsKeyboardFocusWithin;
