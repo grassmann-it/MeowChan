@@ -40,6 +40,18 @@ public sealed class WindowChromeCoverageTests
     }
 
     [Fact]
+    public void NativeCaptionModeDoesNotOfferAnAppCloseTargetToGallerySmoke()
+    {
+        // GalleryCloseChecks must not inspect the hidden XAML WindowCloseButton on
+        // macOS's default native traffic-light policy. Native caption validation is
+        // a separate native window-chrome concern; the gallery journey only probes
+        // the app-drawn caption when that policy owns the buttons.
+        WindowChromeMode native = WindowChromeMode.NativeCaptionButtons;
+        Assert.False(WindowChrome.ShowsOwnCaptionButtons(native));
+        Assert.True(WindowChrome.ShowsCaption(native));
+    }
+
+    [Fact]
     public void OnlyWindowsIsAskedForSquareCorners()
     {
         Assert.Equal(Avalonia.Controls.Win32Properties.WindowCornerPreference.DoNotRound, WindowChrome.CornerPreference(windows: true));
