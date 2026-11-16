@@ -476,21 +476,31 @@ internal static class ArchiveTransferExportDestination
 
     internal static bool Exists(string full) => File.Exists(full) || Directory.Exists(full);
 
+    /// <summary>
+    /// How file names compare on this platform: case-insensitive on Windows and macOS (their default file systems), case-sensitive
+    /// elsewhere, so on Linux an unrelated <c>NAME-PART-01.zip</c> is not a numbered package of <c>name.zip</c>.
+    /// </summary>
+    internal static StringComparison FileNameComparison => OperatingSystem.IsWindows() || OperatingSystem.IsMacOS()
+        ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+
     /// <summary>The first existing file or folder named like a numbered package of <paramref name="full"/> (any number), or <c>null</c>.</summary>
-    internal static string? FirstExistingPart(string full)
+    internal static string? FirstExistingPart(string full) => FirstExistingPart(full, FileNameComparison);
+
+    /// <summary><see cref="FirstExistingPart(string)"/> with the file-name comparison given (for tests of the per-platform rule).</summary>
+    internal static string? FirstExistingPart(string full, StringComparison comparison)
     {
         string directory = Path.GetDirectoryName(full)!;
         string prefix = Path.GetFileNameWithoutExtension(full) + "-part-";
         string extension = Path.GetExtension(full);
         try
         {
-            return Directory.EnumerateFileSystemEntries(directory, "*" + extension)
+            return Directory.EnumerateFileSystemEntries(directory)
                 .Where(path =>
                 {
                     string name = Path.GetFileName(path);
                     return name.Length > prefix.Length + extension.Length
-                        && name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
-                        && name.EndsWith(extension, StringComparison.OrdinalIgnoreCase)
+                        && name.StartsWith(prefix, comparison)
+                        && name.EndsWith(extension, comparison)
                         && name.AsSpan(prefix.Length, name.Length - prefix.Length - extension.Length).IndexOfAnyExceptInRange('0', '9') < 0;
                 })
                 .Order(StringComparer.Ordinal).FirstOrDefault();
