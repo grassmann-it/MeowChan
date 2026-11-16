@@ -235,6 +235,8 @@ public static class SettingsTransfer
             ReaderSidebarVideoAutoplay = source.ReaderSidebarVideoAutoplay,
             ReaderSidebarVideoLoop = source.ReaderSidebarVideoLoop,
             ReaderSidebarVideoStartMuted = source.ReaderSidebarVideoStartMuted,
+            ReaderQuotePreviewAutoplay = source.ReaderQuotePreviewAutoplay,
+            ReaderQuotePreviewMuted = source.ReaderQuotePreviewMuted,
             ReaderInlineVideoMaxPlayers = source.ReaderInlineVideoMaxPlayers,
             ReaderInlineVideoMaxFileMiB = source.ReaderInlineVideoMaxFileMiB,
             ReaderMediaStripLimit = source.ReaderMediaStripLimit,

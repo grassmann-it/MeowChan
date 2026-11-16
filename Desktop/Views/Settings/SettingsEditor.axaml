@@ -577,6 +577,24 @@
                             <Border Classes="settings-divider">
                                 <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
                                     <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                        <TextBlock x:Name="ReaderQuotePreviewAutoplayFieldLabel" Text="{Binding ReaderQuotePreviewAutoplayLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                        <TextBlock Text="{Binding ReaderQuotePreviewAutoplayHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <ToggleSwitch x:Name="ReaderQuotePreviewAutoplayInput" IsChecked="{Binding ReaderQuotePreviewAutoplay, Mode=TwoWay}" AutomationProperties.HelpText="{Binding ReaderQuotePreviewAutoplayHint}" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center" OnContent="{x:Null}" OffContent="{x:Null}" AutomationProperties.LabeledBy="{Binding ElementName=ReaderQuotePreviewAutoplayFieldLabel}" AutomationProperties.Name="{Binding ReaderQuotePreviewAutoplayLabel}" />
+                                </Grid>
+                            </Border>
+                            <Border Classes="settings-divider">
+                                <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                                    <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                        <TextBlock x:Name="ReaderQuotePreviewMutedFieldLabel" Text="{Binding ReaderQuotePreviewMutedLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                        <TextBlock Text="{Binding ReaderQuotePreviewMutedHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <ToggleSwitch x:Name="ReaderQuotePreviewMutedInput" IsChecked="{Binding ReaderQuotePreviewMuted, Mode=TwoWay}" AutomationProperties.HelpText="{Binding ReaderQuotePreviewMutedHint}" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center" OnContent="{x:Null}" OffContent="{x:Null}" AutomationProperties.LabeledBy="{Binding ElementName=ReaderQuotePreviewMutedFieldLabel}" AutomationProperties.Name="{Binding ReaderQuotePreviewMutedLabel}" />
+                                </Grid>
+                            </Border>
+                            <Border Classes="settings-divider">
+                                <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                                    <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
                                         <TextBlock x:Name="ReaderInlineVideoMaxPlayersFieldLabel" Text="{Binding ReaderInlineVideoMaxPlayersLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
                                         <TextBlock Text="{Binding ReaderInlineVideoMaxPlayersHint}" Classes="workspace-help" TextWrapping="Wrap" />
                                     </StackPanel>

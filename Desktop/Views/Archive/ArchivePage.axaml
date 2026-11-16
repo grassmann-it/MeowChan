@@ -578,7 +578,8 @@
                                                                                 <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource Workspace.Space.8}">
                                                                                     <Rectangle Width="3" RadiusX="1.5" RadiusY="1.5" Fill="{DynamicResource Workspace.Accent}" Opacity="0.8" />
                                                                                     <Button Grid.Column="1" Classes="reader-reply-card" ToolTip.Tip="{Binding AccessibleLabel}" AutomationProperties.Name="{Binding AccessibleLabel}"
-                                                                                            commands:CommandPresentation.Id="reader.open-quote" Click="OnQuoteClick" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left">
+                                                                                            commands:CommandPresentation.Id="reader.open-quote" Click="OnQuoteClick" PointerEntered="OnQuoteButtonEntered" PointerExited="OnQuoteButtonExited"
+                                                                                            HorizontalAlignment="Stretch" HorizontalContentAlignment="Left">
                                                                                         <StackPanel Spacing="{StaticResource Workspace.Space.2}">
                                                                                             <TextBlock Text="{Binding ReplyCardHeader}" Classes="workspace-meta" TextWrapping="Wrap" />
                                                                                             <TextBlock Text="{Binding ReplyExcerpt}" IsVisible="{Binding HasReplyExcerpt}" TextWrapping="Wrap" />
@@ -610,17 +611,6 @@
                                         <!-- P3: the quoted post is outlined while its reference is hovered or focused (one overlay, no animation, never per post). -->
                                         <Border x:Name="ReaderQuoteHighlight" IsVisible="False" IsHitTestVisible="False" HorizontalAlignment="Left" VerticalAlignment="Top"
                                                 CornerRadius="{StaticResource Workspace.Radius.Control}" BorderThickness="2" BorderBrush="{DynamicResource Workspace.Accent}" />
-                                        <!-- The quote preview: one at a time, filled from the thread's post index when it opens. -->
-                                        <Popup x:Name="QuotePreviewPopup" Placement="Bottom" IsLightDismissEnabled="False">
-                                            <Border IsHitTestVisible="False" Background="{DynamicResource Workspace.Card}" BorderBrush="{DynamicResource Workspace.Accent}"
-                                                    BorderThickness="1" CornerRadius="{StaticResource Workspace.Radius.Control}" Padding="12,8" MaxWidth="480" MaxHeight="320">
-                                                <StackPanel Spacing="{StaticResource Workspace.Space.4}">
-                                                    <TextBlock x:Name="QuotePreviewHeader" Classes="workspace-meta" TextWrapping="Wrap" />
-                                                    <TextBlock x:Name="QuotePreviewSubject" Classes="section-title" TextWrapping="Wrap" />
-                                                    <TextBlock x:Name="QuotePreviewBody" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" />
-                                                </StackPanel>
-                                            </Border>
-                                        </Popup>
                                         <!-- An external link opens only after this confirmation: the full address, its host in ASCII form and highlighted. -->
                                         <Border x:Name="ReaderLinkDialog" IsVisible="False" Background="{DynamicResource Workspace.Scrim}" ZIndex="5">
                                             <Border Background="{DynamicResource Workspace.Card}" BorderBrush="{DynamicResource Workspace.Accent}" BorderThickness="1"
@@ -703,7 +693,8 @@
                                     </StackPanel>
                                     <ListBox x:Name="ArchiveReferences" Grid.Row="2">
                                         <ListBox.ItemTemplate><DataTemplate x:DataType="desktop:ArchiveQuoteRow">
-                                            <Button Content="{Binding Label}" commands:CommandPresentation.Id="reader.open-quote" Click="OnQuoteClick" HorizontalAlignment="Stretch" Margin="0,4" />
+                                            <Button Classes="reader-reference" Content="{Binding Label}" commands:CommandPresentation.Id="reader.open-quote" Click="OnQuoteClick"
+                                                    PointerEntered="OnQuoteButtonEntered" PointerExited="OnQuoteButtonExited" HorizontalAlignment="Stretch" Margin="0,4" />
                                         </DataTemplate></ListBox.ItemTemplate>
                                     </ListBox>
                                     <Grid x:Name="ArchiveReferencesNavigation" Grid.Row="3" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="{StaticResource Workspace.Space.8}">
@@ -714,6 +705,20 @@
                                 </Grid>
                             </TabItem>
                         </TabControl>
+                        <!-- The quote preview: one at a time, filled from the thread's post index when it opens, for the Posts and the References tab alike.
+                             The quoted post's first medium comes first (QuotePreviewMediaHost, sized by QuotePreviewMediaRules), its text below. It takes the
+                             pointer: it stays open while the pointer is on it, and a click opens the quoted post. -->
+                        <Popup x:Name="QuotePreviewPopup" Placement="Bottom" IsLightDismissEnabled="False">
+                            <Border x:Name="QuotePreviewCard" Background="{DynamicResource Workspace.Card}" BorderBrush="{DynamicResource Workspace.Accent}" Cursor="Hand"
+                                    BorderThickness="1" CornerRadius="{StaticResource Workspace.Radius.Control}" Padding="12,8" MaxWidth="480" MaxHeight="320">
+                                <StackPanel x:Name="QuotePreviewContent" Spacing="{StaticResource Workspace.Space.4}">
+                                    <Panel x:Name="QuotePreviewMediaHost" IsVisible="False" HorizontalAlignment="Left" />
+                                    <TextBlock x:Name="QuotePreviewHeader" Classes="workspace-meta" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="QuotePreviewSubject" Classes="section-title" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="QuotePreviewBody" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                            </Border>
+                        </Popup>
                         <WrapPanel x:Name="ReaderNavigation" Classes="reader-cross" IsVisible="False" HorizontalAlignment="Right"
                                    VerticalAlignment="Bottom" Margin="0,0,24,32" ZIndex="1">
                             <!-- The navigation bar is an overlay above the content, one capsule of 40 dip: [thread arrow, counter, thread arrow | post arrow,

@@ -628,6 +628,7 @@ internal sealed class ReaderMediaSidebar : Border
     {
         ReleasePicture();
         _image.IsVisible = false;
+        _image.Opacity = 1; // a dimmed trace of an earlier medium never comes back
         _edge.IsVisible = false;
         _play.IsVisible = false;
         _placeholder.IsVisible = true;
@@ -639,8 +640,15 @@ internal sealed class ReaderMediaSidebar : Border
     }
 
     /// <summary>
-    /// A post without (shown) media: the last picture stays, half transparent, under the reason, so moving through text posts does not
-    /// make the column flash. Without a previous picture the placeholder carries the reason.
+    /// A post without (shown) media, or with its media hidden: a final text, so the frame is empty with the reason (Tom, 16.11.2026: the previous
+    /// post's picture dimmed under "No. … has no media" read as that post's medium). The previous picture is given back; only a medium that is
+    /// still loading keeps it dimmed (<see cref="ShowLoading"/>).
+    /// </summary>
+    internal void ShowNoMedia(string text) => ShowPlaceholder(text);
+
+    /// <summary>
+    /// A medium that is still loading: the last picture stays, half transparent, under the text, so stepping to another medium does not make the
+    /// column flash. Without a previous picture the placeholder carries the text. Never for a final text (<see cref="ShowNoMedia"/>, <see cref="ShowPlaceholder"/>).
     /// </summary>
     internal void Dim(string text)
     {

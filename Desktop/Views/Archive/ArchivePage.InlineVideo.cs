@@ -53,14 +53,18 @@ public partial class ArchivePage
     /// <summary>Every inline player is disposed (reader closed or moved, other thread, media deletion, page end).</summary>
     internal Task ReleaseInlineVideos()
     {
+        CloseQuotePreview(); // its own player and GIF go with it
         _sidebarVideoAutoplay?.Stop();
         _sidebarVideoAutoplayKey = null;
-        return _inlineVideo.ReleaseAllAsync();
+        // The quote preview's player is disposed like the reader's own (shutdown and media deletion wait for its native cleanup too).
+        Task preview = _quotePreviewMedia?.Videos.WhenReleasedAsync() ?? Task.CompletedTask;
+        return Task.WhenAll(_inlineVideo.ReleaseAllAsync(), preview);
     }
 
     /// <summary>Every inline video pauses (gallery over the reader, window minimised); the players stay to continue later.</summary>
     internal Task PauseInlineVideos()
     {
+        CloseQuotePreview(); // a preview never plays under the gallery or in a minimised window
         _sidebarVideoAutoplay?.Stop();
         return _inlineVideo.PauseAllAsync();
     }

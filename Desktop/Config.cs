@@ -606,6 +606,12 @@ namespace MeowChan
         public bool ReaderSidebarVideoLoop { get; set; } = true;
         [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
         public bool ReaderSidebarVideoStartMuted { get; set; }
+        // The quote preview's medium (Tom, 16.11.2026): a video or GIF in it starts by itself and repeats, a video muted. Both on by default (a file
+        // without these keys, an older profile, gets them too); off shows the still picture, or plays with the remembered volume (VideoVolume).
+        [JsonConverter(typeof(DesktopPreferenceTrueBooleanConverter))]
+        public bool ReaderQuotePreviewAutoplay { get; set; } = true;
+        [JsonConverter(typeof(DesktopPreferenceTrueBooleanConverter))]
+        public bool ReaderQuotePreviewMuted { get; set; } = true;
         public int ReaderInlineVideoMaxPlayers { get; set; } = ReaderInlineVideoMaxPlayersDefault;
         internal const int ReaderInlineVideoMaxPlayersDefault = ReaderInlineVideoOptions.MaxPlayersDefault;
         internal const int ReaderInlineVideoMaxPlayersMinimum = ReaderInlineVideoOptions.MaxPlayersMinimum;
@@ -1988,6 +1994,8 @@ namespace MeowChan
                 ReaderSidebarVideoAutoplay = ReaderSidebarVideoAutoplay,
                 ReaderSidebarVideoLoop = ReaderSidebarVideoLoop,
                 ReaderSidebarVideoStartMuted = ReaderSidebarVideoStartMuted,
+                ReaderQuotePreviewAutoplay = ReaderQuotePreviewAutoplay,
+                ReaderQuotePreviewMuted = ReaderQuotePreviewMuted,
                 ReaderInlineVideoMaxPlayers = ReaderInlineVideoMaxPlayers,
                 ReaderInlineVideoMaxFileMiB = ReaderInlineVideoMaxFileMiB,
                 ReaderMediaStripLimit = ReaderMediaStripLimit,
@@ -2256,6 +2264,8 @@ namespace MeowChan
             ReaderSidebarVideoAutoplay = source.ReaderSidebarVideoAutoplay;
             ReaderSidebarVideoLoop = source.ReaderSidebarVideoLoop;
             ReaderSidebarVideoStartMuted = source.ReaderSidebarVideoStartMuted;
+            ReaderQuotePreviewAutoplay = source.ReaderQuotePreviewAutoplay;
+            ReaderQuotePreviewMuted = source.ReaderQuotePreviewMuted;
             ReaderInlineVideoMaxPlayers = source.ReaderInlineVideoMaxPlayers;
             ReaderInlineVideoMaxFileMiB = source.ReaderInlineVideoMaxFileMiB;
             ReaderMediaStripLimit = source.ReaderMediaStripLimit;
@@ -2500,6 +2510,8 @@ namespace MeowChan
             ReaderSidebarVideoAutoplay = source.ReaderSidebarVideoAutoplay;
             ReaderSidebarVideoLoop = source.ReaderSidebarVideoLoop;
             ReaderSidebarVideoStartMuted = source.ReaderSidebarVideoStartMuted;
+            ReaderQuotePreviewAutoplay = source.ReaderQuotePreviewAutoplay;
+            ReaderQuotePreviewMuted = source.ReaderQuotePreviewMuted;
             ReaderInlineVideoMaxPlayers = source.ReaderInlineVideoMaxPlayers;
             ReaderInlineVideoMaxFileMiB = source.ReaderInlineVideoMaxFileMiB;
             ReaderMediaStripLimit = source.ReaderMediaStripLimit;

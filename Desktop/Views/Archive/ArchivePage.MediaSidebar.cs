@@ -555,7 +555,8 @@ public partial class ArchivePage
             string reason = Texts.T(post.HasMediaHiddenLine ? "reader.sidebar.hidden" : "reader.sidebar.noMedia", post.Id);
             sidebar.Describe(post.NumberLabel, string.Empty, string.Empty, false, post.CopyNumberLabel);
             sidebar.ConfigureFavorite(null);
-            sidebar.Dim(reason);
+            // A final text: the frame is empty with the reason, never the previous post's picture dimmed under it.
+            sidebar.ShowNoMedia(reason);
             ScheduleSidebarAnnouncement(reason);
             return;
         }

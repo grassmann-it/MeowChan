@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia;
@@ -20,6 +21,9 @@ namespace MeowChan;
 // focus, and a one-time highlight of the post a jump lands on. One preview at a time, built lazily from the thread's
 // post index: no cost per post, nothing is stored. P3 adds one outline overlay on the quoted post while the pointer or
 // the keyboard focus rests on a reference (only when that post's container is realized and in view).
+// Tom (16.11.2026): the preview shows the quoted post's first medium large (QuotePreviewMedia: decoded at the shown size, a GIF animates, a video
+// plays muted and repeating in a player of its own, all released on close) and stays open while the pointer is on the reference or on the
+// preview (QuotePreviewHoverState). Every reference previews: the inline >>No., the quote buttons, the reply cards and the References tab.
 public partial class ArchivePage
 {
     // QuotePreviewMaxLines, QuotePreviewMaxCharacters and QuotePreviewDelay are clamped instance properties (ArchivePage.ReaderLimits.cs).
@@ -29,6 +33,20 @@ public partial class ArchivePage
     private Control? _quotePreviewTarget;
     private Rect _quotePreviewArea;
     private int _jumpFlashRevision;
+    private readonly QuotePreviewHoverState _quotePreviewHover = new();
+    private DispatcherTimer? _quotePreviewCloseTimer;
+    private QuotePreviewMedia? _quotePreviewMedia;
+    // The last pointer position over the posts or the references (relative to that list), so leaving a reference can tell whether the pointer
+    // is on its way to the preview. Forgotten when a preview opens: only a move after that counts.
+    private Visual? _quotePreviewPointerHost;
+    private Point _quotePreviewPointer;
+
+    /// <summary>The medium of the quote preview (test and smoke seam).</summary>
+    internal QuotePreviewMedia? QuotePreviewMediaView => _quotePreviewMedia;
+    /// <summary>"Play videos and GIFs in quote previews" (on by default); applies to the next preview.</summary>
+    internal bool QuotePreviewVideoAutoplay { get; set; } = true;
+    /// <summary>"Mute videos in quote previews" (on by default); applies to the next preview.</summary>
+    internal bool QuotePreviewVideoMuted { get; set; } = true;
 
     internal bool IsQuotePreviewOpen => QuotePreviewPopup.IsOpen;
     /// <summary>True while a hover/focus preview waits for its delay timer.</summary>
@@ -38,7 +56,7 @@ public partial class ArchivePage
     private void OnInlineQuoteHover(object? sender, ReaderQuoteHoverEventArgs e)
     {
         e.Handled = true;
-        if (e.Quote == null) CloseQuotePreview();
+        if (e.Quote == null) LeaveQuoteReference(sender as Control, focused: false);
         else RequestQuotePreview(e.Quote, sender as Control, e.Area, immediate: false);
     }
 
@@ -49,33 +67,132 @@ public partial class ArchivePage
 
     private void OnQuoteButtonExited(object? sender, PointerEventArgs e)
     {
+        if (sender is not Button button) return;
+        RememberQuotePreviewPointer(button, e);
         // A button that still has the keyboard focus keeps its preview.
-        if (sender is Button { IsFocused: false }) CloseQuotePreview();
+        LeaveQuoteReference(button, focused: button.IsFocused);
+    }
+
+    // The pointer left a reference: the waiting preview is cancelled; an open one closes at once, or after a short grace when the pointer is on its
+    // way to the preview (it stays while the pointer is over the preview).
+    private void LeaveQuoteReference(Control? reference, bool focused)
+    {
+        if (reference != null && _quotePreviewTarget != null && !ReferenceEquals(reference, _quotePreviewTarget)) return;
+        switch (_quotePreviewHover.LeaveLink(focused, QuotePreviewPointerOnTheWay()))
+        {
+            case QuotePreviewLeave.CloseNow: CloseQuotePreview(); break;
+            case QuotePreviewLeave.CloseAfterGrace: StartQuotePreviewCloseGrace(); break;
+        }
+    }
+
+    private void RememberQuotePreviewPointer(Visual host, PointerEventArgs e)
+    {
+        _quotePreviewPointerHost = host;
+        _quotePreviewPointer = e.GetPosition(host);
+    }
+
+    // Whether the last pointer position lies between the reference and the open preview (screen pixels; both may be in different windows).
+    private bool QuotePreviewPointerOnTheWay()
+    {
+        if (!QuotePreviewPopup.IsOpen || _quotePreviewTarget is not { } target || _quotePreviewPointerHost is not { } host) return false;
+        try
+        {
+            Rect area = _quotePreviewArea.Width > 0 ? _quotePreviewArea : new Rect(target.Bounds.Size);
+            PixelPoint anchorTopLeft = target.PointToScreen(area.TopLeft), anchorBottomRight = target.PointToScreen(area.BottomRight);
+            Border card = QuotePreviewCard;
+            if (!card.IsEffectivelyVisible || card.Bounds.Width <= 0) return false;
+            PixelPoint cardTopLeft = card.PointToScreen(default), cardBottomRight = card.PointToScreen(new Point(card.Bounds.Width, card.Bounds.Height));
+            return QuotePreviewMediaRules.InCorridor(host.PointToScreen(_quotePreviewPointer),
+                new PixelRect(anchorTopLeft, anchorBottomRight), new PixelRect(cardTopLeft, cardBottomRight));
+        }
+        catch (Exception error) when (error is InvalidOperationException or ArgumentException) { return false; } // a visual that left its window has no screen position
+    }
+
+    private void StartQuotePreviewCloseGrace()
+    {
+        DispatcherTimer timer = _quotePreviewCloseTimer ??= CreateQuotePreviewCloseTimer();
+        timer.Stop();
+        timer.Start();
+    }
+
+    private DispatcherTimer CreateQuotePreviewCloseTimer()
+    {
+        DispatcherTimer timer = new() { Interval = TimeSpan.FromMilliseconds(QuotePreviewHoverState.CloseGraceMs) };
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            if (_quotePreviewHover.GraceElapsed()) CloseQuotePreview();
+        };
+        return timer;
     }
 
     private void InitializeQuotePreview()
     {
-        ListBox posts = ArchivePosts;
-        posts.AddHandler(GotFocusEvent, (_, e) =>
+        // The posts and the References tab preview alike: the quote buttons, the reply cards and the reference rows by focus, the pointer on any of them.
+        foreach (ListBox list in new[] { ArchivePosts, ArchiveReferences })
         {
-            if (e.Source is Button { DataContext: ArchiveQuoteRow row } button && IsQuoteButton(button))
-                RequestQuotePreview(row, button, default, immediate: false);
+            list.AddHandler(GotFocusEvent, (_, e) =>
+            {
+                if (e.Source is Button { DataContext: ArchiveQuoteRow row } button && IsQuoteButton(button))
+                    RequestQuotePreview(row, button, default, immediate: false, pointer: false);
+            }, RoutingStrategies.Bubble);
+            list.AddHandler(LostFocusEvent, (_, e) =>
+            {
+                if (e.Source is Button button && IsQuoteButton(button) && ReferenceEquals(button, _quotePreviewTarget)) CloseQuotePreview();
+            }, RoutingStrategies.Bubble);
+            // Tunnel, so the quote button's own Space click and the reader's Escape never see these keys.
+            list.AddHandler(KeyDownEvent, OnQuotePreviewKeyDown, RoutingStrategies.Tunnel);
+            list.AddHandler(KeyUpEvent, (_, e) =>
+            {
+                if (e.Key == Key.Space && e.KeyModifiers == KeyModifiers.None && e.Source is Button button && IsSpacePreviewButton(button)) e.Handled = true;
+            }, RoutingStrategies.Tunnel);
+            list.AddHandler(PointerWheelChangedEvent, (_, _) => CloseQuotePreview(), RoutingStrategies.Tunnel, handledEventsToo: true);
+            list.AddHandler(PointerPressedEvent, (_, _) => CloseQuotePreview(), RoutingStrategies.Tunnel, handledEventsToo: true);
+            // Before the text sees the move (its inline >>No. reports leaving on a move): the position the leave is judged by.
+            ListBox host = list;
+            list.AddHandler(PointerMovedEvent, (_, e) => RememberQuotePreviewPointer(host, e), RoutingStrategies.Tunnel, handledEventsToo: true);
+        }
+        // Another tab (Posts, Media, References) closes the preview of the one left.
+        ArchiveContentTabs.SelectionChanged += (_, e) => { if (ReferenceEquals(e.Source, ArchiveContentTabs)) CloseQuotePreview(); };
+        Border card = QuotePreviewCard;
+        // The preview is as wide as its medium (a portrait picture does not spread the text over the whole box), at least as wide as without one.
+        _quotePreviewMedia = new QuotePreviewMedia
+        {
+            FrameSized = size =>
+            {
+                if (!QuotePreviewMediaHost.IsVisible) return;
+                Thickness padding = card.Padding, border = card.BorderThickness;
+                card.MaxWidth = Math.Max(QuotePreviewMediaRules.TextOnlyMaxWidth, size.Width + padding.Left + padding.Right + border.Left + border.Right);
+            }
+        };
+        QuotePreviewMediaHost.Children.Add(_quotePreviewMedia.View);
+        // The preview takes the pointer: it stays open while the pointer is on it, and a click opens the quoted post (as the reference does).
+        card.PointerEntered += (_, _) =>
+        {
+            _quotePreviewHover.EnterPreview();
+            _quotePreviewCloseTimer?.Stop();
+        };
+        card.PointerExited += (_, _) =>
+        {
+            if (_quotePreviewHover.LeavePreview(_quotePreviewTarget is Button { IsFocused: true }) == QuotePreviewLeave.CloseAfterGrace) StartQuotePreviewCloseGrace();
+        };
+        card.AddHandler(PointerReleasedEvent, (_, e) =>
+        {
+            // The video's own click (pause, continue) is handled by its player.
+            if (e.Handled || e.InitialPressMouseButton != MouseButton.Left || _quotePreviewRow is not { } row) return;
+            e.Handled = true;
+            OpenActions.Start(() => NavigateQuoteAsync(row), "reader.quotePreview.open");
         }, RoutingStrategies.Bubble);
-        posts.AddHandler(LostFocusEvent, (_, e) =>
+        QuotePreviewPopup.Closed += (_, _) =>
         {
-            if (e.Source is Button button && IsQuoteButton(button) && ReferenceEquals(button, _quotePreviewTarget)) CloseQuotePreview();
-        }, RoutingStrategies.Bubble);
-        // Tunnel, so the quote button's own Space click and the reader's Escape never see these keys.
-        posts.AddHandler(KeyDownEvent, OnQuotePreviewKeyDown, RoutingStrategies.Tunnel);
-        posts.AddHandler(KeyUpEvent, (_, e) =>
-        {
-            if (e.Key == Key.Space && e.KeyModifiers == KeyModifiers.None && e.Source is Button button && IsQuoteButton(button)) e.Handled = true;
-        }, RoutingStrategies.Tunnel);
-        posts.AddHandler(PointerWheelChangedEvent, (_, _) => CloseQuotePreview(), RoutingStrategies.Tunnel, handledEventsToo: true);
-        posts.AddHandler(PointerPressedEvent, (_, _) => CloseQuotePreview(), RoutingStrategies.Tunnel, handledEventsToo: true);
-        QuotePreviewPopup.Closed += (_, _) => _quotePreviewRow = null;
+            _quotePreviewRow = null;
+            _quotePreviewHover.Reset();
+            _quotePreviewCloseTimer?.Stop();
+            _quotePreviewMedia?.Clear();
+        };
         // The outline is placed in list coordinates: scrolling removes it; a change of extent or size (images, text layout)
         // only moves the target, so it is placed again for the reference that is still hovered.
+        ListBox posts = ArchivePosts;
         posts.AddHandler(ScrollViewer.ScrollChangedEvent, (_, e) =>
         {
             if (!ReaderQuoteHighlight.IsVisible) return;
@@ -88,39 +205,64 @@ public partial class ArchivePage
         };
     }
 
-    // Only the quote buttons of a post's own reference row preview; reply buttons and others keep their plain behaviour.
-    private static bool IsQuoteButton(Button button) => button.Classes.Contains("reader-quote") && button.DataContext is ArchiveQuoteRow;
+    // The buttons that stand for one quoted post: a post's own reference row, its reply cards and the rows of the References tab.
+    private static bool IsQuoteButton(Button button) => button.DataContext is ArchiveQuoteRow
+        && (button.Classes.Contains("reader-quote") || button.Classes.Contains("reader-reply-card") || button.Classes.Contains("reader-reference"));
+
+    // Space toggles the preview only on a post's own reference row (its existing key); elsewhere Space keeps clicking (opening the post).
+    private static bool IsSpacePreviewButton(Button button) => button.Classes.Contains("reader-quote") && button.DataContext is ArchiveQuoteRow;
 
     // Space on a focused quote button opens (or closes) its preview without jumping; Enter keeps jumping to the post.
     // Escape closes an open preview before anything else reads it (the large reader would close itself).
     private void OnQuotePreviewKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.KeyModifiers != KeyModifiers.None || e.Handled) return;
+        if (e.Handled) return;
+        // Moving through the posts by keys leaves the preview of a reference that is not the focused one (the focus brings its own).
+        if (ReaderVideoKeys.IsNavigationKey(e.Key) && (IsQuotePreviewOpen || IsQuotePreviewPending) && !ReferenceEquals(e.Source, _quotePreviewTarget))
+        {
+            CloseQuotePreview();
+            return;
+        }
+        if (e.KeyModifiers != KeyModifiers.None) return;
         if (e.Key == Key.Escape && IsQuotePreviewOpen)
         {
             CloseQuotePreview();
             e.Handled = true;
         }
-        else if (e.Key == Key.Space && e.Source is Button { DataContext: ArchiveQuoteRow row } button && IsQuoteButton(button))
+        else if (e.Key == Key.Space && e.Source is Button { DataContext: ArchiveQuoteRow row } button && IsSpacePreviewButton(button))
         {
             e.Handled = true;
             if (IsQuotePreviewOpen && ReferenceEquals(_quotePreviewTarget, button)) CloseQuotePreview();
-            else RequestQuotePreview(row, button, default, immediate: true);
+            else RequestQuotePreview(row, button, default, immediate: true, pointer: false);
         }
     }
 
-    internal void RequestQuotePreview(ArchiveQuoteRow row, Control? target, Rect area, bool immediate)
+    /// <summary>
+    /// Asks for the preview of <paramref name="row"/> at <paramref name="target"/> (<paramref name="area"/>: the reference's rectangle in it, for an inline
+    /// run). <paramref name="pointer"/>: the pointer is on the reference (otherwise the keyboard focus). The same reference that is already previewed keeps
+    /// its preview (the pointer came back to it).
+    /// </summary>
+    internal void RequestQuotePreview(ArchiveQuoteRow row, Control? target, Rect area, bool immediate, bool pointer = true)
     {
         if (_ended || target == null || PreviewPost(row) == null)
         {
             CloseQuotePreview();
             return;
         }
-        if (QuotePreviewPopup.IsOpen && ReferenceEquals(_quotePreviewRow, row) && ReferenceEquals(_quotePreviewTarget, target)) return;
+        if (QuotePreviewPopup.IsOpen && ReferenceEquals(_quotePreviewRow, row) && ReferenceEquals(_quotePreviewTarget, target))
+        {
+            if (pointer)
+            {
+                _quotePreviewHover.EnterLink();
+                _quotePreviewCloseTimer?.Stop();
+            }
+            return;
+        }
         CloseQuotePreview();
         _quotePreviewRow = row;
         _quotePreviewTarget = target;
         _quotePreviewArea = area;
+        _quotePreviewHover.Request(pointer, immediate);
         ShowQuoteHighlight(row);
         if (immediate) { ShowQuotePreview(); return; }
         _quotePreviewTimer ??= new DispatcherTimer { Interval = QuotePreviewDelay };
@@ -132,13 +274,17 @@ public partial class ArchivePage
     private void OnQuotePreviewTimer(object? sender, EventArgs e)
     {
         _quotePreviewTimer?.Stop();
-        ShowQuotePreview();
+        if (_quotePreviewHover.DelayElapsed()) ShowQuotePreview();
     }
 
+    /// <summary>Closes the preview: the delay and the grace stop, its medium's load is cancelled and its picture, GIF and player are given back.</summary>
     internal void CloseQuotePreview()
     {
         _quotePreviewTimer?.Stop();
+        _quotePreviewCloseTimer?.Stop();
+        _quotePreviewHover.Reset();
         HideQuoteHighlight();
+        _quotePreviewMedia?.Clear();
         if (QuotePreviewPopup.IsOpen) QuotePreviewPopup.IsOpen = false;
         _quotePreviewRow = null;
         _quotePreviewTarget = null;
@@ -207,9 +353,58 @@ public partial class ArchivePage
         QuotePreviewBody.IsVisible = body.Length > 0;
         Avalonia.Automation.AutomationProperties.SetName(QuotePreviewPopup, header + (body.Length > 0 ? ": " + body : string.Empty));
         UpdateQuotePreviewFilterNote(post);
+        ShowQuotePreviewMedia(post, target);
         QuotePreviewPopup.PlacementTarget = target;
         QuotePreviewPopup.PlacementRect = _quotePreviewArea.Width > 0 ? _quotePreviewArea : null;
+        // Only a pointer move after the preview opened tells where the pointer goes when it leaves the reference.
+        _quotePreviewPointerHost = null;
         QuotePreviewPopup.IsOpen = true;
+    }
+
+    // The quoted post's first medium above its text, as large as the reader and the window allow (QuotePreviewMediaRules). A post whose media the
+    // view hides, or that a post filter conceals, shows its text only; a medium that is not saved leaves a short note instead of the frame.
+    private void ShowQuotePreviewMedia(CapturedPost post, Control target)
+    {
+        Border card = QuotePreviewCard;
+        Panel host = QuotePreviewMediaHost;
+        card.MaxWidth = QuotePreviewMediaRules.TextOnlyMaxWidth;
+        card.MaxHeight = QuotePreviewMediaRules.TextOnlyMaxHeight;
+        QuotePreviewPopup.Placement = PlacementMode.Bottom;
+        host.IsVisible = false;
+        if (_quotePreviewMedia is not { } media) return;
+        media.Clear();
+        IReadOnlyList<CapturedAttachment> attachments = post.Attachments ?? Array.Empty<CapturedAttachment>();
+        if (attachments.Count == 0 || _thread == null || _readerView.HideMedia || PostFilterConceals(post)) return;
+        host.IsVisible = true;
+        if (QuotePreviewMediaRules.FirstMedium(attachments) is not { } first)
+        {
+            media.ShowNote(Texts.T("archive.notSaved"));
+            return;
+        }
+        if (TopLevel.GetTopLevel(target) is not { } top || target.TranslatePoint(_quotePreviewArea.Width > 0 ? _quotePreviewArea.TopLeft : default, top) is not Point origin)
+        {
+            host.IsVisible = false;
+            return;
+        }
+        Size window = top.ClientSize;
+        Size viewport = ReaderContentSurface.Bounds.Size;
+        Rect anchor = new(origin, _quotePreviewArea.Width > 0 ? _quotePreviewArea.Size : target.Bounds.Size);
+        Thickness padding = card.Padding, border = card.BorderThickness;
+        Size chrome = new(padding.Left + padding.Right + border.Left + border.Right,
+            padding.Top + padding.Bottom + border.Top + border.Bottom + QuotePreviewContent.Spacing);
+        // The text goes below the medium: measured at the width it gets at least (a wider medium only gives it more room).
+        host.IsVisible = false;
+        QuotePreviewContent.Measure(new Size(QuotePreviewMediaRules.TextOnlyMaxWidth - chrome.Width, double.PositiveInfinity));
+        double text = Math.Max(QuotePreviewContent.DesiredSize.Height, 48);
+        QuotePreviewMediaBox placed = QuotePreviewMediaRules.Box(viewport, window, anchor, text, chrome);
+        if (!placed.HasRoom) return;
+        host.IsVisible = true;
+        card.MaxHeight = double.PositiveInfinity; // the width follows the medium's frame (FrameSized)
+        QuotePreviewPopup.Placement = placed.Below ? PlacementMode.Bottom : PlacementMode.Top;
+        ArchiveAttachmentRow row = CreateAttachmentRow(_thread.Summary.Id, first, post.PostId, _mediaReady.Task);
+        media.Autoplay = QuotePreviewVideoAutoplay;
+        media.Muted = QuotePreviewVideoMuted;
+        media.Show(row, attachments.Count, placed.Box, top.RenderScaling, _inlineVideo.Options);
     }
 
     /// <summary>The first lines of a post, at most <paramref name="maxLines"/> lines (clamped; the default is the preview's default) and the characters that belong to them, with the ellipsis attached to the last word.</summary>

@@ -21,6 +21,8 @@ internal static class ReaderSettingsPreferences
         reader.ReaderSpoilerModePreference = Spoilers(config);
         reader.QuotePreviewMaxLines = config.ReaderPreviewLines;
         reader.QuotePreviewDelayMilliseconds = config.ReaderPreviewDelayMs;
+        reader.QuotePreviewVideoAutoplay = config.ReaderQuotePreviewAutoplay;
+        reader.QuotePreviewVideoMuted = config.ReaderQuotePreviewMuted;
         reader.InlineReplyPageSize = config.ReaderReplyStep;
         reader.ReplyCardMaxLines = config.ReaderReplyLines;
         reader.ReaderExpandRepliesPreference = config.ReaderExpandReplies;
