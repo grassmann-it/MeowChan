@@ -186,7 +186,8 @@ internal sealed partial class GalleryViewer : UserControl
         CommandRouter router = new(owner);
         bool Ready() => _entry != null && _ratingAvailable;
         // R "Rate and tag" (Tom's decision of 15.11.: no rating menu, no dialog): the Tags segment opens with its stars focused.
-        router.Register(new("media.rating.edit", owner, () => owner.IsEffectivelyVisible, () => CanRateAndTag,
+        // Executable whenever a medium is shown: RequestRateAndTag says why when neither half can open (never a key consumed in silence).
+        router.Register(new("media.rating.edit", owner, () => owner.IsEffectivelyVisible, () => _entry != null && !_terminalRetirement,
             RequestRateAndTag, Priority: 200));
         router.Register(new("media.rating.manage", owner, () => owner.IsEffectivelyVisible, () => ManageRatingsRequested != null,
             () => ManageRatingsRequested?.Invoke(), Priority: 200));
@@ -1219,7 +1220,7 @@ internal sealed partial class GalleryViewer : UserControl
         ResetViewForMedium(entry);
         _entry = entry; _manualZoom = _actualZoom = false; _panX = _panY = 0;
         _exportOriginal.IsEnabled = true;
-        _saveFrame.IsEnabled = entry.Kind == SavedMediaKind.Video;
+        _saveFrame.IsEnabled = false; // a frame can be saved once the video is ready (RefreshFrameCommands)
         RefreshTaggingStrip(); // the decisions follow the shown medium (PT3)
         ResetMediaTags(); // A new medium's tags are unknown until the owner reports them.
         _favoriteKnown = _favoritePending = _favoriteSelected = false;
@@ -1497,6 +1498,7 @@ internal sealed partial class GalleryViewer : UserControl
                 {
                     if (quote.Target == null || quote.IsExternal) continue;
                     Button chip = ContextCommand(quotes, "GalleryQuote", quote.Label, () => { PauseSlideshow(); QuoteRequested?.Invoke(quote); });
+                    CommandBindings.BindExisting(chip, "reader.open-quote"); // a key bound to "Show quoted post" opens the focused chip, as in the reader
                     WorkspaceChips.MarkOffered(chip);
                     chip.Tag = quote.Target;
                 }
@@ -1591,6 +1593,21 @@ internal sealed partial class GalleryViewer : UserControl
         if (e.Handled || ShortcutService.IsCapturing) return;
         Control routingOwner = sender is Control control ? control : this;
         if (!CanRouteGalleryShortcut(routingOwner, e)) return;
+        RouteAdmittedKey(routingOwner, e);
+    }
+
+    /// <summary>
+    /// The gallery's key policy for a key the window admitted (<see cref="CanRouteGalleryShortcut"/>). Tests run it on a viewer built without a
+    /// window, with the real key on the real source element (entry point audit, 16.11.2026).
+    /// </summary>
+    internal void RouteKeyForTests(KeyEventArgs e)
+    {
+        using var keyContext = EffectiveShortcutBindings.EnterKeyContext("gallery");
+        if (!e.Handled && !ShortcutService.IsCapturing) RouteAdmittedKey(this, e);
+    }
+
+    private void RouteAdmittedKey(Control routingOwner, KeyEventArgs e)
+    {
         if (RevealForKeyboard(e)) return;
         if (CommandBindings.Matches(e, "window.fullscreen")) { FullscreenRequested?.Invoke(); e.Handled = true; return; }
         if (CommandBindings.Matches(e, "viewer.shortcut-help"))
@@ -1598,6 +1615,10 @@ internal sealed partial class GalleryViewer : UserControl
         if (_helpOpen) return;
         if (IsFavoriteConfirmOpen) { RouteFavoriteConfirmKey(e); return; }
         // The Menu key and Shift+F10 open the same media menu as a right-click, for the medium shown now.
+        // With the focus on a control of the dock (a tool, the info line; not the filmstrip or the video bar) they open the layout menu, as a
+        // right-click on free dock area does (GL3).
+        if (MeowChan.Desktop.MediaActions.MediaMenuPresenter.IsContextKey(e) && IsLayoutMenuKeySource(e.Source) && ShowLayoutContextMenu())
+        { e.Handled = true; return; }
         if (_entry != null && MeowChan.Desktop.MediaActions.MediaMenuPresenter.IsContextKey(e)) { ShowMediaMenu(); e.Handled = true; return; }
         if (RouteDecisionRowKey(e)) return; // the stars of the panel rove with the arrows and Esc returns to the picture
         if ((ReferenceEquals(routingOwner, _nativeVideoOverlay) ? _nativeRatingRouter : _ratingRouter)?.Route(e) == true) return;
@@ -1619,12 +1640,13 @@ internal sealed partial class GalleryViewer : UserControl
         if (HandleFilmstripKey(e) || HandleLayoutKey(e)) return;
         if (CommandBindings.Matches(e, "gallery.mode-toggle")) { RequestGalleryMode(!IsTagMode); e.Handled = true; return; }
         foreach (var (_, id) in PlaybackActions())
-            if (CommandBindings.Matches(e, id)) { e.Handled = true; _ = ExecutePlaybackActionAsync(id); return; }
+            if (CommandBindings.Matches(e, id)) { e.Handled = true; ExplainBlockedPlaybackKey(id); _ = ExecutePlaybackActionAsync(id); return; }
         if (CommandBindings.Matches(e, "favorites.add")) { RequestFavorite(true); e.Handled = true; return; }
         if (CommandBindings.Matches(e, "favorites.remove")) { RequestFavorite(false); e.Handled = true; return; }
         if (CommandBindings.Matches(e, "favorites.toggle")) { RouteFavoriteToggleKey(e); return; }
         if (CommandBindings.Matches(e, "gallery.tools-toggle")) { SetMediaFocus(!_mediaFocus); e.Handled = true; return; }
         if (CommandBindings.Matches(e, "gallery.context-toggle")) { ToggleContext(); e.Handled = true; return; }
+        if (CommandBindings.Matches(e, "gallery.context-close")) { CloseContextByCommand(); e.Handled = true; return; }
         if (CommandBindings.Matches(e, "gallery.fit")) { Fit(); e.Handled = true; return; }
         if (CommandBindings.Matches(e, "gallery.actual-size")) { ActualPixels(); e.Handled = true; return; }
         // Matches already protects Button Space/Enter. A custom non-activation
@@ -1661,14 +1683,18 @@ internal sealed partial class GalleryViewer : UserControl
         else if (CommandBindings.Matches(e, "gallery.zoom-out")) Zoom(1 / 1.1);
         else if (CommandBindings.Matches(e, "gallery.rotate")) RotateView();
         else if (CommandBindings.Matches(e, "gallery.close")) CloseRequested?.Invoke();
-        else if (CommandBindings.Matches(e, "media.tags.edit")) RequestTags();
+        else if (CommandBindings.Matches(e, "media.tags.edit")) RequestTagsByKey();
         else if (CommandBindings.Matches(e, "media.queue.add")) { if (_entry != null && QueueRequested != null) QueueRequested.Invoke(_entry); }
         else if (CommandBindings.Matches(e, "media.export-original")) { if (_entry != null) ExportOriginalRequested?.Invoke(_entry); }
         else if (CommandBindings.Matches(e, "media.show-in-folder")) { if (_entry != null) ShowInFolderRequested?.Invoke(_entry); }
         else if (CommandBindings.Matches(e, "media.copy-path")) { if (_entry != null) CopyPathRequested?.Invoke(_entry); }
         else if (CommandBindings.Matches(e, "media.open-external")) { if (_entry != null) OpenExternalRequested?.Invoke(_entry); }
         else if (CommandBindings.Matches(e, "media.details")) { if (_entry != null) DetailsRequested?.Invoke(_entry); }
-        else if (CommandBindings.Matches(e, "gallery.show-in-thread")) { if (_entry?.Post != null) { PauseSlideshow(); ReadPostRequested?.Invoke(_entry); } }
+        else if (CommandBindings.Matches(e, "gallery.show-in-thread"))
+        {
+            if (_entry?.Post != null) { PauseSlideshow(); ReadPostRequested?.Invoke(_entry); }
+            else if (_entry != null) ExplainBlocked(MeowChan.Desktop.MediaActions.MediaMenuReasons.NoPost); // as the menu entry says
+        }
         else if (CommandBindings.Matches(e, ReaderPlaybackMenu.GalleryExtras.PostBookmarkCommandId)) { if (_entry != null && PostBookmarkRequested != null) RequestPostBookmark(_entry); }
         else
         {

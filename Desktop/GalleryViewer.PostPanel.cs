@@ -165,6 +165,8 @@ internal sealed partial class GalleryViewer
     internal void RequestRateAndTag()
     {
         if (_entry == null || _terminalRetirement) return;
+        // Neither the stars nor the tags can open (ratings unreadable or a write pending, no tags): the reason the menu entry shows, never silence.
+        if (!CanRateAndTag) { ExplainBlocked(_tagsUnavailableReason ?? MeowChan.Desktop.MediaActions.MediaMenuReasons.Unavailable); return; }
         if (!_tagPanelOpen && CanOpenTagPanel) RequestTags(); // the owner opens the tag panel into the Tags slot (ShowTagPanel), synchronously
         if (!FocusRatingStars() && _tagPanelOpen) _tagSurface?.FocusField();
     }
