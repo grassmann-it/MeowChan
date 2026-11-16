@@ -593,7 +593,6 @@ public partial class ArchivePage
         MediaMenuSession session = new(surface, model.Target, () => !_ended && _available && !IsFilenameSearchOpen
             && ReferenceEquals(_thread, thread) && _selectedThread == threadId);
         // The popover outlives the menu session (a tag write invalidates the menu on purpose); it lives while this thread is on screen.
-        bool PopoverCurrent() => !_ended && _available && ReferenceEquals(_thread, thread) && _selectedThread == threadId;
         Task Run(Func<Task> action) => RunArchiveMenuActionAsync(action, session, reportError);
         Func<Task> When(MediaMenuAction action, Func<bool> ready, Func<Task> run) => MediaMenuHandlers.When(surface, action, ready, run);
         Dictionary<MediaMenuAction, Func<Task>> handlers = new()
