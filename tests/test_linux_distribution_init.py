@@ -6,6 +6,7 @@ import subprocess
 import tempfile
 from types import SimpleNamespace
 import unittest
+from unittest import mock
 import uuid
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -42,13 +43,15 @@ def command(directory, image):
 
 class DistributionInitContracts(unittest.TestCase):
     def test_all_scenarios_use_reaper_without_relaxing_isolation(self):
-        cmd = command(Path('/owned/test'), 'sha256:' + 'b' * 64)
+        with mock.patch.object(os, 'getuid', return_value=1000, create=True), \
+                mock.patch.object(os, 'getgid', return_value=1000, create=True):
+            cmd = command(Path('/owned/test'), 'sha256:' + 'b' * 64)
         self.assertEqual(cmd.count('--init'), 1)
         self.assertLess(cmd.index('--init'), cmd.index('sha256:' + 'b' * 64))
         for flag in ('--pull=never', '--network=none', '--read-only', '--cap-drop=ALL',
                      '--security-opt=no-new-privileges', '--pids-limit=256'):
             self.assertIn(flag, cmd)
-        self.assertEqual(cmd[cmd.index('--user') + 1], f'{os.getuid()}:{os.getgid()}')
+        self.assertEqual(cmd[cmd.index('--user') + 1], '1000:1000')
 
     @unittest.skipUnless(os.environ.get('MEOWCHAN_TEST_LOCAL_INIT_IMAGE'), 'requires explicit existing local Docker image')
     def test_actual_cleanup_rejects_unreaped_orphan_and_passes_with_init(self):
