@@ -238,6 +238,7 @@ internal static class BuiltInCatalog
         ("status.error", "Error", "Fehler"),
         ("status.notFound", "Not found", "Nicht gefunden"),
         ("status.stopped", "Stopped", "Gestoppt"),
+        ("status.sourceUnavailable", "Source unavailable", "Quelle nicht verfügbar"),
         ("status.unknown", "Unknown", "Unbekannt"),
         ("status.monitoring", "Watching", "Wird beobachtet"),
         ("status.checkFailed", "Check failed · {0}", "Prüfung fehlgeschlagen · {0}"),

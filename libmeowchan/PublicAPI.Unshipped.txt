@@ -15,3 +15,5 @@ MeowChan.Archive.ArchiveThreadPage.MatchTierCounts.init -> void
 MeowChan.Archive.ArchiveThreadPage.MatchTiers.get -> System.Collections.Generic.IReadOnlyList<MeowChan.Archive.ArchiveSearchMatchTier>?
 MeowChan.Archive.ArchiveThreadPage.MatchTiers.init -> void
 MeowChan.Archive.ArchiveThreadSort.Relevance = 3 -> MeowChan.Archive.ArchiveThreadSort
+MeowChan.Interfaces.ThreadActivity.SourceUnavailable = 8 -> MeowChan.Interfaces.ThreadActivity
+virtual MeowChan.Boards.Base.BaseThread.WaitForSourceAvailableAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!

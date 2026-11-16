@@ -17,6 +17,8 @@ public sealed class PluginSourceImageBoard : BaseImageBoard, IProviderDescriptor
     private CancellationTokenSource? _enabledLifetime = new();
     private bool _enabled = true;
     private bool _disposed;
+    // Non-null exactly while the source is switched off or disposed; completed when it is enabled again.
+    private TaskCompletionSource? _availableSignal;
     public SourceDescription Description { get; }
     /// <summary>Fresh host-owned source/profile policy; source metadata never grants permission.</summary>
     public ISourceMediaIntegrityPolicy? MediaIntegrityPolicy { get; init; }
@@ -86,15 +88,42 @@ public sealed class PluginSourceImageBoard : BaseImageBoard, IProviderDescriptor
     public void SetEnabled(bool enabled)
     {
         CancellationTokenSource? previous = null;
+        TaskCompletionSource? available = null;
         lock (_lifecycle)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
             if (_enabled == enabled) return;
             _enabled = enabled;
-            if (enabled) _enabledLifetime = new CancellationTokenSource();
-            else { previous = _enabledLifetime; _enabledLifetime = null; }
+            if (enabled)
+            {
+                _enabledLifetime = new CancellationTokenSource();
+                available = _availableSignal;
+                _availableSignal = null;
+            }
+            else
+            {
+                previous = _enabledLifetime;
+                _enabledLifetime = null;
+                _availableSignal ??= new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            }
         }
+        // One line per source transition; its watched threads only change their state quietly.
+        if (enabled) Logger.Information("Source {Source} is available again; its watched threads resume checking.", Name);
+        else Logger.Information("Source {Source} is disabled or unavailable; its watched threads wait until it is available again.", Name);
         CancelAndDispose(previous);
+        available?.TrySetResult();
+    }
+
+    /// <summary>Completes once the source is enabled (immediately when it already is). A disposed source never becomes
+    /// available again; the wait then only ends through <paramref name="token"/>.</summary>
+    internal Task WaitUntilAvailableAsync(CancellationToken token)
+    {
+        lock (_lifecycle)
+        {
+            if (_enabled && !_disposed) return Task.CompletedTask;
+            _availableSignal ??= new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            return _availableSignal.Task.WaitAsync(token);
+        }
     }
 
     internal async Task<T> InvokeAsync<T>(Func<IPluginWorkerClient, CancellationToken, Task<T>> call, CancellationToken token)
@@ -130,6 +159,7 @@ public sealed class PluginSourceImageBoard : BaseImageBoard, IProviderDescriptor
             _disposed = true;
             previous = _enabledLifetime;
             _enabledLifetime = null;
+            _availableSignal ??= new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         }
         CancelAndDispose(previous);
     }

@@ -367,6 +367,7 @@
     "status.error": "Errore",
     "status.notFound": "Non trovato",
     "status.stopped": "Fermato",
+    "status.sourceUnavailable": "Fonte non disponibile",
     "status.unknown": "Sconosciuto",
     "status.monitoring": "Monitorato",
     "status.checkFailed": "Controllo non riuscito · {0}",

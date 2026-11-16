@@ -578,6 +578,7 @@
     "status.error": "Ошибка",
     "status.notFound": "Не найдено",
     "status.stopped": "Остановлено",
+    "status.sourceUnavailable": "Источник недоступен",
     "status.unknown": "Неизвестно",
     "status.monitoring": "Наблюдение",
     "status.checkFailed": "Проверка не удалась · {0}",

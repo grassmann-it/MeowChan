@@ -576,6 +576,7 @@
     "status.error": "エラー",
     "status.notFound": "見つかりません",
     "status.stopped": "停止",
+    "status.sourceUnavailable": "ソース利用不可",
     "status.unknown": "不明",
     "status.monitoring": "監視中",
     "status.checkFailed": "確認失敗 · {0}",

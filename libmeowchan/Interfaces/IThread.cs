@@ -16,7 +16,9 @@ namespace MeowChan.Interfaces
         NotFound
     }
 
-    public enum ThreadActivity { Pending, Checking, Downloading, Finished, NoMedia, Error, NotFound, Stopped }
+    /// <summary>SourceUnavailable: the thread's source (plugin or site) is switched off or gone. This is an expected,
+    /// non-failing state; polling resumes by itself when the source is available again. Appended last to keep ordinals.</summary>
+    public enum ThreadActivity { Pending, Checking, Downloading, Finished, NoMedia, Error, NotFound, Stopped, SourceUnavailable }
 
     /// <summary>
     /// Represents a specific thread within a board.

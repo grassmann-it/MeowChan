@@ -371,6 +371,7 @@
     "status.error": "Chyba",
     "status.notFound": "Nenalezeno",
     "status.stopped": "Zastaveno",
+    "status.sourceUnavailable": "Zdroj není dostupný",
     "status.unknown": "Neznámý",
     "status.monitoring": "Sleduje se",
     "status.checkFailed": "Kontrola selhala · {0}",
