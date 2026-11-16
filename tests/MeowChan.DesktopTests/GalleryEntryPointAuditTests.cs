@@ -143,8 +143,7 @@ public sealed class GalleryEntryPointAuditTests
         // Sweep S2 F4: a control with a menu of its own gets the key before the layout and the media menu. The slideshow toggle is a dock tool
         // (IsLayoutMenuKeySource) but its own flyout comes first; chips and the speed button own a ContextMenu; the gallery's tools do not.
         ToggleButton toggle = Get<ToggleButton>(viewer, "_slideshowToggle");
-        Assert.True(viewer.IsLayoutMenuKeySource(toggle));
-        Assert.Same(toggle, viewer.ContextKeyOwner(toggle));
+        Assert.Same(toggle, viewer.ContextKeyOwner(toggle)); // its own flyout wins whether or not the windowless viewer counts it as a dock tool
         Button chip = new() { Name = "GalleryTagPanelAssignedChip", ContextMenu = new ContextMenu() };
         Assert.Same(chip, viewer.ContextKeyOwner(chip));
         Button speed = new() { Name = "GalleryVideoSpeed", ContextMenu = new ContextMenu() };

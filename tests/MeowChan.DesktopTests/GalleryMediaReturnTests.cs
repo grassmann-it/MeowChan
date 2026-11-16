@@ -60,7 +60,7 @@ public sealed class GalleryMediaReturnTests
         string start = Body(Gallery, "private void StartMediaPageReturn");
         Assert.Contains("MediaReturnTask = OpenActions.StartObserved(() => page.ReturnToAsync(point), operation);", start);
         string back = Body("Desktop/Shell/MainWindow.MediaReturn.cs", "private void ReturnToMedia");
-        Assert.Contains("StartMediaPageReturn(point, \"media.return\")", back);
+        Assert.Contains("StartMediaPageReturn(media.Point, \"media.return\")", back); // the Media case of the shared return point (Back to Tagging is the other)
         Assert.DoesNotContain("MediaReturnTask = _mediaPage", back);
     }
 
