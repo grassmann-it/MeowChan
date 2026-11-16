@@ -118,6 +118,17 @@ public sealed class ArchiveSegmentStretchTests
     }
 
     [Fact]
+    public void ArchiveSegmentsStretchTheirVisualControlIntoTheAllocatedToolbarSlot()
+    {
+        XElement[] items = Toolbar("ArchiveResultActions").Elements()
+            .Where(element => !element.Name.LocalName.Contains('.')).Take(2).ToArray();
+
+        // ActionToolBar allocates the spare row width in the control slots. Avalonia otherwise keeps a ToggleButton
+        // at its natural width inside that slot, recreating the large empty gap even though the panel is stretched.
+        Assert.All(items, item => Assert.Equal("Stretch", (string?)item.Attribute("HorizontalAlignment")));
+    }
+
+    [Fact]
     public void TheReaderMediaPairStaysAsItWasBecauseItsBarDropsThePairBeforeAnythingElse()
     {
         // ReaderMediaTools is prioritized: Sort, Favorites and Rating outrank Tiles|Table, so the pair is the first thing under More and
