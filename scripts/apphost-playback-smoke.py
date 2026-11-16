@@ -176,6 +176,11 @@ def run_fixture(apphost, fixture, destination, timeout, isolated):
         with tempfile.TemporaryDirectory(prefix='meowchan-playback-') as working:
             directory = Path(working)
             environment = desktop.prepare_environment(dict(os.environ), isolated, directory)
+            # LibVLC 3's console logger honors this even for an embedded engine. Capture
+            # demux/decoder/audio-output selection in output.log, including failed runs.
+            # This changes only logging in the owned child, never playback options.
+            environment['VLC_VERBOSE'] = '2'
+            result['vlcVerbose'] = environment['VLC_VERBOSE']
             profile = Path(environment['MEOWCHAN_PROFILE'])
             command = [str(apphost), '--smoke-playback-webm', str(fixture)]
             if isolated:

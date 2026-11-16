@@ -1,11 +1,13 @@
 """Runner contract/safety tests, not proof of product media playback."""
 import importlib.util
+import json
 import os
 from pathlib import Path
 import struct
 import sys
 import tempfile
 import unittest
+from unittest import mock
 import zlib
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -57,6 +59,28 @@ class PlaybackRunnerTests(unittest.TestCase):
                 bad[name][field] = value
                 with self.subTest(name=name, field=field), self.assertRaises(ValueError):
                     runner.validate_metrics(bad, 'ab')
+
+    def test_diagnostics_and_surface_frames_never_replace_native_decode_assertions(self):
+        for field in ('DecodedFrames', 'DisplayedFrames', 'Time'):
+            evidence = metrics()
+            evidence['samples'][0].update(SurfaceFrames=10, SurfaceNonUniform=True)
+            evidence['samples'][0][field] = 0
+            evidence['diagnostics'] = dict(Readiness=[dict(Ready=True)])
+            with self.subTest(field=field), self.assertRaisesRegex(ValueError, 'initial native frames/time'):
+                runner.validate_metrics(evidence, 'ab')
+
+    def test_custom_fixture_keeps_default_timeout_and_does_not_replace_default_gate(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            fixture = ROOT / 'tests/Fixtures/release102/playback-h264-audio.mp4'
+            with mock.patch.object(runner.sys, 'platform', 'darwin'), \
+                 mock.patch.object(runner, 'run_fixture', return_value={'passed': False}) as run:
+                result = runner.main([sys.executable, '--fixture', str(fixture), '--allow-native-desktop',
+                                      '--evidence-dir', str(base / 'evidence')])
+            self.assertEqual(result, 1)
+            self.assertEqual(run.call_count, 1)
+            self.assertEqual(run.call_args.args[1], fixture)
+            self.assertEqual(run.call_args.args[3:], (120, False))
 
     def test_rejects_old_contract_and_incomplete_retained_preference(self):
         for key, value in [('schemaVersion', 1), ('persistedMode', 'Manual'), ('repeatAfterSwitch', {}),
@@ -143,16 +167,40 @@ class PlaybackRunnerTests(unittest.TestCase):
                 runner.validate_png(path)
 
     @unittest.skipIf(os.name == 'nt', 'POSIX executable fixture')
+    def test_native_logging_is_child_only_and_failed_diagnostics_are_retained(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            app = base / 'fake-apphost'
+            partial = dict(completed=False, diagnostics=dict(Readiness=[dict(Ready=False)]))
+            app.write_text('#!' + sys.executable + '\nimport os,sys\nfrom pathlib import Path\n'
+                           'assert os.environ["VLC_VERBOSE"] == "2"\n'
+                           'p=Path(os.environ["MEOWCHAN_PROFILE"]); p.mkdir()\n'
+                           '(p/"apphost-playback.json").write_text(' + repr(json.dumps(partial)) + ')\n'
+                           'print("native decoder/audio-output diagnostics", file=sys.stderr)\n'
+                           'sys.exit(1)\n')
+            app.chmod(0o755)
+            with mock.patch.dict(os.environ, {'VLC_VERBOSE': '-1'}):
+                result = runner.run_fixture(app, runner.default_fixtures()[0], base / 'evidence', 5, False)
+                self.assertEqual(os.environ['VLC_VERBOSE'], '-1')
+            self.assertFalse(result['passed'])
+            self.assertEqual(result['exitCode'], 1)
+            self.assertFalse(result['timedOut'])
+            self.assertEqual(result['vlcVerbose'], '2')
+            self.assertEqual(json.loads((base / 'evidence/metrics.json').read_text()), partial)
+            self.assertIn('decoder/audio-output', (base / 'evidence/output.log').read_text())
+
+    @unittest.skipIf(os.name == 'nt', 'POSIX executable fixture')
     def test_timeout_cleans_owned_process_and_private_profile(self):
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary)
             app = base / 'fake-apphost'
-            app.write_text('#!' + sys.executable + '\nimport os,time\nfrom pathlib import Path\np=Path(os.environ["MEOWCHAN_PROFILE"])\nassert not p.exists()\nassert "OCHAN_PROFILE" not in os.environ\np.mkdir()\n(p/"apphost-playback-poster.png").write_bytes(b"retained-poster-evidence")\nprint(str(p),flush=True)\ntime.sleep(30)\n')
+            app.write_text('#!' + sys.executable + '\nimport os,time\nfrom pathlib import Path\np=Path(os.environ["MEOWCHAN_PROFILE"])\nassert not p.exists()\nassert "OCHAN_PROFILE" not in os.environ\np.mkdir()\n(p/"apphost-playback-poster.png").write_bytes(b"retained-poster-evidence")\n(p/"apphost-playback.json").write_text(\'{"completed":false,"diagnostics":{"Readiness":[]}}\')\nprint(str(p),flush=True)\ntime.sleep(30)\n')
             app.chmod(0o755)
             fixture = ROOT / 'tests/Fixtures/gallery-playback-vp8.webm'
             result = runner.run_fixture(app, fixture, base / 'evidence', .2, False)
             self.assertFalse(result['passed'])
             self.assertTrue(result['timedOut'])
+            self.assertFalse(json.loads((base / 'evidence/metrics.json').read_text())['completed'])
             self.assertEqual((base / 'evidence/poster.png').read_bytes(), b'retained-poster-evidence')
             profile = (base / 'evidence/output.log').read_text().strip()
             self.assertTrue(profile)
