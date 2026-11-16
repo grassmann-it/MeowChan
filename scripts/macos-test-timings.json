@@ -1,0 +1,3154 @@
+{
+  "algorithm": "class-lpt-ms-v1",
+  "classes": {
+    "MeowChan.DesktopTests.A11ySollteTests": {
+      "cases": 18,
+      "milliseconds": 5724
+    },
+    "MeowChan.DesktopTests.AboutActionErrorLocalizationTests": {
+      "cases": 3,
+      "milliseconds": 627
+    },
+    "MeowChan.DesktopTests.AccessibilityAuditTests": {
+      "cases": 7,
+      "milliseconds": 26
+    },
+    "MeowChan.DesktopTests.ActionOverflowLayoutTests": {
+      "cases": 24,
+      "milliseconds": 207
+    },
+    "MeowChan.DesktopTests.AddInputTests": {
+      "cases": 18,
+      "milliseconds": 106
+    },
+    "MeowChan.DesktopTests.AdditiveGalleryShortcutTests": {
+      "cases": 10,
+      "milliseconds": 10538
+    },
+    "MeowChan.DesktopTests.AdmissionProblemPlanTests": {
+      "cases": 6,
+      "milliseconds": 17
+    },
+    "MeowChan.DesktopTests.Ap13ShortcutDefaultsTests": {
+      "cases": 19,
+      "milliseconds": 9064
+    },
+    "MeowChan.DesktopTests.ApphostIntegrityProcessSmokeTests": {
+      "cases": 4,
+      "milliseconds": 50
+    },
+    "MeowChan.DesktopTests.ApphostMediaSmokeTests": {
+      "cases": 7,
+      "milliseconds": 23
+    },
+    "MeowChan.DesktopTests.ApphostPlaybackDiagnosticsTests": {
+      "cases": 4,
+      "milliseconds": 11
+    },
+    "MeowChan.DesktopTests.ApphostPluginWorkflowSmokeTests": {
+      "cases": 4,
+      "milliseconds": 63
+    },
+    "MeowChan.DesktopTests.ApphostSourceActivationSmokeTests": {
+      "cases": 4,
+      "milliseconds": 177
+    },
+    "MeowChan.DesktopTests.ApphostSourceActivationStartupTests": {
+      "cases": 13,
+      "milliseconds": 12868
+    },
+    "MeowChan.DesktopTests.ApphostStartupSmokeTests": {
+      "cases": 17,
+      "milliseconds": 90
+    },
+    "MeowChan.DesktopTests.ApphostVideoErrorSmokeTests": {
+      "cases": 9,
+      "milliseconds": 17
+    },
+    "MeowChan.DesktopTests.ApphostWorkflowSmokeTests": {
+      "cases": 11,
+      "milliseconds": 1713
+    },
+    "MeowChan.DesktopTests.ArchiveAppliedSearchTests": {
+      "cases": 11,
+      "milliseconds": 242
+    },
+    "MeowChan.DesktopTests.ArchiveAttachmentMatchingTests": {
+      "cases": 7,
+      "milliseconds": 59
+    },
+    "MeowChan.DesktopTests.ArchiveCleanupAcceptanceHostTests": {
+      "cases": 36,
+      "milliseconds": 29099
+    },
+    "MeowChan.DesktopTests.ArchiveCleanupExecutionFilesTests": {
+      "cases": 10,
+      "milliseconds": 145
+    },
+    "MeowChan.DesktopTests.ArchiveCleanupMediaInventoryTests": {
+      "cases": 7,
+      "milliseconds": 431
+    },
+    "MeowChan.DesktopTests.ArchiveCleanupPreviewHostTests": {
+      "cases": 28,
+      "milliseconds": 98959
+    },
+    "MeowChan.DesktopTests.ArchiveCleanupScopedExecutionTests": {
+      "cases": 6,
+      "milliseconds": 8356
+    },
+    "MeowChan.DesktopTests.ArchiveCleanupSelectionTests": {
+      "cases": 12,
+      "milliseconds": 23
+    },
+    "MeowChan.DesktopTests.ArchiveCleanupSpecialFileHostTests": {
+      "cases": 20,
+      "milliseconds": 33804
+    },
+    "MeowChan.DesktopTests.ArchiveCollectionExportPresentationTests": {
+      "cases": 3,
+      "milliseconds": 30
+    },
+    "MeowChan.DesktopTests.ArchiveColumnFitTests": {
+      "cases": 41,
+      "milliseconds": 14343
+    },
+    "MeowChan.DesktopTests.ArchiveDatePatternTests": {
+      "cases": 5,
+      "milliseconds": 610
+    },
+    "MeowChan.DesktopTests.ArchiveDeletionCancellationTests": {
+      "cases": 3,
+      "milliseconds": 2393
+    },
+    "MeowChan.DesktopTests.ArchiveDeletionFilesTests": {
+      "cases": 6,
+      "milliseconds": 385
+    },
+    "MeowChan.DesktopTests.ArchiveDeletionHostTests": {
+      "cases": 3,
+      "milliseconds": 2640
+    },
+    "MeowChan.DesktopTests.ArchiveEmptyStateTests": {
+      "cases": 2,
+      "milliseconds": 4
+    },
+    "MeowChan.DesktopTests.ArchiveExportLinkListHandoffTests": {
+      "cases": 38,
+      "milliseconds": 90
+    },
+    "MeowChan.DesktopTests.ArchiveExportOmissionLocalizationTests": {
+      "cases": 35,
+      "milliseconds": 7858
+    },
+    "MeowChan.DesktopTests.ArchiveExportOriginFocusTests": {
+      "cases": 3,
+      "milliseconds": 6
+    },
+    "MeowChan.DesktopTests.ArchiveExportPresentationTests": {
+      "cases": 3,
+      "milliseconds": 226
+    },
+    "MeowChan.DesktopTests.ArchiveExportStatusLocalizationTests": {
+      "cases": 11,
+      "milliseconds": 2379
+    },
+    "MeowChan.DesktopTests.ArchiveFavoriteLifetimeTests": {
+      "cases": 4,
+      "milliseconds": 1754
+    },
+    "MeowChan.DesktopTests.ArchiveFooterLayoutTests": {
+      "cases": 4,
+      "milliseconds": 11
+    },
+    "MeowChan.DesktopTests.ArchiveLeadSelectionTests": {
+      "cases": 2,
+      "milliseconds": 3
+    },
+    "MeowChan.DesktopTests.ArchiveListAuditTests": {
+      "cases": 7,
+      "milliseconds": 2255
+    },
+    "MeowChan.DesktopTests.ArchiveListPreviewSelectionTests": {
+      "cases": 8,
+      "milliseconds": 979
+    },
+    "MeowChan.DesktopTests.ArchiveListThumbnailsTests": {
+      "cases": 19,
+      "milliseconds": 167
+    },
+    "MeowChan.DesktopTests.ArchiveMediaBadgesTests": {
+      "cases": 31,
+      "milliseconds": 13466
+    },
+    "MeowChan.DesktopTests.ArchiveMediaSelectionTests": {
+      "cases": 7,
+      "milliseconds": 14
+    },
+    "MeowChan.DesktopTests.ArchiveMediaTilePreviewTests": {
+      "cases": 7,
+      "milliseconds": 8
+    },
+    "MeowChan.DesktopTests.ArchiveMediaTileTextTests": {
+      "cases": 5,
+      "milliseconds": 1561
+    },
+    "MeowChan.DesktopTests.ArchiveMutationHostAdmissionTests": {
+      "cases": 13,
+      "milliseconds": 11035
+    },
+    "MeowChan.DesktopTests.ArchiveOpenInMediaTests": {
+      "cases": 24,
+      "milliseconds": 11387
+    },
+    "MeowChan.DesktopTests.ArchivePresentationTests": {
+      "cases": 9,
+      "milliseconds": 35
+    },
+    "MeowChan.DesktopTests.ArchiveRelevanceUiTests": {
+      "cases": 6,
+      "milliseconds": 3696
+    },
+    "MeowChan.DesktopTests.ArchiveResultsExportTests": {
+      "cases": 3,
+      "milliseconds": 64472
+    },
+    "MeowChan.DesktopTests.ArchiveSegmentStretchTests": {
+      "cases": 12,
+      "milliseconds": 28
+    },
+    "MeowChan.DesktopTests.ArchiveTagColumnTests": {
+      "cases": 16,
+      "milliseconds": 3331
+    },
+    "MeowChan.DesktopTests.ArchiveTagFilterLimitTests": {
+      "cases": 2,
+      "milliseconds": 684
+    },
+    "MeowChan.DesktopTests.ArchiveTagFilterUiTests": {
+      "cases": 7,
+      "milliseconds": 2833
+    },
+    "MeowChan.DesktopTests.ArchiveThreadMediaCountsTests": {
+      "cases": 10,
+      "milliseconds": 535
+    },
+    "MeowChan.DesktopTests.ArchiveThreadRowTagTests": {
+      "cases": 6,
+      "milliseconds": 1295
+    },
+    "MeowChan.DesktopTests.ArchiveTransferExportEntrypointTests": {
+      "cases": 24,
+      "milliseconds": 4995
+    },
+    "MeowChan.DesktopTests.ArchiveTransferExportHostTests": {
+      "cases": 14,
+      "milliseconds": 10373
+    },
+    "MeowChan.DesktopTests.ArchiveUrlTextExportLifecycleTests": {
+      "cases": 14,
+      "milliseconds": 36
+    },
+    "MeowChan.DesktopTests.ArchiveUrlTextExportPlanTests": {
+      "cases": 34,
+      "milliseconds": 113
+    },
+    "MeowChan.DesktopTests.BackLabelRuleTests": {
+      "cases": 14,
+      "milliseconds": 4962
+    },
+    "MeowChan.DesktopTests.BarebonesWindowGeometryTests": {
+      "cases": 9,
+      "milliseconds": 18
+    },
+    "MeowChan.DesktopTests.BoardAdmissionDefaultsTests": {
+      "cases": 1,
+      "milliseconds": 19
+    },
+    "MeowChan.DesktopTests.BoardAdmissionLanguageRefreshTests": {
+      "cases": 8,
+      "milliseconds": 9
+    },
+    "MeowChan.DesktopTests.BoardsEmptyStateActionTests": {
+      "cases": 1,
+      "milliseconds": 6
+    },
+    "MeowChan.DesktopTests.BooruAccessibilityTests": {
+      "cases": 3,
+      "milliseconds": 627
+    },
+    "MeowChan.DesktopTests.BooruAdapterTests": {
+      "cases": 8,
+      "milliseconds": 174
+    },
+    "MeowChan.DesktopTests.BooruAddUrlTests": {
+      "cases": 14,
+      "milliseconds": 1571
+    },
+    "MeowChan.DesktopTests.BooruAddressBatchTests": {
+      "cases": 3,
+      "milliseconds": 5
+    },
+    "MeowChan.DesktopTests.BooruBusyFallbackFixtureTests": {
+      "cases": 2,
+      "milliseconds": 4
+    },
+    "MeowChan.DesktopTests.BooruCatalogCompatibilityTests": {
+      "cases": 4,
+      "milliseconds": 16
+    },
+    "MeowChan.DesktopTests.BooruCatalogLimitTests": {
+      "cases": 7,
+      "milliseconds": 1177
+    },
+    "MeowChan.DesktopTests.BooruCodeTextTests": {
+      "cases": 7,
+      "milliseconds": 781
+    },
+    "MeowChan.DesktopTests.BooruComponentDispatcherTests": {
+      "cases": 2,
+      "milliseconds": 177
+    },
+    "MeowChan.DesktopTests.BooruCompositionHostTests": {
+      "cases": 16,
+      "milliseconds": 17411
+    },
+    "MeowChan.DesktopTests.BooruCooldownResetCodeCatalogTests": {
+      "cases": 2,
+      "milliseconds": 3
+    },
+    "MeowChan.DesktopTests.BooruCrossLinkExactFilterTests": {
+      "cases": 23,
+      "milliseconds": 2606
+    },
+    "MeowChan.DesktopTests.BooruCrossLinksTests": {
+      "cases": 4,
+      "milliseconds": 30
+    },
+    "MeowChan.DesktopTests.BooruExactFocusOutcomeTests": {
+      "cases": 8,
+      "milliseconds": 776
+    },
+    "MeowChan.DesktopTests.BooruFavoritesCatalogReadTests": {
+      "cases": 1,
+      "milliseconds": 3000
+    },
+    "MeowChan.DesktopTests.BooruHitKeyboardTests": {
+      "cases": 22,
+      "milliseconds": 2549
+    },
+    "MeowChan.DesktopTests.BooruLinkLifetimeTests": {
+      "cases": 11,
+      "milliseconds": 1360
+    },
+    "MeowChan.DesktopTests.BooruLocalMediaAdmissionTests": {
+      "cases": 6,
+      "milliseconds": 12
+    },
+    "MeowChan.DesktopTests.BooruLocalizationTests": {
+      "cases": 23,
+      "milliseconds": 4687
+    },
+    "MeowChan.DesktopTests.BooruMediaHandoffInteractionTests": {
+      "cases": 10,
+      "milliseconds": 840
+    },
+    "MeowChan.DesktopTests.BooruMediaHostTests": {
+      "cases": 6,
+      "milliseconds": 3637
+    },
+    "MeowChan.DesktopTests.BooruNavigationFailurePackTests": {
+      "cases": 10,
+      "milliseconds": 62
+    },
+    "MeowChan.DesktopTests.BooruPageBehaviorRegressionTests": {
+      "cases": 1,
+      "milliseconds": 204
+    },
+    "MeowChan.DesktopTests.BooruPageHostContractTests": {
+      "cases": 12,
+      "milliseconds": 71
+    },
+    "MeowChan.DesktopTests.BooruPageNavigationContractTests": {
+      "cases": 15,
+      "milliseconds": 3427
+    },
+    "MeowChan.DesktopTests.BooruPluginRuntimeCompositionTests": {
+      "cases": 1,
+      "milliseconds": 10203
+    },
+    "MeowChan.DesktopTests.BooruPortAvailabilityTests": {
+      "cases": 24,
+      "milliseconds": 4660
+    },
+    "MeowChan.DesktopTests.BooruPresentationActionGateTests": {
+      "cases": 5,
+      "milliseconds": 19
+    },
+    "MeowChan.DesktopTests.BooruQuickWinTests": {
+      "cases": 7,
+      "milliseconds": 6442
+    },
+    "MeowChan.DesktopTests.BooruSearchBoundsTests": {
+      "cases": 1,
+      "milliseconds": 3
+    },
+    "MeowChan.DesktopTests.BooruSearchModelTests": {
+      "cases": 52,
+      "milliseconds": 293
+    },
+    "MeowChan.DesktopTests.BooruSessionShutdownIngressTests": {
+      "cases": 1,
+      "milliseconds": 1745
+    },
+    "MeowChan.DesktopTests.BooruSortLocalizationLifetimeTests": {
+      "cases": 1,
+      "milliseconds": 99
+    },
+    "MeowChan.DesktopTests.BooruSourceTagSearchTests": {
+      "cases": 9,
+      "milliseconds": 2012
+    },
+    "MeowChan.DesktopTests.BooruStatusCatalogTests": {
+      "cases": 9,
+      "milliseconds": 1750
+    },
+    "MeowChan.DesktopTests.BooruTransportRetentionRegressionTests": {
+      "cases": 2,
+      "milliseconds": 2661
+    },
+    "MeowChan.DesktopTests.BooruUnavailableNavigationTests": {
+      "cases": 3,
+      "milliseconds": 3
+    },
+    "MeowChan.DesktopTests.BooruUnpublishedTransportTests": {
+      "cases": 1,
+      "milliseconds": 3295
+    },
+    "MeowChan.DesktopTests.BooruVisibilityPreferenceTests": {
+      "cases": 9,
+      "milliseconds": 436
+    },
+    "MeowChan.DesktopTests.BooruWatcherModelTests": {
+      "cases": 20,
+      "milliseconds": 103
+    },
+    "MeowChan.DesktopTests.BooruWatcherPersistenceAdmissionTests": {
+      "cases": 1,
+      "milliseconds": 13
+    },
+    "MeowChan.DesktopTests.BooruWatcherTransitionCodeCatalogTests": {
+      "cases": 9,
+      "milliseconds": 3209
+    },
+    "MeowChan.DesktopTests.BooruWorkViewRegistrationTests": {
+      "cases": 2,
+      "milliseconds": 23
+    },
+    "MeowChan.DesktopTests.BooruWorkbenchDialogFactoryTests": {
+      "cases": 4,
+      "milliseconds": 24
+    },
+    "MeowChan.DesktopTests.BooruWorkbenchFlowTests": {
+      "cases": 8,
+      "milliseconds": 252
+    },
+    "MeowChan.DesktopTests.BooruWorkbenchViewContractTests": {
+      "cases": 8,
+      "milliseconds": 192
+    },
+    "MeowChan.DesktopTests.BoundedShutdownTests": {
+      "cases": 18,
+      "milliseconds": 3546
+    },
+    "MeowChan.DesktopTests.BundledChangeApprovalTests": {
+      "cases": 18,
+      "milliseconds": 338
+    },
+    "MeowChan.DesktopTests.BundledLanguagePackCompletenessTests": {
+      "cases": 12,
+      "milliseconds": 8177
+    },
+    "MeowChan.DesktopTests.BundledLanguagePackTests": {
+      "cases": 37,
+      "milliseconds": 18787
+    },
+    "MeowChan.DesktopTests.BundledRepairPresentationTests": {
+      "cases": 23,
+      "milliseconds": 71
+    },
+    "MeowChan.DesktopTests.BundledSourceWordingEvidenceTests": {
+      "cases": 17,
+      "milliseconds": 4227
+    },
+    "MeowChan.DesktopTests.ButtonRoleStyleTests": {
+      "cases": 4,
+      "milliseconds": 834
+    },
+    "MeowChan.DesktopTests.CaptionRestoreTrackerTests": {
+      "cases": 10,
+      "milliseconds": 12
+    },
+    "MeowChan.DesktopTests.CardClassesTests": {
+      "cases": 5,
+      "milliseconds": 332
+    },
+    "MeowChan.DesktopTests.CardModeTests": {
+      "cases": 41,
+      "milliseconds": 10384
+    },
+    "MeowChan.DesktopTests.CatalogReadableHostTests": {
+      "cases": 3,
+      "milliseconds": 6983
+    },
+    "MeowChan.DesktopTests.CatalogShortcutGapTests": {
+      "cases": 28,
+      "milliseconds": 1416
+    },
+    "MeowChan.DesktopTests.CatalogTextStyleTests": {
+      "cases": 3,
+      "milliseconds": 11
+    },
+    "MeowChan.DesktopTests.ChanFamilyMigrationEndToEndTests": {
+      "cases": 4,
+      "milliseconds": 16893
+    },
+    "MeowChan.DesktopTests.ChanFamilyRepairRestrictionTests": {
+      "cases": 4,
+      "milliseconds": 15
+    },
+    "MeowChan.DesktopTests.ChanFamilyUpgradeTests": {
+      "cases": 4,
+      "milliseconds": 31754
+    },
+    "MeowChan.DesktopTests.ChanSiteSwitchesTests": {
+      "cases": 7,
+      "milliseconds": 233
+    },
+    "MeowChan.DesktopTests.ChipStyleTests": {
+      "cases": 23,
+      "milliseconds": 920
+    },
+    "MeowChan.DesktopTests.ClipboardBaselinePrivacyContractTests": {
+      "cases": 17,
+      "milliseconds": 49
+    },
+    "MeowChan.DesktopTests.ClipboardBaselineRaceRegressionTests": {
+      "cases": 6,
+      "milliseconds": 16
+    },
+    "MeowChan.DesktopTests.ClipboardByteLimitTests": {
+      "cases": 67,
+      "milliseconds": 117
+    },
+    "MeowChan.DesktopTests.ClipboardConfirmationJourneyRegressionTests": {
+      "cases": 13,
+      "milliseconds": 29
+    },
+    "MeowChan.DesktopTests.ClipboardLimitSettingsTests": {
+      "cases": 6,
+      "milliseconds": 136
+    },
+    "MeowChan.DesktopTests.ClipboardMonitorExtraRegressionTests": {
+      "cases": 14,
+      "milliseconds": 28
+    },
+    "MeowChan.DesktopTests.ClipboardMonitorPrivacyRegressionTests": {
+      "cases": 3,
+      "milliseconds": 19
+    },
+    "MeowChan.DesktopTests.ClipboardMonitorSettingsTests": {
+      "cases": 21,
+      "milliseconds": 479
+    },
+    "MeowChan.DesktopTests.ClipboardPromptWorkflowRegressionTests": {
+      "cases": 7,
+      "milliseconds": 35
+    },
+    "MeowChan.DesktopTests.ClipboardStartupBaselineTests": {
+      "cases": 32,
+      "milliseconds": 82
+    },
+    "MeowChan.DesktopTests.ClipboardUrlMonitorTests": {
+      "cases": 18,
+      "milliseconds": 36
+    },
+    "MeowChan.DesktopTests.CoalescedUiUpdateTests": {
+      "cases": 10,
+      "milliseconds": 45
+    },
+    "MeowChan.DesktopTests.CodeHygieneTests": {
+      "cases": 14,
+      "milliseconds": 675
+    },
+    "MeowChan.DesktopTests.CodepointLengthLocalizationTests": {
+      "cases": 2,
+      "milliseconds": 505
+    },
+    "MeowChan.DesktopTests.CommandLabelLocalizationTests": {
+      "cases": 112,
+      "milliseconds": 33118
+    },
+    "MeowChan.DesktopTests.CommandScopeGalleryLocalizationTests": {
+      "cases": 9,
+      "milliseconds": 3490
+    },
+    "MeowChan.DesktopTests.ConfigCorruptionTests": {
+      "cases": 294,
+      "milliseconds": 15729
+    },
+    "MeowChan.DesktopTests.ConfigLoadWarningLocalizationTests": {
+      "cases": 3,
+      "milliseconds": 1173
+    },
+    "MeowChan.DesktopTests.ConfigSourceMediaIntegrityTests": {
+      "cases": 13,
+      "milliseconds": 563
+    },
+    "MeowChan.DesktopTests.ConfigTests": {
+      "cases": 86,
+      "milliseconds": 753
+    },
+    "MeowChan.DesktopTests.ContextMenuBuilderTests": {
+      "cases": 8,
+      "milliseconds": 3461
+    },
+    "MeowChan.DesktopTests.ContextMenuCatalogTests": {
+      "cases": 3,
+      "milliseconds": 877
+    },
+    "MeowChan.DesktopTests.ContextMenuHostOriginGuardTests": {
+      "cases": 2,
+      "milliseconds": 433
+    },
+    "MeowChan.DesktopTests.ContextMenuPopulateTests": {
+      "cases": 4,
+      "milliseconds": 15
+    },
+    "MeowChan.DesktopTests.ContextYieldTests": {
+      "cases": 17,
+      "milliseconds": 36665
+    },
+    "MeowChan.DesktopTests.ContrastRulesTests": {
+      "cases": 38,
+      "milliseconds": 105
+    },
+    "MeowChan.DesktopTests.ControlsIdleHideSettingsTests": {
+      "cases": 33,
+      "milliseconds": 1704
+    },
+    "MeowChan.DesktopTests.CoreLimitProductionCallerTests": {
+      "cases": 14,
+      "milliseconds": 5723
+    },
+    "MeowChan.DesktopTests.CoreLimitSettingsTests": {
+      "cases": 8,
+      "milliseconds": 147
+    },
+    "MeowChan.DesktopTests.CoreLimitUsageSourceContractTests": {
+      "cases": 6,
+      "milliseconds": 125
+    },
+    "MeowChan.DesktopTests.CountAndSizeTextTests": {
+      "cases": 135,
+      "milliseconds": 47833
+    },
+    "MeowChan.DesktopTests.CredentialCanaryBaselineTests": {
+      "cases": 11,
+      "milliseconds": 1880
+    },
+    "MeowChan.DesktopTests.CredentialCanaryRedactionReviewTests": {
+      "cases": 7,
+      "milliseconds": 814
+    },
+    "MeowChan.DesktopTests.CurationConsistencyTests": {
+      "cases": 8,
+      "milliseconds": 12
+    },
+    "MeowChan.DesktopTests.DataGridSelectionTests": {
+      "cases": 5,
+      "milliseconds": 121
+    },
+    "MeowChan.DesktopTests.DeadAffordanceGuardTests": {
+      "cases": 22,
+      "milliseconds": 3558
+    },
+    "MeowChan.DesktopTests.DeadAffordanceListsDialogsShellTests": {
+      "cases": 5,
+      "milliseconds": 1369
+    },
+    "MeowChan.DesktopTests.DefaultShortcutInvariantTests": {
+      "cases": 21,
+      "milliseconds": 802
+    },
+    "MeowChan.DesktopTests.DefaultsRevision19Tests": {
+      "cases": 60,
+      "milliseconds": 16617
+    },
+    "MeowChan.DesktopTests.DefaultsRevision21Tests": {
+      "cases": 13,
+      "milliseconds": 3680
+    },
+    "MeowChan.DesktopTests.DeflateBoundaryConformanceTests": {
+      "cases": 8,
+      "milliseconds": 460
+    },
+    "MeowChan.DesktopTests.DesignLint.DesignLintTests": {
+      "cases": 22,
+      "milliseconds": 4998
+    },
+    "MeowChan.DesktopTests.DesignLint.RoundButtonSingleCircleTests": {
+      "cases": 4,
+      "milliseconds": 207
+    },
+    "MeowChan.DesktopTests.DesignLint.SourcesPluginsInsetContractTests": {
+      "cases": 11,
+      "milliseconds": 289
+    },
+    "MeowChan.DesktopTests.DesktopPluginSessionIntegrationTests": {
+      "cases": 41,
+      "milliseconds": 51003
+    },
+    "MeowChan.DesktopTests.DesktopPrivateStoreAdmissionTests": {
+      "cases": 6,
+      "milliseconds": 4803
+    },
+    "MeowChan.DesktopTests.DesktopProfileAdmissionTests": {
+      "cases": 7,
+      "milliseconds": 3183
+    },
+    "MeowChan.DesktopTests.DesktopSessionAdmissionTests": {
+      "cases": 16,
+      "milliseconds": 8664
+    },
+    "MeowChan.DesktopTests.DesktopSessionHostTests": {
+      "cases": 19,
+      "milliseconds": 16153
+    },
+    "MeowChan.DesktopTests.DesktopSessionProjectionTests": {
+      "cases": 5,
+      "milliseconds": 35403
+    },
+    "MeowChan.DesktopTests.DesktopSessionUserPriorityTests": {
+      "cases": 2,
+      "milliseconds": 2219
+    },
+    "MeowChan.DesktopTests.DesktopUpgradeIntegrationTests": {
+      "cases": 1,
+      "milliseconds": 1
+    },
+    "MeowChan.DesktopTests.DiagnosticFailurePresentationTests": {
+      "cases": 41,
+      "milliseconds": 14910
+    },
+    "MeowChan.DesktopTests.DiagnosticRetryHostTests": {
+      "cases": 11,
+      "milliseconds": 4174
+    },
+    "MeowChan.DesktopTests.DiagnosticWaitingFilterTests": {
+      "cases": 8,
+      "milliseconds": 240
+    },
+    "MeowChan.DesktopTests.DiagnosticsKeyboardMenuTests": {
+      "cases": 1,
+      "milliseconds": 214
+    },
+    "MeowChan.DesktopTests.DiagnosticsTests": {
+      "cases": 17,
+      "milliseconds": 132
+    },
+    "MeowChan.DesktopTests.DialogAutomationNameTests": {
+      "cases": 7,
+      "milliseconds": 2576
+    },
+    "MeowChan.DesktopTests.DialogFitCoverageTests": {
+      "cases": 14,
+      "milliseconds": 149
+    },
+    "MeowChan.DesktopTests.DialogFooterBudgetTests": {
+      "cases": 3,
+      "milliseconds": 746
+    },
+    "MeowChan.DesktopTests.DialogMd3Tests": {
+      "cases": 23,
+      "milliseconds": 488
+    },
+    "MeowChan.DesktopTests.DialogMinimumHeightTests": {
+      "cases": 1,
+      "milliseconds": 301
+    },
+    "MeowChan.DesktopTests.DialogWindowTests": {
+      "cases": 39,
+      "milliseconds": 532
+    },
+    "MeowChan.DesktopTests.DirectSettingsHostAdmissionIntegrationTests": {
+      "cases": 18,
+      "milliseconds": 14904
+    },
+    "MeowChan.DesktopTests.DirectSettingsStoreAdmissionTests": {
+      "cases": 31,
+      "milliseconds": 1715
+    },
+    "MeowChan.DesktopTests.DirectoryProbeTests": {
+      "cases": 3,
+      "milliseconds": 418
+    },
+    "MeowChan.DesktopTests.DisabledStyleTests": {
+      "cases": 22,
+      "milliseconds": 691
+    },
+    "MeowChan.DesktopTests.DisabledWatchRestoreTests": {
+      "cases": 1,
+      "milliseconds": 4344
+    },
+    "MeowChan.DesktopTests.DownloadColumnSelectionTests": {
+      "cases": 3,
+      "milliseconds": 8
+    },
+    "MeowChan.DesktopTests.DownloadDestinationValidatorTests": {
+      "cases": 21,
+      "milliseconds": 274
+    },
+    "MeowChan.DesktopTests.DownloadLimitSettingsTests": {
+      "cases": 11,
+      "milliseconds": 280
+    },
+    "MeowChan.DesktopTests.DownloadSafetyCapExtraRegressionTests": {
+      "cases": 9,
+      "milliseconds": 1499
+    },
+    "MeowChan.DesktopTests.DownloadSafetyLimitInteractionRegressionTests": {
+      "cases": 7,
+      "milliseconds": 4053
+    },
+    "MeowChan.DesktopTests.DownloadSafetyLimitSettingsTests": {
+      "cases": 11,
+      "milliseconds": 3692
+    },
+    "MeowChan.DesktopTests.DownloadSearchReconciliationTests": {
+      "cases": 4,
+      "milliseconds": 15
+    },
+    "MeowChan.DesktopTests.DownloadSearchTests": {
+      "cases": 2,
+      "milliseconds": 15
+    },
+    "MeowChan.DesktopTests.DownloadsFeedbackTests": {
+      "cases": 24,
+      "milliseconds": 38
+    },
+    "MeowChan.DesktopTests.DroppedLinksTests": {
+      "cases": 26,
+      "milliseconds": 48
+    },
+    "MeowChan.DesktopTests.EmptyStateStyleTests": {
+      "cases": 6,
+      "milliseconds": 34
+    },
+    "MeowChan.DesktopTests.ExifOrientationTests": {
+      "cases": 92,
+      "milliseconds": 2919
+    },
+    "MeowChan.DesktopTests.ExperimentalAdmissionTargetTests": {
+      "cases": 12,
+      "milliseconds": 27
+    },
+    "MeowChan.DesktopTests.ExperimentalSourceActivationCoordinatorTests": {
+      "cases": 28,
+      "milliseconds": 10672
+    },
+    "MeowChan.DesktopTests.ExperimentalSourceActivationHostTests": {
+      "cases": 3,
+      "milliseconds": 19514
+    },
+    "MeowChan.DesktopTests.ExportChoiceFieldTests": {
+      "cases": 2,
+      "milliseconds": 64
+    },
+    "MeowChan.DesktopTests.ExportLabelPunctuationTests": {
+      "cases": 26,
+      "milliseconds": 5623
+    },
+    "MeowChan.DesktopTests.ExternalLauncherTests": {
+      "cases": 14,
+      "milliseconds": 56
+    },
+    "MeowChan.DesktopTests.FailureWordingTests": {
+      "cases": 70,
+      "milliseconds": 25237
+    },
+    "MeowChan.DesktopTests.FavoriteKeyRepeatTests": {
+      "cases": 8,
+      "milliseconds": 37
+    },
+    "MeowChan.DesktopTests.FavoriteRemovalTests": {
+      "cases": 1,
+      "milliseconds": 357
+    },
+    "MeowChan.DesktopTests.FavoriteTintContrastTests": {
+      "cases": 2,
+      "milliseconds": 10
+    },
+    "MeowChan.DesktopTests.FavoritesEverywhereTests": {
+      "cases": 13,
+      "milliseconds": 3115
+    },
+    "MeowChan.DesktopTests.FilenameSearchDialogTests": {
+      "cases": 16,
+      "milliseconds": 68
+    },
+    "MeowChan.DesktopTests.FilenameSearchHostNavigationTests": {
+      "cases": 3,
+      "milliseconds": 1759
+    },
+    "MeowChan.DesktopTests.FilenameSearchSelectionContractTests": {
+      "cases": 5,
+      "milliseconds": 99
+    },
+    "MeowChan.DesktopTests.FilterSurfaceContractTests": {
+      "cases": 9,
+      "milliseconds": 69
+    },
+    "MeowChan.DesktopTests.FilterSurfaceControllerTests": {
+      "cases": 13,
+      "milliseconds": 82
+    },
+    "MeowChan.DesktopTests.FilterToggleButtonTests": {
+      "cases": 8,
+      "milliseconds": 13
+    },
+    "MeowChan.DesktopTests.FirstRunEffectiveLimitInteractionRegressionTests": {
+      "cases": 12,
+      "milliseconds": 4048
+    },
+    "MeowChan.DesktopTests.FirstRunEffectiveLimitTests": {
+      "cases": 37,
+      "milliseconds": 8435
+    },
+    "MeowChan.DesktopTests.FirstRunLanguageRefreshTests": {
+      "cases": 7,
+      "milliseconds": 18
+    },
+    "MeowChan.DesktopTests.FirstRunSettingsExtraRegressionTests": {
+      "cases": 3,
+      "milliseconds": 940
+    },
+    "MeowChan.DesktopTests.FirstRunSettingsReopenBoundaryTests": {
+      "cases": 2,
+      "milliseconds": 3033
+    },
+    "MeowChan.DesktopTests.FirstRunSetupTests": {
+      "cases": 26,
+      "milliseconds": 4730
+    },
+    "MeowChan.DesktopTests.FirstRunWindowChromeTests": {
+      "cases": 3,
+      "milliseconds": 13
+    },
+    "MeowChan.DesktopTests.FocusSelectionStyleTests": {
+      "cases": 9,
+      "milliseconds": 166
+    },
+    "MeowChan.DesktopTests.FolderSourceDesktopTests": {
+      "cases": 4,
+      "milliseconds": 2048
+    },
+    "MeowChan.DesktopTests.FolderSourceReviewDesktopTests": {
+      "cases": 2,
+      "milliseconds": 1200
+    },
+    "MeowChan.DesktopTests.FolderVersionTests": {
+      "cases": 6,
+      "milliseconds": 5419
+    },
+    "MeowChan.DesktopTests.FontCreditsTests": {
+      "cases": 2,
+      "milliseconds": 9
+    },
+    "MeowChan.DesktopTests.FooterLayoutTests": {
+      "cases": 26,
+      "milliseconds": 80
+    },
+    "MeowChan.DesktopTests.FooterLayoutTests+Editor": {
+      "cases": 4,
+      "milliseconds": 742
+    },
+    "MeowChan.DesktopTests.FooterLayoutTests+Numbering": {
+      "cases": 11,
+      "milliseconds": 1106
+    },
+    "MeowChan.DesktopTests.FullscreenFeedbackReplayTests": {
+      "cases": 4,
+      "milliseconds": 18
+    },
+    "MeowChan.DesktopTests.FullscreenTransitionFrameTests": {
+      "cases": 3,
+      "milliseconds": 17
+    },
+    "MeowChan.DesktopTests.FullscreenWindowStateFeedbackTests": {
+      "cases": 8,
+      "milliseconds": 70
+    },
+    "MeowChan.DesktopTests.GalleryAssociationIndexTests": {
+      "cases": 2,
+      "milliseconds": 21
+    },
+    "MeowChan.DesktopTests.GalleryAutoHideCleanTests": {
+      "cases": 29,
+      "milliseconds": 37
+    },
+    "MeowChan.DesktopTests.GalleryCacheIntegrityTests": {
+      "cases": 13,
+      "milliseconds": 1777
+    },
+    "MeowChan.DesktopTests.GalleryChromePlanTests": {
+      "cases": 239,
+      "milliseconds": 377
+    },
+    "MeowChan.DesktopTests.GalleryDecisionRowDesignTests": {
+      "cases": 15,
+      "milliseconds": 5199
+    },
+    "MeowChan.DesktopTests.GalleryDockTransportTests": {
+      "cases": 25,
+      "milliseconds": 61
+    },
+    "MeowChan.DesktopTests.GalleryEntryPointAuditTests": {
+      "cases": 11,
+      "milliseconds": 1105
+    },
+    "MeowChan.DesktopTests.GalleryErrorPresentationTests": {
+      "cases": 6,
+      "milliseconds": 25
+    },
+    "MeowChan.DesktopTests.GalleryFavoriteConfirmationTests": {
+      "cases": 14,
+      "milliseconds": 349
+    },
+    "MeowChan.DesktopTests.GalleryFavoriteSequenceTests": {
+      "cases": 14,
+      "milliseconds": 6479
+    },
+    "MeowChan.DesktopTests.GalleryFavoriteShortcutTests": {
+      "cases": 13,
+      "milliseconds": 731
+    },
+    "MeowChan.DesktopTests.GalleryFavoriteStateTests": {
+      "cases": 33,
+      "milliseconds": 4310
+    },
+    "MeowChan.DesktopTests.GalleryFilmstripFlagsTests": {
+      "cases": 25,
+      "milliseconds": 9702
+    },
+    "MeowChan.DesktopTests.GalleryFilmstripTests": {
+      "cases": 43,
+      "milliseconds": 15611
+    },
+    "MeowChan.DesktopTests.GalleryFitDecodeTests": {
+      "cases": 12,
+      "milliseconds": 27
+    },
+    "MeowChan.DesktopTests.GalleryFitUpscaleCapTests": {
+      "cases": 26,
+      "milliseconds": 31
+    },
+    "MeowChan.DesktopTests.GalleryFramePngTests": {
+      "cases": 1,
+      "milliseconds": 323
+    },
+    "MeowChan.DesktopTests.GalleryImageCacheTests": {
+      "cases": 21,
+      "milliseconds": 578
+    },
+    "MeowChan.DesktopTests.GalleryImagePanAdmissionTests": {
+      "cases": 16,
+      "milliseconds": 19
+    },
+    "MeowChan.DesktopTests.GalleryInfoLineTests": {
+      "cases": 55,
+      "milliseconds": 882
+    },
+    "MeowChan.DesktopTests.GalleryInfoStatusLayoutTests": {
+      "cases": 2,
+      "milliseconds": 562
+    },
+    "MeowChan.DesktopTests.GalleryLayoutMenuTests": {
+      "cases": 29,
+      "milliseconds": 10556
+    },
+    "MeowChan.DesktopTests.GalleryLayoutPreferencesTests": {
+      "cases": 49,
+      "milliseconds": 192
+    },
+    "MeowChan.DesktopTests.GalleryMarkingTests": {
+      "cases": 16,
+      "milliseconds": 7514
+    },
+    "MeowChan.DesktopTests.GalleryMediaActionsTests": {
+      "cases": 46,
+      "milliseconds": 19673
+    },
+    "MeowChan.DesktopTests.GalleryMediaCloseLabelTests": {
+      "cases": 7,
+      "milliseconds": 3305
+    },
+    "MeowChan.DesktopTests.GalleryMediaReturnTests": {
+      "cases": 7,
+      "milliseconds": 470
+    },
+    "MeowChan.DesktopTests.GalleryMediaTagTests": {
+      "cases": 7,
+      "milliseconds": 1207
+    },
+    "MeowChan.DesktopTests.GalleryMutePersistenceTests": {
+      "cases": 20,
+      "milliseconds": 63
+    },
+    "MeowChan.DesktopTests.GalleryNarrowChromeTests": {
+      "cases": 13,
+      "milliseconds": 32
+    },
+    "MeowChan.DesktopTests.GalleryOverlayActivityTests": {
+      "cases": 75,
+      "milliseconds": 628
+    },
+    "MeowChan.DesktopTests.GalleryPlaybackContinuityRegressionTests": {
+      "cases": 18,
+      "milliseconds": 4558
+    },
+    "MeowChan.DesktopTests.GalleryPlaybackLanguageRefreshTests": {
+      "cases": 9,
+      "milliseconds": 8666
+    },
+    "MeowChan.DesktopTests.GalleryPlaybackPreferenceTests": {
+      "cases": 47,
+      "milliseconds": 15861
+    },
+    "MeowChan.DesktopTests.GalleryPlaybackSettingsTests": {
+      "cases": 19,
+      "milliseconds": 7349
+    },
+    "MeowChan.DesktopTests.GalleryPostTagChipLimitTests": {
+      "cases": 9,
+      "milliseconds": 3660
+    },
+    "MeowChan.DesktopTests.GalleryPosterIntegrityTests": {
+      "cases": 1,
+      "milliseconds": 170
+    },
+    "MeowChan.DesktopTests.GalleryRatingKeyTests": {
+      "cases": 36,
+      "milliseconds": 15298
+    },
+    "MeowChan.DesktopTests.GalleryRatingPanelTests": {
+      "cases": 22,
+      "milliseconds": 5081
+    },
+    "MeowChan.DesktopTests.GallerySeekNavigationPolicyTests": {
+      "cases": 19,
+      "milliseconds": 157
+    },
+    "MeowChan.DesktopTests.GalleryShortcutSchemeTests": {
+      "cases": 44,
+      "milliseconds": 20687
+    },
+    "MeowChan.DesktopTests.GallerySidePanelTests": {
+      "cases": 23,
+      "milliseconds": 5306
+    },
+    "MeowChan.DesktopTests.GallerySlideshowControllerTests": {
+      "cases": 27,
+      "milliseconds": 41
+    },
+    "MeowChan.DesktopTests.GallerySlideshowFocusTests": {
+      "cases": 28,
+      "milliseconds": 434
+    },
+    "MeowChan.DesktopTests.GallerySlideshowSplitTests": {
+      "cases": 13,
+      "milliseconds": 4684
+    },
+    "MeowChan.DesktopTests.GallerySlideshowTagHoldTests": {
+      "cases": 6,
+      "milliseconds": 28
+    },
+    "MeowChan.DesktopTests.GalleryTagPanelTests": {
+      "cases": 23,
+      "milliseconds": 8480
+    },
+    "MeowChan.DesktopTests.GalleryTaggingChromeTests": {
+      "cases": 17,
+      "milliseconds": 3713
+    },
+    "MeowChan.DesktopTests.GalleryTerminalRetirementTests": {
+      "cases": 32,
+      "milliseconds": 39
+    },
+    "MeowChan.DesktopTests.GalleryToolbarFitTests": {
+      "cases": 124,
+      "milliseconds": 27317
+    },
+    "MeowChan.DesktopTests.GalleryVideoPlayerScrubTests": {
+      "cases": 10,
+      "milliseconds": 44
+    },
+    "MeowChan.DesktopTests.GalleryViewerConstructionTests": {
+      "cases": 5,
+      "milliseconds": 429
+    },
+    "MeowChan.DesktopTests.GalleryViewerTests": {
+      "cases": 14,
+      "milliseconds": 26
+    },
+    "MeowChan.DesktopTests.GalleryVolumeShortcutContextBoundaryTests": {
+      "cases": 8,
+      "milliseconds": 391
+    },
+    "MeowChan.DesktopTests.GalleryWheelModeTests": {
+      "cases": 44,
+      "milliseconds": 10269
+    },
+    "MeowChan.DesktopTests.GhostButtonStyleTests": {
+      "cases": 7,
+      "milliseconds": 146
+    },
+    "MeowChan.DesktopTests.GifFrameDecoderTests": {
+      "cases": 24,
+      "milliseconds": 4128
+    },
+    "MeowChan.DesktopTests.GifPlaybackTimingTests": {
+      "cases": 5,
+      "milliseconds": 6
+    },
+    "MeowChan.DesktopTests.GlyphIconTests": {
+      "cases": 12,
+      "milliseconds": 648
+    },
+    "MeowChan.DesktopTests.HeaderBarContractTests": {
+      "cases": 31,
+      "milliseconds": 220
+    },
+    "MeowChan.DesktopTests.HeaderIoAlignmentTests": {
+      "cases": 12,
+      "milliseconds": 421
+    },
+    "MeowChan.DesktopTests.HeaderIoIconLocalizationTests": {
+      "cases": 12,
+      "milliseconds": 4298
+    },
+    "MeowChan.DesktopTests.HeaderIoIconsSettingsTests": {
+      "cases": 8,
+      "milliseconds": 202
+    },
+    "MeowChan.DesktopTests.HeaderIoMarkerTests": {
+      "cases": 6,
+      "milliseconds": 41
+    },
+    "MeowChan.DesktopTests.HeaderIoMenuTests": {
+      "cases": 20,
+      "milliseconds": 6752
+    },
+    "MeowChan.DesktopTests.HeaderIoWordLocalizationTests": {
+      "cases": 40,
+      "milliseconds": 9276
+    },
+    "MeowChan.DesktopTests.HeaderThemeMenuTests": {
+      "cases": 22,
+      "milliseconds": 7131
+    },
+    "MeowChan.DesktopTests.HelpDocumentationTests": {
+      "cases": 154,
+      "milliseconds": 2348
+    },
+    "MeowChan.DesktopTests.HelpPlacesTests": {
+      "cases": 5,
+      "milliseconds": 1855
+    },
+    "MeowChan.DesktopTests.HelpPopoverTests": {
+      "cases": 16,
+      "milliseconds": 5844
+    },
+    "MeowChan.DesktopTests.HostFinalWriteAdmissionIntegrationTests": {
+      "cases": 24,
+      "milliseconds": 9661
+    },
+    "MeowChan.DesktopTests.HtmlExportActionLayoutBoundaryTests": {
+      "cases": 11,
+      "milliseconds": 51
+    },
+    "MeowChan.DesktopTests.HtmlExportButtonLabelTests": {
+      "cases": 11,
+      "milliseconds": 4103
+    },
+    "MeowChan.DesktopTests.HtmlExportDesktopLanguageSelectionTests": {
+      "cases": 2,
+      "milliseconds": 3
+    },
+    "MeowChan.DesktopTests.Hygiene.FireAndForgetHygieneTests": {
+      "cases": 21,
+      "milliseconds": 368
+    },
+    "MeowChan.DesktopTests.IconButtonConversionTests": {
+      "cases": 63,
+      "milliseconds": 374
+    },
+    "MeowChan.DesktopTests.IconMaskCatalogGuardTests": {
+      "cases": 9,
+      "milliseconds": 223
+    },
+    "MeowChan.DesktopTests.IconSquareDismissTests": {
+      "cases": 2,
+      "milliseconds": 22
+    },
+    "MeowChan.DesktopTests.IdentitySuggestionTests": {
+      "cases": 12,
+      "milliseconds": 1066
+    },
+    "MeowChan.DesktopTests.IncrementalRowReconciliationTests": {
+      "cases": 5,
+      "milliseconds": 67
+    },
+    "MeowChan.DesktopTests.InlineTextCatalogTests": {
+      "cases": 6,
+      "milliseconds": 2147
+    },
+    "MeowChan.DesktopTests.InteractionAuditTests": {
+      "cases": 20,
+      "milliseconds": 295
+    },
+    "MeowChan.DesktopTests.InterruptedTransferStartupTests": {
+      "cases": 3,
+      "milliseconds": 1558
+    },
+    "MeowChan.DesktopTests.IoDirectionalPipelineTests": {
+      "cases": 3,
+      "milliseconds": 31
+    },
+    "MeowChan.DesktopTests.IoGraphDirectionalTests": {
+      "cases": 10,
+      "milliseconds": 44
+    },
+    "MeowChan.DesktopTests.IoGraphGeometryTests": {
+      "cases": 14,
+      "milliseconds": 29
+    },
+    "MeowChan.DesktopTests.IoGraphNetworkDirectionalTests": {
+      "cases": 8,
+      "milliseconds": 9
+    },
+    "MeowChan.DesktopTests.IoGraphPenCacheTests": {
+      "cases": 14,
+      "milliseconds": 71
+    },
+    "MeowChan.DesktopTests.IoRingTests": {
+      "cases": 6,
+      "milliseconds": 38
+    },
+    "MeowChan.DesktopTests.IoStatsByteUnitsTests": {
+      "cases": 50,
+      "milliseconds": 70
+    },
+    "MeowChan.DesktopTests.IoStatsDisplayTests": {
+      "cases": 38,
+      "milliseconds": 13672
+    },
+    "MeowChan.DesktopTests.IoStatsHostWiringTests": {
+      "cases": 1,
+      "milliseconds": 3339
+    },
+    "MeowChan.DesktopTests.IoStatsHubPersistenceTests": {
+      "cases": 10,
+      "milliseconds": 796
+    },
+    "MeowChan.DesktopTests.IoStatsHubTests": {
+      "cases": 18,
+      "milliseconds": 500
+    },
+    "MeowChan.DesktopTests.IoStatsNetworkDirectionTests": {
+      "cases": 26,
+      "milliseconds": 191
+    },
+    "MeowChan.DesktopTests.IoStatsSettingsEditorTests": {
+      "cases": 6,
+      "milliseconds": 2805
+    },
+    "MeowChan.DesktopTests.IoStatsSettingsTests": {
+      "cases": 7,
+      "milliseconds": 314
+    },
+    "MeowChan.DesktopTests.IoStatsStoreTests": {
+      "cases": 30,
+      "milliseconds": 3117
+    },
+    "MeowChan.DesktopTests.KeyContextHostTests": {
+      "cases": 24,
+      "milliseconds": 3083
+    },
+    "MeowChan.DesktopTests.KeyNamesTests": {
+      "cases": 71,
+      "milliseconds": 15794
+    },
+    "MeowChan.DesktopTests.LanguageSwitchFooterTests": {
+      "cases": 6,
+      "milliseconds": 1367
+    },
+    "MeowChan.DesktopTests.LatestUiWorkTests": {
+      "cases": 4,
+      "milliseconds": 111
+    },
+    "MeowChan.DesktopTests.LeftypolWaveIntegrationTests": {
+      "cases": 2,
+      "milliseconds": 9334
+    },
+    "MeowChan.DesktopTests.LegacyRatingLocalizationTests": {
+      "cases": 12,
+      "milliseconds": 4388
+    },
+    "MeowChan.DesktopTests.LinuxHarfBuzzBootstrapTests": {
+      "cases": 2,
+      "milliseconds": 15
+    },
+    "MeowChan.DesktopTests.LinuxTrayHostTests": {
+      "cases": 10,
+      "milliseconds": 30
+    },
+    "MeowChan.DesktopTests.LinuxVideoPreflightTests": {
+      "cases": 22,
+      "milliseconds": 1952
+    },
+    "MeowChan.DesktopTests.ListItemEnterParityTests": {
+      "cases": 9,
+      "milliseconds": 2185
+    },
+    "MeowChan.DesktopTests.LiveSourceAcceptanceTests": {
+      "cases": 1,
+      "milliseconds": 1
+    },
+    "MeowChan.DesktopTests.LiveSourceAuditTransportTests": {
+      "cases": 22,
+      "milliseconds": 133
+    },
+    "MeowChan.DesktopTests.LocalFolderPickerTests": {
+      "cases": 7,
+      "milliseconds": 40
+    },
+    "MeowChan.DesktopTests.LocalMediaTagHostTests": {
+      "cases": 7,
+      "milliseconds": 14791
+    },
+    "MeowChan.DesktopTests.LocalSearchCatalogContractTests": {
+      "cases": 7,
+      "milliseconds": 1643
+    },
+    "MeowChan.DesktopTests.LocalSearchPackTranslationContractTests": {
+      "cases": 4,
+      "milliseconds": 1464
+    },
+    "MeowChan.DesktopTests.LocalizationTests": {
+      "cases": 31,
+      "milliseconds": 3652
+    },
+    "MeowChan.DesktopTests.MacMenuModelTests": {
+      "cases": 17,
+      "milliseconds": 223
+    },
+    "MeowChan.DesktopTests.MacShortcutDefaultsTests": {
+      "cases": 68,
+      "milliseconds": 4809
+    },
+    "MeowChan.DesktopTests.MainPageHeadingTests": {
+      "cases": 11,
+      "milliseconds": 31
+    },
+    "MeowChan.DesktopTests.MainPageOrderTests": {
+      "cases": 5,
+      "milliseconds": 62
+    },
+    "MeowChan.DesktopTests.MakabaUboachanWaveIntegrationTests": {
+      "cases": 6,
+      "milliseconds": 27949
+    },
+    "MeowChan.DesktopTests.ManualImportCatalogDamageTests": {
+      "cases": 9,
+      "milliseconds": 5118
+    },
+    "MeowChan.DesktopTests.ManualImportDesktopTests": {
+      "cases": 8,
+      "milliseconds": 3002
+    },
+    "MeowChan.DesktopTests.ManualImportKnownMediaSourceTests": {
+      "cases": 3,
+      "milliseconds": 110
+    },
+    "MeowChan.DesktopTests.MaximizedWindowEdgeRegressionTests": {
+      "cases": 26,
+      "milliseconds": 72
+    },
+    "MeowChan.DesktopTests.MediaBadgeTests": {
+      "cases": 104,
+      "milliseconds": 37697
+    },
+    "MeowChan.DesktopTests.MediaBooruModeTests": {
+      "cases": 6,
+      "milliseconds": 2056
+    },
+    "MeowChan.DesktopTests.MediaBooruOverflowRegistrationTests": {
+      "cases": 2,
+      "milliseconds": 8
+    },
+    "MeowChan.DesktopTests.MediaChipContextMenuTests": {
+      "cases": 35,
+      "milliseconds": 11442
+    },
+    "MeowChan.DesktopTests.MediaConflictsErrorTests": {
+      "cases": 10,
+      "milliseconds": 6217
+    },
+    "MeowChan.DesktopTests.MediaFilterChipRowTests": {
+      "cases": 6,
+      "milliseconds": 1833
+    },
+    "MeowChan.DesktopTests.MediaFilterChipTests": {
+      "cases": 29,
+      "milliseconds": 6458
+    },
+    "MeowChan.DesktopTests.MediaFilterGridTests": {
+      "cases": 73,
+      "milliseconds": 23405
+    },
+    "MeowChan.DesktopTests.MediaFilterQueryTests": {
+      "cases": 91,
+      "milliseconds": 32392
+    },
+    "MeowChan.DesktopTests.MediaFilterRecoveryTests": {
+      "cases": 2,
+      "milliseconds": 201
+    },
+    "MeowChan.DesktopTests.MediaFilterTermTests": {
+      "cases": 23,
+      "milliseconds": 166
+    },
+    "MeowChan.DesktopTests.MediaFocusFullscreenTests": {
+      "cases": 22,
+      "milliseconds": 5006
+    },
+    "MeowChan.DesktopTests.MediaFocusModeTests": {
+      "cases": 34,
+      "milliseconds": 11786
+    },
+    "MeowChan.DesktopTests.MediaHashRowTextTests": {
+      "cases": 5,
+      "milliseconds": 5
+    },
+    "MeowChan.DesktopTests.MediaHashSearchDialogTests": {
+      "cases": 23,
+      "milliseconds": 79
+    },
+    "MeowChan.DesktopTests.MediaHashSelectionContractTests": {
+      "cases": 3,
+      "milliseconds": 217
+    },
+    "MeowChan.DesktopTests.MediaIndexCacheLimitSettingTests": {
+      "cases": 6,
+      "milliseconds": 15
+    },
+    "MeowChan.DesktopTests.MediaInteractionExtraRegressionTests": {
+      "cases": 3,
+      "milliseconds": 629
+    },
+    "MeowChan.DesktopTests.MediaLibraryBadgeTests": {
+      "cases": 11,
+      "milliseconds": 2320
+    },
+    "MeowChan.DesktopTests.MediaLinkFolderCommandTests": {
+      "cases": 1,
+      "milliseconds": 303
+    },
+    "MeowChan.DesktopTests.MediaMenuCompositionTests": {
+      "cases": 18,
+      "milliseconds": 6785
+    },
+    "MeowChan.DesktopTests.MediaMenuHandlerGuardTests": {
+      "cases": 9,
+      "milliseconds": 1511
+    },
+    "MeowChan.DesktopTests.MediaPageLayoutTests": {
+      "cases": 53,
+      "milliseconds": 17951
+    },
+    "MeowChan.DesktopTests.MediaPageTermFilterTests": {
+      "cases": 6,
+      "milliseconds": 2070
+    },
+    "MeowChan.DesktopTests.MediaPanelKeysTests": {
+      "cases": 22,
+      "milliseconds": 8855
+    },
+    "MeowChan.DesktopTests.MediaPanelPageKeysTests": {
+      "cases": 19,
+      "milliseconds": 2025
+    },
+    "MeowChan.DesktopTests.MediaPanelTests": {
+      "cases": 18,
+      "milliseconds": 55
+    },
+    "MeowChan.DesktopTests.MediaQueueRefreshTests": {
+      "cases": 2,
+      "milliseconds": 200
+    },
+    "MeowChan.DesktopTests.MediaRatingHostTests": {
+      "cases": 3,
+      "milliseconds": 2235
+    },
+    "MeowChan.DesktopTests.MediaRatingsManagerLanguageRefreshTests": {
+      "cases": 19,
+      "milliseconds": 8054
+    },
+    "MeowChan.DesktopTests.MediaRuleHostAdmissionIntegrationTests": {
+      "cases": 10,
+      "milliseconds": 1758
+    },
+    "MeowChan.DesktopTests.MediaSelectionTagSessionTests": {
+      "cases": 4,
+      "milliseconds": 546
+    },
+    "MeowChan.DesktopTests.MediaShortcutRoutingTests": {
+      "cases": 43,
+      "milliseconds": 1625
+    },
+    "MeowChan.DesktopTests.MediaShowInThreadTests": {
+      "cases": 7,
+      "milliseconds": 3476
+    },
+    "MeowChan.DesktopTests.MediaSingleKeyShortcutTests": {
+      "cases": 13,
+      "milliseconds": 1387
+    },
+    "MeowChan.DesktopTests.MediaSlotGeometryTests": {
+      "cases": 17,
+      "milliseconds": 127
+    },
+    "MeowChan.DesktopTests.MediaSortToolbarContractTests": {
+      "cases": 50,
+      "milliseconds": 180
+    },
+    "MeowChan.DesktopTests.MediaSortTranslationTests": {
+      "cases": 11,
+      "milliseconds": 91
+    },
+    "MeowChan.DesktopTests.MediaTagCountsTests": {
+      "cases": 5,
+      "milliseconds": 1575
+    },
+    "MeowChan.DesktopTests.MediaTagListTests": {
+      "cases": 13,
+      "milliseconds": 2835
+    },
+    "MeowChan.DesktopTests.MediaTextBreakdownPageTests": {
+      "cases": 14,
+      "milliseconds": 3177
+    },
+    "MeowChan.DesktopTests.MediaTextBreakdownTests": {
+      "cases": 26,
+      "milliseconds": 9385
+    },
+    "MeowChan.DesktopTests.MediaThumbnailCacheBudgetTests": {
+      "cases": 8,
+      "milliseconds": 11
+    },
+    "MeowChan.DesktopTests.MediaTileEnterTests": {
+      "cases": 11,
+      "milliseconds": 2469
+    },
+    "MeowChan.DesktopTests.MediaTileTagChipTests": {
+      "cases": 10,
+      "milliseconds": 2248
+    },
+    "MeowChan.DesktopTests.MediaTileThumbnailsTests": {
+      "cases": 11,
+      "milliseconds": 516
+    },
+    "MeowChan.DesktopTests.MediaViewsDeadAffordanceTests": {
+      "cases": 18,
+      "milliseconds": 4593
+    },
+    "MeowChan.DesktopTests.MediaWorkViewTests": {
+      "cases": 8,
+      "milliseconds": 48
+    },
+    "MeowChan.DesktopTests.MenuAttachmentAndSpeedRefreshTests": {
+      "cases": 9,
+      "milliseconds": 498
+    },
+    "MeowChan.DesktopTests.MenuIconAuditTests": {
+      "cases": 9,
+      "milliseconds": 2146
+    },
+    "MeowChan.DesktopTests.MenuInsertAnchorTests": {
+      "cases": 3,
+      "milliseconds": 5
+    },
+    "MeowChan.DesktopTests.MenuInsertAnchorTests+ModifierTexts": {
+      "cases": 1,
+      "milliseconds": 360
+    },
+    "MeowChan.DesktopTests.MenuLayoutTests": {
+      "cases": 8,
+      "milliseconds": 2540
+    },
+    "MeowChan.DesktopTests.MessageSurfaceStyleTests": {
+      "cases": 18,
+      "milliseconds": 750
+    },
+    "MeowChan.DesktopTests.MinimumBelowDefaultSettingsTests": {
+      "cases": 3,
+      "milliseconds": 205
+    },
+    "MeowChan.DesktopTests.MotionPolicyTests": {
+      "cases": 57,
+      "milliseconds": 322
+    },
+    "MeowChan.DesktopTests.MouseKeyboardQuickWinsTests": {
+      "cases": 28,
+      "milliseconds": 11438
+    },
+    "MeowChan.DesktopTests.MultiTagEntryTests": {
+      "cases": 13,
+      "milliseconds": 5112
+    },
+    "MeowChan.DesktopTests.NarrowContentLayoutTests": {
+      "cases": 10,
+      "milliseconds": 140
+    },
+    "MeowChan.DesktopTests.NarrowShellLayoutTests": {
+      "cases": 31,
+      "milliseconds": 10241
+    },
+    "MeowChan.DesktopTests.NativeDownloadPathTests": {
+      "cases": 3,
+      "milliseconds": 65
+    },
+    "MeowChan.DesktopTests.NativeTransferImportHostTests": {
+      "cases": 10,
+      "milliseconds": 6129
+    },
+    "MeowChan.DesktopTests.NativeTransferImportLifetimeTests": {
+      "cases": 16,
+      "milliseconds": 13461
+    },
+    "MeowChan.DesktopTests.NativeTransferPreviewEntrypointTests": {
+      "cases": 4,
+      "milliseconds": 105
+    },
+    "MeowChan.DesktopTests.NativeTransferPreviewLocalizationTests": {
+      "cases": 20,
+      "milliseconds": 6286
+    },
+    "MeowChan.DesktopTests.NativeTransferPreviewSessionTests": {
+      "cases": 14,
+      "milliseconds": 380
+    },
+    "MeowChan.DesktopTests.NativeTransferStartupRecoveryHostTests": {
+      "cases": 17,
+      "milliseconds": 6333
+    },
+    "MeowChan.DesktopTests.NativeV4TransferImportHostTests": {
+      "cases": 9,
+      "milliseconds": 13328
+    },
+    "MeowChan.DesktopTests.NativeVideoOverlayClipTests": {
+      "cases": 3,
+      "milliseconds": 19
+    },
+    "MeowChan.DesktopTests.NativeVideoOverlayVisibilityTests": {
+      "cases": 5,
+      "milliseconds": 5
+    },
+    "MeowChan.DesktopTests.NavJumpsTests": {
+      "cases": 11,
+      "milliseconds": 1061
+    },
+    "MeowChan.DesktopTests.NavigationMediaShortcutTests": {
+      "cases": 37,
+      "milliseconds": 16050
+    },
+    "MeowChan.DesktopTests.NewSourceWaveLiveAcceptanceTests": {
+      "cases": 1,
+      "milliseconds": 1
+    },
+    "MeowChan.DesktopTests.NotificationMenuTests": {
+      "cases": 2,
+      "milliseconds": 633
+    },
+    "MeowChan.DesktopTests.NotificationPreferenceTests": {
+      "cases": 5,
+      "milliseconds": 662
+    },
+    "MeowChan.DesktopTests.OfflineLegalCatalogTests": {
+      "cases": 5,
+      "milliseconds": 670
+    },
+    "MeowChan.DesktopTests.OsMotionSignalDiagnosticsTests": {
+      "cases": 9,
+      "milliseconds": 496
+    },
+    "MeowChan.DesktopTests.OverlayFrameTests": {
+      "cases": 22,
+      "milliseconds": 238
+    },
+    "MeowChan.DesktopTests.OversizedSettingsFileTests": {
+      "cases": 2,
+      "milliseconds": 37
+    },
+    "MeowChan.DesktopTests.PageGridStyleTests": {
+      "cases": 15,
+      "milliseconds": 97
+    },
+    "MeowChan.DesktopTests.PageHeaderContractTests": {
+      "cases": 33,
+      "milliseconds": 101
+    },
+    "MeowChan.DesktopTests.PageKeySchemeTests": {
+      "cases": 21,
+      "milliseconds": 11139
+    },
+    "MeowChan.DesktopTests.PaletteContrastTests": {
+      "cases": 61,
+      "milliseconds": 22954
+    },
+    "MeowChan.DesktopTests.PassiveMediaProvenanceTests": {
+      "cases": 2,
+      "milliseconds": 181
+    },
+    "MeowChan.DesktopTests.PassiveRowTests": {
+      "cases": 3,
+      "milliseconds": 12
+    },
+    "MeowChan.DesktopTests.PlatformSummaryTests": {
+      "cases": 16,
+      "milliseconds": 23
+    },
+    "MeowChan.DesktopTests.PlaybackIntentInteractionTests": {
+      "cases": 22,
+      "milliseconds": 322
+    },
+    "MeowChan.DesktopTests.PluginActionTargetTests": {
+      "cases": 6,
+      "milliseconds": 16
+    },
+    "MeowChan.DesktopTests.PluginAddTextsTests": {
+      "cases": 2,
+      "milliseconds": 775
+    },
+    "MeowChan.DesktopTests.PluginChangeReviewTests": {
+      "cases": 20,
+      "milliseconds": 853
+    },
+    "MeowChan.DesktopTests.PluginConfigurationEffectiveDefaultsTests": {
+      "cases": 2,
+      "milliseconds": 13
+    },
+    "MeowChan.DesktopTests.PluginConfigurationFieldErrorTests": {
+      "cases": 2,
+      "milliseconds": 21
+    },
+    "MeowChan.DesktopTests.PluginConsentGenerationRegressionTests": {
+      "cases": 4,
+      "milliseconds": 3324
+    },
+    "MeowChan.DesktopTests.PluginEarlyProbeTests": {
+      "cases": 4,
+      "milliseconds": 7564
+    },
+    "MeowChan.DesktopTests.PluginEntryPresentationTests": {
+      "cases": 16,
+      "milliseconds": 115
+    },
+    "MeowChan.DesktopTests.PluginErrorLanguageRefreshTests": {
+      "cases": 26,
+      "milliseconds": 8379
+    },
+    "MeowChan.DesktopTests.PluginFileImportTests": {
+      "cases": 21,
+      "milliseconds": 1551
+    },
+    "MeowChan.DesktopTests.PluginFooterLanguageTransitionBoundaryTests": {
+      "cases": 7,
+      "milliseconds": 2572
+    },
+    "MeowChan.DesktopTests.PluginImportStagingTests": {
+      "cases": 56,
+      "milliseconds": 2223
+    },
+    "MeowChan.DesktopTests.PluginLifecycleStepsTests": {
+      "cases": 12,
+      "milliseconds": 72
+    },
+    "MeowChan.DesktopTests.PluginManagementTests": {
+      "cases": 13,
+      "milliseconds": 63
+    },
+    "MeowChan.DesktopTests.PluginMultiApprovalTests": {
+      "cases": 48,
+      "milliseconds": 39962
+    },
+    "MeowChan.DesktopTests.PluginProbeLanguageRefreshTests": {
+      "cases": 11,
+      "milliseconds": 3630
+    },
+    "MeowChan.DesktopTests.PluginSettingsFormContractTests": {
+      "cases": 5,
+      "milliseconds": 44
+    },
+    "MeowChan.DesktopTests.PluginSettingsSchemaRebindTests": {
+      "cases": 3,
+      "milliseconds": 26
+    },
+    "MeowChan.DesktopTests.PluginStartupIsolationTests": {
+      "cases": 19,
+      "milliseconds": 5758
+    },
+    "MeowChan.DesktopTests.PluginsRenameMediaFoldersTests": {
+      "cases": 6,
+      "milliseconds": 2108
+    },
+    "MeowChan.DesktopTests.PluralCountTextTests": {
+      "cases": 44,
+      "milliseconds": 17767
+    },
+    "MeowChan.DesktopTests.PostBookmarkHostTests": {
+      "cases": 3,
+      "milliseconds": 7011
+    },
+    "MeowChan.DesktopTests.PostExcerptTests": {
+      "cases": 1,
+      "milliseconds": 302
+    },
+    "MeowChan.DesktopTests.PostFilterDialogModelTests": {
+      "cases": 13,
+      "milliseconds": 915
+    },
+    "MeowChan.DesktopTests.PostFilterMatcherTests": {
+      "cases": 10,
+      "milliseconds": 65
+    },
+    "MeowChan.DesktopTests.PowerUserCommandTests": {
+      "cases": 14,
+      "milliseconds": 837
+    },
+    "MeowChan.DesktopTests.PreferenceStartupSafetyTests": {
+      "cases": 21,
+      "milliseconds": 2545
+    },
+    "MeowChan.DesktopTests.PreviewLanguagePackTests": {
+      "cases": 13,
+      "milliseconds": 1927
+    },
+    "MeowChan.DesktopTests.PrivateTagArchiveHostTests": {
+      "cases": 3,
+      "milliseconds": 2708
+    },
+    "MeowChan.DesktopTests.PrivateTagHostTests": {
+      "cases": 5,
+      "milliseconds": 5007
+    },
+    "MeowChan.DesktopTests.PrivateTagLimitSettingsTests": {
+      "cases": 5,
+      "milliseconds": 682
+    },
+    "MeowChan.DesktopTests.ProfileDialogResponsivenessTests": {
+      "cases": 24,
+      "milliseconds": 14384
+    },
+    "MeowChan.DesktopTests.ProfileExclusiveOutcomeHostTests": {
+      "cases": 12,
+      "milliseconds": 7543
+    },
+    "MeowChan.DesktopTests.ProfileMediaFolderTests": {
+      "cases": 21,
+      "milliseconds": 9125
+    },
+    "MeowChan.DesktopTests.ProfileProducerDesktopAdmissionTests": {
+      "cases": 3,
+      "milliseconds": 1587
+    },
+    "MeowChan.DesktopTests.ProfileProducerPartialActivationFailureTests": {
+      "cases": 5,
+      "milliseconds": 2380
+    },
+    "MeowChan.DesktopTests.ProfileSwitchTests": {
+      "cases": 20,
+      "milliseconds": 214
+    },
+    "MeowChan.DesktopTests.ProviderMd5DropArchiveTests": {
+      "cases": 7,
+      "milliseconds": 14638
+    },
+    "MeowChan.DesktopTests.QuickSettingsTests": {
+      "cases": 15,
+      "milliseconds": 5673
+    },
+    "MeowChan.DesktopTests.QuickTagCommandTests": {
+      "cases": 17,
+      "milliseconds": 906
+    },
+    "MeowChan.DesktopTests.QuickTagGallerySettingsTests": {
+      "cases": 3,
+      "milliseconds": 17
+    },
+    "MeowChan.DesktopTests.QuickTagLimitSettingsTests": {
+      "cases": 8,
+      "milliseconds": 101
+    },
+    "MeowChan.DesktopTests.QuickTagPopoverContextTests": {
+      "cases": 2,
+      "milliseconds": 19
+    },
+    "MeowChan.DesktopTests.QuickTagPopoverTests": {
+      "cases": 27,
+      "milliseconds": 6638
+    },
+    "MeowChan.DesktopTests.QuickTagStampConfigTests": {
+      "cases": 7,
+      "milliseconds": 29
+    },
+    "MeowChan.DesktopTests.QuickTagStampSourceTests": {
+      "cases": 25,
+      "milliseconds": 6320
+    },
+    "MeowChan.DesktopTests.QuickTagStripFitTests": {
+      "cases": 31,
+      "milliseconds": 6979
+    },
+    "MeowChan.DesktopTests.QuickTagSurfaceTests": {
+      "cases": 82,
+      "milliseconds": 27902
+    },
+    "MeowChan.DesktopTests.QuickWinMenusDeleteTests": {
+      "cases": 6,
+      "milliseconds": 1574
+    },
+    "MeowChan.DesktopTests.QuotePreviewMediaTests": {
+      "cases": 20,
+      "milliseconds": 5468
+    },
+    "MeowChan.DesktopTests.RateAndTagMediaPageKeyTests": {
+      "cases": 8,
+      "milliseconds": 1602
+    },
+    "MeowChan.DesktopTests.RateAndTagPopoverCloseTests": {
+      "cases": 27,
+      "milliseconds": 9805
+    },
+    "MeowChan.DesktopTests.RateAndTagSurfaceTests": {
+      "cases": 14,
+      "milliseconds": 5559
+    },
+    "MeowChan.DesktopTests.ReaderBackgroundPagingTests": {
+      "cases": 11,
+      "milliseconds": 4845
+    },
+    "MeowChan.DesktopTests.ReaderBodyFormattingTests": {
+      "cases": 24,
+      "milliseconds": 32
+    },
+    "MeowChan.DesktopTests.ReaderConversationLayoutTests": {
+      "cases": 3,
+      "milliseconds": 142
+    },
+    "MeowChan.DesktopTests.ReaderConversationOrderingTests": {
+      "cases": 13,
+      "milliseconds": 385
+    },
+    "MeowChan.DesktopTests.ReaderConversationTreeTests": {
+      "cases": 33,
+      "milliseconds": 440
+    },
+    "MeowChan.DesktopTests.ReaderDateTextTests": {
+      "cases": 7,
+      "milliseconds": 1687
+    },
+    "MeowChan.DesktopTests.ReaderDisplayLimitsTests": {
+      "cases": 41,
+      "milliseconds": 104
+    },
+    "MeowChan.DesktopTests.ReaderDisplayPreferencesTests": {
+      "cases": 21,
+      "milliseconds": 26
+    },
+    "MeowChan.DesktopTests.ReaderExpandRepliesTests": {
+      "cases": 16,
+      "milliseconds": 5157
+    },
+    "MeowChan.DesktopTests.ReaderExternalLinkTests": {
+      "cases": 59,
+      "milliseconds": 265
+    },
+    "MeowChan.DesktopTests.ReaderFindShortcutTests": {
+      "cases": 6,
+      "milliseconds": 6
+    },
+    "MeowChan.DesktopTests.ReaderFontsTests": {
+      "cases": 49,
+      "milliseconds": 167
+    },
+    "MeowChan.DesktopTests.ReaderGalleryAdornerLifetimeTests": {
+      "cases": 2,
+      "milliseconds": 183
+    },
+    "MeowChan.DesktopTests.ReaderGalleryReturnTests": {
+      "cases": 3,
+      "milliseconds": 3
+    },
+    "MeowChan.DesktopTests.ReaderGroupHostAdmissionIntegrationTests": {
+      "cases": 22,
+      "milliseconds": 3584
+    },
+    "MeowChan.DesktopTests.ReaderGroupNoticeLocalizationTests": {
+      "cases": 10,
+      "milliseconds": 3158
+    },
+    "MeowChan.DesktopTests.ReaderGroupsLanguageRefreshTests": {
+      "cases": 28,
+      "milliseconds": 6767
+    },
+    "MeowChan.DesktopTests.ReaderGroupsPresentationStateRegressionTests": {
+      "cases": 10,
+      "milliseconds": 3964
+    },
+    "MeowChan.DesktopTests.ReaderGroupsTests": {
+      "cases": 3,
+      "milliseconds": 1457
+    },
+    "MeowChan.DesktopTests.ReaderIdeasTests": {
+      "cases": 13,
+      "milliseconds": 27
+    },
+    "MeowChan.DesktopTests.ReaderInlineVideoBarTests": {
+      "cases": 18,
+      "milliseconds": 4778
+    },
+    "MeowChan.DesktopTests.ReaderInlineVideoTests": {
+      "cases": 42,
+      "milliseconds": 14554
+    },
+    "MeowChan.DesktopTests.ReaderMediaActivationTests": {
+      "cases": 21,
+      "milliseconds": 8089
+    },
+    "MeowChan.DesktopTests.ReaderMediaClickTests": {
+      "cases": 34,
+      "milliseconds": 8767
+    },
+    "MeowChan.DesktopTests.ReaderMediaFitTests": {
+      "cases": 39,
+      "milliseconds": 9056
+    },
+    "MeowChan.DesktopTests.ReaderMediaLayoutSwitchTests": {
+      "cases": 6,
+      "milliseconds": 1181
+    },
+    "MeowChan.DesktopTests.ReaderMediaPanelTests": {
+      "cases": 2,
+      "milliseconds": 385
+    },
+    "MeowChan.DesktopTests.ReaderMediaSidebarLoadStateTests": {
+      "cases": 21,
+      "milliseconds": 7335
+    },
+    "MeowChan.DesktopTests.ReaderMediaSidebarTests": {
+      "cases": 41,
+      "milliseconds": 10229
+    },
+    "MeowChan.DesktopTests.ReaderMediaSizeTests": {
+      "cases": 23,
+      "milliseconds": 45
+    },
+    "MeowChan.DesktopTests.ReaderMultiMediaTests": {
+      "cases": 51,
+      "milliseconds": 17282
+    },
+    "MeowChan.DesktopTests.ReaderNavigationBarTests": {
+      "cases": 38,
+      "milliseconds": 8991
+    },
+    "MeowChan.DesktopTests.ReaderNavigationLayoutTests": {
+      "cases": 19,
+      "milliseconds": 20
+    },
+    "MeowChan.DesktopTests.ReaderPageDeadAffordanceTests": {
+      "cases": 6,
+      "milliseconds": 243
+    },
+    "MeowChan.DesktopTests.ReaderPostLayoutTests": {
+      "cases": 3,
+      "milliseconds": 158
+    },
+    "MeowChan.DesktopTests.ReaderPostProjectionTests": {
+      "cases": 22,
+      "milliseconds": 483
+    },
+    "MeowChan.DesktopTests.ReaderPostStarTests": {
+      "cases": 5,
+      "milliseconds": 1581
+    },
+    "MeowChan.DesktopTests.ReaderPostSurfaceTests": {
+      "cases": 33,
+      "milliseconds": 221
+    },
+    "MeowChan.DesktopTests.ReaderPostWidthTests": {
+      "cases": 16,
+      "milliseconds": 5026
+    },
+    "MeowChan.DesktopTests.ReaderPreviewReservationTests": {
+      "cases": 20,
+      "milliseconds": 128
+    },
+    "MeowChan.DesktopTests.ReaderQuoteGraphTests": {
+      "cases": 3,
+      "milliseconds": 68
+    },
+    "MeowChan.DesktopTests.ReaderReplyCardStateRegressionTests": {
+      "cases": 14,
+      "milliseconds": 454
+    },
+    "MeowChan.DesktopTests.ReaderScrollOwnerTests": {
+      "cases": 10,
+      "milliseconds": 10
+    },
+    "MeowChan.DesktopTests.ReaderSettingsEditorTests": {
+      "cases": 95,
+      "milliseconds": 35177
+    },
+    "MeowChan.DesktopTests.ReaderSettingsExcerptTests": {
+      "cases": 5,
+      "milliseconds": 16
+    },
+    "MeowChan.DesktopTests.ReaderSettingsPersistenceTests": {
+      "cases": 35,
+      "milliseconds": 1475
+    },
+    "MeowChan.DesktopTests.ReaderSidebarAlignmentTests": {
+      "cases": 16,
+      "milliseconds": 30
+    },
+    "MeowChan.DesktopTests.ReaderSidebarShortcutTests": {
+      "cases": 53,
+      "milliseconds": 5854
+    },
+    "MeowChan.DesktopTests.ReaderSpaceEnterTests": {
+      "cases": 24,
+      "milliseconds": 3146
+    },
+    "MeowChan.DesktopTests.ReaderSpoilerOutlineTests": {
+      "cases": 6,
+      "milliseconds": 25
+    },
+    "MeowChan.DesktopTests.ReaderStateGatesAndHostingTests": {
+      "cases": 9,
+      "milliseconds": 120
+    },
+    "MeowChan.DesktopTests.ReaderThreadFindIndexTests": {
+      "cases": 7,
+      "milliseconds": 53
+    },
+    "MeowChan.DesktopTests.ReaderThreadFindUiTests": {
+      "cases": 30,
+      "milliseconds": 129
+    },
+    "MeowChan.DesktopTests.ReaderThreadMenuTests": {
+      "cases": 9,
+      "milliseconds": 2926
+    },
+    "MeowChan.DesktopTests.ReaderToolbarRl1Tests": {
+      "cases": 11,
+      "milliseconds": 3521
+    },
+    "MeowChan.DesktopTests.ReaderVideoKeysAndMenuTests": {
+      "cases": 19,
+      "milliseconds": 31
+    },
+    "MeowChan.DesktopTests.ReaderVideoKeysYieldTests": {
+      "cases": 7,
+      "milliseconds": 39079
+    },
+    "MeowChan.DesktopTests.ReaderVideoPopoverTests": {
+      "cases": 14,
+      "milliseconds": 3219
+    },
+    "MeowChan.DesktopTests.ReaderWorkViewTests": {
+      "cases": 11,
+      "milliseconds": 43
+    },
+    "MeowChan.DesktopTests.ReadingHistoryRh1Tests": {
+      "cases": 35,
+      "milliseconds": 13135
+    },
+    "MeowChan.DesktopTests.ReadingHistoryTests": {
+      "cases": 21,
+      "milliseconds": 2738
+    },
+    "MeowChan.DesktopTests.ReadingPositionTests": {
+      "cases": 6,
+      "milliseconds": 7083
+    },
+    "MeowChan.DesktopTests.Release102PlaybackTests": {
+      "cases": 5,
+      "milliseconds": 1272
+    },
+    "MeowChan.DesktopTests.Release102UpgradeTests": {
+      "cases": 2,
+      "milliseconds": 5727
+    },
+    "MeowChan.DesktopTests.Released102RestPackageUpgradeTests": {
+      "cases": 13,
+      "milliseconds": 19
+    },
+    "MeowChan.DesktopTests.RetiredShortcutCommandTests": {
+      "cases": 2,
+      "milliseconds": 194
+    },
+    "MeowChan.DesktopTests.RowRefreshTests": {
+      "cases": 3,
+      "milliseconds": 101
+    },
+    "MeowChan.DesktopTests.RuleDraftStateTests": {
+      "cases": 7,
+      "milliseconds": 9
+    },
+    "MeowChan.DesktopTests.RuleSizeUnitTests": {
+      "cases": 18,
+      "milliseconds": 104
+    },
+    "MeowChan.DesktopTests.RuleTemplateHostAdmissionIntegrationTests": {
+      "cases": 5,
+      "milliseconds": 880
+    },
+    "MeowChan.DesktopTests.RulesOverviewTests": {
+      "cases": 12,
+      "milliseconds": 31
+    },
+    "MeowChan.DesktopTests.RulesPageValidationContractTests": {
+      "cases": 4,
+      "milliseconds": 70
+    },
+    "MeowChan.DesktopTests.RulesRowMenuTests": {
+      "cases": 7,
+      "milliseconds": 2294
+    },
+    "MeowChan.DesktopTests.SavedArchiveSearchHostAdmissionIntegrationTests": {
+      "cases": 21,
+      "milliseconds": 3924
+    },
+    "MeowChan.DesktopTests.SavedSearchUnavailableReasonTests": {
+      "cases": 8,
+      "milliseconds": 9
+    },
+    "MeowChan.DesktopTests.SearchBoxTests": {
+      "cases": 16,
+      "milliseconds": 5770
+    },
+    "MeowChan.DesktopTests.SecondaryLanguageRefreshRegressionTests": {
+      "cases": 31,
+      "milliseconds": 10956
+    },
+    "MeowChan.DesktopTests.SecondarySettingsLocalizationGalleryTests": {
+      "cases": 6,
+      "milliseconds": 3069
+    },
+    "MeowChan.DesktopTests.SecondarySettingsLocalizationShortcutTests": {
+      "cases": 6,
+      "milliseconds": 3023
+    },
+    "MeowChan.DesktopTests.SessionFeedbackTests": {
+      "cases": 37,
+      "milliseconds": 226
+    },
+    "MeowChan.DesktopTests.SettingsApplyFocusTests": {
+      "cases": 6,
+      "milliseconds": 6
+    },
+    "MeowChan.DesktopTests.SettingsConditionalRowTests": {
+      "cases": 11,
+      "milliseconds": 41
+    },
+    "MeowChan.DesktopTests.SettingsExportUiTests": {
+      "cases": 25,
+      "milliseconds": 122
+    },
+    "MeowChan.DesktopTests.SettingsHintLintTests": {
+      "cases": 52,
+      "milliseconds": 96
+    },
+    "MeowChan.DesktopTests.SettingsLanguageRefreshStateTests": {
+      "cases": 3,
+      "milliseconds": 1027
+    },
+    "MeowChan.DesktopTests.SettingsLimitsUiTests": {
+      "cases": 5,
+      "milliseconds": 39
+    },
+    "MeowChan.DesktopTests.SettingsOverviewIntegrationTests": {
+      "cases": 3,
+      "milliseconds": 52
+    },
+    "MeowChan.DesktopTests.SettingsRecoveryStartupTests": {
+      "cases": 16,
+      "milliseconds": 5599
+    },
+    "MeowChan.DesktopTests.SettingsResetContractTests": {
+      "cases": 4,
+      "milliseconds": 41
+    },
+    "MeowChan.DesktopTests.SettingsRowMenuTests": {
+      "cases": 3,
+      "milliseconds": 1321
+    },
+    "MeowChan.DesktopTests.SettingsSearchAnnouncementTests": {
+      "cases": 8,
+      "milliseconds": 1979
+    },
+    "MeowChan.DesktopTests.SettingsSearchEnterGuardTests": {
+      "cases": 2,
+      "milliseconds": 2
+    },
+    "MeowChan.DesktopTests.SettingsSearchMatcherTests": {
+      "cases": 28,
+      "milliseconds": 10821
+    },
+    "MeowChan.DesktopTests.SettingsSearchPresentationTests": {
+      "cases": 24,
+      "milliseconds": 972
+    },
+    "MeowChan.DesktopTests.SettingsSearchSessionTests": {
+      "cases": 13,
+      "milliseconds": 3411
+    },
+    "MeowChan.DesktopTests.SettingsTransferTests": {
+      "cases": 24,
+      "milliseconds": 56
+    },
+    "MeowChan.DesktopTests.SettingsUniformLayoutTests": {
+      "cases": 10,
+      "milliseconds": 79
+    },
+    "MeowChan.DesktopTests.ShellAuditTests": {
+      "cases": 38,
+      "milliseconds": 1763
+    },
+    "MeowChan.DesktopTests.ShellGuardSweepTests": {
+      "cases": 6,
+      "milliseconds": 41
+    },
+    "MeowChan.DesktopTests.ShellReachabilityTests": {
+      "cases": 32,
+      "milliseconds": 7686
+    },
+    "MeowChan.DesktopTests.ShellRoutingGuardTests": {
+      "cases": 18,
+      "milliseconds": 308
+    },
+    "MeowChan.DesktopTests.ShiftLetterSchemeTests": {
+      "cases": 9,
+      "milliseconds": 39
+    },
+    "MeowChan.DesktopTests.ShortcutBindingsCommitTests": {
+      "cases": 3,
+      "milliseconds": 371
+    },
+    "MeowChan.DesktopTests.ShortcutBindingsTests": {
+      "cases": 38,
+      "milliseconds": 2161
+    },
+    "MeowChan.DesktopTests.ShortcutDraftSessionTests": {
+      "cases": 10,
+      "milliseconds": 1523
+    },
+    "MeowChan.DesktopTests.ShortcutEditorLiveLanguageStateTests": {
+      "cases": 22,
+      "milliseconds": 25182
+    },
+    "MeowChan.DesktopTests.ShortcutIssueBundledPackTests": {
+      "cases": 3,
+      "milliseconds": 577
+    },
+    "MeowChan.DesktopTests.ShortcutIssueLocalizationTests": {
+      "cases": 12,
+      "milliseconds": 8407
+    },
+    "MeowChan.DesktopTests.ShortcutServiceRefreshTests": {
+      "cases": 3,
+      "milliseconds": 13
+    },
+    "MeowChan.DesktopTests.ShortcutTableModelTests": {
+      "cases": 23,
+      "milliseconds": 8466
+    },
+    "MeowChan.DesktopTests.ShortcutsWindowTests": {
+      "cases": 13,
+      "milliseconds": 5030
+    },
+    "MeowChan.DesktopTests.SingleKeySwitchTests": {
+      "cases": 20,
+      "milliseconds": 810
+    },
+    "MeowChan.DesktopTests.SmokeCleanupTests": {
+      "cases": 6,
+      "milliseconds": 117
+    },
+    "MeowChan.DesktopTests.SmokeDeterminismTests": {
+      "cases": 8,
+      "milliseconds": 134
+    },
+    "MeowChan.DesktopTests.SmokeScenariosTests": {
+      "cases": 28,
+      "milliseconds": 236
+    },
+    "MeowChan.DesktopTests.SmokeSelectorsTests": {
+      "cases": 57,
+      "milliseconds": 279
+    },
+    "MeowChan.DesktopTests.SmokeStartupContractTests": {
+      "cases": 2,
+      "milliseconds": 767
+    },
+    "MeowChan.DesktopTests.SourceIntegrityLiveAcceptanceTests": {
+      "cases": 1,
+      "milliseconds": 1
+    },
+    "MeowChan.DesktopTests.SourceIntegrityLiveTransportTests": {
+      "cases": 8,
+      "milliseconds": 98
+    },
+    "MeowChan.DesktopTests.SourceMediaIntegrityPolicyTests": {
+      "cases": 8,
+      "milliseconds": 29
+    },
+    "MeowChan.DesktopTests.SourceScanGuardTests": {
+      "cases": 4,
+      "milliseconds": 34724
+    },
+    "MeowChan.DesktopTests.SourceTierLiveLanguageBoundaryTests": {
+      "cases": 6,
+      "milliseconds": 858
+    },
+    "MeowChan.DesktopTests.SourceWaveProcessRestartTests": {
+      "cases": 1,
+      "milliseconds": 1
+    },
+    "MeowChan.DesktopTests.SourceWordingTests": {
+      "cases": 13,
+      "milliseconds": 2557
+    },
+    "MeowChan.DesktopTests.SourcesFocusFallbackTests": {
+      "cases": 3,
+      "milliseconds": 1372
+    },
+    "MeowChan.DesktopTests.SourcesItemEnterTests": {
+      "cases": 8,
+      "milliseconds": 2317
+    },
+    "MeowChan.DesktopTests.SourcesPluginsDesktopContractTests": {
+      "cases": 20,
+      "milliseconds": 171
+    },
+    "MeowChan.DesktopTests.SourcesPluginsMergeTests": {
+      "cases": 13,
+      "milliseconds": 203
+    },
+    "MeowChan.DesktopTests.SourcesTests": {
+      "cases": 4,
+      "milliseconds": 561
+    },
+    "MeowChan.DesktopTests.StabilityHarnessUnitTests": {
+      "cases": 81,
+      "milliseconds": 1015
+    },
+    "MeowChan.DesktopTests.StabilityRunLiveTests": {
+      "cases": 1,
+      "milliseconds": 1
+    },
+    "MeowChan.DesktopTests.StabilityRunnerHostTests": {
+      "cases": 23,
+      "milliseconds": 207000
+    },
+    "MeowChan.DesktopTests.StartupIsolationIntegrationTests": {
+      "cases": 2,
+      "milliseconds": 16270
+    },
+    "MeowChan.DesktopTests.StartupPreviewHostTests": {
+      "cases": 11,
+      "milliseconds": 13048
+    },
+    "MeowChan.DesktopTests.StartupPreviewResponsivenessRegressionTests": {
+      "cases": 5,
+      "milliseconds": 2786
+    },
+    "MeowChan.DesktopTests.StartupPreviewSpecialFileRegressionTests": {
+      "cases": 2,
+      "milliseconds": 567
+    },
+    "MeowChan.DesktopTests.StartupPreviewStoreTests": {
+      "cases": 18,
+      "milliseconds": 803
+    },
+    "MeowChan.DesktopTests.StartupPreviewUnsupportedPlatformTests": {
+      "cases": 6,
+      "milliseconds": 2592
+    },
+    "MeowChan.DesktopTests.StatFooterLayoutTests": {
+      "cases": 23,
+      "milliseconds": 209
+    },
+    "MeowChan.DesktopTests.StatisticsReadabilityTests": {
+      "cases": 47,
+      "milliseconds": 17771
+    },
+    "MeowChan.DesktopTests.StatisticsResetContractTests": {
+      "cases": 30,
+      "milliseconds": 57
+    },
+    "MeowChan.DesktopTests.StatisticsRowMenuTests": {
+      "cases": 5,
+      "milliseconds": 941
+    },
+    "MeowChan.DesktopTests.StatsHeaderGraphTests": {
+      "cases": 89,
+      "milliseconds": 19012
+    },
+    "MeowChan.DesktopTests.StatusDeepLinkTests": {
+      "cases": 27,
+      "milliseconds": 10672
+    },
+    "MeowChan.DesktopTests.StatusNavigationTests": {
+      "cases": 33,
+      "milliseconds": 7369
+    },
+    "MeowChan.DesktopTests.StorageLimitsSectionTests": {
+      "cases": 11,
+      "milliseconds": 4397
+    },
+    "MeowChan.DesktopTests.StoreBackupBlockedTextTests": {
+      "cases": 2,
+      "milliseconds": 706
+    },
+    "MeowChan.DesktopTests.StoreLimitSettingsTests": {
+      "cases": 10,
+      "milliseconds": 424
+    },
+    "MeowChan.DesktopTests.StoreLimitWarningTests": {
+      "cases": 3,
+      "milliseconds": 461
+    },
+    "MeowChan.DesktopTests.StyleKeyOverrideGuardTests": {
+      "cases": 2,
+      "milliseconds": 147
+    },
+    "MeowChan.DesktopTests.SurfaceStyleTests": {
+      "cases": 10,
+      "milliseconds": 408
+    },
+    "MeowChan.DesktopTests.SushiZzzWaveIntegrationTests": {
+      "cases": 4,
+      "milliseconds": 35553
+    },
+    "MeowChan.DesktopTests.TagChipMenuTests": {
+      "cases": 5,
+      "milliseconds": 901
+    },
+    "MeowChan.DesktopTests.TagContextSuggestionTests": {
+      "cases": 51,
+      "milliseconds": 4786
+    },
+    "MeowChan.DesktopTests.TagFilterPickerTests": {
+      "cases": 26,
+      "milliseconds": 5389
+    },
+    "MeowChan.DesktopTests.TagManagerSessionTests": {
+      "cases": 7,
+      "milliseconds": 573
+    },
+    "MeowChan.DesktopTests.TagMergeEntryTests": {
+      "cases": 7,
+      "milliseconds": 3325
+    },
+    "MeowChan.DesktopTests.TagQueueHostTests": {
+      "cases": 20,
+      "milliseconds": 10514
+    },
+    "MeowChan.DesktopTests.TagSuggestionTests": {
+      "cases": 19,
+      "milliseconds": 4211
+    },
+    "MeowChan.DesktopTests.TagToggleListTests": {
+      "cases": 11,
+      "milliseconds": 2730
+    },
+    "MeowChan.DesktopTests.TaggingDecisionLogTests": {
+      "cases": 13,
+      "milliseconds": 4323
+    },
+    "MeowChan.DesktopTests.TaggingModeKeyRouteTests": {
+      "cases": 10,
+      "milliseconds": 4528
+    },
+    "MeowChan.DesktopTests.TaggingPageLinksTests": {
+      "cases": 7,
+      "milliseconds": 1269
+    },
+    "MeowChan.DesktopTests.TaggingPageMenuTests": {
+      "cases": 14,
+      "milliseconds": 3247
+    },
+    "MeowChan.DesktopTests.TaggingPageSelectionTests": {
+      "cases": 6,
+      "milliseconds": 1068
+    },
+    "MeowChan.DesktopTests.TaggingPageTests": {
+      "cases": 20,
+      "milliseconds": 5683
+    },
+    "MeowChan.DesktopTests.TaggingResponsiveLayoutTests": {
+      "cases": 5,
+      "milliseconds": 2075
+    },
+    "MeowChan.DesktopTests.TaggingSettingsTests": {
+      "cases": 14,
+      "milliseconds": 6044
+    },
+    "MeowChan.DesktopTests.TaggingSurfaceAuditTests": {
+      "cases": 10,
+      "milliseconds": 2866
+    },
+    "MeowChan.DesktopTests.TaggingTileBadgesTests": {
+      "cases": 7,
+      "milliseconds": 1271
+    },
+    "MeowChan.DesktopTests.TaglineTests": {
+      "cases": 50,
+      "milliseconds": 17223
+    },
+    "MeowChan.DesktopTests.ThemeAccentPresetTests": {
+      "cases": 18,
+      "milliseconds": 1677
+    },
+    "MeowChan.DesktopTests.ThemeConfiguratorTests": {
+      "cases": 59,
+      "milliseconds": 14478
+    },
+    "MeowChan.DesktopTests.ThemeCustomizationTests": {
+      "cases": 17,
+      "milliseconds": 1138
+    },
+    "MeowChan.DesktopTests.ThemeFollowUpsTests": {
+      "cases": 10,
+      "milliseconds": 274
+    },
+    "MeowChan.DesktopTests.ThemeLiveFollowTests": {
+      "cases": 1,
+      "milliseconds": 1
+    },
+    "MeowChan.DesktopTests.ThemeLogoTests": {
+      "cases": 8,
+      "milliseconds": 491
+    },
+    "MeowChan.DesktopTests.ThemeOverridesConfigTests": {
+      "cases": 18,
+      "milliseconds": 738
+    },
+    "MeowChan.DesktopTests.ThemePaletteTests": {
+      "cases": 24,
+      "milliseconds": 322
+    },
+    "MeowChan.DesktopTests.ThemeTokenMapTests": {
+      "cases": 18,
+      "milliseconds": 85
+    },
+    "MeowChan.DesktopTests.ThemeTrialSessionTests": {
+      "cases": 12,
+      "milliseconds": 1330
+    },
+    "MeowChan.DesktopTests.ThreadContentHostAdmissionTests": {
+      "cases": 6,
+      "milliseconds": 3507
+    },
+    "MeowChan.DesktopTests.ThreadFavoriteHostTests": {
+      "cases": 4,
+      "milliseconds": 1668
+    },
+    "MeowChan.DesktopTests.ThreadPriorityContextMenuTests": {
+      "cases": 16,
+      "milliseconds": 712
+    },
+    "MeowChan.DesktopTests.ThreadPriorityMenuLocalizationTests": {
+      "cases": 58,
+      "milliseconds": 12429
+    },
+    "MeowChan.DesktopTests.ThumbnailDecodeGateTests": {
+      "cases": 15,
+      "milliseconds": 1277
+    },
+    "MeowChan.DesktopTests.TileSizeTests": {
+      "cases": 34,
+      "milliseconds": 9633
+    },
+    "MeowChan.DesktopTests.ToolbarGapPatternTests": {
+      "cases": 12,
+      "milliseconds": 559
+    },
+    "MeowChan.DesktopTests.ToolbarUpdateTests": {
+      "cases": 6,
+      "milliseconds": 544
+    },
+    "MeowChan.DesktopTests.TooltipAliasLimitTests": {
+      "cases": 10,
+      "milliseconds": 4437
+    },
+    "MeowChan.DesktopTests.TrayStatsModelTests": {
+      "cases": 21,
+      "milliseconds": 2787
+    },
+    "MeowChan.DesktopTests.TrayStatsPresenterTests": {
+      "cases": 19,
+      "milliseconds": 3374
+    },
+    "MeowChan.DesktopTests.TypographyStyleTests": {
+      "cases": 5,
+      "milliseconds": 1888
+    },
+    "MeowChan.DesktopTests.UiResponsivenessProbeTests": {
+      "cases": 4,
+      "milliseconds": 2744
+    },
+    "MeowChan.DesktopTests.UnhandledErrorsTests": {
+      "cases": 20,
+      "milliseconds": 42144
+    },
+    "MeowChan.DesktopTests.UnifiedBackAndPageShortcutTests": {
+      "cases": 8,
+      "milliseconds": 934
+    },
+    "MeowChan.DesktopTests.UpdateAssetSelectionTests": {
+      "cases": 26,
+      "milliseconds": 1545
+    },
+    "MeowChan.DesktopTests.UpdateNotificationTests": {
+      "cases": 7,
+      "milliseconds": 66
+    },
+    "MeowChan.DesktopTests.UpdateSemanticVersionTests": {
+      "cases": 14,
+      "milliseconds": 15
+    },
+    "MeowChan.DesktopTests.UpdateServiceTests": {
+      "cases": 37,
+      "milliseconds": 1947
+    },
+    "MeowChan.DesktopTests.UpdateSessionTests": {
+      "cases": 13,
+      "milliseconds": 1341
+    },
+    "MeowChan.DesktopTests.UpdateSimulationTests": {
+      "cases": 24,
+      "milliseconds": 419
+    },
+    "MeowChan.DesktopTests.UrlTextExportFailureReceiptBoundaryTests": {
+      "cases": 1,
+      "milliseconds": 157
+    },
+    "MeowChan.DesktopTests.UrlTextExportFileWriterTests": {
+      "cases": 65,
+      "milliseconds": 564
+    },
+    "MeowChan.DesktopTests.UrlTextExportLocalizationTests": {
+      "cases": 5,
+      "milliseconds": 1236
+    },
+    "MeowChan.DesktopTests.UxRound3LayoutTests": {
+      "cases": 9,
+      "milliseconds": 15
+    },
+    "MeowChan.DesktopTests.UxRound3TextTests": {
+      "cases": 5,
+      "milliseconds": 901
+    },
+    "MeowChan.DesktopTests.VerifiedVideoFileTests": {
+      "cases": 1,
+      "milliseconds": 16
+    },
+    "MeowChan.DesktopTests.VideoAudioAvailabilityTests": {
+      "cases": 8,
+      "milliseconds": 8
+    },
+    "MeowChan.DesktopTests.VideoAudioProbeScheduleTests": {
+      "cases": 11,
+      "milliseconds": 19
+    },
+    "MeowChan.DesktopTests.VideoCleanupWatchTests": {
+      "cases": 2,
+      "milliseconds": 5
+    },
+    "MeowChan.DesktopTests.VideoKeyboardTests": {
+      "cases": 42,
+      "milliseconds": 10849
+    },
+    "MeowChan.DesktopTests.VideoPlayMarkTests": {
+      "cases": 44,
+      "milliseconds": 156
+    },
+    "MeowChan.DesktopTests.VideoPlaybackCommandTests": {
+      "cases": 3,
+      "milliseconds": 104
+    },
+    "MeowChan.DesktopTests.VideoPlaybackEngineLifetimeTests": {
+      "cases": 2,
+      "milliseconds": 9
+    },
+    "MeowChan.DesktopTests.VideoPlaybackEventTests": {
+      "cases": 9,
+      "milliseconds": 107
+    },
+    "MeowChan.DesktopTests.VideoPlaybackIntentTests": {
+      "cases": 6,
+      "milliseconds": 11
+    },
+    "MeowChan.DesktopTests.VideoPlaybackLifetimeTests": {
+      "cases": 9,
+      "milliseconds": 107
+    },
+    "MeowChan.DesktopTests.VideoPlaybackObservationTests": {
+      "cases": 4,
+      "milliseconds": 2452
+    },
+    "MeowChan.DesktopTests.VideoPosterCacheMaintenanceTests": {
+      "cases": 19,
+      "milliseconds": 8643
+    },
+    "MeowChan.DesktopTests.VideoPosterCacheTests": {
+      "cases": 12,
+      "milliseconds": 5078
+    },
+    "MeowChan.DesktopTests.VideoPosterCacheTimeoutTests": {
+      "cases": 2,
+      "milliseconds": 1664
+    },
+    "MeowChan.DesktopTests.VideoPosterNativeTests": {
+      "cases": 1,
+      "milliseconds": 1
+    },
+    "MeowChan.DesktopTests.VideoScrubPopupGateTests": {
+      "cases": 13,
+      "milliseconds": 18
+    },
+    "MeowChan.DesktopTests.VideoScrubPreviewCacheBudgetTests": {
+      "cases": 8,
+      "milliseconds": 17277
+    },
+    "MeowChan.DesktopTests.VideoScrubPreviewCacheMaintenanceTests": {
+      "cases": 12,
+      "milliseconds": 722
+    },
+    "MeowChan.DesktopTests.VideoScrubPreviewTests": {
+      "cases": 31,
+      "milliseconds": 8391
+    },
+    "MeowChan.DesktopTests.VideoScrubProfileHostTests": {
+      "cases": 7,
+      "milliseconds": 226
+    },
+    "MeowChan.DesktopTests.VideoStreamDemuxTests": {
+      "cases": 6,
+      "milliseconds": 7
+    },
+    "MeowChan.DesktopTests.VideoTimelineInteractionTests": {
+      "cases": 16,
+      "milliseconds": 46
+    },
+    "MeowChan.DesktopTests.VideoZoomRotateTests": {
+      "cases": 62,
+      "milliseconds": 22789
+    },
+    "MeowChan.DesktopTests.ViewerQuickWinsTests": {
+      "cases": 46,
+      "milliseconds": 11328
+    },
+    "MeowChan.DesktopTests.ViewerTransportTests": {
+      "cases": 32,
+      "milliseconds": 12827
+    },
+    "MeowChan.DesktopTests.Wave3ReviewRestTests": {
+      "cases": 32,
+      "milliseconds": 7829
+    },
+    "MeowChan.DesktopTests.WindowChromeCoverageTests": {
+      "cases": 81,
+      "milliseconds": 275
+    },
+    "MeowChan.DesktopTests.WindowChromePolicyTests": {
+      "cases": 12,
+      "milliseconds": 59
+    },
+    "MeowChan.DesktopTests.WindowStartupGeometryTests": {
+      "cases": 10,
+      "milliseconds": 150
+    },
+    "MeowChan.DesktopTests.WindowStateRestoreTests": {
+      "cases": 18,
+      "milliseconds": 22
+    },
+    "MeowChan.DesktopTests.WorkStatusPresentationTests": {
+      "cases": 16,
+      "milliseconds": 20
+    },
+    "MeowChan.DesktopTests.WorkViewActionStateGuardTests": {
+      "cases": 18,
+      "milliseconds": 56
+    },
+    "MeowChan.DesktopTests.WorkViewArchiveTests": {
+      "cases": 41,
+      "milliseconds": 115
+    },
+    "MeowChan.DesktopTests.WorkViewDetailsHostTests": {
+      "cases": 5,
+      "milliseconds": 430
+    },
+    "MeowChan.DesktopTests.WorkViewDiagnosticsStatisticsTests": {
+      "cases": 23,
+      "milliseconds": 36
+    },
+    "MeowChan.DesktopTests.WorkViewDialogsTests": {
+      "cases": 22,
+      "milliseconds": 7861
+    },
+    "MeowChan.DesktopTests.WorkViewDiffTests": {
+      "cases": 50,
+      "milliseconds": 80
+    },
+    "MeowChan.DesktopTests.WorkViewElementRegistryTests": {
+      "cases": 8,
+      "milliseconds": 652
+    },
+    "MeowChan.DesktopTests.WorkViewGalleryTests": {
+      "cases": 15,
+      "milliseconds": 125
+    },
+    "MeowChan.DesktopTests.WorkViewLintTests": {
+      "cases": 3,
+      "milliseconds": 2132
+    },
+    "MeowChan.DesktopTests.WorkViewOverviewDifferenceTests": {
+      "cases": 19,
+      "milliseconds": 4278
+    },
+    "MeowChan.DesktopTests.WorkViewOverviewTests": {
+      "cases": 16,
+      "milliseconds": 6676
+    },
+    "MeowChan.DesktopTests.WorkViewPolicyTests": {
+      "cases": 13,
+      "milliseconds": 103
+    },
+    "MeowChan.DesktopTests.WorkViewPresenterTests": {
+      "cases": 9,
+      "milliseconds": 27
+    },
+    "MeowChan.DesktopTests.WorkViewRulesSourcesPluginsTests": {
+      "cases": 10,
+      "milliseconds": 22
+    },
+    "MeowChan.DesktopTests.WorkViewSettingsTests": {
+      "cases": 14,
+      "milliseconds": 27
+    },
+    "MeowChan.DesktopTests.WorkViewShellDownloadsTests": {
+      "cases": 21,
+      "milliseconds": 493
+    },
+    "MeowChan.DesktopTests.WorkViewSwitchCatalogTests": {
+      "cases": 6,
+      "milliseconds": 776
+    },
+    "MeowChan.DesktopTests.WorkViewSwitchNoticeConfigTests": {
+      "cases": 14,
+      "milliseconds": 463
+    },
+    "MeowChan.DesktopTests.WorkViewSwitchNoticeTests": {
+      "cases": 18,
+      "milliseconds": 577
+    },
+    "MeowChan.DesktopTests.WorkspaceChipLogicalParentTests": {
+      "cases": 4,
+      "milliseconds": 1935
+    },
+    "MeowChan.DesktopTests.WorkspaceResourceKeysTests": {
+      "cases": 3,
+      "milliseconds": 14
+    },
+    "MeowChan.DesktopTests.WorkspaceTokenTests": {
+      "cases": 47,
+      "milliseconds": 426
+    },
+    "MeowChan.DesktopTests.X11WindowMinimumTests": {
+      "cases": 6,
+      "milliseconds": 16
+    },
+    "MeowChan.DesktopTests.YieldingDefaultsTests": {
+      "cases": 11,
+      "milliseconds": 86379
+    }
+  },
+  "fallback_case_ms": 97,
+  "schema": 1,
+  "sources": [
+    {
+      "classes": 774,
+      "kind": "trx",
+      "label": "linux-lane-a-retest",
+      "observed_ms": 1217531,
+      "sha256": "320025ef2f1d28a66b49b6c343ab721417ab3cb34e7717f9b22cd0858a9eddf6"
+    },
+    {
+      "classes": 97,
+      "kind": "trx",
+      "label": "run43928862043-artifact14258408621-intel3",
+      "observed_ms": 517253,
+      "sha256": "fbbaa2dc491a9dbc5a83b5e6f59f25796f7ca60aa4253ad52e6d64d836284f5e"
+    },
+    {
+      "classes": 97,
+      "kind": "trx",
+      "label": "run43928862043-artifact14259294495-intel8",
+      "observed_ms": 375737,
+      "sha256": "dae7bcdb56ed11bb9c150730165eb747e079dabb92acfccd5f8b1ae845f6ed78"
+    },
+    {
+      "classes": 98,
+      "kind": "trx",
+      "label": "run43928862043-artifact14259562352-intel4",
+      "observed_ms": 527213,
+      "sha256": "27ed1d805db4558619cf1169831c156558de6b1c1f7f73fb946e5b0443845d50"
+    },
+    {
+      "classes": 97,
+      "kind": "trx",
+      "label": "run43928862043-artifact14259617366-intel7",
+      "observed_ms": 363425,
+      "sha256": "68790d982c7269c926bdc7e6c1d55076e9b806dc5bd94b1b050ce2fdf12aba36"
+    },
+    {
+      "classes": 774,
+      "kind": "trx",
+      "label": "windows-lane-a-retest",
+      "observed_ms": 2281177,
+      "sha256": "9333d3a41d395b286d5502ace068b623cac724a325a5551fa1417061d76adbdd"
+    },
+    {
+      "classes": 87,
+      "kind": "partial-console",
+      "label": "run43928862043-job133516453772-intel6",
+      "observed_ms": 623235,
+      "sha256": "0afeb36574360ed8bb8518408f9ce7b061beef81d485d9cff0d1fdfcc3b70c87"
+    }
+  ]
+}

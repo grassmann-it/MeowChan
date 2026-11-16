@@ -113,17 +113,52 @@ def inventory_shape(cases):
             for method, counts in sorted(methods.items())]
 
 
-def partition(cases):
-    """Deterministic largest-first balancing by discovered rows, class-atomic."""
-    classes = defaultdict(list)
-    for case in validate_inventory(cases):
-        classes[case['method'].rsplit('.', 1)[0]].append(case)
+def timing_profile():
+    profile = json.loads(Path(__file__).with_name('macos-test-timings.json').read_text(encoding='utf-8'))
+    require(profile.get('schema') == 1 and profile.get('algorithm') == 'class-lpt-ms-v1', 'Unknown timing profile')
+    require(type(profile.get('fallback_case_ms')) is int and profile['fallback_case_ms'] > 0,
+            'Invalid timing fallback')
+    require(isinstance(profile.get('classes'), dict) and profile['classes'], 'Missing timing classes')
+    for name, entry in profile['classes'].items():
+        require(isinstance(name, str) and set(entry) == {'milliseconds', 'cases'}
+                and all(type(v) is int and v > 0 for v in entry.values()), 'Invalid class timing')
+    return profile
+
+
+def plan_digest(shape):
+    # Bind the immutable profile AND algorithm, not machine-local timings. The
+    # final gate recomputes this and assignments from the same checked-out source.
+    return digest(dict(inventory=shape, timing_profile=timing_profile()))
+
+
+def class_weights(cases, profile):
+    counts = Counter(case['method'].rsplit('.', 1)[0] for case in validate_inventory(cases))
+    weights = {}
+    for name, count in counts.items():
+        measured = profile['classes'].get(name)
+        fallback = profile['fallback_case_ms']
+        if measured is None:
+            weights[name] = count * fallback
+        else:
+            # Never reduce a measured cost when rows disappear. Added rows pay at
+            # least the fallback or historical mean, including deferred theories.
+            mean = (measured['milliseconds'] + measured['cases'] - 1) // measured['cases']
+            weights[name] = measured['milliseconds'] + max(0, count - measured['cases']) * max(fallback, mean)
+    return weights
+
+
+def partition(cases, profile=None):
+    """Deterministic measured-runtime LPT; whole classes remain atomic."""
+    weights = class_weights(cases, timing_profile() if profile is None else profile)
+    methods = defaultdict(set)
+    for case in cases:
+        methods[case['method'].rsplit('.', 1)[0]].add(case['method'])
     bins = [[] for _ in range(SHARD_COUNT)]
-    weights = [0] * SHARD_COUNT
-    for name in sorted(classes, key=lambda name: (-len(classes[name]), name)):
-        shard = min(range(SHARD_COUNT), key=lambda index: (weights[index], index))
-        bins[shard].extend({case['method'] for case in classes[name]})
-        weights[shard] += len(classes[name])
+    loads = [0] * SHARD_COUNT
+    for name in sorted(weights, key=lambda name: (-weights[name], name)):
+        shard = min(range(SHARD_COUNT), key=lambda index: (loads[index], index))
+        bins[shard].extend(methods[name])
+        loads[shard] += weights[name]
     require(all(bins), 'Inventory cannot populate all eight shards')
     return [sorted(methods) for methods in bins]
 
@@ -202,7 +237,7 @@ def run_suite(name, project, output, shard, budget):
                                         discovery / 'discovery-inventory.json')
         report['inventory'] = inventory
         report['inventory_sha256'] = digest(inventory)
-        report['plan_sha256'] = digest(inventory_shape(inventory))
+        report['plan_sha256'] = plan_digest(inventory_shape(inventory))
         report['assigned'] = assigned = partition(inventory)[shard - 1]
         settings = output / 'shard.runsettings'
         write_settings(settings, assigned)
@@ -287,7 +322,7 @@ def aggregate(root, platforms, source):
                 if name not in canonical:
                     canonical[name] = inventory_shape(inventory)
                 require(inventory_shape(inventory) == canonical[name], f'Workers disagree on native inventory: {platform}/{name}')
-                require(suite['plan_sha256'] == digest(canonical[name]), 'Plan digest mismatch')
+                require(suite['plan_sha256'] == plan_digest(canonical[name]), 'Plan digest mismatch')
                 assigned = partition(inventory)[shard - 1]
                 require(suite['assigned'] == assigned, 'Wrong shard assignment')
                 coverage = trx_coverage(directory / name / 'run/results', inventory, assigned)
@@ -298,7 +333,7 @@ def aggregate(root, platforms, source):
             require(Counter(observed[name]) == Counter({method['method']: 1 for method in shape}),
                     f'Missing/duplicate method coverage: {platform}/{name}')
             checks.append(dict(platform=platform, suite=name, methods=len(set(observed[name])),
-                               discovered_cases=sum(m['concrete'] + m['deferred'] for m in shape), plan_sha256=digest(shape)))
+                               discovered_cases=sum(m['concrete'] + m['deferred'] for m in shape), plan_sha256=plan_digest(shape)))
     return dict(passed=True, source=source, shard_count=SHARD_COUNT, platforms=platforms, coverage=checks)
 
 

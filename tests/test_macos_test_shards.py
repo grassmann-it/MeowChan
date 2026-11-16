@@ -59,6 +59,65 @@ class ShardTests(unittest.TestCase):
         self.assertEqual(next(i for i, b in enumerate(bins) if 'Example.C01.Theory' in b),
                          next(i for i, b in enumerate(bins) if 'Example.C01.Another' in b))
 
+    def test_measured_low_row_costs_are_separated_and_growth_has_fallback(self):
+        profile = dict(fallback_case_ms=10, classes={
+            'Example.C00': dict(milliseconds=10000, cases=1),
+            'Example.C01': dict(milliseconds=9000, cases=2)})
+        cases = inventory()
+        bins = runner.partition(cases, profile)
+        self.assertNotEqual(next(i for i, b in enumerate(bins) if 'Example.C00.Theory' in b),
+                            next(i for i, b in enumerate(bins) if 'Example.C01.Theory' in b))
+        self.assertEqual(bins, runner.partition(list(reversed(cases)), profile))
+        weights = runner.class_weights(cases, profile)
+        self.assertEqual(30, weights['Example.C02'])  # Unseen class: three rows.
+        cases.append(dict(id='new', method='Example.C01.New', deferred=True))
+        self.assertEqual(13500, runner.class_weights(cases, profile)['Example.C01'])
+        self.assertEqual(9000, runner.class_weights(cases[:1] + [cases[1]], profile)['Example.C01'])
+
+    def test_plan_digest_binds_timing_profile_and_gate_rejects_changed_weights(self):
+        shape = runner.inventory_shape(inventory())
+        before = runner.plan_digest(shape)
+        self.matrix()
+        profile = copy.deepcopy(runner.timing_profile())
+        profile['fallback_case_ms'] += 1
+        with mock.patch.object(runner, 'timing_profile', return_value=profile):
+            self.assertNotEqual(before, runner.plan_digest(shape))
+            with self.assertRaisesRegex(ValueError, 'Plan digest mismatch'):
+                runner.aggregate(self.root, ['macos-15'], SOURCE)
+
+    def test_invalid_timing_profile_fails_closed(self):
+        profile = runner.timing_profile()
+        invalid = [dict(profile, schema=99), dict(profile, classes={}),
+                   dict(profile, fallback_case_ms=0), dict(profile, fallback_case_ms=True),
+                   dict(profile, classes={'N.Class': dict(milliseconds=-1, cases=2)}),
+                   dict(profile, classes={'N.Class': dict(milliseconds=1, cases=0)})]
+        for value in invalid:
+            with self.subTest(value=str(value)[:50]), \
+                 mock.patch.object(Path, 'read_text', return_value=json.dumps(value)), \
+                 self.assertRaises(ValueError):
+                runner.timing_profile()
+
+    def test_checked_in_measured_profile_balances_full_class_inventory(self):
+        profile = runner.timing_profile()
+        cases = [dict(id=f'{name}-{i}', method=name + '.Measured', deferred=False)
+                 for name, entry in profile['classes'].items() for i in range(entry['cases'])]
+        weights = runner.class_weights(cases, profile)
+        bins = runner.partition(cases)
+        flat = [method for shard in bins for method in shard]
+        self.assertEqual(len(profile['classes']), len(flat))
+        self.assertEqual(len(flat), len(set(flat)))
+        self.assertEqual({c['method'] for c in cases}, set(flat))
+        loads = [sum(weights[m.rsplit('.', 1)[0]] for m in shard) for shard in bins]
+        self.assertLess(max(loads) - min(loads), 1000)
+        # Reconstruct the retired case-count algorithm on the same measured data.
+        old_bins, counts = [[] for _ in range(8)], [0] * 8
+        for name in sorted(weights, key=lambda n: (-profile['classes'][n]['cases'], n)):
+            shard = min(range(8), key=lambda i: (counts[i], i))
+            old_bins[shard].append(name)
+            counts[shard] += profile['classes'][name]['cases']
+        old_loads = [sum(weights[name] for name in shard) for shard in old_bins]
+        self.assertGreater(max(old_loads), max(loads) * 1.3)
+
     def test_empty_or_invalid_inventory_fails_instead_of_running_unfiltered(self):
         for cases in ([], inventory()[:1], inventory() + inventory()[:1],
                       [dict(id='evil', method='X.Y|FullyQualifiedName~Any', deferred=False)]):
@@ -217,7 +276,7 @@ class ShardTests(unittest.TestCase):
                     suites.append(dict(name=name, passed=True, budget_seconds=300 if name == 'core' else 600,
                                        discovery=dict(OK, budget_seconds=60), run=dict(OK, budget_seconds=250),
                                        inventory=cases, inventory_sha256=runner.digest(cases), assigned=assigned,
-                                       plan_sha256=runner.digest(runner.inventory_shape(cases)),
+                                       plan_sha256=runner.plan_digest(runner.inventory_shape(cases)),
                                        coverage=runner.trx_coverage(target, cases, assigned)))
                 runner.write_json(directory / 'manifest.json', dict(schema=1, shard=shard, shard_count=8,
                     platform=platform, architecture=runner.ARCHITECTURES[platform], source=SOURCE, candidate=False, suites=suites, passed=True))
