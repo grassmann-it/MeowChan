@@ -94,7 +94,7 @@ public sealed class ArchiveSegmentStretchTests
     [Fact]
     public void StretchIsAnOptInOfTheItemAndOffByDefault()
     {
-        Avalonia.Controls.ToggleButton item = new();
+        Avalonia.Controls.Primitives.ToggleButton item = new();
         Assert.False(ActionToolBar.GetStretch(item));
         ActionToolBar.SetStretch(item, true);
         Assert.True(ActionToolBar.GetStretch(item));
