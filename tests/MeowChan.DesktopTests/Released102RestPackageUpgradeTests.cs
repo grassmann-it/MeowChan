@@ -105,9 +105,9 @@ public sealed class Released102RestPackageUpgradeTests(ITestOutputHelper output)
             if (privilegedSetup)
             {
                 string sudo = RequiredValue("MEOWCHAN_RELEASED102_BWRAP_SUDO");
-                // The launcher runs as root only while staging aliases for
-                // writable binds. bwrap must then enter the child as exactly
-                // the runner UID/GID; the probe proves the same transition.
+                // The launcher runs as root only to create a runner-rooted
+                // user namespace for bwrap. bwrap must then enter the child as
+                // exactly the runner UID/GID; the probe proves the same transition.
                 string realBwrap = RequiredValue("MEOWCHAN_RELEASED102_REAL_BWRAP_PATH");
                 start = new(sudo);
                 start.ArgumentList.Add("-n");
@@ -141,9 +141,9 @@ public sealed class Released102RestPackageUpgradeTests(ITestOutputHelper output)
             start.ArgumentList.Add("--tmpfs"); start.ArgumentList.Add("/tmp");
             // sudo applies env_reset on hosted runners; keep the no-update contract explicit inside bwrap.
             start.ArgumentList.Add("--setenv"); start.ArgumentList.Add("MEOWCHAN_DISABLE_UPDATE_CHECK"); start.ArgumentList.Add("1");
-            // The root launcher stages these sources through /var/tmp before
-            // invoking bwrap. They remain aliases, so writes still land in the
-            // runner-owned paths; the root filesystem itself stays read-only.
+            // Under the root launcher these binds resolve with the runner's own
+            // host identity, so writes land runner-owned in the original
+            // paths; the root filesystem itself stays read-only.
             start.ArgumentList.Add("--bind"); start.ArgumentList.Add(profile); start.ArgumentList.Add(profile);
             string resultsDirectory = Path.GetDirectoryName(result)!;
             start.ArgumentList.Add("--bind"); start.ArgumentList.Add(resultsDirectory); start.ArgumentList.Add(resultsDirectory);

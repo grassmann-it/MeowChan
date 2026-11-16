@@ -601,21 +601,46 @@ class NamespaceLauncherContractTests(unittest.TestCase):
         self.assertEqual(str(shutil.which('bwrap') or ''), ctx.test_env()['MEOWCHAN_RELEASED102_REAL_BWRAP_PATH'])
         self.assertEqual(str(run.BWRAP_ROOT_LAUNCHER), ctx.test_env()['MEOWCHAN_RELEASED102_BWRAP_PATH'])
 
-    def test_root_launcher_stages_writable_sources_without_host_fallback(self):
+    def test_root_launcher_maps_runner_identity_without_staging_or_fallback(self):
+        # A root-started bwrap is not setuid: it maps the sandbox UID onto host
+        # root, leaving the runner unmapped, so a 0750 runner home cannot be
+        # searched ("Can't mkdir parents ... Permission denied"). The adapter
+        # must instead root an outer user namespace at the runner.
         launcher = (FIXTURE / 'bwrap-root-accessible.sh').read_text(encoding='utf-8')
         for marker in (
-            'mktemp -d /var/tmp/meowchan-ap04-bind.XXXXXX',
-            '/usr/bin/mount --bind "$source" "$alias"',
             '--real-bwrap',
-            'rewritten+=(--bind "$alias" "$destination")',
-            'read-only root',
-            'there is no host-namespace fallback',
             'MEOWCHAN_RELEASED102_REAL_BWRAP_PATH',
+            'SUDO_UID', 'SUDO_GID',
+            "^[1-9][0-9]*$",
+            'must equal the sudo runner',
+            'bwrap must create and then disable user namespaces',
+            'os.setgroups([])',
+            'CLONE_NEWUSER',
+            '("uid_map", f"0 {uid} 1\\n")',
+            '("setgroups", "deny\\n")',
+            '("gid_map", f"0 {gid} 1\\n")',
+            'os.setresuid(0, 0, 0)',
+            '"--cap-drop", "ALL"',
+            '/usr/bin/python3',
+            '-I -S',
+            'read-only root',
+            'there is no host-namespace or',
         ):
             self.assertIn(marker, launcher)
-        self.assertIn('[ -d "$source" ]', launcher)
-        self.assertIn('cleanup', launcher)
-        self.assertNotIn('command -v bwrap', launcher, 'the root launcher must not silently select a host bwrap')
+        for forbidden in ('mount --bind', 'chmod ', '/var/tmp', 'command -v bwrap', '--userns-block-fd "'):
+            self.assertNotIn(forbidden, launcher, forbidden)
+        self.assertLess(launcher.index('os.write(go_w, b"g")'), launcher.rindex('os.close(go_w)'))
+        self.assertLess(launcher.index('if os.read(go_r, 1) != b"g"'), launcher.index('os.execv(bwrap, argv)'),
+                        'bwrap must not start before the runner maps are written')
+
+    def test_workflow_probe_proves_host_identity_not_only_namespace_ids(self):
+        workflow = (ROOT / '.github/workflows/dotnet-desktop.yml').read_text(encoding='utf-8')
+        self.assertIn('test "$(stat -c %u "$MEOWCHAN_EXPECTED_PROFILE")" = "$MEOWCHAN_EXPECTED_UID"', workflow)
+        self.assertIn('test -w "$MEOWCHAN_EXPECTED_PROFILE"', workflow)
+        self.assertNotIn('stages each writable bind source', workflow)
+        source = (FIXTURE / 'ap04_run.py').read_text(encoding='utf-8')
+        self.assertIn('test "$(stat -c %u "$MEOWCHAN_EXPECTED_OUT")" = "$MEOWCHAN_EXPECTED_UID"', source)
+        self.assertIn('test "$(stat -c %u "$MEOWCHAN_EXPECTED_ROOT")" = "$MEOWCHAN_EXPECTED_UID"', source)
 
     def test_no_netns_is_only_selected_by_explicit_flag(self):
         class Args:
@@ -625,6 +650,73 @@ class NamespaceLauncherContractTests(unittest.TestCase):
         ctx = run.Context(Args())
         self.assertEqual(['dotnet', 'consumer.dll'], ctx.isolated(['dotnet', 'consumer.dll']))
         self.assertNotIn('MEOWCHAN_RELEASED102_NETWORK_NAMESPACE', ctx.test_env())
+
+
+class RootLauncherNamespaceTests(unittest.TestCase):
+    """Executes the root adapter under an emulated host root.
+
+    An outer user namespace with subordinate IDs stands in for the host: its
+    uid 0 plays sudo's root and its uid 1001 plays the runner, whose 0750 home
+    holds the bound profile. Kernel user-namespace semantics are relative, so
+    this reproduces the hosted failure (unmapped runner during bwrap setup)
+    without sudo. Skipped when the machine cannot create such a namespace.
+    """
+
+    HARNESS = r"""set -u
+adapter=$1 sudo_uid=$2
+base=$(mktemp -d /var/tmp/ap04-launcher-test.XXXXXX)
+trap 'rm -rf "$base"' EXIT
+chmod 755 "$base"
+home="$base/home/runner"
+profile="$home/work/MeowChan/MeowChan/artifacts/upgrade-1.0.2/released102-profile"
+mkdir -p "$profile"
+chown -R 1001:1001 "$home"
+chmod 750 "$home"
+probe='set -eu
+test "$(id -u):$(id -g)" = 1001:1001
+test "$(stat -c %u:%g "$P")" = 1001:1001
+touch "$P/marker"
+for cap in CapInh CapPrm CapEff CapBnd CapAmb; do
+  test "$(awk -v key="$cap:" "\$1 == key { print \$2 }" /proc/self/status)" = 0000000000000000
+done
+test "$(readlink /proc/self/ns/net)" != "$H"
+! touch /usr/ap04-launcher-rw-probe 2>/dev/null
+! unshare --user true 2>/dev/null'
+SUDO_UID=$sudo_uid SUDO_GID=1001 "$adapter" --real-bwrap "$BWRAP" --die-with-parent --unshare-user   --uid 1001 --gid 1001 --cap-add CAP_SYS_ADMIN --cap-add CAP_SETPCAP --disable-userns   --ro-bind / / --proc /proc --dev /dev --tmpfs /tmp --bind "$profile" "$profile"   --setenv P "$profile" --setenv H "$(readlink /proc/self/ns/net)" --   "$UNSHARE" --net -- "$SETPRIV" --bounding-set=-all --inh-caps=-all --ambient-caps=-all --nnp --   /bin/sh -eu -c "$probe"
+echo "exit=$?"
+if [ -e "$profile/marker" ]; then echo "owner=$(stat -c %u:%g "$profile/marker")"; fi
+"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tools = {name: shutil.which(name) for name in ('bwrap', 'unshare', 'setpriv')}
+        if not all(cls.tools.values()) or not Path('/usr/bin/python3').exists():
+            raise unittest.SkipTest('bwrap, unshare, setpriv and /usr/bin/python3 are required')
+        probe = subprocess.run([cls.tools['unshare'], '--map-auto', '--map-root-user', '--', 'sh', '-c',
+                                'd=$(mktemp -d /var/tmp/ap04-launcher-probe.XXXXXX) || exit 1; '
+                                'chown 1001:1001 "$d"; rc=$?; rmdir "$d"; exit "$rc"'],
+                               capture_output=True, text=True)
+        if probe.returncode != 0:
+            raise unittest.SkipTest(f'cannot emulate host root with subordinate IDs: {probe.stderr.strip()}')
+
+    def launch(self, sudo_uid='1001'):
+        env = dict(os.environ, BWRAP=self.tools['bwrap'], UNSHARE=self.tools['unshare'], SETPRIV=self.tools['setpriv'])
+        return subprocess.run([self.tools['unshare'], '--map-auto', '--map-root-user', '--', 'bash', '-c', self.HARNESS,
+                               'harness', str(FIXTURE / 'bwrap-root-accessible.sh'), sudo_uid],
+                              env=env, capture_output=True, text=True, timeout=60)
+
+    def test_runner_home_destination_is_reachable_and_writes_stay_runner_owned(self):
+        result = self.launch()
+        self.assertNotIn("Can't mkdir parents", result.stderr)
+        self.assertIn('exit=0', result.stdout, result.stderr)
+        self.assertIn('owner=1001:1001', result.stdout, 'replay writes must be owned by the host runner, not root')
+
+    def test_root_or_mismatched_sudo_identity_is_refused_before_bwrap(self):
+        for sudo_uid in ('0', '1002'):
+            with self.subTest(sudo_uid=sudo_uid):
+                result = self.launch(sudo_uid)
+                self.assertIn('exit=125', result.stdout, result.stderr)
+                self.assertNotIn('owner=', result.stdout)
 
 
 class ProcessRunCleanupTests(unittest.TestCase):

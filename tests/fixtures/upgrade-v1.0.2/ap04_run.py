@@ -104,8 +104,8 @@ class Context:
                    XDG_CACHE_HOME=str(self.out / 'home/.cache'), NUGET_PACKAGES=str(FEED), DOTNET_SKIP_FIRST_TIME_EXPERIENCE='1',
                    DOTNET_CLI_TELEMETRY_OPTOUT='1', DOTNET_NOLOGO='1', MEOWCHAN_DISABLE_UPDATE_CHECK='1')
         if self.netns and self.namespace_backend == 'bwrap-root':
-            # Root setup stages writable bind sources through /var/tmp. The
-            # child still receives the original destinations and runner ID.
+            # Root only creates a runner-rooted outer user namespace; bwrap
+            # setup and the child then resolve paths as the runner itself.
             env.update(MEOWCHAN_RELEASED102_BWRAP_PATH=str(BWRAP_ROOT_LAUNCHER),
                        MEOWCHAN_RELEASED102_REAL_BWRAP_PATH=shutil.which('bwrap') or '')
         return env
@@ -175,6 +175,11 @@ class Context:
  if test "${MEOWCHAN_EXPECT_BINDS:-0}" = 1; then
    test -d "$MEOWCHAN_EXPECTED_ROOT"
    test -d "$MEOWCHAN_EXPECTED_OUT"
+   # An unmapped host owner shows up as 65534: proves the host identity, not
+   # only the namespace-local id -u view.
+   test "$(stat -c %u "$MEOWCHAN_EXPECTED_ROOT")" = "$MEOWCHAN_EXPECTED_UID"
+   test "$(stat -c %u "$MEOWCHAN_EXPECTED_OUT")" = "$MEOWCHAN_EXPECTED_UID"
+   test -w "$MEOWCHAN_EXPECTED_OUT"
  fi
  for cap in CapInh CapPrm CapEff CapBnd CapAmb; do
    test "$(awk -v key="$cap:" '$1 == key { print $2 }' /proc/self/status)" = 0000000000000000
