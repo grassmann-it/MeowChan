@@ -211,6 +211,11 @@ public static class CommandBindings
 
     public static void Refresh(MenuItem item)
     {
+        // Live menu eligibility also changes counts and unavailable explanations.
+        // Refresh in place without invalidating the existing shortcut observer:
+        // only a published shortcut snapshot consumes that registration.
+        if (Presentations.TryGetValue(item, out RefreshCallback? presentation))
+            presentation.Refresh();
         if (item.Command is not DelegateCommand command) return;
         item.IsEnabled = command.CanExecute(null);
         command.RaiseCanExecuteChanged();

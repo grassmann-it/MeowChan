@@ -57,6 +57,34 @@ public sealed class ToolbarUpdateTests
     }
 
     [Fact]
+    public void ExplicitMenuRefreshUpdatesLiveLabelsAndReasonsWithoutDuplicatingObservers() => BooruComponentDispatcher.Run(() =>
+    {
+        int eligible = 2;
+        MenuItem item = CommandBindings.CreateMenuItem("watch.check", () => { },
+            () => eligible > 0, () => eligible == 0 ? "No eligible targets" : null,
+            () => $"Check ({eligible})");
+        int registered = CommandBindings.ObserverCount;
+        Assert.Equal("Check (2)", item.Header);
+
+        eligible = 0;
+        for (int i = 0; i < 100; i++) CommandBindings.Refresh(item);
+
+        Assert.False(item.IsEnabled);
+        Assert.Equal("Check (0)", item.Header);
+        Assert.Equal("Check (0)", Avalonia.Automation.AutomationProperties.GetName(item));
+        Assert.Contains("No eligible targets", Avalonia.Automation.AutomationProperties.GetHelpText(item));
+        Assert.Equal(registered, CommandBindings.ObserverCount);
+
+        eligible = 1;
+        CommandBindings.Refresh(item);
+        Assert.True(item.IsEnabled);
+        Assert.Equal("Check (1)", item.Header);
+        Assert.DoesNotContain("No eligible targets", Avalonia.Automation.AutomationProperties.GetHelpText(item));
+        Assert.Equal(registered, CommandBindings.ObserverCount);
+        GC.KeepAlive(item);
+    });
+
+    [Fact]
     public void ObserversRegisterAgainOnceAfterAShortcutSnapshotIsPublished()
     {
         Button button = new();
