@@ -127,8 +127,7 @@ public partial class MainWindow
         var urls = _clipboardUrlMonitor.TakePending();
         if (urls.Count == 0) return;
         _importing = true;
-        UpdateInteractionState();
-        try { await SubmitInputAsync(string.Join(Environment.NewLine, urls)); }
+        try { UpdateInteractionState(); await SubmitInputAsync(string.Join(Environment.NewLine, urls)); }
         finally { _importing = false; UpdateInteractionState(); }
     }
 }

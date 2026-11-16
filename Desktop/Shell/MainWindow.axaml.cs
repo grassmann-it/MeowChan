@@ -360,6 +360,9 @@ public partial class MainWindow : Window
         ContinueSessionRows();
     }
 
+    private const int MaxAbandonedRowFrameRetries = 3;
+    private int _abandonedRowFramesInARow;
+
     // A failing frame (a row that cannot be built or updated) must not keep _sessionRowsApplying set: every row command
     // (RowCommandBusy) and every list click guarded by it would stay a silent no-op for the rest of the session. The frame is
     // dropped and the next projection rebuilds the rows from scratch.
@@ -372,6 +375,11 @@ public partial class MainWindow : Window
         _sessionRowsApplied?.TrySetResult();
         _sessionRowsApplied = null;
         if (_isClosing) return;
+        // Nothing else asks for the next frame: an idle session would keep the half-applied lists until the next engine event.
+        // The newest projection is read again by that frame, so the pending one is consumed. A frame that keeps failing is retried a few
+        // times only (a deterministic failure must not spin the UI thread); the next engine event starts a fresh frame anyway.
+        _pendingSessionProjection = null;
+        if (++_abandonedRowFramesInARow <= MaxAbandonedRowFrameRetries) _sessionRefresh.RequestImmediate();
         try { RefreshClipboardMonitor(); RefreshWorkspace(); }
         catch (Exception error) { Log.Warning(error, "The download lists could not be refreshed after a failed row update."); }
     }
@@ -440,6 +448,7 @@ public partial class MainWindow : Window
         _applyingSessionProjection = null;
         _threadReconciliation = null; _boardReconciliation = null;
         _sessionRowsApplying = false;
+        _abandonedRowFramesInARow = 0;
         // Re-enable an already offered batch when its row-command guard clears;
         // waiting for another clipboard poll would leave a stale disabled action.
         RefreshClipboardMonitor();
@@ -561,9 +570,9 @@ public partial class MainWindow : Window
         string enteredText = urlInput.Text ?? string.Empty;
         bool accepted = false;
         _importing = true;
-        UpdateInteractionState();
         try
         {
+            UpdateInteractionState();
             accepted = await SubmitInputAsync(enteredText);
             if (!string.IsNullOrWhiteSpace(enteredText) && accepted && urlInput.Text == enteredText)
             {
@@ -766,9 +775,9 @@ public partial class MainWindow : Window
 
         NavigateWorkspace(WorkspacePage.Downloads);
         _importing = true;
-        UpdateInteractionState();
         try
         {
+            UpdateInteractionState();
             await SubmitInputAsync(null);
         }
         finally
@@ -1164,9 +1173,9 @@ public partial class MainWindow : Window
             throw new InvalidOperationException("The session is not ready to apply settings.");
         List<HeldFocus> heldFocus = HoldFocusForSettingsApply();
         _applyingPreferences = true;
-        UpdateInteractionState();
         try
         {
+            UpdateInteractionState();
             await FlushGalleryPreferencesAsync();
             int mediaTagListWidthBefore = ConfiguredMediaTagListWidth();
             await _session.ApplySettingsAsync(candidate);
@@ -1322,8 +1331,7 @@ public partial class MainWindow : Window
     {
         if (!_restoreCompleted || WorkspaceEditorBusy || _session.Projection.IsPauseTransitioning) return;
         _applyingPreferences = true;
-        UpdateInteractionState();
-        try { await _session.SetPausedAsync(!_session.Projection.IsPaused); }
+        try { UpdateInteractionState(); await _session.SetPausedAsync(!_session.Projection.IsPaused); }
         catch (Exception exception)
         {
             ShowNotification(Texts.T("notification.error"), Texts.T("preferences.failed", exception.Message), NotificationType.Error, operation: "preferences.pause");

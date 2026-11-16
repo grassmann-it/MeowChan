@@ -93,9 +93,9 @@ public partial class MainWindow
         // Results appear under the Add line. The drop never fills or clears the line's own draft.
         NavigateWorkspace(WorkspacePage.Downloads);
         _importing = true;
-        UpdateInteractionState();
         try
         {
+            UpdateInteractionState();
             await SubmitInputAsync(text);
         }
         finally
