@@ -379,7 +379,7 @@ internal static partial class GalleryPlaybackFeatureChecks
         }
         else
         {
-            await NativeSliderClickAsync(native, volume, .65);
+            await NativeSliderClickAsync(native, viewer, "GalleryVideoVolume", .65);
             await UntilAsync(async () => (await player.InspectPlaybackAsync()).Volume >= 55, "Native volume click did not change decoder volume.");
         }
         await ObservePlayingAsync(player, "volume click");
@@ -537,52 +537,82 @@ internal static partial class GalleryPlaybackFeatureChecks
             ?? throw new InvalidOperationException("Native slider track has no screen transform.");
     }
 
-    private static async Task NativeSliderClickAsync(MediaNativeInput native, Slider slider, double fraction)
+    private static async Task NativeSliderClickAsync(MediaNativeInput native, GalleryViewer viewer, string name, double fraction)
     {
-        Track track = slider.GetVisualDescendants().OfType<Track>().Single();
-        Point trackPoint = SliderTrackPoint(track, slider.Orientation, fraction);
-        TopLevel root = TopLevel.GetTopLevel(slider)
-            ?? throw new InvalidOperationException("Native slider has no top-level input root.");
-        PixelPoint screen = track.PointToScreen(trackPoint);
-        Point rootPoint = root.PointToClient(screen);
-        Visual? hit = root.InputHitTest(rootPoint) as Visual;
-        Console.WriteLine("SMOKE native slider input geometry: " + System.Text.Json.JsonSerializer.Serialize(new
-        {
-            slider = slider.Name, orientation = slider.Orientation.ToString(), fraction,
-            sliderBounds = slider.Bounds.ToString(), trackBounds = track.Bounds.ToString(),
-            thumbBounds = track.Thumb?.Bounds.ToString(), trackPoint = trackPoint.ToString(),
-            sliderPoint = track.TranslatePoint(trackPoint, slider)?.ToString(), screen = screen.ToString(),
-            rootPoint = rootPoint.ToString(), hit = hit?.GetType().Name, hitName = (hit as Control)?.Name,
-            hitSlider = hit?.GetSelfAndVisualAncestors().Contains(slider) == true,
-            popupVisible = slider.GetVisualAncestors().OfType<Control>().FirstOrDefault(c => c.Name == "GalleryVideoVolumePopup")?.IsEffectivelyVisible
-        }));
-        Require(hit != null && hit.GetSelfAndVisualAncestors().Contains(slider),
-            "Native slider point is not on the slider input route; see native slider input geometry.");
+        // On software-video platforms the volume slider lives in an in-tree popup. Its
+        // visibility is driven by pointer-over and the popup can be retired/reopened
+        // while the native coordinate is being converted. Keep the speaker hovered
+        // first, then resolve the slider and its PART_Track together for every bounded
+        // native-input attempt. Never carry a track point across a popup transfer.
+        if (name == "GalleryVideoVolume")
+            await native.MoveAsync(() => CurrentNamedTargetAsync<Control>(viewer, "GalleryVideoVolumeHost"));
+
         List<string> route = new();
         void Pointer(object? _, PointerEventArgs e) => route.Add($"{e.RoutedEvent?.Name ?? "Pointer"}:{(e.Source is Control source ? source.Name ?? source.GetType().Name : e.Source?.GetType().Name)}:handled={e.Handled}");
-        void Changed(object? _, AvaloniaPropertyChangedEventArgs e)
-        {
-            if (e.Property == Slider.ValueProperty) route.Add($"Value:{e.GetNewValue<double>():0.##}");
-        }
-        slider.AddHandler(InputElement.PointerPressedEvent, Pointer, RoutingStrategies.Tunnel | RoutingStrategies.Bubble, handledEventsToo: true);
-        slider.AddHandler(InputElement.PointerReleasedEvent, Pointer, RoutingStrategies.Tunnel | RoutingStrategies.Bubble, handledEventsToo: true);
-        slider.PropertyChanged += Changed;
+        // The viewer is above both the docked and popup presentations. Listening there
+        // survives a slider reparent, while the native target below remains strict.
+        viewer.AddHandler(InputElement.PointerPressedEvent, Pointer, RoutingStrategies.Tunnel | RoutingStrategies.Bubble, handledEventsToo: true);
+        viewer.AddHandler(InputElement.PointerReleasedEvent, Pointer, RoutingStrategies.Tunnel | RoutingStrategies.Bubble, handledEventsToo: true);
         try
         {
-            // Use the actual PART_Track as the native coordinate owner. This avoids a second
-            // transform through the 32-DIP popup child while retaining the strict decoder edit.
-            await native.ClickAsync(track, trackPoint);
+            await native.ClickAsync(
+                () => CurrentNamedTargetAsync<Slider>(viewer, name),
+                current =>
+                {
+                    Track track = current.GetVisualDescendants().OfType<Track>().Single();
+                    Point trackPoint = SliderTrackPoint(track, current.Orientation, fraction);
+                    Point sliderPoint = track.TranslatePoint(trackPoint, current)
+                        ?? throw new ArgumentException("Native slider track changed presentation during coordinate conversion.", nameof(current));
+                    TopLevel root = TopLevel.GetTopLevel(current)
+                        ?? throw new ArgumentException("Native slider has no current top-level input root.", nameof(current));
+                    PixelPoint screen = current.PointToScreen(sliderPoint);
+                    Point rootPoint = root.PointToClient(screen);
+                    Visual? hit = root.InputHitTest(rootPoint) as Visual;
+                    Console.WriteLine("SMOKE native slider input geometry: " + System.Text.Json.JsonSerializer.Serialize(new
+                    {
+                        slider = current.Name, orientation = current.Orientation.ToString(), fraction,
+                        sliderBounds = current.Bounds.ToString(), trackBounds = track.Bounds.ToString(),
+                        thumbBounds = track.Thumb?.Bounds.ToString(), trackPoint = trackPoint.ToString(),
+                        sliderPoint = sliderPoint.ToString(), screen = screen.ToString(),
+                        rootPoint = rootPoint.ToString(), hit = hit?.GetType().Name, hitName = (hit as Control)?.Name,
+                        hitSlider = hit?.GetSelfAndVisualAncestors().Contains(current) == true,
+                        popupVisible = current.GetVisualAncestors().OfType<Control>().FirstOrDefault(c => c.Name == "GalleryVideoVolumePopup")?.IsEffectivelyVisible
+                    }));
+                    // MediaNativeInput repeats this same current-target transaction and
+                    // performs the authoritative hit-test immediately before delivery.
+                    // This diagnostic catches geometry regressions without becoming a
+                    // second stale preflight gate.
+                    return Task.FromResult((Point?)sliderPoint);
+                });
         }
         finally
         {
-            slider.RemoveHandler(InputElement.PointerPressedEvent, Pointer);
-            slider.RemoveHandler(InputElement.PointerReleasedEvent, Pointer);
-            slider.PropertyChanged -= Changed;
+            viewer.RemoveHandler(InputElement.PointerPressedEvent, Pointer);
+            viewer.RemoveHandler(InputElement.PointerReleasedEvent, Pointer);
         }
         Console.WriteLine("SMOKE native slider event route: " + System.Text.Json.JsonSerializer.Serialize(route));
         Require(route.Any(entry => entry.StartsWith("PointerPressed:", StringComparison.Ordinal))
             && route.Any(entry => entry.StartsWith("PointerReleased:", StringComparison.Ordinal)),
             "Native slider click did not traverse the slider pointer route; see native slider event route.");
+    }
+
+    private static Task<T> CurrentNamedTargetAsync<T>(GalleryViewer viewer, string name) where T : Control
+    {
+        try
+        {
+            T[] matches = viewer.GetGalleryVisualDescendants().OfType<T>()
+                .Where(control => control.Name == name).ToArray();
+            if (matches.Length != 1)
+                throw new ArgumentException($"Expected exactly one current {name} target; found {matches.Length}.", nameof(name));
+            return Task.FromResult(matches[0]);
+        }
+        catch (InvalidOperationException exception)
+        {
+            // A transfer can invalidate the visual enumeration for one dispatcher
+            // turn. MediaNativeInput treats ArgumentException as a bounded retry and
+            // will enumerate the new presentation instead of using a stale control.
+            throw new ArgumentException($"The current {name} target changed during visual enumeration.", nameof(name), exception);
+        }
     }
 
     private static Point SliderTrackPoint(Track track, Orientation orientation, double fraction)

@@ -657,7 +657,7 @@ internal static partial class GalleryPlaybackFeatureChecks
         }
         else
         {
-            await NativeSliderClickAsync(native, volume, .60);
+            await NativeSliderClickAsync(native, viewer, "GalleryVideoVolume", .60);
         }
         await MediaInteractionSmokeHelpers.HoldStateAsync(player, "Playing", "Bottom-edge volume interaction");
         Require(Running(viewer) && !Visible(post) && !viewer.CaptureState().ContextOpen,
