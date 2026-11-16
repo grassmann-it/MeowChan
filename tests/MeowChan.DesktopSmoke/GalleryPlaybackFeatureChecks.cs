@@ -744,6 +744,7 @@ internal static partial class GalleryPlaybackFeatureChecks
         GalleryViewer viewer = fixture.Viewer;
         viewer.ConfigurePlayback(new(GalleryPlaybackMode.Slideshow, 1));
         await viewer.ShowAsync(clip, CancellationToken.None);
+        await RevealAutoHiddenTransportAsync(fixture);
         Click(Find<Button>(viewer, "GallerySlideshowToggle"));
         GalleryVideoPlayer player = viewer.GetGalleryVisualDescendants().OfType<GalleryVideoPlayer>().Single();
         await UntilAsync(async () => (await player.InspectPlaybackAsync()).Time > 250,
