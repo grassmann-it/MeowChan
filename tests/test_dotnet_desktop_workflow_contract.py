@@ -60,6 +60,17 @@ class DotnetDesktopWorkflowContractTests(unittest.TestCase):
         self.assertIn("timeout-minutes: 35", self.step)
         self.assertIn("scripts/run-dotnet-shards.py", self.step)
 
+    def test_matrix_expression_has_balanced_parentheses_outside_strings(self):
+        workflow = WORKFLOW.read_text(encoding="utf-8")
+        expression = next(line for line in workflow.splitlines()
+                          if line.strip().startswith("matrix: ${{ fromJSON("))
+        expression = re.sub(r"'(?:[^']|'')*'", "", expression)
+        depth = 0
+        for char in expression:
+            depth += (char == "(") - (char == ")")
+            self.assertGreaterEqual(depth, 0, "Unexpected closing parenthesis in matrix expression")
+        self.assertEqual(0, depth)
+
     def test_matrix_has_four_non_macos_lanes_and_one_native_lane_per_macos(self):
         workflow = WORKFLOW.read_text(encoding="utf-8")
         self.assertIn('matrix: ${{ fromJSON(', workflow)
