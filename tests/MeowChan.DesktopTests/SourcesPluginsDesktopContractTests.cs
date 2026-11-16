@@ -192,9 +192,14 @@ public sealed class SourcesPluginsDesktopContractTests
         Assert.Contains("_sourceOperationBusy = busy;", combined);
         Assert.Contains("UpdateTestButtons();", combined);
         string testing = Read("Desktop/Views/Plugins/PluginsPage.Testing.cs");
-        Assert.Contains("IsVisible = _busy || _sourceOperationBusy;", testing);
-        Assert.Contains("if ((_busy || _sourceOperationBusy) && _testStatusKey == null)", testing);
-        Assert.Contains("C<TextBlock>(\"PluginTestStatus\").Text = Texts.T(\"feedback.working\");", testing);
+        // The bundled repair review owns its operation while open: no page spinner/Cancel behind the modal, and
+        // "Working…" is cleared once nothing runs (it used to stay behind after every finished operation).
+        Assert.Contains("bool reviewOpen = _busy && _migrationWindow is not null;", testing);
+        Assert.Contains("bool working = (_busy && !reviewOpen) || _sourceOperationBusy;", testing);
+        Assert.Contains("IsVisible = working;", testing);
+        Assert.Contains("if (_testStatusKey == null)", testing);
+        Assert.Contains("working ? Texts.T(\"feedback.working\") : reviewOpen ? Texts.T(\"plugins.repair.reviewOpen\") : string.Empty;", testing);
+        Assert.Contains("C<Button>(\"PluginCancel\").IsVisible = _busy && !reviewOpen;", testing);
         Assert.Contains("if (!busy && !_busy && _testStatusKey == null)", combined); // do not erase a plugin operation's result
         string source = Read("Desktop/Views/Sources/SourcesPage.axaml.cs");
         Assert.Contains("internal bool IsBusy => _busy || SourcePluginManagement.IsBusy;", source);

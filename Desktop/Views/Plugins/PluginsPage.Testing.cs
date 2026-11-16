@@ -32,14 +32,21 @@ public partial class PluginsPage
 
     private void UpdateTestButtons()
     {
-        C<Ursa.Controls.LoadingIcon>("PluginOperationLoading").IsLoading = C<Ursa.Controls.LoadingIcon>("PluginOperationLoading").IsVisible = _busy || _sourceOperationBusy;
-        if ((_busy || _sourceOperationBusy) && _testStatusKey == null) C<TextBlock>("PluginTestStatus").Text = Texts.T("feedback.working");
+        // While the bundled repair review is open it owns the page operation: its own footer shows progress and its Close
+        // stops it, so the page shows neither a spinner nor a Cancel that the modal keeps out of reach.
+        bool reviewOpen = _busy && _migrationWindow is not null;
+        bool working = (_busy && !reviewOpen) || _sourceOperationBusy;
+        C<Ursa.Controls.LoadingIcon>("PluginOperationLoading").IsLoading = C<Ursa.Controls.LoadingIcon>("PluginOperationLoading").IsVisible = working;
+        // Only the generic text is owned here: an operation's own result (_testStatusKey) is never erased. Once nothing runs,
+        // "Working…" goes away instead of staying behind after the operation ended.
+        if (_testStatusKey == null)
+            C<TextBlock>("PluginTestStatus").Text = working ? Texts.T("feedback.working") : reviewOpen ? Texts.T("plugins.repair.reviewOpen") : string.Empty;
         bool source = Selected?.SourcePath != null;
         SetAction("PluginBuild", source ? "plugins.unavailable" : "plugins.reason.noSource", source && _services != null);
         SetAction("PluginEdit", "plugins.reason.noSource", source);
         SetAction("PluginDefaultEditor", "plugins.reason.noSource", source);
-        C<Button>("PluginCancel").IsEnabled = _busy;
-        C<Button>("PluginCancel").IsVisible = _busy;
+        C<Button>("PluginCancel").IsEnabled = _busy && !reviewOpen;
+        C<Button>("PluginCancel").IsVisible = _busy && !reviewOpen;
         SetAction("PluginProbe", "plugins.reason.noTest", _tested is { } tested && IsCurrentTestedCandidate(tested) && tested.Description.Sources.Count > 0);
         C<TextBox>("PluginProbeUrl").IsEnabled = !_busy;
         SetAction("PluginEditorSave", "plugins.reason.noEditorStore", SaveEditorOptionsAsync != null);
