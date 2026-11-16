@@ -282,18 +282,28 @@ public sealed class GalleryRatingPanelTests : IDisposable
     [Fact]
     public void TheInfoLineRatingAndTheTileRatingCaptionAreKeyboardReachableControlsThatOpenRateAndTag()
     {
-        // Dead-affordance audit 15.11.: the passive "Rating: n" texts open the same surface as R.
+        // Dead-affordance audit 15.11.: the passive "Rating: n" texts open the same surface as R. The info line's segment is a link button around the text
+        // (review 16.11.): native Enter and Space, the focus adorner and the Button role, none of which a focused TextBlock had.
         TextBlock status = new();
         int opened = 0;
-        GalleryViewer.MakeRatingStatusInteractive(status, () => opened++);
-        Assert.True(status.Focusable);
-        Assert.True(status.IsTabStop);
-        Assert.Equal(AutomationControlType.Button, AutomationProperties.GetControlTypeOverride(status));
+        Button button = GalleryViewer.MakeRatingStatusInteractive(status, () => opened++);
+        Assert.Same(status, button.Content);
+        Assert.Contains("link", button.Classes);
+        Assert.True(button.IsTabStop);
+        Assert.False(status.Focusable);
+        Assert.False(button.IsVisible); // no rating text yet: no empty box
         status.Text = "Rating: 4 of 5";
-        Assert.Equal("Rating: 4 of 5", AutomationProperties.GetName(status));
-        Assert.Contains("R", (string)ToolTip.GetTip(status)!);
+        Assert.True(button.IsVisible);
+        Assert.Equal("Rating: 4 of 5", AutomationProperties.GetName(button));
+        Assert.Contains("R", (string)ToolTip.GetTip(button)!);
+        status.IsVisible = false; // the chrome plan hides the segment: the button goes with it
+        Assert.False(button.IsVisible);
+        status.IsVisible = true;
+        Assert.True(button.IsVisible);
         Assert.Contains("MakeRatingStatusInteractive(_ratingStatus, RequestRateAndTag)", Source("Desktop", "GalleryViewer.InfoLine.cs"));
         Assert.Equal(0, opened);
+        button.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+        Assert.Equal(1, opened);
 
         string tile = Source("Desktop", "ArchiveMediaTileView.cs");
         Assert.Contains("caption.Focusable = true;", tile);

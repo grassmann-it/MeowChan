@@ -135,12 +135,42 @@ public sealed class DeadAffordanceGuardTests
     {
         Assert.Single(Guard(new Border { Cursor = new Cursor(StandardCursorType.Hand) }));
         Assert.Empty(Guard(new Border { Cursor = new Cursor(StandardCursorType.Arrow) }));
-        Border pressed = new() { Cursor = new Cursor(StandardCursorType.Hand) };
+        Border pressed = new() { Cursor = new Cursor(StandardCursorType.Hand), Background = Avalonia.Media.Brushes.Transparent };
         pressed.PointerPressed += (_, _) => { };
         // The frame acts, so the picture inside it with the same cursor is part of it.
         Border picture = new() { Cursor = new Cursor(StandardCursorType.Hand) };
         pressed.Child = picture;
         Assert.Empty(Guard(pressed));
+    });
+
+    // Class 1 of the bug-class audit (16.11.): an element with a hand cursor that presses on its own but has no Background is hit only where it draws
+    // (the glyphs of a text block), so a click in its padding falls through to the tile or the line behind it.
+    [Fact]
+    public void APressableControlWithoutABackgroundIsReportedAndATransparentOneIsAccepted() => WithCursors(() =>
+    {
+        TextBlock bare = new() { Cursor = new Cursor(StandardCursorType.Hand) };
+        bare.PointerPressed += (_, _) => { };
+        Assert.Single(Guard(bare));
+        Border bareBorder = new() { Cursor = new Cursor(StandardCursorType.Hand) };
+        bareBorder.PointerPressed += (_, _) => { };
+        Assert.Single(Guard(bareBorder));
+        TextBlock filled = new() { Cursor = new Cursor(StandardCursorType.Hand), Background = Avalonia.Media.Brushes.Transparent };
+        filled.PointerPressed += (_, _) => { };
+        Assert.Empty(Guard(filled));
+    });
+
+    // The two instances of the audit: the rating segment of the gallery info line and the rating caption of an archive tile.
+    [Fact]
+    public void TheRatingSegmentAndTheTileCaptionPressOnTheirWholeBox() => WithCursors(() =>
+    {
+        // The info line's segment is a button now (it presses on its whole box and has a Click handler); the guard accepts it.
+        Button status = MeowChan.Desktop.GalleryViewer.MakeRatingStatusInteractive(new TextBlock(), () => { });
+        Assert.Equal(Avalonia.Media.Brushes.Transparent, status.Background);
+        Assert.Empty(Guard(status));
+        TextBlock caption = new MeowChan.Desktop.ArchiveMediaTileView().RatingCaption;
+        Assert.NotNull(caption.Background);
+        Assert.NotNull(caption.Cursor);
+        Assert.Empty(DeadAffordanceGuard.Offenders(caption)); // the caption is a child of its tile: judged on its own
     });
 
     [Fact]

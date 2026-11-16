@@ -2,6 +2,7 @@ using System;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Avalonia.Media;
 using MeowChan.Desktop.Commands;
@@ -49,8 +50,15 @@ internal sealed partial class GalleryViewer
 {
     private readonly Grid _infoLine = new() { Name = "GalleryInfoLine", ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 12 };
     private readonly GalleryInfoSegmentsPanel _infoSegments = new() { Name = "GalleryInfoSegments", VerticalAlignment = VerticalAlignment.Center };
-    private readonly StackPanel _statusSegment = new() { Name = "GalleryStatusSegment", Orientation = Orientation.Horizontal, Spacing = 8,
+    // A WrapPanel, not a horizontal StackPanel: a stack measures its texts without a width limit, so the half-line MaxWidth could never wrap or trim them
+    // (the German slideshow reason overflowed at half-screen width). The panel measures each text with the room it has, so a text wraps (two lines at
+    // most, then an ellipsis with the whole text as its tooltip) and a second text moves below the first instead of out of the window.
+    private readonly WrapPanel _statusSegment = new() { Name = "GalleryStatusSegment", Orientation = Orientation.Horizontal, ItemSpacing = 8, LineSpacing = 2,
         HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
+    /// <summary>The most lines a status text takes before it ends in an ellipsis (a layout rule, the full text is the tooltip).</summary>
+    internal const int StatusMaxLines = 2;
+    // The rating segment is a link button around <c>_ratingStatus</c> (the text stays the source of its text and visibility).
+    private Button _ratingStatusButton = new();
     // The segments of the left column in order, and the separator before each (the first has none).
     private TextBlock[] _infoSegmentTexts = Array.Empty<TextBlock>();
     private readonly TextBlock[] _infoSeparators = new TextBlock[4];
@@ -103,42 +111,46 @@ internal sealed partial class GalleryViewer
     internal Panel InfoLine => _infoLine;
 
     // The "Rating: n" segment is no passive text (dead-affordance audit 15.11.): a click, Enter or Space opens "Rate and tag" like R does (the Tags
-    // segment with the stars focused). It is a tab stop with the rating as its accessible name and the command's gesture as its tooltip.
-    private void MakeRatingStatusInteractive() => MakeRatingStatusInteractive(_ratingStatus, RequestRateAndTag);
-
-    internal static void MakeRatingStatusInteractive(TextBlock status, Action open)
+    // segment with the stars focused). It is a link button around the text (Tom's review, 16.11.): a Button gets Enter and Space natively (the gallery's
+    // key tunnel leaves a focused button alone, a focused TextBlock lost both to play/pause and "Read thread"), the focus adorner and the Button role. The
+    // rating is its accessible name and the command's gesture its tooltip. The text stays the owner of the text and of the segment's visibility.
+    internal static Button MakeRatingStatusInteractive(TextBlock status, Action open)
     {
-        status.Focusable = true;
-        status.IsTabStop = true;
-        // The hand cursor needs the platform's cursor factory: without a platform (a headless host) the control keeps the arrow.
-        try { status.Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand); }
-        catch (InvalidOperationException) { }
-        AutomationProperties.SetControlTypeOverride(status, Avalonia.Automation.Peers.AutomationControlType.Button);
-        status.PointerPressed += (_, e) =>
+        Button button = new()
         {
-            if (!e.GetCurrentPoint(status).Properties.IsLeftButtonPressed) return;
-            e.Handled = true;
-            open();
+            Name = "GalleryRatingStatusButton", Content = status, IsVisible = false, IsTabStop = true,
+            Background = Avalonia.Media.Brushes.Transparent, BorderThickness = default, Padding = default, MinHeight = 0, MinWidth = 0,
+            HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Left, VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+            Cursor = MeowChan.Desktop.Controls.PointerCursors.Hand
         };
-        status.KeyDown += (_, e) =>
+        button.Classes.Add("link");
+        // The label is the link's colour (the meta style of the text would keep it Muted), and it can never be the focus target itself.
+        status.Bind(TextBlock.ForegroundProperty, button.GetObservable(TemplatedControl.ForegroundProperty));
+        status.Focusable = false;
+        button.Click += (_, _) => open();
+        void Sync(bool textChanged)
         {
-            if (e.KeyModifiers != Avalonia.Input.KeyModifiers.None || e.Key is not (Avalonia.Input.Key.Enter or Avalonia.Input.Key.Space)) return;
-            e.Handled = true;
-            open();
-        };
+            button.IsVisible = status.IsVisible && !string.IsNullOrEmpty(status.Text);
+            if (!textChanged) return;
+            AutomationProperties.SetName(button, status.Text ?? string.Empty);
+            string label = CommandCatalog.Label("media.rating.edit");
+            ToolTip.SetTip(button, CommandCatalog.ShortcutDisplay("media.rating.edit") is { } gesture ? label + " · " + gesture : label);
+        }
         status.PropertyChanged += (_, e) =>
         {
-            if (e.Property != TextBlock.TextProperty) return;
-            AutomationProperties.SetName(status, status.Text ?? string.Empty);
-            string label = CommandCatalog.Label("media.rating.edit");
-            ToolTip.SetTip(status, CommandCatalog.ShortcutDisplay("media.rating.edit") is { } gesture ? label + " · " + gesture : label);
+            if (e.Property == TextBlock.TextProperty) Sync(true);
+            else if (e.Property == Visual.IsVisibleProperty) Sync(false);
         };
+        if (!string.IsNullOrEmpty(status.Text)) Sync(true); // a text set before the button was made
+        return button;
     }
 
     // Builds the one line: left the segments with their separators, right the status segment. The error and warning lines stay below it.
     private Control BuildInfoContent()
     {
         _infoSegmentTexts = new[] { _quality, _scope, _provenance, _ratingStatus };
+        _ratingStatusButton = MakeRatingStatusInteractive(_ratingStatus, RequestRateAndTag);
         for (int index = 0; index < _infoSegmentTexts.Length; index++)
         {
             if (index > 0)
@@ -154,13 +166,12 @@ internal sealed partial class GalleryViewer
             // One row: a segment that does not fit ends in an ellipsis (GalleryInfoSegmentsPanel) instead of wrapping onto a second row.
             segment.TextWrapping = TextWrapping.NoWrap;
             segment.TextTrimming = TextTrimming.CharacterEllipsis;
-            _infoSegments.Children.Add(segment);
+            _infoSegments.Children.Add(ReferenceEquals(segment, _ratingStatus) ? _ratingStatusButton : segment);
             segment.PropertyChanged += (_, e) =>
             {
                 if (e.Property == TextBlock.TextProperty || e.Property == IsVisibleProperty) UpdateInfoLine();
             };
         }
-        MakeRatingStatusInteractive();
         _infoSegments.Children.Add(_position); // never shown: the position stands between the arrows
         AutomationProperties.SetLiveSetting(_ratingSaved, AutomationLiveSetting.Polite);
         _ratingSavedTimer.Tick += (_, _) => ClearRatingSaved();
@@ -170,8 +181,12 @@ internal sealed partial class GalleryViewer
             text.Margin = default;
             text.VerticalAlignment = VerticalAlignment.Center;
             text.TextAlignment = Avalonia.Media.TextAlignment.Right;
+            text.TextWrapping = TextWrapping.Wrap;
+            text.MaxLines = StatusMaxLines;
+            text.TextTrimming = TextTrimming.CharacterEllipsis;
             text.PropertyChanged += (_, e) =>
             {
+                if (e.Property == TextBlock.TextProperty) ToolTip.SetTip(text, string.IsNullOrEmpty(text.Text) ? null : text.Text);
                 if (e.Property == TextBlock.TextProperty || e.Property == IsVisibleProperty) UpdateInfoLine();
             };
             _statusSegment.Children.Add(text);
