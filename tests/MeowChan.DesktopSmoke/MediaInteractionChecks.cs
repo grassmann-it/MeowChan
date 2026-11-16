@@ -9,6 +9,7 @@ using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Diagnostics;
 
 namespace MeowChan.DesktopSmoke;
 
@@ -27,6 +28,13 @@ internal static class MediaInteractionChecks
             throw new IOException("Media input report must have an existing parent and a fresh absolute filename.");
         string fixture = Environment.GetEnvironmentVariable("MEOWCHAN_VIDEO_FIXTURE")
             ?? throw new InvalidOperationException("Media input requires MEOWCHAN_VIDEO_FIXTURE.");
+        using var playbackTrace = PerformanceDiagnostics.BeginRun("media-native-input",
+            Environment.GetEnvironmentVariable("MEOWCHAN_MEDIA_INTERACTION_SOURCE_DIGEST") ?? "unknown", "media-native-fixture");
+        PerformanceSnapshot PlaybackTrace()
+        {
+            var snapshot = playbackTrace.Snapshot();
+            return snapshot with { Events = snapshot.Events.Where(e => e.Phase.StartsWith("video.", StringComparison.Ordinal)).ToArray() };
+        }
         List<object> events = new();
         List<string> failures = new(), completed = new();
         Stopwatch clock = Stopwatch.StartNew();
@@ -276,7 +284,7 @@ internal static class MediaInteractionChecks
                     assemblySha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(typeof(Program).Assembly.Location))).ToLowerInvariant(),
                     fixtureImageSha256 = VideoGalleryChecks.FixtureImageSha256,
                     fixtureSha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(fixture))).ToLowerInvariant(),
-                    completed, failures, dropped, events,
+                    completed, failures, dropped, events, playbackTrace = PlaybackTrace(),
                     limits = "Only the recorded OS/backend was executed; no physical audio, MP4, touch-device, slideshow end-to-end, restart persistence or forced late-callback proof. Transition stress is a real-input race, not deterministic callback injection. Test stages are not production generation IDs. Source digest is inventory, not compiler provenance."
                 }, new JsonSerializerOptions { WriteIndented = true }));
             }
@@ -482,14 +490,22 @@ internal static class MediaInteractionChecks
         }
         async Task<GalleryVideoPlayer.PlaybackEvidence> SampleAsync(string label)
         {
+            GalleryVideoPlayer player = Player();
+            using CancellationTokenSource observation = new();
             GalleryVideoPlayer.PlaybackEvidence evidence;
-            try { evidence = await Player().InspectPlaybackAsync().WaitAsync(TimeSpan.FromSeconds(4)); }
+            try { evidence = await player.InspectPlaybackAsync(cancellationToken: observation.Token).WaitAsync(TimeSpan.FromSeconds(4)); }
             catch (TimeoutException)
             {
-                Record("playback-observation-timeout", new { label, post = viewer?.CaptureState().PostId, timeoutMs = 4000 });
+                var trace = PlaybackTrace();
+                Record("playback-observation-timeout", new { label, post = viewer?.CaptureState().PostId, timeoutMs = 4000,
+                    lifecycle = player.InspectPlaybackLifecycle(), trace.Frequency, trace.Dropped,
+                    phases = trace.Events.TakeLast(256).ToArray() });
                 Console.Error.WriteLine($"SMOKE playback observation timeout: stage={stage}, label={label}, post={viewer?.CaptureState().PostId}");
                 throw;
             }
+            // WaitAsync only abandons its await. Remove any still-queued observer so it
+            // cannot enter native code after this sample/stage has already failed.
+            finally { observation.Cancel(); }
             foreach (Window inputRoot in window.OwnedWindows.Where(w => viewer!.OwnsOverlayWindow(w))) ObserveRoot(inputRoot);
             Slider seek = Seek();
             Record("sample", new { label, post = viewer!.CaptureState().PostId, evidence,

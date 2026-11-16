@@ -424,32 +424,37 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
         int AudioTracks = -1, bool AudioAvailable = false, int DecodedAudio = 0, int PlayedAudioBuffers = -1,
         long AudioTicks = 0, long AudioProbeRequests = 0, long AudioProbes = 0, long AudioProbePresentations = 0, bool AudioSettled = false);
 
-    internal Task<PlaybackEvidence> InspectPlaybackAsync(string? snapshotPath = null) => Task.Run(async () =>
-    {
-        await _operations.WaitAsync().ConfigureAwait(false);
-        try
-        {
-            Playback? playback = _playback;
-            if (_lifetime.HasCleanupFailure)
-                return new PlaybackEvidence("CleanupFailed", 0, 0, 0, playback != null, _engine != null, IsDisposed,
-                    _releasedStreams, _cleanupFailures);
-            if (playback == null) return new PlaybackEvidence("Stopped", 0, 0, 0, false, _engine != null, IsDisposed,
-                _releasedStreams, _cleanupFailures, LoopEnabled: _intent.LoopEnabled, LoopRestarts: _loopRestarts);
-            var stats = playback.Media.Statistics;
-            if (snapshotPath != null && !playback.Player.TakeSnapshot(0, snapshotPath, 0, 0))
-                throw new InvalidOperationException("The native video output rejected the frame snapshot.");
-            int audioTracks = playback.Player.AudioTrackCount, volume = playback.Player.Volume;
-            var probes = _audioProbe.Counts;
-            return new PlaybackEvidence(playback.Player.State.ToString(), playback.Player.Time,
-                stats.DecodedVideo, stats.DisplayedPictures, true, _engine != null, IsDisposed,
-                _releasedStreams, _cleanupFailures, playback.Surface?.PresentedFrames ?? 0, playback.Surface?.NonUniform ?? false,
-                _intent.LoopEnabled, _loopRestarts, playback.Player.Mute, volume,
-                playback.Player.Length, playback.Player.IsSeekable, audioTracks,
-                VideoAudioAvailability.IsAvailable(audioTracks, volume, stats.PlayedAudioBuffers), stats.DecodedAudio, stats.PlayedAudioBuffers,
-                probes.Ticks, probes.Requests, probes.Probes, probes.Presentations, probes.Settled);
-        }
-        finally { _operations.Release(); }
-    });
+    // Managed-only evidence remains readable even when a native getter/Stop holds _operations.
+    internal sealed record PlaybackLifecycleEvidence(long Generation, long? PlaybackGeneration,
+        bool CleanupPending, VideoCleanupEvidence Cleanup);
+    internal PlaybackLifecycleEvidence InspectPlaybackLifecycle() => new(_generation,
+        Volatile.Read(ref _playback)?.Generation, _lifetime.HasCleanupPending, _lifetime.Cleanup.Evidence);
+
+    internal Task<PlaybackEvidence> InspectPlaybackAsync(string? snapshotPath = null, CancellationToken cancellationToken = default)
+        => VideoPlaybackObservation.RunAsync(_operations, _lifetime, _generation, () => _playback,
+            static playback => playback.Generation, playback =>
+            {
+                T Read<T>(string phase, Func<T> read)
+                {
+                    using var measure = PerformanceDiagnostics.Measure("video.observer." + phase, revision: playback.Generation);
+                    return read();
+                }
+                var stats = Read("statistics", () => playback.Media.Statistics);
+                if (snapshotPath != null && !Read("snapshot", () => playback.Player.TakeSnapshot(0, snapshotPath, 0, 0)))
+                    throw new InvalidOperationException("The native video output rejected the frame snapshot.");
+                int audioTracks = Read("audio-tracks", () => playback.Player.AudioTrackCount);
+                int volume = Read("volume", () => playback.Player.Volume);
+                var probes = _audioProbe.Counts;
+                return new PlaybackEvidence(Read("state", () => playback.Player.State).ToString(), Read("time", () => playback.Player.Time),
+                    stats.DecodedVideo, stats.DisplayedPictures, true, _engine != null, IsDisposed,
+                    _releasedStreams, _cleanupFailures, playback.Surface?.PresentedFrames ?? 0, playback.Surface?.NonUniform ?? false,
+                    _intent.LoopEnabled, _loopRestarts, Read("mute", () => playback.Player.Mute), volume,
+                    Read("length", () => playback.Player.Length), Read("seekable", () => playback.Player.IsSeekable), audioTracks,
+                    VideoAudioAvailability.IsAvailable(audioTracks, volume, stats.PlayedAudioBuffers), stats.DecodedAudio, stats.PlayedAudioBuffers,
+                    probes.Ticks, probes.Requests, probes.Probes, probes.Presentations, probes.Settled);
+            }, state => new PlaybackEvidence(state, 0, 0, 0, state == "CleanupFailed" && _playback != null,
+                _engine != null, IsDisposed, _releasedStreams, _cleanupFailures,
+                LoopEnabled: _intent.LoopEnabled, LoopRestarts: _loopRestarts), cancellationToken);
 
     internal GalleryVideoPlayer()
     {
@@ -759,11 +764,14 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
                 if (!IsCurrent(generation)) return;
                 using (PerformanceDiagnostics.Measure("video.native.create", request.Id, asset: entry.Asset.AssetId, revision: generation))
                 {
-                    NativeVideoRuntime.EnsureInitialized();
-                    _engine ??= UsesSoftwareVideo
+                    using (PerformanceDiagnostics.Measure("video.native.runtime-init", request.Id, revision: generation))
+                        NativeVideoRuntime.EnsureInitialized();
+                    using (PerformanceDiagnostics.Measure("video.native.engine-create", request.Id, revision: generation))
+                        _engine ??= UsesSoftwareVideo
                         ? new LibVLC("--no-video-title-show", "--no-media-library", "--avcodec-hw=none", "--stats")
                         : new LibVLC("--no-video-title-show", "--no-media-library", "--stats");
-                    player = new MediaPlayer(_engine);
+                    using (PerformanceDiagnostics.Measure("video.native.player-create", request.Id, revision: generation))
+                        player = new MediaPlayer(_engine);
                     VideoVolumeRequest initialVolume = _volumeIntent.Current;
                     player.Volume = initialVolume.Volume; ApplyMute(player);
                     _appliedVolumeRevision = initialVolume.Revision;
@@ -772,8 +780,10 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
                     bool isoBaseMedia = VideoStreamDemux.HasIsoBaseMediaHeader(stream);
                     if (VideoNativeInput.UsesFileInput)
                     {
-                        nativeFile = await VideoNativeInput.MaterializeAsync(stream, entry.Asset.Path, token).ConfigureAwait(false);
-                        media = new Media(_engine, nativeFile.Path, FromType.FromPath);
+                        using (PerformanceDiagnostics.Measure("video.native.file-materialize", request.Id, revision: generation))
+                            nativeFile = await VideoNativeInput.MaterializeAsync(stream, entry.Asset.Path, token).ConfigureAwait(false);
+                        using (PerformanceDiagnostics.Measure("video.native.media-create", request.Id, revision: generation))
+                            media = new Media(_engine, nativeFile.Path, FromType.FromPath);
                     }
                     else
                     {
@@ -1026,9 +1036,11 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
 
     private async Task SeekAsync(VideoSeekRequest request)
     {
-        await _operations.WaitAsync().ConfigureAwait(false);
+        using (PerformanceDiagnostics.Measure("video.seek.operations-wait", revision: request.Generation))
+            await _operations.WaitAsync().ConfigureAwait(false);
         try
         {
+            using var operation = PerformanceDiagnostics.Measure("video.seek.native", revision: request.Generation);
             Playback? playback = _playback;
             bool Current() => playback != null && playback.Generation == request.Generation
                 && IsCurrent(request.Generation) && _timeline.IsLatest(request);
@@ -1039,7 +1051,8 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
             if (terminal && length <= 0) length = request.Length;
             if ((!terminal && !player.IsSeekable) || length <= 0)
             {
-                CompleteSeek(request, Math.Max(0, player.Time), player.IsPlaying);
+                using (PerformanceDiagnostics.Measure("video.seek.readback", revision: request.Generation))
+                    CompleteSeek(request, Math.Max(0, player.Time), player.IsPlaying);
                 return;
             }
             // VLC cannot seek an ended/stopped input. Re-open it first, then restore the user's
@@ -1075,13 +1088,15 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
             player.TimeChanged += TimeChanged;
             try
             {
-                player.Time = position;
+                using (PerformanceDiagnostics.Measure("video.seek.set-time", revision: request.Generation))
+                    player.Time = position;
                 if (Math.Abs(player.Time - position) > 250)
                 {
                     try { await observed.Task.WaitAsync(TimeSpan.FromMilliseconds(500), playback.Token).ConfigureAwait(false); }
                     catch (TimeoutException) { /* Read actual time even if the backend cannot honor the seek. */ }
                 }
-                CompleteSeek(request, Math.Max(0, player.Time), player.IsPlaying);
+                using (PerformanceDiagnostics.Measure("video.seek.readback", revision: request.Generation))
+                    CompleteSeek(request, Math.Max(0, player.Time), player.IsPlaying);
             }
             finally { player.TimeChanged -= TimeChanged; }
         }
@@ -1130,9 +1145,11 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
         {
             await Task.Run(async () =>
             {
-                await _operations.WaitAsync().ConfigureAwait(false);
+                using (PerformanceDiagnostics.Measure("video.audio.operations-wait", revision: generation))
+                    await _operations.WaitAsync().ConfigureAwait(false);
                 try
                 {
+                    using var operation = PerformanceDiagnostics.Measure("video.audio.native", revision: generation);
                     if (!IsCurrent(generation) || !ReferenceEquals(_playback?.Player, expectedPlayer)) return;
                     // Observe the epoch before native state, so a later track/playing event always wins.
                     long epoch = _audioProbe.Observe();
