@@ -1350,7 +1350,6 @@ public sealed partial class MediaPage : UserControl
         _selectionTag?.CloseForLifetime();
         _panelFollowTimer?.Stop();
         _panelAnnounceTimer?.Stop();
-        _panelPlaceholderTimer?.Stop();
         CancelPanelLoad();
         _ = ReleasePanelVideos();
         _panel?.ReleasePicture();

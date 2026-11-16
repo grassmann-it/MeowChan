@@ -620,13 +620,15 @@ internal sealed class ReaderMediaSidebar : Border
     internal void ShowLoading(ReaderMediaLoadingLook look, string text)
     {
         if (look == ReaderMediaLoadingLook.DimPrevious && _bitmap != null) Dim(text);
-        else if (look != ReaderMediaLoadingLook.Keep) ShowPlaceholder(text);
+        else if (look != ReaderMediaLoadingLook.Keep) SetPlaceholder(text, answered: false);
     }
 
     /// <summary>The placeholder with a short text (loading, cannot be shown); the previous picture is given back.</summary>
-    internal void ShowPlaceholder(string text)
+    internal void ShowPlaceholder(string text) => SetPlaceholder(text, answered: true);
+
+    private void SetPlaceholder(string text, bool answered)
     {
-        ReleasePicture();
+        ClearPicture(answered);
         _image.IsVisible = false;
         _image.Opacity = 1; // a dimmed trace of an earlier medium never comes back
         _edge.IsVisible = false;
@@ -833,14 +835,16 @@ internal sealed class ReaderMediaSidebar : Border
     }
 
     /// <summary>Gives the shown bitmap back (decoded images to the gallery cache, posters to the thumbnail cache).</summary>
-    internal void ReleasePicture()
+    internal void ReleasePicture() => ClearPicture(answered: true);
+
+    private void ClearPicture(bool answered)
     {
         Bitmap? bitmap = _bitmap;
         Action<Bitmap>? release = _release;
         _bitmap = null;
         _release = null;
         _image.Source = null;
-        Load.Cleared();
+        Load.Cleared(answered);
         if (bitmap != null) release?.Invoke(bitmap);
     }
 }

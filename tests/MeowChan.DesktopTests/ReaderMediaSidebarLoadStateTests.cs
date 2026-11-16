@@ -305,14 +305,15 @@ public sealed class ReaderMediaSidebarLoadStateTests : IDisposable
     [Theory]
     [InlineData("Desktop/Views/Archive/ArchivePage.MediaSidebar.cs", "sidebar")]
     [InlineData("Desktop/Views/Media/MediaPage.Panel.cs", "panel")]
-    public void BothHostsAskTheLoadStateAndStopTheTimerBeforeThePictureShows(string file, string view)
+    public void BothHostsUseTheSharedRequestScopedImageLoader(string file, string view)
     {
         string source = Read(file);
-        Assert.Contains("shown.ShowLoading(shown.Load.LoadingLook(", source);
         Assert.Contains($"ReaderMediaLoadTicket ticket = {view}.Load.Begin(mediumKey, target);", source);
         Assert.Contains("if (ticket.UpToDate)", source);
-        Assert.Contains("if (!ticket.SameMedium)", source);
-        Assert.Contains($"placeholder.Stop();\n                {view}.ShowPicture(bitmap, GalleryImageCache.Shared.Release", source);
+        Assert.Contains($"ReaderMediaSidebarImageLoad load = new({view}, key, ticket,", source);
+        Assert.Contains("return load.RunAsync(async ct =>", source);
+        Assert.Contains("new ReaderMediaSidebarContent.Picture(bitmap, GalleryImageCache.Shared.Release", source);
+        Assert.DoesNotContain("PlaceholderRequest", source); // timers no longer borrow another request's mutable identity
         // The load tokens are the load state's only.
         Assert.DoesNotContain("_sidebarRequest", source);
         Assert.DoesNotContain("_panelRequest", source);

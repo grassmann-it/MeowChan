@@ -40,10 +40,9 @@ public sealed partial class MediaPage
     private string _panelSizeText = string.Empty, _panelDimensions = string.Empty;
     private readonly ReaderMediaFollowThrottle _panelThrottle = new();
     private readonly Stopwatch _panelClock = Stopwatch.StartNew();
-    private DispatcherTimer? _panelFollowTimer, _panelAnnounceTimer, _panelPlaceholderTimer;
+    private DispatcherTimer? _panelFollowTimer, _panelAnnounceTimer;
     private CancellationTokenSource? _panelLoading;
     // The load tokens, the shown medium and its decoded size live in the view's load state (ReaderMediaSidebarLoadState).
-    private int _panelPlaceholderRequest;
     private string _panelAnnouncement = string.Empty;
     private GalleryFitPreferences _panelFit = new();
     private readonly PressOpenedContextGate _panelPointerContext = new();
@@ -197,7 +196,6 @@ public sealed partial class MediaPage
         CancelPanelLoad();
         _panelFollowTimer?.Stop();
         _panelAnnounceTimer?.Stop();
-        _panelPlaceholderTimer?.Stop();
         _panelThrottle.Reset();
         _panelRow = _panelWanted = null;
         _panelSizeText = _panelDimensions = string.Empty;
@@ -264,6 +262,7 @@ public sealed partial class MediaPage
 
     private void RequestPanel(MediaLibraryTileRow? row)
     {
+        if (!ReferenceEquals(_panelWanted, row)) CancelPanelLoad(); // retire now, not after the follow throttle
         _panelWanted = row;
         long now = _panelClock.ElapsedMilliseconds;
         if (_panelThrottle.Request(now)) { RefreshPanel(); return; }
@@ -291,7 +290,7 @@ public sealed partial class MediaPage
         if (!_panelShown || _panel is not { Shown: { } shown } panel) return;
         (double Width, double Height) needed = ReaderMediaSidebarRules.PhysicalTarget(panel.Frame.Bounds.Size, TopLevel.GetTopLevel(panel)?.RenderScaling ?? 1);
         if (!ReaderMediaSidebarRules.NeedsLargerDecode(shown.PixelSize, needed, panel.Load.ShownSource)) return;
-        RequestPanel(_panelRow);
+        RequestPanel(_panelWanted ?? _panelRow); // a resize must not replace a pending selection with the old row
     }
 
     private void CancelPanelLoad()
@@ -395,76 +394,33 @@ public sealed partial class MediaPage
             !asset.IsCurrent, entry.Unassigned);
     }
 
-    private async Task LoadPanelAsync(ReaderMediaSidebar panel, MediaLibraryTileRow row, string key, ReaderMediaLoadTicket ticket,
+    private Task LoadPanelAsync(ReaderMediaSidebar panel, MediaLibraryTileRow row, string key, ReaderMediaLoadTicket ticket,
         (double Width, double Height) target, CancellationToken token)
     {
-        int request = ticket.Request;
-        // A warm cache answers within a frame and the old picture simply gives way. A cold one: after PlaceholderDelayMs the previous medium's picture
-        // dims under "Loading…" (with the file line already above it), the placeholder only stands in when nothing is shown. A larger decode of the
-        // medium already shown starts no timer: its picture stays until the new one swaps in.
-        DispatcherTimer placeholder = _panelPlaceholderTimer ??= CreatePanelTimer(() =>
+        ReaderMediaSidebarImageLoad load = new(panel, key, ticket, _panelFit, () => IsCurrentPanelRequest(ticket.Request), token);
+        return load.RunAsync(async ct =>
         {
-            if (IsCurrentPanelRequest(_panelPlaceholderRequest) && _panel is { } shown)
-                shown.ShowLoading(shown.Load.LoadingLook(_panelPlaceholderRequest), Texts.T("reader.sidebar.loading"));
-        });
-        placeholder.Stop();
-        if (!ticket.SameMedium)
-        {
-            _panelPlaceholderRequest = request;
-            placeholder.Interval = TimeSpan.FromMilliseconds(ReaderMediaSidebarRules.PlaceholderDelayMs);
-            placeholder.Start();
-        }
-        try
-        {
-            GalleryEntry? entry = await ResolvePanelEntryAsync(row.Entry, token);
-            if (!IsCurrentPanelRequest(request)) return;
-            if (entry == null)
-            {
-                placeholder.Stop();
-                panel.ShowPlaceholder(Texts.T("archive.notSaved"));
-                return;
-            }
+            GalleryEntry? entry = await ResolvePanelEntryAsync(row.Entry, ct);
+            ct.ThrowIfCancellationRequested();
+            if (entry == null) return new ReaderMediaSidebarContent.Unavailable("archive.notSaved");
             if (entry.Kind == SavedMediaKind.Image)
             {
-                (Bitmap bitmap, GalleryImageInfo info) = await GalleryImageCache.DecodeAsync(entry, new GalleryDecodeRequest.Fit(target.Width, target.Height), token);
-                if (!IsCurrentPanelRequest(request)) { GalleryImageCache.Shared.Release(bitmap); return; }
-                placeholder.Stop();
-                panel.ShowPicture(bitmap, GalleryImageCache.Shared.Release, info.StillFrame,
-                    ReaderMediaSidebarRules.MaximumDisplay(info.Width, _panelFit), ReaderMediaSidebarRules.MaximumDisplay(info.Height, _panelFit),
-                    key, new PixelSize(info.Width, info.Height));
-                _panelDimensions = $"{info.Width}×{info.Height}";
-                panel.SetDetail(PanelDetail());
+                (Bitmap bitmap, GalleryImageInfo info) = await GalleryImageCache.DecodeAsync(entry, new GalleryDecodeRequest.Fit(target.Width, target.Height), ct);
+                return new ReaderMediaSidebarContent.Picture(bitmap, GalleryImageCache.Shared.Release, info.StillFrame, new PixelSize(info.Width, info.Height));
             }
-            else if (entry.Kind == SavedMediaKind.Video)
+            if (entry.Kind == SavedMediaKind.Video)
             {
                 int width = (int)target.Width, height = (int)target.Height;
                 Bitmap? bitmap = await MediaTileThumbnails.LoadPosterAsync(entry.Manifest, entry.Asset, PosterCacheDirectory, width, height,
-                    MediaTileThumbnails.PosterKey(entry.Asset, width, height), token);
-                if (!IsCurrentPanelRequest(request)) { if (bitmap != null) MediaTileThumbnails.Release(bitmap); return; }
-                placeholder.Stop();
-                // No poster at the new size: a poster of this video that is already shown stays.
-                if (bitmap == null) { if (!string.Equals(panel.Load.ShownKey, key, StringComparison.Ordinal)) panel.ShowPlaceholder(Texts.T("reader.sidebar.unavailable")); }
-                else panel.ShowPicture(bitmap, MediaTileThumbnails.Release, playable: true, double.PositiveInfinity, double.PositiveInfinity, key);
+                    MediaTileThumbnails.PosterKey(entry.Asset, width, height), ct);
+                if (bitmap != null) return new ReaderMediaSidebarContent.Picture(bitmap, MediaTileThumbnails.Release, Playable: true);
             }
-            else
-            {
-                placeholder.Stop();
-                panel.ShowPlaceholder(Texts.T("reader.sidebar.unavailable"));
-            }
-        }
-        catch (OperationCanceledException) { }
-        catch (Exception error) when (error is not OutOfMemoryException)
+            return new ReaderMediaSidebarContent.Unavailable("reader.sidebar.unavailable");
+        }, picture =>
         {
-            // The shown medium's own failure: a localized sentence, the cause in the log (never the exception's English text). A picture of this
-            // medium that is already shown (a larger decode failed) stays.
-            Serilog.Log.Warning(error, "Showing a media panel item failed");
-            if (IsCurrentPanelRequest(request) && !string.Equals(panel.Load.ShownKey, key, StringComparison.Ordinal))
-                panel.ShowPlaceholder(Texts.T("reader.sidebar.unavailable"));
-        }
-        finally
-        {
-            if (IsCurrentPanelRequest(request)) placeholder.Stop();
-        }
+            _panelDimensions = picture.Source is { } source ? $"{source.Width}×{source.Height}" : string.Empty;
+            panel.SetDetail(PanelDetail());
+        });
     }
 
     private void ScheduleAnnouncement(string text)

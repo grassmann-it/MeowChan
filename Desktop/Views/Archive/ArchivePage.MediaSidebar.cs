@@ -41,12 +41,10 @@ public partial class ArchivePage
     private bool _tabScopeOnFrame;
     private readonly ReaderMediaFollowThrottle _sidebarThrottle = new();
     private readonly Stopwatch _sidebarClock = Stopwatch.StartNew();
-    private DispatcherTimer? _sidebarFollowTimer, _sidebarAnnounceTimer, _sidebarPlaceholderTimer;
+    private DispatcherTimer? _sidebarFollowTimer, _sidebarAnnounceTimer;
     private CancellationTokenSource? _sidebarLoading;
     private CancellationTokenSource? _sidebarStripLoading;
-    // The load tokens, the shown medium and its decoded size live in the view's load state (ReaderMediaSidebarLoadState); the page keeps the token the
-    // loading timer stands for and the pixel line of the shown picture (a refresh of the same medium writes it again without a decode).
-    private int _sidebarPlaceholderRequest;
+    // The view owns request identities and decoded sizes; the page keeps the shown picture's detail line for a same-medium refresh.
     private string? _sidebarPostKey;
     private int _sidebarIndex;
     private string _sidebarShownDetail = string.Empty;
@@ -368,7 +366,6 @@ public partial class ArchivePage
         CancelMediaSidebarLoad();
         _sidebarFollowTimer?.Stop();
         _sidebarAnnounceTimer?.Stop();
-        _sidebarPlaceholderTimer?.Stop();
         _sidebarThrottle.Reset();
         _sidebarPostKey = null;
         _mediaSidebarDirty = false;
@@ -522,9 +519,16 @@ public partial class ArchivePage
 
     // ---- following the selection -----------------------------------------------------------------------------------------------
 
-    private void OnMediaSidebarSelectionChanged()
+    private void OnMediaSidebarSelectionChanged(bool selectionChanged = true)
     {
         if (!_mediaSidebarShown || _ended) return;
+        if (selectionChanged)
+        {
+            // Throttle starting the next decode, not retiring the previous selection. Otherwise an old completion can still publish
+            // a picture/error (or a strip thumbnail) in the interval before the follow timer runs.
+            CancelMediaSidebarLoad();
+            CancelSidebarStripLoad();
+        }
         long now = _sidebarClock.ElapsedMilliseconds;
         // A selection that is only cleared (a page or thread being rebuilt) waits for the tick: the picture does not flash away.
         if (ArchivePosts.SelectedItem == null) _sidebarThrottle.MarkPending();
@@ -556,7 +560,7 @@ public partial class ArchivePage
         (double Width, double Height) needed = ReaderMediaSidebarRules.PhysicalTarget(sidebar.Frame.Bounds.Size,
             TopLevel.GetTopLevel(sidebar)?.RenderScaling ?? 1);
         if (!ReaderMediaSidebarRules.NeedsLargerDecode(shown.PixelSize, needed, sidebar.Load.ShownSource)) return;
-        OnMediaSidebarSelectionChanged();
+        OnMediaSidebarSelectionChanged(selectionChanged: false);
     }
 
     /// <summary>The gallery uncovered the reader: a selection that changed meanwhile is shown now.</summary>
@@ -658,11 +662,11 @@ public partial class ArchivePage
     private void UpdateSidebarStrip(ReaderMediaSidebar sidebar, ArchivePostRow post, bool samePost)
     {
         int count = post.Attachments.Count;
-        if (!sidebar.ShowStrip(count, _sidebarIndex, ReaderMedia.Clamped().StripLimit, index => CapturedAttachmentText.Of(post.Attachments[index]).Name, samePost))
-        {
-            if (!sidebar.StripVisible) CancelSidebarStripLoad();
-            return;
-        }
+        bool rebuilt = sidebar.ShowStrip(count, _sidebarIndex, ReaderMedia.Clamped().StripLimit,
+            index => CapturedAttachmentText.Of(post.Attachments[index]).Name, samePost);
+        if (!sidebar.StripVisible) { CancelSidebarStripLoad(); return; }
+        // A selection rebuild can retire the previous load without changing this post's strip geometry. Resume its missing thumbnails.
+        if (!rebuilt && _sidebarStripLoading != null) return;
         CancelSidebarStripLoad();
         List<int> missing = sidebar.StripIndexes.Where(index => !sidebar.HasStripPicture(index)).ToList();
         if (missing.Count == 0) return;
@@ -719,83 +723,35 @@ public partial class ArchivePage
         return ReaderMediaSidebarRules.PhysicalTarget(frame, TopLevel.GetTopLevel(sidebar)?.RenderScaling ?? TopLevel.GetTopLevel(this)?.RenderScaling ?? 1);
     }
 
-    private async Task LoadMediaSidebarAsync(ReaderMediaSidebar sidebar, ArchivePostRow post, ArchiveAttachmentRow row, string size, string key,
+    private Task LoadMediaSidebarAsync(ReaderMediaSidebar sidebar, ArchivePostRow post, ArchiveAttachmentRow row, string size, string key,
         ReaderMediaLoadTicket ticket, (double Width, double Height) target, CancellationToken token)
     {
-        int request = ticket.Request;
-        // A warm cache answers within a frame and the old picture simply gives way. A cold one: after PlaceholderDelayMs the previous medium's picture
-        // dims under "Loading…" (with the file line already above it), the placeholder only stands in when nothing is shown. A larger decode of the
-        // medium already shown starts no timer: its picture stays until the new one swaps in. The timer stops the moment this load shows its picture or
-        // its final text, not after the neighbours it preloads (Tom, 16.11.2026: the picture flashed up and then turned into "Loading…").
-        DispatcherTimer placeholder = _sidebarPlaceholderTimer ??= CreateSidebarTimer(() =>
+        ReaderMediaSidebarImageLoad load = new(sidebar, key, ticket, _sidebarFit, () => IsCurrentSidebarRequest(ticket.Request), token);
+        return load.RunAsync(async ct =>
         {
-            if (IsCurrentSidebarRequest(_sidebarPlaceholderRequest) && _mediaSidebar is { } shown)
-                shown.ShowLoading(shown.Load.LoadingLook(_sidebarPlaceholderRequest), Texts.T("reader.sidebar.loading"));
-        });
-        placeholder.Stop();
-        if (!ticket.SameMedium)
-        {
-            _sidebarPlaceholderRequest = request;
-            placeholder.Interval = TimeSpan.FromMilliseconds(ReaderMediaSidebarRules.PlaceholderDelayMs);
-            placeholder.Start();
-        }
-        try
-        {
-            GalleryEntry? entry = row.ResolveEntry == null ? null : await row.ResolveEntry(token);
-            if (!IsCurrentSidebarRequest(request)) return;
-            if (entry == null)
-            {
-                placeholder.Stop();
-                sidebar.ShowPlaceholder(Texts.T("archive.notSaved"));
-                return;
-            }
+            GalleryEntry? entry = row.ResolveEntry == null ? null : await row.ResolveEntry(ct);
+            ct.ThrowIfCancellationRequested();
+            if (entry == null) return new ReaderMediaSidebarContent.Unavailable("archive.notSaved");
             if (entry.Kind == SavedMediaKind.Image)
             {
                 (Bitmap bitmap, GalleryImageInfo info) = await GalleryImageCache.DecodeAsync(entry,
-                    new GalleryDecodeRequest.Fit(target.Width, target.Height), token);
-                if (!IsCurrentSidebarRequest(request)) { GalleryImageCache.Shared.Release(bitmap); return; }
-                placeholder.Stop();
-                sidebar.ShowPicture(bitmap, GalleryImageCache.Shared.Release, info.StillFrame,
-                    ReaderMediaSidebarRules.MaximumDisplay(info.Width, _sidebarFit), ReaderMediaSidebarRules.MaximumDisplay(info.Height, _sidebarFit),
-                    key, new PixelSize(info.Width, info.Height));
-                _sidebarShownDetail = (size.Length > 0 ? size + " · " : string.Empty) + $"{info.Width}×{info.Height}";
-                sidebar.SetDetail(_sidebarShownDetail);
+                    new GalleryDecodeRequest.Fit(target.Width, target.Height), ct);
+                return new ReaderMediaSidebarContent.Picture(bitmap, GalleryImageCache.Shared.Release, info.StillFrame, new PixelSize(info.Width, info.Height));
             }
-            else if (entry.Kind == SavedMediaKind.Video && row.LoadSized is { } poster)
+            if (entry.Kind == SavedMediaKind.Video && row.LoadSized is { } poster)
             {
-                Bitmap? bitmap = await poster((int)target.Width, (int)target.Height, token);
-                if (!IsCurrentSidebarRequest(request)) { if (bitmap != null) MediaTileThumbnails.Release(bitmap); return; }
-                placeholder.Stop();
-                // No poster at the new size: a poster of this video that is already shown stays.
-                if (bitmap == null) { if (!string.Equals(sidebar.Load.ShownKey, key, StringComparison.Ordinal)) sidebar.ShowPlaceholder(Texts.T("reader.sidebar.unavailable")); }
-                else
-                {
-                    sidebar.ShowPicture(bitmap, MediaTileThumbnails.Release, playable: true, double.PositiveInfinity, double.PositiveInfinity, key);
-                    _sidebarShownDetail = size;
-                }
-                ScheduleSidebarVideoAutoplay();
+                Bitmap? bitmap = await poster((int)target.Width, (int)target.Height, ct);
+                // A missing poster must not disable playback of the resolved video; only the current request may offer autoplay.
+                if (IsCurrentSidebarRequest(ticket.Request) && !ct.IsCancellationRequested) ScheduleSidebarVideoAutoplay();
+                if (bitmap != null) return new ReaderMediaSidebarContent.Picture(bitmap, MediaTileThumbnails.Release, Playable: true);
             }
-            else
-            {
-                placeholder.Stop();
-                sidebar.ShowPlaceholder(Texts.T("reader.sidebar.unavailable"));
-                return;
-            }
-            await PreloadMediaSidebarNeighboursAsync(post, target, token);
-        }
-        catch (OperationCanceledException) { }
-        catch (Exception error)
+            return new ReaderMediaSidebarContent.Unavailable("reader.sidebar.unavailable");
+        }, picture =>
         {
-            // The shown medium's own failure: a localized sentence, the cause in the log (never the exception's English text). A picture of this
-            // medium that is already shown (a larger decode failed, or a later step) stays.
-            Serilog.Log.Warning(error, "Showing a media sidebar item failed");
-            if (IsCurrentSidebarRequest(request) && !string.Equals(sidebar.Load.ShownKey, key, StringComparison.Ordinal))
-                sidebar.ShowPlaceholder(Texts.T("reader.sidebar.unavailable"));
-        }
-        finally
-        {
-            if (IsCurrentSidebarRequest(request)) placeholder.Stop();
-        }
+            _sidebarShownDetail = picture.Source is { } source
+                ? (size.Length > 0 ? size + " · " : string.Empty) + $"{source.Width}×{source.Height}" : size;
+            sidebar.SetDetail(_sidebarShownDetail);
+        }, () => PreloadMediaSidebarNeighboursAsync(post, target, token));
     }
 
     // A refresh that found the shown picture up to date warms the neighbours again (the load it replaced may have been cancelled before it did).

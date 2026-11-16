@@ -85,6 +85,12 @@ internal sealed class ReaderMediaSidebarLoadState
         return HasPicture ? ReaderMediaLoadingLook.DimPrevious : ReaderMediaLoadingLook.Placeholder;
     }
 
+    /// <summary>The current request has a final answer, including a failed size upgrade that keeps its valid preview.</summary>
+    internal void Finished(int request)
+    {
+        if (IsCurrent(request)) _awaiting = false;
+    }
+
     /// <summary>The view shows a picture of <paramref name="key"/> (null: a medium without identity, never reused). It answers the latest load.</summary>
     internal void Showed(string? key, PixelSize pixels, PixelSize? source)
     {
@@ -99,16 +105,15 @@ internal sealed class ReaderMediaSidebarLoadState
     internal void Dimmed()
     {
         ShownKey = null;
-        _awaiting = false;
     }
 
     /// <summary>The view shows no picture (the placeholder with a text, a post without media, the empty state, a picture given back).</summary>
-    internal void Cleared()
+    internal void Cleared(bool answered = true)
     {
         HasPicture = false;
         ShownKey = null;
         ShownPixels = default;
         ShownSource = null;
-        _awaiting = false;
+        if (answered) _awaiting = false;
     }
 }
