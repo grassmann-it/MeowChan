@@ -111,9 +111,10 @@ public partial class MainWindow
     private async Task OpenBoardAdmissionAsync(BoardRow board)
     {
         if (!_restoreCompleted || _isClosing || _importing || _applyingPreferences) return;
-        _importing = true; UpdateInteractionState();
+        _importing = true;
         try
         {
+            UpdateInteractionState();
             var selection = await SelectBoardAdmissionsAsync(new[] { board.Url }, forceWizard: true);
             if (selection == null || _isClosing) return;
             await _session.ApplyBoardAdmissionAsync(board.Url, selection.Policies[board.Url], selection.Reactivations?.GetValueOrDefault(board.Url));

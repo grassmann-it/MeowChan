@@ -46,6 +46,8 @@ internal sealed partial class PluginSession : IAsyncDisposable
     // Written only by startup (Volatile), read by the store's live restriction callback.
     private string[] _repairRestrictedSourceIds;
     private readonly PluginWorkerLaunch _launch;
+    private readonly string _workerWorkspaceRoot;
+    private int _workspaceSweepStarted;
     private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
     private readonly Dictionary<PluginSourceImageBoard, string> _sourceOwners = new();
     private string[] _warnings = Array.Empty<string>();
@@ -105,6 +107,7 @@ internal sealed partial class PluginSession : IAsyncDisposable
         _filterStages = new FilterStageCoordinator(profileDirectory, profileLease,
             new FilterStageOptions { WorkerTemporaryBytes = Runtime.GetTemporaryBytes });
         string working = Path.Combine(profileDirectory, "plugin-workers");
+        _workerWorkspaceRoot = working;
         _launch = new PluginWorkerLaunch(Path.Combine(applicationDirectory, "plugin-worker", "MeowChan.PluginWorker" + executableSuffix),
             Array.Empty<string>(), working);
         // The optional factory only replaces network transport; this session owns the returned client.
@@ -347,6 +350,9 @@ internal sealed partial class PluginSession : IAsyncDisposable
     // Read-only: creates the plugin/worker directories and fills plugin-cache (its own area), never the profile.
     private async Task<StartupProbe> ProbeAsync(CancellationToken token)
     {
+        // Before the first worker of this session: what a forced exit of an earlier run left in plugin-workers is stale (the profile lease is ours).
+        if (Interlocked.Exchange(ref _workspaceSweepStarted, 1) == 0)
+            await Task.Run(() => PluginWorkerWorkspaceSweep.Sweep(_workerWorkspaceRoot, _logger), CancellationToken.None).ConfigureAwait(false);
         PluginStartupDiagnostics.RecordResources("plugin.startup.probe", "begin");
         StartupProbe probe = await MeasureStartupAsync("probe", null, () => ProbeCoreAsync(token)).ConfigureAwait(false);
         PluginStartupDiagnostics.RecordResources("plugin.startup.probe", "end");

@@ -392,9 +392,9 @@ public partial class MainWindow
     {
         if (!_restoreCompleted || _isClosing || _importing || WorkspaceCommandBusy) return null;
         _importing = true;
-        UpdateInteractionState();
         try
         {
+            UpdateInteractionState();
             await SubmitInputAsync(text);
             return _admissionResults.Count(item => item.Status is AdmissionStatus.Added or AdmissionStatus.AlreadyPresent);
         }
