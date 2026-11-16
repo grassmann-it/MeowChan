@@ -12,6 +12,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
@@ -102,7 +103,7 @@ public partial class PluginsPage
             void UpdateSubmit()
             {
                 int count = reauthorizations.Count(item => item.Ack.IsChecked == true);
-                string label = count == 1 ? Texts.T("plugins.approval.submitOne") : Texts.T("plugins.approval.submit", count);
+                string label = PluginCatalog.ApprovalSubmitLabel(count);
                 submit.Content = RepairText(label);
                 AutomationProperties.SetName(submit, label);
                 submit.IsVisible = reauthorizations.Count > 0;
@@ -246,12 +247,16 @@ public partial class PluginsPage
                         AutomationProperties.SetAutomationId(reauthorize, automationPrefix + "Confirm");
                         AutomationProperties.SetName(reauthorize, Texts.T("plugins.repair.reauthorize.confirmNamed", row.PluginId));
                         reauthorizations.Add((acknowledgement, choice));
-                        acknowledgement.IsCheckedChanged += (_, _) =>
+                        void UpdateAcknowledgement()
                         {
                             reauthorize.IsEnabled = !saving && coherent && approval.MayOffer(row.PluginId) &&
                                 permissions is not null && row.CanReauthorize && acknowledgement.IsChecked == true;
                             UpdateSubmit();
-                        };
+                        }
+                        acknowledgement.IsCheckedChanged += (_, _) => UpdateAcknowledgement();
+                        // Native pointer input can deliver the ToggleButton click after the property notification.
+                        // Rebind once at the settled UI priority so the command label always reflects both checked rows.
+                        acknowledgement.Click += (_, _) => Dispatcher.UIThread.Post(UpdateAcknowledgement, DispatcherPriority.Background);
                         reauthorize.Click += async (_, _) =>
                         {
                             if (!saving && coherent && approval.MayOffer(row.PluginId) && permissions is not null &&

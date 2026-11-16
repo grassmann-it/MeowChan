@@ -340,4 +340,8 @@ internal static class PluginCatalog
         ("plugins.grantSourceRequired", "Choose a source before granting access.", "Vor der Freigabe eine Quelle wählen."),
         ("plugins.manageSource", "Show plugin", "Plugin anzeigen")
     };
+
+    internal static string ApprovalSubmitLabel(int checkedRows) => checkedRows == 1
+        ? Texts.T("plugins.approval.submitOne")
+        : Texts.T("plugins.approval.submit", checkedRows);
 }
