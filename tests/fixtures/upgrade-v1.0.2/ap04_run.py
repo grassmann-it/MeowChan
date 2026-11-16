@@ -51,6 +51,7 @@ LOCK = Path('/home/tomka/.cache/claude-ssd-tmp/heavy.lock')
 LOCK_BUSY = 75
 DEFAULT_LOCK_WAIT = 3600
 DEFAULT_NAMESPACE_BACKEND = 'bwrap'
+BWRAP_ROOT_LAUNCHER = HERE / 'bwrap-root-accessible.sh'
 NAMESPACE_BACKENDS = ('bwrap', 'bwrap-root', 'unshare')
 FEED = Path('/home/tomka/.nuget/packages')
 TEST_NAME = 'ReleasedProviderProfileSurvivesCurrentOpenAndTwoOfflineProcessRestarts'
@@ -102,6 +103,11 @@ class Context:
                    XDG_CONFIG_HOME=str(self.out / 'home/.config'), XDG_STATE_HOME=str(self.out / 'home/.local/state'),
                    XDG_CACHE_HOME=str(self.out / 'home/.cache'), NUGET_PACKAGES=str(FEED), DOTNET_SKIP_FIRST_TIME_EXPERIENCE='1',
                    DOTNET_CLI_TELEMETRY_OPTOUT='1', DOTNET_NOLOGO='1', MEOWCHAN_DISABLE_UPDATE_CHECK='1')
+        if self.netns and self.namespace_backend == 'bwrap-root':
+            # Root setup stages writable bind sources through /var/tmp. The
+            # child still receives the original destinations and runner ID.
+            env.update(MEOWCHAN_RELEASED102_BWRAP_PATH=str(BWRAP_ROOT_LAUNCHER),
+                       MEOWCHAN_RELEASED102_REAL_BWRAP_PATH=shutil.which('bwrap') or '')
         return env
 
     def heavy(self, argv):
@@ -115,10 +121,15 @@ class Context:
         # capabilities before it starts. It is never a fallback to the host
         # namespace or to handler-only blocking.
         privileged = self.namespace_backend == 'bwrap-root'
-        bwrap = shutil.which('bwrap') or 'bwrap'
+        real_bwrap = shutil.which('bwrap') or 'bwrap'
+        bwrap = (os.environ.get('MEOWCHAN_RELEASED102_BWRAP_PATH') or str(BWRAP_ROOT_LAUNCHER)) if privileged else real_bwrap
         unshare = shutil.which('unshare') or 'unshare'
         setpriv = shutil.which('setpriv') or 'setpriv'
         command = ([shutil.which('sudo') or 'sudo', '-n', bwrap] if privileged else [bwrap])
+        if privileged:
+            # sudo may reset the launcher environment; pass the reviewed
+            # executable explicitly and fail closed if it is unavailable.
+            command += ['--real-bwrap', real_bwrap]
         command += ['--die-with-parent', '--unshare-user',
                     '--cap-add', 'CAP_SYS_ADMIN', '--cap-add', 'CAP_SETPCAP',
                     '--disable-userns']
@@ -141,7 +152,7 @@ class Context:
             return self._bwrap(argv, bind_worktrees=True)
         return ['unshare', '-Urn', '--', *argv]
 
-    def namespace_probe(self):
+    def namespace_probe(self, bind_worktrees=False):
         if self.namespace_backend in ('bwrap', 'bwrap-root'):
             bwrap = shutil.which('bwrap')
             unshare = shutil.which('unshare')
@@ -161,16 +172,22 @@ class Context:
  test "$(readlink /proc/self/ns/net)" != "$MEOWCHAN_HOST_NETNS"
  test "$(id -u)" = "$MEOWCHAN_EXPECTED_UID"
  test "$(id -g)" = "$MEOWCHAN_EXPECTED_GID"
+ if test "${MEOWCHAN_EXPECT_BINDS:-0}" = 1; then
+   test -d "$MEOWCHAN_EXPECTED_ROOT"
+   test -d "$MEOWCHAN_EXPECTED_OUT"
+ fi
  for cap in CapInh CapPrm CapEff CapBnd CapAmb; do
    test "$(awk -v key="$cap:" '$1 == key { print $2 }' /proc/self/status)" = 0000000000000000
  done
  awk -F: 'NR > 2 && $1 !~ /^[[:space:]]*lo[[:space:]]*$/ { bad=1 } END { exit bad+0 }' /proc/net/dev
  awk 'NR > 1 && NF { bad=1 } END { exit bad+0 }' /proc/net/route
 """
-            env = os.environ.copy()
+            env = self.env()
             env.update(MEOWCHAN_HOST_NETNS=os.readlink('/proc/self/ns/net'),
-                       MEOWCHAN_EXPECTED_UID=str(os.getuid()), MEOWCHAN_EXPECTED_GID=str(os.getgid()))
-            command = self._bwrap(['/bin/sh', '-eu', '-c', probe], bind_worktrees=False)
+                       MEOWCHAN_EXPECTED_UID=str(os.getuid()), MEOWCHAN_EXPECTED_GID=str(os.getgid()),
+                       MEOWCHAN_EXPECTED_ROOT=str(self.root), MEOWCHAN_EXPECTED_OUT=str(self.out),
+                       MEOWCHAN_EXPECT_BINDS='1' if bind_worktrees else '0')
+            command = self._bwrap(['/bin/sh', '-eu', '-c', probe], bind_worktrees=bind_worktrees)
             return subprocess.run(command, env=env, capture_output=True, text=True), bwrap
         return subprocess.run(['unshare', '-Urn', '--', 'true'], capture_output=True), 'unshare'
 
@@ -200,7 +217,9 @@ class Context:
         if self.netns:
             env['MEOWCHAN_RELEASED102_NETWORK_NAMESPACE'] = self.namespace_backend
             if self.namespace_backend in ('bwrap', 'bwrap-root'):
-                env['MEOWCHAN_RELEASED102_BWRAP_PATH'] = shutil.which('bwrap') or 'bwrap'
+                env['MEOWCHAN_RELEASED102_BWRAP_PATH'] = (str(BWRAP_ROOT_LAUNCHER) if self.namespace_backend == 'bwrap-root'
+                                                              else shutil.which('bwrap') or 'bwrap')
+                env['MEOWCHAN_RELEASED102_REAL_BWRAP_PATH'] = shutil.which('bwrap') or ''
                 env['MEOWCHAN_RELEASED102_UNSHARE_PATH'] = shutil.which('unshare') or 'unshare'
                 env['MEOWCHAN_RELEASED102_SETPRIV_PATH'] = shutil.which('setpriv') or 'setpriv'
                 if self.namespace_backend == 'bwrap-root':
@@ -347,6 +366,9 @@ def step_preflight(ctx):
     for tool in ('git', 'python3', 'dotnet', 'flock', 'nice', 'timeout') + ((namespace_tool,) if ctx.netns else ()):
         require(shutil.which(tool), 'missing tool: ' + tool)
     if ctx.netns:
+        # Probe isolation before creating an attempt, so a refused candidate
+        # leaves no output. The writable-source bind probe runs below after
+        # the frozen candidate checks and fresh output roots exist.
         probe, detail = ctx.namespace_probe()
         require(probe is not None and probe.returncode == 0,
                 f'{ctx.namespace_backend} namespace capability is unavailable ({detail}); '
@@ -365,6 +387,11 @@ def step_preflight(ctx):
     note = 'tag-v1.0.2=same' if tag.stdout.strip() == RELEASE_REVISION else 'tag-v1.0.2=not-local'
     for path in (ctx.out, ctx.out / 'home', ctx.out / 'tmp', ctx.out / 'dotnet-cli', ctx.logs, ctx.evidence):
         path.mkdir(parents=True, exist_ok=True)
+    if ctx.netns:
+        probe, detail = ctx.namespace_probe(bind_worktrees=True)
+        require(probe is not None and probe.returncode == 0,
+                f'{ctx.namespace_backend} accessible writable bind is unavailable ({detail}); '
+                'the replay refuses to run without its explicit bind design')
     capture_status(ctx, 'status-before.txt')
     ctx.nuget_config.write_text('<configuration><packageSources><clear /><add key="local-cache" value="' + str(FEED)
                                 + '" /></packageSources></configuration>\n', encoding='utf-8')
