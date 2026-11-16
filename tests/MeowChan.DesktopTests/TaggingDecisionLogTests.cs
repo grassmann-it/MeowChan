@@ -1,4 +1,5 @@
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 using MeowChan.Interfaces;
@@ -333,13 +334,44 @@ public sealed class TaggingDecisionLogTests : IDisposable
         TagQueueSnapshot queue = new(1, 0, Array.Empty<string>(), items, TagQueueLoadState.Ready);
         (IReadOnlyList<TaggingWalkItem> paired, int unavailable) = TaggingWalk.Pair(items, new[] { Entry(1) });
         using TaggingWalk walk = new(paired, unavailable, queue, writer);
-        Assert.Equal("Tagging mode: Enter finishes the medium, Space skips it, Backspace takes back the last decision. "
-            + "Not shown because the file is missing right now (they stay open in the queue): 2.", TaggingModeText.Start(walk));
+        // The announcement uses the same platform keycaps as shortcut help, not fixed PC key names.
+        bool mac = OperatingSystem.IsMacOS();
+        string enter = mac ? "↩" : "Enter", space = mac ? "␣" : "Space", back = mac ? "⌫" : "Backspace";
+        string start = TaggingModeText.Start(walk);
+        Assert.Equal($"Tagging mode: {enter} finishes the medium, {space} skips it, {back} takes back the last decision. "
+            + "Not shown because the file is missing right now (they stay open in the queue): 2.", start);
+        Assert.DoesNotContain(mac ? "Enter" : "↩", start);
+        Assert.DoesNotContain(mac ? "Space" : "␣", start);
+        Assert.DoesNotContain(mac ? "Backspace" : "⌫", start);
         Assert.Equal(2, walk.OpenOutsideWalk());
         Texts.SetLanguage("de");
-        Assert.StartsWith("Tagging-Modus: Enter schließt das Medium ab", TaggingModeText.Start(walk));
+        Assert.StartsWith($"Tagging-Modus: {enter} schließt das Medium ab, {(mac ? "␣" : "Leertaste")} überspringt es, "
+            + $"{(mac ? "⌫" : "Rücktaste")} nimmt die letzte Entscheidung zurück.", TaggingModeText.Start(walk));
         Assert.Equal("Warteschlange 1 von 3", TaggingModeText.Position(walk, 0));
         await Task.CompletedTask;
+    }
+
+    [Theory]
+    [InlineData(ShortcutPlatform.Windows, "Enter", "Space", "Backspace")]
+    [InlineData(ShortcutPlatform.Linux, "Enter", "Space", "Backspace")]
+    [InlineData(ShortcutPlatform.MacOS, "↩", "␣", "⌫")]
+    public void TheDecisionKeysUseExactPlatformKeycaps(ShortcutPlatform platform, string enter, string space, string back)
+    {
+        EffectiveShortcutBindings bindings = EffectiveShortcutBindings.Build(platform: platform);
+        Assert.Equal(enter, bindings.Display("tags.queue.done-next"));
+        Assert.Equal(space, bindings.Display("tags.queue.skip"));
+        Assert.Equal(back, bindings.Display("tags.queue.back"));
+        foreach (string id in new[] { "tags.queue.done-next", "tags.queue.skip", "tags.queue.back" })
+        {
+            var gesture = Assert.Single(bindings.For(id)).Resolve(platform);
+            Assert.Equal(Avalonia.Input.KeyModifiers.None, gesture.KeyModifiers);
+            Assert.True(bindings.Matches(new Avalonia.Input.KeyEventArgs { Key = gesture.Key }, id, "gallery-tagging"));
+            Assert.False(bindings.Matches(new Avalonia.Input.KeyEventArgs { Key = gesture.Key, KeyModifiers = Avalonia.Input.KeyModifiers.Shift }, id, "gallery-tagging"));
+        }
+        Texts.SetLanguage("de");
+        Assert.Equal(enter, bindings.Display("tags.queue.done-next"));
+        Assert.Equal(platform == ShortcutPlatform.MacOS ? "␣" : "Leertaste", bindings.Display("tags.queue.skip"));
+        Assert.Equal(platform == ShortcutPlatform.MacOS ? "⌫" : "Rücktaste", bindings.Display("tags.queue.back"));
     }
 
     private sealed class FakeWriter : ITaggingQueueWriter
