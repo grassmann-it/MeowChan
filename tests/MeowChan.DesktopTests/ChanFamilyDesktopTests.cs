@@ -89,6 +89,60 @@ public sealed class ChanSiteSwitchesTests
             Array.Empty<PluginCandidateSnapshot>(), null)).ToArray(), Array.Empty<PluginGrantSnapshot>());
 }
 
+/// <summary>
+/// Which saved size/MD5 exceptions keep a site's changed bundled build in repair review: an exception left behind by a
+/// retired 1.0.x single-site plugin restricts nothing (nothing can use it), every other one still does.
+/// </summary>
+public sealed class ChanFamilyRepairRestrictionTests
+{
+    private const string OldLainchan = "meowchan.source.lainchan";
+
+    [Fact]
+    public void AnExceptionOfARetiredSingleSitePluginNoLongerRestrictsItsSite()
+    {
+        SourceMediaIntegrityPermission[] permissions = [new(OldLainchan, "lainchan", true, 1)];
+        Assert.Empty(PluginSession.RepairRestrictedSourceIds(permissions, Profile(ChanSourceFamilies.Vichan), []));
+    }
+
+    [Fact]
+    public void AnExceptionOfTheFamilyOrAnyOtherCurrentOwnerStillRestricts()
+    {
+        SourceMediaIntegrityPermission[] permissions =
+        [
+            new(ChanSourceFamilies.Vichan, "lainchan", true, 1),
+            new("meowchan.source.kohlchan", "kohlchan", true, 1),
+            new(OldLainchan, "leftypol", true, 1) // Not the old plugin's own site: hand-edited, kept strict.
+        ];
+        Assert.Equal(new[] { "lainchan", "kohlchan", "leftypol" },
+            PluginSession.RepairRestrictedSourceIds(permissions, Profile(ChanSourceFamilies.Vichan), []));
+    }
+
+    [Fact]
+    public void AnExceptionOfAReplacedPluginStillRestrictsUntilItsOwnerReallyLeft()
+    {
+        SourceMediaIntegrityPermission[] permissions = [new(OldLainchan, "lainchan", true, 1)];
+        // The profile is not read yet: nothing is known to be retired.
+        Assert.Equal(new[] { "lainchan" }, PluginSession.RepairRestrictedSourceIds(permissions, null, []));
+        // The old record is still in the profile (not retired, for example a pinned build).
+        Assert.Equal(new[] { "lainchan" }, PluginSession.RepairRestrictedSourceIds(permissions, Profile(ChanSourceFamilies.Vichan, OldLainchan), []));
+        // A local copy with the old identity is installed: the exception can apply to it again.
+        PluginCandidateObservation local = new("local:" + OldLainchan, OldLainchan, null, null);
+        Assert.Equal(new[] { "lainchan" }, PluginSession.RepairRestrictedSourceIds(permissions, Profile(ChanSourceFamilies.Vichan), [local]));
+    }
+
+    [Fact]
+    public void ARevokedExceptionNeverRestricts()
+    {
+        SourceMediaIntegrityPermission[] permissions = [new(ChanSourceFamilies.Vichan, "lainchan", false, 2), new(OldLainchan, "lainchan", false, 2)];
+        Assert.Empty(PluginSession.RepairRestrictedSourceIds(permissions, null, []));
+        Assert.Empty(PluginSession.RepairRestrictedSourceIds(permissions, Profile(ChanSourceFamilies.Vichan), []));
+    }
+
+    private static PluginProfileSnapshot Profile(params string[] pluginIds) => new(1,
+        pluginIds.Select(pluginId => new PluginActivationSnapshot(pluginId, true, 1, null, null, null, null, null,
+            Array.Empty<PluginCandidateSnapshot>(), null)).ToArray(), Array.Empty<PluginGrantSnapshot>());
+}
+
 [Collection("Delivered plugin hosts")]
 public sealed class ChanFamilyUpgradeTests
 {
@@ -193,6 +247,43 @@ public sealed class ChanFamilyUpgradeTests
         Assert.Empty(fixture.Requests);
     }
 
+    [Theory]
+    [InlineData("meowchan.source.lainchan", false)] // Left behind by the retired single-site plugin.
+    [InlineData(ChanSourceFamilies.Vichan, true)] // Granted to the family itself.
+    public async Task OnlyAnExceptionOfAPluginStillInTheProfileKeepsTheFamilySiteInRepairReview(string owner, bool restricts)
+    {
+        using TempDirectory profile = new();
+        Configure(profile.Path, new SourceMediaIntegrityPermission(owner, "lainchan", true, 1));
+        await SeedLegacyAsync(profile.Path, ("meowchan.source.lainchan", "lainchan", true));
+        for (int restart = 0; restart < 2; restart++)
+        {
+            using DesktopPluginFixtures fixture = new() { RejectAll = true };
+            await using DesktopSessionHost host = Create(profile.Path, fixture);
+            await host.StartAsync().WaitAsync(Deadline);
+            Assert.True(host.State == DesktopSessionState.Ready, host.StartupError);
+            PluginProfileSnapshot state = await host.Plugins!.ProfileStore.ReadAsync();
+            Assert.DoesNotContain(state.Plugins, plugin => plugin.PluginId == "meowchan.source.lainchan");
+            PluginActivationSnapshot family = Assert.Single(state.Plugins, plugin => plugin.PluginId == ChanSourceFamilies.Vichan);
+            Assert.NotEqual(PluginActivationProblems.InheritedGrantsBlocked, family.Problem);
+            Assert.NotNull(family.Active);
+            // The first start still saw the old record at activation; from the next start on (the record retired) the
+            // saved restriction set, which a changed delivered family build is checked against, has only live owners.
+            if (restart == 1)
+                Assert.Equal(restricts, ReadRestrictedSourceIds(profile.Path).Contains("lainchan"));
+            Assert.Empty(fixture.Requests);
+        }
+    }
+
+    private static string[] ReadRestrictedSourceIds(string profile)
+    {
+        using System.Text.Json.JsonDocument envelope = System.Text.Json.JsonDocument.Parse(File.ReadAllBytes(Path.Combine(profile, "plugin-state", "state.json")));
+        byte[] payload = envelope.RootElement.GetProperty("payload").GetBytesFromBase64();
+        using System.Text.Json.JsonDocument document = System.Text.Json.JsonDocument.Parse(payload);
+        // A v1 payload is the bare profile and carries no restrictions.
+        return document.RootElement.TryGetProperty("restrictedSourceIds", out System.Text.Json.JsonElement restricted)
+            ? restricted.EnumerateArray().Select(item => item.GetString()!).ToArray() : [];
+    }
+
     private static PluginProfileSnapshot ReadEnvelope(string file)
     {
         using System.Text.Json.JsonDocument envelope = System.Text.Json.JsonDocument.Parse(File.ReadAllBytes(file));
@@ -225,10 +316,12 @@ public sealed class ChanFamilyUpgradeTests
         Assert.All(state.Plugins, plugin => Assert.NotNull(plugin.Active));
     }
 
-    private static void Configure(string profile) => new Config
+    private static void Configure(string profile, params SourceMediaIntegrityPermission[] permissions) => new Config
     {
         DownloadPath = Path.Combine(profile, "media"), DownloadsPaused = true, SaveUrlsOnExit = true,
-        AutomaticUpdateChecks = false, MaxParallelDownloads = 2, RecheckTimer = 3600, MinimumFreeSpaceGiB = 0
+        AutomaticUpdateChecks = false, MaxParallelDownloads = 2, RecheckTimer = 3600, MinimumFreeSpaceGiB = 0,
+        SourceMediaIntegrityPermissions = permissions.ToDictionary(permission => SourceMediaIntegrityPermission.CreateKey(permission.PluginOwnerId, permission.SourceId),
+            permission => permission, StringComparer.Ordinal)
     }.SaveConfig(profile);
 
     private static DesktopSessionHost Create(string profile, DesktopPluginFixtures fixture) => new(profile,
