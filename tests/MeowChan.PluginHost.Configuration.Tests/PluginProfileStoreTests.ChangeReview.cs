@@ -23,9 +23,12 @@ public sealed partial class PluginProfileStoreTests
         state = await store.SetEnabledAsync("test.plugin", false, state.Revision);
         var originalConfiguration = Active(state).Configuration;
         var originalOwners = SdkJson.Serialize(state.SelectedSourceOwners);
+        // The rename comes with a widening (one more file type for the filter): since #130 a display-only
+        // change in place is accepted silently, so the review flow needs a change that adds something.
         var target = await SdkDelivery(samePath ? "change-old" : "change-new", "B", "1.1.0", d => d with
         {
             Name = "Reviewed plugin name",
+            Filters = [d.Filters[0] with { SupportedMimeTypes = [.. d.Filters[0].SupportedMimeTypes, "image/jpeg"] }],
             Settings = changedSchema ? new("2", [new("flag", SettingScope.Plugin, SettingKind.Boolean,
                 "New flag", IsRequired: true)]) : d.Settings
         });
@@ -78,11 +81,14 @@ public sealed partial class PluginProfileStoreTests
         var old = await SdkDelivery("change-metadata", "A", "1.1.0");
         var store = Store();
         var state = await store.ApplyBundledStartupAsync([old.Candidate], [old.Proof], [], 0);
-        var target = await SdkDelivery("change-metadata", "B", "1.1.0", d => d with { Name = "Reviewed name" });
+        // Widened (one more filter file type) so this in-place change still needs review since #130.
+        static PluginDescription Widened(PluginDescription d, string name) => d with { Name = name,
+            Filters = [d.Filters[0] with { SupportedMimeTypes = [.. d.Filters[0].SupportedMimeTypes, "image/jpeg"] }] };
+        var target = await SdkDelivery("change-metadata", "B", "1.1.0", d => Widened(d, "Reviewed name"));
         state = await store.ApplyBundledStartupAsync([target.Candidate], [target.Proof], [], state.Revision);
         var row = Assert.Single((await store.PreviewBundledRepairsAsync()).Rows);
         state = await store.ConfirmBundledChangeAsync(row, state.Plugins[0].LastGood!.Configuration, true, false, state.Revision);
-        var changed = await SdkDelivery("change-metadata", "B", "1.1.0", d => d with { Name = "UNREVIEWED metadata" });
+        var changed = await SdkDelivery("change-metadata", "B", "1.1.0", d => Widened(d, "UNREVIEWED metadata"));
         Assert.Equal(target.Proof.ExecutionRevision, changed.Proof.ExecutionRevision);
         if (changedProof)
         {
