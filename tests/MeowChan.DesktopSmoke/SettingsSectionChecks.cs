@@ -47,8 +47,17 @@ internal static class SettingsSectionChecks
                 var before = scroll.Offset;
                 Texts.SetLanguage(language == "en" ? "de" : "en");
                 await Task.Delay(50);
-                Require(numericText.IsFocused && timer.Text == raw && scroll.Offset == before,
-                    "Passive language refresh stole focus, scrolled or replaced raw input.");
+                Require(numericText.IsFocused, "Passive language refresh stole numeric input focus.");
+                Require(timer.Text == raw && timer.Value == value && path.Text == "relative unfinished folder ü" && commits == 0,
+                    "Passive language refresh changed raw input, draft values or saved settings.");
+                // Translated labels can shrink the page below the old offset. ScrollViewer
+                // must clamp to its new bounds; that is not an unsolicited navigation.
+                // Require the exact old offset everywhere it remains representable.
+                var expected = new Avalonia.Vector(
+                    Math.Clamp(before.X, 0, Math.Max(0, scroll.Extent.Width - scroll.Viewport.Width)),
+                    Math.Clamp(before.Y, 0, Math.Max(0, scroll.Extent.Height - scroll.Viewport.Height)));
+                Require(scroll.Offset == expected,
+                    $"Passive language refresh scrolled: before={before}, expected={expected}, actual={scroll.Offset}.");
             }
             Console.WriteLine("SMOKE settings sections: explicit targets, draft/raw preservation and passive language focus passed.");
         }
