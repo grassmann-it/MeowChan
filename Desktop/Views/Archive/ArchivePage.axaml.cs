@@ -786,8 +786,14 @@ public partial class ArchivePage : UserControl
             },
             OpenPreview = () => OpenActions.Start(async () =>
             {
-                if (_ended || _lifetime.IsCancellationRequested || IsReaderDialogOpen || _busy || !_available || !ready.IsCompletedSuccessfully) return;
-                ArchiveAssetRow? match = FindMatchingAsset(resource, postId, attachment, ready.Result);
+                if (_ended || _lifetime.IsCancellationRequested || IsReaderDialogOpen || _busy || !_available) return;
+                // While the local manifest scan still runs (a slow or sleeping drive), the click waits for it instead of doing nothing (audit 16.11.2026);
+                // a scan that is replaced (another thread) or fails opens nothing, and the state is checked again after the wait.
+                IReadOnlyList<ArchiveAssetRow> assets;
+                try { assets = await ready.WaitAsync(_lifetime.Token); }
+                catch (OperationCanceledException) { return; }
+                if (_ended || IsReaderDialogOpen || _busy || !_available) return;
+                ArchiveAssetRow? match = FindMatchingAsset(resource, postId, attachment, assets);
                 if (match != null && _selectedThread == resource && OpenGallery != null)
                     await OpenGallery(resource, new GalleryEntryKey(
                         new GalleryAssetKey(resource, match.Manifest.Directory, match.Asset.AssetId),

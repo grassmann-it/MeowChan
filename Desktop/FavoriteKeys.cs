@@ -76,16 +76,29 @@ internal static class FavoriteKeys
     }
 
     /// <summary>
-    /// The tooltip of a favourite star (every star of the app that toggles): its name with the toggle's key, then the keys that add and remove
-    /// ("Add to favorites · F" / "Add favorite · M / B · Remove favorite · U"). All keys come from the bindings, so a rebinding never makes it lie.
+    /// The tooltip of a favourite star (every star of the app that toggles), on one line: what a click does now, then every key that does the same in
+    /// <paramref name="context"/> (the toggle, and add while it is no favourite or remove while it is): "Add to favorites · F / M / B",
+    /// "Remove from favorites · F / U". A key that does nothing in this state (U on a medium that is no favourite) is not named. Only the effective
+    /// bindings of that context count (<see cref="EffectiveKeys"/>), so a rebinding or a key yielded to another command never makes it lie.
     /// </summary>
-    internal static string Tooltip(bool marked)
+    internal static string Tooltip(bool marked, string? context = null)
     {
         string label = Texts.T(marked ? "viewer.favorite.remove" : "viewer.favorite.add");
-        string headline = CommandBindings.TooltipHeadline(ToggleId, label);
-        List<string> keys = new();
-        foreach (string id in new[] { AddId, RemoveId })
-            if (CommandCatalog.ShortcutDisplay(id) != null) keys.Add(CommandBindings.TooltipHeadline(id));
-        return keys.Count == 0 ? headline : headline + "\n" + string.Join(" · ", keys);
+        string[] keys = EffectiveKeys(ToggleId, context).Concat(EffectiveKeys(marked ? RemoveId : AddId, context))
+            .Distinct(StringComparer.Ordinal).ToArray();
+        return keys.Length == 0 ? label : label + " · " + string.Join(" / ", keys);
+    }
+
+    /// <summary>
+    /// The keys of <paramref name="id"/> that act in <paramref name="context"/>, as the platform shows them: its gestures in the bindings minus a default
+    /// that gave way to a saved binding there (without a context: minus one that gave way anywhere, as <see cref="EffectiveShortcutBindings.Matches(Avalonia.Input.KeyEventArgs, string)"/> decides).
+    /// </summary>
+    internal static IReadOnlyList<string> EffectiveKeys(string id, string? context, EffectiveShortcutBindings? bindings = null)
+    {
+        bindings ??= ShortcutService.Current;
+        EffectiveShortcutBindings current = bindings;
+        return current.For(id).Where(gesture => current.YieldedContexts(id, gesture) is not { Count: > 0 } yielded
+                || context != null && !yielded.Contains(context, StringComparer.Ordinal))
+            .Select(gesture => gesture.Display(current.Platform)).Distinct(StringComparer.Ordinal).ToArray();
     }
 }

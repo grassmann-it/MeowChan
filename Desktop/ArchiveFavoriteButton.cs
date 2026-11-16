@@ -37,11 +37,20 @@ internal sealed class ArchiveFavoriteButton : ToggleButton
     private bool _failed;
     private string? _shownError;
 
+    /// <summary>
+    /// The execution context whose keys the tooltip names (EffectiveShortcutBindings.ExecutionContexts): every star of this kind sits in the reader (a post's
+    /// file line, the media sidebar, the Media tab's tiles), whose keys run in "reader".
+    /// </summary>
+    internal string KeyContext { get; init; } = "reader";
+
     internal ArchiveFavoriteButton()
     {
         Name = "ArchiveMediaFavorite";
         Padding = new Avalonia.Thickness(8);
         CommandBindings.Apply(this, "favorites.toggle", iconOnly: true);
+        // One tooltip source (Refresh): a rebinding re-runs Refresh instead of the catalog's "Add / remove favorite · F", which used to replace the
+        // star's own tip (and its name) until the next refresh.
+        CommandBindings.ObservePresentation(this, Refresh);
         Classes.Add(StarClass);
         AutomationProperties.SetLiveSetting(this, AutomationLiveSetting.Assertive);
         Click += async (_, e) =>
@@ -117,12 +126,12 @@ internal sealed class ArchiveFavoriteButton : ToggleButton
             }
             else { ClearValue(BorderBrushProperty); ClearValue(BorderThicknessProperty); }
         }
-        // The name says what a click does; the tooltip adds the keys (F toggles, M adds, U removes: FavoriteKeys.Tooltip). A write in flight
+        // The name says what a click does; the tooltip adds the keys that do the same here (FavoriteKeys.Tooltip, one line). A write in flight
         // ("saving") and a medium that is not saved say so instead of the keys.
         string label = Texts.T(marked ? "viewer.favorite.remove" : "viewer.favorite.add");
         string description = _error != null ? label + ": " + _error : _running ? label + " · " + Texts.T("gallery.saving")
             : IsEnabled ? label : Texts.T("archive.notSaved");
-        string tip = _error == null && IsEnabled ? FavoriteKeys.Tooltip(marked) : description;
+        string tip = _error == null && IsEnabled ? FavoriteKeys.Tooltip(marked, KeyContext) : description;
         ToolTip.SetShowOnDisabled(this, true);
         ToolTip.SetTip(this, tip);
         AutomationProperties.SetName(this, description);

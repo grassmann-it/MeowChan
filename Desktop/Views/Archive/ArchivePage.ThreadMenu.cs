@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using MeowChan.Archive;
 using MeowChan.Desktop;
@@ -98,6 +99,34 @@ public partial class ArchivePage
             Avalonia.Automation.AutomationProperties.SetHelpText(capture, captureTip);
         }
         return menu;
+    }
+
+    // Installed once on the pane (it moves between the archive view and the large reader). The large reader's tunnel (OnReaderKeyDown) has already taken
+    // "Rules for this thread" there; the archive view's reader had no handler for either key (audit 16.11.2026: Alt+M claimed the reader and did nothing).
+    private void InitializeReaderThreadKeys() => ArchiveReaderPane.AddHandler(KeyDownEvent, (_, e) => TryRouteReaderThreadKey(e), RoutingStrategies.Bubble);
+
+    /// <summary>
+    /// "Show in Media" (Alt+M) and "Rules for this thread" for the thread the reader shows, the Thread menu's own entries, from any focus in the reader
+    /// that is not a native editor. Unavailable: a message says why instead of nothing.
+    /// </summary>
+    internal bool TryRouteReaderThreadKey(KeyEventArgs e)
+    {
+        if (e.Handled || ShortcutService.IsCapturing || CommandRouter.IsNativeInput(e.Source, e.Key) || IsReaderDialogOpen || _ended || _thread == null) return false;
+        if (CommandBindings.Matches(e, "thread.show-in-media"))
+        {
+            e.Handled = true;
+            if (ThreadMenuReady && ShowThreadInMediaRequested != null && _thread.Summary.Id.Thread != null)
+                ShowThreadInMediaRequested(_thread.Summary.Id, _thread.Summary.Title);
+            else Message(Texts.T("archive.command.busy"));
+            return true;
+        }
+        if (!_largeReader && CommandBindings.Matches(e, "rules.edit-scope"))
+        {
+            e.Handled = true;
+            if (CanEditThreadRules) EditThreadRulesFromReader(); else Message(Texts.T("archive.command.noWatch"));
+            return true;
+        }
+        return false;
     }
 
     private string NoWatchActionReason(string fallbackKey) => Texts.T(OpenThreadIsWatched ? fallbackKey : "archive.command.noWatch");

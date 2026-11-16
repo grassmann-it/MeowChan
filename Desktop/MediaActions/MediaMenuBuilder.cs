@@ -76,6 +76,8 @@ internal static class MediaMenuBuilder
         IReadOnlyDictionary<MediaMenuAction, Func<Task>> handlers, Func<Func<Task>, Task> run)
     {
         bool executable = entry.Available && handlers.ContainsKey(entry.Action);
+        // An action the composition made available without a handler is shown disabled; the guard tests hear of it (MediaMenuHandlers.NoOp).
+        if (entry.Available && !executable) MediaMenuHandlers.NoOp?.Invoke(session.Surface, entry.Action);
         void Execute()
         {
             if (!session.IsCurrent || !handlers.TryGetValue(entry.Action, out Func<Task>? handler)) return;
@@ -295,6 +297,11 @@ internal sealed class MediaMenuPresenter
             if (top is Window owner && owner.OwnedWindows.Any(window => window.IsVisible && !Views.Shortcuts.ShortcutsWindow.IsPassive(window))) return;
             object? focused = top?.FocusManager?.GetFocusedElement();
             if (focused is Control control && !ReferenceEquals(control, menu) && control.GetSelfAndVisualAncestors().OfType<ContextMenu>().Any()) return;
+            // The action put the focus somewhere of its own (the gallery that "Open in gallery" opened over the page): it keeps it. Taking it back left the
+            // gallery without the keyboard, and its keys reached the covered reader (audit 16.11.2026).
+            if (focused is Control moved && moved is not TopLevel && !ReferenceEquals(moved, previous) && !ReferenceEquals(moved, origin)
+                && moved.IsAttachedToVisualTree() && moved.IsEffectivelyVisible && !(previous?.IsVisualAncestorOf(moved) ?? false)
+                && !origin.IsVisualAncestorOf(moved)) return;
             static bool Usable(Control? control) => control != null && control.IsAttachedToVisualTree() && control.IsEffectivelyVisible && control.IsEffectivelyEnabled;
             if (Usable(previous)) previous!.Focus();
             else if (Usable(origin)) origin.Focus();

@@ -15,22 +15,11 @@ public partial class ArchivePage
     internal Func<FavoriteAssetKey, int?, Task>? SetMediaRatingAsync { get; set; }
     internal Func<FavoriteAssetKey, bool>? CanChangeMediaRating { get; set; }
     private CommandRouter? _ratingCommands;
+    // The file the rating keys (Shift+1 to 5, Shift+0) set: the same focused medium as R (FocusedMediaForRateAndTag, ReaderMediumAt), the post card's included.
     private GalleryEntry? FocusedRatingEntry()
     {
-        Control pane = ArchiveReaderPane;
-        if (_thread == null || _selectedThread != _thread.Summary.Id || TopLevel.GetTopLevel(pane)?.FocusManager?.GetFocusedElement() is not Control focus) return null;
-        Control[] parents = focus.GetSelfAndVisualAncestors().OfType<Control>().ToArray();
-        if (!parents.Contains(pane)) return null;
-        ArchiveAssetRow? row = parents.Select(control => control.DataContext).OfType<ArchiveAssetRow>().FirstOrDefault();
-        if (row == null && parents.Select(control => control.DataContext).OfType<ArchiveAttachmentRow>().FirstOrDefault() is { } attachment)
-        {
-            string? postId = parents.Select(control => control.DataContext).OfType<ArchivePostRow>().FirstOrDefault()?.Id;
-            row = postId == null ? null : FindMatchingAsset(_thread.Summary.Id, postId, attachment.Attachment, _assets);
-        }
-        if (row == null)
-            row = parents.FirstOrDefault(control => control.Name is "ArchiveMediaGrid" or "ArchiveMediaTiles") switch
-            { DataGrid grid => grid.SelectedItem as ArchiveAssetRow, ListBox list => list.SelectedItem as ArchiveAssetRow, _ => null };
-        return row == null ? null : new GalleryEntry(new(_selectedThread, row.Manifest.Directory, row.Asset.AssetId), row.Manifest, row.Asset,
+        if (_thread == null || _selectedThread != _thread.Summary.Id || FocusedMediaForRateAndTag() is not { Asset: { } row }) return null;
+        return new GalleryEntry(new(_selectedThread, row.Manifest.Directory, row.Asset.AssetId), row.Manifest, row.Asset,
             null, null, !row.Asset.IsCurrent, true) { ThreadUrl = _thread.Summary.Url };
     }
     private void InitializeRatingCommands()
@@ -58,6 +47,9 @@ public partial class ArchivePage
         pane.DetachedFromVisualTree += (_, _) => { _ratingCommands?.Dispose(); _ratingCommands = null; };
         pane.KeyDown += (_, e) => _ratingCommands?.Route(e);
     }
+
+    /// <summary>The rating keys from the media sidebar, which sits beside the pane in the large reader (in the archive view its keys bubble to the pane).</summary>
+    private bool RouteSidebarRatingKey(KeyEventArgs e) => _ratingCommands?.Route(e) == true;
     private async Task ExecuteRatingCommandAsync(int? value)
     {
         GalleryEntry? entry = FocusedRatingEntry();

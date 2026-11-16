@@ -58,6 +58,17 @@ public static class CommandBindings
         ShortcutService.Observe(callback.Invoke);
     }
 
+    /// <summary>
+    /// Re-runs <paramref name="refresh"/> whenever the bindings change, in place of the catalog refresh an <c>Apply</c> on the same control registered: for a
+    /// control that builds its own tooltip from several commands (a favourite star), so it has one tooltip source and a rebinding never restores a stale one.
+    /// </summary>
+    internal static void ObservePresentation(Control owner, Action refresh)
+    {
+        ArgumentNullException.ThrowIfNull(owner);
+        ArgumentNullException.ThrowIfNull(refresh);
+        Observe(owner, () => { refresh(); ObservePresentation(owner, refresh); });
+    }
+
     /// <summary>Number of presentations currently registered for a shortcut-snapshot refresh (tests: it must not grow on re-apply).</summary>
     internal static int ObserverCount => ShortcutService.ObserverCount;
 

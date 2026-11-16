@@ -153,7 +153,12 @@ public partial class ArchivePage
         sidebar.Close.Click += (_, e) => { e.Handled = true; CloseMediaSidebar(); };
         // The sidebar's keys reach the reader's view shortcuts too (the toggle, the reader's other switches), in either host.
         // M / U / F act on the medium it shows (revision 20), like the stars of its header.
-        sidebar.AddHandler(KeyDownEvent, (_, e) => { if (!TryRouteSidebarVideoKey(e) && !TryRouteFavoriteKey(sidebar, e)) OnReaderViewKeyDown(sidebar, e); }, RoutingStrategies.Bubble);
+        // R, the rating keys and the media menu's keys act on it too (audit 16.11.2026: in the large reader they reached nothing from here).
+        sidebar.AddHandler(KeyDownEvent, (_, e) =>
+        {
+            if (!TryRouteSidebarVideoKey(e) && !TryRouteFavoriteKey(sidebar, e) && !RouteSidebarRatingKey(e) && !TryRouteArchiveMediaShortcut(sidebar, e))
+                OnReaderViewKeyDown(sidebar, e);
+        }, RoutingStrategies.Bubble);
         sidebar.AddHandler(KeyDownEvent, OnSidebarNavigationKey, RoutingStrategies.Bubble);
         // The large reader's frame is not under the page (the shell hosts it), so the page's and the pane's media menu never see the sidebar: it opens the same
         // menu itself, on a right click anywhere in it (its picture also while a video plays, the header line, the card's edge), the Menu key and Shift+F10.
@@ -164,6 +169,10 @@ public partial class ArchivePage
         sidebar.AddHandler(PointerPressedEvent, OnSidebarMiddlePressed, RoutingStrategies.Tunnel, handledEventsToo: true);
         sidebar.AddHandler(PointerReleasedEvent, OnSidebarMiddleReleased, RoutingStrategies.Tunnel);
         sidebar.AddHandler(KeyDownEvent, OnArchiveMediaContextKey, RoutingStrategies.Tunnel);
+        // Its keys run in the reader's context in either host: in the large reader the sidebar sits beside the pane, outside the pane's own host, and its
+        // keys (M / U / F, the media keys) asked without a context, so a default yielded elsewhere went dead there. Installed after its tunnel handlers
+        // (Avalonia runs one element's tunnel handlers in reverse order), like the pane's (WireReaderSurface).
+        MeowChan.Desktop.Controls.KeyContextHost.Install(sidebar, _ => "reader");
         return sidebar;
     }
 

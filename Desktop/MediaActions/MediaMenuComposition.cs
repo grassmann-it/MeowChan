@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
@@ -238,3 +239,28 @@ internal static class MediaMenuComposition
         return new MediaMenuModel(facts.Surface, facts.Target, items);
     }
 }
+
+/// <summary>
+/// A media menu handler that runs under the same precondition the surface gave the composition (audit 16.11.2026, "Open in gallery" that did nothing): the
+/// surface derives its facts from <c>ready</c> and registers the handler through <see cref="When"/>, so an entry is enabled exactly when its handler can
+/// run. A handler whose precondition fails anyway (the state changed between opening the menu and the click) is reported through <see cref="NoOp"/>, the
+/// seam the guard tests (MediaMenuHandlerGuardTests) listen on; in the product it is unset and the entry simply does nothing for a target that is gone.
+/// </summary>
+internal static class MediaMenuHandlers
+{
+    /// <summary>Test seam: an entry's handler ran while its precondition did not hold (the surface and the action).</summary>
+    internal static Action<MediaMenuSurface, MediaMenuAction>? NoOp { get; set; }
+
+    internal static Func<Task> When(MediaMenuSurface surface, MediaMenuAction action, Func<bool> ready, Func<Task> run)
+    {
+        ArgumentNullException.ThrowIfNull(ready);
+        ArgumentNullException.ThrowIfNull(run);
+        return () =>
+        {
+            if (ready()) return run();
+            NoOp?.Invoke(surface, action);
+            return Task.CompletedTask;
+        };
+    }
+}
+
