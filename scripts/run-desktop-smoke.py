@@ -159,6 +159,23 @@ def prepare_environment(base: dict[str, str], isolated: bool, directory: Path) -
     return environment
 
 
+def owned_process_group_is_empty(process: subprocess.Popen) -> bool:
+    """Best-effort liveness check for a group whose signal was denied during teardown.
+
+    macOS can reject a group signal while the last member is already exiting.  In
+    that narrow race the process has completed and ``ps`` is the only reliable
+    way to distinguish an empty group from a still-running descendant.
+    """
+    if os.name == "nt" or process.poll() is None:
+        return False
+    try:
+        probe = subprocess.run(["ps", "-o", "pid=", "-g", str(process.pid)],
+                               capture_output=True, text=True, check=False, timeout=5)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return probe.returncode == 0 and not probe.stdout.strip()
+
+
 def stop_owned_processes(process: subprocess.Popen) -> None:
     """Only touch the process/tree or POSIX group created by this invocation."""
     if os.name == "nt":
@@ -178,11 +195,20 @@ def stop_owned_processes(process: subprocess.Popen) -> None:
                 time.sleep(0.05)
         except ProcessLookupError:
             pass
+        except PermissionError:
+            # macOS may report EPERM after the process group has already
+            # disappeared. Do not turn that teardown race into a product
+            # failure, but never ignore it while a descendant is alive.
+            if not owned_process_group_is_empty(process):
+                raise
         finally:
             try:
                 os.killpg(process.pid, signal.SIGKILL)
             except ProcessLookupError:
                 pass
+            except PermissionError:
+                if not owned_process_group_is_empty(process):
+                    raise
     process.wait(timeout=10)
 
 
