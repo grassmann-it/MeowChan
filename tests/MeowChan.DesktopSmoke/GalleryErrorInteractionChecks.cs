@@ -1,3 +1,6 @@
+using Avalonia;
+using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using System.Text.Json;
 using MeowChan.Diagnostics;
@@ -167,11 +170,11 @@ internal static partial class GalleryPlaybackFeatureChecks
             viewer.ConfigurePlayback(new GalleryPlaybackPreferences(OverlayPostContext: postOverlay).WithControlsOverlay(true));
             viewer.SetInteractionAvailable(false); // Explicit reveal, held stable during sizing.
             Window window = new() { Width = 1000, Height = 700, Content = viewer,
-                Title = "Private gallery layout ownership regression" };
+                Title = "Private gallery layout ownership regression", WindowStartupLocation = WindowStartupLocation.CenterScreen };
             Window? overlay = externalRoot ? new Window
             {
                 Width = 650, Height = 500, Content = ErrorField<Grid>(viewer, "_nativeVideoOverlay"),
-                Title = "Private external gallery layout root"
+                Title = "Private external gallery layout root", WindowStartupLocation = WindowStartupLocation.CenterOwner
             } : null;
             try
             {
@@ -210,7 +213,7 @@ internal static partial class GalleryPlaybackFeatureChecks
                     Border controls = Find<Border>(viewer, "GalleryOverlayControls");
                     Require(controls.GetVisualAncestors().Contains(footer),
                         "Closing-root pointer target is not inside the sized footer.");
-                    await native.MoveAsync(controls);
+                    await EnterClosingRootAsync(native, overlay ?? window, controls, externalRoot, postOverlay);
                     await UntilAsync(() => footer.IsPointerOver && pointerRoot.IsPointerOver,
                         "Closing-root regression did not receive real OS pointer entry.");
                 }
@@ -231,6 +234,64 @@ internal static partial class GalleryPlaybackFeatureChecks
                         "Closing-root pointer events restarted the retired indicator timer.");
                 }, DispatcherPriority.Background);
             }
+        }
+    }
+
+    private static async Task EnterClosingRootAsync(MediaNativeInput native, Window root, Control target,
+        bool externalRoot, bool postOverlay)
+    {
+        // Show/UpdateLayout do not establish native activation. In particular the
+        // second external-root case can inherit the previous case's cursor pixel.
+        // A single CGEvent at that pixel is submission, not proof of entry into
+        // the newly created NSWindow. Exercise motion across two distinct points
+        // and require native delivery, without an activation click or routed input.
+        root.Activate();
+        await UntilAsync(() => root.IsVisible && root.IsActive && root.IsArrangeValid,
+            "Closing-root native window did not become active and arranged.");
+        Point[] points = GalleryNativePointerProbe.EntryPoints(target.Bounds.Size);
+        bool primed = false;
+        foreach (Point point in new[] { points[1], points[0], points[1] })
+        {
+            PixelPoint pixel = target.PointToScreen(point);
+            var screen = root.Screens.ScreenFromPoint(pixel);
+            Visual? hit = root.InputHitTest(root.PointToClient(pixel)) as Visual;
+            Console.WriteLine($"SMOKE closing-root native readiness: external={externalRoot}, postOverlay={postOverlay}, "
+                + $"position={root.Position}, client={root.ClientSize}, scale={root.RenderScaling}, active={root.IsActive}, "
+                + $"pixel={pixel}, working-area={screen?.WorkingArea}, hit={(hit as Control)?.Name ?? hit?.GetType().Name}");
+            Require(screen != null && screen.WorkingArea.Contains(pixel),
+                "Closing-root pointer target is outside the native working area.");
+            Require(hit != null && hit.GetSelfAndVisualAncestors().Contains(target),
+                "Closing-root pointer target is obscured in its actual top-level hit test.");
+            if (!primed)
+            {
+                // Seed a known OS position, even if the runner initially left
+                // the cursor exactly at our entry pixel. Submission alone is
+                // sufficient only for this seed, never for the two probes.
+                await native.MoveAsync(target, point);
+                primed = true;
+                continue;
+            }
+            Point expected = root.PointToClient(pixel);
+            TaskCompletionSource<bool> moved = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            void OnMoved(object? sender, PointerEventArgs args)
+            {
+                Point actual = args.GetPosition(root);
+                if (args.Source is Visual source && ReferenceEquals(TopLevel.GetTopLevel(source), root)
+                    && GalleryNativePointerProbe.IsAt(actual, expected))
+                    moved.TrySetResult(true);
+            }
+            root.AddHandler(InputElement.PointerMovedEvent, OnMoved, RoutingStrategies.Tunnel, handledEventsToo: true);
+            try
+            {
+                await native.MoveAsync(target, point);
+                await moved.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            }
+            catch (TimeoutException)
+            {
+                throw new TimeoutException($"Closing-root OS motion was not delivered: external={externalRoot}, "
+                    + $"postOverlay={postOverlay}, pixel={pixel}, position={root.Position}, active={root.IsActive}.");
+            }
+            finally { root.RemoveHandler(InputElement.PointerMovedEvent, OnMoved); }
         }
     }
 

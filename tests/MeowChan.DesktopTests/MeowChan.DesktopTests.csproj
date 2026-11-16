@@ -26,6 +26,7 @@
     <Compile Include="../MeowChan.DesktopSmoke/SmokeScenarios.cs" Link="TestSupport/SmokeScenarios.cs" />
     <Compile Include="../MeowChan.DesktopSmoke/SmokeSelectors.cs" Link="TestSupport/SmokeSelectors.cs" />
     <Compile Include="../MeowChan.DesktopSmoke/SmokeStartupDiagnostics.cs" Link="TestSupport/SmokeStartupDiagnostics.cs" />
+    <Compile Include="../MeowChan.DesktopSmoke/GalleryNativePointerProbe.cs" Link="TestSupport/GalleryNativePointerProbe.cs" />
     <Using Include="Xunit" />
   </ItemGroup>
 </Project>
