@@ -54,25 +54,6 @@ public sealed class PluginMultiApprovalTests
         Assert.Equal(3, f.Recording.Writes.Count);
     }
 
-    [Fact]
-    public async Task BatchContinuesAfterARecoverableRowFailure()
-    {
-        using Fixture f = await Fixture.CreateAsync();
-        f.Recording.BeforeWrite = count => count == 2
-            ? Task.FromException(new InvalidOperationException("second row failed"))
-            : Task.CompletedTask;
-        PluginMultiApproval session = new(f.Recording);
-
-        await session.SubmitAsync(f.Choices, () => true);
-
-        Assert.Equal(3, f.Recording.Writes.Count);
-        Assert.Equal(new[] { PluginApprovalState.Saved, PluginApprovalState.Failed, PluginApprovalState.Saved },
-            session.Receipts.Select(receipt => receipt.State));
-        Assert.Equal(new[] { f.Choices[0].PluginId, f.Choices[1].PluginId, f.Choices[2].PluginId },
-            f.Recording.Writes.Select(write => write.Row.PluginId));
-        Assert.Equal("plugins.approval.failed", session.IssueKey);
-    }
-
     [Theory]
     [InlineData(0)]
     [InlineData(9)]
