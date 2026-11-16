@@ -181,18 +181,10 @@ public sealed class MediaMenuHandlerGuardTests
         using IDisposable scope = AvaloniaLocator.EnterScope();
         AvaloniaLocator.CurrentMutable.Bind<ICursorFactory>().ToConstant(new DeadAffordanceGuard.RecordingCursorFactory());
         // The design tokens the page's XAML looks up, as the product's application has them (no theme, no window).
-        TokenApplication app = new();
-        AvaloniaLocator.CurrentMutable.Bind<Application>().ToConstant(app);
-        app.Initialize();
+        TokenApplication.Bind();
         try { test(new Fixture()); }
         finally { MediaMenuHandlers.NoOp = null; }
     });
-
-    private sealed class TokenApplication : Application
-    {
-        public override void Initialize() =>
-            Styles.Add(new StyleInclude(new Uri("avares://MeowChan/")) { Source = new Uri("avares://MeowChan/Desktop/WorkspaceStyles.axaml") });
-    }
 
     private sealed record BoundAsset(MediaAssetSnapshot Snapshot, MediaAssetReference Asset, CapturedAttachment Attachment);
 

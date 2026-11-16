@@ -1,0 +1,21 @@
+# G6 baseline (2026-11-16): tests/MeowChan.DesktopSmoke waits for !shell/window.IsVisible as "closed" (S8 F3). Remove entries as the smokes are fixed.
+tests/MeowChan.DesktopSmoke/BooruBusyFallbackChecks.cs :: await Program.WaitUntilAsync(() => !shell.IsVisible, () => "shell did not close");
+tests/MeowChan.DesktopSmoke/BooruCompositionChecks.cs :: await Program.WaitUntilAsync(() => !shell.IsVisible);
+tests/MeowChan.DesktopSmoke/ClipboardMonitorChecks.cs :: await Program.WaitUntilAsync(() => !Shell.IsVisible);
+tests/MeowChan.DesktopSmoke/DownloadSafetyLimitChecks.cs :: await Program.WaitUntilAsync(() => !shell.IsVisible);
+tests/MeowChan.DesktopSmoke/DownloadSearchStartupTruthChecks.cs :: await Program.WaitUntilAsync(() => !window.IsVisible);
+tests/MeowChan.DesktopSmoke/ExperimentalActivationChecks.cs :: await Program.WaitUntilAsync(() => !window.IsVisible || Shell("_allowClose") && !Shell("_shutdownRunning"));
+tests/MeowChan.DesktopSmoke/ExperimentalActivationChecks.cs :: await Program.WaitUntilAsync(() => !window.IsVisible);
+tests/MeowChan.DesktopSmoke/FirstRunSettingsChecks.cs :: await Program.WaitUntilAsync(() => !shell.IsVisible);
+tests/MeowChan.DesktopSmoke/PostBookmarkGalleryReturnChecks.cs :: await Program.WaitUntilAsync(() => !shell.IsVisible);
+tests/MeowChan.DesktopSmoke/Program.cs :: await WaitUntilAsync(() => !mainWindow.IsVisible);
+tests/MeowChan.DesktopSmoke/SettingsChecks.cs :: await WaitUntilAsync(() => !window.IsVisible);
+tests/MeowChan.DesktopSmoke/SettingsPageChecks.cs :: await Program.WaitUntilAsync(() => !window.IsVisible && !editor.IsBusy);
+tests/MeowChan.DesktopSmoke/SettingsPageChecks.cs :: await Program.WaitUntilAsync(() => !window.IsVisible);
+tests/MeowChan.DesktopSmoke/SettingsPageChecks.cs :: if (window.IsVisible) { window.Close(); await Program.WaitUntilAsync(() => !window.IsVisible); }
+tests/MeowChan.DesktopSmoke/SourceFilterWaveChecks.cs :: await Program.WaitUntilAsync(() => !window.IsVisible);
+tests/MeowChan.DesktopSmoke/StatusDeepLinkChecks.cs :: await Program.WaitUntilAsync(() => !shell.IsVisible);
+tests/MeowChan.DesktopSmoke/ThemeColorsChecks.cs :: await Program.WaitUntilAsync(() => editor.ThemeColorsWindow == null || !editor.ThemeColorsWindow.IsVisible, () => "the dialog did not close after Apply");
+tests/MeowChan.DesktopSmoke/TrayHostChecks.cs :: await Program.WaitUntilAsync(() => !window.IsVisible);
+tests/MeowChan.DesktopSmoke/TrayLifecycleChecks.cs :: await Program.WaitUntilAsync(() => !window.IsVisible);
+tests/MeowChan.DesktopSmoke/UpdateGuiChecks.cs :: await Program.WaitUntilAsync(() => !window.IsVisible);

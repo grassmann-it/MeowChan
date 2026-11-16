@@ -24,19 +24,11 @@ public sealed class ArchiveListAuditTests
     private static string Source(string relative, [CallerFilePath] string sourcePath = "") =>
         File.ReadAllText(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sourcePath)!, "../..", relative)));
 
-    private sealed class TokenApplication : Application
-    {
-        public override void Initialize() =>
-            Styles.Add(new StyleInclude(new Uri("avares://MeowChan/")) { Source = new Uri("avares://MeowChan/Desktop/WorkspaceStyles.axaml") });
-    }
-
     private static void WithPage(Action<ArchivePage> test) => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable scope = AvaloniaLocator.EnterScope();
         AvaloniaLocator.CurrentMutable.Bind<ICursorFactory>().ToConstant(new DeadAffordanceGuard.RecordingCursorFactory());
-        TokenApplication app = new();
-        AvaloniaLocator.CurrentMutable.Bind<Application>().ToConstant(app);
-        app.Initialize();
+        TokenApplication.Bind();
         ArchivePage page = new();
         try { test(page); }
         finally { (page as IDisposable)?.Dispose(); }

@@ -33,9 +33,7 @@ public sealed class DiagnosticsKeyboardMenuTests
     {
         using IDisposable scope = AvaloniaLocator.EnterScope();
         AvaloniaLocator.CurrentMutable.Bind<Avalonia.Platform.ICursorFactory>().ToConstant(new DeadAffordanceGuard.RecordingCursorFactory());
-        TokenApplication app = new();
-        AvaloniaLocator.CurrentMutable.Bind<Application>().ToConstant(app);
-        app.Initialize();
+        TokenApplication.Bind();
         Texts.Initialize(); Texts.SetLanguage("en");
         Root root = new();
         DiagnosticsPage page = new(_ => true, _ => Task.CompletedTask);
@@ -44,12 +42,6 @@ public sealed class DiagnosticsKeyboardMenuTests
         try { test(page); }
         finally { root.Child = null; }
     });
-
-    private sealed class TokenApplication : Application
-    {
-        public override void Initialize() =>
-            Styles.Add(new Avalonia.Markup.Xaml.Styling.StyleInclude(new Uri("avares://MeowChan/")) { Source = new Uri("avares://MeowChan/Desktop/WorkspaceStyles.axaml") });
-    }
 
     private sealed class Root : Decorator, Avalonia.LogicalTree.ILogicalRoot;
 }

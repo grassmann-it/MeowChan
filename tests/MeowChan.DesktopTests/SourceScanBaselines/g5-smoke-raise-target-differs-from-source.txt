@@ -1,0 +1,3 @@
+# G5 baseline (2026-11-16): tests/MeowChan.DesktopSmoke raises an event on one element with Source = another (S8 F2). Remove entries as the smokes are fixed.
+tests/MeowChan.DesktopSmoke/MediaPageChecks.TileActivation.cs :: RaiseEvent on grid with Source second
+tests/MeowChan.DesktopSmoke/MergedSourcesSmoke.cs :: RaiseEvent on list with Source row

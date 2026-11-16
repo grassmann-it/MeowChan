@@ -14,19 +14,11 @@ namespace MeowChan.DesktopTests;
 [Collection("Gallery viewer construction")]
 public sealed class SourcesFocusFallbackTests
 {
-    private sealed class TokenApplication : Application
-    {
-        public override void Initialize() =>
-            Styles.Add(new StyleInclude(new Uri("avares://MeowChan/")) { Source = new Uri("avares://MeowChan/Desktop/WorkspaceStyles.axaml") });
-    }
-
     private static void WithPage(Action<SourcesPage, List<Control>> test) => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable scope = AvaloniaLocator.EnterScope();
         AvaloniaLocator.CurrentMutable.Bind<ICursorFactory>().ToConstant(new DeadAffordanceGuard.RecordingCursorFactory());
-        TokenApplication app = new();
-        AvaloniaLocator.CurrentMutable.Bind<Application>().ToConstant(app);
-        app.Initialize();
+        TokenApplication.Bind();
         SourcesPage page = new();
         List<Control> focused = new();
         page.FocusControl = control => { focused.Add(control); return true; };

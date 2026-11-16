@@ -10,6 +10,7 @@ namespace MeowChan.DesktopTests;
 // EXIF Orientation of local images: phone photos are stored sideways with a tag; every decode path must show them upright.
 // Synthetic fixtures only: a 64x32 JPEG of four flat quadrants (top left red, top right green, bottom left blue, bottom right
 // yellow, 16-pixel aligned so chroma never bleeds) with a minimal EXIF APP1 segment carrying the Orientation tag.
+[Collection("Avalonia global state")]
 public sealed class ExifOrientationTests
 {
     private const int W = 64, H = 32;
@@ -87,14 +88,8 @@ public sealed class ExifOrientationTests
         c.Red > 160 && c.Green < 96 && c.Blue < 96 ? 'R' : c.Green > 160 && c.Red < 96 && c.Blue < 96 ? 'G'
         : c.Blue > 160 && c.Red < 96 && c.Green < 96 ? 'B' : c.Red > 160 && c.Green > 160 && c.Blue < 96 ? 'Y' : '?';
 
-    private static readonly object PlatformGate = new();
-    private static void Platform()
-    {
-        lock (PlatformGate)
-            if (Application.Current == null)
-                AppBuilder.Configure<Application>().UseSkia().UseStandardRuntimePlatformSubsystem().UseHarfBuzz()
-                    .UseWindowingSubsystem(() => { }).SetupWithoutStarting();
-    }
+    // A locator scope of the test, never a root application: a bare Application left in the root locator reached every later test class.
+    private static IDisposable Platform() => AvaloniaTestPlatform.EnterSkia();
 
     /// <summary>Counts the bytes handed to the decoder.</summary>
     private sealed class CountingStream(byte[] bytes) : MemoryStream(bytes, writable: false)
@@ -195,7 +190,7 @@ public sealed class ExifOrientationTests
     [Theory, MemberData(nameof(Orientations))]
     public void DirectDisplayBufferKeepsExactPremultipliedPixelsAfterTheSourceIsDisposed(int orientation)
     {
-        Platform();
+        using IDisposable platform = Platform();
         using SKBitmap source = new(3, 2, SKColorType.Bgra8888, SKAlphaType.Premul);
         int[] pixels = [0, 0x01010000, 0x40201008, unchecked((int)0x80402010), unchecked((int)0xFFFEFDFC), 0x7F7E7D7C];
         Marshal.Copy(pixels, 0, source.GetPixels(), pixels.Length);
@@ -258,7 +253,7 @@ public sealed class ExifOrientationTests
     [Theory, MemberData(nameof(Orientations))]
     public void EveryGalleryAndThumbnailDecodePathShowsTheImageUpright(int orientation)
     {
-        Platform();
+        using IDisposable platform = Platform();
         byte[] bytes = Jpeg(orientation);
         (string corners, bool swapped) = Expected[orientation - 1];
         PixelSize shown = swapped ? new PixelSize(H, W) : new PixelSize(W, H);
@@ -286,7 +281,7 @@ public sealed class ExifOrientationTests
     [Theory, MemberData(nameof(Orientations))]
     public void AResizedFitUsesTheFinalOrientedBufferAndLeavesTheStreamOpen(int orientation)
     {
-        Platform();
+        using IDisposable platform = Platform();
         using MemoryStream stream = new(Jpeg(orientation));
         PixelSize target = Expected[orientation - 1].Swapped ? new(13, 25) : new(25, 13);
         using Bitmap fit = GalleryImageDecoder.DecodeFit(stream, target);
@@ -302,7 +297,7 @@ public sealed class ExifOrientationTests
     [InlineData(8, 32, 32, 16, 32)]
     public void AFitIsComputedOnTheShownSizeAndDecodedToExactlyThatSize(int orientation, int viewportWidth, int viewportHeight, int expectedWidth, int expectedHeight)
     {
-        Platform();
+        using IDisposable platform = Platform();
         byte[] bytes = Jpeg(orientation);
         GalleryImageInfo info = GalleryImageDecoder.Inspect(new MemoryStream(bytes));
         PixelSize target = GalleryFitTarget.Calculate(info, new GalleryDecodeRequest.Fit(viewportWidth, viewportHeight));
@@ -315,7 +310,7 @@ public sealed class ExifOrientationTests
     [Theory, MemberData(nameof(Orientations))]
     public void ScanlineOriginalMatchesTheWholeBufferDecoderPixelForPixel(int orientation)
     {
-        Platform();
+        using IDisposable platform = Platform();
         byte[] bytes = Jpeg(orientation);
         using MemoryStream encoded = new(bytes);
         using SKCodec codec = SKCodec.Create(encoded)!;
@@ -342,7 +337,7 @@ public sealed class ExifOrientationTests
     [InlineData(8)]
     public void IncompleteJpegCanRewindForTheWholeBufferFallback(int orientation)
     {
-        Platform();
+        using IDisposable platform = Platform();
         byte[] bytes = Jpeg(orientation)[..^32];
         using MemoryStream stream = new(bytes);
         using SKCodec codec = SKCodec.Create(stream)!;
@@ -357,7 +352,7 @@ public sealed class ExifOrientationTests
     [Theory, MemberData(nameof(Orientations))]
     public void NonJpegCodecPixelsUseTheDirectDestinationFallback(int orientation)
     {
-        Platform();
+        using IDisposable platform = Platform();
         using SKBitmap source = Quadrants();
         using SKData png = source.Encode(SKEncodedImageFormat.Png, 100);
         using SKCodec codec = SKCodec.Create(png)!;
@@ -395,7 +390,7 @@ public sealed class ExifOrientationTests
     [Theory, MemberData(nameof(Malformed))]
     public void MalformedExifNeverBreaksTheDecodeAndLeavesTheImageUpright(string kind)
     {
-        Platform();
+        using IDisposable platform = Platform();
         byte[] bytes = WithSegment(PlainJpeg(), MalformedSegment(kind));
         SKEncodedOrigin origin = ImageOrientation.ReadOrigin(new MemoryStream(bytes));
         if (kind.StartsWith("orientation", StringComparison.Ordinal)) Assert.False(ImageOrientation.NeedsTransform(origin));
@@ -422,7 +417,7 @@ public sealed class ExifOrientationTests
     [InlineData(SKEncodedImageFormat.Webp)]
     public void PngAndWebpWithoutExifKeepTheirPixelsAndSize(SKEncodedImageFormat format)
     {
-        Platform();
+        using IDisposable platform = Platform();
         using SKBitmap source = Quadrants();
         using SKData encoded = source.Encode(format, 100);
         byte[] bytes = encoded.ToArray();
@@ -443,7 +438,7 @@ public sealed class ExifOrientationTests
     [Fact]
     public void AJpegWithoutAnyExifIsUnchanged()
     {
-        Platform();
+        using IDisposable platform = Platform();
         byte[] bytes = PlainJpeg();
         Assert.Equal(SKEncodedOrigin.TopLeft, ImageOrientation.ReadOrigin(new MemoryStream(bytes)));
         using Bitmap original = ImageOrientation.DecodeOriginal(new MemoryStream(bytes));
@@ -530,7 +525,7 @@ public sealed class ExifOrientationTests
     [Fact]
     public void AnUprightLargePhotoStillTakesAvaloniasOwnDecoder()
     {
-        Platform();
+        using IDisposable platform = Platform();
         byte[] bytes = WithSegment(PlainJpeg(), ExifSegment(1));
         using Bitmap original = ImageOrientation.DecodeOriginal(new MemoryStream(bytes));
         using Bitmap viaAvalonia = new(new MemoryStream(bytes));
