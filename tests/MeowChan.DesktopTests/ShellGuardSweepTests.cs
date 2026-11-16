@@ -87,6 +87,7 @@ public sealed class ShellGuardSweepTests
         string root = System.IO.Path.Combine(directory.Path, "plugin-workers");
         string stale = Workspace(root, "worker-" + Guid.NewGuid().ToString("N"), Now.AddHours(-3));
         File.WriteAllText(System.IO.Path.Combine(stale, "scratch.bin"), "x");
+        Directory.SetLastWriteTimeUtc(stale, Now.AddHours(-3)); // creating the file just touched the folder's own time (the real clock is after Now)
         string young = Workspace(root, "worker-" + Guid.NewGuid().ToString("N"), Now.AddMinutes(-2));
         string busy = Workspace(root, "worker-" + Guid.NewGuid().ToString("N"), Now.AddHours(-3));
         string foreign = Workspace(root, "worker-notes", Now.AddHours(-3));
