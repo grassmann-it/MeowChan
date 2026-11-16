@@ -259,7 +259,7 @@ internal sealed class QuotePreviewMedia : IReaderInlineVideoOwner
         _countText.Classes.Add("workspace-meta");
         _count = new Border
         {
-            Name = "QuotePreviewMediaCountBadge", Child = _countText, Padding = new Thickness(6, 2), Margin = new Thickness(4),
+            Name = "QuotePreviewMediaCountBadge", Child = _countText, Padding = new Thickness(8, 2), Margin = new Thickness(4),
             HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, IsVisible = false, IsHitTestVisible = false
         };
         _count[!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.Card");
@@ -402,7 +402,7 @@ internal sealed class QuotePreviewMedia : IReaderInlineVideoOwner
     {
         GalleryGifPlayback? gif = await GalleryGifPlayback.OpenAsync(entry, _picture, loading.Token);
         if (gif == null) return; // not a GIF after all: the still picture stays
-        if (!IsCurrent(request, loading)) { _ = RetireGifAsync(gif); return; }
+        if (!IsCurrent(request, loading)) { OpenActions.Start(() => RetireGifAsync(gif), "reader.quotePreview.gif.retire"); return; }
         _gif = gif;
         gif.Adopt();
         gif.SetActive(true);
@@ -432,11 +432,11 @@ internal sealed class QuotePreviewMedia : IReaderInlineVideoOwner
         try { loading?.Cancel(); } catch (ObjectDisposedException) { }
         GalleryGifPlayback? gif = _gif;
         _gif = null;
-        if (gif != null) _ = RetireGifAsync(gif);
+        if (gif != null) OpenActions.Start(() => RetireGifAsync(gif), "reader.quotePreview.gif.retire");
         // A player whose native cleanup still runs stays in the frame until it returned (the gallery's contract), but is not seen meanwhile.
         foreach (Control child in _frame.Children)
             if (!ReferenceEquals(child, _picture) && !ReferenceEquals(child, _status) && !ReferenceEquals(child, _count)) child.IsVisible = false;
-        _ = _videos.ReleaseAllAsync();
+        OpenActions.Start(() => _videos.ReleaseAllAsync(), "reader.quotePreview.video.release");
         _picture.Source = null;
         Bitmap? bitmap = _bitmap;
         _bitmap = null;

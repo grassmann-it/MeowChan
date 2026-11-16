@@ -395,7 +395,7 @@ public sealed class HelpDocumentationTests
         Assert.Contains("new QuickSettingsPopover(QuickSettingsSurfaces.Get(QuickSettingsSurfaces.Reader), host", Read("Desktop/Views/Archive/ArchivePage.QuickSettings.cs"), StringComparison.Ordinal);
         string video = Read("Desktop/Views/Archive/ArchivePage.InlineVideo.cs");
         Assert.Contains("ArchivePosts.SetValue(ArchiveAttachmentView.InlineVideoProperty, _inlineVideo);", video, StringComparison.Ordinal);
-        Assert.Contains("return _inlineVideo.ReleaseAllAsync();", video, StringComparison.Ordinal);
+        Assert.Contains("return Task.WhenAll(_inlineVideo.ReleaseAllAsync(), preview);", video, StringComparison.Ordinal);
         Assert.Contains("return _inlineVideo.PauseAllAsync();", video, StringComparison.Ordinal);
         string controller = Read("Desktop/ReaderInlineVideo.cs");
         Assert.Contains("await PauseOthersAsync(owner);", controller, StringComparison.Ordinal);
