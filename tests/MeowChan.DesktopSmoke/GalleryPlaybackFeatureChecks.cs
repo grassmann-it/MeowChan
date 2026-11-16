@@ -740,7 +740,13 @@ internal static partial class GalleryPlaybackFeatureChecks
         GalleryViewer viewer = fixture.Viewer;
         viewer.ConfigurePlayback(new(GalleryPlaybackMode.Slideshow, 1));
         await viewer.ShowAsync(clip, CancellationToken.None);
-        Click(Find<Button>(viewer, "GallerySlideshowToggle"));
+        // Video startup can outlive the overlay idle timer on slower native hosts (notably
+        // macOS Intel).  Do the same production More -> close path a person uses to
+        // recover hidden controls, then focus the current split-button half before
+        // sending Space.  A hidden control is intentionally not a keyboard target.
+        await RevealAutoHiddenTransportAsync(fixture);
+        Button slideshow = await KeyboardReachableSlideshowActionAsync(fixture);
+        Click(slideshow);
         GalleryVideoPlayer player = viewer.GetGalleryVisualDescendants().OfType<GalleryVideoPlayer>().Single();
         await UntilAsync(async () => (await player.InspectPlaybackAsync()).Time > 250,
             "The video did not start before the repeat-mode transition.");
