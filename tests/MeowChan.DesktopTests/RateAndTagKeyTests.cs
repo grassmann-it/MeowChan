@@ -2,10 +2,12 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Presenters;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
@@ -394,14 +396,28 @@ public sealed class RateAndTagMediaPageKeyTests
         Assert.Equal(MediaMenuReasons.Unavailable, fixture.SelectionNote);
     });
 
+    // The key is raised by a control inside the page, so that it reaches the page's handler by its route with that control as the source
+    // (RaiseEvent on the page itself would make the page the source, whatever the arguments say).
+    private static KeyEventArgs KeyFrom(MediaTileEnterTests.Fixture fixture, Control source)
+    {
+        // The fixture hand-templates the tiles only; the page's own presenter is applied here so that its content is below the page in the visual tree.
+        fixture.Page.ApplyTemplate();
+        foreach (ContentPresenter presenter in fixture.Page.GetVisualDescendants().OfType<ContentPresenter>().Where(p => p.Parent == fixture.Page).ToArray()) presenter.UpdateChild();
+        Panel host = fixture.Grid.GetVisualAncestors().OfType<Panel>().First();
+        host.Children.Add(source);
+        KeyEventArgs press = new() { RoutedEvent = InputElement.KeyDownEvent, Key = Avalonia.Input.Key.R, Source = source };
+        Assert.Contains(fixture.Page, source.GetVisualAncestors());
+        source.RaiseEvent(press);
+        return press;
+    }
+
     [Fact]
     public void ROnAnotherControlOfThePageLikeAFilterChipOpensRateAndTagForTheSelectedTile() => MediaTileEnterTests.Run(fixture =>
     {
         List<Opened> opened = RecordPopovers(fixture);
         fixture.Grid.SelectedIndex = 1;
         Button chip = new() { Name = "MediaFilterChip" }; // a chip, a sort or layout button: outside the grid's own route
-        KeyEventArgs press = new() { RoutedEvent = InputElement.KeyDownEvent, Key = Avalonia.Input.Key.R, Source = chip };
-        fixture.Page.RaiseEvent(press);
+        KeyEventArgs press = KeyFrom(fixture, chip);
         for (int attempt = 0; attempt < 50; attempt++) Dispatcher.UIThread.RunJobs();
 
         Assert.True(press.Handled);
@@ -413,8 +429,7 @@ public sealed class RateAndTagMediaPageKeyTests
     {
         List<Opened> opened = RecordPopovers(fixture);
         fixture.Grid.SelectedIndex = 1;
-        KeyEventArgs press = new() { RoutedEvent = InputElement.KeyDownEvent, Key = Avalonia.Input.Key.R, Source = new TextBox() };
-        fixture.Page.RaiseEvent(press);
+        KeyEventArgs press = KeyFrom(fixture, new TextBox());
         for (int attempt = 0; attempt < 50; attempt++) Dispatcher.UIThread.RunJobs();
 
         Assert.False(press.Handled);

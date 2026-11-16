@@ -1231,7 +1231,11 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
                 _input.Text = string.Empty;
                 _input.Dismiss(); // after the text: the emptied field must not open its list again
                 return true;
-            case QuickTagKeyAction.Close: CloseRequested?.Invoke(); return CloseRequested != null;
+            case QuickTagKeyAction.Close:
+                // The host disposes the surface while handling the request (which clears the handlers): whether there was a host is asked before.
+                Action? close = CloseRequested;
+                close?.Invoke();
+                return close != null;
             case QuickTagKeyAction.Next: return Navigate(QuickTagNavigation.Next);
             case QuickTagKeyAction.Previous: return Navigate(QuickTagNavigation.Previous);
             case QuickTagKeyAction.MarkNext: return Navigate(QuickTagNavigation.MarkNext);

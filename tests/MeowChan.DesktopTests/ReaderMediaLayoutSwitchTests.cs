@@ -40,7 +40,7 @@ public sealed class ReaderMediaLayoutSwitchTests
         {
             Assert.Null(toggle.Attribute("Padding"));
             Assert.Equal("64", (string?)toggle.Attribute("MinWidth"));
-            Assert.Equal("32", (string?)toggle.Attribute("MinHeight"));
+            Assert.Equal("{StaticResource Workspace.Size.Control}", (string?)toggle.Attribute("MinHeight")); // the token (32), as on the results bar
             Assert.Equal("OnMediaLayoutClick", (string?)toggle.Attribute("Click"));
         }
         Assert.DoesNotContain("ArchiveMediaMode", File.ReadAllText(Root("Desktop/Views/Archive/ArchivePage.axaml")));

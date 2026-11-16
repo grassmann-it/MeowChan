@@ -358,6 +358,9 @@ public partial class ArchivePage
         QuotePreviewPopup.PlacementRect = _quotePreviewArea.Width > 0 ? _quotePreviewArea : null;
         // Only a pointer move after the preview opened tells where the pointer goes when it leaves the reference.
         _quotePreviewPointerHost = null;
+        // A click on the card opens the quoted post: the hand shows from the moment the card exists with its themed fill (the Background token
+        // resolves only once the popup is open; before, a hand over a card without a hit surface would promise what it cannot do).
+        QuotePreviewCard.Cursor = new Cursor(StandardCursorType.Hand);
         QuotePreviewPopup.IsOpen = true;
     }
 

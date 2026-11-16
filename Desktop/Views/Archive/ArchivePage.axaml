@@ -709,7 +709,7 @@
                              The quoted post's first medium comes first (QuotePreviewMediaHost, sized by QuotePreviewMediaRules), its text below. It takes the
                              pointer: it stays open while the pointer is on it, and a click opens the quoted post. -->
                         <Popup x:Name="QuotePreviewPopup" Placement="Bottom" IsLightDismissEnabled="False">
-                            <Border x:Name="QuotePreviewCard" Background="{DynamicResource Workspace.Card}" BorderBrush="{DynamicResource Workspace.Accent}" Cursor="Hand"
+                            <Border x:Name="QuotePreviewCard" Background="{DynamicResource Workspace.Card}" BorderBrush="{DynamicResource Workspace.Accent}"
                                     BorderThickness="1" CornerRadius="{StaticResource Workspace.Radius.Control}" Padding="12,8" MaxWidth="480" MaxHeight="320">
                                 <StackPanel x:Name="QuotePreviewContent" Spacing="{StaticResource Workspace.Space.4}">
                                     <Panel x:Name="QuotePreviewMediaHost" IsVisible="False" HorizontalAlignment="Left" />
