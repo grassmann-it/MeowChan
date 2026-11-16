@@ -45,6 +45,16 @@ internal static class AtomicJsonFile
             {
                 File.Move(temporaryPath, filePath);
             }
+            else if (backupCurrentFile && IsDanglingSymbolicLink(filePath))
+            {
+                // File.Replace asks the platform to inspect the destination before
+                // doing its replacement. On macOS that inspection follows a
+                // dangling link and reports ENOENT, even though rename(2) can
+                // correctly replace the link entry itself. The link is already an
+                // unusable primary; keep an existing valid backup and atomically
+                // publish the new generation over the link.
+                File.Move(temporaryPath, filePath, overwrite: true);
+            }
             else if (backupCurrentFile)
             {
                 File.Replace(temporaryPath, filePath, filePath + ".bak");
@@ -73,6 +83,9 @@ internal static class AtomicJsonFile
         FileInfo info = new(filePath);
         return info.LinkTarget != null || (info.Exists && (info.Attributes & FileAttributes.ReparsePoint) != 0);
     }
+
+    private static bool IsDanglingSymbolicLink(string filePath) =>
+        new FileInfo(filePath).LinkTarget != null && !File.Exists(filePath) && !Directory.Exists(filePath);
 
     public static string PreserveFile(string filePath)
     {

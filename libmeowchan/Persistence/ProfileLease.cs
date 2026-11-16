@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace MeowChan.Persistence;
@@ -62,13 +63,13 @@ public sealed class ProfileLease : IDisposable
         {
             try
             {
-                stream = new FileStream(lockPath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None);
+                stream = AcquireLock(lockPath, FileMode.CreateNew, FileAccess.ReadWrite);
                 createdLock = true;
             }
             catch (IOException) when (File.Exists(lockPath))
             {
                 // CreateNew is the atomic provenance decision, never a prior existence sample.
-                stream = new FileStream(lockPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+                stream = AcquireLock(lockPath, FileMode.Open, FileAccess.ReadWrite);
                 createdLock = false;
             }
         }
@@ -87,9 +88,9 @@ public sealed class ProfileLease : IDisposable
                 {
                     try
                     {
-                        using FileStream legacy = new FileStream(
+                        using FileStream legacy = AcquireLock(
                             Path.Combine(directory, LegacyLockName),
-                            FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+                            FileMode.OpenOrCreate, FileAccess.ReadWrite);
                         PublishProtocolMarker(directory);
                     }
                     catch (IOException ex)
@@ -123,7 +124,7 @@ public sealed class ProfileLease : IDisposable
         string lockPath = Path.Combine(NormalizeDirectory(profileDirectory), LockName);
         try
         {
-            using FileStream probe = new FileStream(lockPath, FileMode.Open, FileAccess.Read, FileShare.None);
+            using FileStream probe = AcquireLock(lockPath, FileMode.Open, FileAccess.Read);
             return false;
         }
         catch (FileNotFoundException) { return false; }
@@ -186,6 +187,43 @@ public sealed class ProfileLease : IDisposable
             }
         }
     }
+
+    private static FileStream AcquireLock(string path, FileMode mode, FileAccess access)
+    {
+        // FileShare.None maps to a blocking flock on macOS for an existing
+        // file. Open the durable inode with sharing enabled, then take the
+        // advisory lock explicitly and non-blocking. This keeps a second
+        // process from waiting forever in a child probe while preserving the
+        // same OS-level lease and the durable lock-file inode.
+        if (OperatingSystem.IsWindows())
+            return new FileStream(path, mode, access, FileShare.None);
+
+        FileStream stream = new FileStream(path, mode, access, FileShare.ReadWrite);
+        try
+        {
+            if (UnixFlock(stream.SafeFileHandle.DangerousGetHandle(), LockExclusive | LockNonBlocking) == 0)
+                return stream;
+
+            int error = Marshal.GetLastPInvokeError();
+            if (IsUnixLockConflict(error))
+                throw new IOException("The profile lock is already held.");
+            throw new IOException($"The profile lock could not be acquired (errno {error}).");
+        }
+        catch
+        {
+            stream.Dispose();
+            throw;
+        }
+    }
+
+    private static bool IsUnixLockConflict(int error) =>
+        error == (OperatingSystem.IsMacOS() ? 35 : 11);
+
+    private const int LockExclusive = 2;
+    private const int LockNonBlocking = 4;
+
+    [DllImport("libc", EntryPoint = "flock", SetLastError = true)]
+    private static extern int UnixFlock(IntPtr fileDescriptor, int operation);
 
     // Single coordinator per lease lifetime; a claim supplies no writer authority.
     // Keep failed claims owned so another Registry cannot resume partial startup.
