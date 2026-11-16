@@ -838,6 +838,11 @@ internal static partial class GalleryPlaybackFeatureChecks
         // keyboard target; the shared More flyout is the stable playback entry point.
         viewer.SetOverflowOpen(true);
         await UntilAsync(() => viewer.IsOverflowOpen, "Playback controls overflow menu did not open after video end.");
+        await UntilAsync(() =>
+        {
+            Button action = Find<Button>(viewer, "GallerySlideshowToggle");
+            return action.IsEffectivelyVisible && action.IsEffectivelyEnabled;
+        }, "Slideshow action did not become visible and enabled after opening playback controls.");
         Click(Find<Button>(viewer, "GallerySlideshowToggle"));
         Require(Running(viewer), "Explicit Start after an ended video failed to create a runnable replay generation.");
         GalleryVideoPlayer.PlaybackEvidence replay = await player.InspectPlaybackAsync();

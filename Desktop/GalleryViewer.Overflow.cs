@@ -76,7 +76,15 @@ internal sealed partial class GalleryViewer
     internal void SetOverflowOpen(bool open)
     {
         if (open == _overflowFlyout.IsOpen) return;
-        if (open) _overflowFlyout.ShowAt(_overflowButton);
+        if (open)
+        {
+            // Opening More is itself a keyboard/pointer entry to the gallery chrome. If
+            // auto-hide retired the footer, reveal it before the flyout measures its
+            // anchor; otherwise the slideshow action can remain hidden for this layout
+            // turn even though the menu reports open.
+            RevealOverlayControls();
+            _overflowFlyout.ShowAt(_overflowButton);
+        }
         else _overflowFlyout.Hide();
     }
 

@@ -101,6 +101,9 @@ public sealed class Released102RestPackageUpgradeTests(ITestOutputHelper output)
             start.ArgumentList.Add("--die-with-parent");
             start.ArgumentList.Add("--unshare-user");
             start.ArgumentList.Add("--unshare-net");
+            // Configure the isolated loopback device inside the fresh user/net
+            // namespaces. This does not restore access to the host network.
+            start.ArgumentList.Add("--cap-add"); start.ArgumentList.Add("CAP_NET_ADMIN");
             start.ArgumentList.Add("--disable-userns");
             start.ArgumentList.Add("--ro-bind"); start.ArgumentList.Add("/"); start.ArgumentList.Add("/");
             start.ArgumentList.Add("--proc"); start.ArgumentList.Add("/proc");
