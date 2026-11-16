@@ -61,7 +61,7 @@ public partial class SourcesPage : UserControl
 
     public SourcesPage()
     {
-        InitializeComponent(); InitializeContextMenus(); InitializeMergedSources();
+        InitializeComponent(); InitializeContextMenus(); InitializeMergedSources(); InstallWatchEnter();
         AddHandler(GotFocusEvent, (_, _) =>
         {
             if (!_applyingSourceFocus) ++_focusRequest;
