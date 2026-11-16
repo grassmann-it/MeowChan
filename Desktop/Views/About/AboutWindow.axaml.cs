@@ -6,6 +6,7 @@ using Avalonia.Interactivity;
 using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Legal;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Updates;
 using System.Threading.Tasks;
 using MeowChan.Desktop.Localization;
@@ -211,7 +212,8 @@ public partial class AboutWindow : Window
         if (_updates == null) return;
         UpdateView view = _updates.View;
         UpdatesTitle.Text = Texts.T("updates.title");
-        CheckUpdatesButton.Content = Texts.T(view.IsChecking ? "updates.checking" : "updates.check");
+        CommandBindings.ApplyLabeled(CheckUpdatesButton, "updates.check",
+            Texts.T(view.IsChecking ? "updates.checking" : "updates.check"));
         CheckUpdatesButton.IsEnabled = !view.IsChecking && !view.EnvironmentDisabled;
         UpdateStatusText.Text = UpdatePresentation.Status(view);
         UpdateStatusText.IsVisible = !string.IsNullOrEmpty(UpdateStatusText.Text);

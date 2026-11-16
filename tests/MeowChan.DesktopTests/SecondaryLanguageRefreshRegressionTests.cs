@@ -111,6 +111,9 @@ public sealed class SecondaryLanguageRefreshRegressionTests : IDisposable
             Assert.Contains(target + " = Texts.T(", apply);
         Assert.Contains("UpdateSelection();", apply);
         Assert.Contains("RefreshUpdates();", apply);
+        Assert.Contains("CommandBindings.ApplyLabeled(CheckUpdatesButton, \"updates.check\",", source);
+        Assert.Contains("Texts.T(view.IsChecking ? \"updates.checking\" : \"updates.check\")", source);
+        Assert.Contains("CheckUpdatesButton.IsEnabled = !view.IsChecking && !view.EnvironmentDisabled;", source);
         string callback = Between(source, "private void OnTextsChanged(", "protected override void OnKeyDown(");
         Assert.Contains("Dispatcher.UIThread.Post(", callback);
         Assert.Contains("if (!_closed)", callback);
