@@ -368,14 +368,25 @@ public partial class SourcesPage : UserControl
         }, DispatcherPriority.Loaded);
     }
 
+    private int _focusRequest;
     private void FocusSourceControlAfterLayout(Control target)
     {
-        Dispatcher.UIThread.Post(() =>
+        int request = ++_focusRequest;
+        void FocusWhenReady()
         {
-            if (_ended || !IsEffectivelyVisible || !target.IsEffectivelyVisible || !target.IsEffectivelyEnabled) return;
+            if (_ended || request != _focusRequest || !IsEffectivelyVisible) return;
+            // SizeChanged can run before the new visibility/column state has been arranged. Force
+            // the owning page through that layout pass before deciding that the target is not reachable.
+            UpdateLayout();
+            if (!target.IsEffectivelyVisible || !target.IsEffectivelyEnabled)
+            {
+                Dispatcher.UIThread.Post(FocusWhenReady, DispatcherPriority.Background);
+                return;
+            }
             target.BringIntoView();
             target.Focus();
-        }, DispatcherPriority.Background);
+        }
+        Dispatcher.UIThread.Post(FocusWhenReady, DispatcherPriority.Loaded);
     }
 
     private SourceWatchRow? SelectedWatch => this.FindControl<ListBox>("SourceWatchesList")!.SelectedItem as SourceWatchRow;
