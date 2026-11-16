@@ -179,11 +179,23 @@ public sealed class GalleryPlaybackContinuityRegressionTests
                 KeyModifiers.Shift => "Shift+",
                 _ => "Control+Shift+"
             };
-            var bindings = EffectiveShortcutBindings.Build(new ShortcutBindingsSection()
-                .Set("gallery.previous", []).Set("gallery.next", [])
-                .Set("video.volume-down", [])
-                .Set("video.volume-up", [ShortcutGesture.Parse(prefix + key)]));
-            Assert.True(bindings.Matches(press, "video.volume-up"));
+            foreach (ShortcutPlatform platform in Enum.GetValues<ShortcutPlatform>())
+            {
+                var bindings = EffectiveShortcutBindings.Build(new ShortcutBindingsSection()
+                    .Set("gallery.previous", []).Set("gallery.next", [])
+                    .Set("video.volume-down", [])
+                    .Set("video.volume-up", [ShortcutGesture.Parse(prefix + key)]), platform);
+                if (platform == ShortcutPlatform.MacOS && key == Key.Up && modifiers == KeyModifiers.Control)
+                {
+                    // Mission Control owns Ctrl+Up on macOS. It is deliberately rejected,
+                    // not a usable custom volume binding; the native-input guards above
+                    // still cover it, and the other gestures prove live custom bindings.
+                    Assert.False(bindings.Matches(press, "video.volume-up"));
+                    Assert.Contains(bindings.Issues, issue => issue.Reason?.Code == "reservedMacSystem");
+                }
+                else
+                    Assert.True(bindings.Matches(press, "video.volume-up"));
+            }
             Assert.False(press.Handled);
         }
         Assert.Equal("synthetic note", editor.Text);
