@@ -270,6 +270,44 @@ public sealed class ChipStyleTests
         Assert.Contains("WorkspaceChips.MarkTagPill(WorkspaceChips.MarkOwn(new Button { Name = \"MediaTileTag\"", File.ReadAllText(Root("Desktop/MediaLibraryTileView.cs")));
     }
 
+    // Design plan 16.11.2026: the joined pill. Selectors without commas or animations (TagPillRestHoverPressedFocusAndAssignedFollowTheToolbarLanguage checks it for
+    // every tag-pill selector), tokens for radii and the inset, the cross a 28 square in the state's fill and edge.
+    [Fact]
+    public void TheJoinedAssignedPillHasItsChipStartAndItsCrossEndInTheStateColours()
+    {
+        XElement[] shared = Styles().Element(A + "Styles.Resources")!.Elements().ToArray();
+        foreach ((string key, string value) in new[] { ("Workspace.Radius.TagPillStart", "14,0,0,14"), ("Workspace.Radius.TagPillEnd", "0,14,14,0"), ("Workspace.Inset.TagPillJoined", "12,0,4,0") })
+            Assert.Equal(value, Assert.Single(shared.Where(element => (string?)element.Attribute(X + "Key") == key)).Value);
+        Assert.Equal("1,1,0,1", Setting("Button.chip.tag-pill.tag-pill-joined", "BorderThickness"));
+        Assert.Equal("{StaticResource Workspace.Radius.TagPillStart}", Setting("Button.chip.tag-pill.tag-pill-joined", "CornerRadius"));
+        Assert.Equal("{StaticResource Workspace.Inset.TagPillJoined}", Setting("Button.chip.tag-pill.tag-pill-joined", "Padding"));
+        const string remove = "Button.icon-square.tag-pill-remove";
+        Assert.Equal("{StaticResource Workspace.Size.TagPill}", Setting(remove, "Width"));
+        Assert.Equal("{StaticResource Workspace.Size.TagPill}", Setting(remove, "Height"));
+        Assert.Equal("0,1,1,1", Setting(remove, "BorderThickness"));
+        Assert.Equal("{StaticResource Workspace.Radius.TagPillEnd}", Setting(remove, "CornerRadius"));
+        Assert.Equal("{DynamicResource Workspace.Muted}", Setting(remove, "Foreground"));
+        Assert.Equal("{StaticResource Workspace.FocusAdorner}", Setting(remove, "FocusAdorner"));
+        // The same fill and edge as the chip half of the state.
+        Assert.Equal(Setting("Button.chip.tag-pill.tag-pill-assigned", "Background"), Setting(remove + ".tag-pill-assigned", "Background"));
+        Assert.Equal(Setting("Button.chip.tag-pill.tag-pill-assigned", "BorderBrush"), Setting(remove + ".tag-pill-assigned", "BorderBrush"));
+        Assert.Equal(Setting("Button.chip.tag-pill.tag-pill-partial", "BorderBrush"), Setting(remove + ".tag-pill-partial", "BorderBrush"));
+        const string presenter = " /template/ ContentPresenter#PART_ContentPresenter";
+        Assert.Equal("{DynamicResource Workspace.Hover}", Setting(remove + ":pointerover" + presenter, "Background"));
+        Assert.Equal("{DynamicResource Workspace.Text}", Setting(remove + ":pointerover" + presenter, "Foreground"));
+        // Declared after icon-square, so its 28 replaces the 32 (no specificity in Avalonia styles: the later one wins).
+        string styles = File.ReadAllText(Root("Desktop/WorkspaceStyles.axaml"));
+        Assert.True(styles.IndexOf("<Style Selector=\"Button.icon-square\">", StringComparison.Ordinal) < styles.IndexOf("<Style Selector=\"" + remove + "\">", StringComparison.Ordinal));
+        // The surface wears the classes; the check mark of an assigned pill is gone.
+        string surface = File.ReadAllText(Root("Desktop/Controls/QuickTagSurface.cs"));
+        Assert.Contains("JoinedClass = \"tag-pill-joined\", RemoveClass = \"tag-pill-remove\"", surface);
+        Assert.Contains("remove.Classes.Add(assignment.State == TagToggleState.All ? WorkspaceChips.TagPillAssigned : WorkspaceChips.TagPillPartial);", surface);
+        Assert.Contains("remove.IsTabStop = false;", surface);
+        Assert.Contains("Spacing = 0, Children = { chip, remove }", surface);
+        Assert.DoesNotContain("CheckGeometry", surface);
+        Assert.DoesNotContain("bar-flat", surface);
+    }
+
     [Fact]
     public void TheTagStripGapsAreEightInBothDirectionsAndTheFitMeasuresTheHitZone()
     {
@@ -279,8 +317,9 @@ public sealed class ChipStyleTests
         Assert.Contains("new() { ItemSpacing = StripItemSpacing, LineSpacing = 0,", surface);
         Assert.Contains("Padding = new Thickness(0, 4), Child = chip", surface);
         Assert.Contains("item.Zone.Measure(new Size(width, double.PositiveInfinity));", surface);
-        Assert.Contains("AssignedItemSpacing = 8, AssignedLineSpacing = 4", surface);
-        // 28 + 2 * 4 = 36 per row: the fit sees the same rows the wrap panel lays out.
+        Assert.Contains("AssignedItemSpacing = 8, AssignedLineSpacing = 8", surface);
+        // 28 + 2 * 4 = 36 per row: the fit sees the same rows the wrap panel lays out. The assigned pills are 28 high with their cross joined to them,
+        // so their rows are 8 apart as their pills are (AssignedLineSpacing 8).
         Assert.Equal(36, 28 + 2 * 4);
         // 80-wide pills, three to a 280 row.
         Assert.Equal(9, QuickTagStripFit.Count(Enumerable.Repeat(new Avalonia.Size(80, 36), 40).ToArray(), 280, 3 * 36, 8, 9));

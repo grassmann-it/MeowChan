@@ -16,10 +16,12 @@ using MeowChan.Desktop.Localization;
 namespace MeowChan.Desktop.Controls;
 
 /// <summary>
-/// The favorite and rating row on top of the gallery tag panel (PT6, decision E2): "★ Favorite" and five rating stars with a remove button,
-/// and under them one live line ("Rating: 4 of 5 · Favorite"). The row shows a <see cref="GalleryDecisionView"/> and raises requests; the
+/// The favorite and rating row on top of the gallery tag panel and of the "Rate and tag…" popover (PT6, decision E2; design plan 16.11.2026): line one is
+/// the rating bar, five equal full-width star cells (no gaps, so the hit area is continuous) and the remove button; line two is "☆ Favorite" on the left and
+/// the rating caption ("4 of 5", "Unrated", "Ratings differ") at the right. The row shows a <see cref="GalleryDecisionView"/> and raises requests; the
 /// viewer writes. The five stars are a group of toggle buttons of which exactly the rated one is checked (the radio role: a screen
-/// reader names "Rating: 4 of 5" and its state); the filled stars up to the rating carry the sight. A click never takes the focus out of the
+/// reader names "Rating: 4 of 5" and its state); the filled stars up to the rating carry the sight, and the stars under the pointer preview the rating they
+/// would set (never a request). The stars are one tab stop (the checked one, star 1 while unrated); Left, Right, Home and End rove along them. A click never takes the focus out of the
 /// tag field: when the field had it before the pointer went down, it gets it back, so the keys keep typing tags.
 /// </summary>
 internal sealed class GalleryDecisionRow : StackPanel
@@ -27,11 +29,22 @@ internal sealed class GalleryDecisionRow : StackPanel
     private readonly ToggleButton _favorite = new() { Classes = { "media-control" } };
     private readonly ToggleButton[] _stars = new ToggleButton[5];
     private readonly Button _clear = new();
-    private readonly StackPanel _group = new() { Orientation = Orientation.Horizontal, Spacing = 2 };
-    private readonly TextBlock _summary = new() { Classes = { "workspace-help" }, TextWrapping = Avalonia.Media.TextWrapping.Wrap };
+    /// <summary>Edge of a star glyph in dip; the cell around it (class "rating-star") is the Workspace.Size.Nav high, equal-width hit area.</summary>
+    private const int StarGlyphSize = 20;
+    // The rating bar: five equal star columns, an 8 dip gap and the remove button (a fixed 32 dip square).
+    private readonly Grid _group = new() { ColumnDefinitions = new ColumnDefinitions("*,*,*,*,*,8,Auto") };
+    // One line, right-aligned, shortened with an ellipsis (its tooltip then names it in full): the rating value only, the favourite shows itself.
+    private readonly TextBlock _summary = new TrimTipTextBlock
+    {
+        Classes = { "workspace-help" }, TextWrapping = Avalonia.Media.TextWrapping.NoWrap, MaxLines = 1,
+        TextTrimming = Avalonia.Media.TextTrimming.CharacterEllipsis, TextAlignment = Avalonia.Media.TextAlignment.Right,
+        HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center
+    };
     private readonly TextBlock _favoriteLabel = new() { VerticalAlignment = VerticalAlignment.Center };
     private readonly StackPanel _favoriteContent;
     private GalleryDecisionView _view = GalleryDecisionView.Unavailable;
+    // The star the pointer is on (1 to 5): the stars up to it show as set. Never a state of the row, never a request.
+    private int? _preview;
     private bool _restoreFocus;
     private bool _attached;
     private string? _keyContext;
@@ -39,32 +52,40 @@ internal sealed class GalleryDecisionRow : StackPanel
     internal GalleryDecisionRow(string name)
     {
         Name = name;
-        Spacing = 4;
+        Spacing = 8; // the rating bar and the favourite line
         _favorite.Name = name + "Favorite"; _clear.Name = name + "RatingClear"; _group.Name = name + "Rating"; _summary.Name = name + "Summary";
         _favorite.IsThreeState = true;
         _favoriteContent = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { FavoriteStar.Create(false, 16), _favoriteLabel } };
         _favorite.Content = _favoriteContent;
-        WrapPanel line = new() { ItemSpacing = 12, LineSpacing = 4, Name = name + "Line" };
-        line.Children.Add(_favorite);
         for (int index = 0; index < _stars.Length; index++)
         {
             int number = index + 1;
-            ToggleButton star = _stars[index] = new ToggleButton { Name = name + "Rating" + number, Classes = { WorkspaceIcons.SquareClass, "subtle" } };
+            ToggleButton star = _stars[index] = new ToggleButton { Name = name + "Rating" + number, Classes = { "rating-star" } };
             star.Click += (_, _) => OnStar(number);
+            star.PointerEntered += (_, _) => Preview(number);
+            star.PointerExited += (_, _) => Preview(null);
+            Grid.SetColumn(star, index);
             _group.Children.Add(star);
         }
         _clear.Classes.Add(WorkspaceIcons.SquareClass);
         _clear.Classes.Add("subtle");
         _clear.Click += OnClear;
+        _clear.VerticalAlignment = VerticalAlignment.Center;
+        Grid.SetColumn(_clear, 6);
         _group.Children.Add(_clear);
-        line.Children.Add(_group);
+        // The favourite on its own line (an icon-only star beside five rating stars would read as a sixth one) with the caption at the right.
+        Grid line = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*"), Name = name + "Line" };
+        _summary.Margin = new Thickness(8, 0, 0, 0);
+        Grid.SetColumn(_summary, 1);
+        line.Children.Add(_favorite);
+        line.Children.Add(_summary);
+        Children.Add(_group);
         Children.Add(line);
-        Children.Add(_summary);
         _favorite.Click += OnFavorite;
         AddHandler(PointerPressedEvent, OnPointerPressed, RoutingStrategies.Tunnel);
         AddHandler(PointerReleasedEvent, (_, _) => _restoreFocus = false, RoutingStrategies.Bubble, handledEventsToo: true);
         AttachedToVisualTree += (_, _) => { if (_attached) return; _attached = true; Texts.Changed += OnLanguageChanged; Localize(); };
-        DetachedFromVisualTree += (_, _) => { if (!_attached) return; _attached = false; Texts.Changed -= OnLanguageChanged; };
+        DetachedFromVisualTree += (_, _) => { _preview = null; if (!_attached) return; _attached = false; Texts.Changed -= OnLanguageChanged; };
         Localize();
         Show(GalleryDecisionView.Unavailable);
     }
@@ -151,18 +172,56 @@ internal sealed class GalleryDecisionRow : StackPanel
         _favorite.IsEnabled = view.Available;
         _favorite.IsChecked = view.Favorite == GalleryDecisionCoverage.Some ? null : all;
         _favoriteContent.Children[0] = FavoriteStar.Create(all, 16);
+        // The label says what the targets carry: "Favorite", and "Favorite on some" while only some of a selection are.
+        _favoriteLabel.Text = view.Favorite == GalleryDecisionCoverage.Some ? Texts.T("gallery.decision.favorite.some") : Texts.T("gallery.decision.favorite");
         int rating = view.RatingMixed ? 0 : view.Rating ?? 0;
+        // Roving tab stop: the stars are one stop of the Tab order (the checked one, star 1 while unrated); the others and the remove button are
+        // reached with Left, Right, Home and End. A star that has the focus keeps it when the stop moves.
+        int stopIndex = view.Available && !view.RatingMixed && rating > 0 ? rating - 1 : 0;
         for (int index = 0; index < _stars.Length; index++)
         {
             ToggleButton star = _stars[index];
             star.IsEnabled = view.Available;
             star.IsChecked = view.Available && !view.RatingMixed && rating == index + 1;
-            star.Content = FavoriteStar.Create(index < rating, 16);
+            star.IsTabStop = index == stopIndex;
         }
+        _clear.IsTabStop = false;
         _clear.IsEnabled = view.Available && (view.Rating.HasValue || view.RatingMixed);
-        _summary.Text = GalleryDecisionText.Summary(view);
-        AutomationProperties.SetHelpText(_group, _summary.Text);
+        Paint();
+        _summary.Text = GalleryDecisionText.Caption(view);
+        // The group's help is the full sentence (rating and favourite); the caption beside the favourite shows the rating alone.
+        AutomationProperties.SetHelpText(_group, GalleryDecisionText.Summary(view));
         AutomationProperties.SetHelpText(_favorite, GalleryDecisionText.Favorite(view));
+    }
+
+    /// <summary>
+    /// The star the pointer is on (1 to 5), or null when it left: the stars up to it show as set, in the text colour, the rest as outlines. Only the
+    /// picture changes; <see cref="StarButtons"/> keep their checked state and no <see cref="RatingRequested"/> is raised. Ignored while the row cannot rate.
+    /// </summary>
+    internal void Preview(int? number)
+    {
+        if (number is < 1 or > 5 || !_view.Available) number = null;
+        if (_preview == number) return;
+        _preview = number;
+        Paint();
+    }
+
+    /// <summary>The star the pointer previews now (null: none); what <see cref="Paint"/> shows instead of the rating.</summary>
+    internal int? PreviewedStar => _preview;
+
+    // The glyphs: the stars up to the rating (or up to the previewed star) filled. A rated star is the favourite colour; a previewed one follows the
+    // text colour (tinted: false) so a preview is never taken for the saved rating.
+    private void Paint()
+    {
+        int rating = _view.RatingMixed ? 0 : _view.Rating ?? 0;
+        bool previewing = _preview.HasValue;
+        int shown = previewing ? _preview!.Value : rating;
+        for (int index = 0; index < _stars.Length; index++)
+        {
+            ToggleButton star = _stars[index];
+            star.Content = FavoriteStar.Create(index < shown, StarGlyphSize, tinted: !previewing);
+            star.Classes.Set("rating-preview", previewing && index < shown);
+        }
     }
 
     /// <summary>
@@ -179,9 +238,9 @@ internal sealed class GalleryDecisionRow : StackPanel
     /// <summary>Names, tooltips (with the gestures as bound now) and the group name, in the current language.</summary>
     internal void Localize()
     {
-        _favoriteLabel.Text = Texts.T("gallery.decision.favorite");
-        AutomationProperties.SetName(_favorite, _favoriteLabel.Text);
-        string favoriteTip = _favoriteLabel.Text + " · " + Texts.T("gallery.decision.favorite.tip");
+        string favorite = Texts.T("gallery.decision.favorite");
+        AutomationProperties.SetName(_favorite, favorite);
+        string favoriteTip = favorite + " · " + Texts.T("gallery.decision.favorite.tip");
         ToolTip.SetTip(_favorite, favoriteTip);
         for (int number = 1; number <= _stars.Length; number++)
         {

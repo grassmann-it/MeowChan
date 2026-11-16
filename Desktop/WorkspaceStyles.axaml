@@ -657,6 +657,10 @@
         <CornerRadius x:Key="Workspace.Radius.Chip">12</CornerRadius>
         <CornerRadius x:Key="Workspace.Radius.ChipCompact">9</CornerRadius>
         <CornerRadius x:Key="Workspace.Radius.TagPill">14</CornerRadius>
+        <!-- The two halves of an assigned tag pill (QuickTagSurface: the chip and its remove cross, joined with no gap): the chip rounds its start, the cross its end,
+             both by half the pill height. Physical corners, they do not mirror: a right-to-left language pack would swap the two keys. -->
+        <CornerRadius x:Key="Workspace.Radius.TagPillStart">14,0,0,14</CornerRadius>
+        <CornerRadius x:Key="Workspace.Radius.TagPillEnd">0,14,14,0</CornerRadius>
         <x:Double x:Key="Workspace.Size.Control">32</x:Double>
         <x:Double x:Key="Workspace.Size.HeaderIcon">30</x:Double>
         <x:Double x:Key="Workspace.Size.Input">32</x:Double>
@@ -689,6 +693,8 @@
         <Thickness x:Key="Workspace.Inset.ChipCompact">6,1</Thickness>
         <Thickness x:Key="Workspace.Inset.TagPill">12,0</Thickness>
         <Thickness x:Key="Workspace.Inset.TagPillKeyed">8,0,12,0</Thickness>
+        <!-- The chip half of a joined assigned pill: 12 in from the edge, 4 before the cross half. -->
+        <Thickness x:Key="Workspace.Inset.TagPillJoined">12,0,4,0</Thickness>
         <Thickness x:Key="Workspace.Inset.Card">12,10,12,12</Thickness>
         <Thickness x:Key="Workspace.Inset.Overlay">12</Thickness>
         <!-- Inset of a popover that carries running text (help popover): text never sits closer than 16 dip to the edge. -->
@@ -1260,9 +1266,9 @@
         <Setter Property="Background" Value="{DynamicResource Workspace.Overlay}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
     </Style>
-    <!-- Right-click tag popover (QuickTagPopover): the flyout frame in the overlay tokens. Width and padding are set by the popover itself. -->
+    <!-- Right-click tag popover (QuickTagPopover): the flyout frame in the overlay tokens. Width (440 by default, narrowed in a narrow window: QuickTagPopover.WidthFor) and padding are set by the popover itself; MaxWidth only has to stay above the widest. -->
     <Style Selector="FlyoutPresenter.quick-tag-popover">
-        <Setter Property="Padding" Value="0" /><Setter Property="MinWidth" Value="0" /><Setter Property="MaxWidth" Value="400" />
+        <Setter Property="Padding" Value="0" /><Setter Property="MinWidth" Value="0" /><Setter Property="MaxWidth" Value="480" />
         <Setter Property="Background" Value="{DynamicResource Workspace.Overlay}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
     </Style>
@@ -1316,6 +1322,51 @@
     </Style>
     <Style Selector="Button.media-control:disabled /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.media-control:disabled /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
+    </Style>
+    <!-- Rating star (GalleryDecisionRow, design plan 16.11.2026): one of five equal cells of the rating bar of the "Rate and tag" popover and the gallery tag
+         panel. The cells touch (no gaps), so the hit area is continuous; each is Nav high with a 24 dip minimum, a transparent 1-px edge and no fill at rest.
+         The glyph (20 dip) is an outline in Muted while empty; a rated star is filled in Workspace.Favorite. Hover fills the cell with Hover and the stars up to
+         it show as set in the text colour (rating-preview, set by the row); the checked star has no accent fill, the filled stars carry the value; focus is the
+         shared ring; disabled is Muted. -->
+    <Style Selector="ToggleButton.rating-star">
+        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
+        <Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Control}" />
+        <Setter Property="Height" Value="{StaticResource Workspace.Size.Nav}" /><Setter Property="MinHeight" Value="{StaticResource Workspace.Size.Nav}" />
+        <Setter Property="MinWidth" Value="{StaticResource Workspace.Size.ControlCompact}" /><Setter Property="Padding" Value="0" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" /><Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" /><Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="FocusAdorner" Value="{StaticResource Workspace.FocusAdorner}" />
+    </Style>
+    <Style Selector="ToggleButton.rating-star /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
+    </Style>
+    <Style Selector="ToggleButton.rating-star:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Hover}" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+    </Style>
+    <Style Selector="ToggleButton.rating-star:checked /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
+    </Style>
+    <Style Selector="ToggleButton.rating-star:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Hover}" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+    </Style>
+    <Style Selector="ToggleButton.rating-star:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Hover}" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+    </Style>
+    <Style Selector="ToggleButton.rating-star.rating-preview /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+    </Style>
+    <Style Selector="ToggleButton.rating-star:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
+    </Style>
+    <Style Selector="ToggleButton.rating-star:checked:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
+    </Style>
+    <!-- The one hairline of the quick tag popover and the gallery tag panel: between the decision row (favourite, rating) and the tag field. Its own 4 dip
+         above and below add to the field area's 8 dip spacing: 12 dip of air on both sides. -->
+    <Style Selector="Border.quick-tag-divider">
+        <Setter Property="Height" Value="1" /><Setter Property="Margin" Value="0,4" /><Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="Background" Value="{DynamicResource Workspace.Border}" />
     </Style>
     <!-- The gallery's favourite badge beside the way back (GalleryViewer.Favorites): a toggle on a dark scrim over the picture. A 1-px edge is
          transparent at rest (the padding gives it back), ControlBorder under the pointer, the accent when pressed or focused by the keyboard.
@@ -1948,8 +1999,8 @@
          tag bar and the tiles' tags: 28 high with a full radius, 12 dip in from the edge (8 before a key hint, the hint 6 dip from the label),
          the label always Workspace.Text. Rest = a quiet filled pill (ChipSurface, a hairline Workspace.Border edge); hover = Workspace.Hover with the
          ControlBorder edge; pressed = AccentSurface with the Accent edge (the toolbar bar-flat and help-round language); focus = the shared focus ring.
-         An assigned tag (tag-pill-assigned) rests on the accent tint with an accent edge and a check, a partly assigned one (tag-pill-partial) keeps
-         the quiet fill with an accent edge and the half-filled square; a source suggestion keeps its dashed outline without fill. Colour and form
+         An assigned tag (tag-pill-assigned) rests on the accent tint with an accent edge, a partly assigned one (tag-pill-partial) keeps
+         the quiet fill with an accent edge and a dash (an assigned pill carries no check mark: the tint, the section and the joined cross say it); a source suggestion keeps its dashed outline without fill. Colour and form
          both carry the state, never the tint alone. Declared after the chip styles above so that it replaces them on a tag pill; the compact
          tile form keeps the 18 dip size and takes the colours only. Same height everywhere: MinHeight with no vertical padding. -->
     <Style Selector="Button.chip.tag-pill">
@@ -2006,7 +2057,55 @@
         <Setter Property="Background" Value="{DynamicResource Workspace.ChipSelectedSurface}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ChipSelectedBorder}" />
     </Style>
-    <!-- The content of a pill: the check or half square, the key hint or the stamp mark and the label, 6 dip apart (Workspace.Space.TagKey). -->
+    <!-- An assigned tag as one pill with two hit halves (QuickTagSurface.AssignedChip): the chip is the start (left corners rounded, no right edge, 4 dip before
+         the cross), the cross the end (a 28 dip square, right corners rounded, no left edge) in the fill and edge of the pill's state, so the two read as one
+         shape. The cross is Muted until the pointer is on it, then Text on the Hover fill; the edge stays the state's. It is not a tab stop (Delete on the chip
+         removes too). No comma lists and no animations in a tag-pill selector (ChipStyleTests). Declared after icon-square so its 28 replaces the 32. -->
+    <Style Selector="Button.chip.tag-pill.tag-pill-joined">
+        <Setter Property="BorderThickness" Value="1,1,0,1" />
+        <Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.TagPillStart}" />
+        <Setter Property="Padding" Value="{StaticResource Workspace.Inset.TagPillJoined}" />
+    </Style>
+    <Style Selector="Button.icon-square.tag-pill-remove">
+        <Setter Property="Width" Value="{StaticResource Workspace.Size.TagPill}" /><Setter Property="Height" Value="{StaticResource Workspace.Size.TagPill}" />
+        <Setter Property="Background" Value="{DynamicResource Workspace.ChipSurface}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Border}" />
+        <Setter Property="BorderThickness" Value="0,1,1,1" />
+        <Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.TagPillEnd}" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="FocusAdorner" Value="{StaticResource Workspace.FocusAdorner}" />
+    </Style>
+    <Style Selector="Button.icon-square.tag-pill-remove.tag-pill-assigned">
+        <Setter Property="Background" Value="{DynamicResource Workspace.ChipSelectedSurface}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ChipSelectedBorder}" />
+    </Style>
+    <Style Selector="Button.icon-square.tag-pill-remove.tag-pill-partial">
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ChipSelectedBorder}" />
+    </Style>
+    <Style Selector="Button.icon-square.tag-pill-remove /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
+    </Style>
+    <Style Selector="Button.icon-square.tag-pill-remove:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Hover}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Border}" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+    </Style>
+    <Style Selector="Button.icon-square.tag-pill-remove.tag-pill-assigned:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ChipSelectedBorder}" />
+    </Style>
+    <Style Selector="Button.icon-square.tag-pill-remove.tag-pill-partial:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ChipSelectedBorder}" />
+    </Style>
+    <Style Selector="Button.icon-square.tag-pill-remove:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.ChipSelectedSurface}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ChipSelectedBorder}" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+    </Style>
+    <Style Selector="Button.icon-square.tag-pill-remove:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
+    </Style>
+    <!-- The content of a pill: the dash of a partly assigned tag, the key hint or the stamp mark and the label, 6 dip apart (Workspace.Space.TagKey). -->
     <Style Selector="StackPanel.tag-pill-content"><Setter Property="Spacing" Value="{StaticResource Workspace.Space.TagKey}" /></Style>
     <!-- A source suggestion (dashed, no fill) in the same geometry: ChipOutline draws its edge inside its bounds, so its inset is the pill's plus
          the 1-px edge (13 and 9). The label is Workspace.Text like the other pills; the dash and the missing fill say "from a provider". -->

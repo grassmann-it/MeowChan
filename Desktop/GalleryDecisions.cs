@@ -88,6 +88,13 @@ internal static class GalleryDecisionText
     internal static string Rating(GalleryDecisionView view) => MediaRatingText.Label + ": " + (view.RatingMixed
         ? Texts.T("gallery.decision.rating.mixed") : MediaRatingText.Value(view.Rating));
 
+    /// <summary>
+    /// The short caption beside the favourite button: the rating alone ("4 of 5" · "Unrated" · "Ratings differ"), because the favourite shows itself;
+    /// the unavailable reason when neither can be changed. The full sentence stays <see cref="Summary"/> (the rating group's help text).
+    /// </summary>
+    internal static string Caption(GalleryDecisionView view) => !view.Available ? Texts.T("gallery.decision.status.unavailable")
+        : view.RatingMixed ? Texts.T("gallery.decision.rating.mixed") : MediaRatingText.Value(view.Rating);
+
     /// <summary>"Favorite" · "Not a favorite" · "Favorite on some".</summary>
     internal static string Favorite(GalleryDecisionView view) => view.Favorite switch
     {
