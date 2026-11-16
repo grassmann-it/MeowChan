@@ -243,6 +243,11 @@ internal static partial class SmokeScenarios
             "MEOWCHAN_GALLERY_THEME_ONLY", "--download-session") with { Group = "--download-session" },
         Root("media-tile-panel", "MEOWCHAN_MEDIA_TILE_PANEL_ONLY"),
         Root("diagnostic-feedback", "MEOWCHAN_DIAGNOSTIC_FEEDBACK_ONLY"),
+        // Independent normal-tail scenes: one failing page must not hide the next page's evidence.
+        Root("sources-page", "MEOWCHAN_SOURCES_PAGE_ONLY"),
+        Root("pause-controls", "MEOWCHAN_PAUSE_CONTROLS_ONLY"),
+        Root("rules-page", "MEOWCHAN_RULES_PAGE_ONLY"),
+        Root("settings-core", "MEOWCHAN_SETTINGS_CORE_ONLY"),
         Root("page-refresh", "MEOWCHAN_PAGE_REFRESH_ONLY"),
         Root("stat-footer", "MEOWCHAN_STAT_FOOTER_ONLY", "stat footer: Sources card footer row in en/de/fr/ru and both themes; no wrap, same segment places for 0/1/10/1000/12345, labels then counts dropped by width, exact tooltips and names; private Xvfb, no network"),
         Root("post-bookmark-transitions", "MEOWCHAN_POST_BOOKMARK_TRANSITIONS_ONLY"),

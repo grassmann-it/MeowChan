@@ -270,6 +270,10 @@ internal static partial class SmokeScenarios
             await MediaTileRefillChecks.RunAsync(mainWindow);
         }),
         ["diagnostic-feedback"] = new(SmokeStage.AfterCommandRefresh, mainWindow => DiagnosticsFeedbackChecks.RunAsync(mainWindow)),
+        ["sources-page"] = new(SmokeStage.AfterCommandRefresh, mainWindow => SourcesChecks.RunAsync(mainWindow)),
+        ["pause-controls"] = new(SmokeStage.AfterCommandRefresh, mainWindow => PauseChecks.RunAsync(mainWindow)),
+        ["rules-page"] = new(SmokeStage.AfterCommandRefresh, mainWindow => RulesPageChecks.RunAsync(mainWindow)),
+        ["settings-core"] = new(SmokeStage.AfterCommandRefresh, mainWindow => SettingsChecks.RunAsync(mainWindow)),
         ["page-refresh"] = new(SmokeStage.AfterCommandRefresh, async mainWindow =>
         {
             await DiagnosticsChecks.RunAsync(mainWindow);
