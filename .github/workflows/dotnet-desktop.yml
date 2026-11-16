@@ -186,11 +186,16 @@ jobs:
         continue-on-error: true
         if: runner.os != 'macOS' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all')
         # The Python runner gives every dotnet host a hard deadline and owns its
-        # process tree. Each lane runs two weighted shards instead of eight
-        # competing for the runner's four logical CPUs.
+        # process tree. Desktop class-LPT cells share the existing two-host queue
+        # with unchanged non-Desktop owners and one absolute lane deadline.
         timeout-minutes: 35
         shell: bash
-        run: python scripts/run-dotnet-shards.py --lane "${{ matrix.lane }}" --results-root test-results/offline-shards
+        run: |
+          # A focused offline-retest executes only this lane's cell + unchanged
+          # project owners. It is NOT a four-lane/platform coverage proof.
+          python scripts/run-dotnet-shards.py --lane "${{ matrix.lane }}" \
+            --desktop-platform "${{ matrix.os }}" --source "$(git rev-parse HEAD)" \
+            --results-root test-results/offline-shards
       - name: Run native macOS offline test shard with bounded diagnostics
         id: mac_tests
         # Keep independent checks running so one failure yields a complete evidence set.
@@ -230,6 +235,7 @@ jobs:
           python -m unittest discover -s tests -p test_validation_gate.py -v || fixture_status=$?
           python -m unittest discover -s tests -p test_macos_test_watchdog.py -v || fixture_status=$?
           python -m unittest discover -s tests -p test_macos_test_shards.py -v || fixture_status=$?
+          python -m unittest discover -s tests -p test_desktop_four_lane_shards.py -v || fixture_status=$?
           python -m unittest discover -s tests -p test_dotnet_desktop_workflow_contract.py -v || fixture_status=$?
           exit "$fixture_status"
       - name: Check local library package contract fixtures
@@ -761,6 +767,16 @@ jobs:
             --json-env VALIDATION_STEPS \
             --required "$required_csv" \
             --report artifacts/build-evidence/release-validation-gate.json
+      - name: Upload portable Desktop shard coverage
+        if: always() && runner.os != 'macOS' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all')
+        uses: actions/upload-artifact@v7
+        with:
+          name: desktop-offline-${{ matrix.os }}-${{ matrix.lane }}-${{ runner.arch }}
+          path: |
+            test-results/offline-shards/desktop-cells/**
+            test-results/offline-shards/aggregate-status.json
+          if-no-files-found: error
+          retention-days: 14
       - name: Upload native macOS shard coverage
         if: always() && runner.os == 'macOS' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all')
         uses: actions/upload-artifact@v7
@@ -834,6 +850,38 @@ jobs:
         with:
           name: macos-offline-coverage-${{ github.sha }}
           path: artifacts/macos-offline-gate.json
+          if-no-files-found: error
+          retention-days: 14
+
+  desktop-offline-gate:
+    name: Portable Desktop four-lane coverage (fail-closed)
+    # A one-lane offline-retest deliberately cannot satisfy full coverage.
+    if: ${{ always() && (github.event_name != 'workflow_dispatch' || ((inputs.mode == 'validate' || inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate') && inputs.scenario == 'all' && (!inputs.platform || inputs.platform == 'all' || inputs.platform == 'ubuntu-24.04' || inputs.platform == 'ubuntu-24.04-arm' || inputs.platform == 'windows-2022'))) }}
+    needs: validate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: desktop-offline-*
+          path: artifacts/desktop-offline-inputs
+      - name: Verify exact portable Desktop and retained project ownership
+        if: always()
+        shell: bash
+        run: |
+          platforms=(--platform ubuntu-24.04 --platform ubuntu-24.04-arm --platform windows-2022)
+          if [[ -n "${{ inputs.platform }}" && "${{ inputs.platform }}" != all ]]; then
+            platforms=(--platform "${{ inputs.platform }}")
+          fi
+          python3 scripts/desktop-test-shards.py \
+            --input artifacts/desktop-offline-inputs --source "$(git rev-parse HEAD)" \
+            "${platforms[@]}" --report artifacts/desktop-offline-gate.json
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: desktop-offline-coverage-${{ github.sha }}
+          path: artifacts/desktop-offline-gate.json
           if-no-files-found: error
           retention-days: 14
 
@@ -1498,7 +1546,7 @@ jobs:
   release-candidate-gate:
     name: Release candidate gate (fail-closed)
     if: ${{ always() && github.event_name == 'workflow_dispatch' && (inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate') }}
-    needs: [validate, macos-offline-gate, library-package, macos-package, package-media, linux-distribution, macos-source-candidate, current-source-inventory]
+    needs: [validate, macos-offline-gate, desktop-offline-gate, library-package, macos-package, package-media, linux-distribution, macos-source-candidate, current-source-inventory]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -1510,7 +1558,7 @@ jobs:
         run: |
           python3 scripts/aggregate-release-gates.py needs \
             --json-env RELEASE_NEEDS \
-            --required validate,macos-offline-gate,library-package,macos-package,package-media,linux-distribution,macos-source-candidate,current-source-inventory \
+            --required validate,macos-offline-gate,desktop-offline-gate,library-package,macos-package,package-media,linux-distribution,macos-source-candidate,current-source-inventory \
             --report artifacts/release-candidate-gate.json
       - name: Retain candidate gate decision
         if: always()

@@ -147,19 +147,20 @@ def class_weights(cases, profile):
     return weights
 
 
-def partition(cases, profile=None):
+def partition(cases, profile=None, shard_count=SHARD_COUNT):
     """Deterministic measured-runtime LPT; whole classes remain atomic."""
     weights = class_weights(cases, timing_profile() if profile is None else profile)
     methods = defaultdict(set)
     for case in cases:
         methods[case['method'].rsplit('.', 1)[0]].add(case['method'])
-    bins = [[] for _ in range(SHARD_COUNT)]
-    loads = [0] * SHARD_COUNT
+    require(type(shard_count) is int and shard_count > 0, 'Invalid shard count')
+    bins = [[] for _ in range(shard_count)]
+    loads = [0] * shard_count
     for name in sorted(weights, key=lambda name: (-weights[name], name)):
-        shard = min(range(SHARD_COUNT), key=lambda index: (loads[index], index))
+        shard = min(range(shard_count), key=lambda index: (loads[index], index))
         bins[shard].extend(methods[name])
         loads[shard] += weights[name]
-    require(all(bins), 'Inventory cannot populate all eight shards')
+    require(all(bins), 'Inventory cannot populate all eight shards' if shard_count == 8 else 'Inventory cannot populate all shards')
     return [sorted(methods) for methods in bins]
 
 

@@ -356,6 +356,7 @@ def run_project(
     cleanup_grace_seconds: float,
     popen_factory: Callable[..., subprocess.Popen] = subprocess.Popen,
     is_windows: bool | None = None,
+    command_override: list[str] | None = None,
 ) -> ProjectResult:
     """Run one project, recording its own TRX directory and process log."""
 
@@ -363,7 +364,7 @@ def run_project(
     results_directory = shard_directory / project_name
     results_directory.mkdir(parents=True, exist_ok=True)
     log_file = results_directory / "project.log"
-    command = build_test_command(dotnet, project, results_directory)
+    command = command_override if command_override is not None else build_test_command(dotnet, project, results_directory)
     _append_log(log_file, f"BEGIN project={project} timeout_seconds={timeout_seconds}")
     started = time.monotonic()
     process = None
@@ -557,6 +558,9 @@ def run_all(
     cleanup_grace_seconds: float,
     lane: str | None = None,
     shard_runner: Callable[..., ShardResult] = run_shard,
+    desktop_task: Callable[[float], ShardResult] | None = None,
+    coverage_source: str | None = None,
+    coverage_platform: str | None = None,
     is_windows: bool | None = None,
 ) -> int:
     """Launch the selected shards concurrently and aggregate every result."""
@@ -566,27 +570,37 @@ def run_all(
     selected_names = LANE_SHARDS[lane] if lane is not None else tuple(SHARDS)
     selected_shards = {name: SHARDS[name] for name in selected_names}
 
+    if desktop_task is not None:
+        if lane is None:
+            raise ValueError("Desktop cells require an explicit lane")
+        selected_shards.pop("shard-02", None)  # Never replay the unfiltered Desktop assembly.
+        selected_shards = {"desktop-cell": (), **selected_shards}
+
     results_root.mkdir(parents=True, exist_ok=True)
     started_at = utc_now()
     started = time.monotonic()
     shard_results: dict[str, ShardResult] = {}
+    # A queued task must not acquire a fresh 30 minutes after another task's
+    # timeout. Reserve the existing step's final five minutes for cleanup,
+    # explicit not-run receipts, aggregate writes, and always-upload evidence.
+    lane_deadline = started + shard_timeout_seconds
 
-    with ThreadPoolExecutor(max_workers=len(selected_shards), thread_name_prefix="dotnet-shard") as pool:
+    def execute(shard, projects):
+        remaining = max(0.0, lane_deadline - time.monotonic()) if desktop_task else None
+        if shard == "desktop-cell":
+            return desktop_task(remaining)
+        light = shard in LIGHT_SHARDS
+        shard_budget = light_shard_timeout_seconds if light else shard_timeout_seconds
+        return shard_runner(
+            shard, projects, results_root=results_root, repo_root=repo_root,
+            dotnet=dotnet, shard_timeout_seconds=min(shard_budget, remaining) if remaining is not None else shard_budget,
+            project_timeout_seconds=light_project_timeout_seconds if light else project_timeout_seconds,
+            cleanup_grace_seconds=cleanup_grace_seconds, is_windows=is_windows)
+
+    with ThreadPoolExecutor(max_workers=min(2, len(selected_shards)) if desktop_task else len(selected_shards), thread_name_prefix="dotnet-shard") as pool:
         futures = {}
         for shard, projects in selected_shards.items():
-            light = shard in LIGHT_SHARDS
-            futures[pool.submit(
-                shard_runner,
-                shard,
-                projects,
-                results_root=results_root,
-                repo_root=repo_root,
-                dotnet=dotnet,
-                shard_timeout_seconds=(light_shard_timeout_seconds if light else shard_timeout_seconds),
-                project_timeout_seconds=(light_project_timeout_seconds if light else project_timeout_seconds),
-                cleanup_grace_seconds=cleanup_grace_seconds,
-                is_windows=is_windows,
-            )] = shard
+            futures[pool.submit(execute, shard, projects)] = shard
 
         # as_completed deliberately waits for every independent shard, even if
         # one future fails or a different shard has already timed out.
@@ -611,6 +625,9 @@ def run_all(
         "schema_version": 1,
         "runner": "scripts/run-dotnet-shards.py",
         "lane": lane,
+        "source": coverage_source,
+        "coverage_platform": coverage_platform,
+        "coverage_scope": "desktop-four-lane-cell-not-full-proof" if desktop_task else "legacy-project-lane",
         "started_at": started_at,
         "completed_at": utc_now(),
         "duration_seconds": round(time.monotonic() - started, 3),
@@ -621,6 +638,7 @@ def run_all(
         "shard_timeout_seconds": shard_timeout_seconds,
         "light_shard_timeout_seconds": light_shard_timeout_seconds,
         "cleanup_grace_seconds": cleanup_grace_seconds,
+        "lane_execution_budget_seconds": shard_timeout_seconds if desktop_task else None,
         "aggregate_status": aggregate_status,
         "exit_code": 0 if aggregate_status == "passed" else 1,
         "shards": ordered_results,
@@ -655,13 +673,30 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--project-timeout", type=float, default=DEFAULT_PROJECT_TIMEOUT_SECONDS)
     parser.add_argument("--light-project-timeout", type=float, default=DEFAULT_LIGHT_PROJECT_TIMEOUT_SECONDS)
     parser.add_argument("--cleanup-grace", type=float, default=DEFAULT_CLEANUP_GRACE_SECONDS)
+    parser.add_argument("--desktop-platform", choices=("ubuntu-24.04", "ubuntu-24.04-arm", "windows-2022"))
+    parser.add_argument("--source", help="Full source SHA for Desktop coverage")
     parser.add_argument("--lane", choices=tuple(LANE_SHARDS), help="Run one CI two-shard lane")
     return parser.parse_args(argv)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
+    desktop_task = None
+    if args.desktop_platform:
+        if not args.lane or not args.source:
+            raise ValueError("Desktop cells require --lane and --source")
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("desktop_cells", Path(__file__).with_name("desktop-test-shards.py"))
+        cells = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cells)
+        desktop_task = lambda remaining: cells.run_cell(
+            sys.modules[__name__], args.lane, args.desktop_platform, args.source,
+            args.results_root / "desktop-cells", args.repo_root, args.dotnet,
+            min(args.project_timeout, args.shard_timeout, remaining), args.cleanup_grace)
     return run_all(
+        desktop_task=desktop_task,
+        coverage_source=args.source,
+        coverage_platform=args.desktop_platform,
         results_root=args.results_root,
         repo_root=args.repo_root,
         dotnet=args.dotnet,
