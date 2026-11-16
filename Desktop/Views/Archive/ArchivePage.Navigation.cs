@@ -245,8 +245,8 @@ public partial class ArchivePage
         else CommandBindings.Apply(ArchiveCloseReader, "reader.close", iconWithLabel: true);
     }
 
-    internal bool CanGoHistoryBack => ArchiveHistoryBack.IsVisible && ArchiveHistoryBack.IsEnabled && !_busy && !_ended
-        && !IsFilenameSearchOpen && _history.Last != null;
+    // State, not the button: the toolbar may keep ArchiveHistoryBack under More or hide it for the layout, and Alt+Left still has to go back.
+    internal bool CanGoHistoryBack => !_busy && !_ended && !IsFilenameSearchOpen && _history.Last != null;
     internal void GoHistoryBackByShortcut() { if (CanGoHistoryBack) OnHistoryBack(null, new RoutedEventArgs()); }
     private async void OnHistoryBack(object? sender, RoutedEventArgs e)
     {
