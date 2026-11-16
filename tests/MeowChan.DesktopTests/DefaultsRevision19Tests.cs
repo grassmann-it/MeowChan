@@ -105,7 +105,9 @@ public sealed class DefaultsRevision19Tests : IDisposable
         Assert.Contains("OnPostCopyLinkKeyDown", Source("Desktop/Views/Archive/ArchivePage.PostFilter.cs"), StringComparison.Ordinal);
         Assert.Contains("CommandBindings.Matches(e, \"post.copy-link\")", Source("Desktop/Views/Archive/ArchivePage.PostBookmarks.cs"), StringComparison.Ordinal);
         Assert.Contains("MatchesArchiveCommand(e, \"thread.show-in-media\")", Source("Desktop/Views/Archive/ArchivePage.Selection.cs"), StringComparison.Ordinal);
-        Assert.Contains("CommandBindings.Matches(e, \"thread.show-in-media\")", Source("Desktop/Shell/MainWindow.Selection.cs"), StringComparison.Ordinal);
+        // The downloads list matches it in its own key context (DownloadsMatches wraps CommandBindings.Matches); the archive view's reader pane has its own handler.
+        Assert.Contains("DownloadsMatches(e, \"thread.show-in-media\")", Source("Desktop/Shell/MainWindow.Selection.cs"), StringComparison.Ordinal);
+        Assert.Contains("CommandBindings.Matches(e, \"thread.show-in-media\")", Source("Desktop/Views/Archive/ArchivePage.ThreadMenu.cs"), StringComparison.Ordinal);
         // The media page's MediaShortcutCommands list (one entry per line since the rating panel added the star keys).
         string media = Source("Desktop/Views/Media/MediaPage.cs");
         Assert.Contains("private static readonly string[] MediaShortcutCommands", media, StringComparison.Ordinal);

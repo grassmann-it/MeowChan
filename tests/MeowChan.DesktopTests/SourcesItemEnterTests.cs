@@ -138,7 +138,10 @@ public sealed class SourcesItemEnterTests
             watches.SelectedIndex = 0;
             Assert.Equal(0, watches.ContextMenu!.ItemCount);
 
-            fixture.Press(Container(watches, 0), Key.Apps);
+            // The page's KeyContextHost (SourcesPage.axaml.cs) sits on the page root; this fixture has no template, so the lists are not visual
+            // descendants of the page and its tunnel handler never sees the key. The scope is entered here as the host does (the host itself: KeyContextHostTests).
+            using (MeowChan.Desktop.Commands.EffectiveShortcutBindings.EnterKeyContext("sources"))
+                fixture.Press(Container(watches, 0), Key.Apps);
 
             Assert.Contains("watch.show-in-downloads", watches.ContextMenu.Items.OfType<MenuItem>().Select(item => (string)item.Tag!));
         }
