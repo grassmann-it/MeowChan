@@ -132,6 +132,10 @@ public partial class MainWindow
         ArchivePage.DeletePermanentlyRequested = DeleteArchivePermanentlyAsync;
         ArchivePage.CanRemoveWatch = id => !_sessionRowsApplying && _threadRows.Values.Any(row => row.Snapshot.Id == id);
         ArchivePage.CheckSelectedWatches = CheckArchiveWatchesAsync;
+        // Which watches "Check now" / "Retry missing media" of the archive list (menu entries, F5 and Shift+F5) may act on: the Downloads page's own rules.
+        // Without these two the list's check entries were disabled for every thread.
+        ArchivePage.CanCheckWatch = id => ArchiveWatchRow(id) is { } row && _session.CanRequestCheck(new DiagnosticTarget(DiagnosticTargetKind.Thread, row.WatchId));
+        ArchivePage.CanRetryWatch = id => ArchiveWatchRow(id)?.CanRetryMedia == true;
         ArchivePage.CopySelectedUrls = urls => CopyUrlsAsync(urls, ArchivePage.CaptureActionErrorReporter());
         ArchivePage.SelectionLeadAction = (id, action) =>
         {
@@ -160,6 +164,9 @@ public partial class MainWindow
             OpenDiagnosticWatch(new DiagnosticTarget(DiagnosticTargetKind.Thread, row.WatchId));
         };
     }
+
+    private ThreadRow? ArchiveWatchRow(ResourceId id) =>
+        _sessionRowsApplying ? null : _threadRows.Values.FirstOrDefault(row => row.Snapshot.Id == id);
 
     private DataGrid DownloadList(bool boards) => this.FindControl<DataGrid>(boards ? "BoardsDataGrid" : "ThreadsDataGrid")!;
     internal ThreadRow[] SelectedThreadsForTests() => SelectedThreads();

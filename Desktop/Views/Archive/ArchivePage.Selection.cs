@@ -63,7 +63,41 @@ public partial class ArchivePage
             list.AddHandler(PointerPressedEvent, OnArchiveListPointerPressed, RoutingStrategies.Tunnel);
             list.AddHandler(ContextRequestedEvent, OnArchiveContextRequested, RoutingStrategies.Tunnel);
         }
+        // The page's own tunnel handler of the media menus (InitializeArchiveMediaCommands, registered after this one) would otherwise see a
+        // right-click on a row's thumbnail or star first and answer it with the media menu of the OPEN thread; the row's own menu is the answer.
+        AddHandler(ContextRequestedEvent, OnThreadRowContextRequested, RoutingStrategies.Tunnel);
     }
+
+    private void OnThreadRowContextRequested(object? sender, ContextRequestedEventArgs e)
+    {
+        if (e.Handled || _ended || e.Source is not Visual source) return;
+        Visual[] path = source.GetSelfAndVisualAncestors().ToArray();
+        Control? list = new Control[] { ArchiveThreads, ArchiveThreadTable }.FirstOrDefault(candidate => path.Contains(candidate));
+        if (list == null || !IsRowButtonPath(path, list)) return;
+        OnArchiveContextRequested(list, e);
+    }
+
+    /// <summary>
+    /// Whether the source of a right-click is a button inside a thread row of <paramref name="list"/> (the row's thumbnail, its favourite star):
+    /// such a click belongs to the row and opens the row's menu, as it does on the row's text. Text fields, selectors, the column headers and the
+    /// scroll bars keep their own behaviour. <paramref name="selfAndAncestors"/> runs from the source up to the root.
+    /// </summary>
+    internal static bool IsRowButtonPath(IEnumerable<object?> selfAndAncestors, object list)
+    {
+        bool button = false, row = false;
+        foreach (object? node in selfAndAncestors)
+        {
+            if (ReferenceEquals(node, list)) return button && row;
+            if (node is TextBox or SelectableTextBlock or Ursa.Controls.AutoCompleteBox or ComboBox or Slider or MenuItem or TabItem
+                or DataGridColumnHeader or Avalonia.Controls.Primitives.ScrollBar) return false;
+            if (node is Button) button = true;
+            if (node is DataGridRow or ListBoxItem) row = true;
+        }
+        return false;
+    }
+
+    /// <summary>Whether a request comes from a column header of a table (its own menu answers, not the rows' menu).</summary>
+    internal static bool IsColumnHeaderPath(IEnumerable<object?> selfAndAncestors) => selfAndAncestors.Any(node => node is DataGridColumnHeader);
 
     // The identity set belongs to the current 50-row page. A refreshed/filter-
     // changed page prunes unavailable IDs rather than accumulating hidden targets.
@@ -164,7 +198,10 @@ public partial class ArchivePage
 
     private void OnArchiveListPointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (sender is not Control list || !MainWindow.IsListCommandSource(e.Source, list)) return;
+        if (sender is not Control list) return;
+        bool rightButton = e.GetCurrentPoint(list).Properties.IsRightButtonPressed;
+        if (!MainWindow.IsListCommandSource(e.Source, list)
+            && !(rightButton && e.Source is Visual pressed && IsRowButtonPath(pressed.GetSelfAndVisualAncestors(), list))) return;
         _archivePointerContextHandled.Remove(list);
         Control? hit = (e.Source as Visual)?.GetSelfAndVisualAncestors().OfType<Control>().FirstOrDefault(control => control is DataGridRow or ListBoxItem);
         ArchiveThreadRow? row = hit?.DataContext as ArchiveThreadRow;
@@ -208,6 +245,10 @@ public partial class ArchivePage
     private void OnArchiveContextRequested(object? sender, ContextRequestedEventArgs e)
     {
         if (sender is not Control list) return;
+        // A column header of the table has its own menu (fit, visibility, reset). Its handler is registered after this one on the same grid, and a
+        // request this handler marks as handled never reaches it, so the header is answered here.
+        if (sender is DataGrid grid && e.Source is Visual origin && IsColumnHeaderPath(origin.GetSelfAndVisualAncestors()))
+        { OnArchiveHeaderContextRequested(grid, e); return; }
         if (e.TryGetPosition(list, out _))
         {
             // Pointer menus are opened explicitly only after resolving an actual row.
@@ -339,7 +380,10 @@ public partial class ArchivePage
     private Task RemoveArchiveSelectionAsync()
     {
         ResourceId[] ids = FrozenArchiveSelection().Where(id => CanRemoveWatch?.Invoke(id) == true).ToArray();
-        return ids.Length > 0 ? RemoveSelectedWatches?.Invoke(ids) ?? Task.CompletedTask : Task.CompletedTask;
+        if (ids.Length > 0 && RemoveSelectedWatches != null) return RemoveSelectedWatches(ids);
+        // The key says why nothing happened (the menu entry shows the same reason): an archived thread that is not on the watch list has nothing to remove.
+        Message(Texts.T("archive.command.noWatch"));
+        return Task.CompletedTask;
     }
     private async void OnArchiveRemoveSelection(object? sender, RoutedEventArgs e) => await RemoveArchiveSelectionAsync();
     private async void OnArchiveCopySelection(object? sender, RoutedEventArgs e) => await CopyArchiveSelectionAsync();

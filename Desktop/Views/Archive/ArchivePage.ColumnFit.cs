@@ -50,8 +50,11 @@ public partial class ArchivePage
         for (int index = 0; index < keys.Length && target == null; index++)
             if (grid.Columns[index].IsVisible && Equals(grid.Columns[index].Header, header.Content)) target = keys[index];
         ContextMenu menu = BuildArchiveColumnsMenu(grid, target);
-        menu.Open(header);
+        ShowColumnMenu(menu, header);
     }
+
+    /// <summary>How a header's column menu is shown (a test records it instead of opening a popup).</summary>
+    internal Action<ContextMenu, Control> ShowColumnMenu { get; set; } = static (menu, header) => menu.Open(header);
 
     /// <summary>
     /// Header of a thread column. Numbers (posts, saved versions) get a right-aligned header over their right-aligned values; the
