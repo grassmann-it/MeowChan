@@ -517,7 +517,7 @@ internal static partial class GalleryPlaybackFeatureChecks
             Console.WriteLine("SMOKE native-video edge controls UNSUPPORTED: actionable docked fallback verified; no edge/transparent-video PASS claimed.");
             return;
         }
-        async Task CenterAsync() => await native.MoveAsync(viewer, new Point(viewer.Bounds.Width * .45, viewer.Bounds.Height * .3));
+        async Task CenterAsync() => await native.MoveAsync(viewer, new Point(viewer.Bounds.Width * .45, viewer.Bounds.Height * .3), requireHitTest: false);
         object ObserveEdges() => new
         {
             viewer = viewer.Bounds.ToString(), body = Find<Grid>(viewer, "GalleryViewport").Bounds.ToString(),
