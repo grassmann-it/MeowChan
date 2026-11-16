@@ -51,11 +51,12 @@ public sealed class GalleryDecisionRowDesignTests : IDisposable
         bar.Measure(new Size(width, double.PositiveInfinity));
         bar.Arrange(new Rect(0, 0, width, bar.DesiredSize.Height));
         double cell = (width - 8 - row.ClearButton.Bounds.Width) / 5;
-        Assert.All(row.StarButtons, star => Assert.Equal(cell, star.Bounds.Width, 3));
+        // Layout rounding snaps each cell to whole pixels, so a cell may differ from the exact fifth by up to one pixel.
+        Assert.All(row.StarButtons, star => Assert.InRange(star.Bounds.Width, cell - 1, cell + 1));
         for (int index = 0; index < 4; index++)
             Assert.Equal(row.StarButtons[index].Bounds.Right, row.StarButtons[index + 1].Bounds.Left, 3); // no gap: the hit area is continuous
         Assert.Equal(0, row.StarButtons[0].Bounds.Left, 3);
-        Assert.Equal(width, row.ClearButton.Bounds.Right, 3);
+        Assert.InRange(row.ClearButton.Bounds.Right, width - 1, width + 1);
     }
 
     [Fact]
