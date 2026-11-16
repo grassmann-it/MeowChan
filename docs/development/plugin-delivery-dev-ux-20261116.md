@@ -121,3 +121,36 @@ Only the host configuration test project and its core/SDK dependencies were
 built; the application/plugin delivery graph and full solution were not built.
 Existing XML-doc/xUnit analyzer warnings were observed; no lockfile edits were
 needed.
+
+## Read-only dotnet-run diagnosis (2026-11-16)
+
+The active profile was inspected without writing, resetting or unpinning it.
+The old `meowchan.source.vichan` record has one current bundled candidate at the
+same manifest path, no pin, and an exact-description repair binding whose old
+execution is the retained last-good build and whose pending target is an earlier
+rebuild. The current startup observation is a later execution of that same
+candidate. The old `69c088a47` implementation rejected this because its automatic
+known-bundle predicate treated the retained `lainchan`/`wizchan` source-integrity
+exceptions as inherited rights. With the automatic path disabled, the binding
+comparison fell through to `PluginActivationProblems.ConfirmedTargetChanged`.
+This is a repair-policy boundary, **not** a signature failure.
+
+The integration base's #130 implementation in
+`MeowChan.PluginHost/Configuration/BundledCandidateMigration.cs` is the narrow
+fix: for an established, unpinned, uniquely proven candidate at the exact
+shipped manifest path it can carry existing rights across an unchanged or
+narrowing in-place rebuild; it still re-verifies the manifest/cache bytes under
+the writer lease and rejects relocation, widening, SDK/API changes, foreign
+provenance and user/profile plugins. This should be exercised by rebuilding the
+integration base, not by adding a `dotnet run` blanket-trust switch.
+
+For the pinned `meowchan.official.danbooru` record, the active cached build is
+SDK-incompatible (`SourcePostId` is absent) while the current staged binding
+passes the SDK probe. The pin correctly prevents automatic replacement. The
+Booru recovery action therefore opens the existing exact-build review and, for
+an unchanged same-slot bundled rebuild, offers an explicit current-build
+selection that clears the pin only when confirmed. It never changes a pin during
+startup, bypasses SDK validation, grants, signatures or user plugins. A separate
+read-only worker probe also completed a current Danbooru `cat` search with HTTP
+200 and 20 results; this validates that staged snapshot only, not arbitrary user
+builds or every live provider condition.
