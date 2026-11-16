@@ -650,7 +650,8 @@ public sealed class EffectiveShortcutBindings
         if (id == "media.rating.manage") return new[] { "media", "archive", "gallery" };
         if (id == "media.rating.remove-selected") return new[] { "dialog:media-ratings-manager" };
         if (id == "media.rating.cleanup-retry") return new[] { "dialog:archive-deletion" };
-        if (id == "media.rating.edit") return new[] { "media", "reader", "gallery" };
+        // R also runs on the tagging page's list (audit 16.11.2026): "Rate and tag…" on the queue's entries.
+        if (id == "media.rating.edit") return new[] { "media", "reader", "gallery", "tagging" };
         // Ctrl+O is one gesture with two readings: the folder of the selected thread (archive, downloads) and, in the media
         // page and the gallery, the folder of the shown medium (media.show-in-folder). Neither claims the other's page.
         if (id == "location.open-folder") return new[] { "archive", "dialog", "downloads" };

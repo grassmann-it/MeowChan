@@ -266,6 +266,16 @@ public sealed partial class TaggingPage
             ClearSelection();
             return;
         }
+        // R: "Rate and tag…" on the entry the key came from (or the selection), as on the media page; before, the key did nothing on this page.
+        if (ShortcutService.Current.Matches(e, "media.rating.edit"))
+        {
+            e.Handled = true;
+            ListBoxItem? item = (e.Source as Visual)?.GetSelfAndVisualAncestors().OfType<ListBoxItem>()
+                .FirstOrDefault(candidate => ReferenceEquals(ItemsControl.ItemsControlFromItemContainer(candidate), ActiveList));
+            if (item?.DataContext is TaggingQueueRow row && !ActiveList.Selection.SelectedItems.Contains(row)) ActiveList.SelectedItem = row;
+            OpenActions.Start(() => RateAndTagByKeyAsync(item), "tagging.list.rateAndTag");
+            return;
+        }
         foreach (string id in TaggingCommands.All)
         {
             if (!ShortcutService.Current.Matches(e, id)) continue;

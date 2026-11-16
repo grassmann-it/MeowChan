@@ -275,31 +275,48 @@ public sealed partial class MediaPage
         UpdateSelectionBar();
         QuickTagPopoverCloseReason reason = QuickTagPopoverCloseReason.Stale;
         Control? origin = null;
+        QuickTagPopover? shown = null;
+        bool released = false;
+        // The busy flag ends with the popover, not with this method's continuation: R or Ctrl+Shift+T right after Esc found the page still busy.
+        void Release()
+        {
+            if (released) return;
+            released = true;
+            if (shown == null || ReferenceEquals(_selectionTagPopover, shown)) _selectionTagPopover = null;
+            _selectionBusy = false;
+            if (!_lifetime.IsCancellationRequested) UpdateSelectionBar();
+        }
         try
         {
             QuickTagPopover popover = QuickTagPopover.Open(host, quick, Texts.T("media.selection.count", tiles.Count), options with
             {
                 ReadSourceTags = ReadBooruCatalog,
                 IsCurrent = () => !_lifetime.IsCancellationRequested && IsEffectivelyVisible,
-                RestoreFocus = false,
+                // The keyboard goes back at once (↑/↓ and R right after Esc); the page places it again below once its tiles were rebuilt.
+                RestoreFocus = true,
+                FocusFallback = () => FocusGridNow(),
                 TooltipKeyContext = "media",
                 // The rating (and favourite where the shell offers it) of every selected tile rides on top of the tag field.
                 Decision = DecisionForEntries?.Invoke(tiles.Select(tile => tile.Entry).ToArray(), focusRating)
             });
             origin = popover.Origin;
+            shown = popover;
             _selectionTagPopover = popover;
+            popover.WhenClosed(Release);
             reason = await popover.Result;
         }
         finally
         {
-            _selectionTagPopover = null;
-            _selectionBusy = false;
+            Release();
             if (!_lifetime.IsCancellationRequested)
             {
-                // The new tags show at once in filters and details; the tiles are rebuilt, so the focus is placed again.
-                if (session.Changed) RefreshUserData();
+                // The new tags show at once in filters and details; the tiles are rebuilt, so the focus is placed again. A popover opened again in the
+                // meantime keeps its anchor: the rebuild waits until it closed.
+                if (session.Changed && QuickTagPopover.Current is { } next) next.WhenClosed(() => { if (!_lifetime.IsCancellationRequested) RefreshUserData(); });
+                else if (session.Changed) RefreshUserData();
                 UpdateSelectionBar();
-                if (reason != QuickTagPopoverCloseReason.Advanced) RestoreMediaMenuActionFocus(origin, () => !OwnedWindowOpen());
+                if (reason != QuickTagPopoverCloseReason.Advanced && QuickTagPopover.Current == null)
+                    RestoreMediaMenuActionFocus(origin, () => !OwnedWindowOpen() && QuickTagPopover.Current == null);
             }
         }
         if (reason == QuickTagPopoverCloseReason.Advanced && !_lifetime.IsCancellationRequested) await TagSelectionDialogAsync();

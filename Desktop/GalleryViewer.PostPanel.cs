@@ -168,7 +168,17 @@ internal sealed partial class GalleryViewer
         // Neither the stars nor the tags can open (ratings unreadable or a write pending, no tags): the reason the menu entry shows, never silence.
         if (!CanRateAndTag) { ExplainBlocked(_tagsUnavailableReason ?? MeowChan.Desktop.MediaActions.MediaMenuReasons.Unavailable); return; }
         if (!_tagPanelOpen && CanOpenTagPanel) RequestTags(); // the owner opens the tag panel into the Tags slot (ShowTagPanel), synchronously
-        if (!FocusRatingStars() && _tagPanelOpen) _tagSurface?.FocusField();
+        if (FocusRatingStars()) return;
+        if (_tagPanelOpen && _tagSurface != null) { _tagSurface.FocusField(); return; }
+        // Neither the stars nor the field took the keyboard: once more after the panel that just opened was laid out, then say why instead of a key that
+        // did nothing (audit 16.11.2026).
+        GalleryEntry? asked = _entry;
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            if (_terminalRetirement || _entry == null || !ReferenceEquals(_entry, asked) || FocusRatingStars()) return;
+            if (_tagPanelOpen && _tagSurface != null) { _tagSurface.FocusField(); return; }
+            ExplainBlocked(_tagsUnavailableReason ?? MeowChan.Desktop.MediaActions.MediaMenuReasons.Unavailable);
+        }, Avalonia.Threading.DispatcherPriority.Loaded);
     }
 
     /// <summary>

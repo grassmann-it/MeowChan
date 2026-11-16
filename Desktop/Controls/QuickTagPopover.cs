@@ -59,7 +59,9 @@ internal sealed record QuickTagPopoverDecision
 /// <param name="FocusRating">The stars take the focus (R, the menu entry, the rating caption); false: the tag field does (Ctrl+Shift+T).</param>
 /// <param name="TagsBlocked">The localized reason the medium cannot be tagged (a Danbooru medium, a file shared by several posts), or null; the popover then
 /// still offers the stars and says the reason as text.</param>
-internal sealed record RateAndTagRequest(bool FocusRating = true, string? TagsBlocked = null);
+/// <param name="FocusFallback">Where the keyboard goes after the popover closed when the control it was opened from is gone or hidden (the page's
+/// selected post, tile or list); see <see cref="QuickTagPopoverOptions.FocusFallback"/>.</param>
+internal sealed record RateAndTagRequest(bool FocusRating = true, string? TagsBlocked = null, Func<bool>? FocusFallback = null);
 
 /// <summary>What a host passes besides the target: the suggestion source, the guard and the tag dialog hand-over.</summary>
 internal sealed record QuickTagPopoverOptions
@@ -84,6 +86,12 @@ internal sealed record QuickTagPopoverOptions
     internal bool AdvancedAvailable { get; init; } = true;
     /// <summary>False when the host restores the keyboard focus itself (the media page rebuilds its tiles after a change).</summary>
     internal bool RestoreFocus { get; init; } = true;
+    /// <summary>
+    /// The page's own place for the keyboard when the control the popover was opened from is gone, hidden or was inside another popup (a menu entry):
+    /// the selected post card, the selected tile, the list. True when it took the focus. Tried before the anchor, which can be a toolbar button that
+    /// keeps neither ↑/↓ nor R for the medium (the focus must never stay null or on a hidden control after the popover closed).
+    /// </summary>
+    internal Func<bool>? FocusFallback { get; init; }
     /// <summary>Base name of the controls (<c>QuickTagPopoverInput</c>, …).</summary>
     internal string Name { get; init; } = "QuickTagPopover";
     /// <summary>
@@ -147,6 +155,7 @@ internal sealed class QuickTagPopover
     private DispatcherTimer? _guard;
     private bool _decisionRunning;
     private Control? _origin;
+    private TopLevel? _keyGuardRoot;
     private bool _shown;
     private bool _closed;
 
@@ -164,6 +173,9 @@ internal sealed class QuickTagPopover
         // Tab cycles inside the popover; Shift+Tab from the field reaches the × directly (it is the last tab stop of the surface).
         KeyboardNavigation.SetTabNavigation(_frame, KeyboardNavigationMode.Cycle);
         _frame.AddHandler(InputElement.KeyDownEvent, OnFrameKey, RoutingStrategies.Tunnel);
+        // A key nothing inside the popover took ends at its frame: it never travels on to the page behind it (↑/↓ moving the posts, M / U favouring the
+        // medium under the popover). Tab stays with the keyboard navigation of the popover's root (the cycle), a lone modifier with the access keys.
+        _frame.AddHandler(InputElement.KeyDownEvent, OnFrameKeyUnhandled, RoutingStrategies.Bubble);
         _flyout.FlyoutPresenterClasses.Add("quick-tag-popover");
         _flyout.Content = _frame;
         _flyout.Closed += OnFlyoutClosed;
@@ -194,6 +206,18 @@ internal sealed class QuickTagPopover
     internal Task<QuickTagPopoverCloseReason> Result => _result.Task;
     /// <summary>Raised once, on the UI thread, after the popover closed and its session and surface were disposed.</summary>
     internal event Action<QuickTagPopoverCloseReason>? Closed;
+
+    /// <summary>
+    /// Runs <paramref name="release"/> once, synchronously as the popover closes (at once when it already closed). A host's "popover open" or busy flag
+    /// ends here, not in the continuation after <see cref="Result"/>: that continuation runs later than the next key, so R pressed right after Esc or ×
+    /// found the flag still set and did nothing (audit 16.11.2026).
+    /// </summary>
+    internal void WhenClosed(Action release)
+    {
+        ArgumentNullException.ThrowIfNull(release);
+        if (Reason != null) { release(); return; }
+        Closed += _ => release();
+    }
 
     // ---- creation -----------------------------------------------------------------------------------------------------
 
@@ -330,11 +354,18 @@ internal sealed class QuickTagPopover
         Current?.Close(QuickTagPopoverCloseReason.Replaced);
         _shown = true;
         Current = this;
-        _origin = TopLevel.GetTopLevel(_anchor)?.FocusManager?.GetFocusedElement() as Control;
+        _origin = OriginOf(TopLevel.GetTopLevel(_anchor), TopLevel.GetTopLevel(_anchor)?.FocusManager?.GetFocusedElement() as Control);
         _flyout.Opened += OnOpened;
         _flyout.ShowAt(_anchor);
         return this;
     }
+
+    /// <summary>
+    /// The control the focus returns to: the focused control when the popover opened, unless it sits in another popup (the menu entry "Rate and tag…" has
+    /// the focus while its menu closes): that one is gone a moment later, and the fallback chain of <see cref="RestoreFocusNow"/> decides instead.
+    /// </summary>
+    internal static Control? OriginOf(TopLevel? anchorRoot, Control? focused) =>
+        focused == null || anchorRoot == null || focused is TopLevel || !ReferenceEquals(TopLevel.GetTopLevel(focused), anchorRoot) ? null : focused;
 
     /// <summary>Creates and opens a popover for a taggable target.</summary>
     internal static QuickTagPopover Open(Control anchor, QuickTagSession session, string label, QuickTagPopoverOptions? options = null) =>
@@ -350,6 +381,7 @@ internal sealed class QuickTagPopover
     {
         _flyout.Opened -= OnOpened;
         if (_closed) return;
+        AttachKeyGuard();
         if (_options.Decision is { FocusRating: true } && _decisionRow != null)
         {
             // R: the stars take the focus (posted: the flyout has laid its content out by then); the field or × when the row cannot take it.
@@ -407,6 +439,8 @@ internal sealed class QuickTagPopover
         _flyout.Closed -= OnFlyoutClosed;
         _anchor.DetachedFromVisualTree -= OnAnchorDetached;
         _frame.RemoveHandler(InputElement.KeyDownEvent, OnFrameKey);
+        _frame.RemoveHandler(InputElement.KeyDownEvent, OnFrameKeyUnhandled);
+        DetachKeyGuard();
         if (_session != null) _session.Updated -= OnSessionUpdated;
         if (ReferenceEquals(Current, this)) Current = null;
         _unsubscribe?.Invoke();
@@ -414,27 +448,143 @@ internal sealed class QuickTagPopover
         _session?.Dispose();
         try { _options.Decision?.Release?.Invoke(); }
         catch (Exception error) when (error is InvalidOperationException or ObjectDisposedException) { }
-        if (reason is QuickTagPopoverCloseReason.Dismissed or QuickTagPopoverCloseReason.Closed && _options.RestoreFocus) RestoreFocus();
+        if (_shown && _options.RestoreFocus && RestoresFocus(reason)) RestoreFocus();
         Closed?.Invoke(reason);
         _result.TrySetResult(reason);
     }
 
-    // The focus goes back to where it was (the tile): the pattern of the tag dialog of the gallery. Posted so it runs after the
-    // flyout has handed the focus back itself; a control that is gone or hidden is skipped.
+    /// <summary>
+    /// Whether a close gives the keyboard back: Esc, ×, a click outside, a lost target and a detached anchor do; "Advanced…" (the dialog takes the
+    /// focus) and a replacement (the new popover has it) do not. A stale or detached close only repairs a lost focus (<see cref="FocusIsLost"/>): it never
+    /// takes the focus from where the person or the page put it.
+    /// </summary>
+    internal static bool RestoresFocus(QuickTagPopoverCloseReason reason) =>
+        reason is not (QuickTagPopoverCloseReason.Advanced or QuickTagPopoverCloseReason.Replaced);
+
+    // The focus goes back to where it was (the post card, the tile, the row, the gallery picture), at once and again once the flyout has handed the
+    // focus back itself (Loaded runs before the next key: ↑/↓ and R pressed right after Esc reach the page, audit 16.11.2026). Before, the focus was
+    // put back only at Background priority, after the next key, and only for Esc, × and a click outside; Avalonia's own hand-back put it on the anchor
+    // (a toolbar button, the list) or nowhere, so ↑/↓ no longer moved the posts and R found no medium.
     private void RestoreFocus()
     {
-        Control? origin = _origin, anchor = _anchor;
-        Dispatcher.UIThread.Post(() =>
-        {
-            static bool Usable(Control? control) => control != null && control.IsAttachedToVisualTree() && control.IsEffectivelyVisible && control.IsEffectivelyEnabled;
-            if (Current != null) return;
-            // A host that moved the focus on its own while closing (the archive's rating filter after a rating dropped the medium out of it) keeps it.
-            if (TopLevel.GetTopLevel(anchor)?.FocusManager?.GetFocusedElement() is Control focused && Usable(focused)
-                && !focused.GetSelfAndVisualAncestors().Any(control => ReferenceEquals(control, _frame))) return;
-            if (Usable(origin)) origin!.Focus();
-            else if (Usable(anchor)) anchor.Focus();
-        }, DispatcherPriority.Background);
+        RestoreFocusNow();
+        Dispatcher.UIThread.Post(() => RestoreFocusNow(), DispatcherPriority.Loaded);
     }
+
+    /// <summary>Puts the focus back when it was lost by the close; true when it is on a usable control afterwards (also when it already was).</summary>
+    internal bool RestoreFocusNow()
+    {
+        if (Current != null && !ReferenceEquals(Current, this)) return false; // another popover opened: it owns the keyboard
+        TopLevel? root = TopLevel.GetTopLevel(_anchor) ?? (_origin == null ? null : TopLevel.GetTopLevel(_origin));
+        if (root == null) return false;
+        Control? focused = root.FocusManager?.GetFocusedElement() as Control;
+        if (!FocusIsLost(focused, _anchor, _frame, Usable)) return true;
+        if (Usable(_origin) && !IsInside(_origin!, _frame) && _origin!.Focus()) return true;
+        try { if (_options.FocusFallback?.Invoke() == true) return true; }
+        catch (Exception error) when (error is InvalidOperationException or ObjectDisposedException) { }
+        return NearestFocusable(_anchor, Usable) is { } owner && owner.Focus();
+    }
+
+    private static bool Usable(Control? control) =>
+        control != null && control.IsAttachedToVisualTree() && control.IsEffectivelyVisible && control.IsEffectivelyEnabled;
+
+    private static bool IsInside(Control control, Control container) =>
+        control.GetSelfAndVisualAncestors().Any(visual => ReferenceEquals(visual, container));
+
+    /// <summary>
+    /// The focus after a close is lost when it is nowhere, on a control that is gone, hidden or disabled, still inside the closed popover, on the window
+    /// itself, or where the flyout's own hand-back put it: the anchor or one of the anchor's ancestors (the posts list, the toolbar). Anywhere else it was
+    /// put there on purpose (a click on another post, the page moving it to its rating filter) and stays.
+    /// </summary>
+    internal static bool FocusIsLost(Control? focused, Control anchor, Control frame, Func<Control?, bool> usable)
+    {
+        if (focused == null || focused is TopLevel || !usable(focused)) return true;
+        if (IsInside(focused, frame)) return true;
+        return anchor.GetSelfAndVisualAncestors().Any(visual => ReferenceEquals(visual, focused));
+    }
+
+    /// <summary>The anchor, or its nearest ancestor that can take the keyboard (a thumbnail inside a post card gives way to the card's row).</summary>
+    internal static Control? NearestFocusable(Control anchor, Func<Control?, bool> usable)
+    {
+        foreach (Control control in anchor.GetSelfAndVisualAncestors().OfType<Control>())
+        {
+            if (control is TopLevel) return null;
+            if (control.Focusable && usable(control)) return control;
+        }
+        return null;
+    }
+
+    // While the popover is open, a key raised in the window under it (the focus was lost inside the popover, or never reached it) belongs to the
+    // popover, never to the page: Esc closes it, Tab brings the focus into it, every other key is consumed (no ↑/↓ moving the posts behind it).
+    private void AttachKeyGuard()
+    {
+        TopLevel? root = TopLevel.GetTopLevel(_anchor);
+        if (root == null) return;
+        _keyGuardRoot = root;
+        root.AddHandler(InputElement.KeyDownEvent, OnGuardedRootKey, RoutingStrategies.Tunnel);
+    }
+
+    private void DetachKeyGuard()
+    {
+        _keyGuardRoot?.RemoveHandler(InputElement.KeyDownEvent, OnGuardedRootKey);
+        _keyGuardRoot = null;
+    }
+
+    private void OnGuardedRootKey(object? sender, KeyEventArgs e)
+    {
+        if (_closed || !_shown || _keyGuardRoot == null) return;
+        TopLevel root = _keyGuardRoot;
+        if (GuardedRootKey(e, visual => ReferenceEquals(TopLevel.GetTopLevel(visual), root), _frame) is not { } action) return;
+        e.Handled = true;
+        if (action == GuardedKeyAction.Close) Close(QuickTagPopoverCloseReason.Closed);
+        else if (action == GuardedKeyAction.FocusInside) FocusInside();
+    }
+
+    /// <summary>What the window's tunnel does with a key while the popover is open.</summary>
+    internal enum GuardedKeyAction { Consume, Close, FocusInside }
+
+    /// <summary>
+    /// The key guard as a pure decision: null leaves the key alone (it was already handled, it is the popover's own key on a route that reaches the
+    /// window, it comes from another popup or window, or it is a lone modifier); otherwise Esc closes, Tab moves the focus into the popover and every
+    /// other key is consumed.
+    /// </summary>
+    /// <param name="fromGuardedWindow">True for a source in the window the guard sits on (its own top level).</param>
+    internal static GuardedKeyAction? GuardedRootKey(KeyEventArgs e, Func<Visual, bool> fromGuardedWindow, Control frame)
+    {
+        if (e.Handled || IsModifierKey(e.Key)) return null;
+        if (e.Source is Visual source)
+        {
+            if (source.GetSelfAndVisualAncestors().Any(visual => ReferenceEquals(visual, frame))) return null;
+            if (!fromGuardedWindow(source)) return null;
+        }
+        if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None) return GuardedKeyAction.Close;
+        if (e.Key == Key.Tab) return GuardedKeyAction.FocusInside;
+        return GuardedKeyAction.Consume;
+    }
+
+    internal static bool IsModifierKey(Key key) => key is Key.LeftShift or Key.RightShift or Key.LeftCtrl or Key.RightCtrl
+        or Key.LeftAlt or Key.RightAlt or Key.LWin or Key.RWin;
+
+    // The keyboard goes back into the popover: the stars for R, else the field, else the ×.
+    private void FocusInside()
+    {
+        if (_closed) return;
+        if (_options.Decision is { FocusRating: true } && _decisionRow?.FocusRating() == true) return;
+        if (Surface != null) Surface.FocusField();
+        else BlockedClose?.Focus(NavigationMethod.Tab);
+    }
+
+    // The last stop of a key inside the popover: a plain Esc that nothing inside took (a control outside the surface's own routing) still closes it, so
+    // Esc closes from every element; any other key nothing took is consumed here.
+    private void OnFrameKeyUnhandled(object? sender, KeyEventArgs e)
+    {
+        if (!ConsumesUnhandledKey(e)) return;
+        e.Handled = true;
+        if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None) Close(QuickTagPopoverCloseReason.Closed);
+    }
+
+    /// <summary>True for a key that bubbled out of the popover's content unhandled and must stop at its frame (everything but Tab and a lone modifier).</summary>
+    internal static bool ConsumesUnhandledKey(KeyEventArgs e) => !e.Handled && e.Key != Key.Tab && !IsModifierKey(e.Key);
 
     // ---- keys ---------------------------------------------------------------------------------------------------------
 

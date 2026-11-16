@@ -26,6 +26,8 @@ internal enum QuickTagKeyAction
 {
     None, ToggleSuggestion, ToggleBadge, Move, MoveFirst, MoveLast, ToggleFocused, RemoveFocused,
     FocusField, FocusSuggestions, FocusAssigned, FocusLastAssigned, Undo, CloseList, Close,
+    /// <summary>Esc with text in the field: the text goes (and its suggestion list with it); the next Esc closes the surface.</summary>
+    ClearField,
     Next, Previous, MarkNext, UnmarkPrevious, CommitAndNext, ThreadSection,
     /// <summary>Ctrl+Shift+Enter (⌘⇧↩): give the stamp set to the shown medium or selection.</summary>
     ApplyStamp
@@ -47,7 +49,9 @@ internal enum QuickTagNavigation { Next, Previous, MarkNext, UnmarkPrevious }
 /// Key routing of the quick tag surface as a pure function, so it can be tested and later fed from the shortcut editor (TP6).
 /// Tom's decisions of 14.11.: Alt+1…9 (macOS ⌘1…9) toggles suggestion n in every focus state; bare digits and badge letters only
 /// while the focus is in the suggestion strip (tag names like <c>2girls</c> stay typeable); Page Down/Up move through the
-/// gallery, Ctrl+Enter adds and moves on, Shift+Page Down marks and moves on. Escape is layered: open list, then the surface.
+/// gallery, Ctrl+Enter adds and moves on, Shift+Page Down marks and moves on. Escape is layered and never needs more than two presses (Tom, 16.11.):
+/// with text in the field the first Esc empties it and closes its list, with an open list over an empty field it closes the list, otherwise (and the
+/// second time) it closes the surface, from any element of it.
 /// </summary>
 internal static class QuickTagKeys
 {
@@ -72,7 +76,9 @@ internal static class QuickTagKeys
         if (modifiers == primary && key == Key.Z)
             return focus == QuickTagFocus.Field && !fieldEmpty ? QuickTagKeyRoute.None : new(QuickTagKeyAction.Undo);
         if (key == Key.Escape && modifiers == KeyModifiers.None)
-            return new(focus == QuickTagFocus.Field && listOpen ? QuickTagKeyAction.CloseList : QuickTagKeyAction.Close);
+            return new(focus != QuickTagFocus.Field ? QuickTagKeyAction.Close
+                : !fieldEmpty ? QuickTagKeyAction.ClearField
+                : listOpen ? QuickTagKeyAction.CloseList : QuickTagKeyAction.Close);
         // The stamp works on every surface and in every focus state (the typed draft stays in the field).
         if (key == Key.Enter && modifiers == (primary | KeyModifiers.Shift)) return new(QuickTagKeyAction.ApplyStamp);
         if (navigation && !(focus == QuickTagFocus.Field && listOpen))
@@ -1221,6 +1227,10 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
                 OpenActions.Start(UndoAsync, "tags.quick.undo.key");
                 return true;
             case QuickTagKeyAction.CloseList: _input.Dismiss(); return true;
+            case QuickTagKeyAction.ClearField:
+                _input.Text = string.Empty;
+                _input.Dismiss(); // after the text: the emptied field must not open its list again
+                return true;
             case QuickTagKeyAction.Close: CloseRequested?.Invoke(); return CloseRequested != null;
             case QuickTagKeyAction.Next: return Navigate(QuickTagNavigation.Next);
             case QuickTagKeyAction.Previous: return Navigate(QuickTagNavigation.Previous);

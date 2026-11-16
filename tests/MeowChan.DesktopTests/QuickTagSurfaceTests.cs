@@ -367,10 +367,15 @@ public sealed class QuickTagSurfaceTests : IDisposable
     [InlineData(Key.Z, KeyModifiers.Control, QuickTagFocus.Field, false, false, ShortcutPlatform.Linux, QuickTagKeyAction.None, 0)]
     [InlineData(Key.Z, KeyModifiers.Control, QuickTagFocus.Suggestions, false, true, ShortcutPlatform.Linux, QuickTagKeyAction.Undo, 0)]
     [InlineData(Key.Z, KeyModifiers.Meta, QuickTagFocus.Assigned, false, true, ShortcutPlatform.MacOS, QuickTagKeyAction.Undo, 0)]
-    // Escape is layered: the open list first, then the surface.
-    [InlineData(Key.Escape, KeyModifiers.None, QuickTagFocus.Field, true, false, ShortcutPlatform.Linux, QuickTagKeyAction.CloseList, 0)]
-    [InlineData(Key.Escape, KeyModifiers.None, QuickTagFocus.Field, false, false, ShortcutPlatform.Linux, QuickTagKeyAction.Close, 0)]
+    // Escape is layered and never needs more than two presses (Tom, 16.11.2026): text in the field goes first (with its list), an open list over an
+    // empty field next, then the surface closes, from any of its elements.
+    [InlineData(Key.Escape, KeyModifiers.None, QuickTagFocus.Field, true, false, ShortcutPlatform.Linux, QuickTagKeyAction.ClearField, 0)]
+    [InlineData(Key.Escape, KeyModifiers.None, QuickTagFocus.Field, false, false, ShortcutPlatform.Linux, QuickTagKeyAction.ClearField, 0)]
+    [InlineData(Key.Escape, KeyModifiers.None, QuickTagFocus.Field, true, true, ShortcutPlatform.Linux, QuickTagKeyAction.CloseList, 0)]
+    [InlineData(Key.Escape, KeyModifiers.None, QuickTagFocus.Field, false, true, ShortcutPlatform.Linux, QuickTagKeyAction.Close, 0)]
     [InlineData(Key.Escape, KeyModifiers.None, QuickTagFocus.Assigned, false, true, ShortcutPlatform.Linux, QuickTagKeyAction.Close, 0)]
+    [InlineData(Key.Escape, KeyModifiers.None, QuickTagFocus.Suggestions, false, false, ShortcutPlatform.Linux, QuickTagKeyAction.Close, 0)]
+    [InlineData(Key.Escape, KeyModifiers.None, QuickTagFocus.Other, false, false, ShortcutPlatform.Linux, QuickTagKeyAction.Close, 0)]
     public void KeysRouteAsThePlanSays(Key key, KeyModifiers modifiers, object focus, bool listOpen, bool fieldEmpty,
         ShortcutPlatform platform, object action, int value)
     {

@@ -322,10 +322,14 @@ public sealed class QuickTagPopoverTests : IDisposable
         using Fixture fixture = new();
         QuickTagPopover popover = QuickTagPopover.Create(new Border(), fixture.Session(), "x",
             new QuickTagPopoverOptions { RestoreFocus = false, Decision = new DecisionHost().Make() });
-        // Without a focused star the frame leaves Left and Right alone (the field's caret keeps them).
+        // Without a focused star the frame's tunnel leaves Left and Right alone (the field's caret keeps them; the star route is gated on a focused star).
+        // What nothing inside took then stops at the frame and never moves anything behind the popover (audit 16.11.2026).
+        Assert.False(popover.DecisionRow!.IsRatingFocused);
         KeyEventArgs right = Key(Avalonia.Input.Key.Right, KeyModifiers.None);
+        Assert.False(popover.TryRouteDecisionKey(right, ShortcutService.Current));
         popover.Frame.RaiseEvent(right);
-        Assert.False(right.Handled);
+        Assert.True(right.Handled);
+        Assert.False(popover.IsClosed);
         popover.Close();
     }
 

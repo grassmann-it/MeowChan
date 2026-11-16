@@ -32,9 +32,13 @@ public partial class ArchivePage
             bool Ready() => !_ended && _available && _mediaRatingError == null && FocusedRatingEntry() is { } entry
                 && CanChangeMediaRating?.Invoke(FavoriteAssetKey.From(entry.Key.Thread, entry.Asset)) == true;
             // R "Rate and tag" opens the popover (stars focused) on the focused file; the keys below rate it directly (Shift+1 to 5, Shift+0).
+            // Executable whenever the reader is: RateAndTagByKeyAsync (which opens through OpenRateAndTagForFocusAsync, as the toolbar button does) finds
+            // the medium (the focused one, else the selected post's or the Media tab's selection, waiting for a running media scan) and says why when
+            // there is none. Before, a key without a focused medium was consumed in silence (the router consumes a matched key whose action cannot run).
+            // A text selection in a post does not keep R: the selection has no use for a bare letter (Ctrl+C stays the selection's).
             _ratingCommands.Register(new("media.rating.edit", pane, () => pane.IsEffectivelyVisible,
-                () => !_ended && _available && FocusedMediaForRateAndTag() != null,
-                () => OpenActions.Start(() => OpenRateAndTagForFocusAsync(focusRating: true, ArchiveEditRatingButton), "media.rating.edit"), Priority: 100));
+                () => !_ended && _available,
+                () => OpenActions.Start(RateAndTagByKeyAsync, "media.rating.edit"), Priority: 100, AllowInTextSelection: true));
             _ratingCommands.Register(new("media.rating.clear", pane, () => pane.IsEffectivelyVisible, Ready,
                 () => _ = ExecuteRatingCommandAsync(null), Priority: 100));
             for (int value = 1; value <= 5; value++)

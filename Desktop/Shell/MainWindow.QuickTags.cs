@@ -48,6 +48,17 @@ public partial class MainWindow
         GalleryEntry? match = null;
         MediaTagSession? session = null;
         QuickTagPopoverDecision? decision = null;
+        // The open flag and the popover property end with the popover itself, not with this method's continuation: R pressed right after Esc ran before
+        // the continuation and found the flag still set, so the second R did nothing (audit 16.11.2026).
+        QuickTagPopover? shown = null;
+        bool released = false;
+        void Release()
+        {
+            if (released) return;
+            released = true;
+            if (shown == null || ReferenceEquals(MediaPageTagPopover, shown)) MediaPageTagPopover = null;
+            _mediaTagDialogOpen = false;
+        }
         try
         {
             match = await MediaMenuIdentity.ResolveAsync(indexed, _session.OpenArchiveReaderAsync, Storage.MediaAssetReader.OpenAsync, Current,
@@ -62,7 +73,11 @@ public partial class MainWindow
             MediaTagSubject? target = request.TagsBlocked == null ? MediaTagSubjects.Of(match, out unavailable) : null;
             string label = match.Asset.OriginalFileName ?? Path.GetFileName(match.Asset.Path);
             decision = DecisionFor(new[] { match }, request.FocusRating);
-            QuickTagPopoverOptions options = PopoverOptions(context, hostCurrent, restoreFocus: false, "MediaTagPopover") with { Decision = decision, TooltipKeyContext = "media" };
+            // The popover gives the keyboard back at once (↑/↓ and R work right after Esc); the page places it again after it rebuilt its tiles.
+            QuickTagPopoverOptions options = PopoverOptions(context, hostCurrent, restoreFocus: true, "MediaTagPopover") with
+            {
+                Decision = decision, TooltipKeyContext = "media", FocusFallback = request.FocusFallback
+            };
             QuickTagPopover popover;
             if (target == null)
             {
@@ -76,7 +91,9 @@ public partial class MainWindow
                 popover = QuickTagPopover.Open(anchor, options.NewSession(QuickTagTarget.For(session)), label, options);
             }
             origin = popover.Origin ?? origin;
+            shown = popover;
             MediaPageTagPopover = popover;
+            popover.WhenClosed(Release);
             reason = await popover.Result;
         }
         catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException
@@ -87,13 +104,17 @@ public partial class MainWindow
         }
         finally
         {
-            MediaPageTagPopover = null;
-            _mediaTagDialogOpen = false;
-            // The page rebuilds its tiles after a change; it places the focus again (a tile that is gone gives it to the grid).
+            Release();
+            // The page rebuilds its tiles after a change; it places the focus again (a tile that is gone gives it to the grid). A popover opened again in the
+            // meantime (R right after Esc) keeps the focus.
             if (reason != QuickTagPopoverCloseReason.Advanced && !_isClosing)
             {
-                if (session?.Changed == true || decision?.HasChanged?.Invoke() == true) RefreshMediaPageAfterMenuAction(origin, hostCurrent, presentationCurrent);
-                else _mediaPage?.RestoreMediaMenuActionFocus(origin, () => hostCurrent() && !OwnedWindows.Any(window => window.IsVisible));
+                bool changed = session?.Changed == true || decision?.HasChanged?.Invoke() == true;
+                // The rebuild would detach the new popover's anchor: it waits until that one closed.
+                if (changed && QuickTagPopover.Current is { } next) next.WhenClosed(() => { if (!_isClosing) RefreshMediaPageAfterMenuAction(origin, hostCurrent, presentationCurrent); });
+                else if (changed) RefreshMediaPageAfterMenuAction(origin, hostCurrent, presentationCurrent);
+                else if (QuickTagPopover.Current == null)
+                    _mediaPage?.RestoreMediaMenuActionFocus(origin, () => hostCurrent() && QuickTagPopover.Current == null && !OwnedWindows.Any(window => window.IsVisible));
             }
         }
         if (reason == QuickTagPopoverCloseReason.Advanced && !_isClosing && match != null)
@@ -113,26 +134,37 @@ public partial class MainWindow
             // Not taggable (a Danbooru medium, a file shared by several posts): the stars stay, the reason is said as text.
             QuickTagPopover.OpenBlocked(anchor, label, request.TagsBlocked
                 ?? MediaMenuReasons.Tags(unavailable, BooruMediaIdentity.IsBooruThread(entry.Key.Thread)),
-                new QuickTagPopoverOptions { IsCurrent = isCurrent, Decision = decision, TooltipKeyContext = "reader" });
+                new QuickTagPopoverOptions { IsCurrent = isCurrent, Decision = decision, TooltipKeyContext = "reader", FocusFallback = request.FocusFallback });
             return;
         }
         _galleryTagDialogOpen = true;
         QuickTagPopoverCloseReason reason = QuickTagPopoverCloseReason.Stale;
         Control? origin = null;
+        // As on the media page: the flag ends with the popover (R right after Esc or × opens it again), never with this method's continuation.
+        QuickTagPopover? shown = null;
+        bool released = false;
+        void Release()
+        {
+            if (released) return;
+            released = true;
+            if (shown == null || ReferenceEquals(ArchiveTagPopover, shown)) ArchiveTagPopover = null;
+            _galleryTagDialogOpen = false;
+        }
         try
         {
             MediaTagSession session = new(target, _session.GetPublishedPrivateTagSnapshot, _session.DefineAndSetMediaSubjectTagAsync, _session.SetMediaSubjectTagAsync);
-            QuickTagPopoverOptions options = PopoverOptions(context, isCurrent, restoreFocus: true, "ArchiveTagPopover") with { Decision = decision, TooltipKeyContext = "reader" };
+            QuickTagPopoverOptions options = PopoverOptions(context, isCurrent, restoreFocus: true, "ArchiveTagPopover") with
+            {
+                Decision = decision, TooltipKeyContext = "reader", FocusFallback = request.FocusFallback
+            };
             QuickTagPopover popover = QuickTagPopover.Open(anchor, options.NewSession(QuickTagTarget.For(session)), label, options);
             origin = popover.Origin;
+            shown = popover;
             ArchiveTagPopover = popover;
+            popover.WhenClosed(Release);
             reason = await popover.Result;
         }
-        finally
-        {
-            ArchiveTagPopover = null;
-            _galleryTagDialogOpen = false;
-        }
+        finally { Release(); }
         if (reason == QuickTagPopoverCloseReason.Advanced && !_isClosing) await EditGalleryMediaTagsAsync(entry, origin);
     }
 
@@ -144,7 +176,14 @@ public partial class MainWindow
         TagContext context = QuickTagPopoverContext.ContextOf(entry, _galleryEntries, null);
         string? blocked = MediaTagSubjects.Of(entry, out GalleryMediaTagUnavailable reason) == null
             ? MediaMenuReasons.Tags(reason, BooruMediaIdentity.IsBooruThread(entry.Key.Thread)) : null;
-        return OpenArchiveMediaTagPopoverAsync(entry, anchor, context, () => !_isClosing && ReferenceEquals(_gallery, gallery), new RateAndTagRequest(true, blocked));
+        // Closed with the focus gone (the filmstrip tile was rebuilt): the gallery's picture takes it, as after its other popups.
+        bool FocusGallery()
+        {
+            if (_isClosing || !ReferenceEquals(_gallery, gallery)) return false;
+            gallery.FocusGallerySurface();
+            return true;
+        }
+        return OpenArchiveMediaTagPopoverAsync(entry, anchor, context, () => !_isClosing && ReferenceEquals(_gallery, gallery), new RateAndTagRequest(true, blocked, FocusGallery));
     }
 
     // ---- favourite and rating row of the popovers --------------------------------------------------------------------------------

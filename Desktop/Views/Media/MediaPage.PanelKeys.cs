@@ -3,6 +3,8 @@ using System.Threading.Tasks;
 using Avalonia.Input;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.MediaActions;
 using MeowChan.Gallery;
 
 namespace MeowChan;
@@ -52,10 +54,15 @@ public sealed partial class MediaPage
     // The menu command of the panel's medium (the same rules as RunMediaCommandByShortcutAsync, with the panel's tile instead of the selection).
     private Task RunMediaCommandOnPanelAsync(string id, MediaLibraryTileRow row, Avalonia.Controls.Control anchor)
     {
+        if (id == "media.rating.edit" && !_lifetime.IsCancellationRequested && !_selectionBusy)
+        {
+            // R on the panel's medium: as on the grid, a refusal says why (the index is being built, the file is not saved) instead of doing nothing.
+            if (_building != null) { ShowSelectionNote(Texts.T("media.selection.reason.building")); return Task.CompletedTask; }
+            if (row.Entry.Presence != MediaLibraryPresence.Present) { ShowSelectionNote(MediaMenuReasons.NotSaved); return Task.CompletedTask; }
+            return OpenRateAndTagAsync(row.Entry, row, anchor, () => !_lifetime.IsCancellationRequested && _building == null && IsEffectivelyVisible, focusRating: true);
+        }
         if (_lifetime.IsCancellationRequested || _building != null || _selectionBusy || ExecuteMediaMenuActionAsync == null || row.Entry.Presence != MediaLibraryPresence.Present)
             return Task.CompletedTask;
-        if (id == "media.rating.edit")
-            return OpenRateAndTagAsync(row.Entry, row, anchor, () => !_lifetime.IsCancellationRequested && _building == null && IsEffectivelyVisible, focusRating: true);
         // A rating key needs the saved ratings to be known, like the grid's.
         if (id.StartsWith("media.rating.", StringComparison.Ordinal) && row.State?.RatingKnown != true) return Task.CompletedTask;
         return RunMediaCommandOnTileAsync(id, row);

@@ -29,6 +29,11 @@ public sealed partial class TaggingPage
     internal Func<TagContext, QuickTagPopoverOptions>? TagPopoverOptions { get; set; }
     /// <summary>The Danbooru catalog for the source tag group of the popover's field.</summary>
     internal Func<BooruCatalogSnapshot?>? ReadBooruCatalog { get; set; }
+    /// <summary>
+    /// The rating row of R's popover ("Rate and tag…") over the selected entries' media (the shell's decision session, the media page's); null: R opens the
+    /// popover without the stars.
+    /// </summary>
+    internal Func<IReadOnlyList<MediaLibraryEntry>, bool, QuickTagPopoverDecision?>? DecisionForEntries { get; set; }
 
     /// <summary>The quick tag popover while it is open (smokes).</summary>
     internal QuickTagPopover? TagPopover => _tagPopover;
@@ -55,7 +60,7 @@ public sealed partial class TaggingPage
     /// "Tag…" and "Tag together…": the quick tag popover over the selected entries (the lead for one), anchored at <paramref name="anchor"/>
     /// (the list by default). "Advanced…" opens the dialog that lists every occurrence.
     /// </summary>
-    internal async Task TagSelectionAsync(Control? anchor = null)
+    internal async Task TagSelectionAsync(Control? anchor = null, bool focusRating = false)
     {
         if (!CanTag || Lead is not { } lead) return;
         IReadOnlyList<TaggingQueueRow> taggable = TaggingRowCommands.Taggable(Selected);
@@ -71,6 +76,17 @@ public sealed partial class TaggingPage
         _tagBusy = true;
         UpdateActions();
         QuickTagPopoverCloseReason reason = QuickTagPopoverCloseReason.Stale;
+        QuickTagPopover? shown = null;
+        bool released = false;
+        // The busy flag ends with the popover (R or Ctrl+Shift+T right after Esc opens it again), not with this method's continuation.
+        void Release()
+        {
+            if (released) return;
+            released = true;
+            if (shown == null || ReferenceEquals(_tagPopover, shown)) _tagPopover = null;
+            _tagBusy = false;
+            if (!_queueWork.Ended) UpdateActions();
+        }
         try
         {
             QuickTagPopover popover = QuickTagPopover.Open(host, quick, label, options with
@@ -78,22 +94,52 @@ public sealed partial class TaggingPage
                 ReadSourceTags = ReadBooruCatalog,
                 IsCurrent = () => !_queueWork.Ended && IsEffectivelyVisible,
                 RestoreFocus = true,
-                Name = "TaggingTagPopover"
+                FocusFallback = FocusListNow,
+                Name = "TaggingTagPopover",
+                // R: the stars of the selected entries on top, focused (a Danbooru medium can be rated though it takes no own tags).
+                Decision = focusRating ? DecisionForEntries?.Invoke(Selected.Select(row => row.Item.ToLibraryEntry()).ToArray(), true) : null
             });
+            shown = popover;
             _tagPopover = popover;
+            popover.WhenClosed(Release);
             reason = await popover.Result;
         }
         finally
         {
-            _tagPopover = null;
-            _tagBusy = false;
-            if (!_queueWork.Ended)
+            Release();
+            // The new tags show in the counts at once; a popover opened again in the meantime keeps its anchor until it closed.
+            if (!_queueWork.Ended && session.Changed)
             {
-                if (session.Changed) Show(); // the new tags show in the counts at once
-                else UpdateActions();
+                if (QuickTagPopover.Current is { } next) next.WhenClosed(() => { if (!_queueWork.Ended) Show(); });
+                else Show();
             }
         }
         if (reason == QuickTagPopoverCloseReason.Advanced && !_queueWork.Ended) await TagSelectionDialogAsync();
+    }
+
+    /// <summary>
+    /// R ("Rate and tag…", audit 16.11.2026: the key did nothing on this page): the "Tag…" popover over the selection (the entry the key came from when it is
+    /// not selected yet), with the stars of the selected media on top and focused. When the entries cannot be tagged now the status line says why.
+    /// </summary>
+    internal Task RateAndTagByKeyAsync(Control? anchor)
+    {
+        if (_queueWork.Ended) return Task.CompletedTask;
+        string id = Selected.Count > 1 ? TaggingCommands.TagTogether : TaggingCommands.Tag;
+        if (!CanRowCommand(id) || Lead == null)
+        {
+            if (TaggingRowCommands.Evaluate(id, CommandContext()).Reason is { Length: > 0 } reason) ShowStatus(reason);
+            else ShowStatus(MeowChan.Desktop.MediaActions.MediaMenuReasons.Unavailable);
+            return Task.CompletedTask;
+        }
+        return TagSelectionAsync(anchor, focusRating: true);
+    }
+
+    // The list's place for the keyboard after the popover closed without its row (the list was rebuilt): the selected entry, else the list.
+    private bool FocusListNow()
+    {
+        if (_queueWork.Ended || !ActiveList.IsEffectivelyVisible) return false;
+        if (ActiveList.SelectedIndex >= 0 && ActiveList.ContainerFromIndex(ActiveList.SelectedIndex) is Control row && row.Focus()) return true;
+        return ActiveList.Focus();
     }
 
     /// <summary>Adds or removes an own tag on the occurrences of the selection; the dialog lists them and tags all by default.</summary>

@@ -231,6 +231,7 @@ public sealed partial class MediaPage : UserControl
         InstallTileEnter(); // Enter on a focused tile (MediaPage.TileEnter.cs); registered first, so it runs after the other tunnel handlers
         InstallTileInteraction(); // double click on a tile, Ctrl+wheel and Ctrl+Plus/Minus for the tile size (MediaPage.Interaction.cs)
         _grid.KeyDown += OnGridKeyDown;
+        AddHandler(KeyDownEvent, OnPageRateAndTagKey, RoutingStrategies.Bubble);
         _grid.AddHandler(KeyDownEvent, OnSelectAllWhilePresenting, RoutingStrategies.Tunnel);
         _grid.SelectionChanged += (_, e) => { if (_restoring) return; _selectionStamp++; ShowSelectionNote(null); UpdateSelectionBar(); OnPanelSelectionChanged(e); };
         InstallReturnInterruption();
@@ -877,6 +878,13 @@ public sealed partial class MediaPage : UserControl
             }
             // M / U / F: every selected tile (revision 20, MediaPage.FavoriteKeys).
             if (TryRouteGridFavoriteKey(e)) return;
+            // R: the tile the key came from (a focused tile that is not selected becomes the selection, as Enter does), or the selection.
+            if (CommandBindings.Matches(e, "media.rating.edit"))
+            {
+                e.Handled = true;
+                await RateAndTagByKeyAsync(e.Source as Control);
+                return;
+            }
             // Rating, details, export, folder and file path of the medium (menu commands): the same actions and gates as the tile menu.
             foreach (string id in MediaShortcutCommands)
                 if (CommandBindings.Matches(e, id))
@@ -923,12 +931,12 @@ public sealed partial class MediaPage : UserControl
         string? blocked = TagsBlockedReason(entry, row.State);
         if (TagPopoverAsync is { } popover)
         {
-            await popover(entry, anchor, QuickTagPopoverContext.ContextOf(entry, _shown, row.Index), current, new RateAndTagRequest(focusRating, blocked));
+            await popover(entry, anchor, QuickTagPopoverContext.ContextOf(entry, _shown, row.Index), current, new RateAndTagRequest(focusRating, blocked, FocusGridNow));
             return;
         }
         if (blocked != null)
         {
-            QuickTagPopover.OpenBlocked(anchor, entry.Name ?? string.Empty, blocked, new QuickTagPopoverOptions { IsCurrent = current });
+            QuickTagPopover.OpenBlocked(anchor, entry.Name ?? string.Empty, blocked, new QuickTagPopoverOptions { IsCurrent = current, FocusFallback = FocusGridNow });
             return;
         }
         if (EditTagsForMenuAsync != null) await EditTagsForMenuAsync(entry, current);
@@ -946,15 +954,54 @@ public sealed partial class MediaPage : UserControl
     /// the others need exactly one saved tile, like the menu entries they stand for.</summary>
     internal async Task RunMediaCommandByShortcutAsync(string id)
     {
+        if (id == "media.rating.edit") { await RateAndTagByKeyAsync(null); return; }
         if (_lifetime.IsCancellationRequested || _building != null || _selectionBusy || ExecuteMediaMenuActionAsync == null) return;
         if (id == "media.export-original" && _grid.Selection.Count > 1) { await ExportSelectionAsync(); return; }
-        // R: the combined popover for the tile, or for all selected tiles together.
-        if (id == "media.rating.edit" && _grid.Selection.Count > 1) { await TagSelectionAsync(focusRating: true); return; }
         if (_grid.Selection.Count != 1 || SelectedRow is not { } row || row.Entry.Presence != MediaLibraryPresence.Present) return;
-        if (id.StartsWith("media.rating.", StringComparison.Ordinal) && id != "media.rating.edit" && row.State?.RatingKnown != true) return;
+        if (id.StartsWith("media.rating.", StringComparison.Ordinal) && row.State?.RatingKnown != true) return;
         bool Current() => !_lifetime.IsCancellationRequested && _building == null && IsEffectivelyVisible;
-        if (id == "media.rating.edit") { await OpenRateAndTagAsync(row.Entry, row, _grid.ContainerFromItem(row) ?? _grid, Current, focusRating: true); return; }
         await ExecuteMediaActionAsync(id, row.Entry, Current);
+    }
+
+    /// <summary>
+    /// R on the Media page (audit 16.11.2026, "Rate and tag sometimes does not open on R"): the combined popover for the tile the key came from, or for the
+    /// selection. A tile that has the keyboard focus without being selected (Ctrl+arrow, the return from the gallery focuses a tile and selects none)
+    /// becomes the selection, as Enter makes it; before, R did nothing there. Several selected tiles are rated and tagged together. Without a tile, with a
+    /// file that is not saved or while the index is being built the note under the selection bar says why, never silence.
+    /// </summary>
+    internal async Task RateAndTagByKeyAsync(Control? source)
+    {
+        if (_lifetime.IsCancellationRequested) return;
+        if (_building != null) { ShowSelectionNote(Texts.T("media.selection.reason.building")); return; }
+        if (_selectionBusy) return; // the selection's own popover or dialog is open and has the keyboard
+        if (source?.GetSelfAndVisualAncestors().OfType<ListBoxItem>()
+                .FirstOrDefault(item => ReferenceEquals(ItemsControl.ItemsControlFromItemContainer(item), _grid)) is { DataContext: MediaLibraryTileRow focused }
+            && !_grid.Selection.SelectedItems.Contains(focused))
+            _grid.SelectedItem = focused;
+        if (_grid.Selection.Count > 1) { await TagSelectionAsync(focusRating: true); return; }
+        if (SelectedRow is not { } row) { ShowSelectionNote(MediaMenuReasons.Unavailable); return; }
+        if (row.Entry.Presence != MediaLibraryPresence.Present) { ShowSelectionNote(MediaMenuReasons.NotSaved); return; }
+        bool Current() => !_lifetime.IsCancellationRequested && _building == null && IsEffectivelyVisible;
+        await OpenRateAndTagAsync(row.Entry, row, _grid.ContainerFromItem(row) ?? _grid, Current, focusRating: true);
+    }
+
+    // R with the focus on another control of the page (a filter chip, the sort or layout buttons, the selection bar): the grid's bubble route never saw
+    // it, so the key did nothing. It is the selection's "Rate and tag" there too; a text field keeps its R.
+    private void OnPageRateAndTagKey(object? sender, KeyEventArgs e)
+    {
+        if (e.Handled || _lifetime.IsCancellationRequested || ShortcutService.IsCapturing || e.Source is not Visual source
+            || CommandRouter.IsNativeInput(e.Source, e.Key) || !CommandBindings.Matches(e, "media.rating.edit")) return;
+        if (source.GetSelfAndVisualAncestors().Any(visual => ReferenceEquals(visual, _grid) || _panel != null && ReferenceEquals(visual, _panel))) return;
+        e.Handled = true;
+        OpenActions.Start(() => RateAndTagByKeyAsync(null), "media.page.rateAndTag");
+    }
+
+    /// <summary>The grid's place for the keyboard after a popover closed without its tile (rebuilt, scrolled away): the selected tile, else the grid.</summary>
+    internal bool FocusGridNow()
+    {
+        if (_lifetime.IsCancellationRequested || !_grid.IsEffectivelyVisible) return false;
+        if (SelectedRow is { } row && _grid.ContainerFromItem(row) is Control tile && tile.Focus()) return true;
+        return _grid.Focus();
     }
 
     internal void InitializeSharedMediaMenus()

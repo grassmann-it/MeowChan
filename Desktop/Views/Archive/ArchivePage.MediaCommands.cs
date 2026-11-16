@@ -342,16 +342,108 @@ public partial class ArchivePage
         if (target == null)
         {
             QuickTagPopover.OpenBlocked(origin, label ?? string.Empty, subject.TagsBlocked ?? MediaMenuReasons.Unavailable,
-                new QuickTagPopoverOptions { IsCurrent = PopoverCurrent });
+                new QuickTagPopoverOptions { IsCurrent = PopoverCurrent, FocusFallback = FocusAfterRateAndTag });
             return;
         }
         if (TagPopoverAsync != null)
             await TagPopoverAsync(subject.TagEntry ?? target, origin, QuickTagPopoverContext.ContextOf(subject.TagEntry ?? target, subject.GalleryEntries, thread.Summary.Title),
-                PopoverCurrent, new RateAndTagRequest(focusRating, subject.TagsBlocked));
+                PopoverCurrent, new RateAndTagRequest(focusRating, subject.TagsBlocked, FocusAfterRateAndTag));
         else if (subject.TagEntry != null && EditArchiveMediaTagsAsync != null) await EditArchiveMediaTagsAsync(subject.TagEntry);
         else QuickTagPopover.OpenBlocked(origin, target.Asset.OriginalFileName ?? string.Empty, subject.TagsBlocked ?? MediaMenuReasons.Unavailable,
-            new QuickTagPopoverOptions { IsCurrent = PopoverCurrent });
+            new QuickTagPopoverOptions { IsCurrent = PopoverCurrent, FocusFallback = FocusAfterRateAndTag });
     }
+
+    /// <summary>
+    /// Where the keyboard goes after "Rate and tag" closed when the control it was opened from is gone (the tile was rebuilt by the rating, the menu entry
+    /// it came from closed): the Media tab's selected tile or its list while that tab is shown, else the selected post's card or the posts list. Then ↑/↓
+    /// move through the posts and R opens the popover again at once (Tom, 16.11.2026: after closing it the arrows did nothing).
+    /// </summary>
+    internal bool FocusAfterRateAndTag()
+    {
+        if (_ended || !ArchiveReaderPane.IsEffectivelyVisible) return false;
+        if (ReaderPostsInBackground)
+        {
+            if (_mediaTiles)
+            {
+                ListBox tiles = ArchiveMediaTiles;
+                if (!tiles.IsEffectivelyVisible) return false;
+                if (tiles.SelectedItem is { } tile && tiles.ContainerFromItem(tile) is Control container && container.Focus()) return true;
+                return tiles.Focus();
+            }
+            DataGrid grid = ArchiveMediaGrid;
+            return grid.IsEffectivelyVisible && grid.Focus();
+        }
+        ListBox posts = ArchivePosts;
+        if (!posts.IsEffectivelyVisible) return false;
+        if (posts.SelectedItem is { } item && posts.ContainerFromItem(item) is Control card && card.Focus()) return true;
+        return posts.Focus();
+    }
+
+    /// <summary>
+    /// R in the reader (audit 16.11.2026, "Rate and tag sometimes does not open on R"): the medium the focus stands for (<see cref="FocusedMediaForRateAndTag"/>);
+    /// with the focus on another control of the reader (a toolbar or paging button, the posts list, a text selection, the find bar's buttons) the selected
+    /// post's medium, or the Media tab's selection while that tab is shown. While the media scan runs after a thread was opened (a quote jump, a page
+    /// turned) the key waits for it, as a click on a thumbnail does. With no medium the reason is said in the page's message line, never silence.
+    /// </summary>
+    internal async Task RateAndTagByKeyAsync()
+    {
+        if (_ended || !_available || _thread is not { } thread) return;
+        SelectPostOfFocusedText();
+        if (!HasRateAndTagKeyTarget() && !_mediaReady.Task.IsCompleted)
+        {
+            try { await _mediaReady.Task; }
+            catch (OperationCanceledException) { return; } // another thread was opened: the key was for the old one
+            catch (Exception error) when (error is not OutOfMemoryException) { /* the scan's own error is shown by the page; the refusal below says the rest */ }
+            if (_ended || !_available || !ReferenceEquals(_thread, thread)) return;
+        }
+        if (FocusedMediaForRateAndTag() != null || ReaderPostsInBackground && SelectedMediaRow() != null)
+        {
+            await OpenRateAndTagForFocusAsync(focusRating: true, ArchiveEditRatingButton);
+            return;
+        }
+        if (SelectedPostRateAndTagMedium() is { } medium)
+        {
+            ArchiveMediaSubject subject = ResolveArchiveMediaSubject(medium.Asset, medium.Attachment, medium.PostId);
+            Action<string> report = CaptureActionErrorReporter();
+            try { await OpenRateAndTagAsync(subject, medium.Origin, null, focusRating: true, medium.Attachment.Label); }
+            catch (Exception error) { report(error.Message); }
+            return;
+        }
+        Message(RateAndTagRefusal());
+    }
+
+    // A press that starts a text selection in a post is the text's (SelectableTextBlock handles it), so the post card was not selected: R stands for the
+    // post the person is reading and selecting in, as a click on that card would have made it the selected one. Only a realized card of the posts list.
+    private void SelectPostOfFocusedText()
+    {
+        ListBox posts = ArchivePosts;
+        if (TopLevel.GetTopLevel(posts)?.FocusManager?.GetFocusedElement() is not SelectableTextBlock text) return;
+        Control[] parents = text.GetSelfAndVisualAncestors().OfType<Control>().ToArray();
+        if (!parents.Contains(posts) || parents.Select(control => control.DataContext).OfType<ArchivePostRow>().FirstOrDefault() is not { } post
+            || ReferenceEquals(posts.SelectedItem, post) || posts.ContainerFromItem(post) is not Control card || !parents.Contains(card)) return;
+        posts.SelectedItem = post;
+    }
+
+    // R has a target now, without waiting for the media scan.
+    private bool HasRateAndTagKeyTarget() => FocusedMediaForRateAndTag() != null
+        || ReaderPostsInBackground && SelectedMediaRow() != null || SelectedPostRateAndTagMedium() != null;
+
+    /// <summary>The selected post's medium by the shared resolver, as R takes it with the focus outside the post card (null without a saved one).</summary>
+    private (ArchiveAssetRow Asset, ArchiveAttachmentRow Attachment, string PostId, Control Origin)? SelectedPostRateAndTagMedium()
+    {
+        if (_ended || !_available || _thread == null || _selectedThread is not { } threadId || ReaderPostsInBackground) return null;
+        ListBox posts = ArchivePosts;
+        if (posts.SelectedItem is not ArchivePostRow post) return null;
+        Control source = posts.ContainerFromItem(post) as Control ?? posts;
+        Control[] parents = source.GetSelfAndVisualAncestors().OfType<Control>().ToArray();
+        if (SelectedPostMedium(parents, source) is not { } medium
+            || FindMatchingAsset(threadId, medium.PostId, medium.Attachment.Attachment, _assets) is not { } asset) return null;
+        return (asset, medium.Attachment, medium.PostId, medium.Origin);
+    }
+
+    // Why R found nothing: a post whose media are not saved says so, anything else is "not available here".
+    private string RateAndTagRefusal() =>
+        !ReaderPostsInBackground && ArchivePosts.SelectedItem is ArchivePostRow { Attachments.Count: > 0 } ? MediaMenuReasons.NotSaved : MediaMenuReasons.Unavailable;
 
     // R and the rating keys: the medium of the focused control of the reader (its pane, or the media sidebar, which sits beside the pane in the large reader).
     private (ArchiveAssetRow? Asset, ArchiveAttachmentRow? Attachment, string? PostId, Control Origin)? FocusedMediaForRateAndTag()
