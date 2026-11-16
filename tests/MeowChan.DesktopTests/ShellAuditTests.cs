@@ -61,8 +61,9 @@ public sealed class ShellAuditTests
         });
     }
 
-    // Downloads lists: a saved binding of an archive command on the key of "Check now" (which also runs in the archive) made the default
-    // yield in the archive only; the list asked without a context and so counted it as yielded everywhere.
+    // Downloads lists: a saved binding of an archive command on the key of "Open context menu" (which also runs in the downloads lists) made the default
+    // yield in the archive only; the list asked without a context and so counted it as yielded everywhere. "Check now" is no example here: its
+    // default changed only in the macOS table, so on Windows and Linux it keeps the symmetric conflict rule and does not yield per context.
     [Fact]
     public void TheDownloadListsKeepADefaultThatASavedArchiveCommandTookOnlyFromTheArchive()
     {
@@ -70,12 +71,12 @@ public sealed class ShellAuditTests
         {
             try
             {
-                ShortcutGesture check = ShortcutService.Current.For("watch.check")[0];
+                ShortcutGesture check = ShortcutService.Current.For("menu.context-open")[0];
                 ShortcutService.Publish(new ShortcutBindingsSection().Set("archive.refresh", [check]));
                 var resolved = check.Resolve(ShortcutService.Current.Platform);
                 var e = Press(new Border(), resolved.Key, resolved.KeyModifiers);
-                Assert.False(CommandBindings.Matches(e, "watch.check"));
-                Assert.True(MainWindow.DownloadsMatches(e, "watch.check"));
+                Assert.False(CommandBindings.Matches(e, "menu.context-open"));
+                Assert.True(MainWindow.DownloadsMatches(e, "menu.context-open"));
             }
             finally { ShortcutService.Publish(new ShortcutBindingsSection()); }
         });

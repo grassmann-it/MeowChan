@@ -1,6 +1,7 @@
 using System;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 
@@ -25,7 +26,7 @@ public partial class ArchivePage
         {
             _mediaViewCommands?.Dispose(); _mediaViewCommands = new(pane);
             _mediaViewCommands.Register(new("archive.media-view", pane, () => pane.IsEffectivelyVisible && ArchiveMediaTab.IsSelected,
-                () => !_ended, () => _ = SetMediaLayoutAsync(!_mediaTiles), Priority: 100));
+                () => !_ended, () => OpenActions.Start(() => SetMediaLayoutAsync(!_mediaTiles), "archive.media-layout"), Priority: 100));
         };
         pane.DetachedFromVisualTree += (_, _) => { _mediaViewCommands?.Dispose(); _mediaViewCommands = null; };
         pane.KeyDown += (_, e) => _mediaViewCommands?.Route(e);
@@ -56,8 +57,11 @@ public partial class ArchivePage
         ArchiveMediaLayoutTable.IsChecked = !_mediaTiles;
     }
 
-    private async void OnMediaLayoutClick(object? sender, RoutedEventArgs e) =>
-        await SetMediaLayoutAsync(ReferenceEquals(sender, ArchiveMediaLayoutTiles));
+    private void OnMediaLayoutClick(object? sender, RoutedEventArgs e)
+    {
+        bool tiles = ReferenceEquals(sender, ArchiveMediaLayoutTiles);
+        OpenActions.Start(() => SetMediaLayoutAsync(tiles), "archive.media-layout");
+    }
 
     internal async System.Threading.Tasks.Task SetMediaLayoutAsync(bool tiles)
     {
