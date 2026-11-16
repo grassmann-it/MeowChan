@@ -1378,18 +1378,12 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
             _lifetime.Cleanup.Phase("native-file-dispose");
             playback.NativeFile?.Dispose();
             _lifetime.Cleanup.Owns("native operation, engine");
-            if (playback.NativeFile != null && _engine != null)
-            {
-                // The macOS Intel file-backed path uses VLC's FFmpeg demuxer. Reusing its
-                // LibVLC instance across repeated stop/play generations can retain decoder
-                // thread state after the player/media/file are gone; the next WebM seek then
-                // may block in MKV cluster recovery. The player is the only engine owner, so
-                // rebuild that engine between generations after native media ownership is gone.
-                _lifetime.Cleanup.Phase("engine-dispose-after-file-playback");
-                _engine.Dispose();
-                _engine = null;
-                _lifetime.Cleanup.Owns("native operation, engine");
-            }
+            // The engine belongs to this GalleryVideoPlayer, not to one medium. Native
+            // Stop/player release above joins that medium's decoder before its callbacks
+            // and verified input are freed. Keep the idle engine for the next Show;
+            // ReleaseEngineAsync joins it only at terminal owner disposal.
+            // Intel 43916342134: per-medium engine release took 5.23s and recreation
+            // 4.46s under _operations, blocking observers after the decoder had retired.
             _playback = null;
             if (watching) _lifetime.Cleanup.Complete();
         }
