@@ -48,10 +48,22 @@ internal static class DeadAffordanceGuard
         // can act once its data is there.
         if (control is Button or ToggleButton)
             return control.IsEnabled || !requireWiring || Wired(control) ? null : what + " on a disabled " + control.GetType().Name + " nothing is wired to";
-        if (Handles(control, PointerHandlers)) return null;
+        if (Handles(control, PointerHandlers))
+            // A control that presses on its own and has no background is hit only where it draws (a text block: its glyphs), so a click in its
+            // padding falls through to what is behind it. A chip or link gets its fill from its class, so only the hand cursor is judged.
+            return look == null && NoHitSurface(control) ? what + " on a " + control.GetType().Name + " without a Background: only its glyphs can be pressed (set Brushes.Transparent)" : null;
         if (control.GetLogicalAncestors().Any(Acts)) return null;
         return what + " on a " + control.GetType().Name + " that does not act";
     }
+
+    // True for a control that has a Background property and none set. A shape or an image has no such property and is judged by its own fill.
+    private static bool NoHitSurface(Control control) => control switch
+    {
+        Border border => border.Background == null,
+        Panel panel => panel.Background == null,
+        TextBlock text => text.Background == null,
+        _ => false
+    };
 
     // The events through which a control that is not a button acts on a click or a key.
     private static readonly Avalonia.Interactivity.RoutedEvent[] PointerHandlers =

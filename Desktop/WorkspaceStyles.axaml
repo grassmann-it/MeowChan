@@ -856,6 +856,18 @@
     <Style Selector="Button.nav Path"><Setter Property="Stroke" Value="{DynamicResource Workspace.Muted}" /></Style>
     <Style Selector="Button.nav:pointerover Path"><Setter Property="Stroke" Value="{DynamicResource Workspace.Text}" /></Style>
     <Style Selector="Button.nav.selected Path"><Setter Property="Stroke" Value="{DynamicResource Workspace.Accent}" /></Style>
+    <!-- Disabled (bug-class audit 2026-11-16): the label and icon are already Muted at rest, so the dimming carries it - the whole button at 0.75 like a disabled
+         chip (the label stays 4.7:1 / 3.7:1 on Panel in Dark / Light, pinned in DisabledStyleTests), no hover or pressed fill, and a disabled selected page keeps its accent bar. Named
+         after the label and icon rules above (pointerover and selected set Text and Accent there). -->
+    <Style Selector="Button.nav:disabled, Button.nav:disabled:pointerover, Button.nav:disabled:pressed"><Setter Property="Opacity" Value="0.75" /></Style>
+    <Style Selector="Button.nav:disabled /template/ ContentPresenter#PART_ContentPresenter, Button.nav:disabled:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.nav:disabled:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+    <Style Selector="Button.nav.selected:disabled /template/ ContentPresenter#PART_ContentPresenter, Button.nav.selected:disabled:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.nav.selected:disabled:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
+    </Style>
+    <Style Selector="Button.nav:disabled TextBlock, Button.nav:disabled:pointerover TextBlock, Button.nav.selected:disabled TextBlock"><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" /></Style>
+    <Style Selector="Button.nav:disabled Path, Button.nav:disabled:pointerover Path, Button.nav.selected:disabled Path"><Setter Property="Stroke" Value="{DynamicResource Workspace.Muted}" /></Style>
     <Style Selector="TextBox, ComboBox, NumericUpDown"><Setter Property="MinHeight" Value="{StaticResource Workspace.Size.Input}" /><Setter Property="FontSize" Value="{StaticResource Workspace.Text.Body}" /></Style>
     <!-- Semi's translucent dark-blue selection has little contrast on dark fields.
          Keep its native presenter and retained-selection behavior with an opaque pair. -->
@@ -1066,6 +1078,16 @@
         <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
     </Style>
+    <!-- Disabled (this and the toggles below, bug-class audit 2026-11-16): the label in Muted and the whole control dimmed to 0.75 like a disabled
+         chip, the form (and a set toggle's accent fill) stays recognisable, but no hover or pressed fill: the rules come after those states and
+         name them, so they win. Contrast is pinned in DisabledStyleTests. -->
+    <Style Selector="ToggleButton.filter-toggle:disabled, ToggleButton.filter-toggle:pointerover:disabled, ToggleButton.filter-toggle:pressed:disabled, ToggleButton.filter-toggle:checked:disabled, ToggleButton.filter-toggle:checked:pointerover:disabled, ToggleButton.filter-toggle:checked:pressed:disabled"><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" /><Setter Property="Opacity" Value="0.75" /></Style>
+    <Style Selector="ToggleButton.filter-toggle:disabled /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.filter-toggle:pointerover:disabled /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.filter-toggle:pressed:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Raised}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
+    </Style>
+    <Style Selector="ToggleButton.filter-toggle:checked:disabled /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.filter-toggle:checked:pointerover:disabled /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.filter-toggle:checked:pressed:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
+    </Style>
     <!-- A status badge that also carries a filter (shortcuts window: the conflict count): no button frame of its own, the badge inside is the
          look; hover tints it, checked (filter on) draws an accent ring around it. -->
     <Style Selector="ToggleButton.status-toggle">
@@ -1078,6 +1100,13 @@
     </Style>
     <Style Selector="ToggleButton.status-toggle:checked /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.status-toggle:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.status-toggle:pressed /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
+    </Style>
+    <Style Selector="ToggleButton.status-toggle:disabled, ToggleButton.status-toggle:pointerover:disabled, ToggleButton.status-toggle:pressed:disabled, ToggleButton.status-toggle:checked:disabled, ToggleButton.status-toggle:checked:pointerover:disabled, ToggleButton.status-toggle:checked:pressed:disabled"><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" /><Setter Property="Opacity" Value="0.75" /></Style>
+    <Style Selector="ToggleButton.status-toggle:disabled /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.status-toggle:pointerover:disabled /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.status-toggle:pressed:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
+    </Style>
+    <Style Selector="ToggleButton.status-toggle:checked:disabled /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.status-toggle:checked:pointerover:disabled /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.status-toggle:checked:pressed:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
     </Style>
     <!-- M5: the two-way switch (TwoWayToggle, "all | any"): two touching buttons with the frame, height and corners of the combo box; on = accent surface. -->
     <Style Selector="ToggleButton.segment">
@@ -1105,6 +1134,13 @@
         <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+    </Style>
+    <Style Selector="ToggleButton.segment:disabled, ToggleButton.segment:pointerover:disabled, ToggleButton.segment:pressed:disabled, ToggleButton.segment:checked:disabled, ToggleButton.segment:checked:pointerover:disabled, ToggleButton.segment:checked:pressed:disabled"><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" /><Setter Property="Opacity" Value="0.75" /></Style>
+    <Style Selector="ToggleButton.segment:disabled /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.segment:pointerover:disabled /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.segment:pressed:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Raised}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
+    </Style>
+    <Style Selector="ToggleButton.segment:checked:disabled /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.segment:checked:pointerover:disabled /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.segment:checked:pressed:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
     </Style>
     <!-- The parts of the "where was it found" row under the Media search (MediaTextBreakdownRow): separate toggle chips of the control height
          with the frame and states of the segments; on = accent surface. -->
@@ -1141,6 +1177,25 @@
         <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+    </Style>
+    <Style Selector="ToggleButton.breakdown-chip:disabled, ToggleButton.breakdown-chip:pointerover:disabled, ToggleButton.breakdown-chip:pressed:disabled, ToggleButton.breakdown-chip:checked:disabled, ToggleButton.breakdown-chip:checked:pointerover:disabled, ToggleButton.breakdown-chip:checked:pressed:disabled"><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" /><Setter Property="Opacity" Value="0.75" /></Style>
+    <Style Selector="ToggleButton.breakdown-chip:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Raised}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
+    </Style>
+    <Style Selector="ToggleButton.breakdown-chip:pointerover:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Raised}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
+    </Style>
+    <Style Selector="ToggleButton.breakdown-chip:pressed:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Raised}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
+    </Style>
+    <Style Selector="ToggleButton.breakdown-chip:checked:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
+    </Style>
+    <Style Selector="ToggleButton.breakdown-chip:checked:pointerover:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
+    </Style>
+    <Style Selector="ToggleButton.breakdown-chip:checked:pressed:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
     </Style>
     <!-- Split button (the gallery slideshow: toggle + menu button): both halves are exactly Workspace.Size.Control high and share one 1-px edge
          (the menu half overlaps it by 1) and the control radius on the outer corners only; the menu half is a square of that size. A half in
@@ -1275,6 +1330,11 @@
     </Style>
     <Style Selector="ToggleButton.gallery-favorite-badge:pressed /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.gallery-favorite-badge:checked:pressed /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
+    </Style>
+    <!-- Disabled: the dark scrim stays (a Muted label would be dark on dark in Light), dimmed to 0.75 with no hover, focus or pressed state. -->
+    <Style Selector="ToggleButton.gallery-favorite-badge:disabled, ToggleButton.gallery-favorite-badge:checked:disabled, ToggleButton.gallery-favorite-badge:disabled:pointerover, ToggleButton.gallery-favorite-badge:checked:disabled:pointerover, ToggleButton.gallery-favorite-badge:disabled:pressed, ToggleButton.gallery-favorite-badge:checked:disabled:pressed"><Setter Property="Opacity" Value="0.75" /></Style>
+    <Style Selector="ToggleButton.gallery-favorite-badge:disabled /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.gallery-favorite-badge:checked:disabled /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.gallery-favorite-badge:disabled:pointerover /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.gallery-favorite-badge:checked:disabled:pointerover /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.gallery-favorite-badge:disabled:pressed /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.gallery-favorite-badge:checked:disabled:pressed /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.gallery-favorite-badge:disabled:focus-visible /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.gallery-favorite-badge:checked:disabled:focus-visible /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="#D2181A1F" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="Foreground" Value="White" />
     </Style>
     <Style Selector="Slider.media-slider">
         <Setter Property="Background" Value="{DynamicResource Workspace.ControlBorder}" />
@@ -1452,6 +1512,8 @@
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
         <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
     </Style>
+    <!-- Disabled: the card (and the selected card's bar and fill) dimmed to 0.75; the selected look stays so the selection is still readable. -->
+    <Style Selector="Button.source-card:disabled"><Setter Property="Opacity" Value="0.75" /></Style>
 
     <!-- Plugins list: the Ursa selection list drawn as the Sources list cards. The sliding indicator is off; each item is a raised
          card with the same start-edge bar and accent surface when selected. Selection, keyboard and automation stay Ursa's. -->
@@ -1556,6 +1618,17 @@
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
     </Style>
+    <!-- Disabled: the Muted glyph dimmed to 0.75, no hover or pressed fill. -->
+    <Style Selector="Button.help-round:disabled, Button.help-round:disabled:pointerover, Button.help-round:disabled:pressed"><Setter Property="Opacity" Value="0.75" /></Style>
+    <Style Selector="Button.help-round:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
+    </Style>
+    <Style Selector="Button.help-round:disabled:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
+    </Style>
+    <Style Selector="Button.help-round:disabled:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
+    </Style>
     <!-- Tagging page (layout review 15.11.): the outlined button of a toolbar row. Ursa's ToolBar gives its buttons the borderless theme, so a
          row of actions beside combo boxes read as flat labels and a disabled one as a dead grey word; bar-button keeps the standard button
          theme (as help-round does), so the selection bar is outlined like the Media selection row. Only on the bar itself: an item that moved
@@ -1616,6 +1689,13 @@
     <Style Selector="ToggleButton.disclosure:pointerover /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.disclosure:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.disclosure:pressed /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="{DynamicResource Workspace.Hover}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+    </Style>
+    <Style Selector="ToggleButton.disclosure:disabled, ToggleButton.disclosure:pointerover:disabled, ToggleButton.disclosure:pressed:disabled, ToggleButton.disclosure:checked:disabled, ToggleButton.disclosure:checked:pointerover:disabled, ToggleButton.disclosure:checked:pressed:disabled"><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" /><Setter Property="Opacity" Value="0.75" /></Style>
+    <Style Selector="ToggleButton.disclosure:disabled /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.disclosure:pointerover:disabled /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.disclosure:pressed:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
+    </Style>
+    <Style Selector="ToggleButton.disclosure:checked:disabled /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.disclosure:checked:pointerover:disabled /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.disclosure:checked:pressed:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
     </Style>
     <!-- HB1 HelpPopover: a flyout with the popover inset (16), the control outline and the overlay radius; the column inside is
          Workspace.Size.ReadingWidth (400) at most, so MaxWidth here is 400 + 2 x 16 inset + 2 x 1 border. -->
@@ -1733,6 +1813,10 @@
         <Setter Property="Background" Value="{DynamicResource Workspace.ChipSelectedSurface}" />
         <Setter Property="Stroke" Value="{DynamicResource Workspace.ChipSelectedBorder}" />
     </Style>
+    <!-- Disabled: the dashed chip dimmed to 0.75 like a disabled chip, without the hover or pressed fill. -->
+    <Style Selector="Button.chip-source-button:disabled, Button.chip-source-button:disabled:pointerover, Button.chip-source-button:disabled:pressed"><Setter Property="Opacity" Value="0.75" /></Style>
+    <Style Selector="Button.chip-source-button:disabled /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="Transparent" /></Style>
+    <Style Selector="Button.chip-source-button:disabled:pointerover controls|ChipOutline.chip-source, Button.chip-source-button:disabled:pressed controls|ChipOutline.chip-source"><Setter Property="Background" Value="Transparent" /></Style>
     <!-- The invisible "Play video here" button over a video's picture (reader post, media sidebar): Semi's hover/pressed fill of the presenter
          would paint the whole frame flat and hide the poster, so every state is transparent; hover and focus show a thin accent ring. -->
     <Style Selector="Button.video-activator">
@@ -1801,12 +1885,24 @@
         <Setter Property="Background" Value="{DynamicResource Workspace.ChipSurface}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ChipBorder}" />
     </Style>
+    <!-- Disabled: where the toggle shows at all (set, hover or focus of the tile) it is dimmed to 0.75 with the Muted glyph and no hover fill. The
+         opacity rules name the same tile contexts as the visibility rules above and below, so they win over each of them. -->
+    <Style Selector="ToggleButton.tile-favorite:disabled /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.tile-favorite:checked:disabled /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.tile-favorite:disabled:pointerover /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.tile-favorite:checked:disabled:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.ChipSurface}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ChipBorder}" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
+    </Style>
+    <Style Selector="ToggleButton.tile-favorite:checked:disabled, ToggleButton.tile-favorite:disabled:focus-visible, ListBoxItem:pointerover ToggleButton.tile-favorite:disabled, ListBoxItem:focus-within ToggleButton.tile-favorite:disabled">
+        <Setter Property="Opacity" Value="0.75" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
+    </Style>
     <!-- MB1b: where the shared media badges already show the favourite at rest (archive tiles), the toggle is only shown while the tile is
          hovered or holds keyboard focus, set or not (declared after the rules above, so it wins over ":checked"). -->
     <Style Selector="ToggleButton.tile-favorite.tile-favorite-quiet:checked"><Setter Property="Opacity" Value="0" /></Style>
     <Style Selector="ToggleButton.tile-favorite.tile-favorite-quiet:focus-visible"><Setter Property="Opacity" Value="1" /></Style>
     <Style Selector="ListBoxItem:pointerover ToggleButton.tile-favorite.tile-favorite-quiet"><Setter Property="Opacity" Value="1" /></Style>
     <Style Selector="ListBoxItem:focus-within ToggleButton.tile-favorite.tile-favorite-quiet"><Setter Property="Opacity" Value="1" /></Style>
+    <Style Selector="ToggleButton.tile-favorite.tile-favorite-quiet:checked:disabled"><Setter Property="Opacity" Value="0" /></Style>
+    <Style Selector="ToggleButton.tile-favorite.tile-favorite-quiet:disabled:focus-visible, ListBoxItem:pointerover ToggleButton.tile-favorite.tile-favorite-quiet:disabled, ListBoxItem:focus-within ToggleButton.tile-favorite.tile-favorite-quiet:disabled"><Setter Property="Opacity" Value="0.75" /></Style>
     <Style Selector="ListBoxItem.chip-item:selected controls|ChipOutline.chip-source TextBlock.chip-label"><Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" /></Style>
 
     <!-- D4 (E7, A11Y M7): a chosen chip is never the tint alone. The chip-selected class gives the tint and a solid 2-px accent

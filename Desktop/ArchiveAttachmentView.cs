@@ -457,6 +457,7 @@ public sealed class ArchiveAttachmentView : UserControl
     private void ConfigureFileNameClick()
     {
         _label.Cursor = PointerCursors.Hand;
+        _label.Background = Avalonia.Media.Brushes.Transparent; // the whole box of the name presses, not only its glyphs
         _label.Tapped += (_, e) =>
         {
             if (DataContext is not ArchiveAttachmentRow || e.Handled) return;

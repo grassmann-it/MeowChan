@@ -237,6 +237,8 @@ public sealed class ArchiveMediaTileView : UserControl
         TextBlock caption = _rating;
         caption.Focusable = true;
         caption.IsTabStop = true;
+        // A text block without a background is hit only on its glyphs: a click in its padding would fall through to the tile and select it.
+        caption.Background = Avalonia.Media.Brushes.Transparent;
         // The hand cursor needs the platform's cursor factory: without a platform (a headless host) the control keeps the arrow.
         try { caption.Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand); }
         catch (InvalidOperationException) { }
