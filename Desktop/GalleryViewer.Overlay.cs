@@ -643,6 +643,11 @@ internal sealed partial class GalleryViewer
         if (e.Pointer.Type == PointerType.Mouse && _lastPointerScreen is PixelPoint current
             && previous != current)
         {
+            // A real mouse move is an input-modality transition even when Avalonia
+            // keeps keyboard focus on the last playback action. Without clearing the
+            // modality here, KeyboardPanelFocus rejects this motion as a keyboard task
+            // and the hidden controls never receive the production center-reveal path.
+            _keyboardInteraction = false;
             _lastIndicatorMotion = Stopwatch.GetTimestamp();
             _indicatorExpiryTimer ??= new DispatcherTimer { Interval = GalleryEdgeMotion.Lifetime };
             _indicatorExpiryTimer.Tick -= OnIndicatorExpiry;
