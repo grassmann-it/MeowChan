@@ -527,7 +527,23 @@ internal static partial class GalleryPlaybackFeatureChecks
         async Task BottomAsync()
         {
             Console.WriteLine("EDGE before move: " + JsonSerializer.Serialize(ObserveEdges()));
-            await native.MoveAsync(viewer, new Point(viewer.Bounds.Width * .45, viewer.Bounds.Height - 2));
+            // The bottom edge can be hosted by a different current presentation
+            // root from the GalleryViewer (the transparent native video overlay).
+            // Resolve the control that owns the point in this turn instead of
+            // pairing a viewer-relative bottom coordinate with a stale root. When
+            // the footer is visible, its current surface owns the transport; after
+            // auto-hide, the edge handle owns the reveal. MoveAsync keeps the
+            // strict native hit-test and re-resolves this selector on every bounded
+            // transaction retry.
+            await native.MoveAsync(
+                () =>
+                {
+                    Control footer = Find<Control>(viewer, "GalleryOverlayFooter");
+                    if (footer.IsEffectivelyVisible && footer.IsHitTestVisible)
+                        return Task.FromResult(footer);
+                    return Task.FromResult<Control>(Find<Button>(viewer, "GalleryControlsEdgeIndicator"));
+                },
+                target => Task.FromResult<Point?>(new Point(target.Bounds.Width / 2, target.Bounds.Height / 2)));
             Console.WriteLine("EDGE after move: " + JsonSerializer.Serialize(ObserveEdges()));
         }
         await CenterAsync();
@@ -586,8 +602,21 @@ internal static partial class GalleryPlaybackFeatureChecks
         }, "Edge transport seek changed native Playing intent.");
         foreach (string name in new[] { "GalleryVideoVolume", "GalleryVideoLoop" })
         {
-            Control transport = Find<Control>(viewer, name);
-            await native.MoveAsync(transport);
+            // The individual action can be disabled (Repeat while Slideshow owns
+            // playback) and can move between the dock and the overlay root. Keep the
+            // enabled transport as the strict native target, then calculate the named
+            // action's point from that same current transport instance. This avoids
+            // pairing a stale child control with a newly transferred presentation.
+            await native.MoveAsync(
+                () => NativeTargetAsync<Border>(viewer, "GalleryVideoTransport"),
+                currentTransport =>
+                {
+                    Control currentAction = currentTransport.GetVisualDescendants().OfType<Control>()
+                        .Single(control => control.Name == name);
+                    return Task.FromResult<Point?>(currentAction.TranslatePoint(
+                        new Point(currentAction.Bounds.Width / 2, currentAction.Bounds.Height / 2), currentTransport)
+                        ?? throw new ArgumentException("Gallery transport action has no current transport transform.", nameof(name)));
+                });
             await HoldAsync(TimeSpan.FromMilliseconds(700), () => Require(Visible(controls) && !Visible(post)
                 && !viewer.CaptureState().ContextOpen && Running(viewer),
                 "Hovering bottom transport leaked into right-post reveal or stopped slideshow: " + name));
@@ -632,7 +661,7 @@ internal static partial class GalleryPlaybackFeatureChecks
         }
         else
         {
-            await NativeSliderClickAsync(native, volume, .60);
+            await NativeSliderClickAsync(native, viewer, "GalleryVideoVolume", .60);
         }
         await MediaInteractionSmokeHelpers.HoldStateAsync(player, "Playing", "Bottom-edge volume interaction");
         Require(Running(viewer) && !Visible(post) && !viewer.CaptureState().ContextOpen,
