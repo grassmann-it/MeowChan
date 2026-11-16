@@ -68,14 +68,15 @@ unchanged; selected group failures propagate to the harness.
 
 ## Bounded contracts
 
-Run from any directory (requires .NET 10 SDK and Git history containing the base):
+Run explicitly from the repository root (requires the installed .NET 10 SDK;
+no Git executable, `.git` directory, history, or package feed is required):
 
 ```sh
 python3 tests/gallery-error-decomposition/check_contract.py
 ```
 
-The Python runner checks the entire implementation suffix against `ba1842af4`,
-then extracts and compiles the **actual new entrypoint/orchestration source** in a
+The Python runner checks the entire implementation suffix against a pinned SHA-256
+reference (see below), then extracts and compiles the **actual new entrypoint/orchestration source** in a
 temporary dependency-free .NET console project. Test doubles record scheduling,
 not GUI success. Contracts cover all five exact schedules, four notification
 combinations, both reader states, fixture failures, fail-fast check failures,
@@ -84,9 +85,43 @@ non-decoder groups' independence from asset preparation, and invalid group value
 No application/plugin build, shared project edit, full suite, CI or native run is
 part of these contracts.
 
-Local result: **2/2 Python contracts PASS**; extracted C# scheduling/guard/cleanup
-contracts PASS. Fresh-process selectors are not runnable until the shared owner
-wires them. Residual native verification: execute all four selectors in separate
+The mini-project has no package dependencies and uses an empty package-source
+configuration. Build and execution are separate subprocesses, bounded to **60s**
+and **15s** respectively; timeout or nonzero exit fails the test. MSBuild node
+reuse, MSBuild servers and shared compiler servers are disabled. The runner uses
+the temporary project as its working directory, avoiding repository-level SDK
+configuration leakage. It does not perform an application build.
+
+**Intentional discovery scope:** this nested `check_contract.py` is an explicit
+review/decomposition check, not part of root `unittest` discovery (its filename
+is not `test*.py`, and the directory is not a discovery package). Run the command
+above, or explicitly wire that command in a future job; do not assume root test
+discovery ran it. No discovery/CI wiring is added by this follow-up.
+
+### Pinned reference and future changes
+
+Reference provenance: `GalleryErrorInteractionChecks.cs` at full commit
+`ba1842af424bc1275ec0d440fa89be009f7a072f`, after native pointer fix `ef5de36a4`.
+The reference covers the suffix beginning at the exact `BOUNDARY` declaration in
+`check_contract.py` through EOF. Decode as UTF-8 with universal-newline
+normalization, then encode as UTF-8 and hash with SHA-256. Thus CRLF checkouts and
+LF source archives agree. Expected digest:
+
+```text
+e31752624558bbc02785e79db6dd666540ae899761c2b6a79aa99995009ef6a2
+```
+
+The digest is checked in, not obtained from Git at test time. It protects the
+historical implementation snapshot, not a prohibition on legitimate future
+changes. If those checks intentionally change, review the diff against the
+previous pinned revision, explicitly account for changed assertions/matrix
+coverage in this document, then update the digest **and provenance revision** in
+the same reviewed change. Update the boundary if the method is renamed. Never
+blindly refresh the hash to silence a failing preservation check. Scheduling
+changes above the boundary are covered separately by the executable contract.
+
+Local result: **2/2 Python contracts PASS**, also from a copied source tree without
+`.git`; extracted C# scheduling/guard/cleanup contracts PASS. Residual native verification: execute all four selectors in separate
 authorized macOS processes with the pinned fixture, require every mapped matrix
 case and normal stage completion; ensure a failed group does not suppress launch
 of other independent processes. The actual failing process must still report
