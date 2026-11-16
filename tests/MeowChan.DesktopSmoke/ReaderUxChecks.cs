@@ -245,7 +245,7 @@ internal static class ReaderUxChecks
         switch (id)
         {
             case "reader-owned-navigation": await CheckOwnedNavigationAsync(window, page, reader); break;
-            case "reader-gallery-roundtrip": await CheckGalleryRoundtripAsync(window, page, reader); break;
+            case "reader-gallery-roundtrip": await RunFreshGalleryRoundtripAsync(window, page, reader); break;
             case "reader-list-gallery-return":
                 Click(page.FindControl<Button>("ArchiveCloseReader")!);
                 await Program.WaitUntilAsync(() => !reader.IsVisible);
@@ -364,6 +364,59 @@ internal static class ReaderUxChecks
             "Embedded archive retained the reader overlay or its reserved content band.");
         Require(!reader.IsVisible && page.FindControl<Grid>("ArchiveReaderPane")!.Parent == page.FindControl<Grid>("ArchiveSplit"),
             "Closing reader did not return control ownership.");
+    }
+
+    private static async Task RunFreshGalleryRoundtripAsync(MainWindow window, ArchivePage page, ContentControl reader)
+    {
+        // A fresh profile clicks media into the sidebar by default. This
+        // journey tests the gallery route, not that separate sidebar choice.
+        // Pin the input preference explicitly (as ReaderInteractionChecks
+        // does), never the gallery/post/zoom outcome; restore it even on failure.
+        ReaderMediaPreferences mediaBefore = page.ReaderMedia;
+        bool overlayBefore = window.SessionHost.Config.GalleryOverlayControls;
+        bool autoHideBefore = window.SessionHost.Config.GalleryAutoHideControls;
+        Exception? failureBeforeCleanup = null;
+        try
+        {
+            // GalleryCaptionChecks is the docked scene: it requires tools
+            // below the viewport and still visible after 4.2 seconds idle.
+            // Overlay/autohide has its own journeys; choose the docked input
+            // through the real settings owner before creating this gallery.
+            await window.SessionHost.SaveViewPreferencesAsync(config =>
+            {
+                config.GalleryOverlayControls = false;
+                config.GalleryAutoHideControls = false;
+            });
+            ReaderSmokeSetup.Choose(page, ReaderMediaClickMode.Gallery);
+            // MediaLoadTask completes the manifest scan, not the realized
+            // attachment's decode/layout. The old prefix had already waited
+            // for a large preview before arriving at this real button click.
+            await Program.WaitUntilAsync(() => reader.GetVisualDescendants().OfType<ArchiveAttachmentView>()
+                .FirstOrDefault(view => view.DataContext is ArchiveAttachmentRow) is { } first
+                && first.Thumbnail.Source is Bitmap bitmap && bitmap.PixelSize.Width > 240
+                && first.PreviewButton.IsEffectivelyVisible && first.PreviewButton.IsEffectivelyEnabled
+                && first.PreviewButton.Bounds.Width > 0 && first.PreviewButton.Bounds.Height > 0);
+            Console.WriteLine($"SMOKE scoped gallery-roundtrip setup: click mode {mediaBefore.Video.Mode} → {page.ReaderMedia.Video.Mode}; "
+                + $"controls overlay {overlayBefore} → {window.SessionHost.Config.GalleryOverlayControls}; "
+                + "first actual preview has a large decoded bitmap and a visible enabled button; single-click gallery journey follows.");
+            await CheckGalleryRoundtripAsync(window, page, reader);
+        }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
+        finally
+        {
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                try
+                {
+                    await window.SessionHost.SaveViewPreferencesAsync(config =>
+                    {
+                        config.GalleryOverlayControls = overlayBefore;
+                        config.GalleryAutoHideControls = autoHideBefore;
+                    });
+                }
+                finally { ReaderSmokeSetup.Restore(page, mediaBefore); }
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in scoped gallery roundtrip: " + exception));
+        }
     }
 
     private static async Task CheckListGalleryReturnAsync(MainWindow window, ArchivePage page, ContentControl reader)
