@@ -8,7 +8,8 @@ using MeowChan.Persistence;
 
 namespace MeowChan.Desktop;
 
-internal enum ThreadFavoriteLoadState { Ready, Unavailable }
+// Presentation-only state, never serialized; keep existing numeric values stable.
+internal enum ThreadFavoriteLoadState { Ready = 0, Unavailable = 1, Loading = 2 }
 // Unavailable never supplies an empty protection set. Cleanup callers must require Ready.
 internal sealed record ThreadFavoriteLoadSnapshot(ThreadFavoriteLoadState State,
     ThreadFavoriteSnapshot? Snapshot, string? Error);
@@ -19,7 +20,7 @@ internal sealed partial class DesktopSessionHost
     private ThreadFavoriteStore? _threadFavoritesStore;
     private ThreadFavoriteSnapshot? _threadFavorites;
 
-    private ThreadFavoriteLoadSnapshot _publishedThreadFavorites = new(ThreadFavoriteLoadState.Unavailable, null, "Thread favorites are loading.");
+    private ThreadFavoriteLoadSnapshot _publishedThreadFavorites = new(ThreadFavoriteLoadState.Loading, null, null);
     internal ThreadFavoriteLoadSnapshot GetPublishedThreadFavoriteSnapshot() => Volatile.Read(ref _publishedThreadFavorites);
 
     /// <summary>Revalidates the complete on-disk protection set, independent of filters, pages and media.</summary>

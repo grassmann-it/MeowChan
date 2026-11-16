@@ -8,6 +8,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Localization;
 using MeowChan.Favorites;
 
 namespace MeowChan;
@@ -17,6 +18,9 @@ public partial class ArchivePage
     private Func<ThreadFavoriteLoadSnapshot>? _loadThreadFavorites;
     private Func<ResourceId, bool, CancellationToken, Task<ThreadFavoriteCommit>>? _setThreadFavorite;
     private ThreadFavoriteSnapshot? _threadFavoriteSnapshot;
+    private ThreadFavoriteLoadSnapshot? _lastThreadFavoriteLoad;
+    private string? _threadFavoriteLoadLanguage;
+    private int _threadFavoriteBinding;
     private HashSet<ResourceId> _threadFavoriteIds = new();
     private readonly HashSet<ResourceId> _threadFavoritePending = new();
     private readonly Dictionary<ResourceId, string> _threadFavoriteErrors = new();
@@ -61,8 +65,17 @@ public partial class ArchivePage
 
     internal void AttachThreadFavorites(DesktopSessionHost host)
     {
+        if (_ended) return;
+        ++_threadFavoriteBinding;
+        _lastThreadFavoriteLoad = null;
+        _threadFavoriteSnapshot = null;
+        _threadFavoriteIds.Clear();
+        _threadFavoritePending.Clear();
+        _threadFavoriteErrors.Clear();
+        ClearOperationError("thread-favorites-save");
         _loadThreadFavorites = host.GetPublishedThreadFavoriteSnapshot;
         _setThreadFavorite = host.SetThreadFavoriteAsync;
+        UpdateThreadFavoriteActions();
     }
 
     private void ConfigureThreadFavoriteRows(IEnumerable<ArchiveThreadRow> rows)
@@ -79,10 +92,21 @@ public partial class ArchivePage
     private void ReloadThreadFavorites()
     {
         if (_ended || _loadThreadFavorites == null) return;
+        // Published immutable state only: action/availability refresh must never read the disk.
         ThreadFavoriteLoadSnapshot loaded = _loadThreadFavorites();
-        _threadFavoriteSnapshot = loaded.State == ThreadFavoriteLoadState.Ready ? loaded.Snapshot : null;
-        _threadFavoriteIds = _threadFavoriteSnapshot?.Threads.ToHashSet() ?? new();
-        _threadFavoriteLoadError = _threadFavoriteSnapshot == null ? ThreadFavoriteText.LoadError(loaded.Error ?? string.Empty) : null;
+        bool changed = !ReferenceEquals(loaded, _lastThreadFavoriteLoad);
+        if (!changed && _threadFavoriteLoadLanguage == Texts.Language) return;
+        _lastThreadFavoriteLoad = loaded;
+        _threadFavoriteLoadLanguage = Texts.Language;
+        if (changed)
+        {
+            // This is the host's current publication, not an asynchronous command acknowledgement.
+            // Preserve authoritative revalidation (including repaired stores), not a UI-owned cache.
+            _threadFavoriteSnapshot = loaded.State == ThreadFavoriteLoadState.Ready ? loaded.Snapshot : null;
+            _threadFavoriteIds = _threadFavoriteSnapshot?.Threads.ToHashSet() ?? new();
+        }
+        _threadFavoriteLoadError = _threadFavoriteSnapshot == null && loaded.State == ThreadFavoriteLoadState.Unavailable
+            ? ThreadFavoriteText.LoadError(loaded.Error ?? string.Empty) : null;
         if (_threadFavoriteLoadError != null) OperationMessage("thread-favorites-load", _threadFavoriteLoadError, true);
         else ClearOperationError("thread-favorites-load");
     }
@@ -97,6 +121,8 @@ public partial class ArchivePage
 
     private void UpdateThreadFavoriteActions()
     {
+        if (_ended) return;
+        ReloadThreadFavorites();
         foreach (ArchiveThreadRow row in ArchiveVisibleRows) UpdateThreadFavoriteRow(row);
         ArchiveThreadFavoriteButton? button = this.FindControl<ArchiveThreadFavoriteButton>("ArchiveCurrentThreadFavorite");
         if (button == null) return;
@@ -113,7 +139,10 @@ public partial class ArchivePage
 
     private async Task ToggleThreadFavoriteAsync(ResourceId id)
     {
+        ReloadThreadFavorites();
         if (!CanToggleThreadFavorite(id)) return;
+        int binding = _threadFavoriteBinding;
+        var setFavorite = _setThreadFavorite!;
         bool favorite = !_threadFavoriteIds.Contains(id);
         _threadFavoritePending.Add(id);
         _threadFavoriteErrors.Remove(id);
@@ -121,8 +150,8 @@ public partial class ArchivePage
         UpdateThreadFavoriteActions();
         try
         {
-            ThreadFavoriteCommit committed = await _setThreadFavorite!(id, favorite, _lifetime.Token);
-            if (_ended) return;
+            ThreadFavoriteCommit committed = await setFavorite(id, favorite, _lifetime.Token);
+            if (_ended || binding != _threadFavoriteBinding) return;
             // Independent thread commands may finish their dispatcher continuations out of order.
             // An older acknowledgement must not hide a newer successfully committed mark.
             if (_threadFavoriteSnapshot == null || committed.Snapshot.Revision >= _threadFavoriteSnapshot.Revision)
@@ -135,15 +164,18 @@ public partial class ArchivePage
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
         catch (Exception error)
         {
-            if (_ended) return;
+            if (_ended || binding != _threadFavoriteBinding) return;
             string message = ThreadFavoriteText.SaveError(id, error.Message);
             _threadFavoriteErrors[id] = message;
             OperationMessage("thread-favorites-save", message, true);
         }
         finally
         {
-            _threadFavoritePending.Remove(id);
-            if (!_ended) UpdateThreadFavoriteActions();
+            if (binding == _threadFavoriteBinding)
+            {
+                _threadFavoritePending.Remove(id);
+                if (!_ended) UpdateThreadFavoriteActions();
+            }
         }
     }
 }

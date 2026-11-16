@@ -215,6 +215,11 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             // bypassed by restarting the ordinary producer/queue epoch.
             await ResolveInterruptedTransfersAsync(_startupCancellation.Token).ConfigureAwait(false);
             await _content.Catalog.EnsureNativeMediaRecoveryClearAsync(_startupCancellation.Token).ConfigureAwait(false);
+            // Thread marks belong to the readable archive, not plugin/registry readiness. Read only
+            // this bounded profile index on the existing startup worker before admitting reader views.
+            _startupCancellation.Token.ThrowIfCancellationRequested();
+            GetThreadFavoriteSnapshot();
+            _startupCancellation.Token.ThrowIfCancellationRequested();
             PublishCatalogReadable();
             if (AfterCatalogReadableForTests is { } readableHold) await readableHold(_startupCancellation.Token).ConfigureAwait(false);
             if (Plugins != null)
