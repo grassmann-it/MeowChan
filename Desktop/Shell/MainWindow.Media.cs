@@ -67,6 +67,7 @@ public partial class MainWindow
             TagPopoverOptions = TagPopoverDefaults,
             DecisionForEntries = DecisionForMediaEntries,
             ExecuteMediaMenuActionAsync = ExecuteMediaLibraryMenuActionAsync,
+            PendingFavorite = PendingMediaFavorite,
             ReadUserData = ReadMediaLibraryUserData,
             ReadBooruCatalog = _session.ReadBooruCatalog,
             CacheLimitBytes = () => (long)_session.Config.MediaIndexCacheLimitMiB * 1024 * 1024,
@@ -236,6 +237,15 @@ public partial class MainWindow
             && page?.IsEffectivelyVisible == true && _gallery == null;
     }
 
+    // The target of a favourite write that is still pending for the tile's medium (null when none is): the Media page's keys decide from it, not from the
+    // row's saved state, which stays stale until the page refreshes.
+    private bool? PendingMediaFavorite(MediaLibraryEntry entry)
+    {
+        if (MediaLibraryFilterEngine.AssetKey(entry) is not { } key) return null;
+        key = key with { Sha256 = key.Sha256.ToLowerInvariant() }; // FavoriteAssetKey.From lowercases the digest
+        return _favoriteChanges.IsPending(key) ? _favoriteChanges.Target(key, false) : null;
+    }
+
     private async Task ExecuteMediaLibraryMenuActionAsync(string id, MediaLibraryEntry indexed, Func<bool> presentationCurrent)
     {
         Func<bool> hostCurrent = CaptureMediaPageMenuGuard();
@@ -267,6 +277,9 @@ public partial class MainWindow
                     }
                     break;
                 case "favorites.toggle": await ToggleGalleryFavoriteAsync(entry); break;
+                // The favourite keys write an explicit target (M adds, U removes), so a repeat can never flip it back.
+                case "favorites.add": await SetGalleryFavoriteAsync(entry, true); break;
+                case "favorites.remove": await SetGalleryFavoriteAsync(entry, false); break;
                 // Shift+1 to 5 and Shift+0 rate the tile directly (no menu entry any more): written like the gallery's rating keys.
                 case "media.rating.clear": await RateMediaPageEntryAsync(entry, null); break;
                 case "media.rating.set-1": await RateMediaPageEntryAsync(entry, 1); break;

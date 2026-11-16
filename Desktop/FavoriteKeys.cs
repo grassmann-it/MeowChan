@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 
@@ -28,30 +29,50 @@ internal static class FavoriteKeys
     }
 
     /// <summary>
-    /// The positions of <paramref name="marked"/> (true: a favourite, false: none, null: unknown) the action writes, in order. Each one is flipped (the shared
-    /// favourite call is a toggle). Empty when nothing changes: add on favourites only, remove on none, or nothing known.
+    /// The decision of an action over <paramref name="marked"/> (true: a favourite, false: none, null: unknown): Add or Remove, or None when nothing is known or
+    /// the action is none. The toggle removes all when every known one is a favourite and otherwise adds the rest.
+    /// </summary>
+    private static FavoriteKeyAction Decide(FavoriteKeyAction action, IReadOnlyList<bool?> marked)
+    {
+        if (action != FavoriteKeyAction.Toggle) return action;
+        bool any = false, all = true;
+        foreach (bool? state in marked)
+        {
+            if (state == null) continue;
+            any = true;
+            all &= state == true;
+        }
+        return !any ? FavoriteKeyAction.None : all ? FavoriteKeyAction.Remove : FavoriteKeyAction.Add;
+    }
+
+    /// <summary>
+    /// The positions of <paramref name="marked"/> (true: a favourite, false: none, null: unknown) the action writes, in order. Empty when nothing changes: add on
+    /// favourites only, remove on none, or nothing known. Callers write each one as an explicit target (<see cref="Writes"/>), never as a flip.
     /// </summary>
     internal static IReadOnlyList<int> Targets(FavoriteKeyAction action, IReadOnlyList<bool?> marked)
     {
         ArgumentNullException.ThrowIfNull(marked);
-        if (action == FavoriteKeyAction.Toggle)
-        {
-            bool any = false, all = true;
-            foreach (bool? state in marked)
-            {
-                if (state == null) continue;
-                any = true;
-                all &= state == true;
-            }
-            if (!any) return Array.Empty<int>();
-            action = all ? FavoriteKeyAction.Remove : FavoriteKeyAction.Add;
-        }
-        if (action == FavoriteKeyAction.None) return Array.Empty<int>();
-        bool wanted = action == FavoriteKeyAction.Remove; // the state that is flipped
+        action = Decide(action, marked);
+        if (action is not (FavoriteKeyAction.Add or FavoriteKeyAction.Remove)) return Array.Empty<int>();
+        bool wanted = action == FavoriteKeyAction.Remove; // the state that is changed
         List<int> targets = new();
         for (int i = 0; i < marked.Count; i++)
             if (marked[i] == wanted) targets.Add(i);
         return targets;
+    }
+
+    /// <summary>
+    /// The explicit writes of an action: the positions of <see cref="Targets"/> with the value each one is SET to (add: true, remove: false). A held or
+    /// repeated key therefore never undoes itself: M twice stays a favourite, U twice stays none. <paramref name="effective"/> is the value a medium has
+    /// once its pending write lands (the pending target when a write is pending, else the saved state); the toggle is relative to it.
+    /// </summary>
+    internal static IReadOnlyList<(int Index, bool Selected)> Writes(FavoriteKeyAction action, IReadOnlyList<bool?> effective)
+    {
+        ArgumentNullException.ThrowIfNull(effective);
+        IReadOnlyList<int> targets = Targets(action, effective);
+        if (targets.Count == 0) return Array.Empty<(int, bool)>();
+        bool selected = Decide(action, effective) == FavoriteKeyAction.Add;
+        return targets.Select(index => (index, selected)).ToArray();
     }
 
     /// <summary>

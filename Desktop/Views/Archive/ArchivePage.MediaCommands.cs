@@ -76,13 +76,14 @@ public partial class ArchivePage
         RefreshArchiveFavoriteControls();
     }
 
-    private async Task ToggleArchiveMediaFavoriteAsync(GalleryEntry entry)
+    // <paramref name="selected"/> null: the toggle of the stars and menus; a value (the favourite keys): that explicit target (the toggle only when the host wired no setter).
+    private async Task ToggleArchiveMediaFavoriteAsync(GalleryEntry entry, bool? selected = null)
     {
         if (ToggleArchiveFavoriteAsync == null) return;
         FavoriteAssetKey key = FavoriteAssetKey.From(entry.Key.Thread, entry.Asset);
         _favoriteErrors.Remove(key);
         RefreshArchiveFavoriteControls();
-        try { await ToggleArchiveFavoriteAsync(entry); }
+        try { await (selected is { } target && SetArchiveFavoriteAsync is { } set ? set(entry, target) : ToggleArchiveFavoriteAsync(entry)); }
         catch (Exception error)
         {
             _favoriteErrors[key] = error.Message;

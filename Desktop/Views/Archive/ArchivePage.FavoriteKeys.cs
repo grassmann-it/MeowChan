@@ -15,11 +15,21 @@ namespace MeowChan;
 // The target follows the focus: the archive's media tiles and list write every selected file; the media sidebar (its picture, strip or header) the medium it
 // shows; a post the medium of the shared resolver (ReaderMediaActivation.Choose: a live player, else the sidebar's medium, else the focused tile, else the
 // first one). A post without a saved medium leaves the key alone. The write is the same favourite call as the stars' and the gallery's
-// (ToggleArchiveMediaFavoriteAsync); every star and badge follows through the page's refresh.
+// (ToggleArchiveMediaFavoriteAsync); every star and badge follows through the page's refresh. M and U write an explicit target and F is relative to the
+// effective value (the pending target when a write is pending, else the saved state), so a repeated key cannot undo itself. A held key acts once
+// (HeldKeyLatch, released by the key-up or a lost activation) and a key pressed while the last key write runs is ignored.
 public partial class ArchivePage
 {
     /// <summary>The last favourite key's write (tests and smokes wait for it).</summary>
     internal Task FavoriteKeyTask { get; private set; } = Task.CompletedTask;
+
+    /// <summary>The favourite value of a medium once its pending write lands (the pending target, else the saved state); the keys decide from it. Null: the saved state alone.</summary>
+    internal Func<GalleryEntry, bool>? EffectiveArchiveFavorite { get; set; }
+
+    /// <summary>Writes the favourite state of a medium to an explicit value (what M and U send); null: the page only has the toggle.</summary>
+    internal Func<GalleryEntry, bool, Task>? SetArchiveFavoriteAsync { get; set; }
+
+    private readonly HeldKeyLatch _favoriteKeyLatch = new();
 
     private bool TryRouteFavoriteKey(Control owner, KeyEventArgs e)
     {
@@ -30,6 +40,9 @@ public partial class ArchivePage
         IReadOnlyList<GalleryEntry> targets = FavoriteKeyTargets(owner, source);
         if (targets.Count == 0) return false;
         e.Handled = true;
+        _favoriteKeyLatch.Observe(this);
+        // A held key repeats KeyDown: only its first press acts. The latch is taken even while the last write runs, so the key does not act when it ends.
+        if (_favoriteKeyLatch.IsRepeat(e.Key) || !FavoriteKeyTask.IsCompleted) return true;
         FavoriteKeyTask = WriteFavoriteKeyAsync(action, targets);
         return true;
     }
@@ -70,16 +83,16 @@ public partial class ArchivePage
     private GalleryEntry? AttachmentEntry(ResourceId threadId, string postId, ArchiveAttachmentRow attachment) =>
         FindMatchingAsset(threadId, postId, attachment.Attachment, _assets) is { } asset ? AssetEntry(threadId, asset) : null;
 
-    // One decision for the whole target (FavoriteKeys.Targets), then the shared toggle for each medium that changes, one after the other.
+    // One decision for the whole target (FavoriteKeys.Writes), then the explicit write for each medium that changes, one after the other.
     private async Task WriteFavoriteKeyAsync(FavoriteKeyAction action, IReadOnlyList<GalleryEntry> targets)
     {
-        if (IsArchiveFavorite is not { } isFavorite) return;
+        if ((EffectiveArchiveFavorite ?? IsArchiveFavorite) is not { } isFavorite) return;
         bool?[] marked = targets.Select(entry => (bool?)isFavorite(entry)).ToArray();
         Action<string> reportError = CaptureActionErrorReporter();
-        foreach (int index in FavoriteKeys.Targets(action, marked))
+        foreach ((int index, bool selected) in FavoriteKeys.Writes(action, marked))
         {
             if (_ended) return;
-            try { await ToggleArchiveMediaFavoriteAsync(targets[index]); }
+            try { await ToggleArchiveMediaFavoriteAsync(targets[index], selected); }
             catch (Exception error) { reportError(error.Message); return; }
         }
     }

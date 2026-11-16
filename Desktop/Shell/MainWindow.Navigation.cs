@@ -167,11 +167,10 @@ public partial class MainWindow
         _archivePage.CopyFilePathAsync = CopyFilePathAsync;
         _archivePage.ManageMediaRatingsAsync = ManageMediaRatingsAsync;
         _archivePage.IsArchiveFavorite = _session.IsFavorite;
-        _archivePage.ToggleArchiveFavoriteAsync = async entry =>
-        {
-            await _session.SetFavoriteAsync(entry, !_session.IsFavorite(entry));
-            RefreshGalleryFavorite();
-        };
+        _archivePage.EffectiveArchiveFavorite = EffectiveArchiveFavorite;
+        // The toggle is relative to the effective value (a pending write's target), the favourite keys write an explicit target.
+        _archivePage.ToggleArchiveFavoriteAsync = entry => SetArchiveFavoriteAsync(entry, !EffectiveArchiveFavorite(entry));
+        _archivePage.SetArchiveFavoriteAsync = SetArchiveFavoriteAsync;
         _archivePage.ResolveFavoriteAssets = _session.ResolveFavoriteAssetsAsync;
         _archivePage.RemoveFavoriteAsync = async entry =>
         {
