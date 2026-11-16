@@ -26,7 +26,7 @@ public partial class ArchivePage
     private Control[] FilterGroups => new Control[]
     {
         ArchiveFilterGroupSource, ArchiveFilterGroupBoard, ArchiveFilterGroupState, ArchiveFilterGroupTags, ArchiveFilterGroupTagMode,
-        ArchiveFilterGroupCapture, ArchiveFilterGroupPosts, ArchiveFilterGroupWork, ArchiveFilterGroupSort, ArchiveFilterGroupDate,
+        ArchiveFilterGroupCapture, ArchiveFilterGroupPosts, ArchiveFilterGroupWork, ArchiveFilterGroupTextScope, ArchiveFilterGroupSort, ArchiveFilterGroupDate,
         ArchiveFilterGroupZone
     };
 
@@ -110,6 +110,7 @@ public partial class ArchivePage
             "archive.filters.posts" => ArchivePostsFilter.SelectedIndex > 0 || applied?.HasPosts != null,
             "archive.filters.work" => ArchiveWorkFilter.SelectedIndex > 0 || (applied != null && applied.WorkFilter != MeowChan.Archive.ArchiveWorkFilter.All),
             "archive.filters.date" => Date(),
+            "archive.filters.text-scope" => DraftTextScope != MeowChan.Archive.ArchiveSearchScope.AllPosts || applied?.Scope is { } scope && scope != MeowChan.Archive.ArchiveSearchScope.AllPosts,
             // The zone explains how the dates are read: it comes with any date value.
             "archive.filters.zone" => Date() || _draftTimeZone != null,
             _ => false

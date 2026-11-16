@@ -5003,6 +5003,20 @@
     "settings.galleryWheel.zoom": "ズーム（Ctrl+ホイールで切り替え）",
     "settings.galleryWheel.browse": "メディアを切り替え（Ctrl+ホイールでズーム）",
     "gallery.wheelBrowse": "マウスホイールでメディアを切り替える",
-    "gallery.wheelBrowse.help": "オン: ホイールで次または前のメディアへ移動し、Ctrl+ホイールでズームします。オフ: ホイールでズームし、Ctrl+ホイールで次または前のメディアへ移動します。"
+    "gallery.wheelBrowse.help": "オン: ホイールで次または前のメディアへ移動し、Ctrl+ホイールでズームします。オフ: ホイールでズームし、Ctrl+ホイールで次または前のメディアへ移動します。",
+    "archive.relevanceSort": "関連度順",
+    "savedSearch.sort.Relevance": "関連度順",
+    "archive.filter.textScope": "検索対象",
+    "archive.filter.textScopeHint": "検索テキストが含まれている必要がある場所です。タイトルには板とスレッド番号も含まれます。",
+    "archive.textScope.title": "タイトル",
+    "archive.textScope.titleAndOpening": "タイトルと最初の投稿",
+    "archive.textScope.allPosts": "すべての投稿",
+    "archive.textScopeChip": "検索対象: {0}",
+    "archive.matchGroup.title": "タイトル内 · {0}",
+    "archive.matchGroup.opening": "最初の投稿内 · {0}",
+    "archive.matchGroup.other": "その他の投稿内 · {0}",
+    "archive.foundIn.opening": "最初の投稿",
+    "archive.foundIn.other": "その他の投稿",
+    "archive.columns.foundIn": "見つかった場所"
   }
 }

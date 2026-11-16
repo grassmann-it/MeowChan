@@ -44,6 +44,7 @@ public partial class ArchivePage
     {
         List<(string, string?, string)> tags = new();
         if (!string.IsNullOrWhiteSpace(spec.Text)) tags.Add(("text", null, Texts.T("archive.textChip", spec.Text)));
+        if (spec.Scope != MeowChan.Archive.ArchiveSearchScope.AllPosts) tags.Add(("scope", null, Texts.T("archive.textScopeChip", TextScopeLabel(spec.Scope))));
         tags.AddRange(spec.Sources.Select(source => ("source", (string?)source, Texts.T("archive.sourceChip", source))));
         tags.AddRange(spec.Boards.Select(board => ("board", (string?)BoardKey(board), Texts.T("archive.boardChip", BoardLabel(board)))));
         tags.AddRange(spec.SourceStates.Select(state => ("state", (string?)state.ToString(), StateLabel(state))));
@@ -125,6 +126,7 @@ public partial class ArchivePage
         "work" => ArchiveSearchSpec.FromExactIdentities(workFilter: spec.WorkFilter),
         "date" => ArchiveSearchSpec.FromExactIdentities(dateRange: spec.DateRange),
         "tags" => ArchiveSearchSpec.FromExactIdentities().WithTags(spec.Tags),
+        "scope" => ArchiveSearchSpec.FromExactIdentities().WithScope(spec.Scope),
         _ => throw new ArgumentOutOfRangeException(nameof(field))
     });
     private bool DraftFieldMatches(ArchiveSearchSpec spec, string field)
@@ -146,6 +148,7 @@ public partial class ArchivePage
                 "date" => ArchiveSearchSpec.FromExactIdentities(dateRange: new ArchiveDateRange(ArchiveStartDate.ParseRaw(false),
                     ArchiveEndDate.ParseRaw(false), _draftTimeZone ?? "Etc/UTC")),
                 "tags" when !HasPendingTagChoice => ArchiveSearchSpec.FromExactIdentities().WithTags(ReadTagFilterDraft()),
+                "scope" => ArchiveSearchSpec.FromExactIdentities().WithScope(DraftTextScope),
                 _ => throw new InvalidOperationException()
             };
             return CanonicalField(spec, field) == CanonicalField(draft, field);
@@ -170,6 +173,7 @@ public partial class ArchivePage
                 finally { _writingDraft = false; }
                 UpdateTimeZoneLabel(); break;
             case "tags": WriteTagFilterDraft(next.Tags); break;
+            case "scope": ArchiveTextScope.SelectedIndex = TextScopeToIndex(next.Scope); break;
         }
         DraftEdited(field);
         // A sourcechip removal must not revise an unrelated board draft/scope.

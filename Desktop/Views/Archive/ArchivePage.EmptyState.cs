@@ -60,7 +60,8 @@ public partial class ArchivePage
     private async void OnResetArchiveFiltersClick(object? sender, RoutedEventArgs e)
     {
         if (_busy || _ended || !CanRead) return;
-        ArchiveSearchSpec reset = new(sort: _query.Sort);
+        // The sort stays, except a default Relevance order, which follows the cleared text back to its default.
+        ArchiveSearchSpec reset = new(sort: SortAfterTextChange(_query.Sort, _query.Text, ""));
         WriteSearchDraft(reset);
         _showReader = false; UpdateLayoutMode();
         await LoadListAsync(NewListLoad(ArchiveSearchRequest.Create(reset)));

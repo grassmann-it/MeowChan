@@ -5098,6 +5098,20 @@
     "settings.galleryWheel.zoom": "Zoom (Ctrl+molette parcourt)",
     "settings.galleryWheel.browse": "Parcourir les médias (Ctrl+molette zoome)",
     "gallery.wheelBrowse": "La molette parcourt les médias",
-    "gallery.wheelBrowse.help": "Activé : la molette passe au média suivant ou précédent et Ctrl+molette zoome. Désactivé : la molette zoome et Ctrl+molette passe au média suivant ou précédent."
+    "gallery.wheelBrowse.help": "Activé : la molette passe au média suivant ou précédent et Ctrl+molette zoome. Désactivé : la molette zoome et Ctrl+molette passe au média suivant ou précédent.",
+    "archive.relevanceSort": "Pertinence",
+    "savedSearch.sort.Relevance": "Pertinence",
+    "archive.filter.textScope": "Rechercher dans",
+    "archive.filter.textScopeHint": "Où le texte recherché doit apparaître. Le titre comprend aussi le tableau et le numéro du fil.",
+    "archive.textScope.title": "Titre",
+    "archive.textScope.titleAndOpening": "Titre et message initial",
+    "archive.textScope.allPosts": "Tous les messages",
+    "archive.textScopeChip": "Rechercher dans : {0}",
+    "archive.matchGroup.title": "Dans le titre · {0}",
+    "archive.matchGroup.opening": "Dans le message initial · {0}",
+    "archive.matchGroup.other": "Dans d’autres messages · {0}",
+    "archive.foundIn.opening": "Message initial",
+    "archive.foundIn.other": "Autres messages",
+    "archive.columns.foundIn": "Trouvé dans"
   }
 }

@@ -5098,6 +5098,20 @@
     "settings.galleryWheel.zoom": "Zoom (Ctrl+rueda recorre)",
     "settings.galleryWheel.browse": "Recorrer medios (Ctrl+rueda amplía)",
     "gallery.wheelBrowse": "La rueda del ratón recorre los medios",
-    "gallery.wheelBrowse.help": "Activado: la rueda pasa al medio siguiente o anterior y Ctrl+rueda amplía. Desactivado: la rueda amplía y Ctrl+rueda pasa al medio siguiente o anterior."
+    "gallery.wheelBrowse.help": "Activado: la rueda pasa al medio siguiente o anterior y Ctrl+rueda amplía. Desactivado: la rueda amplía y Ctrl+rueda pasa al medio siguiente o anterior.",
+    "archive.relevanceSort": "Relevancia",
+    "savedSearch.sort.Relevance": "Relevancia",
+    "archive.filter.textScope": "Buscar en",
+    "archive.filter.textScopeHint": "Dónde debe aparecer el texto buscado. El título incluye también el tablero y el número del hilo.",
+    "archive.textScope.title": "Título",
+    "archive.textScope.titleAndOpening": "Título y publicación inicial",
+    "archive.textScope.allPosts": "Todas las publicaciones",
+    "archive.textScopeChip": "Buscar en: {0}",
+    "archive.matchGroup.title": "En el título · {0}",
+    "archive.matchGroup.opening": "En la publicación inicial · {0}",
+    "archive.matchGroup.other": "En otras publicaciones · {0}",
+    "archive.foundIn.opening": "Publicación inicial",
+    "archive.foundIn.other": "Otras publicaciones",
+    "archive.columns.foundIn": "Encontrado en"
   }
 }

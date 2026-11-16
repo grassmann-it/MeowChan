@@ -237,9 +237,9 @@ public partial class ArchivePage : UserControl
             {
                 if (workFilter == 0)
                     return await reader.SearchThreadsBySpecAsync(pending.Request, target, PageSize, token);
-                IReadOnlyList<ArchiveThreadSummary> all = await reader.SelectThreadSummariesBySpecAsync(pending.Request, token);
-                ArchiveThreadSummary[] matches = all.Where(item => WorkMatches(pending.Work.GetValueOrDefault(item.Url), workFilter)).ToArray();
-                return new ArchiveThreadPage(Array.AsReadOnly(matches.Skip(target).Take(PageSize).ToArray()), matches.Length, target);
+                IReadOnlyList<ArchiveRankedThread> all = await reader.SelectRankedThreadSummariesBySpecAsync(pending.Request, token);
+                ArchiveRankedThread[] matches = all.Where(item => WorkMatches(pending.Work.GetValueOrDefault(item.Summary.Url), workFilter)).ToArray();
+                return MeowChan.Archive.ArchiveThreadPage.FromRanked(matches, target, PageSize, pending.Request.Spec.RanksByMatchTier);
             }
             ArchiveThreadPage result = await ReadPage(offset);
             if (offset > 0 && (result.TotalCount <= offset || result.Items.Count == 0))
@@ -260,6 +260,7 @@ public partial class ArchivePage : UserControl
                 };
             }).ToArray();
             if (_ended || token.IsCancellationRequested || generation != _contentRequest) return false;
+            ApplyMatchGroups(rows, result.MatchTiers, result.MatchTierCounts);
             ConfigureThreadFavoriteRows(rows);
             ConfigurePrivateTagRows(rows);
             _updatingList = true;
@@ -1066,6 +1067,7 @@ public partial class ArchivePage : UserControl
                 translated.CopyMediaCountFrom(row);
                 return translated;
             }).ToArray();
+            ApplyMatchGroups(localized, rows.Select(row => row.MatchTier).ToArray());
             ConfigureThreadFavoriteRows(localized);
             ConfigurePrivateTagRows(localized);
             _updatingList = true;

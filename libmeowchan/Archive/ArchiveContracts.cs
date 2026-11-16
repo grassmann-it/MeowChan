@@ -57,7 +57,33 @@ public sealed record ArchiveThreadSummary(ResourceId Id, string Url, string Titl
     ThreadSourceState SourceState, bool CaptureEnabled, DateTimeOffset FirstSeenAt,
     DateTimeOffset? LastCapturedAt, int PostCount, long Revision);
 
-public sealed record ArchiveThreadPage(IReadOnlyList<ArchiveThreadSummary> Items, int TotalCount, int Offset);
+public sealed record ArchiveThreadPage(IReadOnlyList<ArchiveThreadSummary> Items, int TotalCount, int Offset)
+{
+    /// <summary>
+    /// For a relevance-sorted search with a text: the match tier of each item (parallel to <see cref="Items"/>); else null.
+    /// The tier is kept out of <see cref="ArchiveThreadSummary"/> so summaries stay comparable with fresh catalog reads.
+    /// </summary>
+    public IReadOnlyList<ArchiveSearchMatchTier>? MatchTiers { get; init; }
+
+    /// <summary>With <see cref="MatchTiers"/>: the number of matches of the whole result per tier, indexed by tier.</summary>
+    public IReadOnlyList<int>? MatchTierCounts { get; init; }
+
+    /// <summary>A page of an already frozen, ordered ranked result (tiers kept when the result has them).</summary>
+    internal static ArchiveThreadPage FromRanked(IReadOnlyList<ArchiveRankedThread> all, int offset, int limit, bool tiered)
+    {
+        ArchiveRankedThread[] page = all.Skip(offset).Take(limit).ToArray();
+        int[] counts = new int[3];
+        if (tiered) foreach (ArchiveRankedThread item in all) counts[(int)item.Tier!.Value]++;
+        return new ArchiveThreadPage(Array.AsReadOnly(page.Select(item => item.Summary).ToArray()), all.Count, offset)
+        {
+            MatchTiers = tiered ? Array.AsReadOnly(page.Select(item => item.Tier!.Value).ToArray()) : null,
+            MatchTierCounts = tiered ? Array.AsReadOnly(counts) : null
+        };
+    }
+}
+
+/// <summary>One frozen search match with its tier (null unless the search ranks by tier).</summary>
+internal sealed record ArchiveRankedThread(ArchiveThreadSummary Summary, ArchiveSearchMatchTier? Tier);
 
 /// <summary>Metadata captured before a thread is removed from the catalog. Media files remain the caller's responsibility.</summary>
 public sealed record ArchiveDeletedThread(ArchiveThreadSummary Summary, IReadOnlyList<string> MediaDirectories);

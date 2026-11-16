@@ -64,8 +64,9 @@ public partial class ArchivePage
         foreach (var entry in new[] { ("ArchiveSourceFilter", "source"), ("ArchiveBoardFilter", "board") })
             Control<Control>(entry.Item1).PropertyChanged += (_, e) => { if (e.Property.Name == "Text") DraftEdited(entry.Item2); };
         foreach (var entry in new[] { ("ArchiveStateFilter", "state"), ("ArchiveCaptureFilter", "capture"),
-            ("ArchivePostsFilter", "posts"), ("ArchiveWorkFilter", "work"), ("ArchiveSort", "sort") })
+            ("ArchivePostsFilter", "posts"), ("ArchiveWorkFilter", "work"), ("ArchiveSort", "sort"), ("ArchiveTextScope", "scope") })
             Control<ComboBox>(entry.Item1).SelectionChanged += (_, _) => { if (!_localizingSearchOptions) DraftEdited(entry.Item2); };
+        InitializeRelevanceSort();
         ArchiveBoardScope.SelectionChanged += (_, _) => { if (_updatingBoardScopes) return; _boardScopeChosen = true; DraftEdited("board"); InvalidateBoardSuggestions(); };
         InitializeTagFilterEditor(); InitializeStateEditor();
         ArchiveStartDate.Edited += () => DateEdited();
@@ -292,7 +293,7 @@ public partial class ArchivePage
         return ArchiveSearchSpec.FromExactIdentities(ArchiveSearchText.Text ?? "", _draftSources, _draftBoards, _draftStates,
             Choice("ArchiveCaptureFilter"), Choice("ArchivePostsFilter"),
             (ArchiveThreadSort)Math.Max(0, ArchiveSort.SelectedIndex),
-            WorkChoice(ArchiveWorkFilter.SelectedIndex), date).WithTags(ReadTagFilterDraft());
+            WorkChoice(ArchiveWorkFilter.SelectedIndex), date).WithTags(ReadTagFilterDraft()).WithScope(DraftTextScope);
     }
     private void WriteSearchDraft(ArchiveSearchSpec spec)
     {
@@ -308,11 +309,12 @@ public partial class ArchivePage
             ArchivePostsFilter.SelectedIndex = spec.HasPosts switch { true => 1, false => 2, _ => 0 };
             ArchiveWorkFilter.SelectedIndex = WorkIndex(spec.WorkFilter);
             ArchiveSort.SelectedIndex = (int)spec.Sort;
+            ArchiveTextScope.SelectedIndex = TextScopeToIndex(spec.Scope);
             _draftTimeZone = spec.DateRange?.TimeZoneId;
             ArchiveStartDate.RawText = spec.DateRange?.StartDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "";
             ArchiveEndDate.RawText = spec.DateRange?.EndDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "";
             WriteTagFilterDraft(spec.Tags);
-            foreach (string field in new[] { "text", "source", "board", "state", "capture", "posts", "sort", "work", "date", "tags" }) DraftEdited(field);
+            foreach (string field in new[] { "text", "source", "board", "state", "capture", "posts", "sort", "work", "date", "tags", "scope" }) DraftEdited(field);
             RenderDraftSets(); UpdateTimeZoneLabel(); SearchEditorError("");
         }
         finally { _writingDraft = false; }
@@ -326,7 +328,7 @@ public partial class ArchivePage
         ThreadSourceState[] states = _draftStates.ToArray();
         string? zone = _draftTimeZone;
         string start = ArchiveStartDate.RawText, end = ArchiveEndDate.RawText;
-        string[] names = { "ArchiveStateFilter", "ArchiveCaptureFilter", "ArchivePostsFilter", "ArchiveWorkFilter", "ArchiveSort" };
+        string[] names = { "ArchiveStateFilter", "ArchiveCaptureFilter", "ArchivePostsFilter", "ArchiveWorkFilter", "ArchiveSort", "ArchiveTextScope" };
         int[] indices = names.Select(name => Control<ComboBox>(name).SelectedIndex).ToArray();
         BoardScope? scope = ArchiveBoardScope.SelectedItem as BoardScope;
         bool scopeChosen = _boardScopeChosen;
@@ -347,7 +349,7 @@ public partial class ArchivePage
                 if (combo.ItemsSource is IEnumerable<BoardScope> options) combo.SelectedItem = options.FirstOrDefault(item => item.Source == scope?.Source);
                 UpdateTimeZoneLabel();
                 restoreTags();
-                foreach (string field in new[] { "text", "source", "board", "state", "capture", "posts", "work", "sort", "date", "tags" }) DraftEdited(field);
+                foreach (string field in new[] { "text", "source", "board", "state", "capture", "posts", "work", "sort", "date", "tags", "scope" }) DraftEdited(field);
             }
             finally { _writingDraft = false; }
             SearchStateChanged?.Invoke();

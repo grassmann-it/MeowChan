@@ -79,7 +79,8 @@ public partial class ArchivePage
         SetOptions("ArchivePostsFilter", "archive.allContent", "archive.withPosts", "archive.withoutPosts");
         SetOptions("ArchiveWorkFilter", "gallery.allWork", "gallery.watching", "gallery.followup",
             "gallery.intervention", "gallery.completed", "gallery.stopped");
-        SetOptions("ArchiveSort", "archive.latest", "archive.oldest", "archive.titleSort");
+        SetOptions("ArchiveSort", "archive.latest", "archive.oldest", "archive.titleSort", "archive.relevanceSort");
+        LocalizeTextScope();
         LocalizeSearchEditors(); UpdateAppliedFilters(); UpdateSuggestionHint();
     }
     private void SetOptions(string name, params string[] keys)

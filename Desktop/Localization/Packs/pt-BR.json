@@ -5104,6 +5104,20 @@
     "settings.galleryWheel.zoom": "Zoom (Ctrl+roda percorre)",
     "settings.galleryWheel.browse": "Percorrer mídias (Ctrl+roda amplia)",
     "gallery.wheelBrowse": "A roda do mouse percorre as mídias",
-    "gallery.wheelBrowse.help": "Ativado: a roda passa para a mídia seguinte ou anterior e Ctrl+roda amplia. Desativado: a roda amplia e Ctrl+roda passa para a mídia seguinte ou anterior."
+    "gallery.wheelBrowse.help": "Ativado: a roda passa para a mídia seguinte ou anterior e Ctrl+roda amplia. Desativado: a roda amplia e Ctrl+roda passa para a mídia seguinte ou anterior.",
+    "archive.relevanceSort": "Relevância",
+    "savedSearch.sort.Relevance": "Relevância",
+    "archive.filter.textScope": "Pesquisar em",
+    "archive.filter.textScopeHint": "Onde o texto pesquisado deve aparecer. O título também inclui o board e o número do tópico.",
+    "archive.textScope.title": "Título",
+    "archive.textScope.titleAndOpening": "Título e postagem inicial",
+    "archive.textScope.allPosts": "Todas as postagens",
+    "archive.textScopeChip": "Pesquisar em: {0}",
+    "archive.matchGroup.title": "No título · {0}",
+    "archive.matchGroup.opening": "Na postagem inicial · {0}",
+    "archive.matchGroup.other": "Em outras postagens · {0}",
+    "archive.foundIn.opening": "Postagem inicial",
+    "archive.foundIn.other": "Outras postagens",
+    "archive.columns.foundIn": "Encontrado em"
   }
 }

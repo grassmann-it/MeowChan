@@ -5003,6 +5003,20 @@
     "settings.galleryWheel.zoom": "缩放（Ctrl+滚轮浏览）",
     "settings.galleryWheel.browse": "浏览媒体（Ctrl+滚轮缩放）",
     "gallery.wheelBrowse": "鼠标滚轮浏览媒体",
-    "gallery.wheelBrowse.help": "开启：滚轮切换到下一个或上一个媒体，Ctrl+滚轮缩放。关闭：滚轮缩放，Ctrl+滚轮切换到下一个或上一个媒体。"
+    "gallery.wheelBrowse.help": "开启：滚轮切换到下一个或上一个媒体，Ctrl+滚轮缩放。关闭：滚轮缩放，Ctrl+滚轮切换到下一个或上一个媒体。",
+    "archive.relevanceSort": "相关度",
+    "savedSearch.sort.Relevance": "相关度",
+    "archive.filter.textScope": "搜索范围",
+    "archive.filter.textScopeHint": "搜索文本必须出现的位置。标题也包括版块和串编号。",
+    "archive.textScope.title": "标题",
+    "archive.textScope.titleAndOpening": "标题和首帖",
+    "archive.textScope.allPosts": "所有帖子",
+    "archive.textScopeChip": "搜索范围：{0}",
+    "archive.matchGroup.title": "标题中 · {0}",
+    "archive.matchGroup.opening": "首帖中 · {0}",
+    "archive.matchGroup.other": "其他帖子中 · {0}",
+    "archive.foundIn.opening": "首帖",
+    "archive.foundIn.other": "其他帖子",
+    "archive.columns.foundIn": "匹配位置"
   }
 }
