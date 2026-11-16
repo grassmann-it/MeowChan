@@ -322,7 +322,7 @@ public sealed class ViewerTransportTests : IDisposable
     private static string[] Placeholders(string text) =>
         System.Text.RegularExpressions.Regex.Matches(text, @"\{\d+\}").Select(match => match.Value).Order(StringComparer.Ordinal).ToArray();
 
-    private static string ReadSource(string relative) => File.ReadAllText(Root(relative));
+    private static string ReadSource(string relative) => File.ReadAllText(Root(relative)).ReplaceLineEndings("\n");
 
     private static string Root(string path, [CallerFilePath] string source = "") =>
         Path.GetFullPath(Path.Combine(Path.GetDirectoryName(source)!, "../..", path));

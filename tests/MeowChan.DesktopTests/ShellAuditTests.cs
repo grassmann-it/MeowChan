@@ -18,7 +18,7 @@ public sealed class ShellAuditTests
         string dir = AppContext.BaseDirectory;
         while (dir != null && !File.Exists(Path.Combine(dir, "MeowChan.sln")) && !Directory.Exists(Path.Combine(dir, "Desktop", "Shell")))
             dir = Path.GetDirectoryName(dir)!;
-        return File.ReadAllText(Path.Combine([dir!, .. relative]));
+        return File.ReadAllText(Path.Combine([dir!, .. relative])).ReplaceLineEndings("\n");
     }
 
     // Tray: "Add URLs from clipboard" was always enabled; before a restore or while an import runs it did nothing.
@@ -88,6 +88,7 @@ public sealed class ShellAuditTests
         string text = Source("Desktop", "Shell", "MainWindow.Selection.cs");
         int start = text.IndexOf("private async void OnDownloadListKeyDown", StringComparison.Ordinal);
         int end = text.IndexOf("\n    }\n", start, StringComparison.Ordinal);
+        Assert.True(start >= 0 && end > start, "Download-list handler boundaries were not found.");
         string handler = text[start..end];
         Assert.DoesNotContain("CommandBindings.Matches(", handler, StringComparison.Ordinal);
         Assert.Contains("DownloadsMatches(e, \"watch.check\")", handler, StringComparison.Ordinal);
@@ -130,6 +131,7 @@ public sealed class ShellAuditTests
         string shortcuts = Source("Desktop", "Shell", "MainWindow.Shortcuts.cs");
         int start = shortcuts.IndexOf("private bool TryRunUnroutedShellCommand", StringComparison.Ordinal);
         int end = shortcuts.IndexOf("\n    }\n", start, StringComparison.Ordinal);
+        Assert.True(start >= 0 && end > start, "Shell-menu handler boundaries were not found.");
         Assert.Contains("IsUnroutedShellCommand(id)", shortcuts[start..end], StringComparison.Ordinal);
         // The branch that runs instead closes the gallery and the large reader before it navigates.
         string shell = Source("Desktop", "Shell", "MainWindow.Fullscreen.cs");
