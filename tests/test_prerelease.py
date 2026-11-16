@@ -513,7 +513,7 @@ class CandidateWorkflowFixtures(unittest.TestCase):
                 result = subprocess.run([bash, '-e', '-c', command], capture_output=True, text=True)
                 self.assertEqual(expected, result.returncode, result.stdout + result.stderr)
 
-    def test_package_fixture_step_stops_at_first_failure_on_every_platform(self):
+    def test_package_fixture_step_collects_all_failures_on_every_platform(self):
         body = re.search(r'^      - name: Check package layout fixtures\n(.*?)(?=^      - )',
                          self.jobs['validate'], re.M | re.S).group(1)
         self.assertIn('        shell: bash\n', body)
@@ -527,7 +527,20 @@ class CandidateWorkflowFixtures(unittest.TestCase):
         script = 'python() { echo attempted; return 17; }\n' + command
         result = subprocess.run([workflow_bash(), '-c', script], capture_output=True, text=True)
         self.assertEqual(17, result.returncode, result.stdout + result.stderr)
-        self.assertEqual(['attempted'], result.stdout.splitlines())
+        suite_count = command.count('python -m unittest discover')
+        self.assertGreater(suite_count, 1)
+        self.assertEqual(['attempted'] * suite_count, result.stdout.splitlines())
+
+        # One early failure must survive all later successful suites.
+        script = 'count=0; python() { count=$((count + 1)); echo attempted; if [[ $count == 2 ]]; then return 17; fi; return 0; }\n' + command
+        result = subprocess.run([workflow_bash(), '-c', script], capture_output=True, text=True)
+        self.assertEqual(17, result.returncode, result.stdout + result.stderr)
+        self.assertEqual(['attempted'] * suite_count, result.stdout.splitlines())
+
+        script = 'python() { echo attempted; return 0; }\n' + command
+        result = subprocess.run([workflow_bash(), '-c', script], capture_output=True, text=True)
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertEqual(['attempted'] * suite_count, result.stdout.splitlines())
 
     def test_gallery_selectors_isolate_existing_scenes_but_retain_preparation_and_evidence(self):
         steps = dict(re.findall(r'^      - name: ([^\n]+)\n(.*?)(?=^      - |\Z)',

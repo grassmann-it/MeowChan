@@ -189,18 +189,21 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python -m unittest discover -s tests -p test_macos_packaging.py -v
-          python -m unittest discover -s tests -p test_desktop_package.py -v
-          python -m unittest discover -s tests -p test_plugin_packaging.py -v
-          python -m unittest discover -s tests -p test_plugin_documentation.py -v
-          python -m unittest discover -s tests -p test_prerelease.py -v
-          python -m unittest discover -s tests -p test_release_gates.py -v
-          python -m unittest discover -s tests -p test_released102_fixture_generation.py -v
-          python -m unittest discover -s tests -p test_released102_migrated_check.py -v
-          python -m unittest discover -s tests -p test_public_api_policy.py -v
-          python -m unittest discover -s tests -p test_ci_desktop_preparation.py -v
-          python -m unittest discover -s tests -p test_validation_gate.py -v
-          python -m unittest discover -s tests -p test_macos_test_watchdog.py -v
+          # Collect every fixture suite; retain a failure even if later suites pass.
+          fixture_status=0
+          python -m unittest discover -s tests -p test_macos_packaging.py -v || fixture_status=$?
+          python -m unittest discover -s tests -p test_desktop_package.py -v || fixture_status=$?
+          python -m unittest discover -s tests -p test_plugin_packaging.py -v || fixture_status=$?
+          python -m unittest discover -s tests -p test_plugin_documentation.py -v || fixture_status=$?
+          python -m unittest discover -s tests -p test_prerelease.py -v || fixture_status=$?
+          python -m unittest discover -s tests -p test_release_gates.py -v || fixture_status=$?
+          python -m unittest discover -s tests -p test_released102_fixture_generation.py -v || fixture_status=$?
+          python -m unittest discover -s tests -p test_released102_migrated_check.py -v || fixture_status=$?
+          python -m unittest discover -s tests -p test_public_api_policy.py -v || fixture_status=$?
+          python -m unittest discover -s tests -p test_ci_desktop_preparation.py -v || fixture_status=$?
+          python -m unittest discover -s tests -p test_validation_gate.py -v || fixture_status=$?
+          python -m unittest discover -s tests -p test_macos_test_watchdog.py -v || fixture_status=$?
+          exit "$fixture_status"
       - name: Check local library package contract fixtures
         id: local_package
         # Keep independent checks running so one failure yields a complete evidence set.
