@@ -379,32 +379,71 @@ public partial class SourcesPage : UserControl
     private const int SourceFocusMaxPasses = 3;
     private int _focusRequest;
     private bool _applyingSourceFocus;
+    // The one place that moves keyboard focus for the handoff; tests replace it, because a page without a TopLevel cannot take focus.
+    internal Func<Control, bool> FocusControl { get; set; } = static control => control.Focus();
     private void FocusSourceControlAfterLayout(Control target)
     {
         int request = ++_focusRequest;
         void FocusWhenReady(int pass)
         {
             if (_ended || request != _focusRequest || !IsEffectivelyVisible) return;
-            // SizeChanged can run before the new visibility/column state has been arranged. Force
-            // the owning page through that layout pass before deciding that the target is not reachable.
-            UpdateLayout();
-            if (target.IsEffectivelyVisible && target.IsEffectivelyEnabled)
-            {
-                // BringIntoView may itself queue a native/layout update. Focus once before it and
-                // once on the next bounded pass so Linux, ARM and Windows agree on the settled target.
-                _applyingSourceFocus = true;
-                try
-                {
-                    target.BringIntoView();
-                    target.Focus();
-                }
-                finally { _applyingSourceFocus = false; }
-                if (pass > 0 && target.IsFocused) return;
-            }
-            if (pass + 1 >= SourceFocusMaxPasses) return;
+            if (SettleSourceFocus(target, pass)) return;
             Dispatcher.UIThread.Post(() => FocusWhenReady(pass + 1), DispatcherPriority.Background);
         }
         Dispatcher.UIThread.Post(() => FocusWhenReady(0), DispatcherPriority.Loaded);
+    }
+
+    /// <summary>One pass of the handoff. Returns true when it is finished (focus settled, or the final pass has run and fell back).</summary>
+    internal bool SettleSourceFocus(Control target, int pass)
+    {
+        // SizeChanged can run before the new visibility/column state has been arranged. Force
+        // the owning page through that layout pass before deciding that the target is not reachable.
+        UpdateLayout();
+        if (target.IsEffectivelyVisible && target.IsEffectivelyEnabled)
+        {
+            // BringIntoView may itself queue a native/layout update. Focus once before it and
+            // once on the next bounded pass so Linux, ARM and Windows agree on the settled target.
+            _applyingSourceFocus = true;
+            try
+            {
+                target.BringIntoView();
+                FocusControl(target);
+            }
+            finally { _applyingSourceFocus = false; }
+            if (pass > 0 && target.IsFocused) return true;
+        }
+        if (pass + 1 < SourceFocusMaxPasses) return false;
+        FocusFirstReachableControl(target, pass + 1);
+        return true;
+    }
+
+    // The target never became reachable: leave focus on a control the user can see and use instead of on a hidden one or on nothing.
+    private void FocusFirstReachableControl(Control missed, int passes)
+    {
+        if (TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() is Control current && IsReachableInPage(current)) return;
+        Control? fallback = FirstReachableControl(this, missed);
+        Serilog.Log.Warning("The Sources focus handoff to {Target} gave up after {Passes} passes; focusing {Fallback} instead.",
+            missed.Name ?? missed.GetType().Name, passes, fallback?.Name ?? fallback?.GetType().Name ?? "nothing (no reachable control)");
+        if (fallback == null) return;
+        _applyingSourceFocus = true;
+        try { FocusControl(fallback); }
+        finally { _applyingSourceFocus = false; }
+    }
+
+    private bool IsReachableInPage(Control control) =>
+        control.IsEffectivelyVisible && control.IsEffectivelyEnabled && control.Focusable && control.IsTabStop && this.IsVisualAncestorOf(control);
+
+    /// <summary>First control in document order that is visible, enabled and focusable; hidden or disabled subtrees are skipped. Walks the logical tree, which exists before templates are applied.</summary>
+    internal static Control? FirstReachableControl(Control root, Control? exclude = null)
+    {
+        foreach (ILogical child in root.GetLogicalChildren())
+        {
+            if (child is not Control control) continue;
+            if (!control.IsVisible || !control.IsEnabled) continue;
+            if (control.Focusable && control.IsTabStop && !ReferenceEquals(control, exclude)) return control;
+            if (FirstReachableControl(control, exclude) is { } nested) return nested;
+        }
+        return null;
     }
 
     private SourceWatchRow? SelectedWatch => this.FindControl<ListBox>("SourceWatchesList")!.SelectedItem as SourceWatchRow;

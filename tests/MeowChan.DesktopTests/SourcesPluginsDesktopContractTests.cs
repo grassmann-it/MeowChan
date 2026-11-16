@@ -98,7 +98,9 @@ public sealed class SourcesPluginsDesktopContractTests
         Assert.Contains("GetFocusedElement()", source);
         Assert.Contains("++_focusRequest", source);
         Assert.Contains("if (!_applyingSourceFocus)", source);
-        Assert.Contains("pass + 1 >= SourceFocusMaxPasses", source);
+        Assert.Contains("if (pass + 1 < SourceFocusMaxPasses) return false;", source);
+        // The final pass without focus falls back to the first reachable control instead of giving up silently.
+        Assert.Contains("FocusFirstReachableControl(target, pass + 1);", source);
         Assert.Contains("Dispatcher.UIThread.Post(() => FocusWhenReady(pass + 1), DispatcherPriority.Background);", source);
         Assert.DoesNotContain("Dispatcher.UIThread.Post(FocusWhenReady, DispatcherPriority.Background);", source);
     }
