@@ -243,7 +243,12 @@ jobs:
         # Keep independent checks running so one failure yields a complete evidence set.
         continue-on-error: true
         if: matrix.full && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all')
-        run: python -m unittest discover -s tests -p test_desktop_smoke_runner.py -v
+        shell: bash
+        run: |
+          status=0
+          python -m unittest discover -s tests -p test_desktop_smoke_runner.py -v || status=$?
+          python -m unittest discover -s tests -p test_gui_ci_scenes.py -v || status=$?
+          exit "$status"
       - name: Restore graphical harness with reviewed dependencies
         id: smoke_restore
         if: matrix.full
@@ -314,43 +319,13 @@ jobs:
         # Each normal scope has a fresh process/profile and its own bounded evidence.
         shell: bash
         run: |
-          python - <<'PY'
-          import os
-          import subprocess
-          import sys
+          python scripts/run-gui-ci-scenes.py \
+            --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll \
+            --timeout "${{ runner.os == 'macOS' && '300' || '180' }}" \
+            ${{ runner.os != 'Linux' && '--allow-native-desktop' || '' }} \
+            ${{ inputs.scenario == 'selection' && '--selection-only' || '' }} \
+            --output artifacts/desktop-smoke
 
-          scenes = [
-              ("normal-core", "MEOWCHAN_NORMAL_CORE_ONLY"),
-              ("normal-grid", "MEOWCHAN_NORMAL_GRID_ONLY"),
-              ("normal-settings-page", "MEOWCHAN_NORMAL_SETTINGS_PAGE_ONLY"),
-              ("normal-diagnostics", "MEOWCHAN_NORMAL_DIAGNOSTICS_ONLY"),
-              ("sources-page", "MEOWCHAN_SOURCES_PAGE_ONLY"),
-              ("normal-board-admission", "MEOWCHAN_NORMAL_BOARD_ADMISSION_ONLY"),
-              ("pause-controls", "MEOWCHAN_PAUSE_CONTROLS_ONLY"),
-              ("rules-page", "MEOWCHAN_RULES_PAGE_ONLY"),
-              ("settings-core", "MEOWCHAN_SETTINGS_CORE_ONLY"),
-          ]
-          modes = ["locked-profile", "no-tray", "tray-failure", "download-session", "reader-ux", "selection"]
-          selected = [(name, "normal", selector) for name, selector in scenes]
-          selected += [(mode, mode, None) for mode in modes]
-          if "${{ inputs.scenario }}" == "selection":
-              selected = [("selection", "selection", None)]
-          failed = []
-          for name, mode, selector in selected:
-              environment = os.environ.copy()
-              if selector:
-                  environment[selector] = "1"
-              command = [sys.executable, "scripts/run-desktop-smoke.py",
-                         "--assembly", "tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll",
-                         "--allow-native-desktop", "--timeout", "${{ runner.os == 'macOS' && '300' || '180' }}",
-                         "--mode", mode, "--expect-scenario", mode + ("+" + selector if selector else ""),
-                         "--output", "artifacts/desktop-smoke/" + name]
-              if subprocess.run(command, env=environment).returncode != 0:
-                  failed.append(name)
-          if failed:
-              print("Failed desktop scenes: " + ", ".join(failed), flush=True)
-          sys.exit(1 if failed else 0)
-          PY
       # Dedicated Program.cs branches return before the ordinary normal/reader-ux
       # paths. Each gets its own process/profile/evidence; never combine selectors.
       # Linux uses the runner's private Xvfb/DBus/WM, not a host DISPLAY. Only the
