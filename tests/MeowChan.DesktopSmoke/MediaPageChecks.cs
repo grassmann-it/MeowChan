@@ -1025,22 +1025,36 @@ internal static partial class MediaPageChecks
             await UntilAsync(() => !host.IsVisible && owner.FindControl<Control>("WorkspaceBody")!.IsVisible);
             archive.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await UntilAsync(() => !host.IsVisible && owner.FindControl<ContentControl>("ArchivePageHost")!.IsVisible);
-            // Barebones moves Media into the Tools menu, next to Archive.
+            // Barebones reapplies the navigation registry; Media may stay direct or move to the current Tools menu.
             await PresentationChecks.SwitchModeAsync(owner, "Barebones");
             // Switching workspace mode rebuilds the navigation template. Do not inspect the
             // Simple-mode button captured above: it is detached and retains its old visibility.
-            MenuFlyout? toolsFlyout = null;
+            Button? currentMedia = null;
+            MenuItem? currentMediaItem = null;
             await UntilAsync(() =>
             {
-                Button? currentMedia = owner.FindControl<Button>("MediaNavigationButton");
-                Button? currentTools = owner.FindControl<Button>("ToolsNavigationButton");
-                return currentMedia is { IsVisible: false }
-                    && currentTools is { IsVisible: true, Flyout: MenuFlyout flyout }
-                    && (toolsFlyout = flyout) is not null;
+                // The shell keeps one registered Media button and one registered
+                // Tools flyout, but a mode change reapplies their placement. Resolve
+                // both from the current namescope on every probe; never reuse the
+                // Simple-mode button or menu from before the rebuild.
+                Button? media = owner.FindControl<Button>("MediaNavigationButton");
+                Button? tools = owner.FindControl<Button>("ToolsNavigationButton");
+                MenuFlyout? flyout = tools?.Flyout as MenuFlyout;
+                MenuItem? item = flyout?.Items.OfType<MenuItem>().SingleOrDefault(entry => entry.Tag as string == "nav.media");
+                bool direct = media is { IsVisible: true, IsEffectivelyVisible: true, IsEffectivelyEnabled: true };
+                bool overflow = tools is { IsVisible: true, IsEffectivelyVisible: true, IsEffectivelyEnabled: true }
+                    && item is { IsVisible: true, IsEnabled: true };
+                if (direct == overflow) return false; // exactly one current route must expose Media
+                currentMedia = direct ? media : null;
+                currentMediaItem = overflow ? item : null;
+                return true;
             });
-            MenuItem item = toolsFlyout!.Items.OfType<MenuItem>().Single(entry => entry.Tag as string == "nav.media");
-            Require(item.IsVisible, "Media is missing from the Tools menu in Barebones.");
-            item.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            Require(currentMedia != null || currentMediaItem != null,
+                "Current Barebones navigation exposed neither a direct Media target nor its Tools-menu target.");
+            if (currentMedia is { } directMedia)
+                directMedia.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            else
+                currentMediaItem!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
             await UntilAsync(() => host.IsVisible);
             owner.FindControl<Button>("DownloadsNavigationButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await UntilAsync(() => !host.IsVisible);

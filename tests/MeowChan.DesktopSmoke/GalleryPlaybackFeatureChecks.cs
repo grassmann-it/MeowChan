@@ -838,15 +838,26 @@ internal static partial class GalleryPlaybackFeatureChecks
         }
         viewer.MoveRequested += delta => transition = ShowNextAsync(delta);
         // After the ended video the auto-hidden transport is no longer a visible
-        // keyboard target; the shared More flyout is the stable playback entry point.
+        // keyboard target. Opening More is the stable way to reveal it before starting.
         viewer.SetOverflowOpen(true);
         await UntilAsync(() => viewer.IsOverflowOpen, "Playback controls overflow menu did not open after video end.");
+        // The open More flyout is a popup and deliberately blocks starting a
+        // slideshow. It still has to reveal the auto-hidden footer, so settle that
+        // lifecycle first, close the popup, then resolve the current toolbar target.
+        viewer.SetOverflowOpen(false);
+        await UntilAsync(() => !viewer.IsOverflowOpen, "Playback controls overflow menu did not close before starting slideshow.");
+        Button? currentAction = null;
         await UntilAsync(() =>
         {
-            Button action = Find<Button>(viewer, "GallerySlideshowToggle");
-            return action.IsEffectivelyVisible && action.IsEffectivelyEnabled;
+            // The chosen slideshow is kept on the split toolbar control (R6). Use
+            // that current owner after the popup closes, not the viewer-wide
+            // descendant snapshot which also contains the retained More rows.
+            currentAction = viewer.SlideshowSplit.GetVisualDescendants().OfType<Button>()
+                .FirstOrDefault(button => button.Name == "GallerySlideshowToggle");
+            return currentAction is { IsEffectivelyVisible: true, IsEffectivelyEnabled: true }
+                && currentAction.IsAttachedToVisualTree();
         }, "Slideshow action did not become visible and enabled after opening playback controls.");
-        Click(Find<Button>(viewer, "GallerySlideshowToggle"));
+        Click(currentAction!);
         Require(Running(viewer), "Explicit Start after an ended video failed to create a runnable replay generation.");
         GalleryVideoPlayer.PlaybackEvidence replay = await player.InspectPlaybackAsync();
         await UntilAsync(async () =>
