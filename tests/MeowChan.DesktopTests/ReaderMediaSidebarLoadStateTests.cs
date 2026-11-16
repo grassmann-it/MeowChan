@@ -215,6 +215,30 @@ public sealed class ReaderMediaSidebarLoadStateTests : IDisposable
         Assert.False(sidebar.Load.Begin("a", (40, 64)).SameMedium);
     });
 
+    [Fact]
+    public void TheStripOfAnotherPostKeepsNoThumbnailOfThePreviousPost() => OnOwnDispatcher(() =>
+    {
+        ReaderMediaSidebar sidebar = new();
+        List<Bitmap> released = new();
+        using WriteableBitmap first = Picture(8, 8), second = Picture(8, 8);
+        Assert.True(sidebar.ShowStrip(3, 0, 10, index => "a" + index, samePost: false));
+        sidebar.SetStripPicture(0, first, released.Add);
+        sidebar.SetStripPicture(1, second, released.Add);
+        // Stepping within the same post keeps the pictures.
+        sidebar.ShowStrip(3, 1, 10, index => "a" + index, samePost: true);
+        Assert.True(sidebar.HasStripPicture(0));
+        Assert.True(sidebar.HasStripPicture(1));
+        Assert.Empty(released);
+        // Another post with as many files: its strip starts without pictures and the previous post's are given back.
+        Assert.True(sidebar.ShowStrip(3, 0, 10, index => "b" + index, samePost: false));
+        Assert.False(sidebar.HasStripPicture(0));
+        Assert.False(sidebar.HasStripPicture(1));
+        Assert.Equal(new[] { 0, 1, 2 }, sidebar.StripIndexes);
+        Assert.Equal(2, released.Count);
+        Assert.Contains((Bitmap)first, released);
+        Assert.Contains((Bitmap)second, released);
+    });
+
     // ---- the hosts ----------------------------------------------------------------------------------------------------------------
 
     private static string RepositoryRoot()

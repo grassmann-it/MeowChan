@@ -679,6 +679,8 @@ internal sealed class ReaderMediaSidebar : Border
     internal bool ShowStrip(int count, int current, int limit, Func<int, string> nameOf, bool samePost)
     {
         if (!ReaderMediaMultiRules.ShowsStrip(count)) { ClearStrip(); return false; }
+        // Another post: the strip keeps pictures by file index, so none of the previous post's thumbnails may stand in for this post's files.
+        if (!samePost) ReleaseStripPictures();
         current = ReaderMediaSidebarRules.ClampIndex(current, count);
         (int start, int length) = ReaderMediaMultiRules.Window(current, count, limit, samePost && _stripCount == count ? _stripStart : -1);
         bool rebuilt = !_stripRow.IsVisible || !samePost || count != _stripCount || start != _stripStart || length != _thumbnails.Count;
@@ -771,9 +773,7 @@ internal sealed class ReaderMediaSidebar : Border
     /// <summary>Hides the strip and gives every thumbnail back.</summary>
     internal void ClearStrip()
     {
-        foreach (StripThumbnail thumbnail in _thumbnails) thumbnail.Picture.Source = null;
-        foreach ((Bitmap bitmap, Action<Bitmap> release) in _stripBitmaps.Values) release(bitmap);
-        _stripBitmaps.Clear();
+        ReleaseStripPictures();
         _thumbnails.Clear();
         _stripSyncing = true;
         try { _strip.Items.Clear(); }
@@ -783,6 +783,14 @@ internal sealed class ReaderMediaSidebar : Border
         _stripCount = 0;
         _stripCurrent = 0;
         _stripCounter.Text = string.Empty;
+    }
+
+    // Every thumbnail's picture is given back (the thumbnails themselves stay until they are laid out anew).
+    private void ReleaseStripPictures()
+    {
+        foreach (StripThumbnail thumbnail in _thumbnails) thumbnail.Picture.Source = null;
+        foreach ((Bitmap bitmap, Action<Bitmap> release) in _stripBitmaps.Values) release(bitmap);
+        _stripBitmaps.Clear();
     }
 
     private void OnStripSelectionChanged(object? sender, SelectionChangedEventArgs e)
