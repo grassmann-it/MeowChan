@@ -15,6 +15,7 @@ using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 using MeowChan.Storage;
@@ -45,7 +46,7 @@ public sealed partial class MediaPage
     private PixelSize? _panelSource;
     private string _panelAnnouncement = string.Empty;
     private GalleryFitPreferences _panelFit = new();
-    private bool _panelPointerContextPending;
+    private readonly PressOpenedContextGate _panelPointerContext = new();
 
     /// <summary>The panel view (smoke and test seam); null until the panel was shown once.</summary>
     internal ReaderMediaSidebar? Panel => _panel;
@@ -529,7 +530,7 @@ public sealed partial class MediaPage
 
     private void OnPanelKeyDown(object? sender, KeyEventArgs e)
     {
-        _panelPointerContextPending = false; // a key ends a pointer gesture whose release never came
+        _panelPointerContext.Reset(); // a key ends a pointer gesture whose release never came
         TryRoutePanelKey(e, fromPanel: true);
     }
 
@@ -557,25 +558,24 @@ public sealed partial class MediaPage
     // Background tick: a flag dropped right after the press let the release open a second menu over the first).
     private void OnPanelPointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        _panelPointerContextPending = false; // each press starts its own gesture
+        _panelPointerContext.BeginPress(); // each press starts its own gesture
         if (e.Handled || _lifetime.IsCancellationRequested || IsNativeContextSource(e.Source) || _panel is not { } panel
             || !e.GetCurrentPoint(panel).Properties.IsRightButtonPressed || _panelRow == null) return;
         OpenSharedMediaMenu(_panelRow, panel.Frame, _panelVideo);
-        _panelPointerContextPending = true;
+        _panelPointerContext.MenuOpenedByPress();
         e.Handled = true;
     }
 
     // The release of that right click: the request Avalonia sends with it comes through the handlers after this one, so the flag ends on the next tick.
     private void OnPanelPointerReleased(object? sender, PointerReleasedEventArgs e)
     {
-        if (!_panelPointerContextPending || e.InitialPressMouseButton != MouseButton.Right) return;
-        Dispatcher.UIThread.Post(() => _panelPointerContextPending = false, DispatcherPriority.Background);
+        _panelPointerContext.Released(e.InitialPressMouseButton);
     }
 
     private void OnPanelContextRequested(object? sender, ContextRequestedEventArgs e)
     {
         if (e.Handled || IsNativeContextSource(e.Source) || _panel is not { } panel) return;
-        if (_panelPointerContextPending) { _panelPointerContextPending = false; e.Handled = true; return; }
+        if (_panelPointerContext.TryConsume()) { e.Handled = true; return; }
         if (_panelRow == null) return;
         OpenSharedMediaMenu(_panelRow, panel.Frame, _panelVideo);
         e.Handled = true;

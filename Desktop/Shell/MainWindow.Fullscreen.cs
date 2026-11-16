@@ -709,9 +709,11 @@ public partial class MainWindow
                 ("ReaderPreviousPost", "reader.previous-post"), ("ReaderNextPost", "reader.next-post"),
                 ("ReaderPreviousThread", "reader.previous-thread"), ("ReaderNextThread", "reader.next-thread") })
                 if (_archivePage?.FindControl<Button>(pair.Item1)?.IsEnabled == true) ids.Insert(0, pair.Item2);
-            foreach (var pair in new[] { ("ArchiveHistoryBack", "reader.history-back"), ("ArchiveGalleryReturn", "gallery.return"),
-                ("ArchiveMediaReturn", "media.return"), ("PreviousPostsButton", "pagination.previous"), ("NextPostsButton", "pagination.next") })
-                if (_archivePage?.FindControl<Button>(pair.Item1) is { IsEffectivelyVisible: true, IsEnabled: true }) ids.Insert(0, pair.Item2);
+            // The three back commands are listed by their state (the same answer the Back gesture gets: CanRunBack), the page buttons by the
+            // enabled state their page keeps: a button that layout hides (narrow chrome, a work view, the More menu) leaves its command in force.
+            foreach (string id in BackCommands) if (CanRunBack(id)) ids.Insert(0, id);
+            foreach (var pair in new[] { ("PreviousPostsButton", "pagination.previous"), ("NextPostsButton", "pagination.next") })
+                if (_archivePage?.FindControl<Button>(pair.Item1)?.IsEnabled == true) ids.Insert(0, pair.Item2);
         }
         else if (_selectedPage == WorkspacePage.Downloads && _restoreCompleted && !WorkspaceCommandBusy)
         {
@@ -906,7 +908,7 @@ public partial class MainWindow
     internal bool CanExecuteShellPowerCommand(object? source, Key key) => _workspaceInitialized && _restoreCompleted
         && !_isClosing && IsEnabled && !WorkspaceCommandBusy && !HasVisibleShellDialog() && !HasBlockingPageDecision()
         && !CommandRouter.IsNativeInput(source, key) && !ShellHelpOverlay.IsVisible
-        && _archivePage?.IsReaderDialogOpen != true && !(_gallery?.IsOverlayOpen ?? false)
+        && _archivePage?.IsReaderDialogOpen != true && !(_gallery is { } blocking && GalleryBlocksShellPowerCommands(blocking.BlocksUnfocusedHostKeys, _gallerySuspended))
         && !this.GetLogicalDescendants().OfType<Control>().Any(control => control.ContextMenu?.IsOpen == true
             || control is Button { Flyout.IsOpen: true } || control is MenuItem { IsSubMenuOpen: true }
             || control is ComboBox { IsDropDownOpen: true });

@@ -81,7 +81,7 @@ public sealed partial class MediaPage : UserControl
     private bool _sharedMediaMenusInitialized;
     private long _mediaMenuRevision;
     private long _mediaMenuSerial;
-    private bool _sharedPointerContextPending;
+    private readonly PressOpenedContextGate _sharedPointerContext = new();
     private MediaLibraryUserOrder? _userOrder;
 
     /// <summary>Opens the gallery for a window of shown entries; the int is the chosen entry inside it.</summary>
@@ -957,6 +957,7 @@ public sealed partial class MediaPage : UserControl
         if (_sharedMediaMenusInitialized) return;
         _sharedMediaMenusInitialized = true;
         _grid.AddHandler(PointerPressedEvent, OnSharedPointerPressed, RoutingStrategies.Tunnel);
+        _grid.AddHandler(PointerReleasedEvent, OnSharedPointerReleased, RoutingStrategies.Tunnel, handledEventsToo: true);
         _grid.AddHandler(ContextRequestedEvent, OnSharedContextRequested, RoutingStrategies.Bubble);
         _grid.AddHandler(KeyDownEvent, OnSharedContextKeyDown, RoutingStrategies.Tunnel);
         _grid.PropertyChanged += (_, e) =>
@@ -974,7 +975,7 @@ public sealed partial class MediaPage : UserControl
     {
         ++_mediaMenuRevision;
         ++_mediaMenuSerial;
-        _sharedPointerContextPending = false;
+        _sharedPointerContext.Reset();
         _mediaMenuPresenter.Invalidate();
     }
 
@@ -1006,24 +1007,28 @@ public sealed partial class MediaPage : UserControl
         return source as ListBox ?? _grid;
     }
 
+    // The press opens the menu and arms the gate; the ContextRequested that Avalonia 12 raises with the RELEASE of that click is consumed once.
+    // The gate ends after the release (OnSharedPointerReleased), never on a tick posted by the press: a click lasts far longer than a Background
+    // tick, and a gate dropped that early let the release open the menu a second time, re-resolved for whatever was under the pointer then.
     private void OnSharedPointerPressed(object? sender, PointerPressedEventArgs e)
     {
+        _sharedPointerContext.BeginPress(); // each press starts its own gesture
         if (e.Handled || _lifetime.IsCancellationRequested || !IsEffectivelyVisible
             || IsNativeContextSource(e.Source) || IsTileTagChip(e.Source)
             || !e.GetCurrentPoint(_grid).Properties.IsRightButtonPressed) return;
         MediaLibraryTileRow? row = RowAt(e.Source);
         // MP5: a right click on empty grid space (no tile under the pointer) opens the layout menu, also while a tile is selected.
         OpenSharedMediaMenu(row, ResolveMenuOrigin(e.Source, row));
-        _sharedPointerContextPending = true;
+        _sharedPointerContext.MenuOpenedByPress();
         e.Handled = true;
-        // Avalonia may follow a handled right-button press with a positionless
-        // ContextRequested event. Consume only that paired event; a synthetic
-        // keyboard request after this turn must still be routed normally.
-        Dispatcher.UIThread.Post(() => _sharedPointerContextPending = false, DispatcherPriority.Background);
     }
+
+    // The release of that right click: the request Avalonia sends with it comes through the handlers after this one, so the gate ends on the next tick.
+    private void OnSharedPointerReleased(object? sender, PointerReleasedEventArgs e) => _sharedPointerContext.Released(e.InitialPressMouseButton);
 
     private void OnSharedContextKeyDown(object? sender, KeyEventArgs e)
     {
+        _sharedPointerContext.Reset(); // a key ends a pointer gesture whose release never came (a menu popup took it)
         if (!IsContextKey(e) || IsTileTagChip(e.Source)) return; // a tag chip has its own menu (the chip's host opens it)
         MediaLibraryTileRow? row = RowAt(e.Source) ?? SelectedRow;
         OpenSharedMediaMenu(row, ResolveMenuOrigin(e.Source, row));
@@ -1033,9 +1038,8 @@ public sealed partial class MediaPage : UserControl
     private void OnSharedContextRequested(object? sender, ContextRequestedEventArgs e)
     {
         if (e.Handled || IsNativeContextSource(e.Source)) return;
-        if (_sharedPointerContextPending)
+        if (_sharedPointerContext.TryConsume())
         {
-            _sharedPointerContextPending = false;
             e.Handled = true;
             return;
         }
