@@ -198,7 +198,9 @@ internal static class ReaderInteractionChecks
             await FlushAsync();
             object? selected = posts.SelectedItem;
             posts.Focus();
-            Press(posts, Key.Space);
+            // Keep the first key down until the repeat probe. Press() also sends
+            // KeyUp, which would test a second press rather than an auto-repeat.
+            posts.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Space });
             await page.ReaderMediaActivationTask;
             Require(opens == 1, "Space on the selected post did not open its medium in the gallery under the gallery setting.");
             Require(origin != null && origin.GetSelfAndVisualAncestors().OfType<ListBoxItem>().Any(item => ReferenceEquals(item.DataContext, selected)),
