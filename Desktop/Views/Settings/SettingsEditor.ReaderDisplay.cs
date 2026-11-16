@@ -232,6 +232,15 @@ public partial class SettingsEditor
     public bool ReaderSidebarVideoStartMuted { get => _readerSidebarVideoStartMuted; set => SetField(ref _readerSidebarVideoStartMuted, value, nameof(ReaderSidebarVideoStartMuted)); }
     public string ReaderSidebarVideoStartMutedLabel => Texts.T("settings.reader.sidebarVideoMuted");
     public string ReaderSidebarVideoStartMutedHint => Texts.T("settings.reader.sidebarVideoMuted.hint");
+    // The quote preview's medium: autoplay (videos and GIFs, repeating) and muted, both on by default.
+    private bool _readerQuotePreviewAutoplay;
+    public bool ReaderQuotePreviewAutoplay { get => _readerQuotePreviewAutoplay; set => SetField(ref _readerQuotePreviewAutoplay, value, nameof(ReaderQuotePreviewAutoplay)); }
+    public string ReaderQuotePreviewAutoplayLabel => Texts.T("settings.reader.quotePreviewAutoplay");
+    public string ReaderQuotePreviewAutoplayHint => Texts.T("settings.reader.quotePreviewAutoplay.hint");
+    private bool _readerQuotePreviewMuted;
+    public bool ReaderQuotePreviewMuted { get => _readerQuotePreviewMuted; set => SetField(ref _readerQuotePreviewMuted, value, nameof(ReaderQuotePreviewMuted)); }
+    public string ReaderQuotePreviewMutedLabel => Texts.T("settings.reader.quotePreviewMuted");
+    public string ReaderQuotePreviewMutedHint => Texts.T("settings.reader.quotePreviewMuted.hint");
     private bool _readerKeepImagesExpanded;
     public bool ReaderKeepImagesExpanded { get => _readerKeepImagesExpanded; set => SetField(ref _readerKeepImagesExpanded, value, nameof(ReaderKeepImagesExpanded)); }
     public string ReaderKeepImagesExpandedLabel => Texts.T("settings.reader.keepExpanded");
@@ -425,6 +434,8 @@ public partial class SettingsEditor
         ReaderSidebarVideoAutoplay = config.ReaderSidebarVideoAutoplay;
         ReaderSidebarVideoLoop = config.ReaderSidebarVideoLoop;
         ReaderSidebarVideoStartMuted = config.ReaderSidebarVideoStartMuted;
+        ReaderQuotePreviewAutoplay = config.ReaderQuotePreviewAutoplay;
+        ReaderQuotePreviewMuted = config.ReaderQuotePreviewMuted;
         ReaderInlineVideoMaxPlayers = config.ReaderInlineVideoMaxPlayers;
         ResetNumber(ReaderInlineVideoMaxPlayersInput, ReaderInlineVideoMaxPlayers.Value);
         ReaderInlineVideoMaxFileMiB = config.ReaderInlineVideoMaxFileMiB;
@@ -499,6 +510,8 @@ public partial class SettingsEditor
         candidate.ReaderSidebarVideoAutoplay = ReaderSidebarVideoAutoplay;
         candidate.ReaderSidebarVideoLoop = ReaderSidebarVideoLoop;
         candidate.ReaderSidebarVideoStartMuted = ReaderSidebarVideoStartMuted;
+        candidate.ReaderQuotePreviewAutoplay = ReaderQuotePreviewAutoplay;
+        candidate.ReaderQuotePreviewMuted = ReaderQuotePreviewMuted;
         candidate.ReaderInlineVideoMaxPlayers = GetInteger(ReaderInlineVideoMaxPlayers, ReaderInlineVideoMaxPlayersLabel, Config.ReaderInlineVideoMaxPlayersMinimum, Config.ReaderInlineVideoMaxPlayersMaximum);
         candidate.ReaderInlineVideoMaxFileMiB = GetInteger(ReaderInlineVideoMaxFileMiB, ReaderInlineVideoMaxFileMiBLabel, Config.ReaderInlineVideoMaxFileMiBMinimum, Config.ReaderInlineVideoMaxFileMiBMaximum);
         candidate.ReaderMediaStripLimit = GetInteger(ReaderMediaStripLimit, ReaderMediaStripLimitLabel, Config.ReaderMediaStripLimitMinimum, Config.ReaderMediaStripLimitMaximum);
@@ -735,6 +748,8 @@ public partial class SettingsEditor
         nameof(ReaderSidebarVideoAutoplayLabel), nameof(ReaderSidebarVideoAutoplayHint),
         nameof(ReaderSidebarVideoLoopLabel), nameof(ReaderSidebarVideoLoopHint),
         nameof(ReaderSidebarVideoStartMutedLabel), nameof(ReaderSidebarVideoStartMutedHint),
+        nameof(ReaderQuotePreviewAutoplayLabel), nameof(ReaderQuotePreviewAutoplayHint),
+        nameof(ReaderQuotePreviewMutedLabel), nameof(ReaderQuotePreviewMutedHint),
         nameof(ReaderInlineVideoMaxPlayersLabel), nameof(ReaderInlineVideoMaxPlayersHint), nameof(ReaderInlineVideoMaxPlayersHelp),
         nameof(ReaderInlineVideoMaxFileMiBLabel), nameof(ReaderInlineVideoMaxFileMiBHint), nameof(ReaderInlineVideoMaxFileMiBHelp),
         nameof(ReaderMediaStripLimitLabel), nameof(ReaderMediaStripLimitHint), nameof(ReaderMediaStripLimitHelp),

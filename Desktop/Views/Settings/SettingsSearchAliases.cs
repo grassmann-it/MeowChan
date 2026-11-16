@@ -58,6 +58,8 @@ internal static class SettingsSearchAliases
         ["ReaderInlineVideoAutoplayMuted"] = "video autoplay automatic muted sound silent start automatisch stumm ton start",
         ["ReaderSidebarVideoAutoplay"] = "media sidebar viewer video autoplay automatic start play reader archive media page panel medienleiste video automatisch abspielen start",
         ["ReaderSidebarVideoLoop"] = "media sidebar viewer video repeat loop again replay medienleiste video wiederholen schleife erneut",
+        ["ReaderQuotePreviewAutoplay"] = "quote preview hover reference reply number video gif autoplay animate play large medium zitatvorschau zitat überfahren antwortnummer video gif automatisch abspielen groß medium",
+        ["ReaderQuotePreviewMuted"] = "quote preview hover video muted silent sound mute zitatvorschau video stumm ton leise",
         ["ReaderSidebarVideoStartMuted"] = "media sidebar viewer video muted silent sound mute start medienleiste video stumm ton leise start",
         ["ReaderKeepImagesExpanded"] = "keep expanded images open stay enlarged scroll page rebuild remember in post aufgeklappt bilder offen lassen vergrößert scrollen seite merken im post",
         ["GalleryVideoRepeat"] = "repeat loop video again replay inline reader gallery wiederholen schleife video erneut wiedergabe reader galerie",
