@@ -3147,6 +3147,7 @@
     "booru.ui.status.unavailable": "이 프로필에서는 Danbooru를 사용할 수 없습니다. 플러그인에서 Danbooru 플러그인을 활성화한 후 다시 시도하세요.",
     "booru.ui.status.failed": "요청에 실패했습니다({0}). 아무것도 불러오지 않았습니다. 나중에 다시 시도하세요.",
     "booru.ui.status.pluginMismatch": "활성화된 Danbooru 플러그인 빌드는 다른 MeowChan 버전용으로 만들어져 검색할 수 없습니다(sdk-mismatch). 플러그인에서 현재 Danbooru 빌드를 선택한 다음 다시 검색하세요. 아무것도 불러오지 않았습니다.",
+    "booru.ui.status.reviewBuild": "현재 빌드 검토",
     "booru.ui.status.retry": "다시 검색",
     "booru.ui.post.title": "게시물 #{0}",
     "booru.ui.post.rating": "Danbooru 등급: {0}",

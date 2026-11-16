@@ -3329,6 +3329,7 @@
     "booru.ui.status.unavailable": "Danbooru недоступен в этом профиле. Включите плагин Danbooru в разделе «Плагины» и повторите попытку.",
     "booru.ui.status.failed": "Запрос не удался ({0}). Ничего не было загружено. Повторите попытку позже.",
     "booru.ui.status.pluginMismatch": "Активная сборка плагина Danbooru создана для другой версии MeowChan и не может выполнять поиск (sdk-mismatch). В разделе «Плагины» выберите текущую сборку Danbooru и повторите поиск. Ничего не было загружено.",
+    "booru.ui.status.reviewBuild": "Проверить текущую сборку",
     "booru.ui.status.retry": "Искать снова",
     "booru.ui.post.title": "Публикация #{0}",
     "booru.ui.post.rating": "Рейтинг Danbooru: {0}",

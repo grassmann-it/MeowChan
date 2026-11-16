@@ -2971,6 +2971,7 @@
     "booru.ui.status.unavailable": "Danbooru není v tomto profilu k dispozici. Zapněte plugin Danbooru v části Pluginy a zkuste to znovu.",
     "booru.ui.status.failed": "Požadavek selhal ({0}). Nic nebylo načteno. Zkuste to později.",
     "booru.ui.status.pluginMismatch": "Aktivní sestavení pluginu Danbooru bylo vytvořeno pro jinou verzi MeowChan a nemůže vyhledávat (sdk-mismatch). V části Pluginy vyberte aktuální sestavení Danbooru a vyhledejte znovu. Nic nebylo načteno.",
+    "booru.ui.status.reviewBuild": "Zkontrolovat aktuální sestavení",
     "booru.ui.status.retry": "Hledat znovu",
     "booru.ui.post.title": "Příspěvek #{0}",
     "booru.ui.post.rating": "Hodnocení na Danbooru: {0}",

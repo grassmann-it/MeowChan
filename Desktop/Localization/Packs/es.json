@@ -3324,6 +3324,7 @@
     "booru.ui.status.unavailable": "Danbooru no está disponible en este perfil. Active el complemento de Danbooru en Complementos y vuelva a intentarlo.",
     "booru.ui.status.failed": "La solicitud falló ({0}). No se cargó nada. Inténtelo de nuevo más tarde.",
     "booru.ui.status.pluginMismatch": "La compilación activa del complemento de Danbooru se creó para otra versión de MeowChan y no puede buscar (sdk-mismatch). En Complementos, seleccione la compilación actual de Danbooru y vuelva a buscar. No se cargó nada.",
+    "booru.ui.status.reviewBuild": "Revisar la compilación actual",
     "booru.ui.status.retry": "Buscar de nuevo",
     "booru.ui.post.title": "Publicación #{0}",
     "booru.ui.post.rating": "Clasificación de Danbooru: {0}",

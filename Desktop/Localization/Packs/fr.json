@@ -3324,6 +3324,7 @@
     "booru.ui.status.unavailable": "Danbooru n’est pas disponible dans ce profil. Activez le module Danbooru sous Modules, puis réessayez.",
     "booru.ui.status.failed": "La requête a échoué ({0}). Rien n’a été chargé. Réessayez plus tard.",
     "booru.ui.status.pluginMismatch": "La version active du module Danbooru a été compilée pour une autre version de MeowChan et ne peut pas rechercher (sdk-mismatch). Sous Modules, sélectionnez la version actuelle de Danbooru, puis relancez la recherche. Rien n’a été chargé.",
+    "booru.ui.status.reviewBuild": "Vérifier la version actuelle",
     "booru.ui.status.retry": "Rechercher à nouveau",
     "booru.ui.post.title": "Publication #{0}",
     "booru.ui.post.rating": "Classification Danbooru : {0}",
