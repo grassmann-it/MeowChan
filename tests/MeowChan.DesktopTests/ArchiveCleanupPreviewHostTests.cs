@@ -20,7 +20,7 @@ public sealed class ArchiveCleanupPreviewHostTests
         Config(profile, root);
         ResourceId[] ids = Enumerable.Range(0, 501).Select(index => Id(index.ToString())).ToArray();
         foreach (ResourceId id in ids) Directory.CreateDirectory(DirectoryFor(root, id));
-        await RegisterAsync(profile, root, ids);
+        await SeedPagedCatalogAsync(profile, root, ids);
         await using DesktopSessionHost host = new(profile, Array.Empty<IImageBoard>());
         await host.StartAsync();
         string pending = Path.Combine(profile, "post-bookmarks.json.pending-" + Guid.NewGuid().ToString("N"));
@@ -257,6 +257,39 @@ public sealed class ArchiveCleanupPreviewHostTests
         await using DesktopSessionHost restarted = new(profile, Array.Empty<IImageBoard>());
         await restarted.StartAsync();
         Assert.NotEqual(binding, (await restarted.PrepareArchiveCleanupAsync()).ProfileBinding);
+    }
+
+    // This test exercises preview paging, not 501 independent durable registrations.
+    // Keep the real catalog schema, admission and FULL-synchronous commit, but seed
+    // the inventory in one transaction so slow Windows flushes do not dominate it.
+    private static async Task SeedPagedCatalogAsync(string profile, string root, ResourceId[] ids)
+    {
+        using ProfileLease lease = ProfileLease.Acquire(profile);
+        await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(profile, lease);
+        int commits = 0;
+        catalog.AfterWriteCommitForTests = _ => commits++;
+        await catalog.WriteAsync((connection, transaction) =>
+        {
+            foreach (ResourceId id in ids)
+            {
+                using var command = ArchiveSql.Command(connection, transaction, """
+                    INSERT INTO archive_threads
+                        (source,board,thread,url,title,media_directory,source_state,capture_enabled,first_seen_at,revision,search_text)
+                    VALUES ($source,$board,$thread,$url,$title,$directory,$state,0,$first,0,$search)
+                    """);
+                ArchiveSql.AddId(command, id);
+                command.Parameters.AddWithValue("$url", "https://offline.invalid/" + Uri.EscapeDataString(id.Thread!));
+                command.Parameters.AddWithValue("$title", "Thread " + id.Thread);
+                command.Parameters.AddWithValue("$directory", DirectoryFor(root, id));
+                command.Parameters.AddWithValue("$state", (int)ThreadSourceState.Active);
+                command.Parameters.AddWithValue("$first", ArchiveSql.Date(DateTimeOffset.UnixEpoch));
+                command.Parameters.AddWithValue("$search", id.Source + "\n" + id.Board + "\n" + id.Thread + "\nThread " + id.Thread);
+                command.ExecuteNonQuery();
+                ArchiveSql.RegisterMediaDirectory(connection, transaction, id, DirectoryFor(root, id));
+            }
+            return true;
+        });
+        Assert.Equal(1, commits);
     }
 
     private static Dictionary<string, string> Snapshot(string profile, string root) =>
