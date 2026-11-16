@@ -190,7 +190,18 @@ public sealed class BooruMediaHandoffInteractionTests
         Assert.Contains("PresentEditedFilters();", navigation);
         Assert.DoesNotContain("FilterEdited();", navigation);
         string page = Source("Desktop/Views/Media/MediaPage.cs");
-        Assert.Contains("if (_restoring) return; _selectionStamp++;", page);
+        int selectionStart = page.IndexOf("_grid.SelectionChanged += (_, e) =>", StringComparison.Ordinal);
+        Assert.True(selectionStart >= 0, "The grid selection handler must remain wired.");
+        int selectionEnd = page.IndexOf("};", selectionStart, StringComparison.Ordinal);
+        Assert.True(selectionEnd > selectionStart, "The grid selection handler must have a body.");
+        string selectionHandler = page[selectionStart..selectionEnd];
+        int restoringGuard = selectionHandler.IndexOf("if (_restoring) return;", StringComparison.Ordinal);
+        int cancelReturn = selectionHandler.IndexOf("EndPendingReturn();", StringComparison.Ordinal);
+        int selectionStamp = selectionHandler.IndexOf("_selectionStamp++;", StringComparison.Ordinal);
+        // Selection takeover must cancel an earlier gallery return before changing ownership.
+        // Scope these checks to the handler, without depending on comments or LF/CRLF layout.
+        Assert.True(restoringGuard >= 0 && cancelReturn > restoringGuard && selectionStamp > cancelReturn,
+            "Selection must guard restoration, cancel the pending return, then advance its ownership stamp.");
         string returns = Source("Desktop/Views/Media/MediaPage.Return.cs");
         Assert.Contains("selection == _selectionStamp", returns);
         Assert.Contains("interaction == _booruHandoffInteractionRevision", returns);
