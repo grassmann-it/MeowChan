@@ -283,6 +283,8 @@ internal static class CommandLabelCatalog
         ("command.gallery.close.downloads", "Back to Downloads", "Zurück zu Downloads"),
         // QW6: the same gallery.close, when the queue walk was started on the Tagging page and closes back to it.
         ("command.gallery.close.tagging", "Back to Tagging page", "Zurück zur Seite Taggen"),
+        // F5 (16.11.2026): the same media.return, after "Show in thread" on the Tagging page.
+        ("command.media.return.tagging", "Back to Tagging", "Zurück zum Tagging"),
         ("command.gallery.favorite.compact", "Favorite", "Favorit"),
         ("command.gallery.export-original.compact", "Original", "Original"),
     };

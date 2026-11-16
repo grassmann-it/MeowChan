@@ -34,6 +34,9 @@ internal static class ArchiveCatalog
         ("archive.boardChip", "Board: {0}", "Board: {0}"),
         ("archive.reveal.searchReplaced", "The archive search was set to the board {0} so the opened thread is in the list.", "Die Archivsuche wurde auf das Board {0} gesetzt, damit der geöffnete Thread in der Liste steht."),
         ("archive.reveal.restoreSearch", "Restore previous search", "Vorherige Suche wiederherstellen"),
+        // F1/F6 (16.11.2026): "Show in thread" for a thread or a post the archive does not hold.
+        ("archive.showInThread.missing", "This thread is not in the archive. Nothing was opened.", "Dieser Thread ist nicht im Archiv. Es wurde nichts geöffnet."),
+        ("archive.showInThread.postMissing", "This post is not in the archived copy of the thread. The thread is shown from the start.", "Dieser Post ist nicht in der archivierten Kopie des Threads. Der Thread wird ab dem Anfang angezeigt."),
         ("archive.dateChip", "First registered locally: {0} – {1} · {2}", "Erstmals lokal registriert: {0} – {1} · {2}"),
         ("archive.pageAction", "Result page {0} of {1}", "Ergebnisseite {0} von {1}"),
         ("savedSearch.openManager", "Saved searches…", "Gespeicherte Suchen…"),

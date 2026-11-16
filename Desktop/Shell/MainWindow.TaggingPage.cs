@@ -167,14 +167,20 @@ public partial class MainWindow
         }
     }
 
-    // The post in its thread (the archive reader); the media page's return point does not apply, the way back is the page navigation.
+    // The post in its thread (the archive reader), as the Media page's "Show in thread". F5 (16.11.2026): with its own way back, "Back to
+    // Tagging" (the reader's header and Alt+Left, MainWindow.MediaReturn.cs), which selects this row on the Tagging page again.
     private async Task ShowTaggingEntryInThreadAsync(TagQueueItem item)
     {
         if (_isClosing || item.PostId == null) return;
         ForgetMediaReturn();
         int request = ++_mediaJumpRequest;
+        // F1: a thread the archive does not hold leaves the Tagging page and the archive's loaded thread as they are.
+        if (!await ArchiveHoldsJumpTargetAsync(item.Thread, JumpStillRequested(request))) return;
         if (!NavigateWorkspace(WorkspacePage.Archive, activateArchive: false)) return;
-        await ShowThreadPostInLargeReaderAsync(item.Thread, item.PostId, request); // as the Media page's "Show in thread", without its return point
+        _mediaReturn = new TaggingPageReturn(item.Key);
+        ArchivePage.MediaReturn = ReturnToMedia;
+        UpdateMediaReturn();
+        await ShowThreadPostInLargeReaderAsync(item.Thread, item.PostId, request);
     }
 
     // The media page with the entry's tile selected; a filter that hides it is cleared by the page's own exact-focus rule or says so.

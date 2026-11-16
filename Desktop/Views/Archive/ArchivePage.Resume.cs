@@ -133,6 +133,7 @@ public partial class ArchivePage
             string postId = view.GetPosts(index, 1).First().PostId;
             // The saved anchor is the reading mark: the posts after it have not been read since.
             if (!fallback) _unreadMark = (position.ThreadId, LastReadOf(view, position));
+            _history.Clear(); // F2: continue reading is a jump; "Back to last read" never flips to the thread shown before it
             ShowCapturedView(view, index / PageSize * PageSize, postId);
             await RevealPostAsync(postId); // The saved place is shown even where the reader view hides it.
             OpenReaderRequested?.Invoke(null);

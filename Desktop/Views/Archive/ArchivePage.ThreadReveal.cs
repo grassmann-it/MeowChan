@@ -111,6 +111,23 @@ public partial class ArchivePage
         });
     }
 
+    /// <summary>
+    /// F1 (16.11.2026): true only when the archive is known not to hold <paramref name="thread"/> (read from its catalog without posts or media).
+    /// A page that cannot read now, or a failing read, is no answer: the jump then goes on and its own load reports what is wrong.
+    /// </summary>
+    internal async Task<bool> ThreadMissingAsync(ResourceId thread)
+    {
+        if (_ended || !CanRead || _openReader is not { } open) return false;
+        try
+        {
+            await using ArchiveReader reader = await open(_lifetime.Token);
+            return await reader.ReadThreadSummaryAsync(thread, _lifetime.Token) == null;
+        }
+        catch (ArgumentException) { return true; } // no identity an archived thread can have (a provider post, say)
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { return false; }
+        catch (Exception exception) when (exception is not OutOfMemoryException) { return false; }
+    }
+
     /// <summary>The board the shell names when the jump replaced the search ("4chan /kot/"), as the search's board chip names it.</summary>
     internal static string RevealedBoardLabel(ResourceId thread) => BoardLabel(new ArchiveBoardConstraint(thread.Source, thread.Board));
 
