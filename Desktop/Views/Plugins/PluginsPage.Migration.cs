@@ -35,7 +35,12 @@ public partial class PluginsPage
         _migrationWindow?.Close();
     }
 
-    private async void OnReviewBundledRepairsClick(object? sender, RoutedEventArgs e)
+    private async void OnReviewBundledRepairsClick(object? sender, RoutedEventArgs e) =>
+        await ReviewBundledBuildsAsync();
+
+    // Shared with the Danbooru sdk-mismatch recovery route. Includes explicit reselections
+    // (not only automatic repairs), so a pin remains intact until the review is confirmed.
+    internal async Task ReviewBundledBuildsAsync()
     {
         if (_ended || _busy || _migrationWindow is not null || _services is null || !IsEffectivelyVisible ||
             !CommandRouter.IsRoutingContextActive(this, this) || TopLevel.GetTopLevel(this) is not Window owner) return;

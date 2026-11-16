@@ -104,6 +104,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     private readonly Border _statusHost = new() { Name = StatusName };
     private readonly TextBlock _statusText = new() { TextWrapping = TextWrapping.Wrap };
     // A normal-size button under the status text, left-aligned like "Create watcher"; it never stretches across the box.
+    private readonly Button _reviewBuild = new() { Name = "BooruReviewCurrentBuild", HorizontalAlignment = HorizontalAlignment.Left };
     private readonly Button _retry = new() { Name = RetryName, HorizontalAlignment = HorizontalAlignment.Left };
     private readonly WrapPanel _pager = new() { Classes = { "workspace-toolbar" } };
     private readonly Button _previous = new() { Name = PreviousName };
@@ -235,6 +236,17 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
 
     internal BooruWorkbenchModel Model => _model;
 
+    // The shell owns navigation; this callback never selects or authorizes a build itself.
+    internal Func<Task>? ReviewCurrentBuild { get; set; }
+
+    internal async Task ReviewCurrentBuildAsync()
+    {
+        if (_closed || !_attached || !IsEffectivelyVisible || !IsEffectivelyEnabled
+            || !BooruText.CanReviewCurrentBuild(_model.Search.View) || ReviewCurrentBuild is not { } review
+            || !CommandRouter.IsRoutingContextActive(this, this)) return;
+        await review();
+    }
+
     /// <summary>Host navigation to the local media entry of an already saved post. The callback never performs provider I/O.</summary>
     internal Func<string, Task<bool>>? ShowInMedia
     {
@@ -333,6 +345,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         };
         _cancel.Click += (_, _) => _model.Search.Cancel();
         _retry.Click += async (_, _) => await _model.Search.RetryAsync();
+        _reviewBuild.Click += async (_, _) => await ReviewCurrentBuildAsync();
         _previous.Click += async (_, _) => await _model.Search.GoToPageAsync(_model.Search.View.Page - 1);
         _next.Click += async (_, _) => await _model.Search.GoToPageAsync(_model.Search.View.Page + 1);
         _createWatcher.Click += async (_, _) => await _model.CreateWatcherAsync();
@@ -347,6 +360,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         StackPanel status = new() { Spacing = 8 };
         status.Children.Add(_statusText);
         status.Children.Add(_retry);
+        status.Children.Add(_reviewBuild);
         _statusHost.Child = status;
         AutomationProperties.SetLiveSetting(_statusText, AutomationLiveSetting.Polite);
 
@@ -571,6 +585,9 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         _retry.Content = Texts.T("booru.ui.status.retry");
         _retry.IsVisible = view.CanRetry;
         _retry.IsEnabled = !paused;
+        _reviewBuild.Content = Texts.T("booru.ui.status.reviewBuild");
+        _reviewBuild.IsVisible = BooruText.CanReviewCurrentBuild(view) && ReviewCurrentBuild != null;
+        AutomationProperties.SetName(_reviewBuild, Texts.T("booru.ui.status.reviewBuild"));
 
         bool paging = view.Status is BooruSearchStatus.Results or BooruSearchStatus.Empty && view.ExecutedQuery is not null && !view.IsPostResult;
         // Keep recovery navigation reachable even when the failed/cancelled page has no results.
@@ -1372,6 +1389,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         _clock.Stop();
         _clock.Tick -= OnClockTick;
         ChromeChanged = null;
+        ReviewCurrentBuild = null;
         Texts.Changed -= OnTextsChanged;
         _model.Search.Changed -= OnModelChanged;
         _model.Watchers.Changed -= OnModelChanged;
