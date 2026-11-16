@@ -59,10 +59,20 @@ internal static class MediaInteractionSmokeHelpers
 
     internal static bool IsPointerTargetReady(Control target)
     {
-        if (!IsNativeGeometryReady(target) || TopLevel.GetTopLevel(target) is not { } root) return false;
-        PixelPoint pixel = target.PointToScreen(new Point(target.Bounds.Width / 2, target.Bounds.Height / 2));
-        return root.InputHitTest(root.PointToClient(pixel)) is Visual hit
-            && hit.GetSelfAndVisualAncestors().Contains(target);
+        try
+        {
+            if (!IsNativeGeometryReady(target) || TopLevel.GetTopLevel(target) is not { } root) return false;
+            PixelPoint pixel = target.PointToScreen(new Point(target.Bounds.Width / 2, target.Bounds.Height / 2));
+            return root.InputHitTest(root.PointToClient(pixel)) is Visual hit
+                && hit.GetSelfAndVisualAncestors().Contains(target);
+        }
+        catch (ArgumentException)
+        {
+            // A popup/control transfer can invalidate the target between the geometry
+            // probe and the cross-root hit test. Let the caller reacquire the current
+            // instance; never turn that transient native-root race into a smoke failure.
+            return false;
+        }
     }
 
     /// <summary>Checks the current native popup-root geometry without trusting a stale cross-root hit-test cache.</summary>
