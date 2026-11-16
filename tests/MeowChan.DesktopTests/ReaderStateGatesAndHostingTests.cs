@@ -102,7 +102,8 @@ public sealed class ReaderStateGatesAndHostingTests
 
     // Page-level handlers that belong to the results page only (their commands are not offered in the large reader).
     private static readonly string[] ListOnlyPageHandlers =
-        ["RouteArchiveCleanupCommand", "RouteTransferExportCommand", "RouteSavedSearchCommand", "RouteTransferPreviewCommand"];
+        ["RouteArchiveCleanupCommand", "RouteTransferExportCommand", "RouteSavedSearchCommand", "RouteTransferPreviewCommand",
+         "OnThreadRowContextRequested"]; // the thread list rows (audit-archive-list), not shown in the large reader
 
     [Fact]
     public void EveryHandlerThePageAddsForItselfIsAlsoOnThePaneInTheLargeReader()
