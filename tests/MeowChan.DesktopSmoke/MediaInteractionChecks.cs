@@ -679,7 +679,10 @@ internal static class MediaInteractionChecks
                     // turn, so the native click and shortcuts-window assertion below
                     // remain the delivery proof.
                     await native.ClickAsync(() => NativeTargetAsync<Button>("GalleryMore"));
-                    await native.ClickAsync(() => NativeOverflowTargetAsync<Button>(panel));
+                    bool requirePopupHitTest = !OperatingSystem.IsMacOS();
+                    await native.ClickAsync(
+                        () => NativeOverflowTargetAsync<Button>(panel, requirePopupHitTest),
+                        requireHitTest: requirePopupHitTest);
                 }
                 else
                     await native.ClickAsync(() => NativeTargetAsync<Button>(panel));
