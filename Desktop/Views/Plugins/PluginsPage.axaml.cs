@@ -158,7 +158,7 @@ public partial class PluginsPage : UserControl
     private void FitStatusRow()
     {
         bool empty = string.IsNullOrEmpty(C<TextBlock>("PluginTestStatus").Text) && !C<Ursa.Controls.LoadingIcon>("PluginOperationLoading").IsVisible;
-        StackPanel row = C<StackPanel>("PluginStatusRow");
+        DockPanel row = C<DockPanel>("PluginStatusRow");
         row.MaxHeight = empty ? 0 : double.PositiveInfinity;
         row.Margin = empty ? default : new Thickness(0, 8, 0, 0);
     }
@@ -320,6 +320,9 @@ public partial class PluginsPage : UserControl
                 PluginListContent content = _cardContent[entry.Key];
                 content.Name.Text = presentation.Name;
                 content.Description.Text = PluginContentPresentation.DescribeDescription(presentation);
+                // Name, description and identity stop after two lines with an ellipsis in a narrow list: the full text stays the tooltip.
+                ToolTip.SetTip(content.Name, string.IsNullOrEmpty(presentation.Name) ? null : presentation.Name);
+                ToolTip.SetTip(content.Description, string.IsNullOrEmpty(content.Description.Text) ? null : content.Description.Text);
                 content.Origin.Text = presentation.HasRetainedDescription ? Texts.T("plugins.lastDescriptionShort") : string.Empty;
                 content.Origin.IsVisible = presentation.HasRetainedDescription;
                 string sourceClassifications = PluginContentPresentation.DescribeSourceClassifications(presentation);
@@ -336,7 +339,7 @@ public partial class PluginsPage : UserControl
                     sameName && presentation.PluginId != null ? Texts.T("plugins.pluginIdCompact", presentation.PluginId) : null }.Where(value => value != null));
                 content.Identity.IsVisible = identityText.Length > 0;
                 content.Identity.Text = identityText;
-                ToolTip.SetTip(content.Identity, null);
+                ToolTip.SetTip(content.Identity, identityText.Length > 0 ? identityText : null);
                 string fullState = type + (sourceClassifications.Length > 0 ? " · " + sourceClassifications : string.Empty) + " · " + status;
                 AutomationProperties.SetName(item, string.Join(". ", new[] { presentation.Name, content.Description.Text, content.Origin.Text, fullState,
                     content.Identity.IsVisible ? content.Identity.Text : null }.Where(value => !string.IsNullOrEmpty(value))));
@@ -595,19 +598,7 @@ public partial class PluginsPage : UserControl
             else if (listHadFocus) _showDetails = false;
         }
         _narrow = narrow;
-        // Wide: title block left (two rows tall), actions top right, the count right-aligned under them. Narrow: title, then the
-        // count, then the actions, all at the start edge, so the title keeps the full width.
-        bool stackedHeader = Bounds.Width < 900;
-        WrapPanel headerActions = C<WrapPanel>("PluginsHeaderActions");
-        TextBlock headerCount = C<TextBlock>("PluginsCount");
-        Grid.SetColumn(headerActions, stackedHeader ? 0 : 1);
-        Grid.SetRow(headerActions, stackedHeader ? 2 : 0);
-        headerActions.Margin = stackedHeader ? new Thickness(0, 8, 0, 0) : default;
-        Grid.SetColumn(headerCount, stackedHeader ? 0 : 1);
-        headerCount.HorizontalAlignment = stackedHeader ? Avalonia.Layout.HorizontalAlignment.Left : Avalonia.Layout.HorizontalAlignment.Right;
-        headerCount.TextAlignment = stackedHeader ? Avalonia.Media.TextAlignment.Left : Avalonia.Media.TextAlignment.Right;
-        Grid.SetRowSpan(C<StackPanel>("PluginsTitleStack"), stackedHeader ? 1 : 2);
-        C<Grid>("PluginsPageHeader").ColumnSpacing = stackedHeader ? 0 : 12;
+        // The page head places itself (PageHeader): actions beside the title while they fit, under it otherwise and below 900 dip.
         C<Grid>("PluginSplit").ColumnDefinitions[0].Width = new GridLength(_narrow ? 0 : 280);
         C<Grid>("PluginSplit").ColumnSpacing = _narrow ? 0 : 16;
         Grid.SetColumn(C<Grid>("PluginListPane"), _narrow ? 1 : 0); ApplyPaneVisibility();

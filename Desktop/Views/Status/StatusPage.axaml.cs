@@ -143,6 +143,8 @@ public partial class StatusPage : UserControl
         StatusStrip.Text = text;
         StatusStrip.IsVisible = text.Length > 0;
         AutomationProperties.SetName(StatusStrip, text);
+        // A narrow page trims the one line (ellipsis): the full line stays reachable as its tooltip.
+        ToolTip.SetTip(StatusStrip, text.Length > 0 ? text : null);
     }
 
     // A segment that cannot be chosen says why: tooltip (also on the disabled tab) and help text, only while it is unavailable.

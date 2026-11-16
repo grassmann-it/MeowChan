@@ -755,7 +755,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         grid.Children.Add(WithPreviewCorners(CreatePreview(row), post));
 
         StackPanel info = new() { Spacing = 4 };
-        info.Children.Add(new TextBlock { Text = Texts.T("booru.ui.post.title", post.PostId), Classes = { "card-title" } });
+        info.Children.Add(new TextBlock { Text = Texts.T("booru.ui.post.title", post.PostId), Classes = { "card-title" }, TextWrapping = TextWrapping.Wrap });
         // I8: the post facts as a definition list; the address is no longer a text line, it is the tooltip of the link buttons.
         info.Children.Add(CreateDetails(post));
 

@@ -267,8 +267,11 @@ public sealed class HeaderBar : Control
             x += control.DesiredSize.Width + BackSpacing;
         }
         double contentWidth = Math.Max(0, finalSize.Width - backReach - endReach);
+        // Narrow-window sweep (16.11.2026): a content child that cannot get narrower than the room left (its MinWidth, a fixed width)
+        // must not be centred on that room, which pushed its start under the back slot or out of the row to the left. It keeps its
+        // start edge and overflows towards the end instead, so the title's first words stay readable.
         foreach (Control control in Children.Where(child => SlotOf(child) == Slot.Content))
-            control.Arrange(new Rect(backReach, 0, contentWidth, finalSize.Height));
+            control.Arrange(new Rect(backReach, 0, Math.Max(contentWidth, ContentFloor(control)), finalSize.Height));
         x = finalSize.Width - endWidth;
         foreach (Control control in end)
         {
@@ -285,6 +288,14 @@ public sealed class HeaderBar : Control
             InvalidateVisual();
         }
         return finalSize;
+    }
+
+    /// <summary>The least width <paramref name="control"/> takes whatever room it is given (MinWidth or a fixed Width, plus its margins).</summary>
+    internal static double ContentFloor(Control control)
+    {
+        double floor = control.MinWidth;
+        if (!double.IsNaN(control.Width)) floor = Math.Max(floor, control.Width);
+        return floor + control.Margin.Left + control.Margin.Right;
     }
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)

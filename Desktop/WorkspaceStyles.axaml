@@ -737,7 +737,9 @@
         <Setter Property="HorizontalAlignment" Value="Center" /><Setter Property="TextAlignment" Value="Center" /><Setter Property="TextWrapping" Value="Wrap" />
     </Style>
     <Style Selector="TextBlock.brand"><Setter Property="FontSize" Value="19" /><Setter Property="FontWeight" Value="SemiBold" /></Style>
-    <Style Selector="TextBlock.page-title"><Setter Property="FontSize" Value="{StaticResource Workspace.Text.Title}" /><Setter Property="FontWeight" Value="SemiBold" /></Style>
+    <!-- A page title wraps when its column runs out (narrow-window sweep 16.11.2026): a long title in a narrow window or a long language
+         takes a second line instead of being cut at the edge. No page title trims; a local TextWrapping still wins. -->
+    <Style Selector="TextBlock.page-title"><Setter Property="FontSize" Value="{StaticResource Workspace.Text.Title}" /><Setter Property="FontWeight" Value="SemiBold" /><Setter Property="TextWrapping" Value="Wrap" /></Style>
     <Style Selector="TextBlock.section-title"><Setter Property="FontSize" Value="{StaticResource Workspace.Text.Section}" /><Setter Property="FontWeight" Value="SemiBold" /></Style>
     <Style Selector="TextBlock.mono"><Setter Property="FontFamily" Value="monospace" /></Style>
     <Style Selector="SelectableTextBlock.reader-body"><Setter Property="FontFamily" Value="{DynamicResource Workspace.Font.Reading}" /></Style>

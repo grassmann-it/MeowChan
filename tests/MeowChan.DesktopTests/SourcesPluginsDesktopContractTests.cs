@@ -184,7 +184,7 @@ public sealed class SourcesPluginsDesktopContractTests
         XDocument management = Markup(Management);
         XElement status = Named(management, "PluginTestStatus", "TextBlock");
         Assert.Equal("Polite", (string?)status.Attribute("AutomationProperties.LiveSetting"));
-        Assert.Same(Named(management, "PluginStatusRow", "StackPanel"), status.Parent);
+        Assert.Same(Named(management, "PluginStatusRow", "DockPanel"), status.Parent); // a DockPanel lets a long status wrap in a narrow page
         Assert.Null(status.Parent!.Attribute("IsVisible")); // keep the live region attached, even when its height is zero
         Assert.Equal("Assertive", (string?)Named(management, "PluginPageError", "TextBlock").Attribute("AutomationProperties.LiveSetting"));
         Assert.Contains("RenderOperationFeedback() => SourcePluginManagement.SetSourceOperationBusy(_busy)", Read("Desktop/Views/Sources/SourcesPage.Feedback.cs"));

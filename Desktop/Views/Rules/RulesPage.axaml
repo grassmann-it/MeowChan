@@ -47,19 +47,22 @@
              shell header) and 16 to the content, the gap between the overview's sections, so the first section title does not read as
              part of the header. -->
         <StackPanel x:Name="RulesHeader" Margin="0,12,0,16" MaxWidth="880" HorizontalAlignment="Center">
-            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.12}">
+            <!-- The shared page head (PageHeader): Create rule and the help top right while they leave the title its room, else under it. -->
+            <controls:PageHeader x:Name="RulesHeaderRow">
                 <StackPanel Classes="workspace-page-header">
                     <TextBlock x:Name="RulesTitle" Text="{Binding Title}" Classes="page-title" />
                     <TextBlock x:Name="RulesSubtitle" Text="{Binding Subtitle}" Classes="muted" TextWrapping="Wrap" />
                 </StackPanel>
                 <!-- One primary "Create rule" at a time: while the empty state shows, its button is the page's primary action and this one
-                     hides (IsHeaderCreateVisible); with rules or drafts listed it is the overview's primary action here. -->
-                <Button x:Name="CreateRuleButton" wv:WorkViewElement.Id="rules.overview.create" Grid.Column="1" Classes="primary" VerticalAlignment="Top"
-                        IsVisible="{Binding IsHeaderCreateVisible}" IsEnabled="{Binding IsEditable}" Click="OnCreateRule" />
-                <!-- HB2: the precedence line stays as the subtitle; the popover adds what the line cannot say. Last in the row, as on
-                     Plugins, so it keeps the column's right edge while Create rule is hidden (the grid's spacing then falls before it). -->
-                <controls:HelpButton x:Name="RulesHelpButton" Grid.Column="2" HelpKey="help.rules" VerticalAlignment="Top" />
-            </Grid>
+                     hides (IsHeaderCreateVisible); with rules or drafts listed it is the overview's primary action here. HB2: the precedence
+                     line stays as the subtitle; the popover adds what the line cannot say. Last in the row, as on Plugins, so it keeps the
+                     right edge while Create rule is hidden (the stack adds no spacing for a hidden child). -->
+                <StackPanel x:Name="RulesHeaderActions" controls:PageHeader.Role="Actions" Orientation="Horizontal" Spacing="{StaticResource Workspace.Space.12}" VerticalAlignment="Top">
+                    <Button x:Name="CreateRuleButton" wv:WorkViewElement.Id="rules.overview.create" Classes="primary" VerticalAlignment="Top"
+                            IsVisible="{Binding IsHeaderCreateVisible}" IsEnabled="{Binding IsEditable}" Click="OnCreateRule" />
+                    <controls:HelpButton x:Name="RulesHelpButton" HelpKey="help.rules" VerticalAlignment="Top" />
+                </StackPanel>
+            </controls:PageHeader>
         </StackPanel>
         <ScrollViewer x:Name="RulesScroll" Grid.Row="1" HorizontalScrollBarVisibility="Disabled">
             <StackPanel x:Name="RulesContent" MaxWidth="880" HorizontalAlignment="Center" Spacing="{StaticResource Workspace.Space.12}">
@@ -313,10 +316,12 @@
                   HorizontalAlignment="Center">
                 <ScrollViewer MaxHeight="80" HorizontalScrollBarVisibility="Disabled">
                     <StackPanel VerticalAlignment="Center">
-                        <StackPanel Orientation="Horizontal" Spacing="{StaticResource Workspace.Space.8}">
-                            <ursa:LoadingIcon Width="16" Height="16" VerticalAlignment="Center" IsVisible="{Binding IsBusy}" IsLoading="{Binding IsBusy}" Focusable="False" />
+                        <!-- A DockPanel, not a horizontal StackPanel: the stack measured the status at infinite width, so a long line never wrapped
+                             and was cut at the footer's edge in a narrow window. -->
+                        <DockPanel>
+                            <ursa:LoadingIcon DockPanel.Dock="Left" Width="16" Height="16" Margin="0,0,8,0" VerticalAlignment="Center" IsVisible="{Binding IsBusy}" IsLoading="{Binding IsBusy}" Focusable="False" />
                             <TextBlock x:Name="RuleStatusText" Text="{Binding StatusMessage}" VerticalAlignment="Center" Classes="muted" TextWrapping="Wrap" IsVisible="{Binding HasStatus}" AutomationProperties.LiveSetting="{Binding StatusLiveSetting}" />
-                        </StackPanel>
+                        </DockPanel>
                         <controls:WorkspaceBanner Type="Error" IsVisible="{Binding HasError}">
                             <TextBlock x:Name="RuleActionError" Focusable="True" Text="{Binding ErrorMessage}" Classes="workspace-error" TextWrapping="Wrap" AutomationProperties.LiveSetting="Assertive" />
                         </controls:WorkspaceBanner>
