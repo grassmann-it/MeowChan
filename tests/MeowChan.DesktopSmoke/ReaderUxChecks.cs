@@ -73,6 +73,8 @@ internal static class ReaderUxChecks
         }
         if (!deletionFixture) await ReaderStabilityChecks.SeedAsync(catalog, media);
         if (!deletionFixture) await ReaderPostWidthChecks.SeedAsync(catalog, media);
+        if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_MEDIA_SIDEBAR_ONLY") == "1")
+            await ReaderSidebarShortcutChecks.SeedAsync(catalog, media);
     }
 
     internal static async Task RunAsync(MainWindow window)
@@ -140,6 +142,7 @@ internal static class ReaderUxChecks
         }
         if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_MEDIA_SIDEBAR_ONLY") == "1")
         {
+            await ReaderSidebarShortcutChecks.RunAsync(window);
             await ReaderMediaSidebarChecks.RunAsync(window);
             return;
         }
