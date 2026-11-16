@@ -5,6 +5,7 @@ using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Tags;
 
 namespace MeowChan.Desktop;
@@ -21,25 +22,50 @@ internal sealed class TaggingQueueRowView : Grid
     internal const double ColumnGap = 12;
     /// <summary>Layout limits of the table's columns (the file and source widths stand in a 3 : 2 ratio between them).</summary>
     internal const double FileMinWidth = 160, SourceMinWidth = 120, SourceMaxWidth = 420;
+    /// <summary>The compact table keeps every column but gives the text columns less room before they start trimming.</summary>
+    internal const double CompactFileMinWidth = 96, CompactSourceMinWidth = 72, CompactSourceMaxWidth = 240;
+    /// <summary>The page's list surface and its header each have 12 dip margins on both sides.</summary>
+    internal const double TableViewportInset = 48;
 
     /// <summary>
     /// The one definition of the columns of the header and of the rows: # · preview (0 wide when hidden) · type · file (3*) · thread or
     /// source (2*, at most <see cref="SourceMaxWidth"/>) · group · tags · state. A fresh set per call (a definition belongs to one grid).
     /// Both grids use these same widths and the same <see cref="ColumnGap"/>, so a scroll bar that narrows the rows moves nothing apart.
     /// </summary>
-    internal static ColumnDefinitions BuildColumns(bool showPreview) => new()
+    internal static ColumnDefinitions BuildColumns(bool showPreview, bool compact = false) => new()
     {
         // A grid puts its gap on both sides of a 0 wide column: without the preview the number column is one gap shorter and its cell
         // reaches into that gap (NumberMargin), so the type column still stands one ColumnGap after the number.
         new ColumnDefinition(showPreview ? NumberWidth : NumberWidth - ColumnGap, GridUnitType.Pixel),
         new ColumnDefinition(showPreview ? 56 : 0, GridUnitType.Pixel),
         new ColumnDefinition(64, GridUnitType.Pixel),
-        new ColumnDefinition(3, GridUnitType.Star) { MinWidth = FileMinWidth },
-        new ColumnDefinition(2, GridUnitType.Star) { MinWidth = SourceMinWidth, MaxWidth = SourceMaxWidth },
-        new ColumnDefinition(132, GridUnitType.Pixel),
-        new ColumnDefinition(72, GridUnitType.Pixel),
-        new ColumnDefinition(128, GridUnitType.Pixel)
+        new ColumnDefinition(3, GridUnitType.Star) { MinWidth = compact ? CompactFileMinWidth : FileMinWidth },
+        new ColumnDefinition(2, GridUnitType.Star)
+        {
+            MinWidth = compact ? CompactSourceMinWidth : SourceMinWidth,
+            MaxWidth = compact ? CompactSourceMaxWidth : SourceMaxWidth
+        },
+        new ColumnDefinition(compact ? 96 : 132, GridUnitType.Pixel),
+        new ColumnDefinition(compact ? 56 : 72, GridUnitType.Pixel),
+        new ColumnDefinition(compact ? 104 : 128, GridUnitType.Pixel)
     };
+
+    /// <summary>Returns the minimum width needed to keep all eight columns in the table, including their seven gaps.</summary>
+    internal static double MinimumTableWidth(bool showPreview, bool compact)
+    {
+        double file = compact ? CompactFileMinWidth : FileMinWidth;
+        double source = compact ? CompactSourceMinWidth : SourceMinWidth;
+        double fixedColumns = (showPreview ? NumberWidth : NumberWidth - ColumnGap) + (showPreview ? 56 : 0) + 64 + file + source
+            + (compact ? 96 : 132) + (compact ? 56 : 72) + (compact ? 104 : 128);
+        return fixedColumns + ColumnGap * 7;
+    }
+
+    /// <summary>
+    /// The page's outer margins leave 48 dip less than its width for the header. Compact columns are selected only while the normal
+    /// preview table cannot fit there; this keeps the normal geometry at 920, 1100 and 1440 dip and fixes the 760 dip case.
+    /// </summary>
+    internal static bool UseCompactColumns(double pageWidth) => double.IsFinite(pageWidth) && pageWidth > 0
+        && MinimumTableWidth(showPreview: true, compact: false) > Math.Max(0, pageWidth - TableViewportInset);
 
     private const double NumberWidth = 48;
 
@@ -67,10 +93,11 @@ internal sealed class TaggingQueueRowView : Grid
     private readonly TextBlock _state = Cell(TextAlignment.Left);
     private string? _shownIcon;
 
-    internal TaggingQueueRowView(TaggingThumbnails? thumbnails = null, Func<TagQueueItem, int?>? tagCount = null, bool compact = false, bool showPreview = true)
+    internal TaggingQueueRowView(TaggingThumbnails? thumbnails = null, Func<TagQueueItem, int?>? tagCount = null, bool compact = false,
+        bool showPreview = true, bool compactTable = false)
     {
         _tagCount = tagCount;
-        ColumnDefinitions = BuildColumns(showPreview);
+        ColumnDefinitions = BuildColumns(showPreview, compactTable);
         ColumnSpacing = ColumnGap;
         MinHeight = compact ? CompactHeight : RowHeight;
         double size = compact ? CompactPreviewSize : PreviewSize;
@@ -100,7 +127,7 @@ internal sealed class TaggingQueueRowView : Grid
 
     private static TextBlock Cell(TextAlignment alignment, bool muted = false)
     {
-        TextBlock text = new() { TextAlignment = alignment, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
+        TrimTipTextBlock text = new() { TextAlignment = alignment, VerticalAlignment = VerticalAlignment.Center };
         if (muted) text.Classes.Add("muted");
         return text;
     }

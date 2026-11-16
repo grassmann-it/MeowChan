@@ -22,6 +22,18 @@ internal sealed record TaggingQueueRow(TagQueueItem Item, int Index, bool Next, 
     internal string Name => Item.Name.Length == 0 ? Item.AssetId : Item.Name;
     internal string SourceText => TaggingQueueView.SourceText(Item);
     internal string StateText => TaggingQueueView.StateText(Item.State);
+    /// <summary>All table values, used as the keyboard/screen-reader detail when a narrow cell trims its visible text.</summary>
+    internal string AccessibleDetails(int? tagCount)
+    {
+        string tags = tagCount is { } count ? count.ToString("N0", Texts.Culture) : "–";
+        return string.Join(", ",
+            Texts.T("tagging.page.col.kind") + ": " + KindText,
+            Texts.T("tagging.page.col.name") + ": " + Name,
+            Texts.T("tagging.page.col.source") + ": " + SourceText,
+            Texts.T("tagging.page.col.group") + ": " + GroupText,
+            Texts.T("tagging.page.col.tags") + ": " + tags,
+            Texts.T("tagging.page.col.state") + ": " + StateText);
+    }
     internal string AccessibleName
     {
         get

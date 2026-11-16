@@ -72,6 +72,7 @@ public sealed partial class TaggingPage : UserControl
     private readonly TaggingThumbnails _thumbnails;
     private MediaLibraryUserData? _userData;
     private bool _compactRows;
+    private bool _compactTable;
     private IReadOnlyList<TaggingQueueRow> _rows = Array.Empty<TaggingQueueRow>();
     private bool _localizing, _refreshPosted;
 
@@ -155,7 +156,11 @@ public sealed partial class TaggingPage : UserControl
         header.Children.Add(_actions);
         header.Children.Add(_secondaryToolbar);
         header.Children.Add(BuildStamp());
-        SizeChanged += (_, _) => UpdateToolbarRows();
+        SizeChanged += (_, _) =>
+        {
+            UpdateToolbarRows();
+            UpdateTableLayout();
+        };
         header.Children.Add(_status);
         AutomationProperties.SetLiveSetting(_status, AutomationLiveSetting.Polite);
 
@@ -167,6 +172,7 @@ public sealed partial class TaggingPage : UserControl
             {
                 item.MinHeight = _compactRows ? TaggingQueueRowView.CompactHeight : TaggingQueueRowView.RowHeight;
                 AutomationProperties.SetName(item, row.AccessibleName);
+                AutomationProperties.SetHelpText(item, row.AccessibleDetails(TagCountOf(row.Item)));
             }
         };
         ScrollViewer.SetHorizontalScrollBarVisibility(_list, Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled);
@@ -207,7 +213,7 @@ public sealed partial class TaggingPage : UserControl
     private FuncDataTemplate<TaggingQueueRow> RowTemplate()
     {
         bool compact = _compactRows;
-        return new FuncDataTemplate<TaggingQueueRow>((_, _) => new TaggingQueueRowView(_thumbnails, TagCountOf, compact, ShowPreviewColumn));
+        return new FuncDataTemplate<TaggingQueueRow>((_, _) => new TaggingQueueRowView(_thumbnails, TagCountOf, compact, ShowPreviewColumn, _compactTable));
     }
 
     /// <summary>The number of own media tags of an entry, or null when the tag store is not known (shown as a dash).</summary>
@@ -225,6 +231,19 @@ public sealed partial class TaggingPage : UserControl
         if (compact == _compactRows) return;
         _compactRows = compact;
         _list.ItemTemplate = RowTemplate();
+    }
+
+    /// <summary>
+    /// Keeps the table's information columns in the viewport at small widths. The compact geometry trims text with a tooltip and the
+    /// row help text carries every value for keyboard and assistive-technology users; no column is removed.
+    /// </summary>
+    private void UpdateTableLayout()
+    {
+        bool compact = TaggingQueueRowView.UseCompactColumns(Bounds.Width);
+        if (compact == _compactTable) return;
+        _compactTable = compact;
+        _list.ItemTemplate = RowTemplate();
+        LocalizeColumns();
     }
 
     /// <summary>Reads the queue file (the page was opened) and shows it. An unreadable file is shown as an error, never emptied.</summary>
@@ -420,7 +439,7 @@ public sealed partial class TaggingPage : UserControl
     private void LocalizeColumns()
     {
         // The same helper as the rows, so header and rows stand on the same columns and the same gap (preview shown or not).
-        _columnHeader.ColumnDefinitions = TaggingQueueRowView.BuildColumns(ShowPreviewColumn);
+        _columnHeader.ColumnDefinitions = TaggingQueueRowView.BuildColumns(ShowPreviewColumn, _compactTable);
         _columnHeader.ColumnSpacing = TaggingQueueRowView.ColumnGap;
         _columnHeader.Children.Clear();
         string[] keys = { "", "tagging.page.col.preview", "tagging.page.col.kind", "tagging.page.col.name", "tagging.page.col.source", "tagging.page.col.group", "tagging.page.col.tags", "tagging.page.col.state" };
