@@ -2326,6 +2326,7 @@
     "shortcuts.issue.fixedNavigation": "Tab ed Esc sono riservati alla navigazione",
     "shortcuts.issue.altGrText": "Ctrl+Alt può produrre testo AltGr",
     "shortcuts.issue.reservedSystem": "Scorciatoia riservata al sistema",
+    "shortcuts.issue.reservedMacSystem": "Riservato da macOS: il sistema gestisce questo tasto prima che MeowChan lo riceva",
     "shortcuts.issue.unsupportedSymbol": "Simbolo non supportato",
     "shortcuts.issue.unsupportedSchema": "Schema di scorciatoie non supportato; attive le predefinite",
     "shortcuts.issue.unknownAction": "Azione sconosciuta mantenuta",

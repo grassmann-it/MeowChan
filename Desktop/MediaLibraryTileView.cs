@@ -369,7 +369,7 @@ internal sealed partial class MediaLibraryTileView : UserControl
         _favoriteToggle.IsChecked = marked;
         _favoriteToggle.IsEnabled = true;
         string favoriteName = canFavorite ? Texts.T(marked ? "viewer.favorite.remove" : "viewer.favorite.add") : string.Empty;
-        ToolTip.SetTip(_favoriteToggle, canFavorite ? FavoriteKeys.Tooltip(marked) : null);
+        ToolTip.SetTip(_favoriteToggle, canFavorite ? FavoriteKeys.Tooltip(marked, "media") : null);
         AutomationProperties.SetName(_favoriteToggle, favoriteName);
     }
 

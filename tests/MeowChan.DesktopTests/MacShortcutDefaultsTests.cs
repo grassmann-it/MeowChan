@@ -138,4 +138,61 @@ public sealed class MacShortcutDefaultsTests
         Assert.DoesNotContain(bindings.Issues, issue => issue.BlocksSave);
         Assert.Equal(before, section.Raw.GetRawText());
     }
+
+    // ---- macOS system keys the editor refuses (sweep S3, 16.11.2026) ----
+
+    /// <summary>What macOS takes before any application: hide, quit, log out, lock, the Dock, the screenshots, Spaces / Mission Control and the input source.</summary>
+    public static readonly string[] MacSystemGestures =
+    {
+        "Primary+H", "Primary+Alt+H", "Primary+Q", "Primary+Shift+Q", "Control+Primary+Q", "Primary+Alt+D",
+        "Primary+Shift+3", "Primary+Shift+4", "Primary+Shift+5",
+        "Control+Left", "Control+Right", "Control+Up", "Control+Down", "Control+Space",
+    };
+
+    /// <summary>Keys that do reach a Mac application, among them every Mac default that looks close to a system key.</summary>
+    public static readonly string[] MacApplicationGestures =
+    {
+        "Primary+M", "Primary+W", "Primary+,", "Control+Primary+F", "Primary+Shift+M", "Primary+Shift+H", "Primary+Alt+R", "Primary+Left",
+        "Primary+Shift+Left", "Control+Shift+Left", "Alt+Left", "Primary+Shift+6", "Primary+3", "Shift+3", "Control+H", "Control+Q",
+    };
+
+    public static IEnumerable<object[]> MacSystem() => MacSystemGestures.Select(gesture => new object[] { gesture });
+    public static IEnumerable<object[]> MacApplication() => MacApplicationGestures.Select(gesture => new object[] { gesture });
+
+    [Theory, MemberData(nameof(MacSystem))]
+    public void TheEditorRefusesAMacSystemKeyWithTheMacReasonOnMacOnly(string text)
+    {
+        ShortcutGesture gesture = ShortcutGesture.Parse(text);
+        ShortcutIssueReason reason = EffectiveShortcutBindings.InvalidIssueReason(gesture, ShortcutPlatform.MacOS)!;
+        Assert.Equal("reservedMacSystem", reason.Code);
+        Assert.Equal("Reserved macOS system shortcut / Reserviertes macOS-Systemkürzel", EffectiveShortcutBindings.InvalidReason(gesture, ShortcutPlatform.MacOS));
+        // A saved binding on it is the same blocking issue as any other invalid gesture: reported, never active, the saved profile untouched.
+        ShortcutBindingsSection section = new ShortcutBindingsSection().Set("navigation.archive", [gesture]);
+        string before = section.Raw.GetRawText();
+        EffectiveShortcutBindings bindings = EffectiveShortcutBindings.Build(section, ShortcutPlatform.MacOS);
+        ShortcutIssue issue = Assert.Single(bindings.Issues, i => i.CommandId == "navigation.archive" && i.BlocksSave);
+        Assert.Equal("reservedMacSystem", issue.Reason!.Code);
+        Assert.Empty(bindings.For("navigation.archive"));
+        Assert.Equal(before, section.Raw.GetRawText());
+        Assert.Equal(Texts.T("shortcuts.issue.reservedMacSystem"), ShortcutIssueCatalog.Render(issue));
+        // Windows and Linux never use the Mac reason (there Primary is Ctrl; Ctrl+arrows and Ctrl+Space are ordinary gestures).
+        foreach (ShortcutPlatform other in new[] { ShortcutPlatform.Windows, ShortcutPlatform.Linux })
+            Assert.NotEqual("reservedMacSystem", EffectiveShortcutBindings.InvalidIssueReason(gesture, other)?.Code);
+    }
+
+    [Theory, MemberData(nameof(MacApplication))]
+    public void AKeyThatReachesAMacApplicationStaysAllowed(string text) =>
+        Assert.Null(EffectiveShortcutBindings.InvalidIssueReason(ShortcutGesture.Parse(text), ShortcutPlatform.MacOS));
+
+    [Fact]
+    public void NoMacDefaultIsAMacSystemKeyAndTheMacReasonHasItsOwnCatalogKey()
+    {
+        foreach (CommandDefinition command in CommandCatalog.All)
+            foreach (ShortcutGesture gesture in EffectiveShortcutBindings.Defaults(command, ShortcutPlatform.MacOS))
+            {
+                var resolved = gesture.Resolve(ShortcutPlatform.MacOS);
+                Assert.False(EffectiveShortcutBindings.IsMacSystemKey(resolved.Key, resolved.KeyModifiers), command.Id + " " + gesture.Display(ShortcutPlatform.MacOS));
+            }
+        Assert.Contains(ShortcutIssueCatalog.Entries, entry => entry.Key == "shortcuts.issue.reservedMacSystem" && entry.English.Contains("macOS") && entry.German.Contains("macOS"));
+    }
 }

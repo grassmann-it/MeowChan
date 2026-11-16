@@ -284,6 +284,7 @@
     "shortcuts.issue.fixedNavigation": "TabとEscは固定のナビゲーションキーです",
     "shortcuts.issue.altGrText": "Ctrl+AltはAltGrの文字入力になる場合があります",
     "shortcuts.issue.reservedSystem": "システム予約のショートカットです",
+    "shortcuts.issue.reservedMacSystem": "macOS が予約しています。このショートカットは MeowChan より先にシステムが処理します",
     "shortcuts.issue.unsupportedSymbol": "未対応の記号です",
     "shortcuts.issue.unsupportedSchema": "未対応のショートカットスキーマです。既定値を使用しています",
     "shortcuts.issue.unknownAction": "不明な操作を保持しています",

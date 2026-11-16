@@ -76,7 +76,7 @@ public sealed class ArchiveThreadFavoriteButton : Button
         string description = loading && _row?.ThreadFavoriteError == null && _row != null
             ? Texts.T("archive.threadFavorite.loading") : ThreadFavoriteText.Hint(marked);
         ToolTip.SetShowOnDisabled(this, true);
-        if (CommandCatalog.ShortcutDisplay("thread.favorite-toggle") is string shortcut)
+        if (CommandCatalog.ShortcutTooltipDisplay("thread.favorite-toggle") is string shortcut)
             description += " · " + shortcut;
         if (_row?.ThreadFavoriteError is string error) description += "\n" + error;
         ToolTip.SetTip(this, description);

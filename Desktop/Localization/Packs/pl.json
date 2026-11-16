@@ -2336,6 +2336,7 @@
     "shortcuts.issue.fixedNavigation": "Tab i Escape służą do stałej nawigacji",
     "shortcuts.issue.altGrText": "Ctrl+Alt może generować znaki AltGr",
     "shortcuts.issue.reservedSystem": "Zarezerwowany skrót systemowy",
+    "shortcuts.issue.reservedMacSystem": "Zarezerwowane przez macOS: system obsługuje ten skrót, zanim zobaczy go MeowChan",
     "shortcuts.issue.unsupportedSymbol": "Nieobsługiwany symbol",
     "shortcuts.issue.unsupportedSchema": "Nieobsługiwany schemat skrótów; aktywne ustawienia domyślne",
     "shortcuts.issue.unknownAction": "Zachowano nieznaną akcję",

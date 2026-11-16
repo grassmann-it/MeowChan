@@ -286,6 +286,7 @@
     "key.ctrl": "Ctrl",
     "key.shift": "Maj",
     "shortcuts.issue.reservedSystem": "Raccourci système réservé",
+    "shortcuts.issue.reservedMacSystem": "Réservé par macOS : le système traite cette touche avant que MeowChan ne la reçoive",
     "shortcuts.issue.unsupportedSymbol": "Symbole non pris en charge",
     "shortcuts.issue.unsupportedSchema": "Schéma de raccourcis non pris en charge ; valeurs par défaut actives",
     "shortcuts.issue.unknownAction": "Action inconnue conservée",

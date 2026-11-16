@@ -32,7 +32,7 @@ public sealed class ShortcutIssueLocalizationTests : IDisposable
     ];
 
     [Fact]
-    public void AllSixteenProducedHostReasonsHaveDistinctCatalogKeysAndPreservePublicDiagnostics()
+    public void AllSeventeenProducedHostReasonsHaveDistinctCatalogKeysAndPreservePublicDiagnostics()
     {
         var reasons = new List<ShortcutIssueReason>();
         foreach (var (gestureText, code) in InvalidGestures)
@@ -50,6 +50,11 @@ public sealed class ShortcutIssueLocalizationTests : IDisposable
             reasons.Add(issue.Reason);
         }
         reasons.Add(EffectiveShortcutBindings.InvalidIssueReason(new("K", [], "!"), ShortcutPlatform.Linux)!);
+        // A macOS system key (sweep S3): the same reason on a Mac only, never on Windows or Linux (⌘ is Meta there, which is its own reservedSystem).
+        var macSystem = EffectiveShortcutBindings.InvalidIssueReason(ShortcutGesture.Parse("Primary+H"), ShortcutPlatform.MacOS)!;
+        Assert.Equal("reservedMacSystem", macSystem.Code);
+        Assert.Equal("reservedSystem", EffectiveShortcutBindings.InvalidIssueReason(ShortcutGesture.Parse("Meta+H"), ShortcutPlatform.Linux)!.Code);
+        reasons.Add(macSystem);
         reasons.Add(ReasonFor(Read("""{"SchemaVersion":99,"Overrides":{"future":{}}}"""), "unsupportedSchema"));
         reasons.Add(ReasonFor(Read("""{"SchemaVersion":1,"Overrides":{"future.command":{"keep":true}}}"""), "unknownAction"));
         reasons.Add(ReasonFor(Read("""{"SchemaVersion":1,"Overrides":{"navigation.archive":{"Mode":"Replace","Gestures":[]}}}"""), "invalidMode"));
@@ -60,8 +65,8 @@ public sealed class ShortcutIssueLocalizationTests : IDisposable
         reasons.Add(ReasonFor(new ShortcutBindingsSection().Set("post.open-source", [ShortcutGesture.Parse("Shift+F10")]), "notImplemented"));
         reasons.Add(ReasonFor(ConflictDraft(), "conflictingActions"));
 
-        Assert.Equal(16, ShortcutIssueCatalog.Entries.Length);
-        Assert.Equal(16, ShortcutIssueCatalog.Entries.Select(e => e.Key).Distinct().Count());
+        Assert.Equal(17, ShortcutIssueCatalog.Entries.Length);
+        Assert.Equal(17, ShortcutIssueCatalog.Entries.Select(e => e.Key).Distinct().Count());
         Assert.Equal(ShortcutIssueCatalog.Entries.Select(e => e.Key).Order(),
             reasons.Select(r => ShortcutIssueCatalog.Prefix + r.Code).Order());
         foreach (string language in new[] { "en", "de" })

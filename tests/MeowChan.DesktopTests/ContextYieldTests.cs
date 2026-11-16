@@ -59,7 +59,7 @@ public sealed class ContextYieldTests
             new ShortcutBindingsSection().Set("archive.refresh", [ShortcutGesture.Parse("M")]), platform);
         Assert.True(addSaved.Matches(Press(Key.M), "favorites.add", "gallery"));
         Assert.False(addSaved.Matches(Press(Key.M), "favorites.add", "archive"));
-        Assert.True(addSaved.Matches(Press(Key.B), "favorites.add", "archive")); // B, the second key of "Add favorite", is not touched
+        Assert.False(addSaved.Matches(Press(Key.B), "favorites.add", "archive")); // revision 21: B is no key of "Add favorite" any more
         // The other command that has M by default (mute moved to Shift+M) is not involved.
         Assert.True(addSaved.Matches(Press(Key.M, KeyModifiers.Shift), "video.mute", "gallery"));
     }
@@ -104,7 +104,7 @@ public sealed class ContextYieldTests
         foreach (string context in FavoriteContexts.Where(context => EffectiveShortcutBindings.ExecutionContexts("video.mute").Contains(context)))
             Assert.False(bindings.Matches(Press(Key.M), "favorites.add", context), context);
         Assert.False(bindings.Matches(Press(Key.M), "favorites.add", "reader"));
-        Assert.True(bindings.Matches(Press(Key.B), "favorites.add", "gallery"));
+        Assert.False(bindings.Matches(Press(Key.B), "favorites.add", "gallery")); // revision 21: B is free
         Assert.DoesNotContain(bindings.Issues, issue => issue.BlocksSave);
     }
 

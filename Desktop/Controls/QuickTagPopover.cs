@@ -87,6 +87,11 @@ internal sealed record QuickTagPopoverOptions
     /// <summary>Base name of the controls (<c>QuickTagPopoverInput</c>, …).</summary>
     internal string Name { get; init; } = "QuickTagPopover";
     /// <summary>
+    /// The execution context of the page that opened the popover ("media", "reader", "gallery"), for the key names in the row's tooltips (stars, remove button): the
+    /// popover is a flyout outside every page's key scope, so without it a tip would also name a rating key that gave way to a saved binding on that page. Null names all.
+    /// </summary>
+    internal string? TooltipKeyContext { get; init; }
+    /// <summary>
     /// The favourite and rating row on top of the popover ("Rate and tag…", review 15.11.): the same <see cref="GalleryDecisionRow"/> as the
     /// gallery's Tags segment, bound to what the host reads and writes for the popover's medium or selection. Null: no row (a host that cannot
     /// rate).
@@ -260,7 +265,7 @@ internal sealed class QuickTagPopover
 
     private static GalleryDecisionRow NewDecisionRow(QuickTagPopoverOptions options, QuickTagPopoverDecision decision)
     {
-        GalleryDecisionRow row = new(options.Name + "Decision") { FavoriteVisible = decision.SetFavorite != null };
+        GalleryDecisionRow row = new(options.Name + "Decision") { FavoriteVisible = decision.SetFavorite != null, KeyContext = options.TooltipKeyContext };
         row.Show(SafeView(decision));
         return row;
     }

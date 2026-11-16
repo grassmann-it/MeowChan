@@ -163,7 +163,7 @@ public static class CommandBindings
         Observe(button, () => ApplyLabeled(button, id, visibleLabel, iconSize));
         button.Classes.Set("command-icon", true);
         ApplyButtonContent(button, id, iconSize, visibleLabel);
-        string tip = CommandCatalog.ShortcutDisplay(id) is string shortcut
+        string tip = CommandCatalog.ShortcutTooltipDisplay(id) is string shortcut
             ? visibleLabel + " · " + shortcut : visibleLabel;
         ToolTip.SetTip(button, tip);
         AutomationProperties.SetName(button, visibleLabel);
@@ -226,12 +226,14 @@ public static class CommandBindings
     /// <summary>
     /// The tooltip of a command: line 1 is "Label · shortcut" (the label alone without a key), line 2 the hint where it applies and the
     /// reason it is unavailable, joined by " · " (HB1: no more row of four middle dots). The tooltip style wraps a line that is still too
-    /// long at 360 dip; a command without a hint or reason has one line.
+    /// long at 360 dip; a command without a hint or reason has one line. The shortcut names the first gesture and at most one alias
+    /// (<see cref="CommandCatalog.TooltipGestureLimit"/>; the shortcuts window lists them all); <paramref name="keyContext"/> is the execution context
+    /// of the control that shows the tip, for a command that runs in several (a default that gave way there is not named).
     /// </summary>
-    public static string Tooltip(string id, string? unavailableReason = null, string? visibleLabel = null)
+    public static string Tooltip(string id, string? unavailableReason = null, string? visibleLabel = null, string? keyContext = null)
     {
         string label = visibleLabel ?? CommandCatalog.Label(id);
-        string? shortcut = CommandCatalog.ShortcutDisplay(id);
+        string? shortcut = CommandCatalog.ShortcutTooltipDisplay(id, keyContext);
         string headline = shortcut is null ? label : label + " · " + shortcut;
         List<string> notes = [];
         if (CommandCatalog.ScopeHint(id) is string scope) notes.Add(scope);

@@ -32,9 +32,10 @@ public sealed class GalleryFavoriteShortcutTests : IDisposable
 
         var bindings = EffectiveShortcutBindings.Build(new(), platform);
         Assert.Empty(bindings.Issues);
-        // M adds, U removes, F toggles; B (revision 13's "add") stays a second key; mute moved to Shift+M.
+        // M adds, U removes, F toggles; B (revision 13's "add") went in revision 21 (Tom's decision #132); mute moved to Shift+M.
         Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.M }, "favorites.add"));
-        Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.B }, "favorites.add"));
+        Assert.False(bindings.Matches(new KeyEventArgs { Key = Key.B }, "favorites.add"));
+        Assert.Equal(new[] { "M" }, bindings.For("favorites.add").Select(gesture => gesture.Key).ToArray());
         Assert.False(bindings.Matches(new KeyEventArgs { Key = Key.M }, "video.mute"));
         Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.M, KeyModifiers = KeyModifiers.Shift }, "video.mute"));
         Assert.False(bindings.Matches(new KeyEventArgs { Key = Key.M, KeyModifiers = KeyModifiers.Shift }, "favorites.add"));
@@ -67,8 +68,9 @@ public sealed class GalleryFavoriteShortcutTests : IDisposable
             Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.M }, "favorites.add", context), context);
             Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.U }, "favorites.remove", context), context);
         }
-        Assert.False(bindings.Matches(new KeyEventArgs { Key = Key.B }, "favorites.add", "gallery")); // the saved slideshow key
-        Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.B }, "favorites.add", "reader"));
+        // B is no favourite key since revision 21: the saved slideshow key has nothing to give way for, anywhere.
+        Assert.False(bindings.Matches(new KeyEventArgs { Key = Key.B }, "favorites.add", "gallery"));
+        Assert.False(bindings.Matches(new KeyEventArgs { Key = Key.B }, "favorites.add", "reader"));
         Assert.DoesNotContain(bindings.Issues, issue => issue.BlocksSave);
         Assert.Contains(bindings.Issues, issue => issue.CommandId == "favorites.add"
             && issue.OtherCommandId == "gallery.context-toggle" && !issue.BlocksSave);
@@ -80,7 +82,7 @@ public sealed class GalleryFavoriteShortcutTests : IDisposable
     [Fact]
     public void NewAddDefaultAlsoYieldsToASavedFavoriteToggleOverride()
     {
-        // Both keys of "Add favorite" (M and B) step aside for a toggle the person saved on them.
+        // The key of "Add favorite" (M; B went in revision 21) steps aside for a toggle the person saved on it.
         var section = new ShortcutBindingsSection()
             .Set("favorites.toggle", [ShortcutGesture.Parse("B"), ShortcutGesture.Parse("M")]);
         var bindings = EffectiveShortcutBindings.Build(section, ShortcutPlatform.Linux);
