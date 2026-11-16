@@ -40,9 +40,11 @@ public partial class ArchivePage
         _gallerySelectionCancellation?.Cancel();
     }
     internal Action? GalleryReturn { get; set; }
-    internal bool CanReturnToGallery => GalleryReturn != null && ArchiveGalleryReturn.IsVisible && ArchiveGalleryReturn.IsEnabled && !_ended;
+    // State, not the button: whether the return is on offer is _galleryReturnOffered, so a layout that moves the button away keeps the gesture.
+    private bool _galleryReturnOffered;
+    internal bool CanReturnToGallery => GalleryReturn != null && _galleryReturnOffered && !_ended;
     internal void ReturnToGalleryByShortcut() { if (CanReturnToGallery) GalleryReturn?.Invoke(); }
-    internal void ShowGalleryReturn(bool visible) => ArchiveGalleryReturn.IsVisible = visible;
+    internal void ShowGalleryReturn(bool visible) { _galleryReturnOffered = visible; ArchiveGalleryReturn.IsVisible = visible; }
     private void OnGalleryReturnClick(object? sender, RoutedEventArgs e) => GalleryReturn?.Invoke();
     /// <summary>Back to the Medien page after its "show in thread"; the shell owns the return point and shows the button.</summary>
     internal Action? MediaReturn { get; set; }

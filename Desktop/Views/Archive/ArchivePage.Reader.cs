@@ -304,6 +304,26 @@ public partial class ArchivePage
     internal Action? CloseReaderRequested { get; set; }
     private void OnCloseReaderClick(object? sender, RoutedEventArgs e) { if (IsFilenameSearchOpen) return; CloseThreadFind(); CloseReaderRequested?.Invoke(); }
 
+    // The large reader's pane lives in the shell's ReaderHost, outside this page: everything the page itself listens to for the reader
+    // (events bubbling up past the pane, the Menu key and the media menu) has to be on the pane while it is there. One place wires
+    // both, so a handler added to the page for the reader cannot be forgotten for the large reader (a test pins this list against
+    // the page's own AddHandler calls).
+    private void WireReaderSurface(Control pane)
+    {
+        pane.AddHandler(KeyDownEvent, OnReaderKeyDown, RoutingStrategies.Tunnel, handledEventsToo: true);
+        pane.AddHandler(ContextRequestedEvent, OnArchiveMediaContextRequested, RoutingStrategies.Tunnel);
+        pane.AddHandler(KeyDownEvent, OnArchiveMediaContextKey, RoutingStrategies.Tunnel);
+        pane.AddHandler(ArchiveMediaTileView.RateAndTagRequestedEvent, OnTileRateAndTagRequested);
+    }
+
+    private void UnwireReaderSurface(Control pane)
+    {
+        pane.RemoveHandler(KeyDownEvent, OnReaderKeyDown);
+        pane.RemoveHandler(ContextRequestedEvent, OnArchiveMediaContextRequested);
+        pane.RemoveHandler(KeyDownEvent, OnArchiveMediaContextKey);
+        pane.RemoveHandler(ArchiveMediaTileView.RateAndTagRequestedEvent, OnTileRateAndTagRequested);
+    }
+
     internal Control DetachReader()
     {
         _ = ReleaseInlineVideos(); // R10: a player never moves between hosts
@@ -320,8 +340,7 @@ public partial class ArchivePage
         _readerTabScope?.Dispose();
         _readerTabScope = pane.SetValue(KeyboardNavigation.TabNavigationProperty, KeyboardNavigationMode.Cycle, BindingPriority.Animation);
         pane.SetValue(ReaderPostLayout.LargeReaderProperty, true);
-        pane.AddHandler(KeyDownEvent, OnReaderKeyDown, RoutingStrategies.Tunnel, handledEventsToo: true);
-        pane.AddHandler(ContextRequestedEvent, OnArchiveMediaContextRequested, RoutingStrategies.Tunnel);
+        WireReaderSurface(pane);
         pane.Margin = new Thickness(16);
         ArchiveCloseReader.IsVisible = true;
         ArchiveReadPosts.IsVisible = false;
@@ -349,8 +368,7 @@ public partial class ArchivePage
         ArchiveRoot.Children.Add(export);
         ++_readerScopeRequest;
         _readerThreads = Array.Empty<ResourceId>();
-        pane.RemoveHandler(KeyDownEvent, OnReaderKeyDown);
-        pane.RemoveHandler(ContextRequestedEvent, OnArchiveMediaContextRequested);
+        UnwireReaderSurface(pane);
         pane.Margin = default;
         ArchiveCloseReader.IsVisible = false;
         ArchiveReadPosts.IsVisible = true;
@@ -847,18 +865,22 @@ public partial class ArchivePage
 
     // The results-page gesture (Alt+PageUp/PageDown, Option-Command-arrows on macOS) also pages the thread's posts and the
     // backlinks inside the reader: pagination.previous/next share it and never apply where the results list has the focus.
+    // It is decided from state (the selected tab, the offsets, the counts), never from whether a pager button is visible:
+    // a collapsed pager row, a work view or another layout hides the buttons, not the command.
     private bool TryPageByShortcut(KeyEventArgs e)
     {
         if (e.Handled || ShortcutService.IsCapturing || _busy || _thread == null) return false;
         bool previous = ShortcutService.Current.Matches(e, "pagination.previous");
         if (!previous && !ShortcutService.Current.Matches(e, "pagination.next")) return false;
-        bool references = PreviousReferences.IsEffectivelyVisible;
-        Button button = references ? (previous ? PreviousReferences : NextReferences) : previous ? PreviousPostsButton : NextPostsButton;
-        if (!button.IsEffectivelyVisible || !button.IsEnabled) return false;
+        bool readReady = CanRead && !_busy && !_ended && !IsFilenameSearchOpen;
+        ReaderPageTarget target = ReaderPaging.Target(previous, ArchiveContentTabs.SelectedItem == ArchiveReferencesTab, ArchiveContentTabs.SelectedIndex == 0,
+            readReady, _thread != null, _postOffset, ReaderPageSize, ShownPostCount, _backlinkPost != null, _referenceOffset, _referenceTotal, PageSize);
+        if (target == ReaderPageTarget.None) return false;
         e.Handled = true;
-        if (references) { if (previous) OnPreviousReferences(button, e); else OnNextReferences(button, e); }
-        else if (previous) OnPreviousPosts(button, e);
-        else OnNextPosts(button, e);
+        RoutedEventArgs click = new(Button.ClickEvent);
+        if (target == ReaderPageTarget.References) { if (previous) OnPreviousReferences(this, click); else OnNextReferences(this, click); }
+        else if (previous) OnPreviousPosts(this, click);
+        else OnNextPosts(this, click);
         return true;
     }
 
@@ -893,7 +915,13 @@ public partial class ArchivePage
         _readerMediaKeyOwner = null;
     }
 
-    private void OnReaderMediaFocusChanged(object? sender, FocusChangedEventArgs e) => CancelReaderMediaActivation();
+    // A key-up that goes to another top level (a menu, a flyout) never reaches the owner, so a focus change also ends every held key:
+    // a latch must not outlive the focus it was set for. The activation in flight is cancelled with it.
+    private void OnReaderMediaFocusChanged(object? sender, FocusChangedEventArgs e)
+    {
+        CancelReaderMediaActivation();
+        _readerMediaHeldKeys.Clear();
+    }
     private void OnReaderMediaKeyUp(object? sender, KeyEventArgs e) => _readerMediaHeldKeys.Remove(e.Key);
     private void OnReaderMediaOwnerDeactivated(object? sender, EventArgs e)
     {
