@@ -36,16 +36,18 @@ public sealed class BooruHitKeyboardTests
     }
 
     [Theory]
-    [InlineData(Avalonia.Input.Key.Up, "Previous")]
-    [InlineData(Avalonia.Input.Key.Down, "Next")]
-    [InlineData(Avalonia.Input.Key.Home, "First")]
-    [InlineData(Avalonia.Input.Key.End, "Last")]
-    [InlineData(Avalonia.Input.Key.Enter, "Activate")]
-    [InlineData(Avalonia.Input.Key.Return, "Activate")]
-    [InlineData(Avalonia.Input.Key.Left, "None")]
-    [InlineData(Avalonia.Input.Key.Space, "None")]
-    public void TheKeysOfAFocusedHitCardRouteToTheirAction(Key key, string expected)
+    [InlineData(nameof(Avalonia.Input.Key.Up), "Previous")]
+    [InlineData(nameof(Avalonia.Input.Key.Down), "Next")]
+    [InlineData(nameof(Avalonia.Input.Key.Home), "First")]
+    [InlineData(nameof(Avalonia.Input.Key.End), "Last")]
+    [InlineData(nameof(Avalonia.Input.Key.Enter), "Activate")]
+    [InlineData(nameof(Avalonia.Input.Key.Return), "Activate")]
+    [InlineData(nameof(Avalonia.Input.Key.Left), "None")]
+    [InlineData(nameof(Avalonia.Input.Key.Space), "None")]
+    public void TheKeysOfAFocusedHitCardRouteToTheirAction(string keyName, string expected)
     {
+        // Enter and Return alias the same enum value; names keep both xUnit case IDs distinct.
+        Key key = Enum.Parse<Key>(keyName);
         Border card = Card(out _);
         Assert.Equal(Enum.Parse<BooruHitKey>(expected), BooruHitKeys.Route(Press(key, card), card));
     }

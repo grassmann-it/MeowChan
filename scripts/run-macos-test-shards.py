@@ -47,12 +47,14 @@ def digest(value):
 
 def validate_inventory(cases):
     require(isinstance(cases, list) and cases, 'Empty discovery inventory')
-    ids = set()
+    ids = {}
     for case in cases:
         require(set(case) == {'id', 'method', 'deferred'}, 'Invalid inventory case schema')
-        require(isinstance(case['id'], str) and case['id'] and case['id'] not in ids,
-                'Missing/duplicate discovery testId')
-        ids.add(case['id'])
+        require(isinstance(case['id'], str) and case['id'], 'Missing discovery testId')
+        if case['id'] in ids:
+            raise ValueError(f"Duplicate discovery testId {case['id']!r}: "
+                             f"{ids[case['id']]!r} and {case['method']!r}")
+        ids[case['id']] = case['method']
         # Fail closed rather than allowing filter operators into an exact FQN.
         require(isinstance(case['method'], str) and re.fullmatch(r'[\w.`+]+\.[\w`]+', case['method']),
                 f'Unsupported method identity: {case["method"]!r}')
@@ -60,7 +62,7 @@ def validate_inventory(cases):
     return sorted(cases, key=lambda case: (case['method'], case['id']))
 
 
-def discovery_inventory(path):
+def discovery_inventory(path, evidence_path=None):
     """Read native VSTest protocol records, not human --list-tests output.
 
     The SDK is pinned by global.json. Missing, changed or partial protocol fails
@@ -91,6 +93,10 @@ def discovery_inventory(path):
         require(len(serialized) == 1, 'Missing xUnit case identity')
         cases.append(dict(id=test['Id'], method=test['FullyQualifiedName'],
                           deferred=serialized[0].startswith('Xunit.Sdk.XunitTheoryTestCase,')))
+    # Keep compact identities even when validation rejects them: the raw protocol
+    # can exceed the watchdog log bound before the offending record is retained.
+    if evidence_path is not None:
+        write_json(evidence_path, cases)
     return validate_inventory(cases)
 
 
@@ -192,7 +198,8 @@ def run_suite(name, project, output, shard, budget):
         command = ['dotnet', 'vstest', str(assembly), '--ListTests', '--Diag:' + str(discovery / 'vstest-diag.log')]
         report['discovery'] = watchdog.run_one('discovery', command, discovery, min(DISCOVERY_TIMEOUT, budget))
         require(process_passed(report['discovery']), 'Discovery process failed/timed out/left children')
-        inventory = discovery_inventory(discovery / 'vstest-diag.log')
+        inventory = discovery_inventory(discovery / 'vstest-diag.log',
+                                        discovery / 'discovery-inventory.json')
         report['inventory'] = inventory
         report['inventory_sha256'] = digest(inventory)
         report['plan_sha256'] = digest(inventory_shape(inventory))

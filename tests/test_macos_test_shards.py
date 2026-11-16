@@ -95,6 +95,40 @@ class ShardTests(unittest.TestCase):
         self.assertEqual(['id-0', 'id-1'], [c['id'] for c in cases])
         self.assertEqual({'N.Class.Test'}, {c['method'] for c in cases})
 
+    def test_duplicate_ids_fail_closed_and_preserve_compact_rejected_evidence(self):
+        for other_method in ('N.Class.Test', 'N.Other.Test'):
+            with self.subTest(other_method=other_method):
+                path = self.discovery_log()
+                lines = path.read_text().splitlines()
+                lines[1] = lines[1].replace('id-1', 'id-0').replace('N.Class.Test', other_method)
+                path.write_text('\n'.join(lines))
+                evidence = self.root / 'discovery-inventory.json'
+                with self.assertRaisesRegex(ValueError, "Duplicate discovery testId 'id-0'.*N.Class.Test"):
+                    runner.discovery_inventory(path, evidence)
+                cases = json.loads(evidence.read_text())
+                self.assertEqual(['id-0', 'id-0'], [c['id'] for c in cases])
+                self.assertEqual(other_method, cases[1]['method'])
+                self.assertNotIn('DisplayName', evidence.read_text())
+                self.assertNotIn('XunitTestCase', evidence.read_text())
+                path.write_bytes(b'x' * (9 * 1024 * 1024))
+                runner.watchdog.bound_evidence(self.root)
+                self.assertEqual(cases, json.loads(evidence.read_text()))
+                self.assertTrue(path.read_bytes().startswith(b'[Evidence truncated;'))
+
+    def test_identical_display_names_are_not_duplicate_identities(self):
+        path = self.discovery_log()
+        path.write_text(path.read_text().replace('random(1, )', 'random(0, )'))
+        self.assertEqual(2, len(runner.discovery_inventory(path)))
+
+    def test_keyboard_alias_rows_keep_all_eight_distinct_name_inputs(self):
+        source = (ROOT / 'tests/MeowChan.DesktopTests/BooruHitKeyboardTests.cs').read_text()
+        theory = source[source.index('    [Theory]'):source.index('    [Fact]')]
+        import re
+        names = re.findall(r'InlineData\(nameof\(Avalonia.Input.Key.(\w+)\)', theory)
+        self.assertEqual(['Up', 'Down', 'Home', 'End', 'Enter', 'Return', 'Left', 'Space'], names)
+        self.assertIn('string keyName, string expected', theory)
+        self.assertIn('Enum.Parse<Key>(keyName)', theory)
+
     def test_discovery_requires_real_nonaborted_complete_inventory(self):
         for kwargs in (dict(aborted=True), dict(total=3), dict(complete=False)):
             with self.subTest(kwargs=kwargs), self.assertRaises(ValueError):
