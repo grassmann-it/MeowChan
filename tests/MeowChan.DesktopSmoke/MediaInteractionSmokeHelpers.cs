@@ -102,11 +102,24 @@ internal static class MediaInteractionSmokeHelpers
         // Native macOS popup hit testing can take more than one compositor turn
         // after the transport auto-hides. Re-issue a real pointer move rather
         // than falling back to a routed/synthetic click.
-        const int revealAttempts = 6;
+        const int revealAttempts = 8;
         for (int attempt = 0; attempt < revealAttempts && !IsPointerTargetReady(target); attempt++)
         {
-            await native.MoveAsync(viewer, new Point(viewer.Bounds.Width * .4, viewer.Bounds.Height - 2));
+            // First cross the reveal edge with real OS input. On macOS the
+            // transport can be a separate native presentation and its hit-test
+            // cache is not updated merely because Avalonia laid out the button.
+            await native.MoveAsync(viewer, new Point(viewer.Bounds.Width * .4, viewer.Bounds.Height - 2),
+                requireEnabled: false, requireHitTest: false);
             await Task.Delay(100);
+            // Once the current target has geometry, cross into the actual
+            // control as well. This delivers the hover to the current native
+            // root and avoids checking a stale centre point after the edge
+            // reveal (the source of intermittent macOS GIF failures).
+            if (IsNativeGeometryReady(target, requireEnabled: true))
+            {
+                await native.MoveAsync(target, requireEnabled: true, requireHitTest: false);
+                await Task.Delay(100);
+            }
         }
         await Program.WaitUntilAsync(() => IsPointerTargetReady(target), () => message);
     }
