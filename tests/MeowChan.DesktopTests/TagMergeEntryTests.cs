@@ -79,7 +79,7 @@ public sealed class TagMergeEntryTests : IDisposable
         TagEntryItem mapped = Assert.Single(TagEntryParser.Parse("pee", snapshot).Items);
         Assert.True(mapped.Mapped);
         Assert.Equal("piss", mapped.Name.Display);
-        Assert.Equal("Added: piss (from pee), cute, anal", Texts.T("tags.entry.added",
+        Assert.Equal("Added: piss (from pee), cute (new), anal (new)", Texts.T("tags.entry.added",
             TagEntryParser.Describe(TagEntryParser.Parse("pee cute anal", snapshot).Items)));
     }
 
@@ -137,8 +137,9 @@ public sealed class TagMergeEntryTests : IDisposable
         Assert.Equal(new[] { "big tits", "cute", "piss" },
             store.ReadSnapshot().TagsOf(target).Select(tag => tag.Name.Display).Order(StringComparer.Ordinal));
         Assert.Equal(QuickTagStatusKind.AddedSeveral, session.Status.Kind);
-        Assert.Equal("Added: piss (from pee), cute, big tits", session.Status.Text);
-        Assert.Equal(3, session.UndoSteps.Count);
+        Assert.Equal("Added: piss (from pee), cute (new), big tits (new)", session.Status.Text);
+        // One entry is one undo step (MultiTagEntryTests covers the undo itself).
+        Assert.Single(session.UndoSteps);
         Assert.Equal(2, store.ReadSnapshot().Tags.Count(tag => tag.Name.Display is "cute" or "big tits"));
     }
 

@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -402,11 +403,44 @@ internal static class TagSuggestionInput
             box.Dismiss();
             commit();
         }, RoutingStrategies.Tunnel);
+        AttachPaste(box);
+    }
+
+    /// <summary>
+    /// A paste keeps every line: the single-line editor cuts a pasted text at its first line break, so the field takes the lines
+    /// as a comma list (a line break, then b, gives "a, b"), which Enter then adds as several tags (<see cref="TagEntryParser"/>).
+    /// <paramref name="host"/> is the field (a <see cref="TextBox"/> itself, or a control that contains one).
+    /// </summary>
+    internal static void AttachPaste(Control host) => host.AddHandler(TextBox.PastingFromClipboardEvent, (_, e) =>
+    {
+        if (e.Handled || e.Source is not TextBox editor || editor.IsReadOnly || !host.IsEffectivelyEnabled) return;
+        e.Handled = true;
+        OpenActions.Start(() => PasteAsync(editor), "tags.field.paste");
+    });
+
+    private static async Task PasteAsync(TextBox editor)
+    {
+        try
+        {
+            IClipboard? clipboard = TopLevel.GetTopLevel(editor)?.Clipboard;
+            string? text = clipboard == null ? null : await clipboard.TryGetTextAsync();
+            if (string.IsNullOrEmpty(text) || editor.IsReadOnly) return;
+            // Replaces the selection (or inserts at the caret) and puts the caret behind the pasted text, like the editor's own paste.
+            string insert = TagEntryParser.ForField(text), current = editor.Text ?? string.Empty;
+            int start = Math.Clamp(Math.Min(editor.SelectionStart, editor.SelectionEnd), 0, current.Length);
+            int end = Math.Clamp(Math.Max(editor.SelectionStart, editor.SelectionEnd), start, current.Length);
+            if (start == end) start = end = Math.Clamp(editor.CaretIndex, 0, current.Length);
+            editor.Text = string.Concat(current.AsSpan(0, start), insert, current.AsSpan(end));
+            editor.CaretIndex = start + insert.Length;
+        }
+        // An unreadable clipboard pastes nothing, like the editor's own paste.
+        catch (Exception) { }
     }
 
     internal static void Localize(IdentitySuggestionBox box)
     {
-        box.PlaceholderText = Texts.T("tags.input");
+        // The field takes several tags at once (TagEntryParser); the placeholder says so, the accessible name stays the short one.
+        box.PlaceholderText = Texts.T("tags.input.several");
         AutomationProperties.SetName(box, Texts.T("tags.input"));
         AutomationProperties.SetHelpText(box, Texts.T("tags.suggest.hint"));
         ToolTip.SetTip(box, Texts.T("tags.suggest.hint"));

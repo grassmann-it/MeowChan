@@ -1,6 +1,6 @@
 namespace MeowChan.Desktop.Localization;
 
-/// <summary>Texts of tag merging, aliases (other names), duplicate suggestions and multi-tag entry. Registered in BuiltInCatalog.</summary>
+/// <summary>Texts of tag merging, aliases (other names), duplicate suggestions and multi-tag entry (several tags in one field entry). Registered in BuiltInCatalog.</summary>
 internal static class TagMergeCatalog
 {
     internal static readonly (string Key, string English, string German)[] Entries =
@@ -33,6 +33,12 @@ internal static class TagMergeCatalog
         ("tags.duplicates.merge", "Merge these…", "Diese zusammenführen…"),
         ("tags.entry.added", "Added: {0}", "Hinzugefügt: {0}"),
         ("tags.entry.mapped", "{0} (from {1})", "{0} (aus {1})"),
+        ("tags.entry.new", "{0} (new)", "{0} (neu)"),
+        ("tags.entry.already", "Already there: {0}", "Schon vorhanden: {0}"),
+        ("tags.entry.kept", "Kept from this entry: {0}. One Undo takes them back.", "Aus dieser Eingabe behalten: {0}. Ein Rückgängig nimmt sie zurück."),
+        ("tags.entry.tooMany", "Too many tags in one entry. Nothing was changed. Enter fewer tags at a time.", "Zu viele Tags in einer Eingabe. Es wurde nichts geändert. Gib weniger Tags auf einmal ein."),
+        ("tags.entry.notAdded", "Not added, the stamp is full (limit: {0}): {1}", "Nicht hinzugefügt, der Stempel ist voll (Grenze: {0}): {1}"),
+        ("tags.input.several", "Tags (space or comma separated)", "Tags (mit Leerzeichen oder Komma)"),
         ("tags.suggest.alias", "{0} → {1}", "{0} → {1}"),
         ("tags.suggest.aliasName", "{0} is another name of {1}. Choosing it adds {1}.", "{0} ist ein weiterer Name von {1}. Die Auswahl fügt {1} hinzu.")
     };

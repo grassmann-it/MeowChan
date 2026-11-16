@@ -215,9 +215,13 @@ internal sealed class GalleryTagPanelController : IDisposable
         get
         {
             IReadOnlyList<TagDialogChange> tags = Session.UndoSteps;
-            return tags.Count > 0 && _tagStamps.TryGetValue(tags[^1], out System.Runtime.CompilerServices.StrongBox<long>? box) ? box.Value : 0;
+            return tags.Count > 0 ? StampOf(tags[^1]) : 0;
         }
     }
+
+    // A step that joins the writes of one entry has no stamp of its own: the stamp of its newest write is its order.
+    private long StampOf(TagDialogChange step) =>
+        _tagStamps.TryGetValue(step.Parts[^1], out System.Runtime.CompilerServices.StrongBox<long>? box) ? box.Value : 0;
     /// <summary>The decision stack as the second undo stack of the surface (shares its undo key and button); null without decisions.</summary>
     internal IQuickTagExtraUndo? ExtraUndo { get; }
     internal GalleryTagPanelSuggestions Suggestions { get; }
@@ -385,8 +389,7 @@ internal sealed class GalleryTagPanelController : IDisposable
                 if (decisions.UndoSteps.Count == 0) return false;
                 IReadOnlyList<TagDialogChange> tags = owner.Session.UndoSteps;
                 if (tags.Count == 0) return true;
-                long tag = owner._tagStamps.TryGetValue(tags[^1], out System.Runtime.CompilerServices.StrongBox<long>? box) ? box.Value : 0;
-                return decisions.NewestStamp > tag;
+                return decisions.NewestStamp > owner.StampOf(tags[^1]);
             }
         }
         public async Task<string?> UndoAsync()

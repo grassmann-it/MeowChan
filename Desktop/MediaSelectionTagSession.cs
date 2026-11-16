@@ -210,6 +210,26 @@ internal sealed class MediaSelectionTagSession
     }
 
     /// <summary>
+    /// Makes the writes of one entry that gave several tags one undo step: <see cref="LastChange"/> becomes
+    /// <see cref="TagDialogChange.Combine"/> of <paramref name="parts"/> (a single part stays as it is).
+    /// </summary>
+    internal void ReplaceLastChange(IReadOnlyList<TagDialogChange> parts)
+    {
+        if (parts.Count < 2) return;
+        LastChange = TagDialogChange.Combine(parts);
+        Updated?.Invoke();
+    }
+
+    /// <summary>Shows a refusal of the entry before any write (the message key of the dialog's error line); nothing was changed.</summary>
+    internal void Refuse(string messageKey)
+    {
+        if (Busy) return;
+        MessageKey = messageKey;
+        Undone = false;
+        Updated?.Invoke();
+    }
+
+    /// <summary>
     /// Reverts the last change of this dialog on exactly the files it changed, once, in one write bound to the shown
     /// revision. It does not depend on which occurrences are ticked now. A tag the change created stays in the vocabulary.
     /// </summary>
@@ -225,12 +245,18 @@ internal sealed class MediaSelectionTagSession
         ArgumentNullException.ThrowIfNull(change);
         return RunAsync(async () =>
         {
-            PrivateTagStoreSnapshot snapshot = Snapshot!;
-            PrivateTagCommit commit = await _set(change.Tag, change.Subjects, !change.Assigned, snapshot.Revision, token);
-            Adopt(commit.Snapshot);
+            // An entry that gave several tags is one step: its tags go back newest first, each in one write bound to the revision
+            // the previous write left.
+            bool changed = false;
+            foreach (TagDialogChange part in change.Parts.Reverse())
+            {
+                PrivateTagCommit commit = await _set(part.Tag, part.Subjects, !part.Assigned, Snapshot!.Revision, token);
+                Adopt(commit.Snapshot);
+                changed |= commit.Changed;
+            }
             LastChange = null;
             Undone = true;
-            return commit.Changed;
+            return changed;
         }, undo: true);
     }
 

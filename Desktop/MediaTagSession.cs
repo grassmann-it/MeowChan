@@ -10,8 +10,29 @@ namespace MeowChan.Desktop;
 /// <summary>
 /// One accepted change of a tag dialog, kept for its one-step undo: the tag, whether it was given or taken away, and
 /// exactly the files that changed (others that already were in the wanted state are not touched by the undo).
+/// One entry of a tag field can name several tags: its writes are one step, <see cref="Group"/> holds them (oldest first) and
+/// <see cref="Tag"/>, <see cref="Name"/> and <see cref="Subjects"/> describe the whole step, so one undo takes all of them back.
 /// </summary>
-internal sealed record TagDialogChange(TagId Tag, string Name, bool Assigned, IReadOnlyList<MediaTagSubject> Subjects);
+internal sealed record TagDialogChange(TagId Tag, string Name, bool Assigned, IReadOnlyList<MediaTagSubject> Subjects,
+    IReadOnlyList<TagDialogChange>? Group = null)
+{
+    /// <summary>The writes this step consists of: itself, or each tag of an entry that gave several.</summary>
+    internal IReadOnlyList<TagDialogChange> Parts => Group ?? new[] { this };
+
+    /// <summary>
+    /// One step of <paramref name="parts"/> (the single change itself for one part). The name lists every tag, the subjects
+    /// are all files any part touched; the tag is the first part's, which the dialogs focus after an undo.
+    /// </summary>
+    internal static TagDialogChange Combine(IReadOnlyList<TagDialogChange> parts)
+    {
+        ArgumentNullException.ThrowIfNull(parts);
+        if (parts.Count == 0) throw new ArgumentException("A step needs at least one change.", nameof(parts));
+        if (parts.Count == 1) return parts[0];
+        TagDialogChange[] flat = parts.SelectMany(part => part.Parts).ToArray();
+        return new TagDialogChange(flat[0].Tag, string.Join(", ", flat.Select(part => part.Name)), flat[0].Assigned,
+            flat.SelectMany(part => part.Subjects).Distinct().ToArray(), flat);
+    }
+}
 
 /// <summary>
 /// Own tags of one exact media file: a bound post attachment version or a loose local occurrence. The subject is
@@ -111,6 +132,26 @@ internal sealed class MediaTagSession
     }
 
     /// <summary>
+    /// Makes the writes of one entry that gave several tags one undo step: <see cref="LastChange"/> becomes
+    /// <see cref="TagDialogChange.Combine"/> of <paramref name="parts"/> (a single part stays as it is).
+    /// </summary>
+    internal void ReplaceLastChange(IReadOnlyList<TagDialogChange> parts)
+    {
+        if (parts.Count < 2) return;
+        LastChange = TagDialogChange.Combine(parts);
+        Updated?.Invoke();
+    }
+
+    /// <summary>Shows a refusal of the entry before any write (the message key of the dialog's error line); nothing was changed.</summary>
+    internal void Refuse(string messageKey)
+    {
+        if (Busy) return;
+        MessageKey = messageKey;
+        Undone = false;
+        Updated?.Invoke();
+    }
+
+    /// <summary>
     /// Reverts the last change of this dialog, once. A tag the change created stays in the vocabulary; it is only taken
     /// off this file again.
     /// </summary>
@@ -128,12 +169,14 @@ internal sealed class MediaTagSession
         return RunAsync(async () =>
         {
             bool changed = false;
-            foreach (MediaTagSubject subject in change.Subjects)
-            {
-                PrivateTagCommit commit = await _set(change.Tag, subject, !change.Assigned, token);
-                Adopt(commit.Snapshot);
-                changed |= commit.Changed;
-            }
+            // An entry that gave several tags is one step: its tags go back newest first, each file by file.
+            foreach (TagDialogChange part in change.Parts.Reverse())
+                foreach (MediaTagSubject subject in part.Subjects)
+                {
+                    PrivateTagCommit commit = await _set(part.Tag, subject, !part.Assigned, token);
+                    Adopt(commit.Snapshot);
+                    changed |= commit.Changed;
+                }
             LastChange = null;
             Undone = true;
             return changed;

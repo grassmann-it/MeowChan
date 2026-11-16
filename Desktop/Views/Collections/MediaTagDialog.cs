@@ -102,9 +102,12 @@ internal sealed class MediaTagDialog : Window
         if (string.IsNullOrWhiteSpace(name)) return;
         // Several tags in one entry ("piss pee cute anal", quotes, commas), each through the alias table.
         TagEntry entry = TagEntryParser.Parse(name, _session.Snapshot);
-        if (TagEntryParser.IsPlain(entry, name)) await _session.AddAsync(name);
+        if (entry.TooMany) _session.Refuse("tags.entry.tooMany");
+        else if (TagEntryParser.IsPlain(entry, name)) await _session.AddAsync(name);
         else if (entry.Invalid.Count > 0) await _session.AddAsync(entry.Invalid[0]);
-        else await TagEntryParser.AddEachAsync(entry, text => _session.AddAsync(text), id => _session.AddExistingAsync(id), () => _session.MessageKey != null);
+        // One undo takes back every tag of the entry (the dialog's one-step undo).
+        else await TagEntryParser.AddEachAsync(entry, text => _session.AddAsync(text), id => _session.AddExistingAsync(id), () => _session.MessageKey != null,
+            () => _session.LastChange, _session.ReplaceLastChange);
         // Keep a rejected draft for correction; clear it once it became a tag on this medium.
         if (_session.MessageKey == null && !_closed) _input.Text = string.Empty;
     }
