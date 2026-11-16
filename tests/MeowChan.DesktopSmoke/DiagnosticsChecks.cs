@@ -67,8 +67,18 @@ internal static class DiagnosticsChecks
                 {
                     await PresentationChecks.SwitchModeAsync(window, mode);
                     window.ShowStatus(StatusSegment.Diagnostics);
-                    window.Width = mode == "Barebones" ? 640 : 760;
-                    window.Height = mode == "Barebones" ? 480 : 500;
+                    double targetWidth = mode == "Barebones" ? 640 : 760;
+                    double targetHeight = mode == "Barebones" ? 480 : 500;
+                    window.Width = targetWidth;
+                    window.Height = targetHeight;
+                    // Native resize completion is asynchronous. A layout that still fits the old
+                    // client can pass readiness, then reflow after the one-shot BringIntoView.
+                    // Measure and scroll only once the requested client geometry is real.
+                    await Program.WaitUntilAsync(() =>
+                    {
+                        window.UpdateLayout();
+                        return PresentationChecks.MatchesRequestedSize(window, targetWidth, targetHeight);
+                    }, () => $"theme={theme}, mode={mode}, requested={targetWidth}x{targetHeight}, client={window.Bounds.Size}, frame={window.FrameSize}, minimum={window.MinWidth}x{window.MinHeight}, scale={window.RenderScaling}");
                     foreach (string language in new[] { "en", "de" })
                     {
                         Texts.SetLanguage(language);
@@ -144,7 +154,8 @@ internal static class DiagnosticsChecks
                         // 110 DIP while the scroll viewport can be 97 DIP. In that case full containment is
                         // impossible; BringIntoView must instead align the editor's top and leave it visibly
                         // scrollable. Larger layouts still require the strict fully-contained contract.
-                        await Program.WaitUntilAsync(() => FitsOrScrollsToTop(content, details));
+                        await Program.WaitUntilAsync(() => FitsOrScrollsToTop(content, details), () =>
+                            $"theme={theme}, mode={mode}, language={language}, window={window.Bounds}, scroll={content.Bounds}, viewport={content.Viewport}, extent={content.Extent}, offset={content.Offset}, details={details.Bounds}, origin={details.TranslatePoint(default, content)}, visibleHeight={VisibleHeight(content, details)}, visible={details.IsEffectivelyVisible}");
                         Require(details.Focus(), "Diagnostic details cannot receive keyboard focus.");
                         Program.CaptureWindow(window, $"smoke-diagnostics-details-{theme.ToLowerInvariant()}-{mode.ToLowerInvariant()}-{language}.png");
                         requested = null;
