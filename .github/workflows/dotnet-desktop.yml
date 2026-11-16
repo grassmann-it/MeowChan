@@ -966,13 +966,13 @@ jobs:
       - name: Start and gracefully stop the actual DMG-installed apphost
         run: python3 scripts/macos-apphost-smoke.py artifacts/macos-extracted/MeowChan.app/Contents/MacOS/MeowChan --evidence-dir artifacts/macos-evidence
       - name: Exercise native gallery playback from the DMG-installed apphost
-        if: inputs.mode == 'package-media' || (inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate')
+        if: inputs.mode == 'macos-package' || inputs.mode == 'package-media' || (inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate')
         run: python3 scripts/apphost-playback-smoke.py artifacts/macos-extracted/MeowChan.app/Contents/MacOS/MeowChan --allow-native-desktop --evidence-dir artifacts/macos-evidence/playback
       - name: Exercise the DMG-installed apphost download, restore, export and desktop workflow
-        if: inputs.mode == 'package-media' || (inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate')
+        if: inputs.mode == 'macos-package' || inputs.mode == 'package-media' || (inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate')
         run: python3 scripts/apphost-workflow-smoke.py artifacts/macos-extracted/MeowChan.app/Contents/MacOS/MeowChan --archive artifacts/macos-packages/MeowChan-${{ steps.metadata.outputs.version }}-${{ matrix.runtime }}.zip --archive-member MeowChan.app/Contents/MacOS/MeowChan --archive-root artifacts/macos-extracted --allow-native-desktop --source-commit ${{ github.sha }} --runtime ${{ matrix.runtime }} --evidence-dir artifacts/macos-evidence/workflow
       - name: Retain playback-verified native DMG candidate, inventory ZIP and evidence
-        if: inputs.mode == 'package-media' || (inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate')
+        if: inputs.mode == 'macos-package' || inputs.mode == 'package-media' || (inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate')
         uses: actions/upload-artifact@v7
         with:
           name: macos-native-candidate-${{ matrix.runtime }}
