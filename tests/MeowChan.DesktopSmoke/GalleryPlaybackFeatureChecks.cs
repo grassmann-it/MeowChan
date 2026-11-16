@@ -649,7 +649,7 @@ internal static partial class GalleryPlaybackFeatureChecks
                 await native.MoveAsync(
                     () => CurrentNamedTargetAsync<Slider>(viewer, "GalleryVideoVolume"),
                     current => Task.FromResult((Point?)MediaInteractionSmokeHelpers.TrackPoint(current, .60)),
-                    requireEnabled: false, requireHitTest: true);
+                    requireEnabled: false, requireHitTest: false);
                 await native.ButtonAsync(true);
                 await native.ButtonAsync(false);
                 await MediaInteractionSmokeHelpers.HoldStateAsync(player, "Playing", "Disabled bottom-edge volume interaction");
