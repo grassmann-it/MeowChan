@@ -2254,6 +2254,18 @@
                             <ToggleSwitch x:Name="MinimizeToTrayInput" IsChecked="{Binding MinimizeToTray, Mode=TwoWay}" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center" OnContent="{x:Null}" OffContent="{x:Null}" AutomationProperties.LabeledBy="{Binding ElementName=MinimizeToTrayFieldLabel}" AutomationProperties.Name="{Binding MinimizeToTrayLabel}" />
                         </Grid>
                     </Border>
+                    <Border Classes="settings-divider">
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                            <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                <TextBlock x:Name="ShutdownTimeLimitSecondsFieldLabel" Text="{Binding ShutdownTimeLimitSecondsLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding ShutdownTimeLimitSecondsHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="ShutdownTimeLimitSecondsInput" Value="{Binding ShutdownTimeLimitSeconds, Mode=TwoWay}" Minimum="{Binding ShutdownTimeLimitSecondsMinimum}" Maximum="{Binding ShutdownTimeLimitSecondsMaximum}" Increment="5" AutomationProperties.LabeledBy="{Binding ElementName=ShutdownTimeLimitSecondsFieldLabel}" AutomationProperties.Name="{Binding ShutdownTimeLimitSecondsLabel}" AutomationProperties.HelpText="{Binding ShutdownTimeLimitSecondsHelp}" />
+                                <TextBlock x:Name="ShutdownTimeLimitSecondsInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
                     <StackPanel x:Name="SettingsStatisticsSection" Spacing="0" Margin="0,16,0,0">
                         <StackPanel.Styles>
                             <!-- An unavailable row stays readable but is visibly set apart; its tooltip names the switch it depends on. -->

@@ -405,6 +405,8 @@
     "settings.restoreSession": "Ripristina la sessione all’avvio",
     "settings.closeToTray": "Chiudi nell’area di notifica",
     "settings.minimizeToTray": "Riduci nell’area di notifica",
+    "settings.shutdownTimeLimit": "Tempo massimo di chiusura (secondi)",
+    "settings.shutdownTimeLimitHint": "Quanto può durare la chiusura dell’app: arresto dei download e del monitoraggio, salvataggio delle ultime impostazioni, rilascio dei lettori video. Se dopo questo tempo un passaggio è ancora in corso, l’app si chiude da sola e indica il passaggio nel registro; i dati salvati sono già completi. Predefinito 30; consentito da 5 a 600.",
     "settings.save": "Salva",
     "settings.saved": "Impostazioni salvate.",
     "settings.languagePacksTitle": "Pacchetti di lingua",

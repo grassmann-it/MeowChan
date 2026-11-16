@@ -405,6 +405,8 @@
     "settings.restoreSession": "Restaurar sessão ao iniciar",
     "settings.closeToTray": "Fechar para a bandeja",
     "settings.minimizeToTray": "Minimizar para a bandeja",
+    "settings.shutdownTimeLimit": "Tempo limite para fechar (segundos)",
+    "settings.shutdownTimeLimitHint": "Quanto tempo o fechamento do aplicativo pode levar: parar os downloads e o acompanhamento, salvar as últimas configurações e liberar os players de vídeo. Se uma etapa ainda estiver em execução após esse tempo, o aplicativo se encerra sozinho e registra a etapa no log; os dados salvos já estão completos. Padrão: 30; permitido: de 5 a 600.",
     "settings.save": "Salvar",
     "settings.saved": "Configurações salvas.",
     "settings.languagePacksTitle": "Pacotes de idioma",

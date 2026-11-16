@@ -409,6 +409,8 @@
     "settings.restoreSession": "Przywracaj sesję przy uruchomieniu",
     "settings.closeToTray": "Zamykaj do zasobnika",
     "settings.minimizeToTray": "Minimalizuj do zasobnika",
+    "settings.shutdownTimeLimit": "Limit czasu zamykania (sekundy)",
+    "settings.shutdownTimeLimitHint": "Jak długo może trwać zamykanie aplikacji: zatrzymanie pobierania i obserwacji, zapisanie ostatnich ustawień, zwolnienie odtwarzaczy wideo. Jeśli po tym czasie jakiś krok nadal trwa, aplikacja zamyka się sama i podaje ten krok w dzienniku; zapisane dane są już kompletne. Domyślnie 30; dozwolone 5–600.",
     "settings.save": "Zapisz",
     "settings.saved": "Zapisano ustawienia.",
     "settings.languagePacksTitle": "Pakiety językowe",

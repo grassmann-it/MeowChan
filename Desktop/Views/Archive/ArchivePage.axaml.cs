@@ -225,13 +225,15 @@ public partial class ArchivePage : UserControl
         CancellationToken token = loading.Token;
         CancelMediaLoad(); ClosePreview();
         _busy = true;
-        BeginContentFeedback();
-        Message(string.Empty);
-        UpdateActions();
         ResourceId? selected = _selectedThread;
         bool committed = false;
+        // Everything after _busy is set runs inside the try: a failure here must reach the finally that clears it,
+        // or every reader and list action would stay disabled.
         try
         {
+            BeginContentFeedback();
+            Message(string.Empty);
+            UpdateActions();
             await using ArchiveReader reader = await _openReader(token);
             int offset = pending.Offset;
             int workFilter = WorkIndex(pending.Request.Spec.WorkFilter);
@@ -353,24 +355,26 @@ public partial class ArchivePage : UserControl
         _thread = null;
         _assets = Array.Empty<ArchiveAssetRow>();
         _busy = true;
-        BeginContentFeedback();
         _showReader = true;
-        _updatingList = true;
+        // Everything after _busy is set runs inside the try: a failure while the reader is prepared must reach the finally
+        // that clears it, or every reader and list action would stay disabled.
         try
         {
-            ArchiveThreadRow[] rows = ArchiveVisibleRows;
-            if (rows.Any(row => row.Summary.Id == id) && _archiveSelectionIds.Count == 0)
+            BeginContentFeedback();
+            _updatingList = true;
+            try
             {
-                _archiveSelectionIds.Clear(); _archiveSelectionIds.Add(id); _archiveLeadId = id;
+                ArchiveThreadRow[] rows = ArchiveVisibleRows;
+                if (rows.Any(row => row.Summary.Id == id) && _archiveSelectionIds.Count == 0)
+                {
+                    _archiveSelectionIds.Clear(); _archiveSelectionIds.Add(id); _archiveLeadId = id;
+                }
+                RestoreArchiveSelection(rows);
             }
-            RestoreArchiveSelection(rows);
-        }
-        finally { _updatingList = false; }
-        RenderThread();
-        UpdateLayoutMode();
-        Message(string.Empty);
-        try
-        {
+            finally { _updatingList = false; }
+            RenderThread();
+            UpdateLayoutMode();
+            Message(string.Empty);
             // The catalog is local. Display its posts before touching potentially disconnected media drives.
             ArchivedThreadView? thread = preparedThread;
             if (thread == null)
@@ -720,9 +724,12 @@ public partial class ArchivePage : UserControl
         CancelInlineReplies();
         int request = ++_contentRequest;
         _busy = true;
-        ClearOperationError("action");
-        UpdateActions();
-        try { await _setCapture(id, enabled); }
+        try
+        {
+            ClearOperationError("action");
+            UpdateActions();
+            await _setCapture(id, enabled);
+        }
         catch (Exception exception) { if (!_ended && request == _contentRequest) Message(exception.Message, true); return; }
         finally { if (!_ended && request == _contentRequest) { _busy = false; UpdateActions(); } }
         if (!_ended && request == _contentRequest && _selectedThread == id) await LoadThreadAsync(id, resetPage: false);

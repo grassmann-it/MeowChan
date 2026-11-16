@@ -37,6 +37,8 @@ internal static class Program
             Console.Error.WriteLine(exception.Message);
             return 2;
         }
+        // Only the app's own process may end itself when a shutdown cannot finish (bounded shutdown); a smoke observes its own lifecycle.
+        ShutdownExit.ProcessExitAllowed = StartupSmoke == null;
         using Timer? deadline = StartupSmoke == null ? null : new Timer(_ =>
         {
             Console.Error.WriteLine("APPHOST STARTUP FAIL: lifecycle watchdog expired.");

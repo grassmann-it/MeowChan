@@ -151,6 +151,15 @@ namespace MeowChan
         public bool DownloadsPaused { get; set; }
         public bool MinimizeToTray { get; set; }
         public bool CloseToTray { get; set; }
+        /// <summary>
+        /// Shutdown time limit in seconds: the longest the app waits for its shutdown steps (downloads and watches stopping, the last
+        /// settings, video players) after the window closed. A step still running then is logged by name and the process ends; every
+        /// saved file is already complete. Read when the shutdown starts, so a change applies to the next close.
+        /// </summary>
+        public int ShutdownTimeLimitSeconds { get; set; } = ShutdownTimeLimitSecondsDefault;
+        internal const int ShutdownTimeLimitSecondsDefault = 30;
+        internal const int ShutdownTimeLimitSecondsMinimum = 5;
+        internal const int ShutdownTimeLimitSecondsMaximum = 600;
         /// <summary>Top speed of all downloads together in bytes per second. Edited in MiB/s; the maximum is a sanity bound far above any link.</summary>
         public long BandwidthLimiter { get; set; } = 1024 * 1024;
         internal const int BandwidthLimiterMaximumMiB = 100_000;
@@ -1565,6 +1574,8 @@ namespace MeowChan
                 throw new InvalidDataException($"Unsupported settings schema version: {SchemaVersion}.");
             if (WorkViewSwitchNoticeSeconds is < WorkViewSwitchNoticeSecondsMinimum or > WorkViewSwitchNoticeSecondsMaximum)
                 throw new ArgumentOutOfRangeException(nameof(WorkViewSwitchNoticeSeconds), "The work-view switch notice duration must be between 0 and 60 seconds.");
+            if (ShutdownTimeLimitSeconds is < ShutdownTimeLimitSecondsMinimum or > ShutdownTimeLimitSecondsMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ShutdownTimeLimitSeconds), "The shutdown time limit must be between 5 and 600 seconds.");
             if (RecheckTimer < 10 || TimeSpan.FromSeconds(RecheckTimer).TotalMilliseconds > uint.MaxValue - 1)
                 throw new ArgumentOutOfRangeException(nameof(RecheckTimer), "The recheck interval must be between 10 seconds and the supported timer maximum.");
             if (BandwidthLimiter <= 0 || BandwidthLimiter > BandwidthLimiterMaximumBytes)
@@ -1844,6 +1855,7 @@ namespace MeowChan
                 DownloadsPaused = DownloadsPaused,
                 MinimizeToTray = MinimizeToTray,
                 CloseToTray = CloseToTray,
+                ShutdownTimeLimitSeconds = ShutdownTimeLimitSeconds,
                 BandwidthLimiter = BandwidthLimiter,
                 MaxParallelDownloads = MaxParallelDownloads,
                 ParallelDownloadsSafetyLimit = ParallelDownloadsSafetyLimit,
@@ -2111,6 +2123,7 @@ namespace MeowChan
             DownloadsPaused = source.DownloadsPaused;
             MinimizeToTray = source.MinimizeToTray;
             CloseToTray = source.CloseToTray;
+            ShutdownTimeLimitSeconds = source.ShutdownTimeLimitSeconds;
             BandwidthLimiter = source.BandwidthLimiter;
             MaxParallelDownloads = source.MaxParallelDownloads;
             ParallelDownloadsSafetyLimit = source.ParallelDownloadsSafetyLimit;
@@ -2332,6 +2345,7 @@ namespace MeowChan
             MonitorClipboardUrls = source.MonitorClipboardUrls;
             MinimizeToTray = source.MinimizeToTray;
             CloseToTray = source.CloseToTray;
+            ShutdownTimeLimitSeconds = source.ShutdownTimeLimitSeconds;
             BandwidthLimiter = source.BandwidthLimiter;
             MaxParallelDownloads = source.MaxParallelDownloads;
             ParallelDownloadsSafetyLimit = source.ParallelDownloadsSafetyLimit;
@@ -2768,6 +2782,8 @@ namespace MeowChan
                 // Coerce stored preferences only; edited candidates must pass Validate without coercion.
                 config.WorkViewSwitchNoticeSeconds = Math.Clamp(config.WorkViewSwitchNoticeSeconds,
                     WorkViewSwitchNoticeSecondsMinimum, WorkViewSwitchNoticeSecondsMaximum);
+                config.ShutdownTimeLimitSeconds = Math.Clamp(config.ShutdownTimeLimitSeconds,
+                    ShutdownTimeLimitSecondsMinimum, ShutdownTimeLimitSecondsMaximum);
 
                 config._relativePathBaseDirectory = relativePathBaseDirectory;
                 if (config.SchemaVersion != 1)

@@ -605,6 +605,8 @@
     "settings.restoreSession": "시작 시 세션 복원",
     "settings.closeToTray": "닫으면 트레이로",
     "settings.minimizeToTray": "최소화하면 트레이로",
+    "settings.shutdownTimeLimit": "종료 제한 시간(초)",
+    "settings.shutdownTimeLimitHint": "앱을 닫는 데 걸릴 수 있는 시간입니다: 다운로드와 감시 중지, 마지막 설정 저장, 동영상 플레이어 해제. 이 시간이 지나도 실행 중인 단계가 있으면 앱이 스스로 종료하고 그 단계를 로그에 남깁니다. 저장된 데이터는 이미 완전합니다. 기본값 30, 허용 범위 5–600.",
     "settings.save": "저장",
     "settings.saved": "설정을 저장했습니다.",
     "settings.languagePacksTitle": "언어 팩",

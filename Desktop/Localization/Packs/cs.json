@@ -409,6 +409,8 @@
     "settings.restoreSession": "Obnovit relaci při spuštění",
     "settings.closeToTray": "Zavřít do oznamovací oblasti",
     "settings.minimizeToTray": "Minimalizovat do oznamovací oblasti",
+    "settings.shutdownTimeLimit": "Časový limit ukončení (sekundy)",
+    "settings.shutdownTimeLimitHint": "Jak dlouho smí ukončení aplikace trvat: zastavení stahování a sledování, uložení posledních nastavení, uvolnění přehrávačů videa. Pokud po uplynutí této doby některý krok stále běží, aplikace se ukončí sama a krok uvede v protokolu; uložená data jsou již úplná. Výchozí hodnota 30; povoleno 5–600.",
     "settings.save": "Uložit",
     "settings.saved": "Nastavení uloženo.",
     "settings.languagePacksTitle": "Jazykové balíčky",

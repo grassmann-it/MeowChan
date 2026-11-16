@@ -88,6 +88,7 @@ internal static class SettingsSearchAliases
         ["BoardAdmissionWizard"] = "board assistant wizard assistent",
         ["RestoreSession"] = "session restore startup wiederherstellen sitzung start",
         ["CloseToTray"] = "tray system tray taskbar background infobereich schließen hintergrund",
+        ["ShutdownTimeLimitSeconds"] = "shutdown quit exit close hang stuck time limit timeout beenden schließen hängt zeitlimit herunterfahren",
         ["MinimizeToTray"] = "tray system tray taskbar background infobereich minimieren hintergrund",
         ["StatsHeaderIcons"] = "statistics header icons symbols words network disk graph statistik kopfleiste symbole wörter netz platte",
         ["FooterLayoutSection"] = "footer navigation bar buttons pages order reorder show hide visible taskbar fußleiste fusszeile navigationsleiste knöpfe seiten reihenfolge ausblenden einblenden sichtbar",

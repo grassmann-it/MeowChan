@@ -607,6 +607,8 @@
     "settings.restoreSession": "Restaurer la session au démarrage",
     "settings.closeToTray": "Fermer dans la zone de notification",
     "settings.minimizeToTray": "Réduire dans la zone de notification",
+    "settings.shutdownTimeLimit": "Délai maximal de fermeture (secondes)",
+    "settings.shutdownTimeLimitHint": "Durée que peut prendre la fermeture de l’application : arrêt des téléchargements et de la surveillance, enregistrement des derniers paramètres, libération des lecteurs vidéo. Si une étape est encore en cours après ce délai, l’application se ferme d’elle-même et nomme l’étape dans le journal ; les données enregistrées sont déjà complètes. Par défaut : 30 ; autorisé : de 5 à 600.",
     "stats.settings.title": "Statistiques",
     "stats.settings.intro": "MeowChan compte lui-même le trafic réseau et disque de ses propres médias (téléchargements, importations, lectures de vérification). Les miniatures et les fichiers d’archive ne sont pas comptés. Tout reste dans le profil sur cet ordinateur.",
     "stats.settings.sampleInterval": "Intervalle d’actualisation des statistiques",

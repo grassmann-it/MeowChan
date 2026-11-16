@@ -370,6 +370,7 @@ public partial class SettingsEditor
         MonitorClipboardUrls = defaults.MonitorClipboardUrls;
         MinimizeToTray = defaults.MinimizeToTray;
         CloseToTray = defaults.CloseToTray;
+        LoadShutdownLimitDraft(defaults);
         LoadStatisticsDraft(defaults);
         StatsHeaderIcons = defaults.StatsHeaderIcons;
         RefreshStatsHeaderGraphChoices(defaults.StatsHeaderGraph);
