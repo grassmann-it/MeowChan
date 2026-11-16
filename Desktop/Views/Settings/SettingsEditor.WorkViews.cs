@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Data;
 using Avalonia.LogicalTree;
 using Avalonia.Threading;
 using MeowChan.Desktop.Commands;
@@ -110,6 +111,12 @@ public partial class SettingsEditor
     private static bool SetFlat(GroupSlot slot, bool flat)
     {
         if (slot.Flat == flat) return false;
+        // Detaching the body temporarily removes its inherited DataContext. Numeric Value
+        // bindings then publish null followed by the old number, formatting away rejected
+        // raw text. Keep inheritance stable for the whole move, in either direction.
+        // This scoped, lower-priority value leaves local contexts/bindings intact and is
+        // removed once the body can inherit from its new parent again.
+        using var context = slot.Body.SetValue(DataContextProperty, slot.Body.DataContext, BindingPriority.Style);
         if (flat)
         {
             int index = slot.Parent.Children.IndexOf(slot.Expander);

@@ -40,6 +40,10 @@ internal static class SettingsPageChecks
         Exception? failureBeforeCleanup = null;
         try
         {
+            // Always cover the wrapped->flat Downloads transition, even if another scene
+            // left the shell in Advanced (where the old regression never reparented it).
+            await PresentationChecks.SwitchModeAsync(window, "Barebones");
+            original = File.ReadAllText(file);
             urls.Text = "https://unsupported.invalid/retained-page-input";
             Navigate(window, true);
             await Program.WaitUntilAsync(() => editor.IsEffectivelyVisible && editor.Bounds.Width > 0);
@@ -49,7 +53,10 @@ internal static class SettingsPageChecks
             Require(!window.OwnedWindows.OfType<SettingsWindow>().Any(), "Settings navigation opened a modal window.");
             await SettingsSectionChecks.OpenAsync(editor, "settings.downloads");
             NumericUpDown timer = editor.FindControl<NumericUpDown>("RecheckTimerInput")!;
-            timer.Text = "invalid draft";
+            TextBox nativeTimer = SettingsSectionChecks.NumericEditingSurface(editor, timer);
+            Require(nativeTimer.Focus(), "Could not focus the native numeric editor.");
+            nativeTimer.Text = "invalid draft";
+            Require(timer.Text == "invalid draft", "Native text input did not reach the numeric draft.");
             editor.DownloadPath = draftPath;
             editor.SelectedWorkspaceMode = editor.WorkspaceChoices.Single(choice => choice.Value == "Barebones");
             string raw = timer.Text!;
@@ -90,11 +97,13 @@ internal static class SettingsPageChecks
                 "A footer theme commit overwrote unrelated draft fields or invalid text: "
                 + $"theme={editor.SelectedTheme?.Value} (want {nextTheme}), mode={editor.SelectedWorkspaceMode?.Value}, "
                 + $"timer='{timer.Text}' (want '{raw}'), path='{editor.DownloadPath}', hasError={editor.HasError}.");
-            string nextMode = initial.WorkspaceMode == "Simple" ? "Advanced" : "Simple";
+            string nextMode = "Simple";
             await PresentationChecks.SwitchModeAsync(window, nextMode);
             Require(editor.SelectedWorkspaceMode?.Value == nextMode && editor.SelectedTheme?.Value == nextTheme
                 && timer.Text == raw && editor.DownloadPath == draftPath,
-                "A footer view commit failed to synchronize only its field.");
+                "A footer view commit failed to synchronize only its field: "
+                + $"mode={editor.SelectedWorkspaceMode?.Value}, theme={editor.SelectedTheme?.Value}, timer='{timer.Text}' (want '{raw}').");
+            await CheckRawDraftTransitionsAsync(window, editor, timer, raw, draftPath, nextTheme, initial.RecheckTimer);
             Program.CaptureWindow(window, "smoke-settings-page-light.png");
 
             string backup = file + ".page-fixture";
@@ -154,6 +163,45 @@ internal static class SettingsPageChecks
                 urls.Text = initialUrls;
             }, exception => Console.Error.WriteLine("SMOKE cleanup failed in SettingsPageChecks: " + exception));
         }
+    }
+
+    private static async Task CheckRawDraftTransitionsAsync(MainWindow window, SettingsEditor editor,
+        NumericUpDown timer, string raw, string draftPath, string theme, int initialTimer)
+    {
+        int saves = 0;
+        void OnSaved(object? sender, EventArgs args) => saves++;
+        editor.Saved += OnSaved;
+        try
+        {
+            // Reverse the move, repeat it, and include the Advanced path. The retained
+            // control and its actual template TextBox must agree after native layout/focus.
+            foreach (string mode in new[] { "Barebones", "Advanced", "Barebones", "Simple" })
+            {
+                await PresentationChecks.SwitchModeAsync(window, mode);
+                Require(ReferenceEquals(editor.FindControl<NumericUpDown>("RecheckTimerInput"), timer)
+                    && timer.Text == raw && editor.RecheckTimer == initialTimer && timer.Value == initialTimer
+                    && editor.DownloadPath == draftPath && editor.HasError
+                    && editor.SelectedWorkspaceMode?.Value == mode && editor.SelectedTheme?.Value == theme,
+                    $"Work-view {mode} lost the raw draft, bound value or validation: '{timer.Text}'.");
+                await SettingsSectionChecks.OpenAsync(editor, "settings.downloads");
+                timer.ApplyTemplate();
+                TextBox native = timer.GetVisualDescendants().OfType<TextBox>().Single(text => text.Name == "PART_TextBox");
+                Require(native.Text == raw && native.Focus(), $"Work-view {mode} lost native editor text/focus.");
+                Require(editor.FindControl<Button>("SaveSettingsButton")!.Focus(), "Could not blur the numeric editor.");
+                Require(native.Text == raw && timer.Text == raw, "Native blur replaced rejected numeric text.");
+                string file = Path.Combine(Config.GetConfigDirectory(), "settings.json");
+                string before = File.ReadAllText(file);
+                Click(editor.FindControl<Button>("SaveSettingsButton")!);
+                await Program.WaitUntilAsync(() => !editor.IsBusy && editor.HasError);
+                await RequireErrorVisibleAsync(editor, "RecheckTimerInput");
+                Require(timer.Text == raw && native.Text == raw && File.ReadAllText(file) == before && saves == 0,
+                    $"Work-view {mode} accepted/reset an invalid draft or caused a settings save.");
+                Config persisted = Config.LoadConfig();
+                Require(persisted.RecheckTimer == initialTimer && persisted.DownloadPath != draftPath,
+                    "A footer view commit persisted unrelated draft fields.");
+            }
+        }
+        finally { editor.Saved -= OnSaved; }
     }
 
     internal static Task RunFooterOverlapDiagnosticAsync(MainWindow window) => CheckSmallLayoutAsync(window, footerOnly: true);
