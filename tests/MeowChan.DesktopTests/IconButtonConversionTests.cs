@@ -97,7 +97,7 @@ public sealed class IconButtonConversionTests
             Assert.Contains(kind, new[] { "Button", "ToggleButton" });
             AssertIconExists(icon);
         }
-        Assert.Equal(["ArchiveAddBoard", "ArchiveAddSource", "ArchiveLayoutList", "ArchiveLayoutTable", "ArchiveTagManage", "ArchiveUseDeviceZone", "ReaderTagManage"],
+        Assert.Equal(["ArchiveAddBoard", "ArchiveAddSource", "ArchiveLayoutList", "ArchiveLayoutTable", "ArchiveMediaLayoutTable", "ArchiveMediaLayoutTiles", "ArchiveTagManage", "ArchiveUseDeviceZone", "ReaderTagManage"],
             ArchivePage.ToolButtonIcons.Select(entry => entry.Name).Order(StringComparer.Ordinal).ToArray());
         Assert.Contains("InitializeToolButtonIcons();", ReadSource("Desktop/Views/Archive/ArchivePage.axaml.cs"));
         Assert.Contains("EnsureIconBeforeText(Control<Button>(name), icon)", ReadSource("Desktop/Views/Archive/ArchivePage.ToolIcons.cs"));

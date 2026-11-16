@@ -13,7 +13,7 @@ internal static class LegacyCommandAdapters
         ["WorkspaceMenuItem"] = "navigation.app-menu",
         ["ArchiveFilters"] = "archive.filters-toggle",
         ["ArchiveLayoutList"] = "archive.thread-view", ["ArchiveLayoutTable"] = "archive.thread-view",
-        ["ArchiveMediaMode"] = "archive.media-view", ["ArchiveFavoritesFilter"] = "favorites.filter",
+        ["ArchiveMediaLayoutTiles"] = "archive.media-view", ["ArchiveMediaLayoutTable"] = "archive.media-view", ["ArchiveFavoritesFilter"] = "favorites.filter",
         ["ClosePreviewButton"] = "preview.close",
         ["ArchiveExportPrevious"] = "export.open-previous", ["ArchiveExportLegacyFind"] = "export.find-legacy",
         ["ArchiveExportLegacyAssociate"] = "export.associate-legacy", ["ArchiveExportStart"] = "export.start-html",
