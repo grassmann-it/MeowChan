@@ -519,7 +519,8 @@ class CandidateWorkflowFixtures(unittest.TestCase):
         return eval(expression, {'__builtins__': {}}, {})
 
     def test_both_candidate_modes_reach_every_same_run_dependency(self):
-        required = ('validate', 'library-package', 'macos-package', 'package-media',
+        required = ('validate', 'macos-offline-gate', 'desktop-offline-gate',
+                    'library-package', 'macos-package', 'package-media',
                     'linux-distribution', 'macos-source-candidate', 'current-source-inventory')
         for mode in ('prerelease-candidate', 'stable-candidate'):
             for job in required:
@@ -530,6 +531,72 @@ class CandidateWorkflowFixtures(unittest.TestCase):
         self.assertIn('needs: [macos-package, package-media, linux-distribution]',
                       self.jobs['macos-source-candidate'])
         self.assertIn('needs: validate', self.jobs['library-package'])
+
+    def test_portable_coverage_gate_only_accepts_complete_nonmac_validation_scope(self):
+        job = self.jobs['desktop-offline-gate']
+        self.assertIn('    needs: validate\n', job)
+        self.assertIn('always()', re.search(r'^    if: (.+)$', job, re.M)[1])
+        platforms = ('', 'all', 'ubuntu-24.04', 'ubuntu-24.04-arm', 'windows-2022',
+                     'macos-15', 'macos-15-intel')
+        modes = ('validate', 'prerelease-candidate', 'stable-candidate', 'offline-retest',
+                 'package-media', 'linux-distribution', 'macos-package', 'macos-diagnose', 'homebrew-macos')
+        scenarios = ('all', 'gui-only', 'selection', 'gallery-errors', 'gallery-features', 'gif-playback', 'media-input')
+        for mode in modes:
+            for scenario in scenarios:
+                for platform in platforms:
+                    expected = (mode in ('validate', 'prerelease-candidate', 'stable-candidate')
+                                and scenario == 'all'
+                                and platform in ('', 'all', 'ubuntu-24.04', 'ubuntu-24.04-arm', 'windows-2022'))
+                    with self.subTest(mode=mode, scenario=scenario, platform=platform):
+                        self.assertEqual(expected, self.condition('desktop-offline-gate', mode, scenario, platform))
+        for event in ('push', 'pull_request'):
+            self.assertTrue(self.condition('desktop-offline-gate', '', scenario='', platform='', event=event))
+        self.assertIn('pattern: desktop-offline-*', job)
+        self.assertIn('scripts/desktop-test-shards.py', job)
+        self.assertIn('--input artifacts/desktop-offline-inputs --source "$(git rev-parse HEAD)"', job)
+        self.assertIn('platforms=(--platform ubuntu-24.04 --platform ubuntu-24.04-arm --platform windows-2022)', job)
+        self.assertIn('platforms=(--platform "${{ inputs.platform }}")', job)
+        self.assertIn('if-no-files-found: error', job)
+
+    def test_candidate_admission_requires_portable_coverage_success_not_just_matrix_success(self):
+        job = self.jobs['release-candidate-gate']
+        expected = ['validate', 'macos-offline-gate', 'desktop-offline-gate', 'library-package',
+                    'macos-package', 'package-media', 'linux-distribution',
+                    'macos-source-candidate', 'current-source-inventory']
+        dependencies = re.search(r'^    needs: \[(.+)\]$', job, re.M)[1].split(', ')
+        required = re.search(r'--required ([a-z,-]+)', job)[1].split(',')
+        self.assertEqual(expected, dependencies)
+        self.assertEqual(expected, required)
+        self.assertIn('scripts/aggregate-release-gates.py needs', job)
+        self.assertIn('RELEASE_NEEDS: ${{ toJSON(needs) }}', job)
+        self.assertIn('--json-env RELEASE_NEEDS', job)
+        self.assertIn('always()', re.search(r'^    if: (.+)$', job, re.M)[1])
+        for mode in ('prerelease-candidate', 'stable-candidate'):
+            self.assertTrue(self.condition('release-candidate-gate', mode))
+            for event in ('push', 'pull_request'):
+                self.assertFalse(self.condition('release-candidate-gate', mode, event=event))
+        for mode in ('validate', 'offline-retest', 'package-media', 'macos-diagnose'):
+            self.assertFalse(self.condition('release-candidate-gate', mode))
+
+        spec = importlib.util.spec_from_file_location('candidate_gate', ROOT / 'scripts/aggregate-release-gates.py')
+        gate = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(gate)
+        success = {name: {'result': 'success'} for name in dependencies}
+        self.assertTrue(gate.needs_gate(success, required)['passed'])
+        # Exercise the real aggregator with the actual workflow's required list.
+        # Existing validation/package successes cannot mask any missing or failed
+        # coverage dependency, including a deliberately skipped partial retest.
+        for dependency in dependencies:
+            for status in ('missing', 'failure', 'cancelled', 'skipped', 'malformed'):
+                needs = dict(success)
+                if status == 'missing':
+                    needs.pop(dependency)
+                else:
+                    needs[dependency] = None if status == 'malformed' else {'result': status}
+                with self.subTest(dependency=dependency, status=status):
+                    report = gate.needs_gate(needs, required)
+                    self.assertFalse(report['passed'])
+                    self.assertEqual([dependency], list(report['failures']))
 
     def test_diagnostic_and_partial_modes_cannot_stage_candidates(self):
         for mode in ('validate', 'package-media', 'linux-distribution', 'macos-package',
