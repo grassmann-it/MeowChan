@@ -113,11 +113,12 @@ internal static partial class GalleryPlaybackFeatureChecks
             await HiddenAsync();
             await FirstKeyAsync(false, "hidden Left");
             await HiddenAsync();
-            await native.MoveAsync(EdgeIndicator(viewer, "GalleryControlsEdgeIndicator"));
+            await LayoutAsync(fixture.Window);
+            await native.MoveAsync(() => NativeTargetAsync<Button>(viewer, "GalleryControlsEdgeIndicator"));
             await UntilAsync(() => Visible(controls), "Bottom indicator hover did not reveal controls.");
             await FirstKeyAsync(true, "after bottom-indicator hover");
             await HiddenAsync();
-            await native.ClickAsync(EdgeIndicator(viewer, "GalleryControlsEdgeIndicator"));
+            await native.ClickAsync(() => NativeTargetAsync<Button>(viewer, "GalleryControlsEdgeIndicator"));
             await UntilAsync(() => Visible(controls), "Bottom indicator click did not reveal controls.");
             await FirstKeyAsync(false, "after bottom-indicator click");
             await HiddenAsync();
@@ -131,11 +132,11 @@ internal static partial class GalleryPlaybackFeatureChecks
             await UntilAsync(() => viewer.CaptureState().ContextOpen, "Keyboard activation of the post indicator did not open context.");
             await FirstKeyAsync(false, "after keyboard post-indicator activation");
             await HiddenAsync();
-            await native.ClickAsync(EdgeIndicator(viewer, "GalleryPostEdgeIndicator"));
+            await native.ClickAsync(() => NativeTargetAsync<Button>(viewer, "GalleryPostEdgeIndicator"));
             await UntilAsync(() => viewer.CaptureState().ContextOpen, "Post indicator click did not reveal context.");
             await FirstKeyAsync(true, "after post-indicator click");
             await HiddenAsync();
-            await native.MoveAsync(EdgeIndicator(viewer, "GalleryPostEdgeIndicator"));
+            await native.MoveAsync(() => NativeTargetAsync<Button>(viewer, "GalleryPostEdgeIndicator"));
             await UntilAsync(() => viewer.CaptureState().ContextOpen, "Post indicator hover did not reveal context.");
             await FirstKeyAsync(false, "after post-indicator hover");
             Program.CaptureWindow(fixture.Window, "smoke-gallery-first-key-indicators.png");
