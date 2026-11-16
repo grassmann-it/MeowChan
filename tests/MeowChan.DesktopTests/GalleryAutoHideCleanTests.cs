@@ -244,6 +244,21 @@ public sealed class GalleryAutoHideCleanTests
     }
 
     [Fact]
+    public void ActualMouseMotionLeavesKeyboardPanelFocusGuardBeforeReveal()
+    {
+        string source = File.ReadAllText(Path.Combine(RepoRoot(), "Desktop", "GalleryViewer.Overlay.cs"));
+        int start = source.IndexOf("private void OnOverlayPointerMoved", StringComparison.Ordinal);
+        int end = source.IndexOf("private void OnIndicatorExpiry", start, StringComparison.Ordinal);
+        string body = source.Substring(start, end - start);
+        int motion = body.IndexOf("e.Pointer.Type == PointerType.Mouse", StringComparison.Ordinal);
+        Assert.True(motion >= 0);
+        int modalityReset = body.IndexOf("_keyboardInteraction = false;", motion, StringComparison.Ordinal);
+        int reveal = body.IndexOf("RevealControlsOnMotion();", motion, StringComparison.Ordinal);
+        Assert.True(modalityReset >= 0);
+        Assert.True(reveal > modalityReset);
+    }
+
+    [Fact]
     public void AButtonOnlyCommandBehindTheHiddenFooterIsFoundSoTheControlsComeFirst()
     {
         var footer = new StackPanel { IsVisible = false };
