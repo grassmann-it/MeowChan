@@ -167,7 +167,12 @@ public sealed class InteractionAuditTests
         Assert.DoesNotContain(bindings.Issues, issue => issue.BlocksSave);
         Assert.Contains(bindings.Issues, issue => issue.CommandId == "media.tile-size.larger" && issue.OtherCommandId == "media.select-all");
         Assert.Single(bindings.For("media.select-all"));
-        Assert.Equal("Add", Assert.Single(bindings.For("media.tile-size.larger")).Key);
+        // The tile size also runs in the tagging grid, where nothing has that key: the default gives way on the media page only (Opus review 15.11.).
+        Assert.Contains(bindings.For("media.tile-size.larger"), gesture => gesture.Key == "Add");
+        ShortcutGesture plus = Assert.Single(bindings.For("media.tile-size.larger"), gesture => gesture.Key != "Add");
+        Assert.Equal(new[] { "media" }, bindings.YieldedContexts("media.tile-size.larger", plus));
+        Assert.False(bindings.Matches(new Avalonia.Input.KeyEventArgs { Key = Avalonia.Input.Key.OemPlus, KeyModifiers = Avalonia.Input.KeyModifiers.Control }, "media.tile-size.larger", "media"));
+        Assert.True(bindings.Matches(new Avalonia.Input.KeyEventArgs { Key = Avalonia.Input.Key.OemPlus, KeyModifiers = Avalonia.Input.KeyModifiers.Control }, "media.tile-size.larger", "tagging"));
     }
 
     // ---- routing per surface: double click and Enter reach the same primary action -------------------------------------------

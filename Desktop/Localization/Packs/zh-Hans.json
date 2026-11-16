@@ -4844,6 +4844,8 @@
     "settings.galleryStatusDwellHint": "图库信息行中的简短状态（例如幻灯片的“就绪”）在屏幕上停留多久。正在放映的幻灯片、暂停原因和错误会一直保留。默认 {0} 毫秒，范围 {1} 到 {2} 毫秒。",
     "settings.galleryFilmstripTileGap": "缩略图条中缩略图的间距",
     "settings.galleryFilmstripTileGapHint": "图库缩略图条中相邻两张缩略图之间的间距。默认 {0}，范围 {1} 到 {2}。",
+    "settings.galleryPostTagChipLimit": "帖子面板中显示的标签数",
+    "settings.galleryPostTagChipLimitHint": "图库“帖子”分段以小标签形式列出的标签数量。其余合并为一个“另有 N 个”标签；完整列表可在“标签”分段中一键打开。默认 {0}，范围 {1} 到 {2}。",
     "settings.reader.navigation": "阅读器导航",
     "settings.reader.navigation.hint": "在大阅读器右下角显示带计数的箭头，可跳到上一个或下一个串和帖子。按键在任何设置下都有效；隐藏前的等待时间由“隐藏控件的等待时间”决定。",
     "settings.reader.navigation.auto": "自动隐藏",

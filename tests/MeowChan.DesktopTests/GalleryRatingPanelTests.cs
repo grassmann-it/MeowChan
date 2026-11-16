@@ -207,14 +207,46 @@ public sealed class GalleryRatingPanelTests : IDisposable
     }
 
     [Fact]
+    public void ThePostTagChipLimitIsASettingThatTheChipsFollow()
+    {
+        Fixture h = new();
+        SetField(h.Viewer, "_postTagChipLimit", 5);
+        SetField(h.Viewer, "_tagNames", Enumerable.Range(1, 12).Select(number => "t" + number).ToArray());
+        WrapPanel chips = ((StackPanel)BuildTags(h.Viewer, out _)).Children.OfType<WrapPanel>().Single();
+        Assert.Equal(6, chips.Children.Count); // five chips and "+7 more"
+        Assert.Equal("GalleryPostTagsMore", ((Control)chips.Children[^1]).Name);
+        Assert.Equal(Texts.T("gallery.post.tags.more", 7), ((TextBlock)((Button)chips.Children[^1]).Content!).Text);
+        SetField(h.Viewer, "_postTagChipLimit", 12); // exactly as many as there are: no overflow chip
+        chips = ((StackPanel)BuildTags(h.Viewer, out _)).Children.OfType<WrapPanel>().Single();
+        Assert.Equal(12, chips.Children.Count);
+        Assert.DoesNotContain(chips.Children, child => ((Control)child).Name == "GalleryPostTagsMore");
+        Assert.Contains("_gallery.PostTagChipLimit = _config.GalleryPostTagChipLimit;", Source("Desktop/Shell/MainWindow.GalleryPreferences.cs"));
+    }
+
+    [Fact]
+    public void TheViewerClampsThePostTagChipLimitItIsGiven()
+    {
+        // No shown medium: nothing to list again, only the clamp.
+        GalleryViewer viewer = (GalleryViewer)RuntimeHelpers.GetUninitializedObject(typeof(GalleryViewer));
+        SetField(viewer, "_postTagChipLimit", Config.GalleryPostTagChipLimitDefault);
+        viewer.PostTagChipLimit = 1;
+        Assert.Equal(5, viewer.PostTagChipLimit);
+        viewer.PostTagChipLimit = 9999;
+        Assert.Equal(200, viewer.PostTagChipLimit);
+    }
+
+    [Fact]
     public void ManyTagsEndInOneMoreChipAndNoTagsSayTheyAreEmpty()
     {
         Fixture h = new();
-        string[] many = Enumerable.Range(1, GalleryViewer.PostTagChipLimit + 5).Select(number => "t" + number).ToArray();
+        int limit = Config.GalleryPostTagChipLimitDefault; // the setting's default (the viewer of this fixture was never configured)
+        Assert.Equal(limit, h.Viewer.PostTagChipLimit);
+        Assert.Equal(30, limit);
+        string[] many = Enumerable.Range(1, limit + 5).Select(number => "t" + number).ToArray();
         SetField(h.Viewer, "_tagNames", many);
         StackPanel section = (StackPanel)BuildTags(h.Viewer, out _);
         WrapPanel chips = section.Children.OfType<WrapPanel>().Single();
-        Assert.Equal(GalleryViewer.PostTagChipLimit + 1, chips.Children.Count);
+        Assert.Equal(limit + 1, chips.Children.Count);
         Assert.Equal("GalleryPostTagsMore", ((Control)chips.Children[^1]).Name);
         Assert.IsType<Button>(chips.Children[^1]);
         SetField(h.Viewer, "_tagNames", Array.Empty<string>());
@@ -379,6 +411,7 @@ public sealed class GalleryRatingPanelTests : IDisposable
             SetField(Viewer, "_nativeVideoOverlay", new Grid());
             SetField(Viewer, "_postRatingError", PostError);
             SetField(Viewer, "_interactionAvailable", true);
+            SetField(Viewer, "_postTagChipLimit", Config.GalleryPostTagChipLimitDefault); // (an uninitialised object runs no field initialiser)
             SetField(Viewer, "_entry", Entry());
             typeof(GalleryViewer).GetMethod("InitializeFavoriteIndicators", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(Viewer, null);
         }

@@ -4939,6 +4939,8 @@
     "settings.galleryStatusDwellHint": "Per quanto tempo resta sullo schermo uno stato breve della riga informativa della galleria, ad esempio «Pronto» della presentazione. Una presentazione in corso, i motivi di una pausa e gli errori restano. Predefinito {0} ms, da {1} a {2} ms.",
     "settings.galleryFilmstripTileGap": "Spazio tra le miniature della striscia",
     "settings.galleryFilmstripTileGapHint": "Lo spazio tra due miniature della striscia della galleria. Predefinito {0}, da {1} a {2}.",
+    "settings.galleryPostTagChipLimit": "Tag nel pannello del post",
+    "settings.galleryPostTagChipLimitHint": "Quanti tag il segmento Post della galleria mostra come chip. Il resto diventa un solo chip «+N altri»; l’elenco completo è a un clic nel segmento Tag. Predefinito {0}, da {1} a {2}.",
     "settings.reader.navigation": "Navigazione del lettore",
     "settings.reader.navigation.hint": "Frecce con contatori verso il thread e il post precedenti e successivi, in basso a destra nel lettore grande. I tasti funzionano con qualsiasi impostazione; il tempo prima che scompaia è «Nascondi i controlli dopo».",
     "settings.reader.navigation.auto": "Nascondi automaticamente",

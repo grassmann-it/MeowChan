@@ -59,8 +59,16 @@ public sealed class GalleryFavoriteShortcutTests : IDisposable
         Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.M }, "gallery.context-toggle"));
         Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.B }, "gallery.slideshow-toggle"));
         Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.U }, "gallery.close"));
-        Assert.Empty(bindings.For("favorites.add"));
-        Assert.Empty(bindings.For("favorites.remove"));
+        // The saved bindings are gallery commands: the favourite keys give way in the gallery only (Opus review 15.11.) and stay in the other three.
+        Assert.False(bindings.Matches(new KeyEventArgs { Key = Key.M }, "favorites.add", "gallery"));
+        Assert.False(bindings.Matches(new KeyEventArgs { Key = Key.U }, "favorites.remove", "gallery"));
+        foreach (string context in new[] { "archive", "media", "reader" })
+        {
+            Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.M }, "favorites.add", context), context);
+            Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.U }, "favorites.remove", context), context);
+        }
+        Assert.False(bindings.Matches(new KeyEventArgs { Key = Key.B }, "favorites.add", "gallery")); // the saved slideshow key
+        Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.B }, "favorites.add", "reader"));
         Assert.DoesNotContain(bindings.Issues, issue => issue.BlocksSave);
         Assert.Contains(bindings.Issues, issue => issue.CommandId == "favorites.add"
             && issue.OtherCommandId == "gallery.context-toggle" && !issue.BlocksSave);

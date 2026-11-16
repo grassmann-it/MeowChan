@@ -168,14 +168,22 @@ public sealed class GalleryShortcutSchemeTests : IDisposable
         string before = section.Raw.GetRawText();
         EffectiveShortcutBindings bindings = EffectiveShortcutBindings.Build(section, platform);
         Assert.Equal(new[] { "M" }, bindings.For("video.mute").Select(Identity).ToArray());
-        Assert.Equal(new[] { "B" }, bindings.For("favorites.add").Select(Identity).ToArray());
+        // "Add favorite" keeps B everywhere and gives M up wherever the saved mute works (the gallery, the reader, the Media page: the video keys are
+        // not in the archive's media, where M stays; Opus review 15.11.).
+        Assert.Equal(new[] { "M", "B" }, bindings.For("favorites.add").Select(Identity).ToArray());
+        Assert.Equal(new[] { "gallery", "media", "reader" }, bindings.YieldedContexts("favorites.add", bindings.For("favorites.add")[0]).Order(StringComparer.Ordinal));
+        Assert.Empty(bindings.YieldedContexts("favorites.add", bindings.For("favorites.add")[1]));
         Assert.Contains(bindings.Issues, issue => issue.CommandId == "favorites.add" && issue.OtherCommandId == "video.mute" && !issue.BlocksSave);
         Assert.DoesNotContain(bindings.Issues, issue => issue.BlocksSave);
         Assert.Equal(before, section.Raw.GetRawText());
-        // A reader command saved on M wins there as well; the gallery's add key keeps B.
+        // A reader command saved on M wins in the reader only (Opus review 15.11.): "Add favorite" gives M up there and keeps it in the gallery, the
+        // Media page and the archive's media, next to B everywhere.
         EffectiveShortcutBindings reader = EffectiveShortcutBindings.Build(new ShortcutBindingsSection().Set("post.hide", [ShortcutGesture.Parse("M")]), platform);
         Assert.Equal(new[] { "M" }, reader.For("post.hide").Select(Identity).ToArray());
-        Assert.Equal(new[] { "B" }, reader.For("favorites.add").Select(Identity).ToArray());
+        Assert.Equal(new[] { "M", "B" }, reader.For("favorites.add").Select(Identity).ToArray());
+        ShortcutGesture m = reader.For("favorites.add")[0];
+        Assert.Equal(new[] { "reader" }, reader.YieldedContexts("favorites.add", m));
+        Assert.Empty(reader.YieldedContexts("favorites.add", reader.For("favorites.add")[1]));
         Assert.DoesNotContain(reader.Issues, issue => issue.BlocksSave);
     }
 

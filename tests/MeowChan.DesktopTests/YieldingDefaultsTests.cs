@@ -89,7 +89,11 @@ public sealed class YieldingDefaultsTests
                 var section = new ShortcutBindingsSection().Set(owner, [gesture]);
                 string before = section.Raw.GetRawText();
                 var bindings = EffectiveShortcutBindings.Build(section, platform);
-                Assert.DoesNotContain(bindings.For(id), g => EffectiveShortcutBindings.Equivalent(g, gesture, platform));
+                // A shell command is out of reach in a modal dialog, so a default that also runs in one keeps its key there (Opus review 15.11.);
+                // everywhere else the saved binding has it.
+                foreach (var kept in bindings.For(id).Where(g => EffectiveShortcutBindings.Equivalent(g, gesture, platform)))
+                    Assert.All(EffectiveShortcutBindings.ConflictContexts(id).Where(context => !context.StartsWith("dialog:", StringComparison.Ordinal)),
+                        context => Assert.Contains(context, bindings.YieldedContexts(id, kept)));
                 Assert.Equal(1, bindings.For(owner).Count);
                 Assert.DoesNotContain(bindings.Issues, issue => issue.BlocksSave);
                 Assert.Contains(bindings.Issues, issue => issue.CommandId == id && issue.OtherCommandId == owner && !issue.BlocksSave);

@@ -58,7 +58,11 @@ public sealed class DefaultsRevision19Tests : IDisposable
         ShortcutBindingsSection section = new ShortcutBindingsSection().Set(owner, [ShortcutGesture.Parse(gesture)]);
         string before = section.Raw.GetRawText();
         EffectiveShortcutBindings bindings = EffectiveShortcutBindings.Build(section, platform);
-        Assert.Empty(bindings.For(id));
+        // A default of one context is left unbound; one that also runs elsewhere (a path copied in the gallery and the tagging list too) gives way in the
+        // owner's contexts only and keeps the key in the others (Opus review 15.11.).
+        foreach (ShortcutGesture kept in bindings.For(id))
+            Assert.All(EffectiveShortcutBindings.ExecutionContexts(owner).Where(EffectiveShortcutBindings.ConflictContexts(id).Contains),
+                context => Assert.Contains(context, bindings.YieldedContexts(id, kept)));
         Assert.Equal(new[] { ShortcutGesture.Parse(gesture).Key }, bindings.For(owner).Select(g => g.Key));
         Assert.DoesNotContain(bindings.Issues, issue => issue.BlocksSave);
         Assert.Contains(bindings.Issues, issue => issue.CommandId == id && issue.OtherCommandId == owner && !issue.BlocksSave);

@@ -31,6 +31,13 @@ public sealed class GalleryAutoHideCleanTests
         Assert.Equal(shown, state.Focusable);
     }
 
+    private static string RepoRoot()
+    {
+        string? directory = AppContext.BaseDirectory;
+        while (directory != null && !File.Exists(Path.Combine(directory, "MeowChan.csproj"))) directory = Path.GetDirectoryName(directory);
+        return directory ?? throw new InvalidOperationException("The repository root was not found.");
+    }
+
     private sealed class Harness
     {
         internal readonly GalleryViewer Viewer = (GalleryViewer)RuntimeHelpers.GetUninitializedObject(typeof(GalleryViewer));
@@ -216,14 +223,24 @@ public sealed class GalleryAutoHideCleanTests
         bool captured, bool selection, bool keyboard, bool help, bool expected) =>
         Assert.Equal(expected, GalleryEdgeHover.MotionMayReveal(active, available, dialog, captured, selection, keyboard, help));
 
+    [Theory]
+    [InlineData(true, true, "Reveal")]      // may reveal, controls hidden: they come back
+    [InlineData(true, false, "RenewClock")] // may reveal, controls shown: the idle clock restarts
+    [InlineData(false, true, "None")]       // not the active gallery: nothing shows
+    [InlineData(false, false, "None")]      // ... and shown controls get no new clock (Opus review 15.11., finding 6)
+    public void MotionRenewsTheClockOrRevealsOnlyWhenItMayReveal(bool mayReveal, bool hidden, string expected) =>
+        Assert.Equal(expected, GalleryEdgeHover.MotionEffect(mayReveal, hidden).ToString());
+
     [Fact]
-    public void MotionOverShownControlsRenewsTheirIdleClockWithoutTouchingTheLayout()
+    public void TheGuardsRunBeforeAnythingTouchesTheIdleClock()
     {
-        var h = new Harness(autoHidden: false);
-        h.Set("_lastOverlayActivity", Stopwatch.GetTimestamp() - 60 * Stopwatch.Frequency);
-        long before = (long)h.Get("_lastOverlayActivity")!;
-        h.Invoke("RevealControlsOnMotion");
-        Assert.True((long)h.Get("_lastOverlayActivity")! > before);
+        string source = File.ReadAllText(Path.Combine(RepoRoot(), "Desktop", "GalleryViewer.Overlay.cs"));
+        int start = source.IndexOf("private void RevealControlsOnMotion()", StringComparison.Ordinal);
+        string body = source.Substring(start, source.IndexOf("private void RevealHoveredPanels()", start, StringComparison.Ordinal) - start);
+        int guards = body.IndexOf("GalleryEdgeHover.MotionMayReveal(", StringComparison.Ordinal);
+        Assert.True(guards > 0);
+        Assert.True(body.IndexOf("_lastOverlayActivity", StringComparison.Ordinal) > guards);
+        Assert.True(body.IndexOf("RevealOverlayControls()", StringComparison.Ordinal) > guards);
     }
 
     [Fact]

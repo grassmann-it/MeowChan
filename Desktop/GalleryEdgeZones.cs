@@ -54,7 +54,15 @@ internal static class GalleryEdgeHover
     internal static bool MotionMayReveal(bool windowActive, bool available, bool dialogOrPopup, bool captured, bool selectedText,
         bool keyboardPanelFocus, bool helpOpen) =>
         windowActive && available && !dialogOrPopup && CanReveal(captured, selectedText, keyboardPanelFocus, helpOpen);
+
+    /// <summary>What real mouse motion does to the controls (pure): nothing while <see cref="MotionMayReveal"/> says no, otherwise it renews the clock
+    /// of the shown controls or shows the hidden ones. The clock is renewed only when motion may reveal, so motion over an inactive gallery never keeps the
+    /// controls from hiding.</summary>
+    internal static GalleryMotionEffect MotionEffect(bool mayReveal, bool controlsHidden) =>
+        !mayReveal ? GalleryMotionEffect.None : controlsHidden ? GalleryMotionEffect.Reveal : GalleryMotionEffect.RenewClock;
 }
+
+internal enum GalleryMotionEffect { None, RenewClock, Reveal }
 
 // Only actual mouse motion renews artwork; hover, presses and timer polling do not.
 // Transparent 44px targets remain available for touch/keyboard and pending clicks.

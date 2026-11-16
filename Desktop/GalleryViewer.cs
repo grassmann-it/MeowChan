@@ -1581,6 +1581,13 @@ internal sealed partial class GalleryViewer : UserControl
     }
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
+        // Every key here is handled in the gallery's context: a default that a saved binding of another page took away (a saved archive command on F, say)
+        // stays active in the gallery, where nothing else has it (EffectiveShortcutBindings.YieldedContexts).
+        using var keyContext = EffectiveShortcutBindings.EnterKeyContext("gallery");
+        RouteKeyDown(sender, e);
+    }
+    private void RouteKeyDown(object? sender, KeyEventArgs e)
+    {
         if (e.Handled || ShortcutService.IsCapturing) return;
         Control routingOwner = sender is Control control ? control : this;
         if (!CanRouteGalleryShortcut(routingOwner, e)) return;
