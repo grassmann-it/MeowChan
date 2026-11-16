@@ -391,8 +391,8 @@ internal sealed partial class GalleryViewer
         TimeSpan.FromSeconds(_playbackPreferences.VideoSeconds), _playbackPreferences.VideoRepeats);
 
     // The player repeats a video by itself only outside a running slideshow; inside, the slideshow's video rule decides
-    // (two loops must never compete). The repeat action stays available so an explicit choice can hand the current video
-    // back to the player and stop slideshow navigation without issuing a native pause.
+    // (two loops must never compete). An explicit Repeat intent can hand the current video back to the player
+    // and stop slideshow navigation without issuing a native pause.
     private void ApplyEffectiveVideoLoop()
     {
         if (_video == null || _slideshow == null) return;
