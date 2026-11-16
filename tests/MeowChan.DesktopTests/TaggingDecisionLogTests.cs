@@ -40,7 +40,8 @@ public sealed class TaggingDecisionLogTests : IDisposable
     }
 
     // A host with a queue of `count` open entries and a walk over all of them (every file resolvable), as deep as the host's setting.
-    private static async Task<(DesktopSessionHost Host, TaggingWalk Walk)> WalkAsync(string directory, int count, int? undoDepth = null)
+    private static async Task<(DesktopSessionHost Host, TaggingWalk Walk)> WalkAsync(string directory, int count, int? undoDepth = null,
+        Func<ITaggingQueueWriter, ITaggingQueueWriter>? wrapWriter = null)
     {
         if (undoDepth is { } depth)
             new Config { AutomaticUpdateChecks = false, SaveUrlsOnExit = false, DownloadPath = Path.Combine(directory, "media"), TagQueueUndoDepth = depth }.SaveConfig(directory);
@@ -49,7 +50,8 @@ public sealed class TaggingDecisionLogTests : IDisposable
         await host.EnqueueTagQueueAsync(items);
         TagQueueSnapshot queue = await host.LoadTagQueueAsync();
         (IReadOnlyList<TaggingWalkItem> paired, int unavailable) = TaggingWalk.Pair(queue.Items, items.Select((_, i) => Entry(i + 1)).ToArray());
-        return (host, new TaggingWalk(paired, unavailable, queue, new HostTaggingQueueWriter(host), TaggingSettings.UndoDepth(host.Config)));
+        ITaggingQueueWriter writer = new HostTaggingQueueWriter(host);
+        return (host, new TaggingWalk(paired, unavailable, queue, wrapWriter?.Invoke(writer) ?? writer, TaggingSettings.UndoDepth(host.Config)));
     }
 
     // ---- pairing ----------------------------------------------------------------------------------------------------
@@ -71,22 +73,41 @@ public sealed class TaggingDecisionLogTests : IDisposable
 
     // ---- decisions ----------------------------------------------------------------------------------------------------
 
-    [Fact]
-    public async Task DoneCountsAtOnceGoesToTheNextOpenMediumAndIsDurableWithTheResumePointBehindIt()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DoneCountsAtOnceGoesToTheNextOpenMediumAndIsDurableWithTheResumePointBehindIt(bool holdAcrossYield)
     {
         using TempDirectory temp = new();
-        (DesktopSessionHost host, TaggingWalk walk) = await WalkAsync(temp.Path, 3);
+        PausedHostWriter writer = null!;
+        (DesktopSessionHost host, TaggingWalk walk) = await WalkAsync(temp.Path, 3,
+            wrapWriter: real => writer = new PausedHostWriter(real));
         await using (host)
         using (walk)
         {
             TaggingDecisionResult result = walk.Decide(0, TagQueueState.Done);
-            Assert.Equal(TaggingDecisionOutcome.Decided, result.Outcome);
-            Assert.Equal(1, result.Next);
-            // Before the write ends the walk already shows the decision.
-            Assert.Equal(TagQueueState.Done, walk.StateOf(0));
-            Assert.Equal((1, 0, 2), walk.Progress());
-            Assert.Equal("Done: “file-1.png”. Next: “file-2.png”.", TaggingModeText.Decided(walk, result, TagQueueState.Done));
-
+            try
+            {
+                await writer.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+                if (holdAcrossYield) await Task.Yield();
+                // No host decision has started: these checks must observe the pending
+                // optimistic state, not race the UI-thread-only walk's completion.
+                Assert.False(result.Write.IsCompleted);
+                Assert.Equal(TagQueueState.Open, host.GetTagQueue()!.Items[0].State);
+                Assert.Equal(0, host.GetTagQueue()!.Cursor);
+                Assert.Equal(TaggingDecisionOutcome.Decided, result.Outcome);
+                Assert.Equal(1, result.Next);
+                Assert.Equal(TagQueueState.Done, walk.StateOf(0));
+                Assert.Equal((1, 0, 2), walk.Progress());
+                Assert.Equal("Done: “file-1.png”. Next: “file-2.png”.", TaggingModeText.Decided(walk, result, TagQueueState.Done));
+                Assert.False(result.Write.IsCompleted);
+            }
+            finally
+            {
+                // Also release/drain on assertion failure before disposing walk/host.
+                writer.Release();
+                await result.Write;
+            }
             Assert.Equal(TaggingWriteKind.Saved, (await result.Write).Kind);
             TagQueueSnapshot saved = host.GetTagQueue()!;
             Assert.Equal(TagQueueState.Done, saved.Items[0].State);
@@ -372,6 +393,24 @@ public sealed class TaggingDecisionLogTests : IDisposable
         Assert.Equal(enter, bindings.Display("tags.queue.done-next"));
         Assert.Equal(platform == ShortcutPlatform.MacOS ? "␣" : "Leertaste", bindings.Display("tags.queue.skip"));
         Assert.Equal(platform == ShortcutPlatform.MacOS ? "⌫" : "Rücktaste", bindings.Display("tags.queue.back"));
+    }
+
+    // Gate only admission to the actual host write; do not fake its decision,
+    // committed snapshot, durability, or undo behavior.
+    private sealed class PausedHostWriter(ITaggingQueueWriter real) : ITaggingQueueWriter
+    {
+        internal TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal void Release() => _release.TrySetResult();
+        public async Task<TagQueueDecision?> DecideAsync(TagQueueKey key, TagQueueState state, CancellationToken token)
+        {
+            Entered.TrySetResult();
+            await _release.Task.WaitAsync(token);
+            return await real.DecideAsync(key, state, token);
+        }
+        public Task<TagQueueDecision?> UndoAsync(TagQueueDecision decision, CancellationToken token) =>
+            real.UndoAsync(decision, token);
+        public TagQueueSnapshot? Current => real.Current;
     }
 
     private sealed class FakeWriter : ITaggingQueueWriter
