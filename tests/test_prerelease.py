@@ -652,7 +652,16 @@ class CandidateWorkflowFixtures(unittest.TestCase):
         matrix = re.search(r'^      matrix: (.+)$', self.jobs['validate'], re.M).group(1)
         self.assertIn('fromJSON(', matrix)
         self.assertIn('\"include\"', matrix)
-        self.assertNotIn('inputs.scenario', matrix)
+        # Full validation now expands eight native macOS shards. Focused GUI
+        # selectors must still retain the original machine set and preparation.
+        from tests.test_dotnet_desktop_workflow_contract import DotnetDesktopWorkflowContractTests
+        matrix_contract = DotnetDesktopWorkflowContractTests()
+        for scenario in selectors:
+            rows = matrix_contract.matrix(scenario=scenario)
+            self.assertEqual(14, len(rows))
+            native = [row for row in rows if row['os'].startswith('macos-')]
+            self.assertEqual({'macos-15', 'macos-15-intel'}, {row['os'] for row in native})
+            self.assertTrue(all(row['full'] and row['mac_shard'] == 1 for row in native))
         for scenario in selectors:
             for platform in ('all', 'ubuntu-24.04', 'windows-2022', 'macos-15'):
                 self.assertTrue(self.condition('validate', 'validate', scenario, platform))
