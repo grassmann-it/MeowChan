@@ -696,7 +696,10 @@ internal static class MediaInteractionChecks
                     "Panel dismissal closed/navigated the gallery.");
             }
             if (expected == "Playing") await SeekClickAsync(.05);
-            await native.ClickAsync(() => NativeTargetAsync<ComboBox>("GalleryPlaybackModeSelector"));
+            // The playback selector lives in More's overflow popup; open that popup
+            // through the real toolbar button before resolving its current ComboBox.
+            await native.ClickAsync(() => NativeTargetAsync<Button>("GalleryMore"));
+            await native.ClickAsync(() => NativeOverflowTargetAsync<ComboBox>("GalleryPlaybackModeSelector"));
             Require(Named<ComboBox>("GalleryPlaybackModeSelector").IsDropDownOpen, "Native mode click failed to open the menu.");
             await MediaInteractionSmokeHelpers.HoldStateAsync(Player(), expected, "Playback menu open");
             await native.KeyAsync(MediaNativeInput.Escape);
