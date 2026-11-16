@@ -63,6 +63,8 @@ public partial class MainWindow
 
     private void DisposeWorkspace()
     {
+        // Pages install this before InitializeWorkspace: also release it on partial construction and before fallible cleanup.
+        DisposeMediaFocusChrome();
         CloseGallery(restoreOrigin: false);
         CloseLargeReader(restoreOrigin: false);
         if (!_workspaceInitialized) return;

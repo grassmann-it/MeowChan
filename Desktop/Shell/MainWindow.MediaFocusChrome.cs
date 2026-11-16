@@ -1,3 +1,4 @@
+using System;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
@@ -24,6 +25,7 @@ public partial class MainWindow
     private bool _mediaFocusFooterHidden, _mediaFocusHeaderHidden, _mediaFocusHeaderRevealed;
     // The gallery's own fullscreen hides the title bar too; both reasons are applied together (UpdateGalleryFullscreenPresentation).
     private bool _galleryImmersive;
+    private MediaFocusChromeTextBinding? _mediaFocusChromeTexts;
 
     /// <summary>The footer (status strip and navigation) is hidden by the media focus mode (smokes).</summary>
     internal bool MediaFocusFooterHidden => _mediaFocusFooterHidden;
@@ -35,13 +37,8 @@ public partial class MainWindow
     private void InitializeMediaFocusChrome()
     {
         Border strip = MediaFocusHeaderStrip;
-        AutomationProperties.SetName(strip, Texts.T("media.focus.headerStrip"));
-        ToolTip.SetTip(strip, Texts.T("media.focus.headerStrip"));
-        Texts.Changed += (_, _) =>
-        {
-            AutomationProperties.SetName(strip, Texts.T("media.focus.headerStrip"));
-            ToolTip.SetTip(strip, Texts.T("media.focus.headerStrip"));
-        };
+        _mediaFocusChromeTexts?.Dispose();
+        _mediaFocusChromeTexts = new MediaFocusChromeTextBinding(strip);
         strip.PointerEntered += (_, _) => RevealMediaFocusHeader(true);
         // The floating title bar goes away when the pointer leaves it, the keyboard focus has left it and no menu of it is open.
         WorkspaceTitleBarFrame.PointerExited += (_, _) => HideRevealedMediaFocusHeader();
@@ -50,6 +47,41 @@ public partial class MainWindow
         {
             if (e.Property == Avalonia.Controls.MenuItem.IsSubMenuOpenProperty) HideRevealedMediaFocusHeader();
         };
+    }
+
+    private void DisposeMediaFocusChrome()
+    {
+        _mediaFocusChromeTexts?.Dispose();
+        _mediaFocusChromeTexts = null;
+    }
+
+    // Texts is process-wide. Its handler must end with the shell, not with GC: retaining the strip also retains
+    // its pointer handler's MainWindow, including the closed window's native menu and shortcut presentations.
+    internal sealed class MediaFocusChromeTextBinding : IDisposable
+    {
+        private Border? _strip;
+
+        internal MediaFocusChromeTextBinding(Border strip)
+        {
+            ArgumentNullException.ThrowIfNull(strip);
+            _strip = strip;
+            RefreshTexts(null, EventArgs.Empty);
+            Texts.Changed += RefreshTexts;
+        }
+
+        private void RefreshTexts(object? sender, EventArgs e)
+        {
+            if (_strip is not { } strip) return;
+            AutomationProperties.SetName(strip, Texts.T("media.focus.headerStrip"));
+            ToolTip.SetTip(strip, Texts.T("media.focus.headerStrip"));
+        }
+
+        public void Dispose()
+        {
+            if (_strip == null) return;
+            Texts.Changed -= RefreshTexts;
+            _strip = null;
+        }
     }
 
     /// <summary>Applies what the media focus mode, the selected page, the open gallery and the setting say about the shell's chrome.</summary>
