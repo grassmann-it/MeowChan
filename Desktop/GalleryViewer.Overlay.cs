@@ -292,7 +292,13 @@ internal sealed partial class GalleryViewer
         // Install once, on both managed roots. No OS hook and no duplicate control handlers.
         foreach (Control surface in new Control[] { this, _nativeVideoOverlay })
         {
-            surface.AddHandler(PointerMovedEvent, OnOverlayPointerMoved, RoutingStrategies.Tunnel, handledEventsToo: true);
+            // PointerMoved is delivered by both managed and native overlay roots. A
+            // native video surface can make the event source a child control, while a
+            // transparent overlay can make the root the source; observe both route
+            // directions so _lastIndicatorMotion and hover geometry follow every real
+            // mouse move without relying on polling or synthetic input.
+            surface.AddHandler(PointerMovedEvent, OnOverlayPointerMoved,
+                RoutingStrategies.Tunnel | RoutingStrategies.Bubble, handledEventsToo: true);
             surface.PointerEntered += OnOverlayPointerExited;
             surface.PointerExited += OnOverlayPointerExited;
             surface.AddHandler(GotFocusEvent, (_, e) =>
