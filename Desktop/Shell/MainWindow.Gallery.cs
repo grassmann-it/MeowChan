@@ -131,8 +131,10 @@ public partial class MainWindow
     }
 
     internal GalleryReturnTarget GalleryReturnTargetFor(Control? origin, bool readerOrigin, WorkspacePage originPage) =>
-        origin != null && ReferenceEquals(origin, _mediaPage?.Grid) ? GalleryReturnTarget.Media
-        : readerOrigin ? GalleryReturnTarget.Thread
+        // Reader-origin is authoritative: a stale or reused media control must never relabel a reader gallery.
+        readerOrigin ? GalleryReturnTarget.Thread
+        : originPage == WorkspacePage.Media || origin != null && ReferenceEquals(origin, _mediaPage?.Grid)
+            ? GalleryReturnTarget.Media
         : originPage switch
         {
             WorkspacePage.Archive => GalleryReturnTarget.Archive,
