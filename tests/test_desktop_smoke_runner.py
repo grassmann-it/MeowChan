@@ -1,4 +1,5 @@
 """Runner safety fixtures. These checks never start Avalonia or a graphical desktop."""
+from contextlib import contextmanager
 import importlib.util
 import json
 import os
@@ -19,6 +20,15 @@ runner = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(runner)
 
 
+@contextmanager
+def posix_signal_constants():
+    # These four tests simulate POSIX with a mocked killpg, even on Windows.
+    # Never use these fixture constants to signal a real process.
+    with mock.patch.object(runner.signal, "SIGTERM", 15, create=True), \
+            mock.patch.object(runner.signal, "SIGKILL", 9, create=True):
+        yield
+
+
 class DesktopSmokeRunnerTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory(prefix="meowchan runner fixtures ")
@@ -29,6 +39,7 @@ class DesktopSmokeRunnerTests(unittest.TestCase):
         self.output = self.root / "evidence"
         self.args = ["--assembly", str(self.assembly), "--output", str(self.output)]
 
+    @posix_signal_constants()
     def test_posix_cleanup_platform_contracts(self):
         for platform in ("darwin", "linux"):
             for calls, expected in (
@@ -40,7 +51,7 @@ class DesktopSmokeRunnerTests(unittest.TestCase):
                 with self.subTest(platform=platform, expected=expected), \
                         mock.patch.object(runner.sys, "platform", platform), \
                         mock.patch.object(runner.os, "name", "posix"), \
-                        mock.patch.object(runner.os, "killpg", side_effect=calls) as kill, \
+                        mock.patch.object(runner.os, "killpg", create=True, side_effect=calls) as kill, \
                         mock.patch.object(runner.time, "monotonic", side_effect=[0, 3, 4, 5]), \
                         mock.patch.object(runner.time, "sleep"):
                     process = mock.Mock(pid=12345)
@@ -48,6 +59,7 @@ class DesktopSmokeRunnerTests(unittest.TestCase):
                     self.assertEqual([mock.call(12345, sig) for sig in expected], kill.call_args_list)
                     process.wait.assert_called_once_with(timeout=10)
 
+    @posix_signal_constants()
     def test_eperm_requires_exited_leader_and_complete_group_inventory(self):
         for platform in ("darwin", "linux"):
             for poll, status, table, absent in (
@@ -61,7 +73,7 @@ class DesktopSmokeRunnerTests(unittest.TestCase):
                 with self.subTest(platform=platform, poll=poll, table=table), \
                         mock.patch.object(runner.sys, "platform", platform), \
                         mock.patch.object(runner.os, "name", "posix"), \
-                        mock.patch.object(runner.os, "killpg", side_effect=PermissionError(1, "denied")) as kill, \
+                        mock.patch.object(runner.os, "killpg", create=True, side_effect=PermissionError(1, "denied")) as kill, \
                         mock.patch.object(runner.subprocess, "run", return_value=mock.Mock(
                             returncode=status, stdout=table)) as inventory:
                     process = mock.Mock(pid=12345)
@@ -79,11 +91,12 @@ class DesktopSmokeRunnerTests(unittest.TestCase):
                     else:
                         inventory.assert_not_called()
 
+    @posix_signal_constants()
     def test_permission_denial_during_probe_or_escalation_stays_fatal(self):
         for calls in ([None, PermissionError(1, "probe denied")],
                       [None, None, PermissionError(1, "kill denied")]):
             with self.subTest(calls=calls), mock.patch.object(runner.os, "name", "posix"), \
-                    mock.patch.object(runner.os, "killpg", side_effect=calls) as kill, \
+                    mock.patch.object(runner.os, "killpg", create=True, side_effect=calls) as kill, \
                     mock.patch.object(runner, "owned_process_group_is_empty", return_value=False), \
                     mock.patch.object(runner.time, "monotonic", side_effect=[0, 3]):
                 with self.assertRaises(PermissionError):
@@ -98,9 +111,10 @@ class DesktopSmokeRunnerTests(unittest.TestCase):
                 process.poll.return_value = 0
                 self.assertFalse(runner.owned_process_group_is_empty(process))
 
+    @posix_signal_constants()
     def test_group_surviving_sigkill_is_cleanup_failure(self):
         with mock.patch.object(runner.os, "name", "posix"), \
-                mock.patch.object(runner.os, "killpg") as kill, \
+                mock.patch.object(runner.os, "killpg", create=True) as kill, \
                 mock.patch.object(runner.time, "monotonic", side_effect=[0, 3, 4, 15]):
             process = mock.Mock(pid=12345)
             process.poll.return_value = 0  # Leader gone, descendant group still present.

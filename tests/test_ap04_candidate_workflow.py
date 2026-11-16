@@ -2,6 +2,8 @@
 import importlib.util
 from pathlib import Path
 import re
+import shutil
+import sys
 import subprocess
 import unittest
 
@@ -20,6 +22,36 @@ def dependencies(job):
 
 def blocks(job):
     return dict(re.findall(r'^      - name: ([^\n]+)\n(.*?)(?=^      - |\Z)', JOBS[job], re.M | re.S))
+
+
+def syntax_bash():
+    if sys.platform == "win32":
+        # PATH's bash.exe may be the System32 WSL launcher, not a working shell.
+        # Git for Windows ships the same Bash used by Actions' shell: bash.
+        git = shutil.which("git")
+        if git:
+            root = Path(git).resolve().parent
+            for candidate in (root.parent / "bin/bash.exe", root.parent / "usr/bin/bash.exe",
+                              root / "bash.exe"):
+                if candidate.is_file():
+                    return str(candidate)
+        raise RuntimeError("Git for Windows Bash not found next to git.exe; cannot check AP04 syntax")
+    bash = shutil.which("bash")
+    if not bash:
+        raise RuntimeError("Bash not found on PATH; cannot check AP04 syntax")
+    return bash
+
+
+def check_shell_syntax(script):
+    shell = syntax_bash()
+    # subprocess text-mode stdin becomes CRLF on Windows. Bash must parse the
+    # actual LF workflow script, not a host-newline-translated variant.
+    result = subprocess.run([shell, "--noprofile", "--norc", "-n"],
+                            input=script.encode("utf-8"), capture_output=True, timeout=30)
+    if result.returncode:
+        raise AssertionError(f"Bash syntax check failed: shell={shell!r}, exit={result.returncode}"
+                             f"\nstdout: {result.stdout.decode('utf-8', errors='replace')}"
+                             f"\nstderr: {result.stderr.decode('utf-8', errors='replace')}")
 
 
 class AP04CandidateWorkflowTests(unittest.TestCase):
@@ -148,8 +180,8 @@ class AP04CandidateWorkflowTests(unittest.TestCase):
             match = re.search(r'^        run: \|\n(.*)', body, re.M | re.S)
             if match:
                 script = '\n'.join(line[10:] if line.startswith('          ') else line for line in match[1].splitlines())
-                result = subprocess.run(['bash', '-n'], input=script, text=True, capture_output=True)
-                self.assertEqual(0, result.returncode, name + ': ' + result.stderr)
+                with self.subTest(step=name):
+                    check_shell_syntax(script)
 
 
 if __name__ == '__main__': unittest.main()
