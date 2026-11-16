@@ -182,6 +182,7 @@ public sealed class PageHeaderContractTests
     [InlineData("Desktop/Views/Plugins/PluginsPage.axaml", "PluginsPageHeader")]
     [InlineData("Desktop/Views/Status/StatusPage.axaml", "StatusPageHeader")]
     [InlineData("Desktop/Views/Rules/RulesPage.axaml", "RulesHeaderRow")]
+    [InlineData("Desktop/Views/Archive/ArchivePage.axaml", "ArchivePageHeader")]
     public void ThePageHeadsWithActionsUseTheSharedPageHeaderAndLeavePlacementToIt(string file, string name)
     {
         XDocument markup = XDocument.Load(Root(file));
@@ -195,6 +196,52 @@ public sealed class PageHeaderContractTests
         foreach (XElement child in children)
             Assert.DoesNotContain(child.Attributes(), a => a.Name.LocalName is "Grid.Row" or "Grid.Column" or "Grid.RowSpan" or "Grid.ColumnSpan");
         Assert.Null(header.Attribute("ColumnDefinitions"));
+    }
+
+    // The Archive head was the same "*,Auto" grid as Sources: its toolbar (Import, Export, Clean up, Refresh) in the Auto column took the
+    // whole width in a narrow window and pushed the title and description out. The toolbar keeps its name, work view ids and order (the
+    // work view and entry point tests read them); the header owns its alignment and where it stands.
+    [Fact]
+    public void TheArchiveHeaderToolbarIsTheHeadersActionsAndKeepsItsIdentity()
+    {
+        XElement header = Assert.Single(XDocument.Load(Root("Desktop/Views/Archive/ArchivePage.axaml")).Descendants(),
+            e => (string?)e.Attribute(X + "Name") == "ArchivePageHeader");
+        XElement bar = Assert.Single(header.Elements(), e => (string?)e.Attribute(X + "Name") == "ArchiveHeaderActions");
+        Assert.Equal("ActionToolBar", bar.Name.LocalName);
+        Assert.Contains(bar.Attributes(), a => a.Name.LocalName == "PageHeader.Role" && a.Value == "Actions");
+        Assert.Null(bar.Attribute("HorizontalAlignment")); // the header sets Right beside the title and Left under it
+        Assert.Equal(["ArchiveTransferPreview", "ArchiveTransferExport", "ArchiveCleanupOpen", "RefreshArchiveButton"],
+            bar.Elements().Select(e => (string?)e.Attribute(X + "Name") ?? "").ToArray());
+        string code = File.ReadAllText(Root("Desktop/Views/Archive/ArchivePage.axaml.cs"));
+        Assert.Contains("ArchivePageHeader.IsVisible = !(_showReader && narrow);", code);
+    }
+
+    // The Media and Tagging pages build their head in code: the title and subtitle are one vertical workspace-page-header stack over the
+    // page's own rows, never a "*,Auto" grid with actions beside the title, so there is nothing a long action row could push out.
+    [Theory]
+    [InlineData("Desktop/Views/Media/MediaPage.cs", "StackPanel header = new() { Margin = new Thickness(12, 8, 12, 8), Classes = { \"workspace-page-header\" } };")]
+    [InlineData("Desktop/Views/Tagging/TaggingPage.cs", "StackPanel heading = new() { Classes = { \"workspace-page-header\" }, Children = { _title, _subtitle } };")]
+    public void TheMediaAndTaggingTitlesStandInAVerticalHeaderStackWithoutActionsBesideThem(string file, string stack)
+    {
+        string code = File.ReadAllText(Root(file));
+        Assert.Contains(stack, code);
+        Assert.DoesNotContain("PageHeader.SetRole", code);
+    }
+
+    // The bug class itself: a page title in a Grid whose column definitions are "*,Auto" (the Auto column is measured at infinity). A page
+    // head with actions is a PageHeader; any new page that writes the grid by hand fails here.
+    [Fact]
+    public void NoPageTitleSitsInAStarAutoGrid()
+    {
+        string root = Root("Desktop");
+        foreach (string file in Directory.EnumerateFiles(root, "*.axaml", SearchOption.AllDirectories))
+        {
+            XDocument markup = XDocument.Load(file);
+            foreach (XElement grid in markup.Descendants().Where(e => e.Name.LocalName == "Grid"
+                && ((string?)e.Attribute("ColumnDefinitions"))?.Replace(" ", "").StartsWith("*,Auto", StringComparison.Ordinal) == true))
+                Assert.DoesNotContain(grid.Elements().SelectMany(child => child.DescendantsAndSelf()).Take(40), e =>
+                    e.Name.LocalName == "TextBlock" && ((string?)e.Attribute("Classes") ?? "").Split(' ').Contains("page-title"));
+        }
     }
 
     [Fact]
