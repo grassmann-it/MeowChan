@@ -4,15 +4,16 @@
     <!-- Spacing 0: each optional row brings its own 8 dip top margin, so hidden or empty rows add no gap above the list
          (as on the Sources page, the list starts 8 dip under the subtitle). -->
     <StackPanel Spacing="0">
-      <!-- Wide: the title and subtitle on the left (two rows tall), the action row top right and the count right-aligned under it.
-           Below 900 dip the count and the actions move under the title (count first, then the actions), so the title and
-           description keep the full width. "Show" and its dropdown are one WrapPanel child: they never wrap apart. -->
-      <Grid x:Name="PluginsPageHeader" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.12}">
-        <StackPanel x:Name="PluginsTitleStack" Grid.RowSpan="2" Classes="workspace-page-header" MinWidth="200">
+      <!-- The shared page head (PageHeader): the title and subtitle on the left, the action row top right and the count right-aligned under
+           it. When the action row would leave the title less than its minimum room (it is long in German and in the Advanced view), and in any
+           case below 900 dip of page (876 dip of header), the count and the actions move under the title (count first, then the actions,
+           wrapping), so the title and description keep the full width. "Show" and its dropdown are one WrapPanel child: they never wrap apart. -->
+      <controls:PageHeader x:Name="PluginsPageHeader" StackBelowWidth="876">
+        <StackPanel x:Name="PluginsTitleStack" Classes="workspace-page-header">
           <TextBlock x:Name="PluginsTitle" Classes="page-title" />
           <TextBlock x:Name="PluginsSubtitle" TextWrapping="Wrap" Classes="muted" />
         </StackPanel>
-        <WrapPanel x:Name="PluginsHeaderActions" Grid.Column="1" VerticalAlignment="Top" ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.8}">
+        <WrapPanel x:Name="PluginsHeaderActions" controls:PageHeader.Role="Actions" VerticalAlignment="Top" ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.8}">
           <StackPanel x:Name="PluginsShowGroup" Orientation="Horizontal" Spacing="{StaticResource Workspace.Space.8}">
             <TextBlock x:Name="SourcesShowLabel" Classes="workspace-field-label" VerticalAlignment="Center" />
             <ComboBox x:Name="PluginCategory" MinWidth="160" SelectionChanged="OnCategoryChanged" />
@@ -26,14 +27,15 @@
           <!-- What the work view moved off this row (add file, plugin folder): shown only when something is there. -->
           <Button x:Name="PluginsMoreButton" Classes="subtle icon-square" IsVisible="False" Click="OnPluginsMoreClick" />
         </WrapPanel>
-        <!-- The count is a statement about the list, not an action: muted, right-aligned, outside the button row (as the Status line). -->
-        <TextBlock x:Name="PluginsCount" Grid.Row="1" Grid.Column="1" AutomationProperties.LiveSetting="Polite" Classes="muted tnum" HorizontalAlignment="Right" TextAlignment="Right" Margin="0,4,0,0" />
-      </Grid>
-      <!-- The status row stays in the tree (its live region keeps announcing) but takes no height while it is empty. -->
-      <StackPanel x:Name="PluginStatusRow" Orientation="Horizontal" Spacing="{StaticResource Workspace.Space.8}" Margin="0,8,0,0">
-        <ursa:LoadingIcon x:Name="PluginOperationLoading" Width="16" Height="16" VerticalAlignment="Center" IsVisible="False" Focusable="False" />
+        <!-- The count is a statement about the list, not an action: muted, outside the button row (as the Status line). -->
+        <TextBlock x:Name="PluginsCount" controls:PageHeader.Role="Aside" AutomationProperties.LiveSetting="Polite" Classes="muted tnum" TextWrapping="Wrap" Margin="0,4,0,0" />
+      </controls:PageHeader>
+      <!-- The status row stays in the tree (its live region keeps announcing) but takes no height while it is empty. A DockPanel, not a
+           horizontal StackPanel: the stack measured the line at infinite width, so a long status never wrapped and ran out of a narrow page. -->
+      <DockPanel x:Name="PluginStatusRow" Margin="0,8,0,0">
+        <ursa:LoadingIcon x:Name="PluginOperationLoading" DockPanel.Dock="Left" Width="16" Height="16" Margin="0,0,8,0" VerticalAlignment="Center" IsVisible="False" Focusable="False" />
         <TextBlock x:Name="PluginTestStatus" VerticalAlignment="Center" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
-      </StackPanel>
+      </DockPanel>
       <Button x:Name="PluginCancel" Click="OnCancelClick" HorizontalAlignment="Left" IsVisible="False" Margin="0,8,0,0" />
       <Expander x:Name="PluginInventoryProblems" wv:WorkViewElement.Id="plugins.header.inventory-problems" IsVisible="False" HorizontalAlignment="Stretch" Margin="0,8,0,0">
         <Expander.Header><ursa:Badge x:Name="PluginInventoryBadge" OverflowCount="2147483647"><TextBlock x:Name="PluginInventoryHeader" Margin="0,0,12,0" /></ursa:Badge></Expander.Header>

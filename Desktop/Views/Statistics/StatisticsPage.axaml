@@ -144,7 +144,7 @@
             <Border wv:WorkViewElement.Id="statistics.sources" Classes="workspace-section">
                 <StackPanel Spacing="{StaticResource Workspace.Space.8}" SizeChanged="OnSourcesSizeChanged">
                     <Grid ColumnDefinitions="*,Auto">
-                        <TextBlock x:Name="SourcesTitle" Classes="section-title" />
+                        <TextBlock x:Name="SourcesTitle" Classes="section-title" TextWrapping="Wrap" VerticalAlignment="Center" />
                         <controls:HelpButton x:Name="StatisticsHelpButton" Grid.Column="1" HelpKey="help.stats" />
                     </Grid>
                     <TextBlock x:Name="SourcesEmpty" Classes="muted" TextWrapping="Wrap" IsVisible="False" />
@@ -156,7 +156,7 @@
                             <DataGridTemplateColumn Width="*" MinWidth="140">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate x:DataType="stats:StatisticsRow">
-                                        <TextBlock Text="{Binding Name}" FontWeight="{Binding Weight}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                        <controls:TrimTipTextBlock Text="{Binding Name}" FontWeight="{Binding Weight}" VerticalAlignment="Center" />
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>

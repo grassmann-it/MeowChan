@@ -2,19 +2,21 @@
              xmlns:commands="clr-namespace:MeowChan.Desktop.Commands"
              xmlns:desktop="clr-namespace:MeowChan.Desktop" xmlns:controls="clr-namespace:MeowChan.Desktop.Controls" xmlns:ursa="https://irihi.tech/ursa" xmlns:wv="using:MeowChan.Desktop.WorkViews" x:Class="MeowChan.ArchivePage" SizeChanged="OnSizeChanged">
     <Grid x:Name="ArchiveRoot" Margin="{StaticResource Workspace.Inset.Page}" RowDefinitions="Auto,*,Auto" RowSpacing="{StaticResource Workspace.Space.8}">
-        <Grid x:Name="ArchivePageHeader" ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource Workspace.Space.12}">
+        <!-- The shared page head (PageHeader): the header toolbar stands top right while it leaves the title its room, else under the title
+             (the toolbar still folds what does not fit into "More"), so the title and description are never pushed out of a narrow window. -->
+        <controls:PageHeader x:Name="ArchivePageHeader">
             <StackPanel Classes="workspace-page-header">
                 <TextBlock Tag="nav.archive" Classes="page-title localized" />
                 <TextBlock x:Name="ArchiveSubtitle" Tag="archive.subtitle" Classes="muted localized" TextWrapping="Wrap" />
             </StackPanel>
             <!-- WV2: the header tools are one toolbar, so a view that moves one off the bar keeps it under the same "More". -->
-            <desktop:ActionToolBar x:Name="ArchiveHeaderActions" Grid.Column="1" VerticalAlignment="Top" HorizontalAlignment="Right">
+            <desktop:ActionToolBar x:Name="ArchiveHeaderActions" controls:PageHeader.Role="Actions" VerticalAlignment="Top">
                 <Button x:Name="ArchiveTransferPreview" wv:WorkViewElement.Id="archive.header.transfer-preview" Click="OnTransferPreviewClick" ursa:ToolBar.OverflowMode="AsNeeded" />
                 <Button x:Name="ArchiveTransferExport" wv:WorkViewElement.Id="archive.header.transfer-export" Click="OnTransferExportClick" ursa:ToolBar.OverflowMode="AsNeeded" />
                 <Button x:Name="ArchiveCleanupOpen" wv:WorkViewElement.Id="archive.header.cleanup" Click="OnArchiveCleanupClick" ursa:ToolBar.OverflowMode="AsNeeded" />
                 <Button x:Name="RefreshArchiveButton" wv:WorkViewElement.Id="archive.header.refresh" Tag="archive.refresh" Classes="localized" Click="OnRefreshClick" ursa:ToolBar.OverflowMode="AsNeeded" />
             </desktop:ActionToolBar>
-        </Grid>
+        </controls:PageHeader>
         <!-- ARCH-DENSE-01: while no error banner is shown the split also spans the empty
              status row, so both boxes end at the page margin. -->
         <Grid x:Name="ArchiveSplit" Grid.Row="1" Grid.RowSpan="2" ColumnDefinitions="330,6,*" ColumnSpacing="{StaticResource Workspace.Space.8}">

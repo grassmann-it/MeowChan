@@ -122,6 +122,8 @@ public partial class StatisticsPage : UserControl
         NetTitle.Text = Texts.T("stats.metric.net");
         DiskWriteTitle.Text = Texts.T("stats.metric.diskWrite");
         DiskReadTitle.Text = Texts.T("stats.metric.diskRead");
+        // The graph titles trim with an ellipsis beside their scale in a narrow page: the full title stays the tooltip.
+        foreach (TextBlock title in new[] { NetTitle, DiskWriteTitle, DiskReadTitle }) ToolTip.SetTip(title, title.Text);
         SourcesTitle.Text = Texts.T("stats.sources.title");
         SourcesEmpty.Text = Texts.T("stats.sources.empty");
         StatisticsHelpButton.HelpTextOverride = Texts.T("stats.footnote");

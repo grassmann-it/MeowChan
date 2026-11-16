@@ -473,8 +473,11 @@ public partial class SettingsEditor
     {
         var label = new TextBlock { TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
         AppendHighlighted(label, hit.Document.Label, hit.LabelRanges);
+        // Narrow-window sweep: every trimmed part of a hit keeps its full text as tooltip (a narrow page cuts label, chip and hint).
+        ToolTip.SetTip(label, hit.Document.Label);
         (string section, string? inner) = SettingsSearchChip.Split(hit.Document.Group);
         var chipText = new TextBlock { Text = section, TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 190 };
+        ToolTip.SetTip(chipText, section);
         chipText.Classes.Add("chip-label");
         var chip = new Border { Child = chipText, Margin = new Thickness(Space(12), 0, 0, 0), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, IsHitTestVisible = false };
         chip.Classes.Add("chip-badge");
@@ -492,6 +495,7 @@ public partial class SettingsEditor
             hint[!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Muted");
             if (inner != null) (hint.Inlines ??= new InlineCollection()).Add(new Run(hasHint ? inner + " · " : inner));
             if (hasHint) AppendHighlighted(hint, hit.Document.Hint, hit.HintRanges);
+            ToolTip.SetTip(hint, inner == null ? hit.Document.Hint : hasHint ? inner + " · " + hit.Document.Hint : inner);
             Grid.SetRow(hint, 1);
             Grid.SetColumnSpan(hint, 2);
             grid.Children.Add(hint);

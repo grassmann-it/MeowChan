@@ -657,7 +657,7 @@
                             </Border>
                         </StackPanel>
                     </Expander>
-                    <TextBlock x:Name="SettingsGalleryPlaybackHeading" Text="{Binding GalleryPlaybackTitle}" Classes="section-title settings-subheading" />
+                    <TextBlock x:Name="SettingsGalleryPlaybackHeading" Text="{Binding GalleryPlaybackTitle}" Classes="section-title settings-subheading" TextWrapping="Wrap" />
                     <TextBlock Text="{Binding GalleryPlaybackProfileHelp}" Classes="workspace-help" />
                     <Border Classes="settings-divider">
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
@@ -2423,11 +2423,13 @@
         </Grid>
         <Border Grid.Row="2" Classes="workspace-dialog-footer">
             <Grid x:Name="SettingsFooter" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.12}" RowSpacing="{StaticResource Workspace.Space.8}" HorizontalAlignment="Center" MaxWidth="1088">
-                <StackPanel Orientation="Horizontal" Spacing="{StaticResource Workspace.Space.8}" VerticalAlignment="Center">
-                    <Button x:Name="CancelDestinationCheckButton" Content="{Binding CancelDestinationCheckLabel}" Click="OnCancelDestinationCheckClick" IsVisible="{Binding IsCheckingDestination}" />
-                    <ursa:LoadingIcon Width="16" Height="16" IsVisible="{Binding IsBusy}" IsLoading="{Binding IsBusy}" Focusable="False" />
+                <!-- A DockPanel, not a horizontal StackPanel: the stack measured the busy line at infinite width, so a long status never wrapped
+                     and ran under the footer's buttons or out of a narrow window. -->
+                <DockPanel VerticalAlignment="Center">
+                    <Button x:Name="CancelDestinationCheckButton" DockPanel.Dock="Left" Margin="0,0,8,0" Content="{Binding CancelDestinationCheckLabel}" Click="OnCancelDestinationCheckClick" IsVisible="{Binding IsCheckingDestination}" />
+                    <ursa:LoadingIcon DockPanel.Dock="Left" Width="16" Height="16" Margin="0,0,8,0" VerticalAlignment="Center" IsVisible="{Binding IsBusy}" IsLoading="{Binding IsBusy}" Focusable="False" />
                     <TextBlock Text="{Binding BusyStatusMessage}" Classes="muted" VerticalAlignment="Center" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
-                </StackPanel>
+                </DockPanel>
                 <StackPanel x:Name="SettingsFooterActions" wv:WorkViewElement.Id="settings.footer.actions" Grid.Column="1" Orientation="Horizontal" Spacing="{StaticResource Workspace.Space.8}" Margin="0,0,8,0" IsEnabled="{Binding IsEditable}" HorizontalAlignment="Right">
                     <Button x:Name="CancelSettingsButton" Click="OnCancelButtonClick" />
                     <Button x:Name="SaveSettingsButton" Classes="primary" Click="OnSaveButtonClick" />

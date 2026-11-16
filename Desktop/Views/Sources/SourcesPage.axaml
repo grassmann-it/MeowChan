@@ -49,7 +49,7 @@
                     <Button x:Name="SourceWebsiteButton" wv:WorkViewElement.Id="sources.detail.website" HorizontalAlignment="Left" Click="OnWebsiteClick" />
                     <!-- The capability cards fold in Barebones; whether capture works at all stays visible below them. -->
                     <Expander x:Name="CapabilitiesExpander" wv:WorkViewElement.Id="sources.detail.capabilities" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
-                        <Expander.Header><TextBlock Tag="ud.sources.capabilities" Classes="section-title localized" /></Expander.Header>
+                        <Expander.Header><TextBlock Tag="ud.sources.capabilities" Classes="section-title localized" TextWrapping="Wrap" /></Expander.Header>
                         <WrapPanel x:Name="CapabilityCards" ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.8}" Margin="0,8,0,0" />
                     </Expander>
                     <TextBlock x:Name="SourceCaptureAvailability" Classes="workspace-help" TextWrapping="Wrap" />
@@ -67,7 +67,7 @@
                         <!-- What the work view moved off this row (rules, plugin settings, diagnostics): shown only when something is there. -->
                         <Button x:Name="SourcesMoreButton" Classes="subtle icon-square" IsVisible="False" Click="OnSourcesMoreClick" />
                     </WrapPanel>
-                    <TextBlock Tag="sources.watches" Classes="section-title localized" />
+                    <TextBlock Tag="sources.watches" Classes="section-title localized" TextWrapping="Wrap" />
                     <TextBlock x:Name="SourceWatchSummary" Classes="workspace-help" TextWrapping="Wrap" />
                     <ListBox x:Name="SourceWatchesList" wv:WorkViewElement.Id="sources.detail.watches" SelectionMode="Single" ScrollViewer.VerticalScrollBarVisibility="Disabled"
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled" SelectionChanged="OnWatchSelectionChanged"
