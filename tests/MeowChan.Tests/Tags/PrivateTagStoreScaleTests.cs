@@ -151,7 +151,18 @@ public sealed class PrivateTagStoreScaleEvidenceTests(ITestOutputHelper output)
         MeasureCatalog();
     }
 
-    // The catalog alone at its definition limit: building it and one membership check per assignment.
+    // Spread the historical linear baseline over the entire vocabulary, including the last tag.
+    // Replaying every assignment through the removed implementation costs billions of comparisons;
+    // it is timing evidence, not additional coverage of the indexed production path.
+    internal static int[] LinearLookupSampleIndices(int definitionCount)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(definitionCount);
+        int count = Math.Min(256, definitionCount);
+        return count == 1 ? [0] : Enumerable.Range(0, count)
+            .Select(index => (int)((long)index * (definitionCount - 1) / (count - 1))).ToArray();
+    }
+
+    // The catalog alone at its definition limit: building it and one indexed membership check per assignment.
     private void MeasureCatalog()
     {
         PrivateTagDefinition[] items = Enumerable.Range(0, PrivateTagCatalog.MaximumDefinitions)
@@ -172,11 +183,12 @@ public sealed class PrivateTagStoreScaleEvidenceTests(ITestOutputHelper output)
         double bulk = Median(() => Assert.True(PrivateTagCatalog.TryCreate(items, out _, out _)));
         Assert.True(PrivateTagCatalog.TryCreate(items, out PrivateTagCatalog? built, out _));
         const int lookups = 150_000;
+        int[] linearSample = LinearLookupSampleIndices(items.Length);
         double linear = Median(() =>
         {
-            for (int index = 0; index < lookups; index++)
+            foreach (int index in linearSample)
             {
-                TagId id = items[index % items.Length].Id;
+                TagId id = items[index].Id;
                 Assert.True(built.Definitions.Any(item => item.Id == id));
             }
         });
@@ -185,7 +197,7 @@ public sealed class PrivateTagStoreScaleEvidenceTests(ITestOutputHelper output)
             for (int index = 0; index < lookups; index++) Assert.True(built.Contains(items[index % items.Length].Id));
         });
         output.WriteLine(FormattableString.Invariant(
-            $"catalog: {defaults.Length} sequential TryDefine {sequential:F1} ms; at {items.Length} tags: TryCreate {bulk:F1} ms, one TryDefine {single:F2} ms; {lookups} lookups linear (former Contains) {linear:F0} ms, indexed {indexed:F1} ms"));
+            $"catalog: {defaults.Length} sequential TryDefine {sequential:F1} ms; at {items.Length} tags: TryCreate {bulk:F1} ms, one TryDefine {single:F2} ms; {linearSample.Length} sampled linear lookups (former Contains) {linear:F1} ms ({linear * 1000 / linearSample.Length:F2} us/lookup), {lookups} indexed lookups {indexed:F1} ms ({indexed * 1000 / lookups:F2} us/lookup)"));
     }
 
     private void Measure(string label, PrivateTagScaleDocument.Shape shape)
@@ -233,6 +245,28 @@ public sealed class PrivateTagStoreScaleEvidenceTests(ITestOutputHelper output)
 
 public sealed class PrivateTagCatalogComplexityTests
 {
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(255)]
+    [InlineData(256)]
+    [InlineData(PrivateTagCatalog.MaximumDefinitions)]
+    public void HistoricalLinearLookupEvidenceHasABoundedSampleAcrossTheWholeVocabulary(int definitions)
+    {
+        int[] indices = PrivateTagStoreScaleEvidenceTests.LinearLookupSampleIndices(definitions);
+        Assert.Equal(Math.Min(256, definitions), indices.Length);
+        Assert.Equal(0, indices[0]);
+        Assert.Equal(definitions - 1, indices[^1]);
+        Assert.Equal(indices.Length, indices.Distinct().Count());
+        Assert.All(indices, index => Assert.InRange(index, 0, definitions - 1));
+        for (int index = 1; index < indices.Length; index++)
+            Assert.InRange(indices[index] - indices[index - 1], 1,
+                (int)Math.Ceiling((definitions - 1.0) / (indices.Length - 1)));
+        // One warm-up and five measurements: bound actual comparisons, not machine-dependent time.
+        // The old 150,000-lookups/pass baseline at 20,000 tags required 8,700,450,000 comparisons.
+        Assert.InRange(6 * indices.Sum(index => (long)index + 1), 1, 16_000_000);
+    }
+
     internal static PrivateTagName Name(string text)
     {
         Assert.True(PrivateTagName.TryCreate(text, out PrivateTagName? name, out _));
