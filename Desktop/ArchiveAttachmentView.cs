@@ -613,7 +613,7 @@ public sealed class ArchiveAttachmentView : UserControl
         // MB1b: what the badges show (video or GIF, file missing; the favourite state is the file-line star's own name) is part of the button's name and help, as one short sentence.
         string badges = row == null ? string.Empty : MediaBadgeSentences.Get(_badges.State, _badges.Options);
         Avalonia.Automation.AutomationProperties.SetName(_button, ArchiveMediaBadges.Append(inline
-            ? Texts.T("reader.video.play", row!.Attachment.OriginalFileName ?? row.Attachment.MediaId ?? Texts.T("reader.video.unnamed"))
+            ? Texts.T("reader.video.play", row!.Shown.OriginalFileName ?? row.Shown.MediaId ?? Texts.T("reader.video.unnamed"))
             : row?.Label ?? string.Empty, badges, "\n"));
         Avalonia.Automation.AutomationProperties.SetHelpText(_button, inline ? ArchiveMediaBadges.Append(Texts.T("reader.video.playHint"), badges, "\n")
             : badges.Length > 0 ? badges : null);
@@ -690,7 +690,7 @@ public sealed class ArchiveAttachmentView : UserControl
             _image.IsVisible = bitmap != null;
             if (bitmap != null && WantsEnlarged) _ = EnlargeAsync();
             _status.IsVisible = bitmap == null;
-            _status.Text = Texts.T(MeowChan.Gallery.SavedMediaTypes.Classify(row.Attachment.OriginalFileName ?? string.Empty)
+            _status.Text = Texts.T(MeowChan.Gallery.SavedMediaTypes.Classify(row.Shown.OriginalFileName ?? string.Empty)
                 == MeowChan.Gallery.SavedMediaKind.Video ? "reader.video" : "archive.inlineUnsupported");
         }
         catch (OperationCanceledException) when (loading.IsCancellationRequested)

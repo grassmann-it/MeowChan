@@ -111,12 +111,18 @@ internal sealed record ArchiveAttachmentRow(CapturedAttachment Attachment)
     public Func<CancellationToken, Task<Bitmap?>>? LoadThumbnail { get; init; }
     public Action? OpenPreview { get; init; }
     public MediaAttachmentBinding? Binding { get; set; }
-    public string Label => (Attachment.OriginalFileName ?? Attachment.MediaId ?? Texts.T("archive.deletedAttachment"))
+    /// <summary>
+    /// The medium a thread-list row actually shows when it is not <see cref="Attachment"/> (the first medium is not saved, a later one
+    /// is); set by the row's thumbnail load. Null: <see cref="Attachment"/> itself.
+    /// </summary>
+    public CapturedAttachment? ShownAttachment { get; set; }
+    public CapturedAttachment Shown => ShownAttachment ?? Attachment;
+    public string Label => (Shown.OriginalFileName ?? Shown.MediaId ?? Texts.T("archive.deletedAttachment"))
         + (MediaProvenanceText.Summary(Binding) is { Length: > 0 } provenance ? "\n" + provenance : string.Empty);
     // The capture records the provider's byte size but no pixel dimensions, so the line shows
     // "name.ext (size)" when the size is known and the bare name otherwise.
-    public string FileLine => (Attachment.OriginalFileName ?? Attachment.MediaId ?? string.Empty)
-        + (Attachment.ExpectedSize is > 0 and long size ? " (" + FileSize(size) + ")" : string.Empty);
+    public string FileLine => (Shown.OriginalFileName ?? Shown.MediaId ?? string.Empty)
+        + (Shown.ExpectedSize is > 0 and long size ? " (" + FileSize(size) + ")" : string.Empty);
 
     internal static string FileSize(long bytes) => SizeText.Format(bytes);
 }
