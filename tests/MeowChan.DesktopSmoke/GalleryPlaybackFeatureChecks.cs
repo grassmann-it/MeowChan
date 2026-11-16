@@ -744,8 +744,11 @@ internal static partial class GalleryPlaybackFeatureChecks
         GalleryViewer viewer = fixture.Viewer;
         viewer.ConfigurePlayback(new(GalleryPlaybackMode.Slideshow, 1));
         await viewer.ShowAsync(clip, CancellationToken.None);
+        // Video startup can outlive the overlay idle timer on slower native hosts.
+        // Reveal the production transport and focus the current action before Space/click.
         await RevealAutoHiddenTransportAsync(fixture);
-        Click(Find<Button>(viewer, "GallerySlideshowToggle"));
+        Button slideshow = await KeyboardReachableSlideshowActionAsync(fixture);
+        Click(slideshow);
         GalleryVideoPlayer player = viewer.GetGalleryVisualDescendants().OfType<GalleryVideoPlayer>().Single();
         await UntilAsync(async () => (await player.InspectPlaybackAsync()).Time > 250,
             "The video did not start before the repeat-mode transition.");
