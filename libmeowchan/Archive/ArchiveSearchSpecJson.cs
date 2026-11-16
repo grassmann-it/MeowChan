@@ -10,45 +10,49 @@ namespace MeowChan.Archive;
 /// <summary>
 /// The strict portable wire contract, shared by saved searches and query consumers. Schema 1 is
 /// unchanged; schema 2 is schema 1 plus a mandatory own-tag filter and is written only when one exists.
+/// Schema 3 is schema 1 plus a mandatory text scope and a nullable tag filter; it is written only for a
+/// non-default scope or the relevance order, so every older definition keeps its schema and bytes.
 /// </summary>
 public static class ArchiveSearchSpecJson
 {
     public static string Serialize(ArchiveSearchSpec spec)
     {
         ArgumentNullException.ThrowIfNull(spec);
-        if (spec.Tags is { } tags)
-        {
-            // Same members and order as schema 1, followed by the tag filter.
-            System.Text.Json.Nodes.JsonNode node = System.Text.Json.Nodes.JsonNode.Parse(Serialize(spec.WithTags(null)))!;
-            node["schemaVersion"] = 2;
-            node["tags"] = new System.Text.Json.Nodes.JsonObject
-            {
-                ["match"] = tags.Match == ArchiveTagMatch.Any ? "any" : "all",
-                ["include"] = new System.Text.Json.Nodes.JsonArray(tags.Include.Select(id => (System.Text.Json.Nodes.JsonNode)id.ToString("D")).ToArray()),
-                ["exclude"] = new System.Text.Json.Nodes.JsonArray(tags.Exclude.Select(id => (System.Text.Json.Nodes.JsonNode)id.ToString("D")).ToArray())
-            };
-            return node.ToJsonString();
-        }
-        return JsonSerializer.Serialize(new
-        {
-            schemaVersion = spec.SchemaVersion,
-            text = spec.Text,
-            sources = spec.Sources,
-            boards = spec.Boards.Select(board => new { source = board.Source, board = board.Board }),
-            sourceStates = spec.SourceStates.Select(StateName),
-            captureEnabled = spec.CaptureEnabled,
-            hasPosts = spec.HasPosts,
-            sort = SortName(spec.Sort),
-            workFilter = WorkName(spec.WorkFilter),
-            dateRange = spec.DateRange == null ? null : new
-            {
-                basis = spec.DateRange.Basis,
-                startDate = spec.DateRange.StartDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-                endDate = spec.DateRange.EndDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-                timeZoneId = spec.DateRange.TimeZoneId
-            }
-        });
+        int version = spec.SchemaVersion;
+        if (version == 1) return SerializeBase(spec, 1);
+        // Same members and order as schema 1, followed by the newer members.
+        System.Text.Json.Nodes.JsonNode node = System.Text.Json.Nodes.JsonNode.Parse(SerializeBase(spec, version))!;
+        if (version == 3) node["scope"] = ScopeName(spec.Scope);
+        node["tags"] = spec.Tags is { } tags ? TagsNode(tags) : null;
+        return node.ToJsonString();
     }
+
+    private static System.Text.Json.Nodes.JsonObject TagsNode(ArchiveTagFilter tags) => new()
+    {
+        ["match"] = tags.Match == ArchiveTagMatch.Any ? "any" : "all",
+        ["include"] = new System.Text.Json.Nodes.JsonArray(tags.Include.Select(id => (System.Text.Json.Nodes.JsonNode)id.ToString("D")).ToArray()),
+        ["exclude"] = new System.Text.Json.Nodes.JsonArray(tags.Exclude.Select(id => (System.Text.Json.Nodes.JsonNode)id.ToString("D")).ToArray())
+    };
+
+    private static string SerializeBase(ArchiveSearchSpec spec, int version) => JsonSerializer.Serialize(new
+    {
+        schemaVersion = version,
+        text = spec.Text,
+        sources = spec.Sources,
+        boards = spec.Boards.Select(board => new { source = board.Source, board = board.Board }),
+        sourceStates = spec.SourceStates.Select(StateName),
+        captureEnabled = spec.CaptureEnabled,
+        hasPosts = spec.HasPosts,
+        sort = SortName(spec.Sort),
+        workFilter = WorkName(spec.WorkFilter),
+        dateRange = spec.DateRange == null ? null : new
+        {
+            basis = spec.DateRange.Basis,
+            startDate = spec.DateRange.StartDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            endDate = spec.DateRange.EndDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            timeZoneId = spec.DateRange.TimeZoneId
+        }
+    });
 
     public static ArchiveSearchSpec Deserialize(string json)
     {
@@ -59,9 +63,21 @@ public static class ArchiveSearchSpecJson
         int version = root.TryGetProperty("schemaVersion", out JsonElement schema) && schema.ValueKind == JsonValueKind.Number
             && schema.TryGetInt32(out int parsed) ? parsed : 0;
         ArchiveTagFilter? tagFilter = null;
-        if (version == 2)
+        ArchiveSearchScope scope = ArchiveSearchScope.AllPosts;
+        if (version == 3)
         {
-            Fields(root, "schemaVersion", "text", "sources", "boards", "sourceStates", "captureEnabled", "hasPosts", "sort", "workFilter", "dateRange", "tags");
+            // Schema 3: schema 1 plus a mandatory text scope and a tag filter that may be null.
+            Fields(root, "schemaVersion", "text", "sources", "boards", "sourceStates", "captureEnabled", "hasPosts", "sort", "workFilter", "dateRange", "scope", "tags");
+            scope = Text(root.GetProperty("scope")) switch
+            {
+                "all-posts" => ArchiveSearchScope.AllPosts, "title-and-opening-post" => ArchiveSearchScope.TitleAndOpeningPost,
+                "title" => ArchiveSearchScope.Title, _ => throw new JsonException("Unsupported search scope.")
+            };
+        }
+        if (version == 2 || version == 3 && root.GetProperty("tags").ValueKind != JsonValueKind.Null)
+        {
+            if (version == 2)
+                Fields(root, "schemaVersion", "text", "sources", "boards", "sourceStates", "captureEnabled", "hasPosts", "sort", "workFilter", "dateRange", "tags");
             JsonElement tags = root.GetProperty("tags");
             Fields(tags, "match", "include", "exclude");
             try
@@ -77,7 +93,7 @@ public static class ArchiveSearchSpecJson
             }
             catch (ArgumentException error) { throw new JsonException("Invalid tag filter: " + error.Message); }
         }
-        else Fields(root, "schemaVersion", "text", "sources", "boards", "sourceStates", "captureEnabled", "hasPosts", "sort", "workFilter", "dateRange");
+        else if (version != 3) Fields(root, "schemaVersion", "text", "sources", "boards", "sourceStates", "captureEnabled", "hasPosts", "sort", "workFilter", "dateRange");
         ArchiveDateRange? dateRange = null;
         JsonElement date = root.GetProperty("dateRange");
         if (date.ValueKind != JsonValueKind.Null)
@@ -101,13 +117,15 @@ public static class ArchiveSearchSpecJson
             Text(root.GetProperty("sort")) switch
             {
                 "latest-capture" => ArchiveThreadSort.LatestCapture, "oldest-first" => ArchiveThreadSort.OldestFirst,
-                "title" => ArchiveThreadSort.Title, _ => throw new JsonException("Unsupported sort.")
+                "title" => ArchiveThreadSort.Title,
+                // Written only with schema 3; an older schema never carried it.
+                "relevance" when version == 3 => ArchiveThreadSort.Relevance, _ => throw new JsonException("Unsupported sort.")
             }, Text(root.GetProperty("workFilter")) switch
             {
                 "all" => ArchiveWorkFilter.All, "watching" => ArchiveWorkFilter.Watching, "followup" => ArchiveWorkFilter.Followup,
                 "intervention" => ArchiveWorkFilter.Intervention, "completed" => ArchiveWorkFilter.Completed,
                 "stopped" => ArchiveWorkFilter.Stopped, _ => throw new JsonException("Unsupported work filter.")
-            }, dateRange, version == 2 ? 1 : root.GetProperty("schemaVersion").GetInt32()).WithTags(tagFilter);
+            }, dateRange, version is 2 or 3 ? 1 : root.GetProperty("schemaVersion").GetInt32()).WithTags(tagFilter).WithScope(scope);
     }
 
     private static Guid[] TagIds(JsonElement array)
@@ -158,7 +176,12 @@ public static class ArchiveSearchSpecJson
     private static string SortName(ArchiveThreadSort sort) => sort switch
     {
         ArchiveThreadSort.LatestCapture => "latest-capture", ArchiveThreadSort.OldestFirst => "oldest-first", ArchiveThreadSort.Title => "title",
-        _ => throw new ArgumentOutOfRangeException(nameof(sort))
+        ArchiveThreadSort.Relevance => "relevance", _ => throw new ArgumentOutOfRangeException(nameof(sort))
+    };
+    private static string ScopeName(ArchiveSearchScope scope) => scope switch
+    {
+        ArchiveSearchScope.AllPosts => "all-posts", ArchiveSearchScope.TitleAndOpeningPost => "title-and-opening-post",
+        ArchiveSearchScope.Title => "title", _ => throw new ArgumentOutOfRangeException(nameof(scope))
     };
     private static string WorkName(ArchiveWorkFilter work) => work switch
     {

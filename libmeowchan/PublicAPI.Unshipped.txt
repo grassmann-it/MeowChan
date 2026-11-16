@@ -1,1 +1,17 @@
 #nullable enable
+MeowChan.Archive.ArchiveSearchMatchTier
+MeowChan.Archive.ArchiveSearchMatchTier.OpeningPost = 1 -> MeowChan.Archive.ArchiveSearchMatchTier
+MeowChan.Archive.ArchiveSearchMatchTier.OtherPosts = 2 -> MeowChan.Archive.ArchiveSearchMatchTier
+MeowChan.Archive.ArchiveSearchMatchTier.Title = 0 -> MeowChan.Archive.ArchiveSearchMatchTier
+MeowChan.Archive.ArchiveSearchScope
+MeowChan.Archive.ArchiveSearchScope.AllPosts = 0 -> MeowChan.Archive.ArchiveSearchScope
+MeowChan.Archive.ArchiveSearchScope.Title = 2 -> MeowChan.Archive.ArchiveSearchScope
+MeowChan.Archive.ArchiveSearchScope.TitleAndOpeningPost = 1 -> MeowChan.Archive.ArchiveSearchScope
+MeowChan.Archive.ArchiveSearchSpec.RanksByMatchTier.get -> bool
+MeowChan.Archive.ArchiveSearchSpec.Scope.get -> MeowChan.Archive.ArchiveSearchScope
+MeowChan.Archive.ArchiveSearchSpec.WithScope(MeowChan.Archive.ArchiveSearchScope scope) -> MeowChan.Archive.ArchiveSearchSpec!
+MeowChan.Archive.ArchiveThreadPage.MatchTierCounts.get -> System.Collections.Generic.IReadOnlyList<int>?
+MeowChan.Archive.ArchiveThreadPage.MatchTierCounts.init -> void
+MeowChan.Archive.ArchiveThreadPage.MatchTiers.get -> System.Collections.Generic.IReadOnlyList<MeowChan.Archive.ArchiveSearchMatchTier>?
+MeowChan.Archive.ArchiveThreadPage.MatchTiers.init -> void
+MeowChan.Archive.ArchiveThreadSort.Relevance = 3 -> MeowChan.Archive.ArchiveThreadSort

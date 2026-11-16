@@ -67,12 +67,9 @@ public sealed partial class ArchiveReader : IAsyncDisposable
         ArchiveValidation.ValidatePage(offset, limit);
         if (request.TagMembership is { } tags)
             // Tag membership lives outside SQL: count and page come from one filtered snapshot.
-            return ReadAsync((connection, transaction) =>
-            {
-                ArchiveThreadSummary[] matches = ArchiveSql.SearchSummaries(connection, transaction, request, cancellationToken)
-                    .Where(summary => tags.Matches(summary.Id)).ToArray();
-                return new ArchiveThreadPage(Array.AsReadOnly(matches.Skip(offset).Take(limit).ToArray()), matches.Length, offset);
-            }, cancellationToken);
+            return ReadAsync((connection, transaction) => ArchiveThreadPage.FromRanked(
+                ArchiveSql.SearchRankedSummaries(connection, transaction, request, cancellationToken)
+                    .Where(item => tags.Matches(item.Summary.Id)).ToArray(), offset, limit, request.Spec.RanksByMatchTier), cancellationToken);
         return ReadAsync((connection, transaction) => ArchiveSql.SearchPage(connection, transaction, request, offset, limit, cancellationToken), cancellationToken);
     }
 
@@ -97,6 +94,21 @@ public sealed partial class ArchiveReader : IAsyncDisposable
                 ArchiveSql.SearchSummaries(connection, transaction, request, cancellationToken)
                     .Where(summary => tags.Matches(summary.Id)).ToArray()), cancellationToken);
         return ReadAsync((connection, transaction) => ArchiveSql.SearchSummaries(connection, transaction, request, cancellationToken), cancellationToken);
+    }
+
+    /// <summary>
+    /// Like <see cref="SelectThreadSummariesBySpecAsync"/>, with each match's tier when the request ranks by tier. For a
+    /// consumer that filters the frozen result itself (the desktop's work filter) and still pages and groups by tier.
+    /// </summary>
+    internal Task<IReadOnlyList<ArchiveRankedThread>> SelectRankedThreadSummariesBySpecAsync(ArchiveSearchRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (request.TagMembership is { } tags)
+            return ReadAsync((connection, transaction) => (IReadOnlyList<ArchiveRankedThread>)Array.AsReadOnly(
+                ArchiveSql.SearchRankedSummaries(connection, transaction, request, cancellationToken)
+                    .Where(item => tags.Matches(item.Summary.Id)).ToArray()), cancellationToken);
+        return ReadAsync((connection, transaction) => ArchiveSql.SearchRankedSummaries(connection, transaction, request, cancellationToken), cancellationToken);
     }
 
     /// <summary>Captures posts and attachment metadata in one transaction; its pages never change afterward.</summary>
