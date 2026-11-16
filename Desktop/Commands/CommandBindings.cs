@@ -28,6 +28,10 @@ public static class CommandBindings
     // Catalog icons are immutable app resources. Keep one decoded mask per icon;
     // controls/brushes remain separate so foreground and theme bindings stay local.
     private static readonly Dictionary<string, Bitmap> IconMasks = new(StringComparer.Ordinal);
+    // Application-owned immutable native images, shared by menu items (which borrow their Icon).
+    // Only CommandCatalog.Get can supply a mask name: at most two tones per distinct catalog mask,
+    // never per command/label/shortcut or arbitrary caller key. Do not dispose on menu/window close.
+    private static readonly Dictionary<(string Mask, bool Dark), Bitmap> NativeIcons = new();
     private static readonly ConditionalWeakTable<Button, ButtonContent> ButtonContents = new();
     private static readonly ConditionalWeakTable<object, RefreshCallback> Presentations = new();
     // One callback holder per owner. Observe swaps Refresh in place and registers the owner with the ShortcutService once per
@@ -123,17 +127,23 @@ public static class CommandBindings
     }
 
     /// <summary>A native menu entry. <paramref name="label"/> and <paramref name="shortcut"/> let the menu bar show its own
-    /// title and only the chords it may advertise; both are read again whenever the bindings or the language change.</summary>
-    public static void Apply(NativeMenuItem item, string id, Func<string>? label = null, Func<string?>? shortcut = null)
+    /// title and only the chords it may advertise; both are read again whenever the bindings or the language change.
+    /// Set <paramref name="applyIcon"/> to false when the caller owns its icon (such as the tray's platform-specific tones).
+    /// Otherwise Icon borrows an immutable application-owned bitmap; callers must not dispose it.</summary>
+    public static void Apply(NativeMenuItem item, string id, Func<string>? label = null, Func<string?>? shortcut = null, bool applyIcon = true)
     {
-        Observe(item, () => Apply(item, id, label, shortcut));
+        Observe(item, () => Apply(item, id, label, shortcut, applyIcon));
         var definition = CommandCatalog.Get(id);
         string? display = shortcut != null ? shortcut() : CommandCatalog.ShortcutDisplay(id);
         item.Header = (label?.Invoke() ?? CommandCatalog.Label(id)) + (string.IsNullOrEmpty(display) ? "" : "  " + display);
         // Clipboard import is a Downloads shortcut. The native tray action remains
         // explicit and must not register an application-wide paste accelerator.
         item.Gesture = null; // Routed context checks own execution; native accelerators cannot enforce them.
-        item.Icon = NativeIcon(id);
+        if (applyIcon)
+        {
+            Bitmap icon = NativeIcon(id);
+            if (!ReferenceEquals(item.Icon, icon)) item.Icon = icon;
+        }
     }
 
     public static void Apply(Button button, string id, Func<string?>? unavailableReason = null,
@@ -352,17 +362,24 @@ public static class CommandBindings
 
     private static Bitmap NativeIcon(string id)
     {
-        using Stream source = AssetLoader.Open(new Uri(IconUri(CommandCatalog.Get(id).Icon)));
-        using SKBitmap mask = SKBitmap.Decode(source);
+        string maskName = CommandCatalog.Get(id).Icon;
         bool dark = Application.Current?.ActualThemeVariant == ThemeVariant.Dark;
-        byte tone = dark ? (byte)240 : (byte)30;
-        for (int y = 0; y < mask.Height; y++)
-            for (int x = 0; x < mask.Width; x++)
-                mask.SetPixel(x, y, new SKColor(tone, tone, tone, mask.GetPixel(x, y).Alpha));
-        using SKImage image = SKImage.FromBitmap(mask);
-        using SKData png = image.Encode(SKEncodedImageFormat.Png, 100);
-        using Stream output = png.AsStream();
-        return new Bitmap(output);
+        lock (NativeIcons)
+        {
+            if (NativeIcons.TryGetValue((maskName, dark), out Bitmap? cached)) return cached;
+            using Stream source = AssetLoader.Open(new Uri(IconUri(maskName)));
+            using SKBitmap mask = SKBitmap.Decode(source);
+            byte tone = dark ? (byte)240 : (byte)30;
+            for (int y = 0; y < mask.Height; y++)
+                for (int x = 0; x < mask.Width; x++)
+                    mask.SetPixel(x, y, new SKColor(tone, tone, tone, mask.GetPixel(x, y).Alpha));
+            using SKImage image = SKImage.FromBitmap(mask);
+            using SKData png = image.Encode(SKEncodedImageFormat.Png, 100);
+            using Stream output = png.AsStream();
+            Bitmap icon = new(output);
+            NativeIcons.Add((maskName, dark), icon);
+            return icon;
+        }
     }
 
     internal static void BindShortcutHelp(Control control, IReadOnlyList<string> ids, Func<string> fixedHelp)
