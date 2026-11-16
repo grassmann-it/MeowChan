@@ -48,16 +48,7 @@ public sealed class DeadAffordanceGuardTests
     /// </summary>
     private static void EnsureTokens()
     {
-        TokenApplication app = new();
-        // Application.Current is the application the locator holds; the locator scope of the test shadows any other one and keeps this one from leaking.
-        AvaloniaLocator.CurrentMutable.Bind<Application>().ToConstant(app);
-        app.Initialize();
-    }
-
-    private sealed class TokenApplication : Application
-    {
-        public override void Initialize() =>
-            Styles.Add(new StyleInclude(new Uri("avares://MeowChan/")) { Source = new Uri("avares://MeowChan/Desktop/WorkspaceStyles.axaml") });
+        TokenApplication.Bind();
     }
 
     // Known offenders of pages that other work packages own, as "Page: part of the control's path". Empty while all of them are fixed or marked.

@@ -185,9 +185,7 @@ public sealed class MediaShowInThreadTests
     {
         using IDisposable scope = AvaloniaLocator.EnterScope();
         AvaloniaLocator.CurrentMutable.Bind<ICursorFactory>().ToConstant(new DeadAffordanceGuard.RecordingCursorFactory());
-        TokenApplication app = new();
-        AvaloniaLocator.CurrentMutable.Bind<Application>().ToConstant(app);
-        app.Initialize();
+        TokenApplication.Bind();
         MeowChan.ArchivePage page = new(_ => Task.FromResult<ArchiveReader>(null!), (_, _) => Task.CompletedTask, _ => { });
         try
         {
@@ -195,12 +193,6 @@ public sealed class MediaShowInThreadTests
             test(page);
         }
         finally { (page as IDisposable)?.Dispose(); }
-    }
-
-    private sealed class TokenApplication : Application
-    {
-        public override void Initialize() =>
-            Styles.Add(new StyleInclude(new Uri("avares://MeowChan/")) { Source = new Uri("avares://MeowChan/Desktop/WorkspaceStyles.axaml") });
     }
 
     private static async Task<ArchivedThreadView> SeedOneAndReadAsync()

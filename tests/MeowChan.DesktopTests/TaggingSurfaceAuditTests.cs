@@ -29,19 +29,11 @@ public sealed class TaggingSurfaceAuditTests : IDisposable
     public TaggingSurfaceAuditTests() { Texts.Initialize(); Texts.SetLanguage("en"); }
     public void Dispose() { Texts.Initialize(); Texts.SetLanguage("en"); }
 
-    private sealed class TokenApplication : Application
-    {
-        public override void Initialize() =>
-            Styles.Add(new StyleInclude(new Uri("avares://MeowChan/")) { Source = new Uri("avares://MeowChan/Desktop/WorkspaceStyles.axaml") });
-    }
-
     private static void WithPage(Action<MeowChan.TaggingPage> test) => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable scope = AvaloniaLocator.EnterScope();
         AvaloniaLocator.CurrentMutable.Bind<ICursorFactory>().ToConstant(new DeadAffordanceGuard.RecordingCursorFactory());
-        TokenApplication app = new();
-        AvaloniaLocator.CurrentMutable.Bind<Application>().ToConstant(app);
-        app.Initialize();
+        TokenApplication.Bind();
         string profile = Directory.CreateTempSubdirectory("meowchan-tagging-audit-").FullName;
         DesktopSessionHost host = new(profile, Array.Empty<IImageBoard>());
         MeowChan.TaggingPage page = new(host);

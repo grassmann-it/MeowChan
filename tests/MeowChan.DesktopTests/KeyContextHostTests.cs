@@ -10,6 +10,7 @@ namespace MeowChan.DesktopTests;
 // Integration of 16.11. (per-context yield + explicit favourite keys): the archive, reader and media pages run their key handlers in their own execution
 // context, as GalleryViewer.OnKeyDown does. Without it, CommandBindings.Matches(e, id) asks without a context, and a default that a saved binding took away
 // only in another context (favorites.toggle after a saved gallery command on F) went dead on these pages too.
+[Collection("Avalonia global state")]
 public sealed class KeyContextHostTests
 {
     private static KeyEventArgs Press(Key key) => new() { RoutedEvent = InputElement.KeyDownEvent, Key = key, KeyModifiers = KeyModifiers.None };
