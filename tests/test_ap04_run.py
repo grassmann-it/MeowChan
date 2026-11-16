@@ -73,7 +73,8 @@ class WorkflowControlTests(unittest.TestCase):
             'MEOWCHAN_RELEASED102_SOURCE_MANIFEST',
             'test ! -s "$fixture/status-after.txt"',
             'command -v bwrap',
-            '--unshare-user --unshare-net --disable-userns',
+            '--unshare-user --unshare-net \\',
+            '--cap-add CAP_NET_ADMIN --disable-userns',
             '--dev /dev --tmpfs /tmp',
             'MEOWCHAN_RELEASED102_NETWORK_NAMESPACE=bwrap',
             'MEOWCHAN_RELEASED102_BWRAP_PATH',
@@ -510,6 +511,7 @@ class RunnerTests(unittest.TestCase):
         self.assertIn('"--unshare-user"', test)
         self.assertIn('"--unshare-net"', test)
         self.assertIn('"--disable-userns"', test)
+        self.assertIn('CAP_NET_ADMIN', test)
         self.assertIn('MEOWCHAN_RELEASED102_BWRAP_PATH', test)
         self.assertNotIn('NETWORK_NAMESPACE") == "1"', test)
 
@@ -523,7 +525,7 @@ class NamespaceLauncherContractTests(unittest.TestCase):
         ctx = run.Context(Args())
         command = ctx.isolated(['dotnet', 'consumer.dll'])
         self.assertEqual('bwrap', Path(command[0]).name)
-        for marker in ('--die-with-parent', '--unshare-user', '--unshare-net', '--disable-userns',
+        for marker in ('--die-with-parent', '--unshare-user', '--unshare-net', '--cap-add', 'CAP_NET_ADMIN', '--disable-userns',
                        '--ro-bind', '/', '--proc', '/proc', '--dev', '/dev', '--tmpfs', '/tmp',
                        '--bind', str(ctx.root), str(ctx.root), '--bind', str(ctx.out), str(ctx.out), '--'):
             self.assertIn(marker, command)

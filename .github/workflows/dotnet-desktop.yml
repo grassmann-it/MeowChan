@@ -392,7 +392,8 @@ jobs:
               echo "::error::1.0.2 replay requires bubblewrap (bwrap) for its user+network namespace; hosted runner capability is missing" >&2
               exit 1
             fi
-            if ! "$bwrap_path" --die-with-parent --unshare-user --unshare-net --disable-userns \
+            if ! "$bwrap_path" --die-with-parent --unshare-user --unshare-net \
+                --cap-add CAP_NET_ADMIN --disable-userns \
                 --ro-bind / / --proc /proc --dev /dev --tmpfs /tmp -- /usr/bin/true; then
               echo "::error::1.0.2 replay requires a working bubblewrap user+network namespace; refusing an unisolated replay" >&2
               exit 1

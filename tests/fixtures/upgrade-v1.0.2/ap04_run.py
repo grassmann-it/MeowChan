@@ -117,7 +117,7 @@ class Context:
             # user namespaces are both mandatory; there is no best-effort mode.
             bwrap = shutil.which('bwrap') or 'bwrap'
             return [bwrap, '--die-with-parent', '--unshare-user', '--unshare-net',
-                    '--disable-userns', '--ro-bind', '/', '/', '--proc', '/proc', '--dev', '/dev',
+                    '--cap-add', 'CAP_NET_ADMIN', '--disable-userns', '--ro-bind', '/', '/', '--proc', '/proc', '--dev', '/dev',
                     '--tmpfs', '/tmp', '--bind', str(self.root), str(self.root),
                     '--bind', str(self.out), str(self.out), '--', *argv]
         return ['unshare', '-Urn', '--', *argv]
@@ -128,7 +128,7 @@ class Context:
             if not bwrap:
                 return None, 'bubblewrap (bwrap) is not installed'
             return subprocess.run([bwrap, '--die-with-parent', '--unshare-user', '--unshare-net',
-                                   '--disable-userns', '--ro-bind', '/', '/', '--proc', '/proc', '--dev', '/dev',
+                                   '--cap-add', 'CAP_NET_ADMIN', '--disable-userns', '--ro-bind', '/', '/', '--proc', '/proc', '--dev', '/dev',
                                    '--tmpfs', '/tmp', '--', '/usr/bin/true'], capture_output=True), bwrap
         return subprocess.run(['unshare', '-Urn', '--', 'true'], capture_output=True), 'unshare'
 
