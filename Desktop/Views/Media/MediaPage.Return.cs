@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
@@ -44,6 +45,18 @@ public sealed partial class MediaPage
         double offset = 0;
         if (panel?.CaptureAnchor() is { } anchor && anchor.Index >= 0 && anchor.Index < _tiles.Count) { top = _tiles[anchor.Index]; offset = anchor.Offset; }
         return MediaLibraryReturn.Capture(occurrence, SelectedTiles, top, offset);
+    }
+
+    /// <summary>
+    /// The way back for a gallery opened on this page (its grid, the tag-queue walk of its header): the selected tile, else the tile at the top
+    /// of the view, with the selection and the view position. Null when the page is hidden or shows no tile; closing then focuses the grid only.
+    /// </summary>
+    internal MediaLibraryReturnPoint? CaptureGalleryReturnPoint()
+    {
+        if (_lifetime.IsCancellationRequested || !IsEffectivelyVisible) return null;
+        MediaLibraryEntry? opened = SelectedRow?.Entry;
+        if (opened == null && FirstTileInView() is var top && top >= 0 && top < _tiles.Count) opened = _tiles[top].Entry;
+        return opened == null ? null : CaptureReturnPoint(opened);
     }
 
     /// <summary>
@@ -206,11 +219,24 @@ public sealed partial class MediaPage
         if (!ReferenceEquals(_returnRun, run) || !IsEffectivelyVisible) return match.Target >= 0;
         // Focus the opened tile; when it is gone, the first tile still in view (it is focused, not selected, and the note says why).
         int focus = match.Target >= 0 ? match.Target : match.Selected.Count > 0 ? match.Selected[0] : FirstTileInView();
-        if (focus < 0) return match.Target >= 0;
+        if (focus < 0)
+        {
+            // No tile at all (the rebuild left the page empty): the control that held the focus ("Back to media", the gallery) is hidden now,
+            // so the empty state's first way out, else the search field, takes it; never nothing.
+            EmptyReturnFocusTarget()?.Focus();
+            return match.Target >= 0;
+        }
         if (_grid.ContainerFromIndex(focus) == null && match.Target >= 0) _grid.ScrollIntoView(focus); // it moved out of the restored view
         (_grid.ContainerFromIndex(focus) as Control)?.Focus();
         return match.Target >= 0;
     }
+
+    /// <summary>Where the focus goes after a return to a page without tiles: the first usable empty-state action, else the search field, else Refresh.</summary>
+    internal Control? EmptyReturnFocusTarget() =>
+        PickReturnFocus(_emptyActions.Children.Append(_nameFilter).Append(_refresh), control => control.IsEffectivelyVisible);
+
+    internal static Control? PickReturnFocus(IEnumerable<Control> ordered, Func<Control, bool> shown) =>
+        ordered.FirstOrDefault(control => control.Focusable && control.IsEffectivelyEnabled && shown(control));
 
     private int FirstTileInView() => TilePanel()?.CaptureAnchor() is { } anchor ? anchor.Index : _tiles.Count > 0 ? 0 : -1;
 

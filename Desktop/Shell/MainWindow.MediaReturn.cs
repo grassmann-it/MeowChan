@@ -80,7 +80,7 @@ public partial class MainWindow
         if (!CanReturnToMedia || _mediaReturn is not { } point) return;
         if (_largeReaderOpen) CloseLargeReader(restoreOrigin: false);
         if (!NavigateWorkspace(WorkspacePage.Media)) return; // also ends the return point and any still running jump
-        MediaReturnTask = _mediaPage!.ReturnToAsync(point);
+        StartMediaPageReturn(point, "media.return"); // observed: a failure of the restore is logged and shown (F8)
     }
 
     // One Back gesture (Alt+Left, Command-Left on macOS) for three "back" buttons that are never needed at the same time:

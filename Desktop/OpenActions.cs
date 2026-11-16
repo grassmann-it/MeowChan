@@ -24,7 +24,17 @@ internal static class OpenActions
     }
 
     /// <summary>Starts <paramref name="open"/> without awaiting it (an event handler, a menu entry, a key); see the class.</summary>
-    internal static void Start(Func<Task> open, string operation) => Observe(RunAsync(open, operation));
+    internal static void Start(Func<Task> open, string operation) => StartObserved(open, operation);
+
+    /// <summary>As <see cref="Start"/>, and hands back the observed run for a caller that may wait for it (a test or smoke seam).
+    /// The returned task faults only where <paramref name="recover"/> refuses, and that failure is rethrown on the UI thread as well.</summary>
+    /// <param name="recover">Test seam; the app uses <see cref="UnhandledErrors.TryRecover"/>.</param>
+    internal static Task StartObserved(Func<Task> open, string operation, Func<Exception, string, bool>? recover = null)
+    {
+        Task running = RunAsync(open, operation, recover);
+        Observe(running);
+        return running;
+    }
 
     // A failure that RunAsync did not recover (smokes, tests, out of memory) is rethrown on the UI thread, where the dispatcher's own
     // handler fails the smoke; it never stays in an unobserved task.
