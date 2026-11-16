@@ -128,6 +128,7 @@ public sealed class BooruWorkbenchViewContractTests
         string view = ViewSource();
         foreach (string required in new[] { "_resetCooldown.Click += async (_, _) => await _model.Watchers.ResetProviderCooldownAsync();",
             "_submit.IsEnabled = model.CanSubmit;", "_retry.IsEnabled = !paused;",
+            "_retry.IsVisible = view.CanRetry;", "_pager.IsVisible = paging || view.HasPreviousPage;",
             "load.IsEnabled = cancel || retry || row.CanLoad;",
             "_model.Search.CancelOriginalAsync(post.PostId)", "_model.Search.RetryOriginalAsync(post.PostId)",
             "_cancel.Click += (_, _) => _model.Search.Cancel();", "yes.IsEnabled = !row.Busy;",

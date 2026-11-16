@@ -573,7 +573,8 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         _retry.IsEnabled = !paused;
 
         bool paging = view.Status is BooruSearchStatus.Results or BooruSearchStatus.Empty && view.ExecutedQuery is not null && !view.IsPostResult;
-        _pager.IsVisible = paging;
+        // Keep recovery navigation reachable even when the failed/cancelled page has no results.
+        _pager.IsVisible = paging || view.HasPreviousPage;
         // The pager is icon-only like the Archive's: the chevron, with the text as tooltip and accessible name.
         IconButtons.Apply(_previous, "chevron-left", Texts.T("booru.ui.page.previous"));
         _previous.IsEnabled = view.HasPreviousPage && !paused;
