@@ -113,6 +113,78 @@ public sealed class BooruSearchModelTests : IDisposable
         Assert.True(_model.View.HasPreviousPage);
     }
 
+    [Theory]
+    [InlineData("offline")]
+    [InlineData("failed")]
+    [InlineData("cancelled")]
+    public async Task APageAfterOneIsNeverADeadEndAndRecoveryRepeatsTheExactQueryAndPage(string kind)
+    {
+        _h.Serve(pages: 10);
+        await BooruTestSupport.SearchAsync(_model, "cat");
+        await _model.GoToPageAsync(2);
+        await _model.GoToPageAsync(3);
+        TaskCompletionSource<BooruCallResult<BooruResultPage>> gate = new();
+        bool fail = true;
+        _h.Search.OnSearch = (query, page, _) => kind == "cancelled" && fail ? gate.Task
+            : Task.FromResult(kind != "cancelled" && fail
+                ? BooruCallResult<BooruResultPage>.Of(kind == "offline" ? BooruCallStatus.Offline : BooruCallStatus.Failed, "x")
+                : BooruCallResult<BooruResultPage>.Ok(BooruUiFixtures.Page(query, page, false, BooruUiFixtures.Post("7"))));
+        Task running = _model.GoToPageAsync(4);
+        if (kind == "cancelled")
+        {
+            await BooruTestSupport.WaitAsync(() => _model.View.IsBusy, "busy");
+            _model.Cancel();
+            gate.SetResult(BooruCallResult<BooruResultPage>.Ok(BooruUiFixtures.Page("cat", 4, false, BooruUiFixtures.Post("late"))));
+        }
+        await running;
+        Assert.Empty(_model.View.Rows); // no stale or late result published
+        Assert.Equal(4, _model.View.Page);
+        Assert.True(_model.View.HasPreviousPage);
+        int requests = _h.Search.Searches.Count;
+        _model.Tick();
+        Assert.Equal(requests, _h.Search.Searches.Count); // never automatic
+
+        fail = false;
+        await _model.RetryAsync();
+        Assert.Equal(("cat", 4), _h.Search.Searches[^1]);
+        Assert.Equal(BooruSearchStatus.Results, _model.View.Status);
+
+        fail = true;
+        if (kind != "cancelled") await _model.GoToPageAsync(5);
+        fail = false;
+        await _model.GoToPageAsync(3);
+        Assert.Equal(("cat", 3), _h.Search.Searches[^1]);
+        Assert.Equal(BooruSearchStatus.Results, _model.View.Status);
+    }
+
+    [Fact]
+    public async Task PreviousFromAFailedPageStaysBoundedAndNextIsNotOffered()
+    {
+        _h.Serve(pages: 10);
+        await BooruTestSupport.SearchAsync(_model, "cat");
+        await _model.GoToPageAsync(2);
+        _h.Search.OnSearch = (_, _, _) => Task.FromResult(BooruCallResult<BooruResultPage>.Of(BooruCallStatus.Offline, "x"));
+        await _model.GoToPageAsync(3);
+        Assert.False(_model.View.HasNextPage);
+        int requests = _h.Search.Searches.Count;
+        await _model.GoToPageAsync(4);
+        await _model.GoToPageAsync(0);
+        Assert.Equal(requests, _h.Search.Searches.Count);
+    }
+
+    [Fact]
+    public async Task AnEmptyLaterPageOffersPreviousAndNoNext()
+    {
+        _h.Serve(pages: 10);
+        await BooruTestSupport.SearchAsync(_model, "cat");
+        _h.Search.OnSearch = (query, page, _) => Task.FromResult(
+            BooruCallResult<BooruResultPage>.Ok(BooruUiFixtures.Page(query, page, true)));
+        await _model.GoToPageAsync(2);
+        Assert.Equal(BooruSearchStatus.Empty, _model.View.Status);
+        Assert.True(_model.View.HasPreviousPage);
+        Assert.False(_model.View.HasNextPage);
+    }
+
     [Fact]
     public async Task APageAnswerForAnotherQueryOrPageIsNotShown()
     {
