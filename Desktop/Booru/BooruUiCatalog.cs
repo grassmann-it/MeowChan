@@ -61,6 +61,7 @@ internal static class BooruUiCatalog
         ("booru.ui.status.notFound", "Danbooru has no post with this ID.", "Danbooru hat keinen Post mit dieser ID."),
         ("booru.ui.status.unavailable", "Danbooru is not available in this profile. Enable the Danbooru plugin under Plugins, then try again.", "Danbooru ist in diesem Profil nicht verfügbar. Das Danbooru-Plugin unter Plugins aktivieren und erneut versuchen."),
         ("booru.ui.status.failed", "The request failed ({0}). Nothing was loaded. Try again later.", "Die Anfrage ist fehlgeschlagen ({0}). Es wurde nichts geladen. Später erneut versuchen."),
+        ("booru.ui.status.pluginMismatch", "The active Danbooru plugin build was made for another MeowChan version and cannot search (sdk-mismatch). Under Plugins, select the current Danbooru build, then search again. Nothing was loaded.", "Der aktive Build des Danbooru-Plugins wurde für eine andere MeowChan-Version erstellt und kann nicht suchen (sdk-mismatch). Unter Plugins den aktuellen Danbooru-Build auswählen und dann erneut suchen. Es wurde nichts geladen."),
         ("booru.ui.status.retry", "Search again", "Erneut suchen"),
 
         ("booru.ui.post.title", "Post #{0}", "Post #{0}"),

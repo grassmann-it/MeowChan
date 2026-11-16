@@ -23,6 +23,9 @@ internal static class BooruText
 
     private static string Code(string? code) => CodeText(code);
 
+    /// <summary>The worker's code for a plugin binary built against another MeowChan.PluginSdk.</summary>
+    internal const string SdkMismatchCode = "sdk-mismatch";
+
     internal static string Time(DateTimeOffset value) =>
         value.ToLocalTime().ToString("g", Texts.Culture);
 
@@ -75,6 +78,8 @@ internal static class BooruText
             BooruSearchStatus.NotFound => Texts.T("booru.ui.status.notFound"),
             BooruSearchStatus.Unavailable => Texts.T("booru.ui.status.unavailable"),
             BooruSearchStatus.InvalidInput => Issue(view.Parsed.Issue),
+            // The active plugin build does not fit this MeowChan (for example a pinned older build): say what to do.
+            BooruSearchStatus.Failed when view.Code == SdkMismatchCode => Texts.T("booru.ui.status.pluginMismatch"),
             _ => Texts.T("booru.ui.status.failed", Code(view.Code))
         };
     }
@@ -130,7 +135,7 @@ internal static class BooruText
             "booru.ui.status.idle", "booru.ui.status.idlePost", "booru.ui.status.searching", "booru.ui.status.lookingUp",
             "booru.ui.status.results", "booru.ui.status.post", "booru.ui.status.empty", "booru.ui.status.offline",
             "booru.ui.status.rateLimited", "booru.ui.status.cooldown", "booru.ui.status.pauseOver", "booru.ui.status.denied",
-            "booru.ui.status.notFound", "booru.ui.status.unavailable", "booru.ui.status.failed", "booru.ui.status.retry",
+            "booru.ui.status.notFound", "booru.ui.status.unavailable", "booru.ui.status.failed", "booru.ui.status.pluginMismatch", "booru.ui.status.retry",
             "booru.ui.post.title", "booru.ui.post.rating", "booru.ui.post.score", "booru.ui.post.favorites",
             "booru.ui.post.created", "booru.ui.post.urlLabel", "booru.ui.post.noPreview", "booru.ui.post.previewLoading",
             "booru.ui.post.previewUnavailable", "booru.ui.tags.label", "booru.ui.tags.none", "booru.ui.tags.more",

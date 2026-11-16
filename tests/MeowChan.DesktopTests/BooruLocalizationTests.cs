@@ -213,4 +213,18 @@ public sealed class BooruLocalizationTests : IDisposable
         }
         finally { BooruText.CodeText = original; }
     }
+
+    [BooruSharedFact]
+    public void APluginBuildForAnotherSdkSaysWhatToDoInsteadOfARawCode()
+    {
+        BooruSearchView view = new("danbooru", "Danbooru", BooruInputMode.Tags, "blue_eyes", new BooruParsedInput(BooruInputKind.Tags, "blue_eyes"),
+            BooruSearchStatus.Failed, "blue_eyes", null, 1, false, ImmutableArray<BooruResultRowView>.Empty, null, BooruText.SdkMismatchCode, null);
+        string text = BooruText.SearchStatus(view, false);
+        Assert.Equal(Texts.T("booru.ui.status.pluginMismatch"), text);
+        Assert.Contains("(sdk-mismatch)", text);
+        Assert.Contains("Plugins", text);
+        Assert.Contains("Nothing was loaded", text);
+        // Every other failure keeps the generic sentence with its code.
+        Assert.Contains("(plugin-error)", BooruText.SearchStatus(view with { Code = "plugin-error" }, false));
+    }
 }

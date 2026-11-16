@@ -3135,6 +3135,7 @@
     "booru.ui.status.notFound": "Danbooru 上没有此 ID 的帖子。",
     "booru.ui.status.unavailable": "此配置文件中无法使用 Danbooru。请在“插件”中启用 Danbooru 插件，然后重试。",
     "booru.ui.status.failed": "请求失败（{0}）。未加载任何内容。请稍后重试。",
+    "booru.ui.status.pluginMismatch": "当前启用的 Danbooru 插件版本是为其他 MeowChan 版本构建的，无法搜索（sdk-mismatch）。请在“插件”中选择当前的 Danbooru 版本，然后重新搜索。未加载任何内容。",
     "booru.ui.status.retry": "再次搜索",
     "booru.ui.post.title": "帖子 #{0}",
     "booru.ui.post.rating": "Danbooru 评级：{0}",

@@ -26,7 +26,7 @@ public sealed class BooruCodeTextTests : IDisposable
     {
         // Worker reasons: the watcher port maps all of them to source_unavailable before the window sees them.
         "capability", "stopped", "worker-exit", "restart-limit", "unresponsive", "start", "capacity", "memory-limit",
-        "temporary-limit", "temporary-budget", "intervention-required", "timeout",
+        "temporary-limit", "temporary-budget", "intervention-required", "timeout", "sdk-mismatch",
         // Host failure codes with booru.failure.* texts (BooruStatusCatalog).
         "http-network", "http-timeout", "booru-budget", "access-denied", "not-found", "invalid_page", "invalid-request",
         "post-id",

@@ -247,6 +247,40 @@ public sealed class DanbooruSourceTests
         Assert.Equal(BooruMediaRole.Sample, third.Media[1].Role);
     }
 
+    // Regression for the 16 Nov 2026 "plugin-error" report on a "blue_eyes" search: three posts copied unchanged from
+    // that live response (nested media_asset, ISO timestamps with a -05:00 offset, every current field). The parser
+    // was never the fault there (see LiveResponseShape in the fixture README); this pins the live shape as one.
+    [Fact]
+    public async Task LiveResponseShapeParsesIntoAFinalPageWithTypedTagsAndCdnMedia()
+    {
+        (BooruSearchResult result, _) = await Search(Json(Fixture("search-live-shape.json")), "blue_eyes", page: 1, limit: 20);
+        BooruSearchPage page = Assert.IsType<BooruSearchSnapshot>(result).Page;
+        Assert.Equal(new[] { "12561078", "12561067", "12561043" }, page.Posts.Select(post => post.Id.PostId));
+        Assert.True(page.IsEnd);
+        Assert.Null(page.NextBeforePostId);
+        Assert.All(page.Posts, post =>
+        {
+            Assert.Equal(BooruRating.General, post.Rating);
+            Assert.Equal(BooruFieldPresence.All, post.Fields);
+            Assert.Contains(new BooruTag("blue_eyes", BooruTagCategory.General), post.Tags!);
+            Assert.Equal(new[] { BooruMediaRole.Original, BooruMediaRole.Sample, BooruMediaRole.Preview }, post.Media!.Select(variant => variant.Role));
+            Assert.All(post.Media!, variant => Assert.Equal("cdn.donmai.us", variant.Url!.Host));
+        });
+
+        BooruPost first = page.Posts[0];
+        Assert.Equal(new DateTimeOffset(2026, 11, 16, 8, 29, 21, 660, TimeSpan.FromHours(-5)), first.CreatedAt);
+        Assert.Equal(0, first.Score);
+        Assert.Equal(0, first.FavoriteCount);
+        Assert.Equal("https://x.com/kabuyamakaigi/status/1068926529764188160", first.SourceClaim);
+        Assert.Equal(28, first.Tags!.Count);
+        Assert.Equal(new BooruTag("kabuyama_kaigi", BooruTagCategory.Artist), first.Tags[0]);
+        Assert.Equal(new BooruTag("commentary_request", BooruTagCategory.Meta), first.Tags[^1]);
+        Assert.Equal(new BooruMediaVariant(BooruMediaRole.Original,
+            new Uri("https://cdn.donmai.us/original/a2/e2/a2e2ab23409d32c1f5f044c63588aa08.jpg"), ".jpg", 176663, 1200, 891,
+            "ouKrI0CdMsH18ETGNYiqCA=="), first.Media![0]);
+        Assert.Equal((2886, 4096, 725853L), (page.Posts[2].Media![0].Width, page.Posts[2].Media![0].Height, page.Posts[2].Media![0].ExpectedSize));
+    }
+
     [Fact]
     public async Task SearchEmptyFixtureIsAnEndSnapshotNotAFailure()
     {
@@ -511,7 +545,7 @@ public sealed class DanbooruSourceTests
         // Search and Read validate each result internally; run every fixture through both entry points.
         string[] bodies = Directory.EnumerateFiles(Path.Combine(AppContext.BaseDirectory, "Fixtures", "danbooru"))
             .Where(path => !path.EndsWith(".md", StringComparison.Ordinal)).Select(File.ReadAllText).ToArray();
-        Assert.Equal(16, bodies.Length);
+        Assert.Equal(17, bodies.Length);
         foreach (string body in bodies)
         {
             await Search(Json(body), "q", 1, 3);

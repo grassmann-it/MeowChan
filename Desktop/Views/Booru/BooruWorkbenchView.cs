@@ -103,7 +103,8 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     private readonly TextBlock _inputIssue = new() { Name = InputIssueName, Classes = { "workspace-error" }, TextWrapping = TextWrapping.Wrap, IsVisible = false };
     private readonly Border _statusHost = new() { Name = StatusName };
     private readonly TextBlock _statusText = new() { TextWrapping = TextWrapping.Wrap };
-    private readonly Button _retry = new() { Name = RetryName };
+    // A normal-size button under the status text, left-aligned like "Create watcher"; it never stretches across the box.
+    private readonly Button _retry = new() { Name = RetryName, HorizontalAlignment = HorizontalAlignment.Left };
     private readonly WrapPanel _pager = new() { Classes = { "workspace-toolbar" } };
     private readonly Button _previous = new() { Name = PreviousName };
     private readonly Button _next = new() { Name = NextName };

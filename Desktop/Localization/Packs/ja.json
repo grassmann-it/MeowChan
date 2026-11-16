@@ -3135,6 +3135,7 @@
     "booru.ui.status.notFound": "DanbooruにこのIDの投稿はありません。",
     "booru.ui.status.unavailable": "このプロファイルではDanbooruを利用できません。「プラグイン」でDanbooruプラグインを有効にしてからもう一度お試しください。",
     "booru.ui.status.failed": "リクエストに失敗しました（{0}）。何も読み込まれていません。しばらくしてからもう一度お試しください。",
+    "booru.ui.status.pluginMismatch": "有効な Danbooru プラグインのビルドは別の MeowChan バージョン向けに作成されたため、検索できません（sdk-mismatch）。「プラグイン」で現在の Danbooru ビルドを選択してから、もう一度検索してください。何も読み込まれていません。",
     "booru.ui.status.retry": "再検索",
     "booru.ui.post.title": "投稿 #{0}",
     "booru.ui.post.rating": "Danbooruの評価: {0}",

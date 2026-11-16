@@ -5,6 +5,13 @@ tests. They contain no copied real post data: ids, tags, hashes and addresses ar
 invented (the md5 values are simple patterns, the "source" values use the
 reserved `.invalid` top-level domain). No test or fixture contacts a booru site.
 
+The one exception is `search-live-shape.json` (LiveResponseShape): three
+general-rated posts copied unchanged from a public `posts.json?tags=blue_eyes`
+response of 16 Nov 2026, kept to pin Danbooru's live field shape (nested
+`media_asset`, offset timestamps, every current field). It belongs to the
+"plugin-error" report of that day, whose cause was not the parser but a plugin
+binary built against an older MeowChan.PluginSdk (now reported as `sdk-mismatch`).
+
 They mirror only the public field names of Danbooru's JSON post representation
 that the plugin reads: `id`, `created_at`, `rating`, `score`, `fav_count`,
 `tag_string`, `tag_string_general`, `tag_string_artist`, `tag_string_copyright`,
@@ -31,3 +38,4 @@ that the plugin reads: `id`, `created_at`, `rating`, `score`, `fav_count`,
 | `malformed-json.json` | truncated JSON |
 | `wrong-shape.json` | an object where a search array is expected |
 | `too-many-posts.json` | four posts (descending ids) for a request limit of three |
+| `search-live-shape.json` | three real general-rated posts of a live search response (see above) |
