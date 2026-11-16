@@ -12,7 +12,6 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
-using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
@@ -254,9 +253,10 @@ public partial class PluginsPage
                             UpdateSubmit();
                         }
                         acknowledgement.IsCheckedChanged += (_, _) => UpdateAcknowledgement();
-                        // Native pointer input can deliver the ToggleButton click after the property notification.
-                        // Rebind once at the settled UI priority so the command label always reflects both checked rows.
-                        acknowledgement.Click += (_, _) => Dispatcher.UIThread.Post(UpdateAcknowledgement, DispatcherPriority.Background);
+                        // Avalonia raises IsCheckedChanged before the native ToggleButton click has fully
+                        // settled on some backends. Recompute synchronously from the final click state so the
+                        // accessible label and the visible label cannot lag behind the checked rows.
+                        acknowledgement.Click += (_, _) => UpdateAcknowledgement();
                         reauthorize.Click += async (_, _) =>
                         {
                             if (!saving && coherent && approval.MayOffer(row.PluginId) && permissions is not null &&
