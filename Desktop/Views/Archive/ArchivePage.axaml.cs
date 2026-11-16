@@ -106,9 +106,10 @@ public partial class ArchivePage : UserControl
                 ArchiveMediaGrid.IsVisible = !value;
                 ArchiveMediaTiles.IsVisible = value;
                 ArchiveMediaColumnsButton.IsVisible = !value;
-                ArchiveMediaMode.Content = Texts.T(value ? "gallery.list" : "gallery.tiles");
+                SyncMediaLayoutSwitch();
                 if (position != null) RestoreMediaPosition(position);
             }
+            else SyncMediaLayoutHighlight();
         }
     }
     internal Func<bool, Task>? SaveMediaTiles { get; set; }
@@ -133,6 +134,7 @@ public partial class ArchivePage : UserControl
         InitializeFilterSurface();
         InitializeArchiveWorkView();
         InitializeArchiveMediaCounts();
+        InitializeMediaLayoutSwitch();
         InitializeReaderDisplay();
         InitializeReaderView(); AttachPostFilter(); AttachConversationView();
         AttachReaderFontZoom();
@@ -1114,6 +1116,7 @@ public partial class ArchivePage : UserControl
             if (control is TextBlock text) text.Text = Texts.T(key);
             if (control is Button button) button.Content = Texts.T(key);
         }
+        LocalizeMediaLayoutSwitch();
         LocalizeThreadFind();
         MeowChan.Desktop.Controls.HeaderBar.MakeClose(ClosePreviewButton, Texts.T("action.close"), CommandBindings.Tooltip("preview.close"));
         LocalizeUnifiedSearch();
@@ -1153,7 +1156,7 @@ public partial class ArchivePage : UserControl
         ArchiveReferencesTab.Header = ReferencesTabHeader();
         ArchivePostsTab.Header = Texts.T("archive.posts");
         ArchiveMediaTab.Header = Texts.T("archive.media");
-        ArchiveMediaMode.Content = Texts.T(_mediaTiles ? "gallery.list" : "gallery.tiles");
+        LocalizeMediaLayoutSwitch();
         ArchiveFavoritesFilter.Content = Texts.T(
             _archiveFavoritesOnly ? "archive.allMedia" : "archive.favoritesOnly");
         // Replacing translated labels clears selection synchronously; it is not a new user choice.

@@ -362,23 +362,6 @@ public partial class ArchivePage
         ReaderPositionChanged(deliberate: true);
     }
 
-    private async void OnMediaModeClick(object? sender, RoutedEventArgs e)
-    {
-        MediaPosition? position = CaptureMediaPosition();
-        _mediaTiles = !_mediaTiles;
-        ArchiveMediaGrid.IsVisible = !_mediaTiles;
-        ArchiveMediaTiles.IsVisible = _mediaTiles;
-        ArchiveMediaMode.Content = Desktop.Localization.Texts.T(_mediaTiles ? "gallery.list" : "gallery.tiles");
-        ArchiveMediaColumnsButton.IsVisible = !_mediaTiles;
-        RestoreMediaPosition(position);
-        try { if (SaveMediaTiles != null) await SaveMediaTiles(_mediaTiles); }
-        catch (Exception exception)
-        {
-            MediaTilesPreference = !_mediaTiles;
-            Message(exception.Message, true);
-        }
-    }
-
     private void OnVersionScopeChanged(object? sender, SelectionChangedEventArgs e)
     {
         if (_localizingMediaChoices || (!IsInitialized && !_largeReader)) return;

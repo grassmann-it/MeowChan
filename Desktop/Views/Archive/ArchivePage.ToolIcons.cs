@@ -11,6 +11,7 @@ public partial class ArchivePage
     internal static readonly (string Name, string Icon)[] ToolButtonIcons =
     [
         ("ArchiveLayoutList", "list"), ("ArchiveLayoutTable", "columns"),
+        ("ArchiveMediaLayoutTiles", "grid"), ("ArchiveMediaLayoutTable", "columns"),
         ("ArchiveAddSource", "plus"), ("ArchiveAddBoard", "plus"),
         ("ArchiveTagManage", "sliders"), ("ReaderTagManage", "sliders"),
         ("ArchiveUseDeviceZone", "check")

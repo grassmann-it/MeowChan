@@ -650,7 +650,10 @@
                                     <!-- WV3: one bar instead of a wrapping row; what the view does not show directly sits under More.
                                          An active favourites/rating filter or all versions stays on the bar (R6). -->
                                     <desktop:ActionToolBar x:Name="ReaderMediaTools" PrioritizedOverflow="True">
-                                        <Button x:Name="ArchiveMediaMode" wv:WorkViewElement.Id="reader.media.layout" Tag="gallery.tiles" Classes="localized" Click="OnMediaModeClick" />
+                                        <!-- 16.11.: the Tiles/Table choice is the Archive results bar's joined pair (segment classes, icon before text, the one on is highlighted),
+                                             not one button that names the other view. -->
+                                        <ToggleButton x:Name="ArchiveMediaLayoutTiles" wv:WorkViewElement.Id="reader.media.layout-tiles" Content="Tiles" Classes="segment segment-first" MinWidth="64" MinHeight="32" IsChecked="True" Click="OnMediaLayoutClick" />
+                                        <ToggleButton x:Name="ArchiveMediaLayoutTable" wv:WorkViewElement.Id="reader.media.layout-table" Content="Table" Classes="segment segment-last" MinWidth="64" MinHeight="32" Click="OnMediaLayoutClick" />
                                         <Button x:Name="ArchiveMediaColumnsButton" wv:WorkViewElement.Id="reader.media.columns" Content="Columns" Click="OnArchiveColumnsClick" IsVisible="False" />
                                         <Button x:Name="ArchiveFavoritesFilter" wv:WorkViewElement.Id="reader.media.favorites-filter" Content="Favorites only" Click="OnArchiveFavoritesFilterClick" />
                                         <ComboBox x:Name="ArchiveRatingFilter" wv:WorkViewElement.Id="reader.media.rating-filter" MinWidth="140" SelectionChanged="OnMediaRatingFilterChanged" />
