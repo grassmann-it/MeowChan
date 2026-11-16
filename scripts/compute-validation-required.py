@@ -39,7 +39,16 @@ def effective_scenario(event_name: str, scenario: str) -> str:
     return scenario
 
 
+OFFLINE_RETEST_LANES = ("lane-a", "lane-b", "lane-c", "lane-d")
+OFFLINE_RETEST_REQUIRED = ["offline_retest_guard", "record_source", "restore_release", "build_all", "process_probe", "core_tests"]
+
+
 def required_steps(event_name: str, mode: str, scenario: str, lane: str, runner_os: str, runner_arch: str) -> list[str]:
+    if mode == "offline-retest":
+        # Bounded retest: one non-macOS lane, scenario all, never GUI or packaging.
+        if lane not in OFFLINE_RETEST_LANES or runner_os == "macOS" or scenario not in ("", "all"):
+            raise ValueError(f"offline-retest rejects lane={lane} os={runner_os} scenario={scenario}")
+        return list(OFFLINE_RETEST_REQUIRED)
     scenario = effective_scenario(event_name, scenario)
     is_full = runner_os == "macOS" or lane == "lane-a"
     candidate = mode in ("prerelease-candidate", "stable-candidate")

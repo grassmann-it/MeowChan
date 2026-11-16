@@ -96,6 +96,60 @@ class DotnetDesktopWorkflowContractTests(unittest.TestCase):
         self.assertEqual("lane-d", linux["include"][-1]["lane"])
 
 
+    def retest_literals(self):
+        workflow = WORKFLOW.read_text(encoding="utf-8")
+        line = next(l for l in workflow.splitlines() if l.strip().startswith("matrix: ${{ fromJSON("))
+        head = line.split("|| (github.event_name != 'workflow_dispatch'")[0]
+        return re.findall(r"format\('([^']+)', ([^)]*)\)", head)
+
+    @staticmethod
+    def render(literal, *args):
+        text = literal.replace("{{", "{").replace("}}", "}")
+        for index, arg in enumerate(args):
+            text = text.replace("{%d}" % index, arg)
+        return json.loads(text)
+
+    def test_offline_retest_matrix_is_one_nonfull_lane_on_nonmacos(self):
+        (all_literal, all_args), (one_literal, one_args) = self.retest_literals()
+        self.assertEqual("inputs.offline_lane", all_args)
+        self.assertEqual("inputs.platform, inputs.offline_lane", one_args)
+        for lane in ("lane-a", "lane-b", "lane-c", "lane-d"):
+            include = self.render(all_literal, lane)["include"]
+            self.assertEqual(["ubuntu-24.04", "ubuntu-24.04-arm", "windows-2022"], [e["os"] for e in include])
+            self.assertTrue(all(e["lane"] == lane and e["full"] is False for e in include))
+        single = self.render(one_literal, "windows-2022", "lane-c")["include"]
+        self.assertEqual([{"os": "windows-2022", "lane": "lane-c", "full": False}], single)
+
+    def test_offline_retest_input_defaults_to_lane_c_with_four_choices(self):
+        workflow = WORKFLOW.read_text(encoding="utf-8")
+        block = workflow[workflow.index("      offline_lane:"):workflow.index("      scenario:")]
+        self.assertIn("default: lane-c", block)
+        self.assertEqual(["lane-a", "lane-b", "lane-c", "lane-d"], re.findall(r"- (lane-\w)", block))
+        self.assertIn("          - offline-retest\n", workflow)
+
+    def test_candidate_and_existing_matrix_branches_never_use_retest_lane(self):
+        workflow = WORKFLOW.read_text(encoding="utf-8")
+        line = next(l for l in workflow.splitlines() if l.strip().startswith("matrix: ${{ fromJSON("))
+        existing = line.split("|| (github.event_name != 'workflow_dispatch'", 1)[1]
+        self.assertNotIn("offline_lane", existing)
+        self.assertIn('"os":"macos-15","lane":"native","full":true', existing)
+        candidate = workflow[workflow.index("id: candidate_matrix"):]
+        candidate = candidate[:candidate.index("      - uses: actions/setup-dotnet")]
+        self.assertNotIn("offline", candidate)
+        self.assertIn('test "${{ inputs.platform }}" = all', candidate)
+
+    def test_guard_is_first_step_and_rejects_invalid_scope(self):
+        workflow = WORKFLOW.read_text(encoding="utf-8")
+        start = workflow.index("      - name: Reject offline retest outside its bounded scope")
+        self.assertLess(workflow.index("      - uses: actions/checkout@v7"), start)
+        self.assertLess(start, workflow.index("      - uses: actions/setup-dotnet@v6"))
+        guard = workflow[start:workflow.index("      - name: Require the complete current-source candidate matrix")]
+        self.assertNotIn("continue-on-error", guard)
+        self.assertIn("lane-a|lane-b|lane-c|lane-d", guard)
+        self.assertIn("macos-*", guard)
+        self.assertIn('"$RUNNER_OS" != macOS', guard)
+        self.assertIn('"$RETEST_SCENARIO" = all', guard)
+
 
 if __name__ == "__main__":
     unittest.main()

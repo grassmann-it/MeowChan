@@ -16,6 +16,7 @@ on:
         default: validate
         options:
           - validate
+          - offline-retest
           - prerelease-candidate
           - stable-candidate
           - macos-diagnose
@@ -35,6 +36,16 @@ on:
           - windows-2022
           - macos-15
           - macos-15-intel
+      offline_lane:
+        description: Lane for offline-retest only (ubuntu/windows, scenario all; no GUI, packaging or candidate work)
+        type: choice
+        required: false
+        default: lane-c
+        options:
+          - lane-a
+          - lane-b
+          - lane-c
+          - lane-d
       scenario:
         description: Native GUI scenarios (Focused gallery/GIF/media-input diagnostics; candidates require all)
         type: choice
@@ -57,15 +68,15 @@ env:
   MEOWCHAN_DISABLE_UPDATE_CHECK: '1'
 
 concurrency:
-  group: desktop-${{ github.workflow }}-${{ github.ref }}-${{ inputs.mode || 'validate' }}-${{ inputs.mode == 'validate' && inputs.platform || 'all' }}-${{ inputs.mode == 'validate' && inputs.scenario || 'all' }}
+  group: desktop-${{ github.workflow }}-${{ github.ref }}-${{ inputs.mode || 'validate' }}-${{ inputs.mode == 'validate' && inputs.platform || 'all' }}-${{ inputs.mode == 'validate' && inputs.scenario || 'all' }}-${{ inputs.mode == 'offline-retest' && inputs.offline_lane || 'none' }}
   cancel-in-progress: true
 
 jobs:
   validate:
-    if: github.event_name != 'workflow_dispatch' || inputs.mode == 'validate' || inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate'
+    if: github.event_name != 'workflow_dispatch' || inputs.mode == 'validate' || inputs.mode == 'offline-retest' || inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate'
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON((github.event_name != 'workflow_dispatch' || !inputs.platform || inputs.platform == 'all') && '{"include":[{"os":"ubuntu-24.04","lane":"lane-a","full":true},{"os":"ubuntu-24.04","lane":"lane-b","full":false},{"os":"ubuntu-24.04","lane":"lane-c","full":false},{"os":"ubuntu-24.04","lane":"lane-d","full":false},{"os":"ubuntu-24.04-arm","lane":"lane-a","full":true},{"os":"ubuntu-24.04-arm","lane":"lane-b","full":false},{"os":"ubuntu-24.04-arm","lane":"lane-c","full":false},{"os":"ubuntu-24.04-arm","lane":"lane-d","full":false},{"os":"windows-2022","lane":"lane-a","full":true},{"os":"windows-2022","lane":"lane-b","full":false},{"os":"windows-2022","lane":"lane-c","full":false},{"os":"windows-2022","lane":"lane-d","full":false},{"os":"macos-15","lane":"native","full":true},{"os":"macos-15-intel","lane":"native","full":true}]}' || (inputs.platform == 'macos-15' || inputs.platform == 'macos-15-intel') && format('{{"include":[{{"os":"{0}","lane":"native","full":true}}]}}', inputs.platform) || format('{{"include":[{{"os":"{0}","lane":"lane-a","full":true}},{{"os":"{0}","lane":"lane-b","full":false}},{{"os":"{0}","lane":"lane-c","full":false}},{{"os":"{0}","lane":"lane-d","full":false}}]}}', inputs.platform)) }}
+      matrix: ${{ fromJSON((github.event_name == 'workflow_dispatch' && inputs.mode == 'offline-retest') && ((!inputs.platform || inputs.platform == 'all') && format('{{"include":[{{"os":"ubuntu-24.04","lane":"{0}","full":false}},{{"os":"ubuntu-24.04-arm","lane":"{0}","full":false}},{{"os":"windows-2022","lane":"{0}","full":false}}]}}', inputs.offline_lane) || format('{{"include":[{{"os":"{0}","lane":"{1}","full":false}}]}}', inputs.platform, inputs.offline_lane)) || (github.event_name != 'workflow_dispatch' || !inputs.platform || inputs.platform == 'all') && '{"include":[{"os":"ubuntu-24.04","lane":"lane-a","full":true},{"os":"ubuntu-24.04","lane":"lane-b","full":false},{"os":"ubuntu-24.04","lane":"lane-c","full":false},{"os":"ubuntu-24.04","lane":"lane-d","full":false},{"os":"ubuntu-24.04-arm","lane":"lane-a","full":true},{"os":"ubuntu-24.04-arm","lane":"lane-b","full":false},{"os":"ubuntu-24.04-arm","lane":"lane-c","full":false},{"os":"ubuntu-24.04-arm","lane":"lane-d","full":false},{"os":"windows-2022","lane":"lane-a","full":true},{"os":"windows-2022","lane":"lane-b","full":false},{"os":"windows-2022","lane":"lane-c","full":false},{"os":"windows-2022","lane":"lane-d","full":false},{"os":"macos-15","lane":"native","full":true},{"os":"macos-15-intel","lane":"native","full":true}]}' || (inputs.platform == 'macos-15' || inputs.platform == 'macos-15-intel') && format('{{"include":[{{"os":"{0}","lane":"native","full":true}}]}}', inputs.platform) || format('{{"include":[{{"os":"{0}","lane":"lane-a","full":true}},{{"os":"{0}","lane":"lane-b","full":false}},{{"os":"{0}","lane":"lane-c","full":false}},{{"os":"{0}","lane":"lane-d","full":false}}]}}', inputs.platform))) }}
     runs-on: ${{ matrix.os }}
     # Existing checks, scoped native regressions and two genuine old-release replays.
     timeout-minutes: 75
@@ -74,6 +85,20 @@ jobs:
         id: checkout_source
         with:
           fetch-depth: 0 # Genuine 1.0.0/1.0.1 replay uses the exact historical tags.
+      - name: Reject offline retest outside its bounded scope
+        id: offline_retest_guard
+        # Fail closed: an invalid scope stops the job before any other work.
+        if: github.event_name == 'workflow_dispatch' && inputs.mode == 'offline-retest'
+        shell: bash
+        env:
+          RETEST_LANE: ${{ inputs.offline_lane }}
+          RETEST_PLATFORM: ${{ inputs.platform }}
+          RETEST_SCENARIO: ${{ inputs.scenario }}
+        run: |
+          case "$RETEST_LANE" in lane-a|lane-b|lane-c|lane-d) ;; *) echo "invalid offline_lane: $RETEST_LANE" >&2; exit 1;; esac
+          case "$RETEST_PLATFORM" in macos-*) echo "offline-retest does not support macOS" >&2; exit 1;; esac
+          test "$RUNNER_OS" != macOS
+          test "$RETEST_SCENARIO" = all
       - name: Require the complete current-source candidate matrix
         id: candidate_matrix
         # Keep independent checks running so one failure yields a complete evidence set.

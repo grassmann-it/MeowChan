@@ -153,5 +153,71 @@ class WorkflowConsistencyTests(unittest.TestCase):
             self.assertIn("continue-on-error: true", block.split("      - ")[0])
 
 
+def job_conditions():
+    """Return {job: if-expression} for the workflow's top-level jobs."""
+    jobs, current = {}, None
+    in_jobs = False
+    for line in WORKFLOW.read_text(encoding="utf-8").splitlines():
+        if line == "jobs:":
+            in_jobs = True
+        elif in_jobs and (m := re.match(r"^  ([a-z][\w-]*):\s*$", line)):
+            current = m.group(1)
+            jobs[current] = None
+        elif in_jobs and current and (m := re.match(r"^    if: (.*)$", line)):
+            expr = m.group(1).strip()
+            jobs[current] = expr[3:-2].strip() if expr.startswith("${{") else expr
+    return jobs
+
+
+class OfflineRetestTests(unittest.TestCase):
+    def req(self, lane="lane-c", os_="Linux", scenario="all"):
+        return compute.required_steps("workflow_dispatch", "offline-retest", scenario, lane, os_, "X64")
+
+    def test_guard_rejects_invalid_scope(self):
+        for lane in ("lane-e", "native", ""):
+            with self.assertRaises(ValueError):
+                self.req(lane=lane)
+        with self.assertRaises(ValueError):
+            self.req(os_="macOS")
+        for scenario in ("selection", "gui-only", "media-input"):
+            with self.assertRaises(ValueError):
+                self.req(scenario=scenario)
+
+    def test_required_steps_are_build_and_core_tests_only_for_every_lane(self):
+        steps = workflow_steps()
+        for lane in ("lane-a", "lane-b", "lane-c", "lane-d"):
+            for os_ in ("Linux", "Windows"):
+                required = self.req(lane=lane, os_=os_)
+                self.assertEqual(["offline_retest_guard", "record_source", "restore_release", "build_all",
+                                  "process_probe", "core_tests"], required)
+                for step in required:
+                    self.assertIn(step, steps)
+                    self.assertTrue(
+                        predicate(steps[step], "workflow_dispatch", "offline-retest", "all", False, os_, "X64"), step)
+
+    def test_only_build_and_core_test_steps_run_on_a_nonfull_lane(self):
+        expected = {"checkout_source", "offline_retest_guard", "setup_dotnet", "record_source", "dev_build",
+                    "restore_release", "retain_release_assets", "build_all", "process_probe", "core_tests",
+                    "validation_summary", "metadata"}
+        for os_ in ("Linux", "Windows"):
+            ran = {step for step, expr in workflow_steps().items()
+                   if predicate(expr, "workflow_dispatch", "offline-retest", "all", False, os_, "X64")}
+            self.assertEqual(expected, ran)
+
+    def test_mode_cannot_run_any_staging_release_or_packaging_job(self):
+        for job, expr in job_conditions().items():
+            ran = predicate(expr, "workflow_dispatch", "offline-retest", "all", False, "Linux", "X64")
+            self.assertEqual(job == "validate", ran, job)
+
+    def test_candidate_modes_keep_complete_requirements(self):
+        for mode in ("prerelease-candidate", "stable-candidate"):
+            required = compute.required_steps("workflow_dispatch", mode, "all", "lane-a", "Linux", "X64")
+            self.assertIn("candidate_matrix", required)
+            self.assertIn("smoke_normal", required)
+            self.assertNotIn("offline_retest_guard", required)
+            self.assertEqual(compute.required_steps("workflow_dispatch", mode, "all", "lane-a", "Linux", "X64"),
+                             compute.required_steps("workflow_dispatch", mode, "", "lane-a", "Linux", "X64"))
+
+
 if __name__ == "__main__":
     unittest.main()
