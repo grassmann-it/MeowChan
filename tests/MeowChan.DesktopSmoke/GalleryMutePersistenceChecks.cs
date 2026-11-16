@@ -1,3 +1,4 @@
+using Avalonia;
 using System.Diagnostics;
 using System.Reflection;
 using Avalonia.Controls;
@@ -26,7 +27,7 @@ internal static class GalleryMutePersistenceChecks
             Configure(saved.VideoStartMuted, 42);
             await WaitAsync(p => p.AudioAvailable && p.Volume == 42 && p.State == "Playing");
             if ((await SampleAsync()).Muted) await ClickMuteAsync(false, "Playing");
-            await native.ClickAsync(Named<Button>("GalleryVideoPlayPause"));
+            await native.ClickAsync(() => NativeTargetAsync<Button>("GalleryVideoPlayPause"));
             await WaitAsync(p => p.State == "Paused");
             await ClickMuteAsync(true, "Paused");
             viewer!.ConfigurePlayback(new GalleryPlaybackPreferences { VideoRepeat = true });
@@ -66,13 +67,14 @@ internal static class GalleryMutePersistenceChecks
             await HoldAsync(false, "Playing");
 
             // Existing explicit user-volume unmute behavior, via actual Up/Down input.
-            await native.ClickAsync(Named<Button>("GalleryVideoPlayPause"));
+            await native.ClickAsync(() => NativeTargetAsync<Button>("GalleryVideoPlayPause"));
             await WaitAsync(p => p.State == "Paused");
             foreach (var (key, expectedVolume) in new[] { (MediaNativeInput.Up, 43), (MediaNativeInput.Down, 42) })
             {
                 await ClickMuteAsync(true, "Paused");
-                await native.ClickAsync(Named<Slider>("GalleryVideoSeek"),
-                    await MediaInteractionSmokeHelpers.TrackPointAsync(Named<Slider>("GalleryVideoSeek"), .20));
+                await native.ClickAsync(
+                    () => NativeTargetAsync<Slider>("GalleryVideoSeek"),
+                    current => Task.FromResult((Point?)MediaInteractionSmokeHelpers.TrackPoint(current, .20)));
                 await native.KeyAsync(key);
                 await WaitAsync(p => !p.Muted && p.Volume == expectedVolume && p.State == "Paused");
                 await HoldAsync(false, "Paused");
@@ -96,6 +98,22 @@ internal static class GalleryMutePersistenceChecks
         }
 
         T Named<T>(string name) where T : Control => viewer!.GetGalleryVisualDescendants().OfType<T>().Single(c => c.Name == name);
+        async Task<T> NativeTargetAsync<T>(string name) where T : Control
+        {
+            T? target = null;
+            await Program.WaitUntilAsync(() =>
+            {
+                try
+                {
+                    T[] matches = viewer!.GetGalleryVisualDescendants().OfType<T>().Where(c => c.Name == name).ToArray();
+                    if (matches.Length != 1) { target = null; return false; }
+                    target = matches[0];
+                    return MediaInteractionSmokeHelpers.IsPointerTargetReady(target);
+                }
+                catch (ArgumentException) { target = null; return false; }
+            }, () => "The " + name + " control did not settle as a native target.");
+            return target!;
+        }
         GalleryVideoPlayer Player() => viewer!.GetGalleryVisualDescendants().OfType<GalleryVideoPlayer>().Single();
         Task<GalleryVideoPlayer.PlaybackEvidence> SampleAsync() => Player().InspectPlaybackAsync().WaitAsync(TimeSpan.FromSeconds(4));
         void Configure(bool startMuted, int volume) => viewer!.Configure(false, true, true, startMuted, volume);
@@ -112,7 +130,7 @@ internal static class GalleryMutePersistenceChecks
         }
         async Task CloseAsync()
         {
-            await native.ClickAsync(Named<Button>("GalleryClose"));
+            await native.ClickAsync(() => NativeTargetAsync<Button>("GalleryClose"));
             await Program.WaitUntilAsync(() => !window.FindControl<ContentControl>("GalleryHost")!.IsVisible);
             await window.GalleryCleanupTask.WaitAsync(TimeSpan.FromSeconds(8));
             viewer = null;
@@ -136,7 +154,7 @@ internal static class GalleryMutePersistenceChecks
                 Named<Slider>("GalleryVideoVolume").Value = volume;
                 Require(Named<ToggleButton>("GalleryVideoMute").IsChecked == false,
                     "Explicit positive volume did not accept unmute intent synchronously.");
-                await native.ClickAsync(Named<ToggleButton>("GalleryVideoMute"));
+                await native.ClickAsync(() => NativeTargetAsync<ToggleButton>("GalleryVideoMute"));
                 Require(Named<ToggleButton>("GalleryVideoMute").IsChecked == true,
                     "Mute intent was not accepted before blocked native work.");
                 if (!navigateWhilePending)
@@ -179,7 +197,7 @@ internal static class GalleryMutePersistenceChecks
         }
         async Task ClickMuteAsync(bool muted, string state)
         {
-            await native.ClickAsync(Named<ToggleButton>("GalleryVideoMute"));
+            await native.ClickAsync(() => NativeTargetAsync<ToggleButton>("GalleryVideoMute"));
             await WaitAsync(p => p.AudioAvailable && p.Muted == muted && p.State == state);
         }
         async Task WaitAsync(Func<GalleryVideoPlayer.PlaybackEvidence, bool> condition)

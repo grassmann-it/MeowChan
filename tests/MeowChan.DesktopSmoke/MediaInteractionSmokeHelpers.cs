@@ -119,14 +119,21 @@ internal static class MediaInteractionSmokeHelpers
 
     internal static async Task<Point> TrackPointAsync(Slider slider, double fraction)
     {
+        const int maxAttempts = 24;
         for (int attempt = 0; ; attempt++)
         {
-            try { return TrackPoint(slider, fraction); }
-            catch (ArgumentException) when (attempt < 20)
+            try
             {
-                // The retained PART_Track can cross native presentation roots in the
-                // same turn as its slider. Retry the coordinate conversion, never
-                // replace it with a routed/synthetic input point.
+                // TrackPoint and its slider must remain one attached presentation. A
+                // transfer can detach the retained PART_Track between TranslatePoint
+                // and native input; let the caller's current-target transaction resolve
+                // a new slider instead of pairing this point with another instance.
+                if (!slider.IsAttachedToVisualTree() || !slider.IsArrangeValid)
+                    throw new ArgumentException("Slider presentation changed during native coordinate conversion.", nameof(slider));
+                return TrackPoint(slider, fraction);
+            }
+            catch (ArgumentException) when (attempt < maxAttempts - 1)
+            {
                 await Task.Delay(25);
             }
         }

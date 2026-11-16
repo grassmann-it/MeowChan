@@ -147,7 +147,7 @@ internal static class MediaInteractionChecks
                 await FreshVideoAsync();
                 Slider seek = Seek();
                 await SeekClickAsync(.20);
-                await native.MoveAsync(await NativeTargetAsync<Button>("GalleryVideoPlayPause")); // move only; do not steal keyboard focus
+                await native.MoveAsync(() => NativeTargetAsync<Button>("GalleryVideoPlayPause")); // move only; do not steal keyboard focus
                 Require(!seek.IsPointerOver && seek.IsKeyboardFocusWithin, "Pointer-away repro lost actual timeline focus.");
                 await ProgressAsync("focus-remains-with-pointer-away");
                 await CheckVolumeAndPanelsAsync("Playing");
@@ -155,7 +155,7 @@ internal static class MediaInteractionChecks
             await StageAsync("paused-drag-key", async () =>
             {
                 await FreshVideoAsync();
-                await native.ClickAsync(await NativeTargetAsync<Button>("GalleryVideoPlayPause"));
+                await native.ClickAsync(() => NativeTargetAsync<Button>("GalleryVideoPlayPause"));
                 await WaitPlaybackAsync(p => p.State == "Paused");
                 await SeekClickAsync(.25);
                 await DragAsync(.45, release: true);
@@ -518,7 +518,9 @@ internal static class MediaInteractionChecks
         async Task SeekClickAsync(double fraction)
         {
             Record("inject", new { action = "native-track-click", fraction });
-            await native!.ClickAsync(Seek(), await TrackPointAsync(fraction));
+            await native!.ClickAsync(
+                () => NativeTargetAsync<Slider>("GalleryVideoSeek"),
+                current => Task.FromResult((Point?)MediaInteractionSmokeHelpers.TrackPoint(current, fraction)));
             Require(Seek().IsKeyboardFocusWithin, "Native timeline click did not acquire focus.");
             await WaitPlaybackAsync(p => Math.Abs(p.Time - fraction * p.Length) < 1000);
         }
@@ -712,7 +714,9 @@ internal static class MediaInteractionChecks
             else
             {
                 // Actual volume pointer focus must yield media navigation on exactly one key.
-                await native.ClickAsync(volume, await VolumeTrackPointAsync(volume, .60));
+                await native.ClickAsync(
+                    () => Task.FromResult(Named<Slider>("GalleryVideoVolume")),
+                    async current => (Point?)await VolumeTrackPointAsync(current, .60));
             }
             await native.KeyAsync(MediaNativeInput.Right);
             await Program.WaitUntilAsync(() => viewer!.CaptureState().PostId == "2001");
@@ -724,7 +728,7 @@ internal static class MediaInteractionChecks
             await ReadyAsync();
             if (expected == "Paused")
             {
-                await native.ClickAsync(await NativeTargetAsync<Button>("GalleryVideoPlayPause"));
+                await native.ClickAsync(() => NativeTargetAsync<Button>("GalleryVideoPlayPause"));
                 await WaitPlaybackAsync(p => p.State == "Paused");
             }
         }

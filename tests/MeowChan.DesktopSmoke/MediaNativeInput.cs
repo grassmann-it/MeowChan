@@ -47,7 +47,39 @@ internal sealed class MediaNativeInput : IDisposable
         catch { XCloseDisplay(_display); throw; }
     }
 
-    internal async Task MoveAsync(Control target, Point? point = null)
+    private const int MaxTargetAttempts = 24;
+    private static readonly TimeSpan TargetRetryDelay = TimeSpan.FromMilliseconds(25);
+
+    internal Task MoveAsync(Control target, Point? point = null) =>
+        MoveAsync(() => Task.FromResult(target), _ => Task.FromResult(point));
+
+    /// <summary>
+    /// Moves to a current visual-tree target. The resolver is deliberately part of the
+    /// native operation: GalleryControlTransfer may retire the returned control after a
+    /// readiness probe, so retrying PointToScreen on that same instance is not safe.
+    /// </summary>
+    internal async Task MoveAsync<T>(Func<Task<T>> resolveTarget, Func<T, Task<Point?>>? resolvePoint = null)
+        where T : Control
+    {
+        for (int attempt = 0; ; attempt++)
+        {
+            try
+            {
+                T target = await resolveTarget();
+                await MoveOnceAsync(target, resolvePoint == null ? null : await resolvePoint(target));
+                return;
+            }
+            catch (ArgumentException) when (attempt < MaxTargetAttempts - 1)
+            {
+                // Re-resolve the control on the next dispatcher turn. A cross-root
+                // conversion failure means this instance is stale, not that a routed
+                // or synthetic event should be substituted.
+                await Task.Delay(TargetRetryDelay);
+            }
+        }
+    }
+
+    private async Task MoveOnceAsync(Control target, Point? point)
     {
         // The gallery volume opens above the speaker when it is pointed at (plan V1): point there first, as a person does.
         if (!target.IsEffectivelyVisible && target.Name == "GalleryVideoVolume"
@@ -59,24 +91,7 @@ internal sealed class MediaNativeInput : IDisposable
         }
         if (!target.IsEffectivelyVisible || target.Bounds.Width <= 0 || target.Bounds.Height <= 0)
             throw new InvalidOperationException("Native pointer target is not laid out/visible: " + target.Name);
-        PixelPoint pixel;
-        for (int attempt = 0; ; attempt++)
-        {
-            try
-            {
-                pixel = target.PointToScreen(point ?? new Point(target.Bounds.Width / 2, target.Bounds.Height / 2));
-                break;
-            }
-            catch (ArgumentException) when (attempt < 20)
-            {
-                // GalleryControlTransfer can retire and reattach the same native
-                // transport between the readiness probe and this OS coordinate
-                // conversion. Wait for that presentation-root transaction instead of
-                // sending input through a stale transform; the caller's hit-test probe
-                // remains the assertion that admits the target.
-                await Task.Delay(25);
-            }
-        }
+        PixelPoint pixel = target.PointToScreen(point ?? new Point(target.Bounds.Width / 2, target.Bounds.Height / 2));
         if (_display == 0)
         {
             EnsureOwnActiveWindow();
@@ -103,19 +118,55 @@ internal sealed class MediaNativeInput : IDisposable
         Flush(); await Task.Delay(70);
     }
 
-    internal async Task ClickAsync(Control target, Point? point = null)
+    internal Task ClickAsync(Control target, Point? point = null) =>
+        ClickAsync(() => Task.FromResult(target), _ => Task.FromResult(point));
+
+    /// <summary>Clicks a freshly resolved target; coordinate conversion and native delivery are one bounded operation.</summary>
+    internal async Task ClickAsync<T>(Func<Task<T>> resolveTarget, Func<T, Task<Point?>>? resolvePoint = null)
+        where T : Control
     {
-        if (!target.IsEffectivelyEnabled) throw new InvalidOperationException("Native click target is disabled: " + target.Name);
-        await MoveAsync(target, point);
-        await ButtonAsync(true); await ButtonAsync(false);
+        for (int attempt = 0; ; attempt++)
+        {
+            try
+            {
+                T target = await resolveTarget();
+                if (!target.IsEffectivelyEnabled) throw new InvalidOperationException("Native click target is disabled: " + target.Name);
+                await MoveOnceAsync(target, resolvePoint == null ? null : await resolvePoint(target));
+                await ButtonAsync(true); await ButtonAsync(false);
+                return;
+            }
+            catch (ArgumentException) when (attempt < MaxTargetAttempts - 1)
+            {
+                // The target may have crossed presentation roots between readiness,
+                // PointToScreen and the OS call. Retry the complete current-target
+                // transaction; never reuse its stale coordinate or synthesize input.
+                await Task.Delay(TargetRetryDelay);
+            }
+        }
     }
 
-    internal async Task RightClickAsync(Control target, Point? point = null)
+    internal Task RightClickAsync(Control target, Point? point = null) =>
+        RightClickAsync(() => Task.FromResult(target), _ => Task.FromResult(point));
+
+    private async Task RightClickAsync<T>(Func<Task<T>> resolveTarget, Func<T, Task<Point?>>? resolvePoint = null)
+        where T : Control
     {
-        if (!target.IsEffectivelyEnabled) throw new InvalidOperationException("Native click target is disabled: " + target.Name);
-        await MoveAsync(target, point);
-        try { await ButtonAsync(3, true); }
-        finally { if (_heldButton == 3) await ButtonAsync(3, false); }
+        for (int attempt = 0; ; attempt++)
+        {
+            try
+            {
+                T target = await resolveTarget();
+                if (!target.IsEffectivelyEnabled) throw new InvalidOperationException("Native click target is disabled: " + target.Name);
+                await MoveOnceAsync(target, resolvePoint == null ? null : await resolvePoint(target));
+                try { await ButtonAsync(3, true); }
+                finally { if (_heldButton == 3) await ButtonAsync(3, false); }
+                return;
+            }
+            catch (ArgumentException) when (attempt < MaxTargetAttempts - 1)
+            {
+                await Task.Delay(TargetRetryDelay);
+            }
+        }
     }
 
     internal Task ButtonAsync(bool down) => ButtonAsync(1, down);
