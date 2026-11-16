@@ -91,6 +91,11 @@ public sealed class ArchiveListAuditTests
 
     [Fact]
     public void ARightClickOnARowsThumbnailOrStarBelongsToTheRowButTextFieldsHeadersAndScrollBarsKeepTheirOwn()
+    // The star registers with ShortcutService and is owned by the creating thread: on an owned dispatcher its registration is dropped
+    // afterwards, so a later host publishing the shortcut snapshot never refreshes a control another thread owns.
+    {
+        int observersBefore = MeowChan.Desktop.Commands.ShortcutService.ObserverCount;
+        BooruComponentDispatcher.Run(() =>
     {
         DataGrid table = new();
         ListBox list = new();
@@ -105,6 +110,8 @@ public sealed class ArchiveListAuditTests
         Assert.False(ArchivePage.IsRowButtonPath(new object[] { new Button(), new DataGridColumnHeader(), table }, table));
         Assert.False(ArchivePage.IsRowButtonPath(new object[] { new Button(), new ScrollBar(), new DataGridRow(), table }, table));
         Assert.False(ArchivePage.IsRowButtonPath(new object[] { new Button(), new TextBox(), new DataGridRow(), table }, table));
+    });
+        Assert.Equal(observersBefore, MeowChan.Desktop.Commands.ShortcutService.ObserverCount);
     }
 
     [Fact]
