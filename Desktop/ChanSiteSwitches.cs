@@ -14,7 +14,9 @@ namespace MeowChan.Desktop;
 /// profile. A site is used only while its family plugin (the master switch) and its own switch are both on. A site
 /// nobody chose keeps <see cref="ChanSourceFamilies.DefaultEnabled"/>. The first start after the single-site plugins
 /// were replaced takes each site's state over from its old plugin's enabled state, once per old plugin.
-/// A file that exists but cannot be used keeps the defaults in force, is reported, and is never overwritten.
+/// A file that exists but cannot be used is reported and never overwritten; while it is unusable no family site is
+/// used at all (not even one that is on by default), because the user's choices are unknown then: falling back to
+/// the defaults would silently turn on a default-on site the user had turned off.
 /// </summary>
 internal sealed class ChanSiteSwitches
 {
@@ -38,16 +40,20 @@ internal sealed class ChanSiteSwitches
         _logger = logger ?? Serilog.Core.Logger.None;
     }
 
-    /// <summary>True when the stored file exists but cannot be read; switches then keep their defaults and cannot change.</summary>
+    /// <summary>True when the stored file exists but cannot be read; every family site is then off and no switch can change.</summary>
     internal bool IsUnreadable { get; private set; }
 
-    /// <summary>The site's own state. Sources of other plugins have no site switch and are always on here.</summary>
+    /// <summary>
+    /// The site's own state. Sources of other plugins have no site switch and are always on here. With an unusable
+    /// file every family site is off (fail safe): the stored choices are unknown, so no default may turn a site on.
+    /// </summary>
     internal bool IsEnabled(string pluginId, string sourceId)
     {
         if (!ChanSourceFamilies.IsFamily(pluginId)) return true;
         lock (_sync)
         {
             Load();
+            if (IsUnreadable) return false;
             return _enabled.TryGetValue(sourceId, out bool enabled) ? enabled : ChanSourceFamilies.DefaultEnabled(pluginId, sourceId);
         }
     }
@@ -130,7 +136,7 @@ internal sealed class ChanSiteSwitches
             IsUnreadable = true;
             _enabled.Clear();
             _migrated.Clear();
-            _logger.Warning(exception, "The chan site switches in {File} cannot be used; every site keeps its default and no switch can change until the file is fixed or removed", FileName);
+            _logger.Warning(exception, "The chan site switches in {File} cannot be used; no site of a chan family plugin is used and no switch can change until the file is fixed or removed", FileName);
         }
     }
 
