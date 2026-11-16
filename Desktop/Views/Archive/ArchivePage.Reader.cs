@@ -219,6 +219,7 @@ public partial class ArchivePage
     }
     private void InitializeReaderInteraction()
     {
+        InitializeReaderThreadKeys();
         foreach (Control media in new Control[] { ArchiveMediaTiles, ArchiveMediaGrid })
         {
             CommandBindings.BindExisting(media, "media.open");

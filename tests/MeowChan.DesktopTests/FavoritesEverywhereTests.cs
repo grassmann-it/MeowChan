@@ -81,17 +81,39 @@ public sealed class FavoritesEverywhereTests : IDisposable
         Assert.Null(MediaPage.FavoriteKeyState(Row(Entry(), MediaLibraryFlag.No, new MediaLibraryTile(Entry(), [Entry(), second]))));
     }
 
-    [Fact]
-    public void TheStarTooltipNamesTheToggleAndTheAddAndRemoveKeysFromTheBindings()
+    [Theory, MemberData(nameof(Platforms))]
+    public void TheStarTooltipIsOneLineWithExactlyTheKeysThatDoWhatTheClickDoesInTheReader(ShortcutPlatform platform)
     {
-        string tip = FavoriteKeys.Tooltip(false);
-        string[] lines = tip.Split('\n');
-        Assert.Equal(2, lines.Length);
-        Assert.StartsWith(Texts.T("viewer.favorite.add"), lines[0]);
-        Assert.Contains(CommandCatalog.ShortcutDisplay("favorites.toggle")!, lines[0]);
-        Assert.Contains(CommandBindings.TooltipHeadline("favorites.add"), lines[1]);
-        Assert.Contains(CommandBindings.TooltipHeadline("favorites.remove"), lines[1]);
-        Assert.StartsWith(Texts.T("viewer.favorite.remove"), FavoriteKeys.Tooltip(true));
+        // Tom's screenshot (16.11.): the Media tab tile's star said "Add to favorites · F" and, on a second line, "Add favorite · M / B · Remove favorite · U".
+        // F, M and B do act on that tile (the reader's keys, TryRouteFavoriteKey); U does nothing on a medium that is no favourite. One line, effective keys only.
+        EffectiveShortcutBindings bindings = EffectiveShortcutBindings.Build(null, platform);
+        string[] add = FavoriteKeys.EffectiveKeys(FavoriteKeys.AddId, "reader", bindings).ToArray();
+        string[] toggle = FavoriteKeys.EffectiveKeys(FavoriteKeys.ToggleId, "reader", bindings).ToArray();
+        string[] remove = FavoriteKeys.EffectiveKeys(FavoriteKeys.RemoveId, "reader", bindings).ToArray();
+        Assert.Equal(new[] { "F" }, toggle);
+        Assert.Equal(new[] { "M", "B" }, add);
+        Assert.Equal(new[] { "U" }, remove);
+        // Every named key really acts in the reader's context, as the action the tooltip implies.
+        foreach ((string[] keys, FavoriteKeyAction action) in new[] { (toggle, FavoriteKeyAction.Toggle), (add, FavoriteKeyAction.Add), (remove, FavoriteKeyAction.Remove) })
+            foreach (string key in keys)
+                Assert.Equal(action, FavoriteKeys.Classify(id => bindings.Matches(new KeyEventArgs { Key = Enum.Parse<Key>(key), KeyModifiers = KeyModifiers.None }, id, "reader")));
+    }
+
+    [Fact]
+    public void TheStarTooltipNamesTheClickThenItsKeysOnOneLine()
+    {
+        string unmarked = FavoriteKeys.Tooltip(false, "reader");
+        Assert.DoesNotContain("\n", unmarked);
+        Assert.Equal(Texts.T("viewer.favorite.add") + " · " + string.Join(" / ", FavoriteKeys.EffectiveKeys(FavoriteKeys.ToggleId, "reader")
+            .Concat(FavoriteKeys.EffectiveKeys(FavoriteKeys.AddId, "reader")).Distinct()), unmarked);
+        string marked = FavoriteKeys.Tooltip(true, "reader");
+        Assert.Equal(Texts.T("viewer.favorite.remove") + " · " + string.Join(" / ", FavoriteKeys.EffectiveKeys(FavoriteKeys.ToggleId, "reader")
+            .Concat(FavoriteKeys.EffectiveKeys(FavoriteKeys.RemoveId, "reader")).Distinct()), marked);
+        Assert.DoesNotContain("\n", marked);
+        // The star has one tooltip source: a rebinding re-runs its own Refresh, never the catalog's "Add / remove favorite · F".
+        string button = Source("Desktop/ArchiveFavoriteButton.cs");
+        Assert.Contains("CommandBindings.ObservePresentation(this, Refresh);", button);
+        Assert.Contains("FavoriteKeys.Tooltip(marked, KeyContext)", button);
         Texts.SetLanguage("de");
         Assert.StartsWith("Aus Favoriten entfernen", FavoriteKeys.Tooltip(true));
     }
@@ -141,7 +163,7 @@ public sealed class FavoritesEverywhereTests : IDisposable
     {
         // Source contract: the interactive stars all run the shared favourite call; the badges on pictures and small tiles stay decorative.
         string button = Source("Desktop/ArchiveFavoriteButton.cs");
-        Assert.Contains("FavoriteKeys.Tooltip(marked)", button);
+        Assert.Contains("FavoriteKeys.Tooltip(marked, KeyContext)", button);
         Assert.Contains("internal void Configure(ArchiveAttachmentRow? row)", button);
         Assert.Contains("_favorite.Configure(row);", Source("Desktop/ArchiveAttachmentView.cs"));          // the reader post's file line
         Assert.Contains("_favorite.Configure(row);", Source("Desktop/ArchiveMediaTileView.cs"));           // the archive's media tiles

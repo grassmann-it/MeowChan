@@ -193,7 +193,7 @@ public sealed class MouseKeyboardQuickWinsTests : IDisposable
         Assert.Contains("archive.command.noSource", archive);
         // The click calls the folder action itself: no ContextMenu is built (and left undisposed) to look the entry up in.
         Assert.Contains("TryShowMediaInFolder(asset.Asset)", archive);
-        Assert.Contains("TryShowMediaInFolder(target?.Asset)", Read("Desktop/Views/Archive/ArchivePage.MediaCommands.cs")); // the menu entry runs the same one
+        Assert.Contains("TryShowMediaInFolder(target!.Asset)", Read("Desktop/Views/Archive/ArchivePage.MediaCommands.cs")); // the menu entry runs the same one
         Assert.DoesNotContain("BuildArchiveMediaMenu", archive);
         Assert.DoesNotContain("ContextMenu", archive);
         // Media page tiles: the same entry as the menu and its shortcut, for the clicked tile, without touching the selection.
