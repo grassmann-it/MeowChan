@@ -1,7 +1,9 @@
+using System.Diagnostics;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Threading;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Interfaces;
 using MeowChan.Persistence;
 
@@ -22,21 +24,30 @@ internal static class TrayLifecycleChecks
         {
             for (int iteration = 0; iteration < 16; iteration++)
             {
+                Stopwatch phase = Stopwatch.StartNew();
+                Console.WriteLine($"SMOKE tray cycle {iteration + 1}/16 begin; shortcut observers={CommandBindings.ObserverCount}.");
                 DesktopSessionHost host = new(profile, Array.Empty<IImageBoard>());
+                Console.WriteLine($"SMOKE tray cycle {iteration + 1}/16 host construction={phase.Elapsed.TotalMilliseconds:F1}ms.");
+                phase.Restart();
                 MainWindow window = new MainWindow(host);
+                Console.WriteLine($"SMOKE tray cycle {iteration + 1}/16 window construction={phase.Elapsed.TotalMilliseconds:F1}ms; shortcut observers={CommandBindings.ObserverCount}.");
                 bool closed = false;
                 window.Closed += (_, _) => closed = true;
                 Exception? failureBeforeCleanup = null;
                 try
                 {
+                    phase.Restart();
                     window.Show(owner);
                     await Program.WaitUntilAsync(() => window.FindControl<Button>("AddUrlButton")!.IsEnabled);
+                    Console.WriteLine($"SMOKE tray cycle {iteration + 1}/16 show-to-ready={phase.Elapsed.TotalMilliseconds:F1}ms.");
                     if (trayIcons > 0 && TrayIcon.GetIcons(Application.Current!)?.Count != trayIcons + 1)
                         throw new InvalidOperationException("A rapid window did not attach its native tray icon.");
                     // Close as soon as restoration permits, without waiting for DBus registration to settle.
+                    phase.Restart();
                     window.Close();
                     // Hide is only the start of bounded shutdown; Closed follows drain, lease release and tray disposal.
                     await Program.WaitUntilAsync(() => closed);
+                    Console.WriteLine($"SMOKE tray cycle {iteration + 1}/16 close-to-closed={phase.Elapsed.TotalMilliseconds:F1}ms; shortcut observers={CommandBindings.ObserverCount}.");
                     if (!host.IsProfileReleased || host.State != DesktopSessionState.Stopped)
                         throw new InvalidOperationException("Rapid close completed before releasing its session owner.");
                     if ((TrayIcon.GetIcons(Application.Current!)?.Count ?? 0) != trayIcons)
