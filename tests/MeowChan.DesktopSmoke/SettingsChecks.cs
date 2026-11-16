@@ -44,8 +44,8 @@ internal static class SettingsChecks
     private static async Task CheckGalleryPlaybackDraftAsync(MainWindow owner, string profile)
     {
         Config config = Config.LoadConfig(profile);
-        Require(!config.GalleryOverlayControls && !config.GalleryAutoHideControls,
-            "A fresh profile must retain the coherent docked/auto-hide-OFF default.");
+        Require(config.GalleryOverlayControls && config.GalleryAutoHideControls,
+            "A fresh profile must use the paired overlay/auto-hide-ON default.");
         config.VideoVolume = 70;
         config.SaveConfig(profile);
         int commits = 0;
@@ -190,8 +190,8 @@ internal static class SettingsChecks
                 "Saving/reopening the migrated controls pair changed its effective choice.");
         }
         Config defaults = Config.LoadConfig(Path.Combine(profile, "defaults"));
-        Require(!defaults.GalleryOverlayControls && !defaults.GalleryAutoHideControls,
-            "A fresh profile no longer defaults to paired OFF/docked controls.");
+        Require(defaults.GalleryOverlayControls && defaults.GalleryAutoHideControls,
+            "A fresh profile no longer defaults to paired overlay/auto-hide ON.");
     }
 
     private static async Task CheckGalleryVolumeMergeAsync(MainWindow owner, string profile)
