@@ -240,10 +240,26 @@ public sealed partial class PluginProfileStoreTests
         Assert.Equal(next.Proof.ExecutionRevision, Active(state).ExecutionRevision);
         Assert.Equal(next.Proof.ExecutionRevision, binding.GetProperty("targetExecutionRevision").GetString());
         Assert.True(!binding.TryGetProperty("reauthorizedPermissionFingerprint", out var stored) || stored.ValueKind == JsonValueKind.Null);
+        byte[] grants = SdkJson.Serialize(state.Grants);
+        // Decision #130: an ordinary in-place rebuild of the established 1.1.0 build (same folder, SDK version
+        // strictly equal, identical declaration) carries the rights over. This is not a second use of the SDK bridge.
         var rebuild = await SdkDelivery("sdk-binding-target", "D", "1.1.0");
         state = await store.ApplyBundledStartupAsync([rebuild.Candidate], [rebuild.Proof], ["shared"], state.Revision);
+        Assert.Equal(rebuild.Proof.ExecutionRevision, Active(state).ExecutionRevision);
+        Assert.Null(state.Plugins[0].AutomaticSdkTransition);
+        Assert.Equal(grants, SdkJson.Serialize(state.Grants));
+        binding = await StoredSdkBinding(store);
+        Assert.Equal(rebuild.Proof.ExecutionRevision, binding.GetProperty("targetExecutionRevision").GetString());
+        Assert.True(!binding.TryGetProperty("reauthorizedPermissionFingerprint", out stored) || stored.ValueKind == JsonValueKind.Null);
+        Assert.Empty((await store.PreviewBundledRepairsAsync()).Rows);
+        // Any further SDK version change is never automatic: the bridge is used up and the in-place rule needs an equal SDK.
+        var reverse = await SdkDelivery("sdk-binding-target", "E", "1.0.0");
+        state = await store.ApplyBundledStartupAsync([reverse.Candidate], [reverse.Proof], ["shared"], state.Revision);
         Assert.Null(state.Plugins[0].Active);
-        Assert.Equal("inherited-grants", Assert.Single((await store.PreviewBundledRepairsAsync()).Rows).BlockedReason);
+        Assert.Equal(grants, SdkJson.Serialize(state.Grants));
+        var blocked = Assert.Single((await store.PreviewBundledRepairsAsync()).Rows);
+        Assert.False(blocked.CanConfirm);
+        Assert.False(blocked.CanReauthorize);
     }
     [Fact]
     public async Task TwentyThreeLegacyCandidatesRecoverAfterUnprovenStartupWithoutChangingRights()
