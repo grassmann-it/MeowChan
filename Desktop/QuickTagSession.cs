@@ -187,7 +187,11 @@ internal enum QuickTagStatusKind
     /// <summary>The stamp is empty or the target already carries all of it: nothing was written.</summary>
     StampEmpty, StampComplete,
     StampAdded, StampRemoved,
-    /// <summary>One entry added several tags, or a name an alias mapped: <see cref="QuickTagStatus.Name"/> lists them (TagEntryParser.Describe).</summary>
+    /// <summary>
+    /// One entry added several tags, or a name an alias mapped, or named tags the target already had: <see cref="QuickTagStatus.Name"/> lists
+    /// the added ones (TagEntryParser.Describe: "(from x)" for a mapped name, "(new)" for a created tag) and <see cref="QuickTagStatus.Detail"/>
+    /// the ones that were there already.
+    /// </summary>
     AddedSeveral,
     /// <summary>A tag was refused because the stamp holds its most (<see cref="QuickTagStatus.Files"/> = the limit).</summary>
     StampFull
@@ -226,7 +230,8 @@ internal sealed record QuickTagStampResult(QuickTagStampOutcome Outcome, int Giv
 /// <summary>
 /// The status line: the last change (polite), its undo, or a refused write (assertive, kept until the next successful change).
 /// </summary>
-internal sealed record QuickTagStatus(QuickTagStatusKind Kind, string Name = "", int Files = 0, string? MessageKey = null, string? Medium = null)
+internal sealed record QuickTagStatus(QuickTagStatusKind Kind, string Name = "", int Files = 0, string? MessageKey = null, string? Medium = null,
+    string? Detail = null)
 {
     internal static readonly QuickTagStatus None = new(QuickTagStatusKind.None);
     internal bool IsError => Kind is QuickTagStatusKind.Error or QuickTagStatusKind.Unavailable or QuickTagStatusKind.StampFull;
@@ -238,7 +243,8 @@ internal sealed record QuickTagStatus(QuickTagStatusKind Kind, string Name = "",
         // An undo that reached a step of another medium (the gallery panel moved on) names that medium.
         QuickTagStatusKind.UndoneAdd => Medium == null ? Texts.T("tags.quick.status.undoneAdd", Name) : Texts.T("tags.quick.status.undoneAddOn", Name, Medium),
         QuickTagStatusKind.UndoneRemove => Medium == null ? Texts.T("tags.quick.status.undoneRemove", Name) : Texts.T("tags.quick.status.undoneRemoveOn", Name, Medium),
-        QuickTagStatusKind.Error => Texts.T(MessageKey ?? "tags.error.other"),
+        // A refused entry that had already written some of its tags adds what stayed (Detail).
+        QuickTagStatusKind.Error => string.IsNullOrEmpty(Detail) ? Texts.T(MessageKey ?? "tags.error.other") : Texts.T(MessageKey ?? "tags.error.other") + " " + Detail,
         QuickTagStatusKind.Unavailable => Texts.T("tags.unavailable"),
         QuickTagStatusKind.StampApplied => Texts.T("tags.quick.stamp.applied", Name),
         QuickTagStatusKind.StampEmpty => Texts.T("tags.quick.stamp.emptyStatus"),
@@ -246,7 +252,9 @@ internal sealed record QuickTagStatus(QuickTagStatusKind Kind, string Name = "",
         QuickTagStatusKind.StampAdded => Texts.T("tags.quick.stamp.added", Name),
         QuickTagStatusKind.StampRemoved => Texts.T("tags.quick.stamp.removed", Name),
         QuickTagStatusKind.StampFull => Texts.T("tags.quick.stamp.full", Files),
-        QuickTagStatusKind.AddedSeveral => Texts.T("tags.entry.added", Name),
+        // "Added: piss (from pee), cute (new) · Already there: anal": the names the entry gave and the ones the target carried.
+        QuickTagStatusKind.AddedSeveral => string.Join(" · ", new[] { Name.Length > 0 ? Texts.T("tags.entry.added", Name) : null, Detail }
+            .Where(part => !string.IsNullOrEmpty(part))),
         _ => string.Empty
     };
 }
@@ -268,6 +276,8 @@ internal sealed class QuickTagSession : IDisposable
     private readonly System.Runtime.CompilerServices.ConditionalWeakTable<TagDialogChange, StepOrigin> _origins = new();
     private IQuickTagTarget _target;
     private bool _running;
+    // True while the writes of one entry are made: they are joined into one undo step afterwards and meanwhile do not trim the stack.
+    private bool _joining;
     private bool _disposed;
     private int _appliedCount;
 
@@ -349,7 +359,8 @@ internal sealed class QuickTagSession : IDisposable
 
     /// <summary>
     /// Create-or-get by name and give it to the target (Enter, comma, a "new" suggestion). The text may name several tags
-    /// (<see cref="TagEntryParser"/>: spaces, quotes, commas), each resolved through the alias table; see <see cref="AddEntryAsync"/>.
+    /// (<see cref="TagEntryParser"/>: spaces, quotes, commas, semicolons, line breaks), each resolved through the alias table;
+    /// see <see cref="AddEntryAsync"/>.
     /// </summary>
     internal Task AddAsync(string? name, CancellationToken token = default)
     {
@@ -361,37 +372,76 @@ internal sealed class QuickTagSession : IDisposable
     }
 
     /// <summary>
-    /// Adds the tags of one parsed entry: one write per tag, each its own undo step (like the stamp), in typed order, bound to the
-    /// target the entry started on. A tag every file already carries is skipped. The first refused write stops the run with its error;
-    /// tags written before it stay. Afterwards the status lists what was added and which names an alias mapped
-    /// ("Added: piss (from pee), cute, anal"). A text that is no tag name is refused like a single invalid name.
+    /// Adds the tags of one parsed entry in typed order, bound to the target the entry started on: one write per tag, but ONE undo step
+    /// for the whole entry (one Undo takes every tag it gave back). A tag every file already carries is skipped and named as already
+    /// there. The first refused write stops the run with its error; tags written before it stay, are named in the status and are one
+    /// undo step too. Afterwards the status lists what was added (with the names an alias mapped and the tags the entry created) and
+    /// what was there already ("Added: piss (from pee), cute (new) · Already there: anal"). A text that is no tag name, or names too many
+    /// tags, is refused whole before anything is written.
     /// </summary>
     internal async Task AddEntryAsync(TagEntry entry, CancellationToken token = default)
     {
         ArgumentNullException.ThrowIfNull(entry);
         if (!Ready) return;
-        if (entry.Invalid.Count > 0)
+        if (entry.TooMany || entry.Invalid.Count > 0)
         {
-            _status = new QuickTagStatus(QuickTagStatusKind.Error, MessageKey: "tags.error.invalidName");
+            _status = new QuickTagStatus(QuickTagStatusKind.Error, MessageKey: entry.TooMany ? "tags.entry.tooMany" : "tags.error.invalidName");
             Updated?.Invoke();
             return;
         }
         IQuickTagTarget bound = _target;
-        List<TagEntryItem> added = new();
-        foreach (TagEntryItem item in entry.Items)
+        List<TagEntryItem> added = new(), already = new();
+        List<TagDialogChange> steps = new();
+        bool failed = false;
+        // The steps of this entry are joined below; until then none of them may push an older step out of the stack.
+        _joining = true;
+        try
         {
-            if (token.IsCancellationRequested || !Ready || !ReferenceEquals(_target, bound)) break;
-            if (item.Id is { } known && StateOf(known) == TagToggleState.All) continue;
-            int before = _appliedCount;
-            await RunAsync(target => item.Id is { } id ? target.AddExistingAsync(id, token) : target.AddAsync(item.Name.Display, token));
-            if (_status.IsError) return;
-            if (_appliedCount != before) added.Add(item);
+            foreach (TagEntryItem item in entry.Items)
+            {
+                if (token.IsCancellationRequested || !Ready || !ReferenceEquals(_target, bound)) break;
+                if (item.Id is { } known && StateOf(known) == TagToggleState.All) { already.Add(item); continue; }
+                int before = _appliedCount;
+                await RunAsync(target => item.Id is { } id ? target.AddExistingAsync(id, token) : target.AddAsync(item.Name.Display, token));
+                if (_status.IsError) { failed = true; break; }
+                if (_appliedCount != before) { added.Add(item); steps.Add(_undo[^1]); }
+                // Nothing changed: the tag was there already (a new name another window created meanwhile).
+                else already.Add(item);
+            }
         }
-        if (added.Count == 0 || !ReferenceEquals(_target, bound)) return;
+        finally
+        {
+            _joining = false;
+            JoinSteps(steps, bound);
+        }
+        if (failed)
+        {
+            if (added.Count > 0)
+            {
+                _status = _status with { Detail = Texts.T("tags.entry.kept", TagEntryParser.Describe(added)) };
+                Updated?.Invoke();
+            }
+            return;
+        }
+        if (!ReferenceEquals(_target, bound) || added.Count == 0 && already.Count == 0) return;
         // A single unmapped tag keeps the ordinary "Added" text of RunAsync.
-        if (added is [{ Mapped: false }]) return;
-        _status = new QuickTagStatus(QuickTagStatusKind.AddedSeveral, TagEntryParser.Describe(added), bound.Coverage().Total);
+        if (added is [{ Mapped: false }] && already.Count == 0) return;
+        string? detail = already.Count == 0 ? null : Texts.T("tags.entry.already", string.Join(", ", already.Select(item => item.Name.Display)));
+        _status = new QuickTagStatus(QuickTagStatusKind.AddedSeveral, TagEntryParser.Describe(added), bound.Coverage().Total, Detail: detail);
         Updated?.Invoke();
+    }
+
+    // The writes of one entry become one undo step (the entry's own undo = all of its tags), then the stack is cut to its depth.
+    private void JoinSteps(List<TagDialogChange> steps, IQuickTagTarget bound)
+    {
+        if (steps.Count > 1)
+        {
+            TagDialogChange joined = TagDialogChange.Combine(steps);
+            _undo.RemoveAll(change => steps.Any(step => ReferenceEquals(step, change)));
+            _undo.Add(joined);
+            _origins.AddOrUpdate(joined, new StepOrigin(bound, Label));
+        }
+        Trim();
     }
 
     /// <summary>
@@ -526,7 +576,8 @@ internal sealed class QuickTagSession : IDisposable
         if (target.MessageKey is { } key)
         {
             _status = new QuickTagStatus(QuickTagStatusKind.Error, change.Name, change.Subjects.Count, key);
-            if (target.Snapshot is { } snapshot && snapshot.Find(change.Tag) == null) _undo.Remove(change);
+            // A tag that no longer exists has nothing to restore: it leaves the step (an entry's step stays for the others).
+            if (target.Snapshot is { } snapshot) DropGoneTags(change, snapshot);
         }
         else if (!target.Undone) _status = QuickTagStatus.None;
         else
@@ -535,6 +586,18 @@ internal sealed class QuickTagSession : IDisposable
             _status = new QuickTagStatus(change.Assigned ? QuickTagStatusKind.UndoneAdd : QuickTagStatusKind.UndoneRemove, change.Name, change.Subjects.Count, Medium: medium);
         }
         Updated?.Invoke();
+    }
+
+    private void DropGoneTags(TagDialogChange change, PrivateTagStoreSnapshot snapshot)
+    {
+        TagDialogChange[] alive = change.Parts.Where(part => snapshot.Find(part.Tag) != null).ToArray();
+        if (alive.Length == change.Parts.Count) return;
+        int at = _undo.FindIndex(step => ReferenceEquals(step, change));
+        if (at < 0) return;
+        if (alive.Length == 0) { _undo.RemoveAt(at); return; }
+        TagDialogChange rest = TagDialogChange.Combine(alive);
+        _undo[at] = rest;
+        if (_origins.TryGetValue(change, out StepOrigin? origin)) _origins.AddOrUpdate(rest, origin);
     }
 
     private async Task RunAsync(Func<IQuickTagTarget, Task> write)
@@ -565,6 +628,11 @@ internal sealed class QuickTagSession : IDisposable
     private void Push(TagDialogChange change)
     {
         _undo.Add(change);
+        if (!_joining) Trim();
+    }
+
+    private void Trim()
+    {
         if (_undo.Count > UndoDepth) _undo.RemoveRange(0, _undo.Count - UndoDepth);
     }
 

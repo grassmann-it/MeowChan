@@ -125,6 +125,7 @@ public sealed partial class TaggingPage
             ShowStampBlock();
             SaveStampBlock?.Invoke(_stampBlock);
         };
+        TagSuggestionInput.AttachPaste(_stampInput); // pasted lines stay: they become a comma list the stamp takes together
         _stampInput.KeyDown += async (_, e) =>
         {
             if (e.Key != Key.Enter || e.KeyModifiers != KeyModifiers.None) return;
@@ -137,7 +138,7 @@ public sealed partial class TaggingPage
     {
         _stampEmpty.Text = Texts.T("tagging.page.stamp.empty");
         _stampHelp.Refresh();
-        _stampInput.PlaceholderText = Texts.T("tagging.page.stamp.input");
+        _stampInput.PlaceholderText = Texts.T("tags.input.several");
         AutomationProperties.SetName(_stampInput, Texts.T("tagging.page.stamp.input"));
         _stampAdd.Content = Texts.T("tagging.page.stamp.add");
     }

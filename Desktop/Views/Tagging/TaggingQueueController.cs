@@ -182,13 +182,20 @@ internal sealed class TaggingQueueController
 
     /// <summary>
     /// Appends a name to the stamp. Refused, with a sentence, when the name cannot be an own tag name, is already in the stamp, or the
-    /// stamp holds <paramref name="capacity"/> names.
+    /// stamp holds <paramref name="capacity"/> names. The text may name several tags (<see cref="TagEntryParser"/>: spaces, commas,
+    /// semicolons, quotes, line breaks), each resolved through the alias table: they are added in one write, as many as fit
+    /// <paramref name="capacity"/> (the stamp size setting); the sentence says which were added, which were there already and which did
+    /// not fit.
     /// </summary>
     internal Task<bool> AddStampAsync(string? text, int capacity)
     {
         string candidate = (text ?? string.Empty).Trim();
         if (!CanChange || candidate.Length == 0) return Task.FromResult(false);
         Status = null;
+        TagEntry entry = TagEntryParser.Parse(candidate, _host.GetPublishedPrivateTagSnapshot() is { State: PrivateTagLoadState.Ready, Snapshot: { } tags } ? tags : null);
+        if (entry.TooMany) return Refuse(Texts.T("tags.entry.tooMany"));
+        if (entry.Invalid.Count == 0 && entry.Items.Count > 0 && !TagEntryParser.IsPlain(entry, candidate))
+            return AddStampNamesAsync(entry.Items.Select(item => item.Name).ToArray(), capacity);
         if (!PrivateTagName.TryCreate(candidate, out PrivateTagName? name, out _) || name == null)
             return Refuse(Texts.T("tagging.page.stamp.invalid", candidate));
         if (ActiveGroup is { } group)
@@ -211,6 +218,46 @@ internal sealed class TaggingQueueController
         if (stamp.Count >= capacity) return Refuse(Texts.T("tags.quick.stamp.full", capacity));
         string[] names = stamp.ToNames().Append(name.Display).ToArray();
         return RunAsync(() => _host.SetTagQueueStampAsync(names), _ => Texts.T("tags.quick.stamp.added", name.Display));
+    }
+
+    // Several names of one entry: those not in the stamp yet, up to the room left, in one write of the stamp that is shown.
+    private Task<bool> AddStampNamesAsync(IReadOnlyList<PrivateTagName> names, int capacity)
+    {
+        TagQueueGroup? group = ActiveGroup;
+        QuickTagStamp? shared = group == null ? SharedStamp : null;
+        IReadOnlyList<string> current = group?.Stamp ?? shared?.ToNames() ?? Queue.Stamp;
+        int limit = shared != null ? Math.Min(capacity, shared.Capacity) : capacity;
+        HashSet<string> present = current.Select(item => PrivateTagName.TryCreate(item, out PrivateTagName? known, out _) && known != null ? known.Key : item)
+            .ToHashSet(StringComparer.Ordinal);
+        List<PrivateTagName> give = new();
+        List<string> already = new(), notAdded = new();
+        foreach (PrivateTagName name in names)
+        {
+            if (present.Contains(name.Key)) already.Add(name.Display);
+            else if (current.Count + give.Count >= limit) notAdded.Add(name.Display);
+            else give.Add(name);
+        }
+        if (give.Count == 0)
+            return Refuse(notAdded.Count > 0 ? Texts.T("tags.quick.stamp.full", limit) : Texts.T("tagging.page.stamp.already", string.Join(", ", already)));
+        string Sentence()
+        {
+            List<string> parts = new() { Texts.T("tags.quick.stamp.added", string.Join(", ", give.Select(name => name.Display))) };
+            if (already.Count > 0) parts.Add(Texts.T("tags.entry.already", string.Join(", ", already)));
+            if (notAdded.Count > 0) parts.Add(Texts.T("tags.entry.notAdded", limit, string.Join(", ", notAdded)));
+            return string.Join(" · ", parts);
+        }
+        string[] all = current.Concat(give.Select(name => name.Display)).ToArray();
+        if (group != null) return RunAsync(() => _host.SetTagQueueGroupStampAsync(group.Id, all), _ => Sentence());
+        if (shared != null)
+        {
+            // The window saves the shared stamp when it changes.
+            foreach (PrivateTagName name in give.ToArray())
+                if (shared.Add(name) != QuickTagStampAdd.Added) { give.Remove(name); notAdded.Add(name.Display); }
+            if (give.Count == 0) return Refuse(Texts.T("tags.quick.stamp.full", shared.Capacity));
+            Status = Sentence();
+            return Task.FromResult(true);
+        }
+        return RunAsync(() => _host.SetTagQueueStampAsync(all), _ => Sentence());
     }
 
     internal Task<bool> RemoveStampAsync(string name)

@@ -233,3 +233,16 @@ um einen Abschnitt `Aliases`; alle anderen Abschnitte bleiben in Satzbau und Bed
   wieder „unbekannter Tag“ (nichts wird geraten).
 - **Dublettenvorschläge** (`TagNameFold.Duplicates`) nutzen zusätzlich `Loose` (Plural-s, Bindestriche,
   Punkte, Apostrophe). Sie sind nur Vorschläge; nichts wird automatisch zusammengeführt oder aufgelöst.
+- **Mehrere Tags in einer Eingabe** (`TagEntryParser`, alle Tag-Eingabefelder; kein Speicherformat): Tagnamen dürfen
+  Leerzeichen, Kommas und Semikolons enthalten (verboten sind nur Steuer- und Formatzeichen), deshalb trennt
+  Leerraum nicht blind. Ist der ganze Text ein vorhandener Tag oder Alias, bleibt er einer. Ein Komma, Semikolon,
+  Zeilenumbruch (oder die CJK-Formen `，` `、` `；`) außerhalb von Anführungszeichen trennt hart; dann ist jeder Teil
+  ein Tag samt Leerzeichen. Sonst trennen Leerzeichen (auch geschützte und ideographische; ein Tabulator nicht, er bleibt im
+  Namen und wird als ungültig abgelehnt), aber aufeinanderfolgende Wörter, die zusammen einen vorhandenen
+  Tag oder Alias nennen, bleiben zusammen (längster Treffer zuerst). `"big tits"` in Anführungszeichen ist ein Tag
+  (`\"` und `\\` sind Escapes). Jeder Name wird über die Aliase zum kanonischen Tag aufgelöst; gleiche Tags und gleiche
+  neue Namen zählen einmal (Groß-/Kleinschreibung egal). Höchstens 100 Tags pro Eingabe und 32 KiB Text (feste,
+  nur dokumentierte Schutzgrenze; mehr wird ganz abgelehnt, nichts geschrieben); die Grenzen des Speichers (Einstellung
+  „Grenze für eigene Tags“, Stempelgröße) gelten unverändert. Ein Schreibvorgang pro Tag, aber ein Rückgängig-Schritt
+  für die ganze Eingabe; bei einem abgelehnten Schreibvorgang bleiben die davor geschriebenen Tags und bilden
+  gemeinsam einen Schritt. Eingefügter Text mit Zeilenumbrüchen wird im Feld zur Kommaliste.
