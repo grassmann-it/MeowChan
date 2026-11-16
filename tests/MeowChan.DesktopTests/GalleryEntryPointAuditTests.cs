@@ -172,7 +172,7 @@ public sealed class GalleryEntryPointAuditTests
             foreach (var (key, modifiers) in new[] { (Avalonia.Input.Key.Apps, KeyModifiers.None), (Avalonia.Input.Key.F10, KeyModifiers.Shift) })
             {
                 int requests = 0;
-                EventHandler<ContextRequestedEventArgs> answer = (_, e) => { requests++; Assert.False(e.TryGetPosition(owner, out _)); e.Handled = true; };
+                EventHandler<ContextRequestedEventArgs> answer = (_, e) => { requests++; Assert.False(e.TryGetPosition(owner, out Avalonia.Point _)); e.Handled = true; };
                 owner.AddHandler(Control.ContextRequestedEvent, answer, RoutingStrategies.Tunnel);
                 try
                 {
