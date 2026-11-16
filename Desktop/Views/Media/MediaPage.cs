@@ -228,6 +228,7 @@ public sealed partial class MediaPage : UserControl
         _goDownloads.Click += (_, _) => GoToDownloadsRequested?.Invoke();
         _importFiles.Click += (_, _) => { if (!_lifetime.IsCancellationRequested) ImportFilesRequested?.Invoke(); };
         _linkFolder.Click += (_, _) => { if (!_lifetime.IsCancellationRequested) LinkFolderRequested?.Invoke(); };
+        InstallTileEnter(); // Enter on a focused tile (MediaPage.TileEnter.cs); registered first, so it runs after the other tunnel handlers
         InstallTileInteraction(); // double click on a tile, Ctrl+wheel and Ctrl+Plus/Minus for the tile size (MediaPage.Interaction.cs)
         _grid.KeyDown += OnGridKeyDown;
         _grid.AddHandler(KeyDownEvent, OnSelectAllWhilePresenting, RoutingStrategies.Tunnel);
