@@ -16,7 +16,7 @@ Source-level fixes or contract tests alone do not prove native mouse/keyboard de
 
 - **Report:** Archive List/Table occupies only a small area at the left of its row, with a large gap before the overflow button (⋮).
 - **Expected:** The joined pair shares the available width up to the overflow slot, with intentional normal spacing. Preserve readable labels, joined borders and an accessible overflow target.
-- **Source status:** Claude's `5c9f6150e` implements `ActionToolBar.Stretch`; included in the current candidate, absent from the user's running old build. Native visual verification on the final build remains required.
+- **Corrected status:** Claude's `5c9f6150e` implements `ActionToolBar.Stretch`, but Astra's actual GUI snapshot `9ac380f15` still reproduces the gap. At 1440×920, left pane x16–345, List/Table x16–163 and overflow around x336 leave roughly 157 px unused. A contained commit did **not** prove the native layout fixed. Sol is correcting the measured current defect; native retake required. Evidence: `/tmp/ochan-astra-max-visual-20261116-2222/screenshots/005-archive-list-reader-en-dark-1440.png`.
 - **Cross-view review:** Archive, reader's Saved media tab, Media, Tagging and comparable segmented controls. Inspect full width, half-screen and narrow windows, not only a fixed smoke size; English and long German labels; light/dark themes and display scaling.
 - **Regression evidence:** Measure actual segment/group/overflow bounds after resizing in both directions. Overflow decisions must still use natural sizes; no oscillation, clipping, inaccessible actions or unwanted line breaks.
 - **Do not overcorrect:** Whitespace that separates unrelated groups is useful. Fill the control's intended area, not every blank pixel of the window.
@@ -25,7 +25,7 @@ Source-level fixes or contract tests alone do not prove native mouse/keyboard de
 
 - **Report:** Clicking a thread while the media sidebar is already open leaves “Select a post to see its media here”, although the thread has loaded posts and media. “Enlarge focused media” should apply without a second selection click.
 - **Expected:** Establish an initial post selection when opening a thread. An explicit jump or valid restored reading position has priority; otherwise select the first visible post. Display its first applicable medium and apply the existing focused-media enlargement mode.
-- **Status:** Initial row-selection fix integrated as `01d9a70ac`; four Python contracts pass. Focused C# tests and final native verification remain pending.
+- **Status:** Initial row-selection fix integrated as `01d9a70ac`; four Python contracts pass. Three focused C# behavioral tests pass in the integrated selection/menu run (11/11 total); final native verification remains pending.
 - **Cross-view review:** Archive embedded reader, large reader, sidebar image/video, filtered and paged posts, reopening a thread and switching threads quickly.
 - **Regression evidence:** Real thread open → selected card → correct sidebar medium → enlargement. Cover empty thread, first post without media, filtered initial post, saved position, explicit post jump, cancellation/stale loads and live updates. Selection must not steal keyboard focus from unrelated controls or unexpectedly move a live reader's scroll position.
 - **Relationship to UX-01:** A large empty media panel caused by missing selection is a state-initialization problem, not simply a margin problem. Legitimate no-media states need an honest explanation, never a stale previous image.
@@ -42,7 +42,7 @@ Source-level fixes or contract tests alone do not prove native mouse/keyboard de
 
 - **Report:** Thread favorite status takes a long time to load.
 - **Current-source finding:** Thread favorites are hydrated after plugin/registry startup although the catalog can already be readable. Existing Archive rows can miss a subsequently published snapshot until another refresh.
-- **Status:** Worker fix `615f58ea6` passes 19 focused tests; parent integration/native verification pending. Additional Downloads → context-menu Read path regression is being added: that route bypassed list loading, previously the only place that populated the page favorite cache.
+- **Status:** Worker fix `615f58ea6` integrated as `9ac380f15`. Downloads → context-menu Read regression added as `15df10be2`: that route bypassed list loading, previously the only place that populated the page favorite cache. Integrated combined reader/media run passes 56 tests; native entry-path presentation remains pending.
 - **Expected:** Known favorite state should be available with readable thread data where feasible; loading, unavailable/error and off are distinct states. A newer snapshot updates visible rows/detail without disk I/O on the UI thread.
 - **Cross-view review:** Thread list/table, reader header, favorite overview and any other passive metadata badges. Slow/failed plugin startup must not indefinitely block unrelated local state.
 - **Regression evidence:** Delay startup deliberately, then publish the snapshot; assert visible state catches up. Cover favorite writes during load, failure/retry, host/profile rebinding and disposal. Old completions must never paint a newly opened profile.
@@ -104,4 +104,4 @@ separate from adding this new shared experience.
 
 - **Report:** Check for updates should show a refresh icon.
 - **Source finding:** Application command already declares `refresh-cw`; About's button still assigns text-only content.
-- **Expected:** Consistent icon and localized accessible label, including checking/disabled states; no change to update/network policy. Implementation pending.
+- **Expected:** Consistent icon and localized accessible label, including checking/disabled states; no change to update/network policy. Implemented via shared command presentation in `0c4ffdc91`; integrated localization/presentation contracts pass. Native visual review remains pending.
