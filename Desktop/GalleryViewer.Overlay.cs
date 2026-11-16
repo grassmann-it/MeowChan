@@ -144,7 +144,11 @@ internal sealed partial class GalleryViewer
                     post ? MeowChan.Desktop.Controls.WorkspaceIcons.ChevronLeft : MeowChan.Desktop.Controls.WorkspaceIcons.ChevronUp, inheritForeground: false);
                 chevron.Stroke = new SolidColorBrush(Color.FromArgb(100, 150, 150, 150));
                 chevron.Opacity = 0;
-                return chevron;
+                // Keep the complete transparent handle in the native hit-test map.
+                // A bare Path only owns its stroked pixels, so the button's center can
+                // fall through to the gallery surface even while its 44-DIP bounds are
+                // visible and arranged.
+                return new Border { Background = Brushes.Transparent, Child = chevron };
             })
         };
         SetEdgeIndicatorLabel(indicator, EdgeIndicatorLabel(post));
