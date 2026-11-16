@@ -216,6 +216,32 @@ public sealed partial class PluginProfileStoreTests
     }
 
     [Fact]
+    public async Task ExplicitCurrentSameBundleBuildRecoveryClearsOnlyTheConfirmedPin()
+    {
+        var old = await Delivered("pinned-current-build", "one");
+        var store = Store();
+        var state = await store.ApplyBundledStartupAsync([old.Candidate], [old.Proof], [], 0);
+        state = await store.SelectRollbackAsync("test.plugin", state.Revision);
+        Assert.Equal(old.Candidate.Artifact!.ExecutionRevision, state.Plugins[0].Pinned!.ExecutionRevision);
+
+        var current = await Delivered("pinned-current-build", "two");
+        state = await store.ApplyBundledStartupAsync([current.Candidate], [current.Proof], [], state.Revision);
+        var preview = await store.PreviewBundledReselectionsAsync();
+        var row = Assert.Single(preview.Rows);
+        Assert.True(row.CanConfirm, row.BlockedReason);
+        Assert.Equal(old.Candidate.Artifact.ExecutionRevision, row.OldExecutionRevision);
+        Assert.Equal(current.Candidate.Artifact!.ExecutionRevision, row.NewExecutionRevision);
+        Assert.Equal(old.Candidate.Artifact.ExecutionRevision, state.Plugins[0].Pinned!.ExecutionRevision);
+
+        state = await store.ConfirmBundledReselectionAsync(row, preview.ProfileRevision);
+        Assert.Null(state.Plugins[0].Pinned);
+        Assert.Equal(current.Candidate.Artifact.ExecutionRevision, state.Plugins[0].Pending!.ExecutionRevision);
+        state = await store.ApplyBundledStartupAsync([current.Candidate], [current.Proof], [], state.Revision);
+        Assert.Equal(current.Candidate.Artifact.ExecutionRevision, Active(state).ExecutionRevision);
+        Assert.Null(state.Plugins[0].Problem);
+    }
+
+    [Fact]
     public async Task PinnedMissingCandidateCannotBeUnpinnedByNewSelection()
     {
         var old = await Delivered("legacy", "one"); var target = await Delivered("new", "two"); var store = Store();
