@@ -7,6 +7,7 @@ using Avalonia.Interactivity;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
+using MeowChan.Desktop.MediaActions;
 using MeowChan.Gallery;
 
 namespace MeowChan;
@@ -77,7 +78,8 @@ public sealed partial class MediaPage
         if (_lifetime.IsCancellationRequested || OpenGallery == null) return;
         if (!ReferenceEquals(SelectedRow, row) || _grid.Selection.Count != 1) _grid.SelectedItem = row;
         (IReadOnlyList<MediaLibraryEntry> window, int start) = MediaLibraryView.GalleryWindow(_shown, PresentPositions, row.Index);
-        if (start < 0) return;
+        if (start < 0) { ShowSelectionNote(MediaMenuReasons.NotSaved); return; } // a missing file has nothing to show: say so
+        _ = PausePanelVideo();
         await OpenGallery(window, start);
     }
 

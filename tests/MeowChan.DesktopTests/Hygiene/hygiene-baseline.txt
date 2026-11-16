@@ -232,7 +232,6 @@ discarded-task	Desktop/Views/Media/MediaPage.BooruMode.cs	2
 discarded-task	Desktop/Views/Media/MediaPage.FilterChips.cs	4
 discarded-task	Desktop/Views/Media/MediaPage.FolderVersions.cs	1
 discarded-task	Desktop/Views/Media/MediaPage.Layout.cs	1
-discarded-task	Desktop/Views/Media/MediaPage.Occurrences.cs	1
 discarded-task	Desktop/Views/Media/MediaPage.Panel.cs	4
 discarded-task	Desktop/Views/Media/MediaPage.Queue.cs	1
 discarded-task	Desktop/Views/Media/MediaPage.TileAffordances.cs	1

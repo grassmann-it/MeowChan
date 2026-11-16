@@ -12,6 +12,7 @@ using Avalonia.Styling;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Gallery;
 
 namespace MeowChan.DesktopTests;
@@ -115,14 +116,71 @@ public sealed class MediaTileEnterTests
         fixture.Grid.SelectedIndex = 1;
         fixture.Opened.Clear();
 
-        fixture.Press(fixture.Container(1), Key.Enter, KeyModifiers.Shift);
         fixture.Press(fixture.Container(1), Key.Enter, KeyModifiers.Control);
+        fixture.Press(fixture.Container(1), Key.Enter, KeyModifiers.Alt);
         fixture.Press(fixture.Container(1), Key.Space);
 
         Assert.Empty(fixture.Opened);
     });
 
-    private static void Run(Action<Fixture> test) => BooruComponentDispatcher.Run(() =>
+    // Audit 16.11.2026: "Open in gallery" (gallery.open) lists Shift+Enter for the Media page, and the tile only knew a plain Enter: the key did nothing.
+    [Fact]
+    public void ShiftEnterOnTheFocusedTileOpensTheGalleryLikeEnterBecauseGalleryOpenIsBoundThere() => Run(fixture =>
+    {
+        fixture.Grid.SelectedIndex = 1;
+        fixture.Opened.Clear();
+
+        fixture.Press(fixture.Container(1), Key.Enter, KeyModifiers.Shift);
+
+        Assert.True(fixture.LastHandled);
+        (IReadOnlyList<MediaLibraryEntry> window, int start) = Assert.Single(fixture.Opened);
+        Assert.Same(fixture.Entries[1], window[start]);
+    });
+
+    [Fact]
+    public void TheOpenKeysComeFromTheBindingsNotFromAFixedEnter() => Run(fixture =>
+    {
+        // A person who gave "Open selected media" another key and freed Enter: the new key opens, Enter does not (a fixed plain-Enter test ignored the binding).
+        EffectiveShortcutBindings original = ShortcutService.Current;
+        FieldInfo current = typeof(ShortcutService).GetField("_current", BindingFlags.Static | BindingFlags.NonPublic)!;
+        try
+        {
+            current.SetValue(null, EffectiveShortcutBindings.Build(new ShortcutBindingsSection().Set("media.open", [ShortcutGesture.Parse("Alt+O")]), ShortcutPlatform.Linux));
+            fixture.Grid.SelectedIndex = 1;
+            fixture.Opened.Clear();
+            fixture.Press(fixture.Container(1), Key.Enter);
+            Assert.Empty(fixture.Opened);
+            fixture.Press(fixture.Container(1), Key.O, KeyModifiers.Alt);
+            Assert.Single(fixture.Opened);
+        }
+        finally { current.SetValue(null, original); }
+    });
+
+    [Fact]
+    public void EnterOnATileWhoseFileIsNotSavedSaysSoInsteadOfDoingNothing() => Run(fixture =>
+    {
+        fixture.Grid.SelectedIndex = Fixture.MissingIndex;
+        fixture.Opened.Clear();
+
+        fixture.Press(fixture.Container(Fixture.MissingIndex), Key.Enter);
+
+        Assert.Empty(fixture.Opened);
+        Assert.Equal(MeowChan.Desktop.MediaActions.MediaMenuReasons.NotSaved, fixture.SelectionNote);
+    });
+
+    [Fact]
+    public void ADoubleClickOnATileWhoseFileIsNotSavedSaysSoToo() => Run(fixture =>
+    {
+        fixture.Opened.Clear();
+        MediaLibraryTileRow row = (MediaLibraryTileRow)fixture.Grid.ItemsSource!.Cast<object>().ElementAt(Fixture.MissingIndex);
+
+        fixture.Page.OpenTileAsync(row).GetAwaiter().GetResult();
+
+        Assert.Empty(fixture.Opened);
+        Assert.Equal(MeowChan.Desktop.MediaActions.MediaMenuReasons.NotSaved, fixture.SelectionNote);
+    });
+
+    internal static void Run(Action<Fixture> test) => BooruComponentDispatcher.Run(() =>
     {
         // The media panel the selection opens creates inline video slots, which ask the platform for a cursor.
         using IDisposable scope = AvaloniaLocator.EnterScope();
@@ -131,22 +189,31 @@ public sealed class MediaTileEnterTests
         test(fixture);
     });
 
-    private sealed class Fixture : IDisposable
+    internal sealed class Fixture : IDisposable
     {
         private readonly MediaPage _page;
         private readonly Root _root = new();
 
         internal bool LastHandled { get; private set; }
         internal MediaLibraryEntry[] Entries { get; }
+        internal MediaPage Page => _page;
+        internal MediaLibraryTileRow[] Rows { get; }
+        internal ReaderMediaSidebar? PanelView { get; private set; }
+        internal string? SelectionNote => ((TextBlock)typeof(MediaPage).GetField("_selectionNote", InstanceNonPublic)!.GetValue(_page)!) is { IsVisible: true } note ? note.Text : null;
+        /// <summary>The position of the tile whose file is not saved (shown with "missing files").</summary>
+        internal const int MissingIndex = 3;
+        /// <summary>A medium saved from a thread (no booru post), the one the tagging queue accepts.</summary>
+        internal const int LocalIndex = 2;
         internal List<(IReadOnlyList<MediaLibraryEntry> Window, int Start)> Opened { get; } = new();
         internal ListBox Grid => _page.Grid;
 
         internal Fixture()
         {
             _page = new MediaPage(_ => throw new InvalidOperationException("The tile Enter fixture must not open archive data."));
-            Entries = Enumerable.Range(0, 3).Select(index => Entry(index.ToString())).ToArray();
+            // Tile 1 belongs to a post of a thread (show in thread), tile 3 is a missing file (nothing to open).
+            Entries = Enumerable.Range(0, 4).Select(index => index == 1 ? Entry("1") with { PostId = "101" } : index == LocalIndex ? Entry("2") with { BooruPostId = null } : Entry(index.ToString(), index == MissingIndex ? MediaLibraryPresence.Missing : MediaLibraryPresence.Present)).ToArray();
             MediaLibraryTile[] tiles = Entries.Select(entry => new MediaLibraryTile(entry, [entry])).ToArray();
-            MediaLibraryTileRow[] rows = tiles.Select((tile, index) => new MediaLibraryTileRow(tile, index)).ToArray();
+            MediaLibraryTileRow[] rows = Rows = tiles.Select((tile, index) => new MediaLibraryTileRow(tile, index)).ToArray();
             _page.OpenGallery = (window, start) => { Opened.Add((window, start)); return Task.CompletedTask; };
             Set("_tiles", tiles);
             Set("_shown", Entries);
@@ -206,6 +273,16 @@ public sealed class MediaTileEnterTests
                 }
         }
 
+        /// <summary>Shows the media panel on a tile by its own state (no layout pass) and returns its "Open in gallery" button, a control inside the panel that can have the focus.</summary>
+        internal Control ShowPanelOn(int index)
+        {
+            ReaderMediaSidebar panel = PanelView = (ReaderMediaSidebar)typeof(MediaPage).GetMethod("EnsurePanel", InstanceNonPublic)!.Invoke(_page, null)!;
+            Set("_panelShown", true);
+            Set("_panelRow", Rows[index]);
+            Set("_panelWanted", Rows[index]);
+            return panel.Open;
+        }
+
         internal Control Container(int index) => Grid.ContainerFromIndex(index)
             ?? throw new InvalidOperationException("The tile " + index + " has no container.");
 
@@ -226,10 +303,10 @@ public sealed class MediaTileEnterTests
             _page.EndLifetime();
         }
 
-        private static MediaLibraryEntry Entry(string post) => new(BooruMediaIdentity.Thread(post), "Post " + post, 0,
+        private static MediaLibraryEntry Entry(string post, MediaLibraryPresence presence = MediaLibraryPresence.Present) => new(BooruMediaIdentity.Thread(post), "Post " + post, 0,
             DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, null, null, null, null, null, "/synthetic/not-opened",
             "asset-" + post, new string('b', 64), 7, BooruMediaIdentity.MediaIdentifier(post), "original", post + ".jpg",
-            SavedMediaKind.Image, MediaLibraryPresence.Present, true, false) { BooruPostId = post };
+            SavedMediaKind.Image, presence, true, false) { BooruPostId = post };
 
         private sealed class Root : Decorator, ILogicalRoot;
     }

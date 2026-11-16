@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 
 namespace MeowChan;
@@ -20,7 +21,7 @@ public sealed partial class MediaPage
 
     private void OnTileEnterKeyDown(object? sender, KeyEventArgs e)
     {
-        if (!ItemActivation.IsPrimaryKey(e) || e.Source is not ListBoxItem item || item.DataContext is not MediaLibraryTileRow row) return;
+        if (!IsOpenKey(e) || e.Source is not ListBoxItem item || item.DataContext is not MediaLibraryTileRow row) return;
         if (_lifetime.IsCancellationRequested || !ReferenceEquals(ItemsControl.ItemsControlFromItemContainer(item), _grid)) return;
         int index = _grid.IndexFromContainer(item);
         if (index < 0) return;
@@ -30,6 +31,13 @@ public sealed partial class MediaPage
         // Several selected tiles open together; one opens around itself.
         OpenActions.Start(OpenTileEnterAsync, "media.grid.enter");
     }
+
+    // The keys that open the gallery on a tile: "Open selected media" (media.open, Enter) and "Open in gallery" (gallery.open, Shift+Enter), read from the
+    // bindings, so a key the person saved for either works and one they took away stops (a plain Enter test ignored both: Shift+Enter, which the
+    // shortcut list shows for the Media page, did nothing).
+    private static bool IsOpenKey(KeyEventArgs e) => !e.Handled && (CommandBindings.Matches(e, MediaOpenCommandId) || CommandBindings.Matches(e, GalleryOpenCommandId));
+
+    internal const string MediaOpenCommandId = "media.open", GalleryOpenCommandId = "gallery.open";
 
     private Task OpenTileEnterAsync() => _grid.Selection.Count > 1 ? OpenSelectionGalleryAsync() : OpenSelectedAsync();
 }
