@@ -141,13 +141,24 @@ class DotnetDesktopWorkflowContractTests(unittest.TestCase):
                 single = self.matrix(platform=os_name, mode=mode, scenario="all")
                 self.assertEqual(native, single)
 
-    def test_focused_media_input_and_other_scenarios_never_expand_mac_shards(self):
-        for scenario in ("media-input", "gallery-features", "gui-only", "selection"):
+    def test_focused_native_input_scenarios_do_not_expand_mac_shards(self):
+        for scenario in ("media-input", "gallery-features", "gallery-errors", "gif-playback", "selection"):
             for platform in ("all", "macos-15", "macos-15-intel"):
                 rows = self.matrix(platform=platform, scenario=scenario)
                 native = [r for r in rows if r["os"].startswith("macos-")]
                 self.assertEqual(2 if platform == "all" else 1, len(native))
                 self.assertTrue(all(r["full"] and r["mac_shard"] == 1 for r in native))
+
+    def test_gui_only_uses_existing_native_eight_and_other_four_workers(self):
+        rows = self.matrix(scenario="gui-only")
+        self.assertEqual(28, len(rows))
+        for platform in ("macos-15", "macos-15-intel"):
+            native = [row for row in rows if row["os"] == platform]
+            self.assertEqual(list(range(1, 9)), [row["mac_shard"] for row in native])
+            self.assertEqual(native, self.matrix(platform=platform, scenario="gui-only"))
+        for platform in ("ubuntu-24.04", "ubuntu-24.04-arm", "windows-2022"):
+            lanes = self.matrix(platform=platform, scenario="gui-only")
+            self.assertEqual(["lane-a", "lane-b", "lane-c", "lane-d"], [row["lane"] for row in lanes])
 
     def test_candidate_gate_explicitly_requires_cross_worker_coverage_gate(self):
         workflow = WORKFLOW.read_text()

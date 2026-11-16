@@ -4,21 +4,69 @@ import argparse
 import importlib.util
 import json
 import os
+import signal
 from pathlib import Path
 import subprocess
 import sys
+from types import SimpleNamespace
 
 NORMAL = ['normal-core', 'normal-grid', 'normal-settings-page', 'normal-diagnostics',
           'sources-page', 'normal-board-admission', 'pause-controls', 'rules-page', 'settings-core']
-READER = ['gallery-close', 'reader-media-input', 'reader-shortcut-contexts', 'reader-groups',
-          'reader-returns', 'reader-ideas', 'reader-replies', 'reader-post-filter',
-          'reader-stability', 'reader-post-width', 'reader-navigation', 'reader-view',
-          'reader-quick-settings', 'reader-thread-menu', 'reader-toolbar',
-          'reader-conversation', 'reader-display', 'reader-media-sidebar', 'reader-inline-video']
-MODES = ['locked-profile', 'no-tray', 'tray-failure', 'download-session', 'reader-ux', 'selection']
+# Coverage-equivalent split supplied by the sole C# reader-dispatch owner.
+# Requires the complete registry from shared reader dispatch commit 98f6dc213.
+READER = ['reader-navigation', 'reader-owned-navigation', 'reader-gallery-roundtrip',
+          'reader-list-gallery-return', 'reader-returns', 'reader-stability',
+          'reader-groups', 'gallery-close', 'video-lifecycle', 'window-minimum']
+NEW_READER = {'reader-owned-navigation', 'reader-gallery-roundtrip', 'reader-list-gallery-return',
+              'video-lifecycle', 'window-minimum'}
+MODES = ['locked-profile', 'no-tray', 'tray-failure', 'download-session', 'selection']
 
 
-def collect(entries, required, assembly, output, timeout, native=False, run=subprocess.run):
+def reader_baseline(entries):
+    present = {e['id'] for e in entries}
+    if not set(READER).issubset(present):
+        raise ValueError('Reader decomposition registry is partial; refusing incomplete coverage')
+    return list(READER)
+
+
+class RunnerNotStarted(OSError):
+    """Popen failed: no runner (and therefore no app) was launched."""
+
+
+def bounded_runner(command, *, env, stdout, stderr, timeout):
+    """Bound lock wait, app, capture and runner teardown, not just app.wait()."""
+    try:
+        process = subprocess.Popen(command, env=env, stdout=stdout, stderr=stderr,
+                                   start_new_session=os.name != 'nt')
+    except OSError as error:
+        raise RunnerNotStarted(str(error)) from error
+    print(f'Runner pid={process.pid}; outer deadline={timeout}s', file=stdout, flush=True)
+    outer_timeout = False
+    forced_kill = False
+    try:
+        process.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        outer_timeout = True
+        # The POSIX runner handles SIGTERM and cleans its separately owned app
+        # group. Windows termination has no such guarantee: its receipt decides
+        # nothing after forced termination, so the worker is quarantined below.
+        process.terminate()
+        if os.name == 'nt':
+            forced_kill = True
+        try:
+            process.wait(timeout=20)
+        except subprocess.TimeoutExpired:
+            forced_kill = True
+            if os.name == 'nt':
+                subprocess.run(['taskkill', '/PID', str(process.pid), '/T', '/F'],
+                               stdout=stdout, stderr=stderr, timeout=10, check=False)
+            else:
+                os.killpg(process.pid, signal.SIGKILL)
+            process.wait(timeout=5)
+    return SimpleNamespace(returncode=process.returncode, outer_timeout=outer_timeout, forced_kill=forced_kill)
+
+
+def collect(entries, required, assembly, output, timeout, native=False, run=bounded_runner):
     output.mkdir(parents=True, exist_ok=True)
     report = output / 'collection.json'
     if report.exists():
@@ -27,12 +75,17 @@ def collect(entries, required, assembly, output, timeout, native=False, run=subp
     def write(complete):
         passed = complete and len(rows) == len(required) and all(r['passed'] for r in rows)
         report.write_text(json.dumps(dict(required=required, results=rows, complete=complete,
+                                         coverage_complete=complete and all(r.get('cleanup_proven') for r in rows),
                                          passed=passed), indent=2) + '\n')
         return passed
     write(False)
+    unsafe = False
     for identifier in required:
         row = dict(id=identifier, passed=False)
+        launched = False
         try:
+            if unsafe:
+                raise ValueError('Blocked: previous scene process cleanup failed; desktop unsafe')
             matches = [e for e in entries if e['id'] == identifier]
             if len(matches) != 1:
                 raise ValueError('Required registry entry missing or duplicated')
@@ -40,7 +93,8 @@ def collect(entries, required, assembly, output, timeout, native=False, run=subp
             if entry.get('error') or entry.get('skip'):
                 raise ValueError(str(entry.get('error') or entry.get('skip')))
             environment = {k: v for k, v in os.environ.items()
-                           if not k.startswith('MEOWCHAN_') or not (k.endswith('_ONLY') or k in SELECTORS)}
+                           if k not in {'MEOWCHAN_GALLERY_TRANSITION_REVIEW', 'MEOWCHAN_GALLERY_HELP_REVIEW'}
+                           and (not k.startswith('MEOWCHAN_') or not (k.endswith('_ONLY') or k in SELECTORS))}
             for pair in entry['environment']:
                 key, value = pair.split('=', 1)
                 environment[key] = value.replace('{repo}', str(Path.cwd()))
@@ -50,14 +104,38 @@ def collect(entries, required, assembly, output, timeout, native=False, run=subp
                        '--timeout', str(timeout), '--output', str(destination)]
             if native:
                 command.append('--allow-native-desktop')
-            result = run(command, env=environment)
+            destination.mkdir(parents=True, exist_ok=True)
+            # Retain runner diagnostics even if it fails before writing child results.
+            with (destination / 'runner.log').open('w') as log:
+                launched = True
+                result = run(command, env=environment, stdout=log, stderr=subprocess.STDOUT, timeout=timeout + 45)
+            row['outer_timeout'] = getattr(result, 'outer_timeout', False)
+            if row['outer_timeout'] or getattr(result, 'forced_kill', False):
+                raise RuntimeError('Runner outer deadline/forced termination: desktop safety unproven')
+            if result.returncode:
+                print((destination / 'runner.log').read_text(errors='replace')[-8000:], flush=True)
             evidence = json.loads((destination / 'results.json').read_text())
-            row.update(exit_code=result.returncode, passed=result.returncode == 0 and
+            receipts = evidence.get('results', [])
+            if (evidence.get('selected_modes') != [entry['mode']] or len(receipts) != 1
+                    or receipts[0].get('mode') != entry['mode']
+                    or not {'error', 'passed', 'exit_code'}.issubset(receipts[0])):
+                raise ValueError('Invalid runner cleanup receipt')
+            if any('Process cleanup failed' in str(r.get('error', '')) for r in evidence.get('results', [])):
+                unsafe = True
+                (output / 'unsafe-cleanup').write_text(identifier + '\n')
+            row['cleanup_proven'] = not unsafe
+            row.update(exit_code=result.returncode, passed=not unsafe and not row['outer_timeout'] and result.returncode == 0 and
                        evidence.get('passed') is True and evidence.get('selected_modes') == [entry['mode']]
                        and len(evidence.get('results', [])) == 1
-                       and evidence['results'][0].get('scenario') == entry['scenario'])
+                       and evidence['results'][0].get('scenario') == entry['scenario']
+                       and evidence['results'][0].get('passed') is True)
+        except RunnerNotStarted as error:
+            row['error'] = 'Runner not started: ' + str(error)
         except Exception as error:
             row['error'] = str(error)
+            if launched:
+                unsafe = True
+                (output / 'unsafe-cleanup').write_text(identifier + ': ' + str(error) + '\n')
         rows.append(row)
         write(False)
         print(f"GUI {identifier}: {'PASS' if row['passed'] else 'FAIL'}", flush=True)
@@ -71,16 +149,42 @@ def main():
     parser.add_argument('--assembly', required=True, type=Path)
     parser.add_argument('--output', required=True, type=Path)
     parser.add_argument('--timeout', required=True, type=int)
+    parser.add_argument('--shard', type=int)
+    parser.add_argument('--workers', type=int, choices=[4, 8], default=8)
     parser.add_argument('--selection-only', action='store_true')
     parser.add_argument('--allow-native-desktop', action='store_true')
     args = parser.parse_args()
-    spec = importlib.util.spec_from_file_location('smoke', Path(__file__).with_name('run-desktop-smoke.py'))
-    smoke = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(smoke)
-    entries = smoke.registry_entries(args.assembly.resolve())
-    # Clear every registered selector, including branch selectors without _ONLY.
-    SELECTORS.update(pair.split('=', 1)[0] for e in entries for pair in e['environment'])
-    return collect(entries, ['selection'] if args.selection_only else NORMAL + MODES + READER,
+    required = ['selection'] if args.selection_only else NORMAL + MODES + READER
+    args.output.mkdir(parents=True, exist_ok=True)
+    manifest = args.output / 'scene-shard.json'
+    if manifest.exists():
+        raise ValueError('Choose a fresh output directory; prior shard evidence is preserved')
+    manifest.write_text(json.dumps(dict(source=os.environ.get('GITHUB_SHA'),
+        shard=args.shard, workers=args.workers, planned=required, timeout_seconds=args.timeout), indent=2) + '\n')
+    try:
+        spec = importlib.util.spec_from_file_location('smoke', Path(__file__).with_name('run-desktop-smoke.py'))
+        smoke = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(smoke)
+        entries = smoke.registry_entries(args.assembly.resolve())
+        # Clear every registered selector, including branch selectors without _ONLY.
+        SELECTORS.update(pair.split('=', 1)[0] for e in entries for pair in e['environment'])
+        baseline = reader_baseline(entries)
+        required = ['selection'] if args.selection_only else NORMAL + MODES + baseline
+        inventory = list(required)
+        if args.shard is not None:
+            plan_spec = importlib.util.spec_from_file_location('gui_plan', Path(__file__).with_name('gui-ci-plan.py'))
+            plan = importlib.util.module_from_spec(plan_spec)
+            plan_spec.loader.exec_module(plan)
+            required = plan.scenes_for(required, args.shard, args.workers)
+        manifest.write_text(json.dumps(dict(source=os.environ.get('GITHUB_SHA'), shard=args.shard,
+            workers=args.workers, inventory=inventory, required=required, timeout_seconds=args.timeout,
+            reader_decomposed=True), indent=2) + '\n')
+    except Exception as error:
+        (args.output / 'collection.json').write_text(json.dumps(dict(required=required,
+            results=[], complete=False, passed=False, error=str(error)), indent=2) + '\n')
+        print(f'GUI registry discovery failed: {error}', file=sys.stderr)
+        return 1
+    return collect(entries, required,
                    args.assembly, args.output, args.timeout, args.allow_native_desktop)
 
 

@@ -17,6 +17,7 @@ def load(name, filename):
 
 
 compute = load("compute_required", "compute-validation-required.py")
+gui_plan = load("gui_plan", "gui-ci-plan.py")
 aggregate = load("aggregate_gates", "aggregate-release-gates.py")
 SCENARIOS = list(compute.TARGETED_STEPS)
 PLATFORMS = [("Linux", "lane-a", "X64"), ("Windows", "lane-a", "X64"), ("macOS", "native", "ARM64")]
@@ -50,14 +51,15 @@ def workflow_steps():
     return {k: v["if"] for k, v in steps.items()}
 
 
-def predicate(expr, event, mode, scenario, full, runner_os, arch):
+def predicate(expr, event, mode, scenario, full, runner_os, arch, lane=None, shard=None):
     if expr is None:
         return True
     py = re.sub(r"!(?!=)", " not ", expr).replace("&&", " and ").replace("||", " or ")
     py = py.replace("always()", "True").replace("true", "True")
     env = {
         "github": Ctx(event_name=event), "inputs": Ctx(mode=mode, scenario=scenario, platform="all"),
-        "matrix": Ctx(full=full), "runner": Ctx(os=runner_os, arch=arch),
+        "matrix": Ctx(full=full, lane=lane or ("native" if runner_os == "macOS" else "lane-a"),
+                      mac_shard=shard or (1 if runner_os == "macOS" else "")), "runner": Ctx(os=runner_os, arch=arch),
     }
     return bool(eval(py, {"__builtins__": {}}, env))
 
@@ -122,7 +124,10 @@ class WorkflowConsistencyTests(unittest.TestCase):
         steps = workflow_steps()
         for scenario in SCENARIOS:
             for os_, lane, arch in PLATFORMS:
-                for step in compute.required_steps("workflow_dispatch", "validate", scenario, lane, os_, arch):
+                required = compute.required_steps("workflow_dispatch", "validate", scenario, lane, os_, arch)
+                if scenario == "gui-only":
+                    required = gui_plan.overlay(required, 1, os_, scenario)
+                for step in required:
                     self.assertIn(step, steps, step)
                     self.assertTrue(runs(steps[step], scenario, os_, arch), f"{step} skipped for {scenario} on {os_}")
 
@@ -139,26 +144,27 @@ class WorkflowConsistencyTests(unittest.TestCase):
         steps = workflow_steps()
         for event in ("push", "pull_request"):
             for os_, lane, arch in PLATFORMS:
-                for step in compute.required_steps(event, "", "", lane, os_, arch):
+                for step in gui_plan.overlay(compute.required_steps(event, "", "", lane, os_, arch), 1, os_):
                     self.assertTrue(
                         predicate(steps[step], event, "", "", True, os_, arch), f"{step} skipped on {event}/{os_}")
 
-    def test_each_native_offline_shard_requires_real_test_success_without_gui_repeats(self):
+    def test_each_worker_requires_offline_and_only_its_assigned_gui(self):
         steps = workflow_steps()
-        for shard in range(2, 9):
-            lane = f"native-{shard:02}"
-            required = compute.required_steps("workflow_dispatch", "stable-candidate", "all", lane, "macOS", "X64")
-            self.assertIn("mac_tests", required)
-            self.assertIn("build_all", required)
-            self.assertIn("restore_release", required)
-            self.assertIn("candidate_matrix", required)
-            self.assertNotIn("media_input", required)
-            for step in required:
-                self.assertTrue(predicate(steps[step], "workflow_dispatch", "stable-candidate", "all", False, "macOS", "X64"), step)
-            self.assertFalse(aggregate.step_gate(outcomes(required, skipped={"mac_tests"}), required)["passed"])
-            self.assertFalse(aggregate.step_gate(outcomes(required, failed={"mac_tests"}), required)["passed"])
-            for step in ("prepare_desktop", "smoke_build", "smoke_normal", "media_input", "gallery_features"):
-                self.assertFalse(predicate(steps[step], "workflow_dispatch", "stable-candidate", "all", False, "macOS", "X64"), step)
+        for os_, count in (("macOS", 8), ("Linux", 4), ("Windows", 4)):
+            for shard in range(1, count + 1):
+                lane = ("native" if shard == 1 else f"native-{shard:02}") if os_ == "macOS" else "lane-" + chr(96 + shard)
+                base = compute.required_steps("workflow_dispatch", "stable-candidate", "all", lane, os_, "X64")
+                required = gui_plan.overlay(base, shard, os_)
+                offline = "mac_tests" if os_ == "macOS" else "core_tests"
+                for step in required:
+                    self.assertTrue(predicate(steps[step], "workflow_dispatch", "stable-candidate", "all",
+                                              shard == 1, os_, "X64", lane, shard), (os_, shard, step))
+                for step in (offline, "smoke_build", "smoke_normal"):
+                    self.assertFalse(aggregate.step_gate(outcomes(required, skipped={step}), required)["passed"])
+                    self.assertFalse(aggregate.step_gate(outcomes(required, failed={step}), required)["passed"])
+                for step in gui_plan.DEDICATED:
+                    self.assertEqual(step in required, predicate(steps[step], "workflow_dispatch", "stable-candidate", "all",
+                                     shard == 1, os_, "X64", lane, shard), (os_, shard, step))
         self.assertFalse(predicate(steps["mac_tests"], "workflow_dispatch", "validate", "media-input", True, "macOS", "X64"))
 
     def test_workflow_keeps_continue_on_error_fail_fast_false_and_script_gate(self):

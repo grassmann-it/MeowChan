@@ -76,7 +76,7 @@ jobs:
     if: github.event_name != 'workflow_dispatch' || inputs.mode == 'validate' || inputs.mode == 'offline-retest' || inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate'
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON((github.event_name == 'workflow_dispatch' && inputs.mode == 'offline-retest') && ((!inputs.platform || inputs.platform == 'all') && format('{{"include":[{{"os":"ubuntu-24.04","lane":"{0}","full":false}},{{"os":"ubuntu-24.04-arm","lane":"{0}","full":false}},{{"os":"windows-2022","lane":"{0}","full":false}}]}}', inputs.offline_lane) || format('{{"include":[{{"os":"{0}","lane":"{1}","full":false}}]}}', inputs.platform, inputs.offline_lane)) || (github.event_name != 'workflow_dispatch' || !inputs.platform || inputs.platform == 'all') && ((github.event_name != 'workflow_dispatch' || !inputs.scenario || inputs.scenario == 'all') && '{"include":[{"os":"ubuntu-24.04","lane":"lane-a","full":true},{"os":"ubuntu-24.04","lane":"lane-b","full":false},{"os":"ubuntu-24.04","lane":"lane-c","full":false},{"os":"ubuntu-24.04","lane":"lane-d","full":false},{"os":"ubuntu-24.04-arm","lane":"lane-a","full":true},{"os":"ubuntu-24.04-arm","lane":"lane-b","full":false},{"os":"ubuntu-24.04-arm","lane":"lane-c","full":false},{"os":"ubuntu-24.04-arm","lane":"lane-d","full":false},{"os":"windows-2022","lane":"lane-a","full":true},{"os":"windows-2022","lane":"lane-b","full":false},{"os":"windows-2022","lane":"lane-c","full":false},{"os":"windows-2022","lane":"lane-d","full":false},{"os":"macos-15","lane":"native","full":true,"mac_shard":1},{"os":"macos-15","lane":"native-02","full":false,"mac_shard":2},{"os":"macos-15","lane":"native-03","full":false,"mac_shard":3},{"os":"macos-15","lane":"native-04","full":false,"mac_shard":4},{"os":"macos-15","lane":"native-05","full":false,"mac_shard":5},{"os":"macos-15","lane":"native-06","full":false,"mac_shard":6},{"os":"macos-15","lane":"native-07","full":false,"mac_shard":7},{"os":"macos-15","lane":"native-08","full":false,"mac_shard":8},{"os":"macos-15-intel","lane":"native","full":true,"mac_shard":1},{"os":"macos-15-intel","lane":"native-02","full":false,"mac_shard":2},{"os":"macos-15-intel","lane":"native-03","full":false,"mac_shard":3},{"os":"macos-15-intel","lane":"native-04","full":false,"mac_shard":4},{"os":"macos-15-intel","lane":"native-05","full":false,"mac_shard":5},{"os":"macos-15-intel","lane":"native-06","full":false,"mac_shard":6},{"os":"macos-15-intel","lane":"native-07","full":false,"mac_shard":7},{"os":"macos-15-intel","lane":"native-08","full":false,"mac_shard":8}]}' || '{"include":[{"os":"ubuntu-24.04","lane":"lane-a","full":true},{"os":"ubuntu-24.04","lane":"lane-b","full":false},{"os":"ubuntu-24.04","lane":"lane-c","full":false},{"os":"ubuntu-24.04","lane":"lane-d","full":false},{"os":"ubuntu-24.04-arm","lane":"lane-a","full":true},{"os":"ubuntu-24.04-arm","lane":"lane-b","full":false},{"os":"ubuntu-24.04-arm","lane":"lane-c","full":false},{"os":"ubuntu-24.04-arm","lane":"lane-d","full":false},{"os":"windows-2022","lane":"lane-a","full":true},{"os":"windows-2022","lane":"lane-b","full":false},{"os":"windows-2022","lane":"lane-c","full":false},{"os":"windows-2022","lane":"lane-d","full":false},{"os":"macos-15","lane":"native","full":true,"mac_shard":1},{"os":"macos-15-intel","lane":"native","full":true,"mac_shard":1}]}') || (inputs.platform == 'macos-15' || inputs.platform == 'macos-15-intel') && ((github.event_name != 'workflow_dispatch' || !inputs.scenario || inputs.scenario == 'all') && format('{{"include":[{{"os":"{0}","lane":"native","full":true,"mac_shard":1}},{{"os":"{0}","lane":"native-02","full":false,"mac_shard":2}},{{"os":"{0}","lane":"native-03","full":false,"mac_shard":3}},{{"os":"{0}","lane":"native-04","full":false,"mac_shard":4}},{{"os":"{0}","lane":"native-05","full":false,"mac_shard":5}},{{"os":"{0}","lane":"native-06","full":false,"mac_shard":6}},{{"os":"{0}","lane":"native-07","full":false,"mac_shard":7}},{{"os":"{0}","lane":"native-08","full":false,"mac_shard":8}}]}}', inputs.platform) || format('{{"include":[{{"os":"{0}","lane":"native","full":true,"mac_shard":1}}]}}', inputs.platform)) || format('{{"include":[{{"os":"{0}","lane":"lane-a","full":true}},{{"os":"{0}","lane":"lane-b","full":false}},{{"os":"{0}","lane":"lane-c","full":false}},{{"os":"{0}","lane":"lane-d","full":false}}]}}', inputs.platform)) }}
+      matrix: ${{ fromJSON((github.event_name == 'workflow_dispatch' && inputs.mode == 'offline-retest') && ((!inputs.platform || inputs.platform == 'all') && format('{{"include":[{{"os":"ubuntu-24.04","lane":"{0}","full":false}},{{"os":"ubuntu-24.04-arm","lane":"{0}","full":false}},{{"os":"windows-2022","lane":"{0}","full":false}}]}}', inputs.offline_lane) || format('{{"include":[{{"os":"{0}","lane":"{1}","full":false}}]}}', inputs.platform, inputs.offline_lane)) || (github.event_name != 'workflow_dispatch' || !inputs.platform || inputs.platform == 'all') && ((github.event_name != 'workflow_dispatch' || !inputs.scenario || inputs.scenario == 'all' || inputs.scenario == 'gui-only') && '{"include":[{"os":"ubuntu-24.04","lane":"lane-a","full":true},{"os":"ubuntu-24.04","lane":"lane-b","full":false},{"os":"ubuntu-24.04","lane":"lane-c","full":false},{"os":"ubuntu-24.04","lane":"lane-d","full":false},{"os":"ubuntu-24.04-arm","lane":"lane-a","full":true},{"os":"ubuntu-24.04-arm","lane":"lane-b","full":false},{"os":"ubuntu-24.04-arm","lane":"lane-c","full":false},{"os":"ubuntu-24.04-arm","lane":"lane-d","full":false},{"os":"windows-2022","lane":"lane-a","full":true},{"os":"windows-2022","lane":"lane-b","full":false},{"os":"windows-2022","lane":"lane-c","full":false},{"os":"windows-2022","lane":"lane-d","full":false},{"os":"macos-15","lane":"native","full":true,"mac_shard":1},{"os":"macos-15","lane":"native-02","full":false,"mac_shard":2},{"os":"macos-15","lane":"native-03","full":false,"mac_shard":3},{"os":"macos-15","lane":"native-04","full":false,"mac_shard":4},{"os":"macos-15","lane":"native-05","full":false,"mac_shard":5},{"os":"macos-15","lane":"native-06","full":false,"mac_shard":6},{"os":"macos-15","lane":"native-07","full":false,"mac_shard":7},{"os":"macos-15","lane":"native-08","full":false,"mac_shard":8},{"os":"macos-15-intel","lane":"native","full":true,"mac_shard":1},{"os":"macos-15-intel","lane":"native-02","full":false,"mac_shard":2},{"os":"macos-15-intel","lane":"native-03","full":false,"mac_shard":3},{"os":"macos-15-intel","lane":"native-04","full":false,"mac_shard":4},{"os":"macos-15-intel","lane":"native-05","full":false,"mac_shard":5},{"os":"macos-15-intel","lane":"native-06","full":false,"mac_shard":6},{"os":"macos-15-intel","lane":"native-07","full":false,"mac_shard":7},{"os":"macos-15-intel","lane":"native-08","full":false,"mac_shard":8}]}' || '{"include":[{"os":"ubuntu-24.04","lane":"lane-a","full":true},{"os":"ubuntu-24.04","lane":"lane-b","full":false},{"os":"ubuntu-24.04","lane":"lane-c","full":false},{"os":"ubuntu-24.04","lane":"lane-d","full":false},{"os":"ubuntu-24.04-arm","lane":"lane-a","full":true},{"os":"ubuntu-24.04-arm","lane":"lane-b","full":false},{"os":"ubuntu-24.04-arm","lane":"lane-c","full":false},{"os":"ubuntu-24.04-arm","lane":"lane-d","full":false},{"os":"windows-2022","lane":"lane-a","full":true},{"os":"windows-2022","lane":"lane-b","full":false},{"os":"windows-2022","lane":"lane-c","full":false},{"os":"windows-2022","lane":"lane-d","full":false},{"os":"macos-15","lane":"native","full":true,"mac_shard":1},{"os":"macos-15-intel","lane":"native","full":true,"mac_shard":1}]}') || (inputs.platform == 'macos-15' || inputs.platform == 'macos-15-intel') && ((github.event_name != 'workflow_dispatch' || !inputs.scenario || inputs.scenario == 'all' || inputs.scenario == 'gui-only') && format('{{"include":[{{"os":"{0}","lane":"native","full":true,"mac_shard":1}},{{"os":"{0}","lane":"native-02","full":false,"mac_shard":2}},{{"os":"{0}","lane":"native-03","full":false,"mac_shard":3}},{{"os":"{0}","lane":"native-04","full":false,"mac_shard":4}},{{"os":"{0}","lane":"native-05","full":false,"mac_shard":5}},{{"os":"{0}","lane":"native-06","full":false,"mac_shard":6}},{{"os":"{0}","lane":"native-07","full":false,"mac_shard":7}},{{"os":"{0}","lane":"native-08","full":false,"mac_shard":8}}]}}', inputs.platform) || format('{{"include":[{{"os":"{0}","lane":"native","full":true,"mac_shard":1}}]}}', inputs.platform)) || format('{{"include":[{{"os":"{0}","lane":"lane-a","full":true}},{{"os":"{0}","lane":"lane-b","full":false}},{{"os":"{0}","lane":"lane-c","full":false}},{{"os":"{0}","lane":"lane-d","full":false}}]}}', inputs.platform)) }}
     runs-on: ${{ matrix.os }}
     # Existing checks, scoped native regressions and two genuine old-release replays.
     timeout-minutes: 75
@@ -125,7 +125,7 @@ jobs:
         id: prepare_desktop
         # Keep independent checks running so one failure yields a complete evidence set.
         continue-on-error: true
-        if: matrix.full && (runner.os == 'Windows' || runner.os == 'macOS')
+        if: (matrix.full || (inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only'))) && (runner.os == 'Windows' || runner.os == 'macOS')
         # The largest exact client scene is 1520x920; reserve 40 DIP for its
         # native frame. Other growth probes explicitly fit the usable work area.
         run: |
@@ -251,26 +251,26 @@ jobs:
           exit "$status"
       - name: Restore graphical harness with reviewed dependencies
         id: smoke_restore
-        if: matrix.full
+        if: (matrix.full || (inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')))
         # Keep independent checks running so one failure yields a complete evidence set.
         continue-on-error: true
         run: dotnet restore tests/MeowChan.DesktopSmoke/MeowChan.DesktopSmoke.csproj -p:Configuration=Release --locked-mode -warnaserror:NU1900
       - name: Retain exact graphical harness dependency graph
         id: smoke_assets
-        if: matrix.full
+        if: (matrix.full || (inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')))
         # Keep independent checks running so one failure yields a complete evidence set.
         continue-on-error: true
         shell: bash
         run: cp tests/MeowChan.DesktopSmoke/obj/project.assets.json artifacts/build-evidence/desktop-smoke-assets.json
       - name: Build graphical harness
         id: smoke_build
-        if: matrix.full
+        if: (matrix.full || (inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')))
         # Keep independent checks running so one failure yields a complete evidence set.
         continue-on-error: true
         run: dotnet build tests/MeowChan.DesktopSmoke/MeowChan.DesktopSmoke.csproj --configuration Release --no-restore
       - name: Verify plugin delivery in desktop and transitive harness outputs
         id: plugin_delivery
-        if: matrix.full
+        if: (matrix.full || (inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')))
         # Keep independent checks running so one failure yields a complete evidence set.
         continue-on-error: true
         shell: bash
@@ -289,7 +289,7 @@ jobs:
         id: linux_setup
         # Keep independent checks running so one failure yields a complete evidence set.
         continue-on-error: true
-        if: matrix.full && (runner.os == 'Linux')
+        if: (matrix.full || (inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only'))) && (runner.os == 'Linux')
         run: |
           # The hosted x64 Azure mirror can make GUI setup exceed the job deadline.
           # Keep Ubuntu signature verification and ARM's ports mirror unchanged.
@@ -315,7 +315,7 @@ jobs:
         id: smoke_normal
         # Keep independent checks running so one failure yields a complete evidence set.
         continue-on-error: true
-        if: matrix.full && (github.event_name != 'workflow_dispatch' || (inputs.scenario != 'gallery-errors' && inputs.scenario != 'gallery-features' && inputs.scenario != 'gif-playback' && inputs.scenario != 'media-input'))
+        if: (matrix.full || (inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only'))) && (github.event_name != 'workflow_dispatch' || (inputs.scenario != 'gallery-errors' && inputs.scenario != 'gallery-features' && inputs.scenario != 'gif-playback' && inputs.scenario != 'media-input'))
         # Each normal scope has a fresh process/profile and its own bounded evidence.
         shell: bash
         run: |
@@ -324,6 +324,7 @@ jobs:
             --timeout "${{ runner.os == 'macOS' && '300' || '180' }}" \
             ${{ runner.os != 'Linux' && '--allow-native-desktop' || '' }} \
             ${{ inputs.scenario == 'selection' && '--selection-only' || '' }} \
+            ${{ inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only') && format('--shard {0} --workers {1}', matrix.mac_shard || (matrix.lane == 'lane-a' && 1 || matrix.lane == 'lane-b' && 2 || matrix.lane == 'lane-c' && 3 || 4), runner.os == 'macOS' && 8 || 4) || '' }} \
             --output artifacts/desktop-smoke
 
       # Dedicated Program.cs branches return before the ordinary normal/reader-ux
@@ -341,6 +342,7 @@ jobs:
         env:
           MEOWCHAN_PLUGIN_RESELECTION_ONLY: '1'
         run: |
+          python scripts/gui-ci-safety.py
           python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll ${{ runner.os != 'Linux' && '--allow-native-desktop' || '' }} --mode plugins --timeout 300 --output artifacts/closure-plugin-reselection
       - name: Exercise selected 1.1 registry workflows on Linux x64
         id: smoke_1_1_registry
@@ -349,6 +351,7 @@ jobs:
         continue-on-error: true
         if: matrix.full && (github.event_name == 'workflow_dispatch' && (inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate') && runner.os == 'Linux' && runner.arch == 'X64')
         run: |
+          python scripts/gui-ci-safety.py
           python scripts/run-desktop-smoke.py \
             --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll \
             --registry --only booru-workbench \
@@ -369,6 +372,7 @@ jobs:
         if: matrix.full && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all')
         shell: bash
         run: |
+          python scripts/gui-ci-safety.py
           set -euo pipefail
           for version in 1.0.0 1.0.1; do
             fixture="$GITHUB_WORKSPACE/artifacts/upgrade-$version"
@@ -384,6 +388,7 @@ jobs:
         if: matrix.full && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all')
         shell: bash
         run: |
+          python scripts/gui-ci-safety.py
           set -euo pipefail
           # The current-side consumer must use the same Debug configuration as
           # the AP04 test assembly. Mixing Debug and Release changes the
@@ -529,41 +534,45 @@ jobs:
         id: first_run
         # Keep independent checks running so one failure yields a complete evidence set.
         continue-on-error: true
-        if: matrix.full && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')
+        if: (((inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')) && ((runner.os == 'macOS' && matrix.mac_shard == 2) || (runner.os != 'macOS' && matrix.lane == 'lane-b'))) || (matrix.full && !(inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')))) && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')
         shell: bash
         env:
           MEOWCHAN_FIRST_RUN_SETUP_ONLY: '1'
         run: |
+          python scripts/gui-ci-safety.py
           python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll ${{ runner.os != 'Linux' && '--allow-native-desktop' || '' }} --mode normal --timeout 300 --output artifacts/closure-first-run-setup
       - name: Exercise PreferenceStartup on the actual platform
         id: preference_startup
         # Keep independent checks running so one failure yields a complete evidence set.
         continue-on-error: true
-        if: matrix.full && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')
+        if: (((inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')) && ((runner.os == 'macOS' && matrix.mac_shard == 3) || (runner.os != 'macOS' && matrix.lane == 'lane-a'))) || (matrix.full && !(inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')))) && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')
         shell: bash
         env:
           MEOWCHAN_PREFERENCE_STARTUP_ONLY: '1'
         run: |
+          python scripts/gui-ci-safety.py
           python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll ${{ runner.os != 'Linux' && '--allow-native-desktop' || '' }} --mode normal --timeout 300 --output artifacts/closure-preference-startup
       - name: Exercise compact status and scoped diagnostics retry on the actual platform
         id: scoped_diagnostics
         # Keep independent checks running so one failure yields a complete evidence set.
         continue-on-error: true
-        if: matrix.full && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')
+        if: (((inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')) && ((runner.os == 'macOS' && matrix.mac_shard == 4) || (runner.os != 'macOS' && matrix.lane == 'lane-d'))) || (matrix.full && !(inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')))) && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')
         shell: bash
         env:
           MEOWCHAN_COMPACT_DIAGNOSTICS_ONLY: '1'
         run: |
+          python scripts/gui-ci-safety.py
           python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll ${{ runner.os != 'Linux' && '--allow-native-desktop' || '' }} --mode normal --timeout 300 --output artifacts/closure-scoped-diagnostics
       - name: Exercise GIF playback and ownership on the actual platform
         id: gif_playback
         # Keep independent checks running so one failure yields a complete evidence set.
         continue-on-error: true
-        if: matrix.full && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only' || inputs.scenario == 'gif-playback')
+        if: (((inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')) && ((runner.os == 'macOS' && matrix.mac_shard == 5) || (runner.os != 'macOS' && matrix.lane == 'lane-b'))) || (matrix.full && !(inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')))) && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only' || inputs.scenario == 'gif-playback')
         shell: bash
         env:
           MEOWCHAN_GIF_PLAYBACK_ONLY: '1'
         run: |
+          python scripts/gui-ci-safety.py
           export MEOWCHAN_VIDEO_FIXTURE="$GITHUB_WORKSPACE/tests/Fixtures/gallery-playback-vp8.webm"
           export MEOWCHAN_MP4_FIXTURE="$GITHUB_WORKSPACE/tests/Fixtures/release102/playback-h264-silent.mp4"
           python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll ${{ runner.os != 'Linux' && '--allow-native-desktop' || '' }} --mode normal --timeout 300 --output artifacts/closure-gif-playback
@@ -571,11 +580,12 @@ jobs:
         id: gallery_errors
         # Keep independent checks running so one failure yields a complete evidence set.
         continue-on-error: true
-        if: matrix.full && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only' || inputs.scenario == 'gallery-errors')
+        if: (((inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')) && ((runner.os == 'macOS' && matrix.mac_shard == 6) || (runner.os != 'macOS' && matrix.lane == 'lane-c'))) || (matrix.full && !(inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')))) && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only' || inputs.scenario == 'gallery-errors')
         shell: bash
         env:
           MEOWCHAN_GALLERY_ERROR_ONLY: '1'
         run: |
+          python scripts/gui-ci-safety.py
           export MEOWCHAN_VIDEO_FIXTURE="$GITHUB_WORKSPACE/tests/Fixtures/gallery-playback-vp8.webm"
           if [[ "$RUNNER_OS" == Linux ]]; then
             # The fixture uses real VP8+Vorbis, including paused terminal cleanup.
@@ -590,22 +600,24 @@ jobs:
         id: reader_media
         # Keep independent checks running so one failure yields a complete evidence set.
         continue-on-error: true
-        if: matrix.full && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')
+        if: (((inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')) && ((runner.os == 'macOS' && matrix.mac_shard == 7) || (runner.os != 'macOS' && matrix.lane == 'lane-d'))) || (matrix.full && !(inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')))) && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')
         shell: bash
         env:
           MEOWCHAN_READER_MEDIA_INPUT_ONLY: '1'
         run: |
+          python scripts/gui-ci-safety.py
           export MEOWCHAN_VIDEO_FIXTURE="$GITHUB_WORKSPACE/tests/Fixtures/gallery-playback-vp8.webm"
           python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll ${{ runner.os != 'Linux' && '--allow-native-desktop' || '' }} --mode reader-ux --timeout 300 --output artifacts/closure-reader-media-input
       - name: Exercise changed gallery features on the actual platform
         id: gallery_features
         # Keep independent checks running so one failure yields a complete evidence set.
         continue-on-error: true
-        if: matrix.full && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only' || inputs.scenario == 'gallery-features')
+        if: (((inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')) && ((runner.os == 'macOS' && matrix.mac_shard == 8) || (runner.os != 'macOS' && matrix.lane == 'lane-b'))) || (matrix.full && !(inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')))) && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only' || inputs.scenario == 'gallery-features')
         shell: bash
         env:
           MEOWCHAN_GALLERY_PLAYBACK_FEATURES_ONLY: '1'
         run: |
+          python scripts/gui-ci-safety.py
           export MEOWCHAN_VIDEO_FIXTURE="$GITHUB_WORKSPACE/tests/Fixtures/gallery-playback-vp8.webm"
           if [[ "$RUNNER_OS" == Linux ]]; then
             # Real, hardware-free output keeps functional volume acceptance mandatory.
@@ -620,9 +632,10 @@ jobs:
         id: media_input
         # Keep independent checks running so one failure yields a complete evidence set.
         continue-on-error: true
-        if: matrix.full && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'media-input')
+        if: (((inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')) && ((runner.os == 'macOS' && matrix.mac_shard == 2) || (runner.os != 'macOS' && matrix.lane == 'lane-c'))) || (matrix.full && !(inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')))) && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'media-input')
         shell: bash
         run: |
+          python scripts/gui-ci-safety.py
           if [[ "$RUNNER_OS" == Linux ]]; then
             python scripts/with-private-null-audio.py --report artifacts/private-audio/media-native-input.json -- \
               python scripts/test-media-interaction-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll --timeout 240 --require-audio-output --output artifacts/media-native-input
@@ -633,19 +646,25 @@ jobs:
         id: tray_lifecycle
         # Keep independent checks running so one failure yields a complete evidence set.
         continue-on-error: true
-        if: matrix.full && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all')
-        run: python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll --allow-native-desktop --timeout 180 --mode tray-lifecycle --output artifacts/desktop-tray-stress
+        if: (((inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')) && ((runner.os == 'macOS' && matrix.mac_shard == 3) || (runner.os != 'macOS' && matrix.lane == 'lane-a'))) || (matrix.full && !(inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')))) && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all')
+        shell: bash
+        run: |
+          python scripts/gui-ci-safety.py
+          python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll --allow-native-desktop --timeout 180 --mode tray-lifecycle --output artifacts/desktop-tray-stress
       - name: Check native Linux tray host lifecycle on private DBus
         id: tray_host
         # Keep independent checks running so one failure yields a complete evidence set.
         continue-on-error: true
         if: matrix.full && (runner.os == 'Linux' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all'))
-        run: python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll --timeout 180 --mode tray-host --output artifacts/desktop-tray-host
+        shell: bash
+        run: |
+          python scripts/gui-ci-safety.py
+          python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll --timeout 180 --mode tray-host --output artifacts/desktop-tray-host
       - name: Capture bounded macOS native failure diagnostics
         id: macos_diagnostics
         # Keep independent checks running so one failure yields a complete evidence set.
         continue-on-error: true
-        if: matrix.full && (always() && runner.os == 'macOS')
+        if: (matrix.full || runner.os == 'macOS') && (always() && runner.os == 'macOS')
         shell: bash
         run: |
           python3 - <<'PY'
@@ -719,11 +738,10 @@ jobs:
         env:
           VALIDATION_STEPS: ${{ toJSON(steps) }}
         run: |
-          # Every full lane requires the same evidence as the former single
-          # validation job. Lanes B-D intentionally require only their own
-          # two-shard result; selection diagnostics retain their skipped checks.
-          # Required ids come from one tested script so selected scenarios
-          # cannot be skipped silently; push/PR (empty scenario) are full.
+          # Preserve the offline/release planner. The GUI-only overlay assigns
+          # required scene receipts and dedicated GUI steps to existing workers;
+          # every worker must pass its own gate. Focused input scenarios retain
+          # their original single-primary requirements. Push/PR are full.
           required_csv="$(python3 scripts/compute-validation-required.py \
             --event-name "${{ github.event_name }}" \
             --mode "${{ inputs.mode }}" \
@@ -731,6 +749,10 @@ jobs:
             --lane "${{ matrix.lane }}" \
             --runner-os "$RUNNER_OS" \
             --runner-arch "$RUNNER_ARCH")"
+          if [[ "${{ inputs.mode }}" != offline-retest && ( "${{ github.event_name }}" != workflow_dispatch || ( "${{ inputs.scenario }}" == all || "${{ inputs.scenario }}" == gui-only ) ) ]]; then
+            required_csv="$(python3 scripts/gui-ci-plan.py --required "$required_csv" \
+              --shard "${{ matrix.mac_shard || (matrix.lane == 'lane-a' && 1 || matrix.lane == 'lane-b' && 2 || matrix.lane == 'lane-c' && 3 || 4) }}" --runner-os "$RUNNER_OS" --scenario "${{ inputs.scenario || 'all' }}")"
+          fi
           python3 scripts/aggregate-release-gates.py steps \
             --json-env VALIDATION_STEPS \
             --required "$required_csv" \
