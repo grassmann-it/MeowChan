@@ -1337,7 +1337,8 @@ public sealed class HelpDocumentationTests
         Assert.Contains("id != \"navigation.booru\" || CanOpenBooru", navigation, StringComparison.Ordinal);
         Assert.Contains("if (page == WorkspacePage.Booru && !CanOpenBooru) return false", navigation, StringComparison.Ordinal);
         string shell = Read("Desktop/Shell/MainWindow.Fullscreen.cs");
-        Assert.Contains("if (id == \"navigation.booru\" && !CanOpenBooru) continue", shell, StringComparison.Ordinal);
+        // S3 routing: the page chord is resolved in ShellPageCommand, where Danbooru counts only while it can open.
+        Assert.Contains("(id != \"navigation.booru\" || canOpenBooru) && CommandBindings.Matches(e, id)", Read("Desktop/Shell/MainWindow.Shortcuts.cs"), StringComparison.Ordinal);
         Assert.Contains("new List<string>(MainPageOrder.CommandIds)", shell, StringComparison.Ordinal);
         Assert.Contains("CommandCatalog.ShortcutDisplay(id) != null", shell, StringComparison.Ordinal);
     }
