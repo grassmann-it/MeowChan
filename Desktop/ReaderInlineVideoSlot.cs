@@ -186,7 +186,7 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
         Activator.AddHandler(InputElement.PointerPressedEvent, (_, _) => _pointerPlay = true, RoutingStrategies.Tunnel, handledEventsToo: true);
         Activator.AddHandler(InputElement.PointerReleasedEvent, (_, _) => Dispatcher.UIThread.Post(() => _pointerPlay = false, DispatcherPriority.Background),
             RoutingStrategies.Bubble, handledEventsToo: true);
-        Activator.Click += (_, e) => { e.Handled = true; _ = PlayAsync(); };
+        Activator.Click += (_, e) => { e.Handled = true; OpenActions.Start(() => PlayAsync(), "reader.video.play"); };
         area.Children.Add(Activator);
         _error.Classes.Add("workspace-error");
         AutomationProperties.SetLiveSetting(_error, AutomationLiveSetting.Assertive);
@@ -296,7 +296,7 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
                 player.MuteChosen += muted => controller.SessionMuted = muted;
                 player.Failed += message => Dispatcher.UIThread.Post(() => { if (ReferenceEquals(_player, player)) ShowError(message); });
                 player.UserPlayback += playing => { if (ReferenceEquals(_player, player)) controller.OnUserPlayback(this, playing); };
-                player.Clicked += () => { if (ReferenceEquals(_player, player)) _ = controller.ToggleAsync(this); };
+                player.Clicked += () => { if (ReferenceEquals(_player, player)) OpenActions.Start(() => controller.ToggleAsync(this), "reader.video.toggle"); };
                 _player = player;
                 UpdatePresentation();
                 if (focus) Dispatcher.UIThread.Post(FocusTransport, DispatcherPriority.Loaded);
@@ -372,14 +372,14 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
             {
                 case ReaderInlineVideoRules.KeyAction.Play:
                     e.Handled = true;
-                    _ = PlayAsync();
+                    OpenActions.Start(() => PlayAsync(), "reader.video.play");
                     return;
                 case ReaderInlineVideoRules.KeyAction.Toggle:
                     // Space only when it is the toggle's binding (a person may have moved it); Enter is a fixed content key.
                     if (ReaderVideoKeys.IsEnterToggle(e.Key, e.KeyModifiers) || CommandBindings.Matches(e, "video.play-pause") && !OwnerClaims(id => CommandBindings.Matches(e, id)))
                     {
                         e.Handled = true;
-                        _ = ToggleAsync();
+                        OpenActions.Start(ToggleAsync, "reader.video.toggle");
                         return;
                     }
                     break;
@@ -389,7 +389,7 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
         ReaderVideoAction action = ReaderVideoKeys.Classify(id => CommandBindings.Matches(e, id));
         if (action == ReaderVideoAction.None || action == ReaderVideoAction.PlayPause || OwnerClaims(id => CommandBindings.Matches(e, id))) return;
         e.Handled = true;
-        _ = ExecuteAsync(action);
+        OpenActions.Start(() => ExecuteAsync(action), "reader.video.key");
     }
 
     /// <summary>One of the reader's video keys on this video. Without a live player only play or pause (which creates it) does anything.</summary>
