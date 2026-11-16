@@ -338,12 +338,12 @@ internal static class MediaInteractionChecks
             }, () => $"The {name} control did not settle as a native hit target.");
             return target!;
         }
-        async Task<Button> NativeOverflowTargetAsync(string name)
+        async Task<T> NativeOverflowTargetAsync<T>(string name) where T : Control
         {
             // Opening the overflow menu reparents its rows into the popup. Do not keep
             // the pre-open control returned by Named<T>: it may be the retained template
             // row and never become a valid native target after the reparenting turn.
-            Button? target = null;
+            T? target = null;
             await Program.WaitUntilAsync(() =>
             {
                 try
@@ -356,7 +356,7 @@ internal static class MediaInteractionChecks
                         return false;
 
                     target = viewer.OverflowMenuContent.GetVisualDescendants()
-                        .OfType<Button>()
+                        .OfType<T>()
                         .FirstOrDefault(control => control.Name == name);
                     if (target is null) return false;
 
@@ -479,7 +479,11 @@ internal static class MediaInteractionChecks
             // Leave the slider's native hit target before forcing the retained popup shut;
             // otherwise its hover callback can reopen it on the next layout turn.
             GalleryViewer current = viewer!;
-            await native!.MoveAsync(current, new Point(current.Bounds.Width / 2, current.Bounds.Height / 2));
+            // This move only leaves the retained popup; the viewer is a parent, not
+            // the asserted native hit target. Keep strict hit testing for every actual
+            // control click and use geometry-only positioning for this cleanup move.
+            await native!.MoveAsync(current, new Point(current.Bounds.Width / 2, current.Bounds.Height / 2),
+                requireHitTest: false);
             player.SetVolumePopupOpen(false);
             await Program.WaitUntilAsync(() => !player.IsVolumePopupOpen,
                 () => "The native volume popup did not close after its target was abandoned.");
@@ -673,7 +677,7 @@ internal static class MediaInteractionChecks
                     // turn, so the native click and shortcuts-window assertion below
                     // remain the delivery proof.
                     await native.ClickAsync(() => NativeTargetAsync<Button>("GalleryMore"));
-                    await native.ClickAsync(() => NativeOverflowTargetAsync(panel));
+                    await native.ClickAsync(() => NativeOverflowTargetAsync<Button>(panel));
                 }
                 else
                     await native.ClickAsync(() => NativeTargetAsync<Button>(panel));
@@ -692,7 +696,7 @@ internal static class MediaInteractionChecks
                     "Panel dismissal closed/navigated the gallery.");
             }
             if (expected == "Playing") await SeekClickAsync(.05);
-            await native.ClickAsync(() => NativeTargetAsync<ComboBox>("GalleryPlaybackModeSelector"));
+            await native.ClickAsync(() => NativeOverflowTargetAsync<ComboBox>("GalleryPlaybackModeSelector"));
             Require(Named<ComboBox>("GalleryPlaybackModeSelector").IsDropDownOpen, "Native mode click failed to open the menu.");
             await MediaInteractionSmokeHelpers.HoldStateAsync(Player(), expected, "Playback menu open");
             await native.KeyAsync(MediaNativeInput.Escape);
@@ -747,10 +751,15 @@ internal static class MediaInteractionChecks
                     viewer.ConfigurePlayback(docked);
                     await NavigateAsync(viewer.CaptureState().PostId == "2000", "2001");
                     viewer.ConfigurePlayback(docked.WithControlsOverlay(true));
-                    await native!.MoveAsync(viewer, new Point(viewer.Bounds.Width * .45, viewer.Bounds.Height - 2));
+                    // Reveal/hide is a real OS pointer motion, but the viewer parent
+                    // is not itself the interactive target at this edge. Actual key and
+                    // click assertions below still resolve and hit-test their controls.
+                    await native!.MoveAsync(viewer, new Point(viewer.Bounds.Width * .45, viewer.Bounds.Height - 2),
+                        requireHitTest: false);
                     await Program.WaitUntilAsync(() => Named<Border>("GalleryOverlayControls").IsEffectivelyVisible);
                     await native.ClickAsync(Named<Button>("GalleryFit"));
-                    await native.MoveAsync(viewer, new Point(viewer.Bounds.Width * .45, viewer.Bounds.Height * .30));
+                    await native.MoveAsync(viewer, new Point(viewer.Bounds.Width * .45, viewer.Bounds.Height * .30),
+                        requireHitTest: false);
                     await Program.WaitUntilAsync(() => !Named<Border>("GalleryOverlayControls").IsEffectivelyVisible);
                     string? before = viewer.CaptureState().PostId;
                     int beforeKeys = routedKeys;
