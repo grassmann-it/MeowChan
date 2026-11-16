@@ -99,7 +99,7 @@ internal static class ArchiveMediaCommandChecks
             await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
             MenuItem hiddenGallery = page.ArchiveMediaMenu!.Items.OfType<MenuItem>()
                 .Single(item => (string?)item.Tag == "gallery.open");
-            Require(!hiddenGallery.IsEnabled, "A hidden inline asset remained navigable in the visible gallery.");
+            Require(hiddenGallery.IsEnabled, "A hidden inline asset lost its thread-gallery fallback.");
             page.ArchiveMediaMenu.Close();
             favorites.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
