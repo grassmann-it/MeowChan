@@ -497,10 +497,21 @@ public static class CommandBindings
         return Matches(e, id);
     }
 
+    /// <summary>A gesture that types no text: a function key or a chord with Ctrl/⌘. A bare letter, a Shift or Alt+letter (AltGr) stays text.</summary>
+    internal static bool IsTextSafeChord(KeyEventArgs e) =>
+        e.Key >= Key.F1 && e.Key <= Key.F24 || (e.KeyModifiers & (KeyModifiers.Control | KeyModifiers.Meta)) != 0;
+
+    /// <summary>The commands that move between the main pages (and pause everything): the window's own, with no meaning inside a text field, so a
+    /// chord that types no text reaches them there too (Ctrl+3 in the search box opens Media). Their page footer shows these chords.</summary>
+    internal static bool IsShellNavigationCommand(string id) =>
+        MainPageOrder.Contains(id) || MainPageOrder.StatusSegmentCommandIds.Contains(id, StringComparer.Ordinal)
+        || id is "navigation.plugins" or "session.pause";
+
     private static bool AllowsInputShortcut(string id, KeyEventArgs e)
     {
         bool functionKey = e.Key >= Key.F1 && e.Key <= Key.F24;
         bool primaryModifier = (e.KeyModifiers & (KeyModifiers.Control | KeyModifiers.Meta)) != 0;
+        if (IsShellNavigationCommand(id) && IsTextSafeChord(e)) return true;
         // macOS full screen (⌃⌘F) and help (⌘?) have no F-key: two or more modifiers, one of them Ctrl/⌘, cannot be typed text.
         bool chorded = primaryModifier && System.Numerics.BitOperations.PopCount(
             (uint)(e.KeyModifiers & (KeyModifiers.Control | KeyModifiers.Meta | KeyModifiers.Alt | KeyModifiers.Shift))) >= 2;

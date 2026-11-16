@@ -218,17 +218,28 @@ public partial class MainWindow
         // Positionless keyboard requests keep Avalonia's native ContextMenu/Shift+F10 behavior.
     }
 
+    /// <summary>
+    /// <see cref="CommandBindings.Matches"/> in the Downloads context. The Downloads lists are no page with a <see cref="MeowChan.Desktop.Controls.KeyContextHost"/>:
+    /// asked without a context, a default that a saved binding took away only in another context of the same command (a saved Archive command on F5 against
+    /// "Check now", which also runs here) counts as yielded everywhere and went dead on these lists. The scope covers this one synchronous question, never an await.
+    /// </summary>
+    internal static bool DownloadsMatches(KeyEventArgs e, string id)
+    {
+        using var context = EffectiveShortcutBindings.EnterKeyContext("downloads");
+        return CommandBindings.Matches(e, id);
+    }
+
     private async void OnDownloadListKeyDown(object? sender, KeyEventArgs e)
     {
         if (_sessionRowsApplying && sender is DataGrid sliceGrid && IsListCommandSource(e.Source, sliceGrid)
             && (e.Key is Key.Up or Key.Down or Key.Home or Key.End or Key.PageUp or Key.PageDown
-                || CommandBindings.Matches(e, "selection.select-all")))
+                || DownloadsMatches(e, "selection.select-all")))
         { e.Handled = true; return; }
         if (sender is not DataGrid grid || e.Handled || !IsListCommandSource(e.Source, grid)
             || _largeReaderOpen || (_gallery != null && !_gallerySuspended) || !IsEnabled
             || _selectedPage != WorkspacePage.Downloads || RowCommandBusy || _selectionCommandRunning) return;
         bool boards = ReferenceEquals(grid, DownloadList(true));
-        if (CommandBindings.Matches(e, "menu.context-open"))
+        if (DownloadsMatches(e, "menu.context-open"))
         {
             e.Handled = true;
             if (grid.ContextMenu is ContextMenu menu && grid.SelectedItems.Count > 0)
@@ -249,49 +260,49 @@ public partial class MainWindow
             return;
         }
         KeyModifiers mods = e.KeyModifiers;
-        if (CommandBindings.Matches(e, "selection.select-all"))
+        if (DownloadsMatches(e, "selection.select-all"))
         {
             e.Handled = true; grid.SelectAll(); return;
         }
-        if (CommandBindings.Matches(e, "selection.copy-links"))
+        if (DownloadsMatches(e, "selection.copy-links"))
         {
             e.Handled = true; await CopyUrlsAsync(boards ? SelectedBoards().Select(row => row.Url).ToArray() : SelectedThreads().Select(row => row.Url).ToArray()); return;
         }
-        if (CommandBindings.Matches(e, "export.open-html-dialog") && !boards)
+        if (DownloadsMatches(e, "export.open-html-dialog") && !boards)
         { e.Handled = true; await ExportDownloadSelectionAsync(grid); return; }
-        if (CommandBindings.Matches(e, "watch.remove"))
+        if (DownloadsMatches(e, "watch.remove"))
         { e.Handled = true; await RemoveDownloadSelectionAsync(boards); return; }
-        if (CommandBindings.Matches(e, "thread.details"))
+        if (DownloadsMatches(e, "thread.details"))
         { e.Handled = true; OpenWorkspaceDetails(); return; }
         // Revision 19: "Show in Media" (Alt+M), like the thread menu entry: every selected thread (as one thread set when there are several);
         // boards have no media of their own.
-        if (!boards && CommandBindings.Matches(e, "thread.show-in-media"))
+        if (!boards && DownloadsMatches(e, "thread.show-in-media"))
         {
             e.Handled = true;
             if (LeadThread is ThreadRow row) ShowSelectedThreadsInMedia(SelectedThreads().Select(selected => selected.Snapshot.Id).ToArray(), row.Snapshot.Id, row.Title);
             return;
         }
-        if (CommandBindings.Matches(e, "thread.read") || CommandBindings.Matches(e, "gallery.open"))
+        if (DownloadsMatches(e, "thread.read") || DownloadsMatches(e, "gallery.open"))
         {
             e.Handled = true;
             if (boards) OpenWorkspaceDetails();
             else if (LeadThread is ThreadRow row)
             {
-                if (CommandBindings.Matches(e, "gallery.open")) await OpenActions.RunAsync(() => OpenGalleryAsync(row.Snapshot.Id, origin: grid), "downloads.list.gallery");
+                if (DownloadsMatches(e, "gallery.open")) await OpenActions.RunAsync(() => OpenGalleryAsync(row.Snapshot.Id, origin: grid), "downloads.list.gallery");
                 else if (grid.SelectedItems.Count == 1 && SelectedThreads().Length == 1)
                     await OpenActions.RunAsync(() => OpenDownloadReaderAsync(row.Snapshot.Id, grid), "downloads.list.read");
             }
             return;
         }
-        if (CommandBindings.Matches(e, "watch.check") || CommandBindings.Matches(e, "watch.retry-media"))
-        { e.Handled = true; await CheckDownloadSelectionAsync(boards, CommandBindings.Matches(e, "watch.retry-media")); return; }
-        if (boards && CommandBindings.Matches(e, "board.filters"))
+        if (DownloadsMatches(e, "watch.check") || DownloadsMatches(e, "watch.retry-media"))
+        { e.Handled = true; await CheckDownloadSelectionAsync(boards, DownloadsMatches(e, "watch.retry-media")); return; }
+        if (boards && DownloadsMatches(e, "board.filters"))
         { e.Handled = true; if (LeadBoard is BoardRow row) await OpenBoardAdmissionAsync(row); return; }
-        if (CommandBindings.Matches(e, "rules.edit-scope"))
+        if (DownloadsMatches(e, "rules.edit-scope"))
         { e.Handled = true; OnEditSelectionRules(sender, new RoutedEventArgs()); return; }
-        if (CommandBindings.Matches(e, "location.open-folder"))
+        if (DownloadsMatches(e, "location.open-folder"))
         { e.Handled = true; if (boards) OnOpenBoardDirectoryClick(sender, new RoutedEventArgs()); else OnOpenThreadDirectoryClick(sender, new RoutedEventArgs()); return; }
-        if (CommandBindings.Matches(e, "location.open-source"))
+        if (DownloadsMatches(e, "location.open-source"))
         { e.Handled = true; if (boards) OnOpenBoardInBrowserClick(sender, new RoutedEventArgs()); else OnOpenThreadInBrowserClick(sender, new RoutedEventArgs()); }
     }
 

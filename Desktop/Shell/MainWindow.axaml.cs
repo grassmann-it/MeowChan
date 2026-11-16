@@ -1011,6 +1011,11 @@ public partial class MainWindow : Window
                 ApplyTrayCommandItem(pause, "session.pause", TrayMenuModel.PauseIcon(paused));
             }
         }
+        if (_clipboardMenuItem is NativeMenuItem clipboardItem)
+        {
+            bool clipboardEnabled = TrayMenuModel.ClipboardEnabled(_restoreCompleted, _importing, WorkspaceCommandBusy);
+            if (clipboardItem.IsEnabled != clipboardEnabled) clipboardItem.IsEnabled = clipboardEnabled;
+        }
         if (_trayUpdateItem is NativeMenuItem updateItem)
         {
             MeowChan.Desktop.Updates.UpdateView updates = _session.Updates.View;

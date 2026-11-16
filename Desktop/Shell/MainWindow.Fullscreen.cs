@@ -833,7 +833,7 @@ public partial class MainWindow
         if (_gallery is { BlocksUnfocusedHostKeys: false } activeGallery && !_gallerySuspended
             && !ShellHelpOverlay.IsVisible
             && activeGallery.RouteUnfocusedHostShortcut(e)) return;
-        if (CanExecuteShellPowerCommand(e.Source, e.Key))
+        if (CanExecuteShellPowerCommand(e))
         {
             foreach (string id in MainPageOrder.CommandIds)
             {
@@ -881,6 +881,7 @@ public partial class MainWindow
                 FocusDownloadSearch();
                 return;
             }
+            if (TryRunUnroutedShellCommand(e)) return;
         }
         if (CommandBindings.Matches(e, "input.focus-url"))
         {
@@ -905,9 +906,15 @@ public partial class MainWindow
         { e.Handled = true; _diagnosticsPage.FocusSearch(); }
     }
 
-    internal bool CanExecuteShellPowerCommand(object? source, Key key) => _workspaceInitialized && _restoreCompleted
+    /// <summary>The shell's power commands for this key: a chord that types no text also runs while a text field has the focus (the commands that
+    /// reach there say so themselves, <see cref="CommandBindings.Matches"/>); every other key stays with the field.</summary>
+    internal bool CanExecuteShellPowerCommand(KeyEventArgs e) => CanExecuteShellPowerCommand(e.Source, e.Key, CommandBindings.IsTextSafeChord(e));
+
+    internal bool CanExecuteShellPowerCommand(object? source, Key key) => CanExecuteShellPowerCommand(source, key, allowTextInput: false);
+
+    private bool CanExecuteShellPowerCommand(object? source, Key key, bool allowTextInput) => _workspaceInitialized && _restoreCompleted
         && !_isClosing && IsEnabled && !WorkspaceCommandBusy && !HasVisibleShellDialog() && !HasBlockingPageDecision()
-        && !CommandRouter.IsNativeInput(source, key) && !ShellHelpOverlay.IsVisible
+        && (allowTextInput || !CommandRouter.IsNativeInput(source, key)) && !ShellHelpOverlay.IsVisible
         && _archivePage?.IsReaderDialogOpen != true && !(_gallery is { } blocking && GalleryBlocksShellPowerCommands(blocking.BlocksUnfocusedHostKeys, _gallerySuspended))
         && !this.GetLogicalDescendants().OfType<Control>().Any(control => control.ContextMenu?.IsOpen == true
             || control is Button { Flyout.IsOpen: true } || control is MenuItem { IsSubMenuOpen: true }

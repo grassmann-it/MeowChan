@@ -1,7 +1,10 @@
 using System;
+using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.LogicalTree;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.WorkViews;
 
 namespace MeowChan;
 
@@ -65,6 +68,10 @@ public partial class MainWindow
         {
             bool ReaderShown() => _gallery == null && !HasBlockingPageDecision()
                 && (_largeReaderOpen || _selectedPage == WorkspacePage.Archive);
+            // The thread's tags (Primary+T) in the large reader: it can be open over any page (Downloads, Media, the gallery's thread), where the archive's
+            // own registration above has an invisible owner and an inactive page; the pane is the owner that is always on the screen with it.
+            _shortcutRouter.Register(new CommandRegistration("thread.tags", readerPane, () => ReaderShown() && _largeReaderOpen,
+                () => live.ThreadTagsShortcutTarget != null, live.OpenThreadTagsByShortcut, Priority: 100));
             _shortcutRouter.Register(new CommandRegistration("watch.follow-live", readerPane, ReaderShown,
                 () => live.CanToggleFollowLiveByShortcut, live.ToggleFollowLiveByShortcut, Priority: 100));
             _shortcutRouter.Register(new CommandRegistration("reader.show-new-posts", readerPane, ReaderShown,
@@ -109,6 +116,29 @@ public partial class MainWindow
                 () => _rulesPage.CanExecuteTemplateCommand(id),
                 () => _ = _rulesPage.ExecuteTemplateCommandAsync(id), Priority: 100));
         }
+    }
+
+    /// <summary>
+    /// A key the person assigned to a command that only lives in the ⋯ menu or in the window frame (About, Quit, Check for updates, the full
+    /// reading history, Danbooru, Maximize, Close, Show MeowChan): none of them has a button on the page, so neither the router nor the visible
+    /// actions ever found them and the key did nothing. The menu entries are the executors: the entry that carries the command (visible, or kept
+    /// off the screen by the work view like any reduced action) is pressed exactly as a click would; the window commands call what the caption
+    /// buttons call. Commands with an explicit registration (import, continue reading, profiles, the view switch) keep their own route.
+    /// </summary>
+    private bool TryRunUnroutedShellCommand(KeyEventArgs e)
+    {
+        if (CommandBindings.Matches(e, "window.maximize")) { e.Handled = true; ToggleWindowMaximized(); return true; }
+        if (CommandBindings.Matches(e, "window.close")) { e.Handled = true; Close(); return true; }
+        if (CommandBindings.Matches(e, "app.show")) { e.Handled = true; RestoreWindow(); return true; }
+        MenuItem[] hits = WorkspaceMenuItem.GetLogicalDescendants().OfType<MenuItem>()
+            .Where(item => item.ItemCount == 0 && (item.IsVisible || WorkViewGate.HiddenByView(item))
+                && CommandBindings.ActionId(item) is { } id && !CommandRouter.HasExplicitRegistration(id, this) && CommandBindings.Matches(e, id))
+            .ToArray();
+        if (hits.Length == 0) return false;
+        e.Handled = true;
+        // Several entries for one gesture are ambiguous (the bindings table reports such a pair); a disabled one swallows the key like a disabled button.
+        if (hits.Length == 1) WorkViewActionStateGuard.Invoke(hits[0]);
+        return true;
     }
 
     private void DisposeShortcutRouting()

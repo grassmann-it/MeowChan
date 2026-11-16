@@ -23,6 +23,10 @@ internal static class TrayMenuModel
         : activeDownloads > 0 ? "MeowChan · " + Texts.T("tray.tooltipActive", activeDownloads)
         : BaseTooltip;
 
+    /// <summary>"Add URLs from clipboard" runs only on a restored, idle session (the same guard as the import itself): otherwise the entry says so
+    /// instead of doing nothing.</summary>
+    internal static bool ClipboardEnabled(bool restoreCompleted, bool importing, bool commandBusy) => restoreCompleted && !importing && !commandBusy;
+
     internal static bool PauseEnabled(bool restoreCompleted, bool editorBusy, bool pauseTransitioning) =>
         restoreCompleted && !editorBusy && !pauseTransitioning;
 }
