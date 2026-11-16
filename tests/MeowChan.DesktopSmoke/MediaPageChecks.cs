@@ -1027,9 +1027,18 @@ internal static partial class MediaPageChecks
             await UntilAsync(() => !host.IsVisible && owner.FindControl<ContentControl>("ArchivePageHost")!.IsVisible);
             // Barebones moves Media into the Tools menu, next to Archive.
             await PresentationChecks.SwitchModeAsync(owner, "Barebones");
-            Button tools = owner.FindControl<Button>("ToolsNavigationButton")!;
-            await UntilAsync(() => !media.IsVisible && tools.IsVisible);
-            MenuItem item = ((MenuFlyout)tools.Flyout!).Items.OfType<MenuItem>().Single(entry => entry.Tag as string == "nav.media");
+            // Switching workspace mode rebuilds the navigation template. Do not inspect the
+            // Simple-mode button captured above: it is detached and retains its old visibility.
+            MenuFlyout? toolsFlyout = null;
+            await UntilAsync(() =>
+            {
+                Button? currentMedia = owner.FindControl<Button>("MediaNavigationButton");
+                Button? currentTools = owner.FindControl<Button>("ToolsNavigationButton");
+                return currentMedia is { IsVisible: false }
+                    && currentTools is { IsVisible: true, Flyout: MenuFlyout flyout }
+                    && (toolsFlyout = flyout) is not null;
+            });
+            MenuItem item = toolsFlyout!.Items.OfType<MenuItem>().Single(entry => entry.Tag as string == "nav.media");
             Require(item.IsVisible, "Media is missing from the Tools menu in Barebones.");
             item.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
             await UntilAsync(() => host.IsVisible);

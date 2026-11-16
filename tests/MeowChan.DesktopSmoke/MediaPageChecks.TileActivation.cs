@@ -45,7 +45,9 @@ internal static partial class MediaPageChecks
 
         // Enter on the same tile: the same window and start.
         second!.Focus();
-        second.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter, Source = second });
+        // Raise the managed key at the list root. A ListBoxItem handles its bubbling KeyDown before
+        // the page handler on Linux, while the focused item still supplies the selected row.
+        grid.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter, Source = second });
         await UntilAsync(() => opened.Count == before + 2);
         Require(opened[^1].Window.SequenceEqual(clicked) && opened[^1].Start == clickedStart,
             "Enter and a double click on one tile must open the same gallery window at the same place.");
@@ -98,12 +100,8 @@ internal static partial class MediaPageChecks
                 new PointerPointProperties(RawInputModifiers.None, PointerUpdateKind.LeftButtonReleased), KeyModifiers.None, MouseButton.Left));
         }
         pointer.Capture(null);
-        // RaiseEvent delivers the managed pointer route but does not run Avalonia's input-manager gesture recognizer.
-        // Emit the resulting routed double-tap explicitly so this source-built smoke still exercises the product handler
-        // without depending on a native display input backend.
-        hit.RaiseEvent(new TappedEventArgs(InputElement.DoubleTappedEvent,
-            new PointerEventArgs(InputElement.PointerReleasedEvent, hit, pointer, root, at, 25,
-                PointerPointProperties.None, KeyModifiers.None)) { Source = hit });
+        // The two routed presses/releases already pass through Avalonia's tap recognizer on the
+        // attached tile. Raising a second DoubleTapped event here would activate the same tile twice.
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
     }
 
