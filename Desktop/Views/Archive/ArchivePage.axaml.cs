@@ -353,6 +353,7 @@ public partial class ArchivePage : UserControl
             // without it; the same thread re-read in place (live follow, a list page) keeps it.
             _history.Clear();
         }
+        if (_selectedThread != id) _readerPostId = null; // Post ids are local to a thread.
         _retainedMediaPosition = CaptureMediaPosition();
         _mediaProjectionPending = true;
         if (_selectedThread != id) _ = ReleaseInlineVideos(); // R10: another thread starts without players
@@ -565,7 +566,13 @@ public partial class ArchivePage : UserControl
             postList.ItemsSource = null;
             postList.ItemsPanel = ReaderPostList.NewPanelTemplate();
             postList.ItemsSource = posts;
-            if (!posts.Any(post => post.Id == _readerPostId)) _readerPostId = posts.FirstOrDefault()?.Id;
+            // Replacing ItemsSource clears ListBox selection even when the logical post survives.
+            // Select within the projected page (not the unfiltered thread), without taking keyboard
+            // focus or recording a deliberate reading move. Explicit jumps/anchor restoration still
+            // own their later alignment. Selection also activates focused media and the sidebar.
+            ArchivePostRow? selectedPost = posts.FirstOrDefault(post => post.Id == _readerPostId) ?? posts.FirstOrDefault();
+            _readerPostId = selectedPost?.Id;
+            postList.SelectedItem = selectedPost;
             UpdateReaderNavigation();
             RefreshInlineReplies(posts);
         }
