@@ -190,11 +190,15 @@ public sealed class ProfileLease : IDisposable
 
     private static FileStream AcquireLock(string path, FileMode mode, FileAccess access)
     {
-        // FileShare.None maps to a blocking flock on macOS for an existing
-        // file. Open the durable inode with sharing enabled, then take the
-        // advisory lock explicitly and non-blocking. This keeps a second
-        // process from waiting forever in a child probe while preserving the
-        // same OS-level lease and the durable lock-file inode.
+        // On Unix, .NET backs FileShare.None with flock(LOCK_EX | LOCK_NB), which
+        // does not block either; a conflict would surface only as a generic
+        // IOException. Open the durable inode with sharing enabled instead (for
+        // which .NET takes an implicit flock(LOCK_SH | LOCK_NB) where the file
+        // system supports it) and then request LOCK_EX | LOCK_NB explicitly, so a
+        // conflict is told apart from other failures by its errno. flock(2)
+        // converts the shared lock non-atomically, but exclusivity still holds:
+        // the conversion fails while any other descriptor holds a lock, and no
+        // other process can convert or acquire one while ours is exclusive.
         if (OperatingSystem.IsWindows())
             return new FileStream(path, mode, access, FileShare.None);
 
