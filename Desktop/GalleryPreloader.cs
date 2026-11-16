@@ -116,10 +116,10 @@ internal sealed class GalleryPreloader<T> where T : class, IDisposable
         string? key = GalleryImageCache.KeyOf(entry);
         if (key == null || !_cache.HasCandidate(key, fit)) return -1;
         GalleryImageCache.FileValidity? validity = GalleryImageCache.Capture(entry, _cache.IdentityOf);
-        if (validity == null || !await GalleryImageCache.VerifyForCacheAsync(_cache, entry, validity, token).ConfigureAwait(false))
+        if (!await GalleryImageCache.VerifyForCacheAsync(_cache, entry, validity, token).ConfigureAwait(false))
             return -1;
         token.ThrowIfCancellationRequested();
-        return _cache.Touch(key, fit, validity);
+        return _cache.Touch(key, fit, validity!);
     }
 
     private async Task RunAsync(GalleryPreloadWindow preloadWindow, GalleryDecodeRequest.Fit fit, CancellationTokenSource source)

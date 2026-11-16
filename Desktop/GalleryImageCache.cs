@@ -161,6 +161,22 @@ internal sealed class GalleryImageCache<T> where T : class, IDisposable
         lock (_gate) return _byKey.TryGetValue(key, out Slot? slot) && Covers(slot, fit);
     }
 
+    /// <summary>
+    /// A failed proof of the slot's own source retires it even if the filesystem still reports its old metadata.
+    /// A different folder's failed proof must not evict a valid shared bitmap. Existing viewer leases remain alive.
+    /// </summary>
+    internal void InvalidateSource(string key, string path)
+    {
+        T? dead = null;
+        lock (_gate)
+        {
+            if (_byKey.TryGetValue(key, out Slot? slot) && slot.Source is { } source
+                && string.Equals(source.Path, path, StringComparison.Ordinal))
+                dead = Evict(slot);
+        }
+        dead?.Dispose();
+    }
+
     // The kept image of these bytes that covers the target and whose source file is unchanged. The source file of the requested
     // entry is checked separately: a bytes-key may be shared by another folder, but an unverified requested original is never a hit.
     // Both file checks run outside the lock. A failed currentValid check does not evict the slot because it may remain valid for its
@@ -331,8 +347,9 @@ internal static class GalleryImageCache
         string.IsNullOrEmpty(entry.Asset.Sha256) ? null : entry.Asset.Sha256.ToLowerInvariant() + ":" + entry.Asset.Length;
 
     /// <summary>
-    /// The identity captured before a decode. A regular file identity includes the object identity and status-change metadata,
-    /// not only length and write time, so same-length rewrites and rename-over replacements cannot retain a warm image.
+    /// The identity captured before a decode includes object identity and status-change metadata, not only length and write time.
+    /// Unix can use it to reject same-length rewrites and rename-over replacements. Windows warm hits also require a full hash,
+    /// because its metadata can remain unchanged across rapid rewrites.
     /// Reading the identity is a blocking file-system call (a sleeping disk or a network share can stall it); the gallery cache
     /// path calls it only on the thread pool.
     /// </summary>
@@ -394,8 +411,8 @@ internal static class GalleryImageCache
 
     /// <summary>
     /// A check that the entry's file is still the regular file a decode starting now reads. The identity rejects missing files,
-    /// symbolic links, same-length rewrites with restored times and rename-over replacements. The decode verifies the whole file
-    /// once; a kept image is shown again only while this identity still holds. Null means the file cannot be inspected and the
+    /// symbolic links and (on Unix) same-length rewrites with restored times and rename-over replacements. This metadata-only
+    /// predicate is not sufficient for Windows warm hits, which also require full verification. Null means the file cannot be inspected and the
     /// image must not be kept.
     /// </summary>
     internal static Func<bool>? Validity(GalleryEntry entry)
@@ -412,16 +429,18 @@ internal static class GalleryImageCache
     }
 
     /// <summary>
-    /// Checks an entry before a warm hit. <paramref name="validity"/> must have been captured immediately before (<c>Capture</c>):
+    /// Checks an entry before a warm hit. A failed proof retires a bitmap owned by this source, not one shared from another folder.
+    /// <paramref name="validity"/> must have been captured immediately before (<c>Capture</c>):
     /// an unchanged remembered occurrence is matched against that fresh identity without reading the file again. An occurrence not
     /// remembered in this cache is fully verified once through the existing manifest reader and its identity is read once more
     /// afterwards. The stream is deliberately not used for decoding: it is only the proof that permits sharing a bitmap made for
     /// identical bytes. Every step may block on the file system; call it off the UI thread.
     /// </summary>
-    internal static async Task<bool> VerifyForCacheAsync<T>(GalleryImageCache<T> cache, GalleryEntry entry, FileValidity validity,
+    internal static async Task<bool> VerifyForCacheAsync<T>(GalleryImageCache<T> cache, GalleryEntry entry, FileValidity? validity,
         CancellationToken cancellationToken) where T : class, IDisposable
     {
         cancellationToken.ThrowIfCancellationRequested();
+        if (validity == null) return RejectSource();
         // Windows file change times can remain unchanged for a rapid same-size rewrite. A warm image must therefore
         // take the full manifest hash path on Windows; the identity memo remains a safe fast path on Unix.
         if (!OperatingSystem.IsWindows() && validity.IsRemembered(cache.VerifiedFiles)) return true;
@@ -431,10 +450,19 @@ internal static class GalleryImageCache
                 entry.Asset.AssetId, cache.VerifiedFiles, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) { throw; }
-        catch (Exception) { return false; }
+        catch (Exception) { return RejectSource(); }
         // OpenSessionVerifiedReadAsync remembers only a stable regular file. Require the captured identity too: a swap while the
         // proof was being opened must cause a miss rather than authorize bytes from a different occurrence.
-        return OperatingSystem.IsWindows() ? validity.IsCurrent() : validity.IsVerified(cache.VerifiedFiles);
+        bool current = OperatingSystem.IsWindows() ? validity.IsCurrent() : validity.IsVerified(cache.VerifiedFiles);
+        return current || RejectSource();
+
+        bool RejectSource()
+        {
+            // Do not let a later restoration of the bytes/metadata resurrect a source whose proof already failed.
+            // In particular, Windows may retain its earlier change time across a same-length rewrite.
+            if (KeyOf(entry) is { } key) cache.InvalidateSource(key, entry.Asset.Path);
+            return false;
+        }
     }
 
     /// <summary>
@@ -471,10 +499,10 @@ internal static class GalleryImageCache
             if (cache.HasCandidate(key, fit))
             {
                 validity = Capture(entry, identityOf);
-                if (validity != null && await VerifyForCacheAsync(cache, entry, validity, cancellationToken).ConfigureAwait(false))
+                if (await VerifyForCacheAsync(cache, entry, validity, cancellationToken).ConfigureAwait(false))
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    if (cache.TryAcquire(key, fit, out T? hit, out GalleryImageInfo? info, validity))
+                    if (cache.TryAcquire(key, fit, out T? hit, out GalleryImageInfo? info, validity!))
                     {
                         if (cancellationToken.IsCancellationRequested)
                         {

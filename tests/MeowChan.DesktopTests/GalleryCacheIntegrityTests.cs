@@ -104,6 +104,11 @@ public sealed class GalleryCacheIntegrityTests
             GalleryImageCache.DecodeThrough(cache, Decode, secondEntry, Fit, CancellationToken.None));
         Assert.Equal(2, decodes);
         Assert.Equal(1, cache.Count); // The valid first occurrence remains available; the failed second one took no lease.
+        Assert.False(first.Disposed);
+        (Img stillShared, _) = await GalleryImageCache.DecodeThrough(cache, Decode, firstEntry, Fit, CancellationToken.None);
+        Assert.Same(first, stillShared);
+        Assert.Equal(2, decodes);
+        cache.Release(stillShared);
     }
 
     [Fact]
@@ -408,7 +413,8 @@ public sealed class GalleryCacheIntegrityTests
         Assert.Same(first, warm);
         cache.Release(warm);
 
-        // Same length, write time restored: the identity changed, the proof fails, the decoder (which verifies) runs and refuses.
+        // Same length, write time restored: the proof fails even if Windows reports unchanged metadata.
+        // The decoder (which verifies) runs and refuses; the failed source must already be retired.
         DateTime writeTime = File.GetLastWriteTimeUtc(entry.Asset.Path);
         await File.WriteAllBytesAsync(entry.Asset.Path, "replaced image"u8.ToArray());
         File.SetLastWriteTimeUtc(entry.Asset.Path, writeTime);
@@ -416,8 +422,11 @@ public sealed class GalleryCacheIntegrityTests
             GalleryImageCache.DecodeThrough(cache, Decode, entry, Fit, CancellationToken.None));
         Assert.Equal(2, decodes);
 
-        // The original bytes again, with a new change time: they are proven, but the kept image was made from the earlier identity
-        // and is dropped instead of shown.
+        Assert.Equal(0, cache.Count);
+        Assert.True(first.Disposed);
+
+        // Restore the original bytes without relying on a new change time: a failed source proof is irreversible,
+        // so even Windows reporting the earlier identity cannot resurrect the retired image.
         await File.WriteAllBytesAsync(entry.Asset.Path, "original image"u8.ToArray());
         File.SetLastWriteTimeUtc(entry.Asset.Path, writeTime);
         (Img fresh, _) = await GalleryImageCache.DecodeThrough(cache, Decode, entry, Fit, CancellationToken.None);
@@ -430,12 +439,61 @@ public sealed class GalleryCacheIntegrityTests
         await Assert.ThrowsAsync<FileNotFoundException>(() =>
             GalleryImageCache.DecodeThrough(cache, Decode, entry, Fit, CancellationToken.None));
         Assert.Equal(4, decodes);
-        // The next lookup (here: the preloader's touch, on the pool) drops the image of the vanished original.
+        Assert.Equal(0, cache.Count);
+        Assert.True(fresh.Disposed); // deletion retires the source immediately, without needing a later touch
         string key = Assert.IsType<string>(GalleryImageCache.KeyOf(entry));
         Assert.Equal(-1, await Task.Run(() => cache.Touch(key, Fit)));
         Assert.True(fresh.Disposed);
         Assert.Equal(0, probe.OnUi);
     });
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task AFailedSourceProofRetiresTheBitmapEvenWhenMetadataDoesNotChange(bool preload, bool keepLease)
+    {
+        using TempDirectory temp = new();
+        GalleryEntry entry = await EntryAsync(Path.Combine(temp.Path, "one"), "image.png", "original image"u8.ToArray());
+        RegularProfileFileIdentity identity = RegularProfileFile.TryGetIdentity(entry.Asset.Path)!.Value;
+        // Deterministically model Windows reporting the same metadata after a rapid same-size rewrite.
+        GalleryImageCache<Img> cache = new(image => image.Size, Budget) { IdentityOf = _ => identity };
+        int decodes = 0;
+        async Task<(Img Bitmap, GalleryImageInfo Info)> Decode(GalleryEntry decoded, GalleryDecodeRequest _, CancellationToken token)
+        {
+            decodes++;
+            await using Stream verified = await decoded.Manifest.OpenVerifiedReadAsync(decoded.Asset.AssetId, token);
+            return (new Img(100, 100), Info);
+        }
+
+        (Img first, _) = await GalleryImageCache.DecodeThrough(cache, Decode, entry, Fit, CancellationToken.None);
+        if (!keepLease) cache.Release(first);
+        await File.WriteAllBytesAsync(entry.Asset.Path, "replaced image"u8.ToArray());
+        // Windows always hashes warm hits. Clear the memo to exercise that full-proof path on Unix too,
+        // independently of the real filesystem's change-time resolution and the injected metadata collision.
+        cache.VerifiedFiles.Clear();
+        if (preload)
+        {
+            GalleryPreloader<Img> preloader = new(cache, Decode, TimeSpan.Zero);
+            await preloader.Schedule(new[] { entry }, 0, Fit, ahead: 1, behind: 0);
+        }
+        else
+            await Assert.ThrowsAsync<InvalidDataException>(() =>
+                GalleryImageCache.DecodeThrough(cache, Decode, entry, Fit, CancellationToken.None));
+
+        Assert.Equal(0, cache.Count);
+        Assert.Equal(0, cache.Bytes);
+        Assert.Equal(!keepLease, first.Disposed);
+        await File.WriteAllBytesAsync(entry.Asset.Path, "original image"u8.ToArray());
+        (Img fresh, _) = await GalleryImageCache.DecodeThrough(cache, Decode, entry, Fit, CancellationToken.None);
+        Assert.NotSame(first, fresh);
+        Assert.Equal(preload ? 2 : 3, decodes);
+        if (keepLease) cache.Release(first);
+        Assert.True(first.Disposed);
+        Assert.False(fresh.Disposed);
+        cache.Release(fresh);
+    }
 
     private static async Task AssertCanceledAsync(Task task)
     {
