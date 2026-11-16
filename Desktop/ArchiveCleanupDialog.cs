@@ -470,6 +470,9 @@ internal sealed class ArchiveCleanupDialog : Window
             : Texts.T("archive.cleanup.status.canceling");
         UpdateActions();
     }
+    /// <summary>The app is quitting: the running operation is cancelled (as the dialog's Cancel does); the dialog stays until it is closed.</summary>
+    internal void CancelForShutdown() => CancelOperation();
+
     internal void RequestClose()
     {
         if (_busy) { _closeWhenIdle = true; CancelOperation(); }

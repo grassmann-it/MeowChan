@@ -25,6 +25,7 @@ internal sealed class ShutdownBudget
     private readonly object _sync = new();
     private readonly Dictionary<string, long> _running = new(StringComparer.Ordinal);
     private string? _timedOut;
+    private string? _failedStep;
     private Exception? _failure;
 
     internal ShutdownBudget(TimeSpan limit, ILogger? log = null, TimeProvider? time = null)
@@ -46,6 +47,9 @@ internal sealed class ShutdownBudget
 
     /// <summary>The first failure of a step (the steps after it still ran).</summary>
     internal Exception? Failure { get { lock (_sync) return _failure; } }
+
+    /// <summary>The name of the step that failed first (see <see cref="Failure"/>); null while no step failed.</summary>
+    internal string? FailedStep { get { lock (_sync) return _failedStep; } }
 
     /// <summary>The steps running now with how long each has run, for the watchdog's message ("none" when nothing runs).</summary>
     internal string DescribeRunning()
@@ -135,7 +139,10 @@ internal sealed class ShutdownBudget
 
     private void RecordFailure(string step, Exception error, long begun)
     {
-        lock (_sync) _failure ??= error;
+        lock (_sync)
+        {
+            if (_failure == null) { _failure = error; _failedStep = step; }
+        }
         _log.Warning(error, "Shutdown step {Step} failed after {Elapsed}.", step, Seconds(_time.GetElapsedTime(begun)));
     }
 
@@ -174,9 +181,17 @@ internal static class ShutdownOutcome
 
 /// <summary>
 /// The last resort of a shutdown that cannot finish in-process. Only the app's own process may end itself (Program.Main allows it for a
-/// normal start); an in-process host such as a smoke keeps the window instead. Committed data is safe: every profile write is atomic
-/// (written aside, then renamed; SQLite commits through its journal), so ending the process loses at most the write still in flight.
-/// The profile lock and every native player end with the process.
+/// normal start); an in-process host such as a smoke keeps the window instead. The profile lock and every native player end with the
+/// process.
+/// <para>
+/// What ending the process keeps: every single write that was committed. Profile files are written aside and renamed, media through
+/// <c>.part</c> files, and SQLite commits through its rollback journal, so no file is left half written and the write in flight is
+/// simply lost. A multi-step operation, however, is not one write: cut between two of its steps it keeps the steps already committed.
+/// That is why the shutdown start cancels the long operations that can stop cleanly (a manual import stops after the current file and
+/// keeps the files already imported; an archive cleanup stops before its next step), and why a running permanent deletion,
+/// which removes the media folders before the catalog rows and cannot stop in between, is asked about at the veto point instead of
+/// being cut by the time limit (MainWindow.ArchiveDeletion.cs).
+/// </para>
 /// </summary>
 internal static class ShutdownExit
 {

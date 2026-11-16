@@ -14,13 +14,17 @@ public partial class MainWindow
     {
         CurrentConfig = () => _config,
         SaveAsync = SaveQuickSettingsAsync,
-        Applied = ids => _settingsEditor?.RefreshConfirmedSettings(ids),
+        // A change saved while closing (S4 F3) refreshes nothing: the settings page has ended its lifetime.
+        Applied = ids => { if (!_isClosing) _settingsEditor?.RefreshConfirmedSettings(ids); },
         ShowAllSettings = ShowSettingsAt
     };
 
+    // S4 F3: a change still waiting when the app quits (the popover flushes when it closes, CloseApplicationAsync flushes both reader
+    // appliers) is saved while closing too: the session takes view-preference writes until it seals its final writes (session-stop),
+    // which comes after the final preferences were awaited. Only applying it to the closing gallery is left out. After the seal the
+    // session itself refuses the write, and the applier reports and drops it as any failed save.
     private async Task SaveQuickSettingsAsync(Action<Config> change)
     {
-        if (_isClosing) throw new InvalidOperationException("The window is closing.");
         await _session.SaveViewPreferencesAsync(change);
         if (!_isClosing) ApplyGalleryPreferences();
     }

@@ -1,6 +1,7 @@
 using System;
 using System.ComponentModel;
 using System.Linq;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Shapes;
@@ -52,6 +53,21 @@ public partial class ArchivePage
         ReaderSettingsOpen.IsEffectivelyVisible ? ReaderSettingsOpen
         : ReaderToolbar.More is { IsEffectivelyVisible: true } more ? more
         : ReaderToolbar;
+
+    /// <summary>
+    /// S4 F3: saves what the reader popover and the font steps (Ctrl+wheel, Ctrl+Plus/Minus/0) still wait to save, without their pause;
+    /// completes when both have nothing waiting or running. The shell calls it at the start of the shutdown, before anything closes,
+    /// and waits for it with the final preferences. Never throws: a failed save is reported by the applier and dropped, as always.
+    /// </summary>
+    internal Task FlushQuickSettingsAsync()
+    {
+        try
+        {
+            return Task.WhenAll(_readerQuickSettings?.Surface.FlushAsync() ?? Task.CompletedTask,
+                _readerFontApplier?.FlushAsync() ?? Task.CompletedTask);
+        }
+        catch (Exception error) { return Task.FromException(error); }
+    }
 
     private void CloseQuickSettings()
     {

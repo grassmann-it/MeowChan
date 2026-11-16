@@ -18,6 +18,50 @@ namespace MeowChan;
 public partial class MainWindow
 {
     private bool _archiveDeletionOpen;
+    // S4 F4: while the dialog runs a step that cannot be cancelled half-way (the deletion itself, or a cleanup retry), the step's end;
+    // null otherwise. The dialog refuses its own close meanwhile, and a close of the app is asked at the veto point.
+    private TaskCompletionSource? _archiveDeletionRun;
+    private Window? _archiveDeletionDialog;
+    private bool _archiveDeletionCloseAsked;
+
+    /// <summary>A permanent deletion (or one of its cleanup retries) is running right now (test and smoke seam).</summary>
+    internal bool IsArchiveDeletionRunning => _archiveDeletionRun != null;
+
+    private void BeginArchiveDeletionRun() => _archiveDeletionRun ??= new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    private void EndArchiveDeletionRun()
+    {
+        TaskCompletionSource? run = _archiveDeletionRun;
+        _archiveDeletionRun = null;
+        run?.TrySetResult();
+    }
+
+    // S4 F4: a permanent deletion removes the media folders first and the catalog rows afterwards, thread by thread, and has no point
+    // where it could stop cleanly. The shutdown time limit would end the process in its middle, which leaves deleted threads back in the
+    // archive with their media gone. Exempting the step from the limit would bring back the unbounded wait behind a hidden window, so
+    // the close is asked here, at the veto point, where nothing has changed yet: "Quit when finished" waits with the window as it is
+    // (the deletion dialog shows the progress) and then quits; "Keep MeowChan open" keeps everything. A second close request while the
+    // question is open or the wait runs is kept back; the first one ends the app.
+    private async Task<bool> ConfirmCloseDuringArchiveDeletionAsync()
+    {
+        if (_archiveDeletionRun == null) return true;
+        if (_archiveDeletionCloseAsked) return false;
+        _archiveDeletionCloseAsked = true;
+        try
+        {
+            Window owner = _archiveDeletionDialog is { IsVisible: true } dialog ? dialog : this;
+            bool quitAfter = await DialogPrompt.ConfirmAsync(owner, CommandCatalog.Label("archive.delete-permanently"),
+                Texts.T("shutdown.deletion.running"), Texts.T("shutdown.deletion.quitAfter"), Texts.T("shutdown.deletion.keepOpen"), danger: false);
+            if (!quitAfter) return false;
+            if (_archiveDeletionRun is { } run)
+            {
+                Serilog.Log.Information("Closing the application waits for the running permanent deletion to finish.");
+                await run.Task;
+            }
+            return true;
+        }
+        finally { _archiveDeletionCloseAsked = false; }
+    }
 
     private async Task DeleteArchivePermanentlyAsync(IReadOnlyList<ResourceId> selection, Control? origin)
     {
@@ -33,6 +77,7 @@ public partial class MainWindow
             // Modals plan MD3: the form step; the title stands in the title bar only, the destructive action is the primary one.
             Window dialog = DialogWindow.Create(title, DialogSize.M, modal: true);
             dialog.Name = "ArchivePermanentDeleteDialog";
+            _archiveDeletionDialog = dialog;
             TextBlock summary = new()
             {
                 TextWrapping = TextWrapping.Wrap,
@@ -92,7 +137,7 @@ public partial class MainWindow
             {
                 if (executing || ratingRetryIds == null) return;
                 ResourceId[] frozen = ratingRetryIds.ToArray();
-                executing = true; ratingRetry.IsEnabled = cancel.IsEnabled = false;
+                executing = true; BeginArchiveDeletionRun(); ratingRetry.IsEnabled = cancel.IsEnabled = false;
                 try
                 {
                     await _session.RetryMediaRatingCleanupAsync(frozen);
@@ -101,14 +146,14 @@ public partial class MainWindow
                     status.Text = Texts.T("archive.delete.ratingsCleaned");
                 }
                 catch (Exception error) { status.Text = string.Empty; failure.Text = Texts.T("archive.delete.cleanupRetryFailed", error.Message); }
-                finally { executing = false; ratingRetry.IsEnabled = cancel.IsEnabled = true; }
+                finally { executing = false; EndArchiveDeletionRun(); ratingRetry.IsEnabled = cancel.IsEnabled = true; }
             }
             ratingRetry.Click += async (_, _) => await RetryRatingsAsync();
             async Task RetryTagsAsync()
             {
                 if (executing || tagRetryIds == null) return;
                 ResourceId[] frozen = tagRetryIds.ToArray();
-                executing = true; tagRetry.IsEnabled = cancel.IsEnabled = false;
+                executing = true; BeginArchiveDeletionRun(); tagRetry.IsEnabled = cancel.IsEnabled = false;
                 try
                 {
                     await _session.RetryPrivateTagCleanupAsync(frozen);
@@ -117,7 +162,7 @@ public partial class MainWindow
                     status.Text = Texts.T("archive.delete.tagsCleaned");
                 }
                 catch (Exception error) { status.Text = string.Empty; failure.Text = Texts.T("archive.delete.cleanupRetryFailed", error.Message); }
-                finally { executing = false; tagRetry.IsEnabled = cancel.IsEnabled = true; }
+                finally { executing = false; EndArchiveDeletionRun(); tagRetry.IsEnabled = cancel.IsEnabled = true; }
             }
             tagRetry.Click += async (_, _) => await RetryTagsAsync();
             CommandRouter ratingRouter = new(dialog);
@@ -128,7 +173,7 @@ public partial class MainWindow
             delete.Click += async (_, _) =>
             {
                 if (executing) return;
-                executing = true; delete.IsEnabled = cancel.IsEnabled = false;
+                executing = true; BeginArchiveDeletionRun(); delete.IsEnabled = cancel.IsEnabled = false;
                 failure.Text = string.Empty;
                 status.Text = Texts.T("archive.delete.deleting");
                 try
@@ -162,7 +207,7 @@ public partial class MainWindow
                     localError(Texts.T("archive.delete.failed", error.Message));
                     ShowNotification(Texts.T("notification.error"), Texts.T("archive.delete.failed", error.Message), NotificationType.Error, context: string.Join(",", ids.Select(id => id.ToString())), operation: "archive.delete");
                 }
-                finally { executing = false; cancel.IsEnabled = true; cancel.Content = Texts.T("action.close"); }
+                finally { executing = false; EndArchiveDeletionRun(); cancel.IsEnabled = true; cancel.Content = Texts.T("action.close"); }
             };
             dialog.Opened += (_, _) => cancel.Focus();
             await dialog.ShowDialog(this);
@@ -178,6 +223,8 @@ public partial class MainWindow
         finally
         {
             _archiveDeletionOpen = false;
+            _archiveDeletionDialog = null;
+            EndArchiveDeletionRun();
             if (origin?.IsEffectivelyVisible == true) origin.Focus();
         }
     }
