@@ -34,3 +34,5 @@ rather than only one screen.
   `or`, `not`, tag/title/source fields, and a compact combined search interface.
 - **Header View menu icon:** the View/work-view menu entry should carry the same eye icon as
   `workspace.view-cycle`, so the menu is scannable and consistent with the header affordance.
+- **Settings search alignment:** the settings search field should align with the content column
+  (same left/right edges as the Interface section), not float narrower in the header.
