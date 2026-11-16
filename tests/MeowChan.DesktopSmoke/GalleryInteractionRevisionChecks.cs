@@ -377,7 +377,9 @@ internal static partial class GalleryPlaybackFeatureChecks
         await ObservePlayingAsync(player, "bottom transport at right hotspot");
         Require(Running(viewer) && !viewer.CaptureState().ContextOpen, "Right hotspot over visible bottom transport stole precedence and opened post.");
         ToggleButton loop = Find<ToggleButton>(viewer, "GalleryVideoLoop");
-        await native.MoveAsync(loop, requireEnabled: false);
+        // A disabled ToggleButton remains geometrically present but is not an actionable
+        // native hit target; probe its real position without requiring hit-test ownership.
+        await native.MoveAsync(loop, requireEnabled: false, requireHitTest: false);
         await ObservePlayingAsync(player, "loop hover");
         Require(Running(viewer) && !viewer.CaptureState().ContextOpen, "Loop hover opened post and stopped progression.");
         // A running slideshow owns video repetition, so the transport loop is intentionally
