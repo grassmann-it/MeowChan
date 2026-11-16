@@ -383,17 +383,25 @@ jobs:
           mkdir -p "$fixture/current-test-results"
           if [[ "$RUNNER_OS" == Linux ]]; then
             # Ubuntu hosted runners reject the nested unshare uid_map write used
-            # by the old boolean path. Bubblewrap owns the user-namespace
-            # handshake. Do not pass --unshare-net to bwrap: bwrap then tries to
-            # configure lo with RTM_NEWADDR, which hosted runners may forbid.
-            # Instead, a short-lived setup child creates an empty netns with
-            # CAP_SYS_ADMIN, then setpriv removes every capability before the
-            # replay. This is a hard capability gate: no handler-only fallback.
+            # by the old boolean path. The ARM hosted image also rejects the
+            # unprivileged bwrap uid_map write. Run only bwrap's namespace/mount
+            # setup through passwordless sudo, map back to the runner UID/GID,
+            # and never run the replay as root. Do not pass --unshare-net to
+            # bwrap: it configures lo via RTM_NEWADDR, which hosted runners may
+            # forbid. A short-lived unshare child creates an empty netns, then
+            # setpriv removes every capability before the replay. This is a hard
+            # capability gate: no handler-only fallback.
             bwrap_path="$(command -v bwrap || true)"
             unshare_path="$(command -v unshare || true)"
             setpriv_path="$(command -v setpriv || true)"
-            if [[ -z "$bwrap_path" || -z "$unshare_path" || -z "$setpriv_path" ]]; then
-              echo "::error::1.0.2 replay requires bwrap, unshare and setpriv for its isolated user+network namespace" >&2
+            sudo_path="$(command -v sudo || true)"
+            if [[ -z "$bwrap_path" || -z "$unshare_path" || -z "$setpriv_path" || -z "$sudo_path" ]]; then
+              echo "::error::1.0.2 replay requires bwrap, unshare, setpriv and non-interactive sudo for its isolated user+network namespace" >&2
+              exit 1
+            fi
+            sudo_root_uid="$(sudo -n id -u 2>/dev/null || true)"
+            if [[ "$sudo_root_uid" != 0 ]]; then
+              echo "::error::1.0.2 replay requires non-interactive sudo that is authorized for root-owned bwrap setup; refusing an unisolated replay" >&2
               exit 1
             fi
             host_netns="$(readlink /proc/self/ns/net)"
@@ -411,7 +419,8 @@ jobs:
           awk 'NR > 1 && NF { bad=1 } END { exit bad+0 }' /proc/net/route
           PROBE
           )"
-            if ! "$bwrap_path" --die-with-parent --unshare-user \
+            if ! sudo -n "$bwrap_path" --die-with-parent --unshare-user \
+                --uid "$expected_uid" --gid "$expected_gid" \
                 --cap-add CAP_SYS_ADMIN --cap-add CAP_SETPCAP --disable-userns \
                 --ro-bind / / --proc /proc --dev /dev --tmpfs /tmp \
                 --setenv MEOWCHAN_HOST_NETNS "$host_netns" \
@@ -423,8 +432,11 @@ jobs:
               echo "::error::1.0.2 replay requires a private host-free network namespace with uid/gid and zero-capability proof; refusing an unisolated replay" >&2
               exit 1
             fi
-            export MEOWCHAN_RELEASED102_NETWORK_NAMESPACE=bwrap
+            export MEOWCHAN_RELEASED102_NETWORK_NAMESPACE=bwrap-root
             export MEOWCHAN_RELEASED102_BWRAP_PATH="$bwrap_path"
+            export MEOWCHAN_RELEASED102_BWRAP_SUDO="$sudo_path"
+            export MEOWCHAN_RELEASED102_BWRAP_UID="$expected_uid"
+            export MEOWCHAN_RELEASED102_BWRAP_GID="$expected_gid"
             export MEOWCHAN_RELEASED102_UNSHARE_PATH="$unshare_path"
             export MEOWCHAN_RELEASED102_SETPRIV_PATH="$setpriv_path"
           fi

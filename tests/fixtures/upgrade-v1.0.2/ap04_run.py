@@ -51,7 +51,7 @@ LOCK = Path('/home/tomka/.cache/claude-ssd-tmp/heavy.lock')
 LOCK_BUSY = 75
 DEFAULT_LOCK_WAIT = 3600
 DEFAULT_NAMESPACE_BACKEND = 'bwrap'
-NAMESPACE_BACKENDS = ('bwrap', 'unshare')
+NAMESPACE_BACKENDS = ('bwrap', 'bwrap-root', 'unshare')
 FEED = Path('/home/tomka/.nuget/packages')
 TEST_NAME = 'ReleasedProviderProfileSurvivesCurrentOpenAndTwoOfflineProcessRestarts'
 TEST_FULL_NAME = 'MeowChan.DesktopTests.Released102RestPackageUpgradeTests.' + TEST_NAME
@@ -109,18 +109,22 @@ class Context:
                 'nice', '-n', '19', *argv]
 
     def _bwrap(self, argv, bind_worktrees):
-        # bwrap's --unshare-net always configures lo with RTM_NEWADDR. Hosted
-        # runners can reject that netlink operation even though creating an
-        # empty network namespace is allowed. Keep bwrap for the user namespace,
-        # create the netns with unshare, and drop the temporary setup caps before
-        # the command starts. The replay needs neither loopback nor host routes.
+        # The hosted ARM image denies an unprivileged bwrap uid_map write. The
+        # explicit bwrap-root backend runs only bwrap's setup through sudo;
+        # the actual command is still entered into a fresh netns and loses all
+        # capabilities before it starts. It is never a fallback to the host
+        # namespace or to handler-only blocking.
+        privileged = self.namespace_backend == 'bwrap-root'
         bwrap = shutil.which('bwrap') or 'bwrap'
         unshare = shutil.which('unshare') or 'unshare'
         setpriv = shutil.which('setpriv') or 'setpriv'
-        command = [bwrap, '--die-with-parent', '--unshare-user',
-                   '--cap-add', 'CAP_SYS_ADMIN', '--cap-add', 'CAP_SETPCAP',
-                   '--disable-userns', '--ro-bind', '/', '/', '--proc', '/proc', '--dev', '/dev',
-                   '--tmpfs', '/tmp']
+        command = ([shutil.which('sudo') or 'sudo', '-n', bwrap] if privileged else [bwrap])
+        command += ['--die-with-parent', '--unshare-user',
+                    '--cap-add', 'CAP_SYS_ADMIN', '--cap-add', 'CAP_SETPCAP',
+                    '--disable-userns']
+        if privileged:
+            command += ['--uid', str(os.getuid()), '--gid', str(os.getgid())]
+        command += ['--ro-bind', '/', '/', '--proc', '/proc', '--dev', '/dev', '--tmpfs', '/tmp']
         if bind_worktrees:
             command += ['--bind', str(self.root), str(self.root), '--bind', str(self.out), str(self.out)]
         command += ['--', unshare, '--net', '--', setpriv,
@@ -130,7 +134,7 @@ class Context:
     def isolated(self, argv):
         if not self.netns:
             return list(argv)
-        if self.namespace_backend == 'bwrap':
+        if self.namespace_backend in ('bwrap', 'bwrap-root'):
             # Keep the root read-only, then re-open only the candidate and AP04
             # output trees for the writes owned by this command. Network and
             # user namespaces are both mandatory; there is no best-effort mode.
@@ -138,7 +142,7 @@ class Context:
         return ['unshare', '-Urn', '--', *argv]
 
     def namespace_probe(self):
-        if self.namespace_backend == 'bwrap':
+        if self.namespace_backend in ('bwrap', 'bwrap-root'):
             bwrap = shutil.which('bwrap')
             unshare = shutil.which('unshare')
             setpriv = shutil.which('setpriv')
@@ -146,6 +150,13 @@ class Context:
                 return None, 'bubblewrap (bwrap) is not installed'
             if not unshare or not setpriv:
                 return None, 'unshare and setpriv are required for the hosted netns launcher'
+            sudo = shutil.which('sudo')
+            if self.namespace_backend == 'bwrap-root':
+                if not sudo:
+                    return None, 'sudo is required for the privileged bubblewrap setup'
+                root = subprocess.run([sudo, '-n', 'id', '-u'], capture_output=True, text=True)
+                if root.returncode != 0 or root.stdout.strip() != '0':
+                    return root, 'non-interactive sudo is not authorized for root-owned bubblewrap setup'
             probe = r"""set -eu
  test "$(readlink /proc/self/ns/net)" != "$MEOWCHAN_HOST_NETNS"
  test "$(id -u)" = "$MEOWCHAN_EXPECTED_UID"
@@ -188,10 +199,14 @@ class Context:
                    MEOWCHAN_RELEASED102_CONSUMER_DLL=str(self.consumer_dll), MEOWCHAN_RELEASED102_RESULTS=str(self.results))
         if self.netns:
             env['MEOWCHAN_RELEASED102_NETWORK_NAMESPACE'] = self.namespace_backend
-            if self.namespace_backend == 'bwrap':
+            if self.namespace_backend in ('bwrap', 'bwrap-root'):
                 env['MEOWCHAN_RELEASED102_BWRAP_PATH'] = shutil.which('bwrap') or 'bwrap'
                 env['MEOWCHAN_RELEASED102_UNSHARE_PATH'] = shutil.which('unshare') or 'unshare'
                 env['MEOWCHAN_RELEASED102_SETPRIV_PATH'] = shutil.which('setpriv') or 'setpriv'
+                if self.namespace_backend == 'bwrap-root':
+                    env['MEOWCHAN_RELEASED102_BWRAP_SUDO'] = shutil.which('sudo') or 'sudo'
+                    env['MEOWCHAN_RELEASED102_BWRAP_UID'] = str(os.getuid())
+                    env['MEOWCHAN_RELEASED102_BWRAP_GID'] = str(os.getgid())
         return env
 
     def consumer_command(self, result, mode):
@@ -328,7 +343,7 @@ RELEASE_ASSET_NAME = re.compile(r'(?:[0-9]+-)?MeowChan-1\.0\.2-[A-Za-z0-9._-]+')
 
 def step_preflight(ctx):
     guard_out(ctx.out)
-    namespace_tool = 'bwrap' if ctx.namespace_backend == 'bwrap' else 'unshare'
+    namespace_tool = 'bwrap' if ctx.namespace_backend in ('bwrap', 'bwrap-root') else 'unshare'
     for tool in ('git', 'python3', 'dotnet', 'flock', 'nice', 'timeout') + ((namespace_tool,) if ctx.netns else ()):
         require(shutil.which(tool), 'missing tool: ' + tool)
     if ctx.netns:
@@ -670,7 +685,7 @@ def main(argv=None):
     parser.add_argument('--release-artifact', type=Path, help='owner-supplied published 1.0.2 asset (checksum only)')
     parser.add_argument('--release-sums', type=Path, help='the published 1.0.2 SHA256SUMS')
     parser.add_argument('--namespace-backend', choices=NAMESPACE_BACKENDS, default=DEFAULT_NAMESPACE_BACKEND,
-                        help='OS namespace launcher (default: bwrap; unshare is retained only for explicit compatible hosts)')
+                        help='OS namespace launcher (default: bwrap; bwrap-root is for hosted images denying unprivileged uid_map writes; unshare is explicit only)')
     parser.add_argument('--no-netns', action='store_true', help='skip the private network namespace (handler-only blocking; never an implicit fallback)')
     parser.add_argument('--dry-run', action='store_true', help='print the plan; execute and write nothing')
     args = parser.parse_args(argv)

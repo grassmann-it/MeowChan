@@ -79,8 +79,15 @@ class WorkflowControlTests(unittest.TestCase):
             'unshare_path=\"$(command -v unshare || true)\"',
             'setpriv_path=\"$(command -v setpriv || true)\"',
             '--dev /dev --tmpfs /tmp',
-            'MEOWCHAN_RELEASED102_NETWORK_NAMESPACE=bwrap',
+            'MEOWCHAN_RELEASED102_NETWORK_NAMESPACE=bwrap-root',
             'MEOWCHAN_RELEASED102_BWRAP_PATH',
+            'sudo_path="$(command -v sudo || true)"',
+            'sudo_root_uid="$(sudo -n id -u 2>/dev/null || true)"',
+            'sudo -n "$bwrap_path"',
+            '--uid "$expected_uid" --gid "$expected_gid"',
+            'MEOWCHAN_RELEASED102_BWRAP_SUDO',
+            'MEOWCHAN_RELEASED102_BWRAP_UID',
+            'MEOWCHAN_RELEASED102_BWRAP_GID',
         ):
             self.assertIn(marker, section)
         self.assertIn('upgrade_replay', self.workflow)
@@ -510,7 +517,9 @@ class RunnerTests(unittest.TestCase):
         self.assertNotIn('SetPausedAsync(false)', program, 'unpausing would start the watch producers (network)')
         test = (ROOT / 'tests/MeowChan.DesktopTests/Released102RestPackageUpgradeTests.cs').read_text(encoding='utf-8')
         self.assertIn('MEOWCHAN_RELEASED102_NETWORK_NAMESPACE', test)
-        self.assertIn('namespaceBackend == "bwrap"', test)
+        self.assertIn('namespaceBackend is "bwrap" or "bwrap-root"', test)
+        self.assertIn('namespaceBackend == "bwrap-root"', test)
+        self.assertIn('MEOWCHAN_RELEASED102_BWRAP_SUDO', test)
         self.assertIn('"--unshare-user"', test)
         self.assertIn('"--net"', test)
         self.assertIn('"--disable-userns"', test)
@@ -543,6 +552,27 @@ class NamespaceLauncherContractTests(unittest.TestCase):
         self.assertNotIn('CAP_NET_ADMIN', command)
         self.assertEqual('bwrap', ctx.test_env()['MEOWCHAN_RELEASED102_NETWORK_NAMESPACE'])
         self.assertIn('MEOWCHAN_RELEASED102_BWRAP_PATH', ctx.test_env())
+
+    def test_bwrap_root_backend_requires_privileged_setup_and_keeps_runner_identity(self):
+        class Args:
+            root, candidate_sha, out, no_netns, lock_wait = ROOT, SHA, run.ALLOWED_OUT / 'namespace-root-contract', False, 1
+            namespace_backend = 'bwrap-root'
+
+        ctx = run.Context(Args())
+        command = ctx.isolated(['dotnet', 'consumer.dll'])
+        self.assertEqual('sudo', Path(command[0]).name)
+        self.assertEqual('-n', command[1])
+        self.assertIn('--uid', command)
+        self.assertIn(str(os.getuid()), command)
+        self.assertIn('--gid', command)
+        self.assertIn(str(os.getgid()), command)
+        self.assertIn('--net', command)
+        self.assertIn('--bounding-set=-all', command)
+        self.assertNotIn('CAP_NET_ADMIN', command)
+        env = ctx.test_env()
+        self.assertEqual('bwrap-root', env['MEOWCHAN_RELEASED102_NETWORK_NAMESPACE'])
+        self.assertEqual(str(os.getuid()), env['MEOWCHAN_RELEASED102_BWRAP_UID'])
+        self.assertEqual(str(os.getgid()), env['MEOWCHAN_RELEASED102_BWRAP_GID'])
 
     def test_no_netns_is_only_selected_by_explicit_flag(self):
         class Args:

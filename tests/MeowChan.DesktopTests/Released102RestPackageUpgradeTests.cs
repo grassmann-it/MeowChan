@@ -96,21 +96,39 @@ public sealed class Released102RestPackageUpgradeTests(ITestOutputHelper output)
         {
             start = new(host);
         }
-        else if (namespaceBackend == "bwrap")
+        else if (namespaceBackend is "bwrap" or "bwrap-root")
         {
             string bwrap = Environment.GetEnvironmentVariable("MEOWCHAN_RELEASED102_BWRAP_PATH") ?? "bwrap";
-            start = new(bwrap);
+            bool privilegedSetup = namespaceBackend == "bwrap-root";
+            if (privilegedSetup)
+            {
+                string sudo = Environment.GetEnvironmentVariable("MEOWCHAN_RELEASED102_BWRAP_SUDO") ?? "sudo";
+                start = new(sudo);
+                start.ArgumentList.Add("-n");
+                start.ArgumentList.Add(bwrap);
+            }
+            else
+            {
+                start = new(bwrap);
+            }
             start.ArgumentList.Add("--die-with-parent");
             start.ArgumentList.Add("--unshare-user");
-            // Do not pass --unshare-net to bwrap: bwrap unconditionally configures lo via RTM_NEWADDR,
-            // which hosted runners can reject. The nested unshare below creates a netns with no host links/routes.
+            // Do not pass --unshare-net to bwrap: bwrap configures lo via RTM_NEWADDR,
+            // which hosted runners can reject. The nested unshare creates a netns with no links/routes.
             start.ArgumentList.Add("--cap-add"); start.ArgumentList.Add("CAP_SYS_ADMIN");
             start.ArgumentList.Add("--cap-add"); start.ArgumentList.Add("CAP_SETPCAP");
             start.ArgumentList.Add("--disable-userns");
+            if (privilegedSetup)
+            {
+                start.ArgumentList.Add("--uid"); start.ArgumentList.Add(RequiredValue("MEOWCHAN_RELEASED102_BWRAP_UID"));
+                start.ArgumentList.Add("--gid"); start.ArgumentList.Add(RequiredValue("MEOWCHAN_RELEASED102_BWRAP_GID"));
+            }
             start.ArgumentList.Add("--ro-bind"); start.ArgumentList.Add("/"); start.ArgumentList.Add("/");
             start.ArgumentList.Add("--proc"); start.ArgumentList.Add("/proc");
             start.ArgumentList.Add("--dev"); start.ArgumentList.Add("/dev");
             start.ArgumentList.Add("--tmpfs"); start.ArgumentList.Add("/tmp");
+            // sudo applies env_reset on hosted runners; keep the no-update contract explicit inside bwrap.
+            start.ArgumentList.Add("--setenv"); start.ArgumentList.Add("MEOWCHAN_DISABLE_UPDATE_CHECK"); start.ArgumentList.Add("1");
             // The child owns these writes; all other host paths remain read-only.
             start.ArgumentList.Add("--bind"); start.ArgumentList.Add(profile); start.ArgumentList.Add(profile);
             string resultsDirectory = Path.GetDirectoryName(result)!;
@@ -400,6 +418,13 @@ public sealed class Released102RestPackageUpgradeTests(ITestOutputHelper output)
         foreach (JsonElement item in actual.EnumerateArray())
             Assert.True(expected.EnumerateArray().Count(candidate => JsonElement.DeepEquals(item, candidate)) == 1,
                 $"Unexpected or duplicate receipt set item ({context}): {item}");
+    }
+
+    private static string RequiredValue(string variable)
+    {
+        string? value = Environment.GetEnvironmentVariable(variable);
+        Assert.False(string.IsNullOrWhiteSpace(value), $"Missing prerequisite: {variable}");
+        return value!;
     }
 
     private static string RequiredPath(string variable)
