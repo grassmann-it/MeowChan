@@ -7,6 +7,7 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
+using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Threading;
 using MeowChan.Gallery;
@@ -38,6 +39,13 @@ internal sealed partial class GalleryViewer
     private Action<string>? _videoNoticeHandler;
     private Action<bool>? _videoPlaybackHandler;
     private readonly ComboBox _playbackMode = new() { Name = "GalleryPlaybackModeSelector", MinWidth = 120 };
+    // macOS can close a native ComboBox popup before the Escape event reaches the
+    // owning window. Keep the close ownership for a short bounded grace so that the
+    // same Escape cannot fall through and close the gallery (which would retire
+    // the native video and look like a delayed pause/stop).
+    private const int PlaybackMenuEscapeGraceMs = 500;
+    private ComboBox? _recentlyClosedPlaybackMenu;
+    private long _playbackMenuCloseRevision;
     // How long each image stays in the slideshow (1–300 s, typed or stepped ±1, PageUp/PageDown ±10); shown only in slideshow
     // mode, written through the same preferences as the settings page.
     private readonly AccessibleNumberInput _slideshowSeconds = SlideshowNumber("GallerySlideshowSecondsInput",
@@ -158,7 +166,11 @@ internal sealed partial class GalleryViewer
         foreach (ComboBox choice in new[] { _playbackMode, _videoRule })
         {
             choice.DropDownOpened += (_, _) => { HoldSlideshowAdvance(); RefreshPlaybackControls(); };
-            choice.DropDownClosed += (_, _) => RefreshPlaybackControls();
+            choice.DropDownClosed += (_, _) =>
+            {
+                RememberPlaybackMenuClose(choice);
+                RefreshPlaybackControls();
+            };
         }
         _playbackMode.SelectionChanged += (_, _) =>
         {
@@ -255,6 +267,28 @@ internal sealed partial class GalleryViewer
         string text = ApplyStatusDwell(_shownSlideshowStatus, shown ? SlideshowStatusText(_shownSlideshowStatus) : string.Empty); // GL5c: "ready" fades out after the dwell time
         if (_slideshowStatus.Text != text) _slideshowStatus.Text = text;
         _slideshowStatus.IsVisible = text.Length > 0;
+    }
+
+    private void RememberPlaybackMenuClose(ComboBox choice)
+    {
+        _recentlyClosedPlaybackMenu = choice;
+        long revision = ++_playbackMenuCloseRevision;
+        // A pointer selection also closes the popup. Do not let that close arm a
+        // future Escape indefinitely; the bounded grace covers native popup
+        // teardown and delayed key delivery on macOS.
+        DispatcherTimer.RunOnce(() =>
+        {
+            if (revision == _playbackMenuCloseRevision) _recentlyClosedPlaybackMenu = null;
+        }, TimeSpan.FromMilliseconds(PlaybackMenuEscapeGraceMs));
+    }
+
+    internal bool ConsumeRecentlyClosedPlaybackMenuEscape(KeyEventArgs e)
+    {
+        if (e.Key != Key.Escape || e.KeyModifiers != KeyModifiers.None || _recentlyClosedPlaybackMenu == null) return false;
+        _recentlyClosedPlaybackMenu = null;
+        ++_playbackMenuCloseRevision;
+        e.Handled = true;
+        return true;
     }
 
     private void ChangePlaybackPreferences(GalleryPlaybackPreferences prefs)
