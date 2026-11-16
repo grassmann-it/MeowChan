@@ -539,6 +539,20 @@ internal static partial class GalleryPlaybackFeatureChecks
 
     private static async Task NativeSliderClickAsync(MediaNativeInput native, Slider slider, double fraction)
     {
+        // Software-video platforms render volume in a zero-size popup above the
+        // speaker. The slider instance remains in the visual tree after the popup
+        // closes, but its old geometry is not a native input route. Re-open the
+        // current popup through the real speaker host before resolving the track.
+        Control? volumeHost = slider.GetVisualAncestors().OfType<Control>()
+            .FirstOrDefault(control => control.Name == "GalleryVideoVolumeHost");
+        Control? volumePopup = slider.GetVisualAncestors().OfType<Control>()
+            .FirstOrDefault(control => control.Name == "GalleryVideoVolumePopup");
+        if (volumeHost != null && volumePopup != null)
+        {
+            await native.MoveAsync(volumeHost);
+            await UntilAsync(() => volumePopup.IsEffectivelyVisible,
+                "Native volume popup did not open from the current speaker host.");
+        }
         Track track = slider.GetVisualDescendants().OfType<Track>().Single();
         Point trackPoint = SliderTrackPoint(track, slider.Orientation, fraction);
         TopLevel root = TopLevel.GetTopLevel(slider)
