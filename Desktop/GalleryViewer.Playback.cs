@@ -296,6 +296,7 @@ internal sealed partial class GalleryViewer
                 ToolTip.SetTip(button, tip); AutomationProperties.SetHelpText(button, tip);
             }
             PresentSlideshowMenu();
+            RefreshFrameCommands(); // save frame and rotate follow the video's readiness (entry point audit)
             PlaceSlideshowToggle();
             RefreshOverflowItems();
             RefreshSlideshowStatus();

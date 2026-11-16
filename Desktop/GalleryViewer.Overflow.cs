@@ -218,6 +218,7 @@ internal sealed partial class GalleryViewer
             // A command presenter (shortcut or language change) may have replaced the row with plain text.
             if (!ReferenceEquals(button.Content, item.Root)) button.Content = item.Root;
         }
+        RefreshFrameCommands(); // the moment-dependent rows are enabled exactly while they can act
         _modeCaption.Text = GalleryPlaybackCatalog.Get("viewer.playback.mode");
         _secondsCaption.Text = Texts.T("gallery.slideshow.secondsLabel");
         // A caption belongs to its control's row: it goes with the control when a work view puts it on the toolbar.

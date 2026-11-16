@@ -219,6 +219,8 @@ internal sealed partial class GalleryViewer
             if (!IsFreeDockArea(e.Source as Visual, area)) return; // a button, slider or thumbnail keeps its own behaviour
         }
         else if (e.Source is not Visual || MediaMenuPresenter.IsNativeTextSource(e.Source)) return; // the keyboard: only from a control of the dock
+        // The key already opened the menu (RouteAdmittedKey): Avalonia's positionless request that may follow it is consumed, not opened again.
+        else if (LayoutContextMenu != null) { e.Handled = true; return; }
         if (ShowLayoutContextMenu(pointer)) e.Handled = true;
     }
 
@@ -254,7 +256,7 @@ internal sealed partial class GalleryViewer
             // Without the button on the bar the rows are the section of "More": the command opens that menu.
             if (_layoutFlyout.IsOpen) _layoutFlyout.Hide();
             else if (!_layoutButton.IsEffectivelyVisible && _layoutSection.IsVisible) SetOverflowOpen(!_overflowFlyout.IsOpen);
-            else SetLayoutMenuOpen(true);
+            else if (!SetLayoutMenuOpen(true)) ShowLayoutContextMenu(); // the button is not on the screen: the same rows as its context form
             return true;
         }
         foreach (string id in GalleryLayoutMenu.RowIds)
