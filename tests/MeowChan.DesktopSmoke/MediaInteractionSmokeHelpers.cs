@@ -117,6 +117,21 @@ internal static class MediaInteractionSmokeHelpers
             ?? throw new InvalidOperationException("Native slider track has no transform.");
     }
 
+    internal static async Task<Point> TrackPointAsync(Slider slider, double fraction)
+    {
+        for (int attempt = 0; ; attempt++)
+        {
+            try { return TrackPoint(slider, fraction); }
+            catch (ArgumentException) when (attempt < 20)
+            {
+                // The retained PART_Track can cross native presentation roots in the
+                // same turn as its slider. Retry the coordinate conversion, never
+                // replace it with a routed/synthetic input point.
+                await Task.Delay(25);
+            }
+        }
+    }
+
     internal static bool HasDecodedFrames(GalleryVideoPlayer.PlaybackEvidence evidence) =>
         OperatingSystem.IsWindows() ? evidence.DisplayedFrames >= 3 : evidence.SurfaceFrames >= 3 && evidence.SurfaceNonUniform;
 

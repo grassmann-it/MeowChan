@@ -59,7 +59,24 @@ internal sealed class MediaNativeInput : IDisposable
         }
         if (!target.IsEffectivelyVisible || target.Bounds.Width <= 0 || target.Bounds.Height <= 0)
             throw new InvalidOperationException("Native pointer target is not laid out/visible: " + target.Name);
-        PixelPoint pixel = target.PointToScreen(point ?? new Point(target.Bounds.Width / 2, target.Bounds.Height / 2));
+        PixelPoint pixel;
+        for (int attempt = 0; ; attempt++)
+        {
+            try
+            {
+                pixel = target.PointToScreen(point ?? new Point(target.Bounds.Width / 2, target.Bounds.Height / 2));
+                break;
+            }
+            catch (ArgumentException) when (attempt < 20)
+            {
+                // GalleryControlTransfer can retire and reattach the same native
+                // transport between the readiness probe and this OS coordinate
+                // conversion. Wait for that presentation-root transaction instead of
+                // sending input through a stale transform; the caller's hit-test probe
+                // remains the assertion that admits the target.
+                await Task.Delay(25);
+            }
+        }
         if (_display == 0)
         {
             EnsureOwnActiveWindow();

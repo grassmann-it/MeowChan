@@ -505,7 +505,7 @@ internal static class MediaInteractionChecks
             Require(viewer.CaptureState().PostId == "2000", "Fresh fixture did not start at video A.");
             await ReadyAsync();
         }
-        Point TrackPoint(double fraction) => MediaInteractionSmokeHelpers.TrackPoint(Seek(), fraction);
+        Task<Point> TrackPointAsync(double fraction) => MediaInteractionSmokeHelpers.TrackPointAsync(Seek(), fraction);
         async Task<Point> VolumeTrackPointAsync(Slider volume, double fraction)
         {
             // GalleryVideoVolume is a popup-hosted slider on software-video backends.
@@ -513,12 +513,12 @@ internal static class MediaInteractionChecks
             // coordinate; evaluating TrackPoint before ClickAsync would inspect the
             // intentionally hidden visual tree.
             await native!.MoveAsync(volume);
-            return MediaInteractionSmokeHelpers.TrackPoint(volume, fraction);
+            return await MediaInteractionSmokeHelpers.TrackPointAsync(volume, fraction);
         }
         async Task SeekClickAsync(double fraction)
         {
             Record("inject", new { action = "native-track-click", fraction });
-            await native!.ClickAsync(Seek(), TrackPoint(fraction));
+            await native!.ClickAsync(Seek(), await TrackPointAsync(fraction));
             Require(Seek().IsKeyboardFocusWithin, "Native timeline click did not acquire focus.");
             await WaitPlaybackAsync(p => Math.Abs(p.Time - fraction * p.Length) < 1000);
         }
@@ -539,7 +539,7 @@ internal static class MediaInteractionChecks
                 double start = (seek.Value - seek.Minimum) / (seek.Maximum - seek.Minimum);
                 for (int i = 1; i <= 4; i++)
                 {
-                    await native.MoveAsync(seek, TrackPoint(start + (fraction - start) * i / 4));
+                    await native.MoveAsync(seek, await TrackPointAsync(start + (fraction - start) * i / 4));
                     Require((await SampleAsync("native-drag-held")).State == stateBefore,
                         "An active native seek gesture changed the playback intent before release.");
                 }

@@ -460,8 +460,11 @@ internal static partial class GalleryPlaybackFeatureChecks
         Console.WriteLine("SMOKE feature mixed video frames: " + JsonSerializer.Serialize(playback));
         using (MediaNativeInput native = new(fixture.Window))
         {
-            Slider seek = Find<Slider>(viewer, "GalleryVideoSeek");
-            await native.ClickAsync(seek, MediaInteractionSmokeHelpers.TrackPoint(seek, .10));
+            // The video transport is retained while the slideshow changes the
+            // presentation root. Resolve the current, hit-testable slider after that
+            // transfer instead of calling Single() on the previous visual snapshot.
+            Slider seek = await NativeTargetAsync<Slider>(viewer, "GalleryVideoSeek");
+            await native.ClickAsync(seek, await MediaInteractionSmokeHelpers.TrackPointAsync(seek, .10));
             await UntilAsync(async () =>
             {
                 var seeking = await current.InspectPlaybackAsync();
@@ -569,7 +572,7 @@ internal static partial class GalleryPlaybackFeatureChecks
         // Reset near the beginning using the actual timeline: this also proves seek release
         // preserves both native Playing and eventual slideshow advancement (mixed test above).
         Slider seek = Find<Slider>(viewer, "GalleryVideoSeek");
-        await native.ClickAsync(seek, MediaInteractionSmokeHelpers.TrackPoint(seek, .05));
+        await native.ClickAsync(seek, await MediaInteractionSmokeHelpers.TrackPointAsync(seek, .05));
         await UntilAsync(async () =>
         {
             var state = await player.InspectPlaybackAsync();
@@ -604,7 +607,7 @@ internal static partial class GalleryPlaybackFeatureChecks
                 Require(ProvesNativeUnavailable(volumeEvidence) && volumeEvidence.State == "Playing"
                     && !volume.IsEffectivelyEnabled && !mute.IsEffectivelyEnabled && !player.CanAdjustVolume,
                     "Native no-output edge check requires disabled controls and actual unavailable evidence.");
-                await native.MoveAsync(volume, MediaInteractionSmokeHelpers.TrackPoint(volume, .60));
+                await native.MoveAsync(volume, await MediaInteractionSmokeHelpers.TrackPointAsync(volume, .60));
                 await native.ButtonAsync(true);
                 await native.ButtonAsync(false);
                 await MediaInteractionSmokeHelpers.HoldStateAsync(player, "Playing", "Disabled bottom-edge volume interaction");

@@ -452,10 +452,27 @@ internal static partial class GalleryPlaybackFeatureChecks
 
     private static async Task<T> NativeTargetAsync<T>(GalleryViewer viewer, string name) where T : Control
     {
-        T target = Find<T>(viewer, name);
-        await UntilAsync(() => MediaInteractionSmokeHelpers.IsPointerTargetReady(target),
-            $"The {name} control did not settle as a native hit target.");
-        return target;
+        // Resolve the retained control on every dispatcher turn. A native gallery
+        // transport can be between roots while the same named visual is being moved;
+        // a settled hit-test probe must never keep a retired instance.
+        T? target = null;
+        await UntilAsync(() =>
+        {
+            try
+            {
+                T[] matches = viewer.GetGalleryVisualDescendants().OfType<T>()
+                    .Where(control => control.Name == name).ToArray();
+                if (matches.Length != 1) { target = null; return false; }
+                target = matches[0];
+                return MediaInteractionSmokeHelpers.IsPointerTargetReady(target);
+            }
+            catch (InvalidOperationException)
+            {
+                target = null;
+                return false;
+            }
+        }, $"The {name} control did not settle as a native hit target.");
+        return target!;
     }
 
     private static GalleryVideoPlayer Player(GalleryViewer viewer) => viewer.GetGalleryVisualDescendants().OfType<GalleryVideoPlayer>().Single();

@@ -72,7 +72,7 @@ internal static class GalleryMutePersistenceChecks
             {
                 await ClickMuteAsync(true, "Paused");
                 await native.ClickAsync(Named<Slider>("GalleryVideoSeek"),
-                    MediaInteractionSmokeHelpers.TrackPoint(Named<Slider>("GalleryVideoSeek"), .20));
+                    await MediaInteractionSmokeHelpers.TrackPointAsync(Named<Slider>("GalleryVideoSeek"), .20));
                 await native.KeyAsync(key);
                 await WaitAsync(p => !p.Muted && p.Volume == expectedVolume && p.State == "Paused");
                 await HoldAsync(false, "Paused");

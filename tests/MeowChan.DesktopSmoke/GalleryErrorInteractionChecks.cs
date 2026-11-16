@@ -298,6 +298,17 @@ internal static partial class GalleryPlaybackFeatureChecks
         viewer.SetWarnings("synthetic provenance warning");
         viewer.SetNotice("synthetic preferences failure");
         await viewer.SetMediaUnavailable("stale shell resolution failure", viewer.MediaRequestGeneration - 1);
+        // Diagnostic updates can be delivered while the shared info line is still
+        // transferring between the managed gallery root and the native video root.
+        // Do not inspect the old root in that interval; wait for the current visual
+        // tree, then keep the exact control assertions below.
+        await UntilAsync(() =>
+        {
+            Control[] diagnostics = viewer.GetGalleryVisualDescendants().OfType<Control>().ToArray();
+            return diagnostics.Count(control => control.Name == "GalleryFavoriteError") == 1
+                && diagnostics.Count(control => control.Name == "GalleryWarnings") == 1
+                && diagnostics.Count(control => control.Name == "GalleryRatingStatus") == 1;
+        }, "Diagnostic info line did not settle after the native transport update.");
         Require(reports.Count == 4 && reports.All(n => n.Entry?.Key == clip.Key && !n.MediaUnavailable),
             "Notification identity/classification did not reach the central bridge.");
         Require(ReferenceEquals(focused, inputRoot.FocusManager?.GetFocusedElement()), "Notification stole focus.");
