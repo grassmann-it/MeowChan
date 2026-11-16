@@ -494,7 +494,7 @@ class CandidateWorkflowFixtures(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.workflow = (ROOT / '.github/workflows/dotnet-desktop.yml').read_text()
-        cls.jobs = dict(re.findall(r'^  ([a-z][a-z-]+):\n(.*?)(?=^  [a-z][a-z-]+:|\Z)',
+        cls.jobs = dict(re.findall(r'^  ([a-z][a-z0-9-]+):\n(.*?)(?=^  [a-z][a-z0-9-]+:|\Z)',
                                    cls.workflow.split('\njobs:\n', 1)[1], re.M | re.S))
 
     def condition(self, job, mode, scenario='all', platform='all', event='workflow_dispatch'):
@@ -522,7 +522,7 @@ class CandidateWorkflowFixtures(unittest.TestCase):
     def test_both_candidate_modes_reach_every_same_run_dependency(self):
         required = ('validate', 'macos-offline-gate', 'desktop-offline-gate',
                     'library-package', 'macos-package', 'package-media',
-                    'linux-distribution', 'macos-source-candidate', 'current-source-inventory')
+                    'linux-distribution', 'macos-source-candidate', 'current-source-inventory', 'ap04-upgrade')
         for mode in ('prerelease-candidate', 'stable-candidate'):
             for job in required:
                 with self.subTest(mode=mode, job=job):
@@ -563,9 +563,9 @@ class CandidateWorkflowFixtures(unittest.TestCase):
         job = self.jobs['release-candidate-gate']
         expected = ['validate', 'macos-offline-gate', 'desktop-offline-gate', 'library-package',
                     'macos-package', 'package-media', 'linux-distribution',
-                    'macos-source-candidate', 'current-source-inventory']
+                    'macos-source-candidate', 'current-source-inventory', 'ap04-upgrade']
         dependencies = re.search(r'^    needs: \[(.+)\]$', job, re.M)[1].split(', ')
-        required = re.search(r'--required ([a-z,-]+)', job)[1].split(',')
+        required = re.search(r'--required ([a-z0-9,-]+)', job)[1].split(',')
         self.assertEqual(expected, dependencies)
         self.assertEqual(expected, required)
         self.assertIn('scripts/aggregate-release-gates.py needs', job)

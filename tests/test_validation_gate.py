@@ -34,7 +34,11 @@ class Ctx:
 def workflow_steps():
     """Return {id: if-expression or None} for the validate job's steps."""
     steps, current = {}, None
-    for line in WORKFLOW.read_text(encoding="utf-8").splitlines():
+    # Scope to validate: independent candidate jobs have their own required
+    # phases and must not masquerade as validation/offline-retest steps.
+    text = WORKFLOW.read_text(encoding="utf-8")
+    validate = re.search(r"^  validate:\n(.*?)(?=^  [a-z][a-z0-9-]+:|\Z)", text, re.M | re.S)[1]
+    for line in validate.splitlines():
         m = re.match(r"^      - (?:name:.*|uses:.*)$", line)
         if m:
             current = {"id": None, "if": None}
@@ -222,7 +226,7 @@ class OfflineRetestTests(unittest.TestCase):
     def test_only_build_and_core_test_steps_run_on_a_nonfull_lane(self):
         expected = {"checkout_source", "offline_retest_guard", "setup_dotnet", "record_source", "dev_build",
                     "restore_release", "retain_release_assets", "build_all", "process_probe", "core_tests",
-                    "validation_summary", "metadata"}
+                    "validation_summary"}
         for os_ in ("Linux", "Windows"):
             ran = {step for step, expr in workflow_steps().items()
                    if predicate(expr, "workflow_dispatch", "offline-retest", "all", False, os_, "X64")}
