@@ -154,6 +154,7 @@ public sealed partial class MediaPage
             _selectionShown = hasSelection;
             ApplyLayoutPlan();
         }
+        ScheduleSelectionRowMeasure(); // the counter's text and the line's buttons decide where the search above ends (MediaPage.ToolbarAlignment.cs)
         _selectionText.Text = count == 0 ? string.Empty
             : (notSaved > 0 ? Texts.T("media.selection.countNotSaved", count, notSaved) : Texts.T("media.selection.count", count))
               + (building ? " · " + Texts.T("media.selection.reason.building") : string.Empty);
