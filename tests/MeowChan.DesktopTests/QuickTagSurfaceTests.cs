@@ -896,7 +896,7 @@ public sealed class QuickTagSurfaceTests : IDisposable
             Assert.IsType<TextBlock>(allContent.Children[0]);
             Assert.Equal(2, someContent.Children.Count);
             Assert.IsType<Avalonia.Controls.Shapes.Path>(someContent.Children[0]);
-            Assert.Equal(Avalonia.Automation.Peers.AccessibilityView.Raw, AutomationProperties.GetAccessibilityView(someContent.Children[0]));
+            Assert.Equal(Avalonia.Automation.AccessibilityView.Raw, AutomationProperties.GetAccessibilityView(someContent.Children[0]));
             Assert.Equal("blue, on all 2 selected media files. Delete removes it from all.", AutomationProperties.GetName(all));
             Assert.Equal("Remove red from all", AutomationProperties.GetName(someRemove));
         }
