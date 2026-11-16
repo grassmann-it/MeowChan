@@ -243,8 +243,8 @@ internal sealed class ReaderMediaSidebar : Border
     }.MetaText();
     // Centred on the frame, which is centred on the picture; its size follows the picture that is shown (VideoPlayMark).
     private readonly VideoPlayMarkView _play = new() { Name = "ReaderMediaSidebarPlay", IsVisible = false };
-    // MB1a demo of the shared media badges: the star of a favourite on the picture's corner, over exactly the shown picture. The sidebar
-    // keeps its own play button (MediaPlayMarkMode.External); duration, queue and tag marks follow with the migration of this surface (MB1b).
+    // The shared media badges over exactly the shown picture. The sidebar keeps its own play button (MediaPlayMarkMode.External) and draws no
+    // favourite badge: its header toggle (_favorite) is the one star of the medium on this surface (Tom, 16.11.2026; the sweep's F2).
     private readonly MediaBadgeView _badges = new() { Name = "ReaderMediaSidebarBadges", Options = MediaBadgeOptions.Sidebar };
     private bool _badgesOn, _playable;
     private readonly Border _edge = ReaderFocusedMedia.CreateFrameEdge();
@@ -562,8 +562,8 @@ internal sealed class ReaderMediaSidebar : Border
     private void UpdateBadges()
     {
         if (!_badgesOn || !_image.IsVisible) { _badges.Clear(); return; }
-        bool favorite = _favorite.IsVisible && _favorite.IsChecked == true;
-        _badges.Apply(new MediaBadgeState(Favorite: favorite, Kind: _playable ? MediaBadgeKind.Video : MediaBadgeKind.Image), _image.Bounds.Size);
+        // No Favorite here: the header's star toggle shows and changes the favourite, a second filled star on the picture only duplicated it.
+        _badges.Apply(new MediaBadgeState(Kind: _playable ? MediaBadgeKind.Video : MediaBadgeKind.Image), _image.Bounds.Size);
     }
 
     internal void SetDetail(string detailLine)

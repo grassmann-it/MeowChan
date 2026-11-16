@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
+using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Rendering;
 using MeowChan.Desktop;
@@ -123,6 +124,74 @@ public sealed class MediaViewsDeadAffordanceTests : IDisposable
         Assert.False(sidebar.PostLink.IsVisible);
         Assert.Equal(Texts.T(sidebar.TitleKey), sidebar.HeaderLine);
     });
+
+    // The sidebar's medium has one favourite star: the header toggle. The picture's badges (Tom, 16.11.2026, the sweep's F2) no longer repeat it.
+    private static WriteableBitmap Picture() => new(new PixelSize(8, 8), new Vector(96, 96), PixelFormat.Bgra8888, AlphaFormat.Premul);
+
+    [Fact]
+    public void TheSidebarsPictureDrawsNoFavouriteBadgeWhileTheHeaderStarShowsTheFavourite() => OnOwnDispatcher(() =>
+    {
+        ReaderMediaSidebar sidebar = new();
+        bool favorite = true;
+        sidebar.ConfigureFavorite(() => true, () => favorite, () => Task.CompletedTask);
+        sidebar.ShowPicture(Picture(), picture => picture.Dispose(), playable: false, double.PositiveInfinity, double.PositiveInfinity);
+        // The header star is the favourite's one mark ...
+        Assert.True(sidebar.FavoriteButton.IsVisible);
+        Assert.True(sidebar.FavoriteButton.IsChecked);
+        // ... and the picture carries only its kind, no favourite, in the state and in the placed badges.
+        Assert.False(sidebar.Badges.State.Favorite);
+        Assert.Equal(new MediaBadgeState(Kind: MediaBadgeKind.Image), sidebar.Badges.State);
+        Assert.DoesNotContain(sidebar.Badges.Plan.Badges, placed => placed.Badge.Id == MediaBadgeId.Favorite);
+        // A video keeps its kind and is still no favourite badge; a refresh after the favourite changed does not bring one.
+        sidebar.ShowPicture(Picture(), picture => picture.Dispose(), playable: true, double.PositiveInfinity, double.PositiveInfinity);
+        favorite = false; sidebar.RefreshFavorite(); favorite = true; sidebar.RefreshFavorite();
+        Assert.Equal(new MediaBadgeState(Kind: MediaBadgeKind.Video), sidebar.Badges.State);
+        Assert.True(sidebar.FavoriteButton.IsChecked);
+        Assert.DoesNotContain(sidebar.Badges.Plan.Badges, placed => placed.Badge.Id == MediaBadgeId.Favorite);
+        // The accessible sentence of the badges does not name a favourite either (the header star carries that name).
+        Assert.DoesNotContain("Favorite", MediaBadgeSentences.Get(sidebar.Badges.State, sidebar.Badges.Options));
+    });
+
+    [Fact]
+    public void TheSidebarsHeaderStarStillTogglesTheFavouriteAndTheBadgesStayWithoutOne() => OnOwnDispatcher(() =>
+    {
+        ReaderMediaSidebar sidebar = new();
+        bool favorite = false;
+        int writes = 0;
+        sidebar.ConfigureFavorite(() => true, () => favorite, () => { writes++; favorite = !favorite; return Task.CompletedTask; });
+        sidebar.ShowPicture(Picture(), picture => picture.Dispose(), playable: false, double.PositiveInfinity, double.PositiveInfinity);
+        Assert.True(sidebar.FavoriteButton.IsEnabled);
+        Assert.False(sidebar.FavoriteButton.IsChecked);
+        sidebar.FavoriteButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Assert.Equal((1, true), (writes, favorite));
+        Assert.True(sidebar.FavoriteButton.IsChecked);
+        Assert.False(sidebar.Badges.State.Favorite);
+        sidebar.FavoriteButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Assert.Equal((2, false), (writes, favorite));
+        Assert.False(sidebar.FavoriteButton.IsChecked);
+        Assert.False(sidebar.Badges.State.Favorite);
+        // A medium without a star (nothing configured) shows no header star and still no badge.
+        sidebar.ConfigureFavorite(null, null, null);
+        Assert.False(sidebar.FavoriteButton.IsVisible);
+        Assert.False(sidebar.Badges.State.Favorite);
+    });
+
+    [Fact]
+    public void OnlyTheSidebarDropsTheFavouriteBadgeTheOtherSurfacesKeepTheirs()
+    {
+        // The state each other surface builds still resolves a favourite badge under its options (the gallery filmstrip, the Media page and the
+        // tagging tiles, the archive's saved-media tiles and the Media tab); the sidebar change is its own view's state, not the shared options.
+        MediaBadgeState favourite = new(Favorite: true);
+        foreach (MediaBadgeOptions options in new[] { MediaBadgeOptions.Filmstrip, MediaBadgeOptions.MediaPage, MediaBadgeOptions.TaggingGrid, MediaBadgeOptions.ArchiveTile, MediaBadgeOptions.Archive })
+            Assert.Contains(MediaBadgeModel.Resolve(favourite, options), badge => badge.Id == MediaBadgeId.Favorite);
+        // The sidebar's own state is never built with the flag.
+        string sidebar = Source("Desktop/Views/Archive/ReaderMediaSidebar.cs");
+        Assert.DoesNotContain("Favorite: favorite", sidebar);
+        Assert.Contains("_badges.Apply(new MediaBadgeState(Kind: _playable ? MediaBadgeKind.Video : MediaBadgeKind.Image), _image.Bounds.Size);", sidebar);
+        // The header toggle is still wired into the sidebar and the Media page's panel.
+        Assert.Contains("if (row != null) _favorite.Configure(row);", sidebar);
+        Assert.Contains("panel.ConfigureFavorite(PanelFavoriteAvailable", Source("Desktop/Views/Media/MediaPage.Panel.cs"));
+    }
 
     [Fact]
     public void TheArchivePageWiresTheNumberLinkToTheSameCopyAsThePostsOwnNumber()
