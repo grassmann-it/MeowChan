@@ -139,6 +139,12 @@ internal sealed partial class GalleryVideoPlayer
         {
             if (args.Property == IsPointerOverProperty) UpdateVolumePopup();
         };
+        // A native pointer can move within the retained host while the transport
+        // changes visual roots. PropertyChanged is not guaranteed for that move on
+        // every platform, so use the real pointer route as the second admission
+        // signal; no routed or synthetic event is manufactured here.
+        _volumeHost.PointerEntered += (_, _) => UpdateVolumePopup();
+        _volumeHost.PointerMoved += (_, _) => UpdateVolumePopup();
         _volumeHost.AddHandler(GotFocusEvent, (_, e) =>
         {
             _volumeKeyboardFocus = e.NavigationMethod is NavigationMethod.Tab or NavigationMethod.Directional;
@@ -187,7 +193,14 @@ internal sealed partial class GalleryVideoPlayer
     private void ApplyVolumePlacement()
     {
         bool popup = UsesSoftwareVideo || _externalTransportHost != null;
-        if (popup == _volumeAsPopup && _volume.Parent != null) return;
+        if (popup == _volumeAsPopup && _volume.Parent != null)
+        {
+            // Placement can be requested again after the transport crossed roots.
+            // The pointer may still be over the speaker even though no new
+            // IsPointerOver notification was raised; do not leave the popup hidden.
+            UpdateVolumePopup();
+            return;
+        }
         _volumeAsPopup = popup;
         (_volume.Parent as Panel)?.Children.Remove(_volume);
         if (ReferenceEquals(_volumePopup.Child, _volume)) _volumePopup.Child = null;
@@ -203,6 +216,7 @@ internal sealed partial class GalleryVideoPlayer
             SetVolumePopupVisible(false);
             _secondary.Children.Insert(_secondary.Children.IndexOf(_volumeHost) + 1, _volume);
         }
+        if (popup) UpdateVolumePopup();
     }
 
     private void UpdateVolumePopup()
