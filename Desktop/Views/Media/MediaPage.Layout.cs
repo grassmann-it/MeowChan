@@ -305,6 +305,12 @@ public sealed partial class MediaPage
         bool leftBlock = shown && !right || panelShown && !panelRight, rightBlock = shown && right || panelShown && panelRight;
         surface.Margin = new Thickness(leftBlock ? 8 : 12, 0, rightBlock ? 8 : 12, 8);
         _panelCollapsed = panelColumns.CollapsedByWidth;
+        // The toolbar's first row follows these rooms (MediaPage.ToolbarAlignment.cs): the order ends at the grid card's right edge, the search
+        // starts where the header's last line starts (AlignPanel sets the room on the left).
+        _headerRoomLeft = 0;
+        _gridRightReserve = MediaToolbarLayout.GridRightReserve(
+            (shown && right ? columns[listColumn].Width.Value + HandleWidth : 0) + (panelShown && panelRight ? inner[panelColumn].Width.Value + HandleWidth : 0),
+            surface.Margin.Right, SidebarMargin);
         bool focusLost = !panelShown && _panelShown && _panel?.IsKeyboardFocusWithin == true;
         if (panelShown) { ReaderMediaSidebar created = EnsurePanel(); if (!content.Children.Contains(created)) content.Children.Add(created); }
         if (_panel is { } panel)
@@ -326,6 +332,7 @@ public sealed partial class MediaPage
                 + (shown && right == panelRight ? columns[listColumn].Width.Value + HandleWidth : 0);
             AlignPanel(aligned, panelRight, edge, reserve);
         }
+        ApplyToolbarAlignment();
         if (focusLost) FocusGrid();
     }
 

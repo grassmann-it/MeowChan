@@ -6,9 +6,10 @@ namespace MeowChan;
 
 /// <summary>
 /// How the media toolbar adapts to the width of its row (pure rules; <see cref="MediaPage"/> applies them). The order of the row is fixed:
-/// the query group on the left (the search field, which fills the free width from <see cref="SearchMinWidth"/> to <see cref="SearchMaxWidth"/>,
-/// then the filter toggle and the order: criterion and direction) and the view tools on the right (refresh, tag list, layout, focus, More); on a
-/// wide row the free width beyond the search maximum is the spacer between the two groups.
+/// the search field on the left (it fills the free width from <see cref="SearchMinWidth"/> up to the width of the selection actions line under
+/// it, so both end at the same x, <see cref="SearchTargetWidth"/>), the filter toggle, then on the right the order (criterion and direction), which ends at
+/// the grid's right edge (<see cref="Align"/>), and the view tools (refresh, tag list, layout, focus, More) above the media panel; the free width
+/// is the spacer between the filter toggle and the order.
 /// The stages: Wide shows everything; Reduced moves the focus mode, "Refresh" and "Shuffle again" under "More" (⋯); Compact moves the
 /// tag list switch and the Layout menu under More as well, drops the "Sort" label in front of the criterion, and lets the criterion shrink to
 /// its narrow minimum. The search keeps its minimum in every stage; the order, the search and the filter toggle never move. The widths are
@@ -24,7 +25,10 @@ internal static class MediaToolbarLayout
     internal const double CompactWidth = 870;
     internal const double SearchMinWidth = 240;
     internal const double SortMinWidth = 160, NarrowSortMinWidth = 120;
-    /// <summary>The longest the search field grows in the row; on a wide window the free space beyond it stays empty between the query group (search, filters, order) and the view tools.</summary>
+    /// <summary>
+    /// The longest the search field grows until the selection actions line has been measured (the page measures it as soon as it is shown); afterwards
+    /// <see cref="SearchTargetWidth"/> is the cap. Free space beyond it stays empty between the filter toggle and the order.
+    /// </summary>
     internal const double SearchMaxWidth = 640;
 
     /// <summary>The narrowest row the page gives the toolbar: the 640 dip window minimum less the 2 x 12 dip page margin. The Compact stage must fit it.</summary>
@@ -70,4 +74,59 @@ internal static class MediaToolbarLayout
     internal static double SearchMin(Level level) => SearchMinWidth;
 
     internal static double SortMin(Level level) => level == Level.Compact ? NarrowSortMinWidth : SortMinWidth;
+
+    /// <summary>The width of the selection actions line when all of it stands on one line: the visible children and the gaps between them.</summary>
+    internal static double SelectionRowWidth(IEnumerable<double> childWidths, double itemSpacing)
+    {
+        double sum = 0;
+        int count = 0;
+        foreach (double width in childWidths)
+        {
+            if (!double.IsFinite(width) || width <= 0) continue;
+            sum += width;
+            count++;
+        }
+        return count == 0 ? 0 : sum + itemSpacing * (count - 1);
+    }
+
+    /// <summary>
+    /// The width that makes the search end where the selection actions line ends: the room the line keeps free on its left (the media panel's header
+    /// room) and the line itself, never less than <see cref="SearchMinWidth"/>. A line that is not measured yet (0) gives <see cref="SearchMaxWidth"/>.
+    /// </summary>
+    internal static double SearchTargetWidth(double leftRoom, double selectionRowWidth) =>
+        selectionRowWidth <= 0 || !double.IsFinite(selectionRowWidth) ? SearchMaxWidth
+        : Math.Max(SearchMinWidth, Math.Max(0, leftRoom) + selectionRowWidth);
+
+    /// <summary>
+    /// The room between the right edge of the header and the right edge of the grid card: the blocks on the grid's right side (tag list and media
+    /// panel with their handles), the grid's own right margin, less the margin the header itself already keeps from the page edge.
+    /// </summary>
+    internal static double GridRightReserve(double rightBlocks, double surfaceRightMargin, double pageMargin) =>
+        Math.Max(0, Math.Max(0, rightBlocks) + surfaceRightMargin - pageMargin);
+
+    /// <summary>The width the free room of the row leaves over after the search at its minimum and the three groups at their natural width.</summary>
+    internal static double Slack(double rowWidth, double filtersWidth, double orderWidth, double viewToolsWidth) =>
+        Math.Max(0, rowWidth - (SearchMinWidth + filtersWidth + orderWidth + viewToolsWidth));
+
+    /// <summary>
+    /// The minimum width of the column of the view tools: their own width, widened to the room above the media panel (so the order ends at the grid's right
+    /// edge) as far as the row has slack for it; on a row that is too narrow the tools keep their width and the order sits next to them.
+    /// </summary>
+    internal static double ViewToolsColumnMin(double reserve, double viewToolsWidth, double slack) =>
+        viewToolsWidth + Math.Clamp(reserve - viewToolsWidth, 0, Math.Max(0, slack));
+
+    /// <summary>Where the pieces of the row end (x from the row's left edge): the search, the order and the view tools' left edge.</summary>
+    internal readonly record struct Alignment(double SearchRight, double OrderRight, double ViewToolsLeft);
+
+    /// <summary>
+    /// The pure model of the row for the tests: the search takes the free width up to <see cref="SearchTargetWidth"/> (not below its minimum), the order
+    /// ends where the view tools' column begins. The widths of the three groups include their 8 dip lead margin.
+    /// </summary>
+    internal static Alignment Align(double rowWidth, double leftRoom, double selectionRowWidth, double reserve, double filtersWidth, double orderWidth, double viewToolsWidth)
+    {
+        double columnMin = ViewToolsColumnMin(reserve, viewToolsWidth, Slack(rowWidth, filtersWidth, orderWidth, viewToolsWidth));
+        double free = rowWidth - filtersWidth - orderWidth - columnMin;
+        double search = Math.Max(SearchMinWidth, Math.Min(SearchTargetWidth(leftRoom, selectionRowWidth), free));
+        return new Alignment(search, rowWidth - columnMin, rowWidth - viewToolsWidth);
+    }
 }
