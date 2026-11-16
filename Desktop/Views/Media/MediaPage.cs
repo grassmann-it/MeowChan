@@ -231,7 +231,8 @@ public sealed partial class MediaPage : UserControl
         InstallTileEnter(); // Enter on a focused tile (MediaPage.TileEnter.cs); registered first, so it runs after the other tunnel handlers
         InstallTileInteraction(); // double click on a tile, Ctrl+wheel and Ctrl+Plus/Minus for the tile size (MediaPage.Interaction.cs)
         _grid.KeyDown += OnGridKeyDown;
-        AddHandler(KeyDownEvent, OnPageRateAndTagKey, RoutingStrategies.Bubble);
+        _grid.AddHandler(KeyDownEvent, OnGridPageShortcut, RoutingStrategies.Tunnel);
+        AddHandler(KeyDownEvent, OnPageRateAndTagKey, RoutingStrategies.Tunnel);
         _grid.AddHandler(KeyDownEvent, OnSelectAllWhilePresenting, RoutingStrategies.Tunnel);
         _grid.SelectionChanged += (_, e) =>
         {
@@ -847,6 +848,7 @@ public sealed partial class MediaPage : UserControl
 
     private async void OnGridKeyDown(object? sender, KeyEventArgs e)
     {
+        if (e.Handled || ShortcutService.IsCapturing || CommandRouter.IsNativeInput(e.Source, e.Key)) return;
         if (OnSelectionKey(e)) return;
         try
         {
@@ -935,9 +937,9 @@ public sealed partial class MediaPage : UserControl
     /// it; several selected tiles are rated and tagged together. A tile that cannot be tagged gets the stars and the reason as text. Without a popover
     /// host the tag dialog opens as before.
     /// </summary>
-    private async Task OpenRateAndTagAsync(MediaLibraryEntry entry, MediaLibraryTileRow row, Control anchor, Func<bool> current, bool focusRating)
+    private async Task OpenRateAndTagAsync(MediaLibraryEntry entry, MediaLibraryTileRow row, Control anchor, Func<bool> current, bool focusRating, bool useSelection = true)
     {
-        if (_grid.Selection.Count > 1 && !_selectionBusy) { await TagSelectionAsync(anchor, focusRating); return; }
+        if (useSelection && _grid.Selection.Count > 1 && !_selectionBusy) { await TagSelectionAsync(anchor, focusRating); return; }
         string? blocked = TagsBlockedReason(entry, row.State);
         if (TagPopoverAsync is { } popover)
         {
@@ -995,15 +997,31 @@ public sealed partial class MediaPage : UserControl
         await OpenRateAndTagAsync(row.Entry, row, _grid.ContainerFromItem(row) ?? _grid, Current, focusRating: true);
     }
 
-    // R with the focus on another control of the page (a filter chip, the sort or layout buttons, the selection bar): the grid's bubble route never saw
-    // it, so the key did nothing. It is the selection's "Rate and tag" there too; a text field keeps its R.
+    // Route only the page's media commands before ListBox typeahead. Panel video/favourite
+    // keys keep their existing tunnel route; native navigation and activation stay untouched.
+    private static bool IsPageMediaShortcut(KeyEventArgs e) =>
+        e.Key is not (Key.Enter or Key.Space or Key.Tab or Key.Escape)
+        && (MediaShortcutCommands.Any(id => CommandBindings.Matches(e, id))
+            || CommandBindings.Matches(e, "media.tags.edit")
+            || CommandBindings.Matches(e, "gallery.show-in-thread")
+            || CommandBindings.Matches(e, "rules.edit-scope")
+            || CommandBindings.Matches(e, "media.queue.add")
+            || CommandBindings.Matches(e, "tagging.remove"));
+
+    private void OnGridPageShortcut(object? sender, KeyEventArgs e)
+    {
+        if (IsPageMediaShortcut(e)) OnGridKeyDown(sender, e);
+    }
+
+    // Toolbar/sidebar focus uses the selection, not the panel's displayed medium.
     private void OnPageRateAndTagKey(object? sender, KeyEventArgs e)
     {
         if (e.Handled || _lifetime.IsCancellationRequested || ShortcutService.IsCapturing || e.Source is not Visual source
-            || CommandRouter.IsNativeInput(e.Source, e.Key) || !CommandBindings.Matches(e, "media.rating.edit")) return;
-        if (source.GetSelfAndVisualAncestors().Any(visual => ReferenceEquals(visual, _grid) || _panel != null && ReferenceEquals(visual, _panel))) return;
-        e.Handled = true;
-        OpenActions.Start(() => RateAndTagByKeyAsync(null), "media.page.rateAndTag");
+            || CommandRouter.IsNativeInput(e.Source, e.Key) || !IsPageMediaShortcut(e)) return;
+        Visual[] ancestors = source.GetSelfAndVisualAncestors().ToArray();
+        if (!ancestors.Contains(this) || ancestors.Any(visual => ReferenceEquals(visual, _grid)
+            || _panel != null && ReferenceEquals(visual, _panel))) return;
+        OnGridKeyDown(sender, e);
     }
 
     /// <summary>The grid's place for the keyboard after a popover closed without its tile (rebuilt, scrolled away): the selected tile, else the grid.</summary>

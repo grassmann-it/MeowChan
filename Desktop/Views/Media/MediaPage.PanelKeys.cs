@@ -9,17 +9,15 @@ using MeowChan.Gallery;
 
 namespace MeowChan;
 
-// Media page audit 16.11.2026: the page's own keys with the keyboard focus in the media panel. The grid handles R, T, Q, I, Ctrl+E, Ctrl+O, Ctrl+Shift+C,
-// Ctrl+R and Shift+0 to 5 on its bubble route, and the panel is not on that route: after a click on the panel's star, its "Open in gallery" or its video
-// controls the focus is inside the panel, and these keys did nothing there (the panel's video control even leaves them to the page: OwnerClaims). The panel's
-// tunnel handler now takes them for the medium the panel shows (the way M, U and F already work there), through the same actions and gates as the grid's keys
-// and the tile menu. Enter and Space stay with the focused button; the video keys and the favourite keys have their own routes (TryRoutePanelKey).
+// Page commands with panel focus target the displayed medium, not the grid selection.
+// The existing panel tunnel owns this forwarding; video and favourite keys retain
+// their separate routes in TryRoutePanelKey. Native activation keys stay local.
 public sealed partial class MediaPage
 {
     /// <summary>The Media page's own keys while the panel has the focus: true when the key was one (handled, even when the medium cannot take the action).</summary>
     private bool TryRoutePanelPageKey(KeyEventArgs e)
     {
-        if (e.Handled || _lifetime.IsCancellationRequested || !_panelShown || _panel is not { } panel || _panelRow is not { } row
+        if (e.Handled || ShortcutService.IsCapturing || _lifetime.IsCancellationRequested || !_panelShown || _panel is not { } panel || _panelRow is not { } row
             || CommandRouter.IsNativeInput(e.Source, e.Key) || e.Key is Key.Enter or Key.Space or Key.Escape or Key.Tab) return false;
         MediaLibraryEntry entry = row.Entry;
         if (CommandBindings.Matches(e, "gallery.show-in-thread"))
@@ -41,6 +39,12 @@ public sealed partial class MediaPage
                 OpenActions.Start(() => AddEntryToQueueAsync(entry), "media.panel.queue");
             return true;
         }
+        if (CommandBindings.Matches(e, "media.tags.edit"))
+        {
+            e.Handled = true;
+            OpenActions.Start(() => RunMediaCommandOnPanelAsync("media.tags.edit", row, panel.Frame), "media.panel.tags");
+            return true;
+        }
         foreach (string id in MediaShortcutCommands)
         {
             if (!CommandBindings.Matches(e, id)) continue;
@@ -54,12 +58,14 @@ public sealed partial class MediaPage
     // The menu command of the panel's medium (the same rules as RunMediaCommandByShortcutAsync, with the panel's tile instead of the selection).
     private Task RunMediaCommandOnPanelAsync(string id, MediaLibraryTileRow row, Avalonia.Controls.Control anchor)
     {
-        if (id == "media.rating.edit" && !_lifetime.IsCancellationRequested && !_selectionBusy)
+        if ((id is "media.rating.edit" or "media.tags.edit") && !_lifetime.IsCancellationRequested && !_selectionBusy)
         {
             // R on the panel's medium: as on the grid, a refusal says why (the index is being built, the file is not saved) instead of doing nothing.
             if (_building != null) { ShowSelectionNote(Texts.T("media.selection.reason.building")); return Task.CompletedTask; }
             if (row.Entry.Presence != MediaLibraryPresence.Present) { ShowSelectionNote(MediaMenuReasons.NotSaved); return Task.CompletedTask; }
-            return OpenRateAndTagAsync(row.Entry, row, anchor, () => !_lifetime.IsCancellationRequested && _building == null && IsEffectivelyVisible, focusRating: true);
+            return OpenRateAndTagAsync(row.Entry, row, anchor,
+                () => !_lifetime.IsCancellationRequested && _building == null && IsEffectivelyVisible,
+                focusRating: id == "media.rating.edit", useSelection: false);
         }
         if (_lifetime.IsCancellationRequested || _building != null || _selectionBusy || ExecuteMediaMenuActionAsync == null || row.Entry.Presence != MediaLibraryPresence.Present)
             return Task.CompletedTask;
