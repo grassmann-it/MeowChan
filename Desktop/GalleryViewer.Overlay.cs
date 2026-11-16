@@ -239,7 +239,12 @@ internal sealed partial class GalleryViewer
         UpdateCornerChrome();
         // Keep a hovered handle hit-testable through reveal until the pointer leaves.
         // Otherwise its pending click/tap could land on the media or transport below.
-        bool controls = OverlayControlsEffective && (_overlayHidden || _pointerOnControlsIndicator);
+        // Keep the bottom affordance visible for the same short motion window as
+        // the chevron. Real centre motion also reveals the footer, but the edge
+        // affordance must remain observable and native-targetable until that motion
+        // hint expires; otherwise the footer reveal consumes the only visual cue.
+        bool motionHint = EdgeIndicatorArtworkVisible(_controlsEdgeIndicator);
+        bool controls = OverlayControlsEffective && (_overlayHidden || _pointerOnControlsIndicator || motionHint);
         bool post = PostOverlayEffective && (!_contextOpen || _pointerOnPostIndicator) && _entry != null;
         bool controlsHadFocus = _controlsEdgeIndicator.IsKeyboardFocusWithin;
         bool postHadFocus = _postEdgeIndicator.IsKeyboardFocusWithin;
@@ -262,14 +267,22 @@ internal sealed partial class GalleryViewer
         }
     }
 
-    private void UpdateEdgeIndicatorArtwork()
+    private bool EdgeIndicatorArtworkVisible(Button indicator)
     {
         TimeSpan? age = _lastIndicatorMotion is long motion ? Stopwatch.GetElapsedTime(motion) : null;
+        return GalleryEdgeMotion.IsVisible(age, indicator.IsKeyboardFocusWithin);
+    }
+
+    private void UpdateEdgeIndicatorArtwork()
+    {
         foreach (Button indicator in new[] { _controlsEdgeIndicator, _postEdgeIndicator })
         {
             indicator.ApplyTemplate();
-            bool shown = GalleryEdgeMotion.IsVisible(age, indicator.IsKeyboardFocusWithin);
-            if (indicator.GetVisualChildren().OfType<Avalonia.Controls.Shapes.Path>().FirstOrDefault() is { } chevron)
+            bool shown = EdgeIndicatorArtworkVisible(indicator);
+            // The transparent hit-test surface wraps the chevron so the full 44-DIP
+            // handle remains native-targetable. Search the template descendants,
+            // rather than only the direct child, so motion still reveals the artwork.
+            if (indicator.GetVisualDescendants().OfType<Avalonia.Controls.Shapes.Path>().FirstOrDefault() is { } chevron)
                 chevron.Opacity = shown ? 1 : 0;
             // Keep the transparent 44-DIP handle hit-testable for touch and native
             // pointer entry even after its transient chevron has faded. Otherwise an

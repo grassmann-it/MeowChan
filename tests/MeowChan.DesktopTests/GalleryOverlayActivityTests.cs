@@ -308,13 +308,15 @@ public sealed class GalleryOverlayActivityTests
         Assert.Null(indicator.FocusAdorner);
         Assert.Equal(Colors.Transparent, Assert.IsAssignableFrom<ISolidColorBrush>(indicator.Background).Color);
         Assert.Equal(Colors.Transparent, Assert.IsAssignableFrom<ISolidColorBrush>(indicator.BorderBrush).Color);
-        // The complete custom template contains no theme presenter/border and no
-        // state setters that could restore a hover or pressed box.
+        // The complete custom template contains no theme presenter or state setters
+        // that could restore a hover or pressed box. The one transparent Border is
+        // intentional: it gives the full 44-DIP handle a native hit-test surface.
         Assert.Empty(indicator.Styles);
+        Assert.Single(indicator.GetVisualChildren().OfType<Border>());
         // The chevron is a drawn icon (P6), not the font glyphs "‹" / "⌃".
-        var glyph = Assert.Single(indicator.GetVisualChildren().OfType<Avalonia.Controls.Shapes.Path>());
+        var glyph = Assert.Single(indicator.GetVisualDescendants().OfType<Avalonia.Controls.Shapes.Path>());
         Assert.Empty(glyph.GetVisualChildren());
-        Assert.Empty(indicator.GetVisualChildren().OfType<TextBlock>());
+        Assert.Empty(indicator.GetVisualDescendants().OfType<TextBlock>());
         byte alpha = Assert.IsAssignableFrom<ISolidColorBrush>(glyph.Stroke).Color.A;
         Assert.InRange(alpha, (byte)1, (byte)127);
         Assert.Equal(0, glyph.Opacity); // no initial/static hint
@@ -344,7 +346,7 @@ public sealed class GalleryOverlayActivityTests
         Assert.Null(GetField(viewer, "_lastIndicatorMotion"));
         foreach (Button indicator in new[] { controls, post })
         {
-            Assert.Equal(0, Assert.Single(indicator.GetVisualChildren().OfType<Avalonia.Controls.Shapes.Path>()).Opacity);
+            Assert.Equal(0, Assert.Single(indicator.GetVisualDescendants().OfType<Avalonia.Controls.Shapes.Path>()).Opacity);
             Assert.False(indicator.IsHitTestVisible); // an undrawn hint takes no clicks (they reach the media); the keyboard stop stays
             Assert.True(indicator.Focusable);
             Assert.Equal(44, indicator.Width);
