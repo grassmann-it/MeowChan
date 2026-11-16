@@ -161,8 +161,8 @@ public sealed class RuntimeProcessTests
         using Workspace workspace = new();
         // The operation deadline is shared by the hanging call and the first call on the replacement
         // process. A fresh worker pays cold start (JIT, pipes, process-tree setup), which on Windows
-        // CI exceeds a 200 ms deadline, so the deadline stays short (but above cold start) while the
-        // elapsed bound below still proves the hang is cut off by the deadline plus grace, not later.
+        // CI can exceed a 200 ms deadline. Keep a short deadline with startup headroom;
+        // the elapsed assertion also bounds process cleanup, allowing for runner scheduling.
         TimeSpan operationTimeout = TimeSpan.FromSeconds(2), grace = TimeSpan.FromMilliseconds(100);
         await using PluginWorkerManager manager = new(new() { OperationTimeout = operationTimeout, CancellationGrace = grace });
         await using IPluginWorkerClient worker = await manager.StartAsync(Launch(workspace.Path), Artifact(), Configuration, new Services());
