@@ -58,7 +58,8 @@ class AP04CandidateWorkflowTests(unittest.TestCase):
     def test_independent_job_has_no_inventory_cycle_and_is_required_for_release(self):
         self.assertEqual(['current-source-inventory', 'linux-distribution'], dependencies('ap04-upgrade'))
         self.assertNotIn('ap04-upgrade', dependencies('current-source-inventory'))
-        self.assertEqual(['validate', 'library-package', 'macos-source-candidate'], dependencies('current-source-inventory'))
+        self.assertEqual(['validate', 'library-package', 'linux-distribution', 'macos-source-candidate'],
+                         dependencies('current-source-inventory'))
         expected = ['validate', 'macos-offline-gate', 'desktop-offline-gate', 'library-package', 'macos-package',
                     'package-media', 'linux-distribution', 'macos-source-candidate', 'current-source-inventory', 'ap04-upgrade']
         self.assertEqual(expected, dependencies('release-candidate-gate'))
@@ -91,6 +92,16 @@ class AP04CandidateWorkflowTests(unittest.TestCase):
         self.assertIn('timeout-minutes: 60\n', JOBS['ap04-upgrade'])
         self.assertIn('timeout-minutes: 40\n', JOBS['ap04-upgrade'])
         self.assertIn('timeout-minutes: 75\n', JOBS['validate'])
+
+    def test_inventory_rejects_failed_producers_before_download(self):
+        job = JOBS['current-source-inventory']
+        self.assertIn('id: current_source_inputs', job)
+        self.assertIn('CURRENT_SOURCE_NEEDS: ${{ toJSON(needs) }}', job)
+        self.assertIn('--required validate,library-package,linux-distribution,macos-source-candidate', job)
+        self.assertIn('--report artifacts/current-source/upstream-gate.json', job)
+        self.assertIn('current-source-inventory-evidence-${{ github.sha }}', job)
+        self.assertIn('path: artifacts/current-source/**', job)
+        self.assertIn('if-no-files-found: error', job)
 
     def test_exact_same_run_downloads_and_strict_package_binding(self):
         job = JOBS['ap04-upgrade']
@@ -139,7 +150,7 @@ class AP04CandidateWorkflowTests(unittest.TestCase):
         job = JOBS['ap04-upgrade']; steps = blocks('ap04-upgrade')
         self.assertNotIn('continue-on-error:', job)
         check = steps['Verify full AP04 PASS and same-run package/source evidence']
-        self.assertIn('if: always()', check)
+        self.assertIn("if: ${{ always() && steps.ap04_stage.outcome == 'success' && steps.ap04_run.outcome == 'success' }}", check)
         self.assertIn('ap04_stage.py check', check)
         self.assertIn('--stage-receipt artifacts/ap04-stage.json', check)
         self.assertIn('--run-id "$GITHUB_RUN_ID"', check)

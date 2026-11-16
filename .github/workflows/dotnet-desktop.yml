@@ -1510,15 +1510,36 @@ jobs:
   # Actions artifacts only. The retained v0.9 upload workflow is deliberately separate.
   current-source-inventory:
     if: ${{ always() && github.event_name == 'workflow_dispatch' && (inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate') }}
-    needs: [validate, library-package, macos-source-candidate]
+    needs: [validate, library-package, linux-distribution, macos-source-candidate]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
+      - name: Reject incomplete current-source candidate producers
+        id: current_source_inputs
+        if: always()
+        shell: bash
+        env:
+          CURRENT_SOURCE_NEEDS: ${{ toJSON(needs) }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/current-source
+          python3 scripts/aggregate-release-gates.py needs \
+            --json-env CURRENT_SOURCE_NEEDS \
+            --required validate,library-package,linux-distribution,macos-source-candidate \
+            --report artifacts/current-source/upstream-gate.json
       - uses: actions/download-artifact@v5
         with:
           pattern: '*candidate*'
           path: artifacts/current-source-inputs
+      - name: Retain current-source upstream decision even on failure
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: current-source-inventory-evidence-${{ github.sha }}
+          path: artifacts/current-source/**
+          if-no-files-found: error
+          retention-days: 7
       - name: Fetch the pinned corresponding-source base
         shell: bash
         run: |
@@ -1655,7 +1676,7 @@ jobs:
             2>&1 | tee "$GITHUB_WORKSPACE/artifacts/ap04/runner.log"
       - name: Verify full AP04 PASS and same-run package/source evidence
         id: ap04_check
-        if: always()
+        if: ${{ always() && steps.ap04_stage.outcome == 'success' && steps.ap04_run.outcome == 'success' }}
         shell: bash
         run: |
           python3 tests/fixtures/upgrade-v1.0.2/ap04_stage.py check \
