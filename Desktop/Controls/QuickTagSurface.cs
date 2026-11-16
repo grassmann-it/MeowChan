@@ -405,7 +405,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         _advanced.Click += OnAdvanced;
         _more.Click += OnMore;
         _decorated = new QuickTagStampSource(_source, _session.Stamp);
-        TagSuggestionInput.Attach(_input, () => _session.Busy ? null : _session.Snapshot, _session.OnAll, () => _ = AddTypedAsync(), _sourceTags);
+        TagSuggestionInput.Attach(_input, () => _session.Busy ? null : _session.Snapshot, _session.OnAll, () => OpenActions.Start(() => AddTypedAsync(), "tags.quick.add.key"), _sourceTags);
         _input.AddHandler(KeyDownEvent, OnInputKey, RoutingStrategies.Tunnel);
         AddHandler(KeyDownEvent, OnKey, RoutingStrategies.Tunnel);
         SizeChanged += OnSizeChanged;
@@ -632,7 +632,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         RefreshTexts();
         RestoreFocus(zone, tag, key, index);
         // A write the surface did not start (the host's) has ended: take an Enter that waited for it.
-        if (_deferredAdd != null) _ = ReplayDeferredAddAsync();
+        if (_deferredAdd != null) OpenActions.Start(ReplayDeferredAddAsync, "tags.quick.add.deferred");
     }
 
     /// <summary>
@@ -1059,7 +1059,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
 
     private async void OnSuggestionClick(object? sender, RoutedEventArgs e)
     {
-        if (_suggestionChips.FirstOrDefault(chip => ReferenceEquals(chip.Button, sender)) is { } chip) await ToggleSuggestionAsync(chip.Index);
+        if (_suggestionChips.FirstOrDefault(chip => ReferenceEquals(chip.Button, sender)) is { } chip) await OpenActions.RunAsync(() => ToggleSuggestionAsync(chip.Index), "tags.quick.suggestion.click");
     }
 
     /// <summary>Toggles suggestion <paramref name="index"/> (0-based), as a click, Alt+n or n in the strip does.</summary>
@@ -1069,12 +1069,12 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     private async void OnAssignedClick(object? sender, RoutedEventArgs e)
     {
         if (_assignedChips.FirstOrDefault(chip => ReferenceEquals(chip.Button, sender)) is { } chip)
-            await Guard(() => _session.ToggleAsync(chip.Tag), "tags.quick.toggle");
+            await OpenActions.RunAsync(() => Guard(() => _session.ToggleAsync(chip.Tag), "tags.quick.toggle"), "tags.quick.toggle.click");
     }
 
     private async void OnRemoveClick(object? sender, RoutedEventArgs e)
     {
-        if (_assignedChips.FirstOrDefault(chip => ReferenceEquals(chip.Remove, sender)) is { } chip) await RemoveAsync(chip);
+        if (_assignedChips.FirstOrDefault(chip => ReferenceEquals(chip.Remove, sender)) is { } chip) await OpenActions.RunAsync(() => RemoveAsync(chip), "tags.quick.remove.click");
     }
 
     private async Task RemoveAsync(AssignedChip chip)
@@ -1088,7 +1088,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
 
     private async void OnUndo(object? sender, RoutedEventArgs e)
     {
-        await UndoAsync();
+        await OpenActions.RunAsync(UndoAsync, "tags.quick.undo.click");
         // The last step is gone and the button with it: the focus goes back to the field instead of nowhere.
         if (!_disposed && _session.UndoSteps.Count == 0 && (_extraUndo?.Steps ?? 0) == 0 && _undo.IsKeyboardFocusWithin) _input.Focus();
     }
@@ -1106,7 +1106,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
 
     private void OnMarkedClear(object? sender, RoutedEventArgs e) => MarksClearRequested?.Invoke();
 
-    private async void OnStamp(object? sender, RoutedEventArgs e) => await ApplyStampAsync();
+    private async void OnStamp(object? sender, RoutedEventArgs e) => await OpenActions.RunAsync(() => ApplyStampAsync(), "tags.quick.stamp.click");
 
     /// <summary>Gives the stamp set to the shown medium or selection (Ctrl+Shift+Enter, the footer button).</summary>
     internal async Task<QuickTagStampResult> ApplyStampAsync()
@@ -1178,23 +1178,23 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         {
             case QuickTagKeyAction.ToggleSuggestion:
                 if (route.Value >= _shown.Count) return route.Value < QuickTagOptions.NumberedSuggestions;
-                _ = ToggleSuggestionAsync(route.Value);
+                OpenActions.Start(() => ToggleSuggestionAsync(route.Value), "tags.quick.suggestion.key");
                 return true;
             case QuickTagKeyAction.ToggleBadge:
                 int badge = Array.IndexOf(Letters.ToArray(), (char?)(char)route.Value);
-                if (badge >= 0) _ = ToggleSuggestionAsync(badge);
+                if (badge >= 0) OpenActions.Start(() => ToggleSuggestionAsync(badge), "tags.quick.suggestion.key");
                 return badge >= 0;
             case QuickTagKeyAction.Move:
             case QuickTagKeyAction.MoveFirst:
             case QuickTagKeyAction.MoveLast:
                 return Move(route);
             case QuickTagKeyAction.ToggleFocused:
-                if (FocusedSuggestion() is { } suggestion) { _ = ToggleSuggestionAsync(suggestion.Index); return true; }
-                if (FocusedAssigned() is { } toggled) { _ = Guard(() => _session.ToggleAsync(toggled.Tag), "tags.quick.toggle"); return true; }
+                if (FocusedSuggestion() is { } suggestion) { OpenActions.Start(() => ToggleSuggestionAsync(suggestion.Index), "tags.quick.suggestion.key"); return true; }
+                if (FocusedAssigned() is { } toggled) { OpenActions.Start(() => Guard(() => _session.ToggleAsync(toggled.Tag), "tags.quick.toggle"), "tags.quick.toggle.key"); return true; }
                 return false;
             case QuickTagKeyAction.RemoveFocused:
                 if (FocusedAssigned() is not { } removed) return false;
-                _ = RemoveAsync(removed);
+                OpenActions.Start(() => RemoveAsync(removed), "tags.quick.remove.key");
                 return true;
             case QuickTagKeyAction.FocusField: _input.Focus(); return true;
             case QuickTagKeyAction.FocusSuggestions:
@@ -1204,11 +1204,11 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
             case QuickTagKeyAction.Undo:
                 if (_extraUndo is { IsNewest: true } newest)
                 {
-                    if (newest.CanUndo) _ = UndoAsync();
+                    if (newest.CanUndo) OpenActions.Start(UndoAsync, "tags.quick.undo.key");
                     return true;
                 }
                 if (!_session.CanUndo) return _session.UndoSteps.Count > 0 || _session.Busy;
-                _ = UndoAsync();
+                OpenActions.Start(UndoAsync, "tags.quick.undo.key");
                 return true;
             case QuickTagKeyAction.CloseList: _input.Dismiss(); return true;
             case QuickTagKeyAction.Close: CloseRequested?.Invoke(); return CloseRequested != null;
@@ -1218,10 +1218,10 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
             case QuickTagKeyAction.UnmarkPrevious: return Navigate(QuickTagNavigation.UnmarkPrevious);
             case QuickTagKeyAction.CommitAndNext:
                 if (NavigationRequested == null) return false;
-                _ = AddTypedAsync(thenNext: true);
+                OpenActions.Start(() => AddTypedAsync(thenNext: true), "tags.quick.add.key");
                 return true;
             case QuickTagKeyAction.ApplyStamp:
-                _ = ApplyStampAsync();
+                OpenActions.Start(() => ApplyStampAsync(), "tags.quick.stamp.key");
                 return true;
             case QuickTagKeyAction.ThreadSection:
                 ThreadSectionRequested?.Invoke();
@@ -1274,7 +1274,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         if (e.Handled || e.Key != Key.Enter || e.KeyModifiers != KeyModifiers.None) return;
         e.Handled = true;
         _input.Dismiss();
-        await AddTypedAsync();
+        await OpenActions.RunAsync(() => AddTypedAsync(), "tags.quick.add.key");
     }
 
     private (QuickTagFocus Zone, TagId? Tag, string? Key, int Index) CurrentFocus()

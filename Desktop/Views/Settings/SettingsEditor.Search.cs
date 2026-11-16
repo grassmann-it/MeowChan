@@ -85,7 +85,10 @@ public partial class SettingsEditor
         // A held Enter must not click the control that just took the focus: repeats are swallowed until Enter is released.
         AddHandler(KeyDownEvent, (_, e) => { if (_searchEnterGuard.SwallowKeyDown(e.Key)) e.Handled = true; }, RoutingStrategies.Tunnel, handledEventsToo: true);
         AddHandler(KeyUpEvent, (_, e) => _searchEnterGuard.KeyUp(e.Key), RoutingStrategies.Tunnel, handledEventsToo: true);
-        DetachedFromVisualTree += (_, _) => _searchEnterGuard.Reset();
+        // The key-up of a held Enter is lost when the window is deactivated (Alt-Tab): follow the window, forget the press on deactivation.
+        AttachedToVisualTree += (_, _) => _searchEnterGuard.Follow(TopLevel.GetTopLevel(this) as Window);
+        DetachedFromVisualTree += (_, _) => { _searchEnterGuard.Follow(null); _searchEnterGuard.Reset(); };
+        if (TopLevel.GetTopLevel(this) is Window attachedWindow) _searchEnterGuard.Follow(attachedWindow);
         LostFocus += (_, _) => { if (!IsKeyboardFocusWithin) _searchEnterGuard.Reset(); };
         _searchBox.GotFocus += (_, _) =>
         {

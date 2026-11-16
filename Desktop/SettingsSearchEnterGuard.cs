@@ -1,3 +1,5 @@
+using System;
+using Avalonia.Controls;
 using Avalonia.Input;
 
 namespace MeowChan.Desktop;
@@ -44,4 +46,20 @@ internal sealed class SettingsSearchEnterGuard
         _enterDown = false;
         _armed = false;
     }
+
+    private Window? _window;
+
+    /// <summary>
+    /// Follows the window the settings sit in: Alt-Tab while Enter is held sends the key-up to another window, so a deactivation ends
+    /// the press like a key-up would (otherwise the next Enter in the settings would be swallowed once). Null stops following.
+    /// </summary>
+    internal void Follow(Window? window)
+    {
+        if (ReferenceEquals(_window, window)) return;
+        if (_window != null) _window.Deactivated -= OnWindowDeactivated;
+        _window = window;
+        if (_window != null) _window.Deactivated += OnWindowDeactivated;
+    }
+
+    internal void OnWindowDeactivated(object? sender, EventArgs e) => Reset();
 }
