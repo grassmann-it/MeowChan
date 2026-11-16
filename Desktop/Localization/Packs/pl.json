@@ -2951,6 +2951,7 @@
     "booru.ui.status.notFound": "Danbooru nie ma postu o tym ID.",
     "booru.ui.status.unavailable": "Danbooru nie jest dostępne w tym profilu. Włącz wtyczkę Danbooru w sekcji Wtyczki i spróbuj ponownie.",
     "booru.ui.status.failed": "Żądanie nie powiodło się ({0}). Niczego nie wczytano. Spróbuj ponownie później.",
+    "booru.ui.status.pluginMismatch": "Aktywna kompilacja wtyczki Danbooru została utworzona dla innej wersji MeowChan i nie może wyszukiwać (sdk-mismatch). W sekcji Wtyczki wybierz bieżącą kompilację Danbooru, a następnie wyszukaj ponownie. Niczego nie wczytano.",
     "booru.ui.status.retry": "Szukaj ponownie",
     "booru.ui.post.title": "Post #{0}",
     "booru.ui.post.rating": "Ocena Danbooru: {0}",

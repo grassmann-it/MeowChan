@@ -27,6 +27,13 @@ public sealed class BooruSearchService
 
     private readonly BooruHostServices _services;
     private readonly IReadOnlyDictionary<string, SourceDescription> _sources;
+
+    /// <summary>
+    /// Host diagnostics: sees every worker failure (its code and the worker's bounded message, which names the
+    /// exception type for "plugin-error" and "sdk-mismatch") before the result keeps only the code. Never throws into
+    /// the call; the public result and its generic message are unchanged.
+    /// </summary>
+    internal Action<string, PluginWorkerException>? WorkerFailureObserved { get; init; }
     private readonly object _workerCallsSync = new();
     private readonly HashSet<Task> _workerCalls = [];
     private TaskCompletionSource _workerCallsIdle = CompletedSignal();
@@ -152,6 +159,7 @@ public sealed class BooruSearchService
         catch (PluginWorkerException exception)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            Observe(sourceId, exception);
             return SearchJobEnd(job, sourceId) ?? new BooruSearchFailure(sourceId, WorkerFailure(exception));
         }
         catch (NotSupportedException exception)
@@ -211,6 +219,7 @@ public sealed class BooruSearchService
         catch (PluginWorkerException exception)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            Observe(post.SourceId, exception);
             return PostJobEnd(job, post) ?? new BooruPostFailure(post, WorkerFailure(exception));
         }
         catch (NotSupportedException exception)
@@ -294,6 +303,12 @@ public sealed class BooruSearchService
 
     private static FailureDetail PublicFailure(ValidationIssue issue) =>
         new(issue.Code, issue.Message);
+
+    private void Observe(string sourceId, PluginWorkerException exception)
+    {
+        try { WorkerFailureObserved?.Invoke(sourceId, exception); }
+        catch (Exception) { } // Diagnostics only: an observer failure never changes the result.
+    }
 
     private static FailureDetail WorkerFailure(PluginWorkerException exception) =>
         new(exception.Code, "The booru worker did not return a usable result.", exception.FailureInfo.HttpStatusCode is not null

@@ -2934,6 +2934,7 @@
     "booru.ui.status.notFound": "Danbooru non ha alcun post con questo ID.",
     "booru.ui.status.unavailable": "Danbooru non è disponibile in questo profilo. Attiva il plugin Danbooru in Plugin, poi riprova.",
     "booru.ui.status.failed": "La richiesta non è riuscita ({0}). Non è stato caricato nulla. Riprova più tardi.",
+    "booru.ui.status.pluginMismatch": "La build attiva del plugin Danbooru è stata creata per un’altra versione di MeowChan e non può cercare (sdk-mismatch). In Plugin, seleziona la build attuale di Danbooru, poi cerca di nuovo. Non è stato caricato nulla.",
     "booru.ui.status.retry": "Cerca di nuovo",
     "booru.ui.post.title": "Post #{0}",
     "booru.ui.post.rating": "Classificazione Danbooru: {0}",

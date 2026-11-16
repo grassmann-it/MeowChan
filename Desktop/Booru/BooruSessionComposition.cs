@@ -47,6 +47,9 @@ internal sealed class BooruProviderBinding
     internal Func<CancellationToken, Task<IPluginWorkerClient?>> GetWorkerAsync { get; }
     internal Func<bool> IsEnabled { get; }
 
+    /// <summary>The session's logger for this provider (never null).</summary>
+    internal ILogger Logger => _logger;
+
     /// <summary>Raised (on any thread) when the plugin was enabled or disabled at runtime.</summary>
     internal event Action? AvailabilityChanged;
 
@@ -106,7 +109,14 @@ internal sealed class BooruSessionComposition : IAsyncDisposable
         _availability = new BooruPortAvailabilityGate(() => binding.IsEnabled()
             && catalog.ProfileLease.Admission.Phase == ProfileAdmissionPhase.Ready);
         Catalog = catalog;
-        Search = new BooruSearchService(binding.Services);
+        // A worker failure keeps only its code in the result; the log gets the worker's reason (exception type and
+        // bounded message), so a "plugin-error" or "sdk-mismatch" on the page can be traced without a debugger.
+        ILogger log = binding.Logger;
+        Search = new BooruSearchService(binding.Services)
+        {
+            WorkerFailureObserved = (sourceId, failure) =>
+                log.Warning("The {Source} plugin worker call failed ({Code}): {Reason}", sourceId, failure.Code, failure.Message)
+        };
         _mediaClient = binding.CreateOriginalMediaClient();
         try
         {

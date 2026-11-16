@@ -30,7 +30,10 @@ public sealed class BooruWatcherSearchPort : IDanbooruWatcherSearchPort
     {
         "capability", "stopped", "worker-exit", "restart-limit", "unresponsive", "start", "capacity",
         "memory-limit", "temporary-limit", "temporary-budget", "source_unavailable", "intervention-required",
-        "timeout", "worker_unavailable"
+        "timeout", "worker_unavailable",
+        // The active plugin binary does not bind to this SDK: the plugin is unusable until another build is selected,
+        // which is no reason to put a watcher into its error state.
+        "sdk-mismatch"
     };
 
     private static readonly HashSet<string> TransientCodes = new(StringComparer.Ordinal)
