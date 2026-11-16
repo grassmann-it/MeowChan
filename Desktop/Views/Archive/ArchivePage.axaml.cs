@@ -344,6 +344,7 @@ public partial class ArchivePage : UserControl
         _mediaProjectionPending = true;
         if (_selectedThread != id) _ = ReleaseInlineVideos(); // R10: another thread starts without players
         _selectedThread = id;
+        _postsAlignOnShow = null;
         _mediaMenuPresenter.Invalidate();
         CloseThreadFind();
         _thread = null;
@@ -488,7 +489,8 @@ public partial class ArchivePage : UserControl
         if (_ended) _retainedMediaPosition = null;
     }
 
-    private void RenderThread()
+    // refreshMedia: false when only the page of posts changed behind the Media tab (the media list does not depend on it and keeps its focus and selection).
+    private void RenderThread(bool refreshMedia = true)
     {
         CloseQuotePreview();
         ReaderFindOpen.IsEnabled = !_ended && !_busy && _thread != null;
@@ -560,7 +562,8 @@ public partial class ArchivePage : UserControl
         noPostsText.IsVisible = noPosts != null;
         if (noPosts != null && !Equals(noPostsText.Tag, noPosts)) { noPostsText.Tag = noPosts; noPostsText.Text = Texts.T(noPosts); }
         Dispatcher.UIThread.Post(UpdateUnreadReturn, DispatcherPriority.Background);
-        RenderMedia();
+        // The new page's rows still get their favourite wiring (ConfigureArchiveMediaFavorites); the media list itself is not rebuilt.
+        if (refreshMedia) RenderMedia(); else ConfigureArchiveMediaFavorites();
         AnnounceProjection();
     }
 
@@ -938,7 +941,8 @@ public partial class ArchivePage : UserControl
         _postOffset = Math.Max(0, _postOffset - ReaderPageSize);
         ++_readerFocusRequest;
         _readerPostId = null;
-        RenderThread();
+        _postsAlignOnShow = null; // a new page starts at its top
+        RenderThread(refreshMedia: !ReaderPostsInBackground);
         QueueReadingPositionCapture(DispatcherPriority.Loaded);
     }
     private void OnNextPosts(object? sender, RoutedEventArgs e)
@@ -948,7 +952,8 @@ public partial class ArchivePage : UserControl
         _postOffset += ReaderPageSize;
         ++_readerFocusRequest;
         _readerPostId = null;
-        RenderThread();
+        _postsAlignOnShow = null; // a new page starts at its top
+        RenderThread(refreshMedia: !ReaderPostsInBackground);
         QueueReadingPositionCapture(DispatcherPriority.Loaded);
     }
     private void OnBackClick(object? sender, RoutedEventArgs e) { if (IsFilenameSearchOpen) return; CloseThreadFind(); _showReader = false; UpdateLayoutMode(); }

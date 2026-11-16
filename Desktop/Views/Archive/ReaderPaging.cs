@@ -10,17 +10,16 @@ internal enum ReaderPageTarget { None, Posts, References }
 internal static class ReaderPaging
 {
     /// <summary>
-    /// What the gesture pages. <paramref name="referencesTabSelected"/>: the References tab is the shown one (it pages the backlinks);
-    /// <paramref name="postsTabSelected"/>: the posts tab is shown (it pages the thread's posts). Any other tab has no pager, so the gesture does nothing there.
+    /// What the gesture pages. <paramref name="referencesTabSelected"/>: the References tab is the shown one (it pages the backlinks). On every other tab
+    /// it pages the thread's posts: on the Posts tab in view, on the Media tab in the background (the page and the current post move, the tab stays).
     /// </summary>
-    internal static ReaderPageTarget Target(bool previous, bool referencesTabSelected, bool postsTabSelected, bool readReady, bool hasThread, int postOffset,
+    internal static ReaderPageTarget Target(bool previous, bool referencesTabSelected, bool readReady, bool hasThread, int postOffset,
         int postPageSize, int shownPosts, bool hasBacklinkPost, int referenceOffset, int referenceTotal, int referencePageSize)
     {
         if (!readReady || !hasThread) return ReaderPageTarget.None;
         if (referencesTabSelected)
             return hasBacklinkPost && (previous ? referenceOffset > 0 : referenceOffset + referencePageSize < referenceTotal)
                 ? ReaderPageTarget.References : ReaderPageTarget.None;
-        if (!postsTabSelected) return ReaderPageTarget.None;
         return previous ? postOffset > 0 ? ReaderPageTarget.Posts : ReaderPageTarget.None
             : postOffset + postPageSize < shownPosts ? ReaderPageTarget.Posts : ReaderPageTarget.None;
     }

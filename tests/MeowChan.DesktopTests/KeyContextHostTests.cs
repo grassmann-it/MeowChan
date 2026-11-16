@@ -38,6 +38,77 @@ public sealed class KeyContextHostTests
     }
 
     [Fact]
+    public void ADisposedHostEntersNothingAndEndsTheScopeItStillHolds()
+    {
+        StackPanel root = new();
+        Border pane = new(), child = new();
+        root.Children.Add(pane);
+        pane.Child = child;
+        IDisposable host = KeyContextHost.Install(root, _ => "reader", closeNow: true);
+        List<string?> seen = new();
+        pane.AddHandler(InputElement.KeyDownEvent, (_, _) => seen.Add(KeyContextHost.Current), RoutingStrategies.Tunnel);
+        // Disposed in the middle of the key (a handler that closes the reader): the context is restored, the late closing handler is a no-op.
+        child.AddHandler(InputElement.KeyDownEvent, (_, _) => host.Dispose(), RoutingStrategies.Tunnel);
+        child.RaiseEvent(Press(Key.F));
+        Assert.Equal(new string?[] { "reader" }, seen);
+        Assert.Null(KeyContextHost.Current);
+        seen.Clear();
+        child.RaiseEvent(Press(Key.F));
+        Assert.Equal(new string?[] { null }, seen);
+        host.Dispose(); // twice is fine
+    }
+
+    [Fact]
+    public void TunnelHandlersOfOneElementRunInReverseOrderSoAHostOnThePaneItselfIsInstalledLast()
+    {
+        // Avalonia raises the Tunnel handlers of one element in the reverse order of their registration. A host on the large reader's pane must therefore be
+        // installed AFTER the pane's own tunnel handlers (WireReaderSurface), or they would run before the context is entered.
+        Border pane = new();
+        List<string> order = new();
+        pane.AddHandler(InputElement.KeyDownEvent, (_, _) => order.Add("first registered"), RoutingStrategies.Tunnel);
+        pane.AddHandler(InputElement.KeyDownEvent, (_, _) => order.Add("second registered"), RoutingStrategies.Tunnel);
+        pane.RaiseEvent(Press(Key.F));
+        Assert.Equal(new[] { "second registered", "first registered" }, order);
+    }
+
+    [Fact]
+    public void ASecondHostOfTheSameContextDoesNotEnterItTwice()
+    {
+        // The pane's own host and the page's host while a pane is inside the page: one scope for the key, restored to null after it.
+        StackPanel page = new();
+        Border pane = new();
+        page.Children.Add(pane);
+        KeyContextHost.Install(page, _ => "reader", closeNow: true);
+        KeyContextHost.Install(pane, _ => "reader", closeNow: true);
+        List<string?> seen = new();
+        pane.AddHandler(InputElement.KeyDownEvent, (_, _) => seen.Add(KeyContextHost.Current), RoutingStrategies.Tunnel | RoutingStrategies.Bubble);
+        pane.RaiseEvent(Press(Key.F));
+        Assert.Equal(new string?[] { "reader", "reader" }, seen); // still "reader" at the pane's bubble: the page's scope is the one that holds it
+        Assert.Null(KeyContextHost.Current);
+    }
+
+    [Fact]
+    public void AHandlerThatThrowsDoesNotLeaveTheContextBehind() => BooruComponentDispatcher.Run(() =>
+    {
+        StackPanel root = new();
+        Border pane = new();
+        root.Children.Add(pane);
+        KeyContextHost.Install(root, _ => "reader", closeNow: true);
+        pane.AddHandler(InputElement.KeyDownEvent, (_, _) => throw new InvalidOperationException("handler"), RoutingStrategies.Bubble);
+        Assert.Throws<InvalidOperationException>(() => pane.RaiseEvent(Press(Key.F)));
+        Assert.Equal("reader", KeyContextHost.Current); // the route was aborted before the closing handler
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs(); // the posted safety net ends it
+        Assert.Null(KeyContextHost.Current);
+        // The next key is clean again.
+        List<string?> seen = new();
+        pane.AddHandler(InputElement.KeyDownEvent, (_, _) => seen.Add(KeyContextHost.Current), RoutingStrategies.Tunnel);
+        Assert.Throws<InvalidOperationException>(() => pane.RaiseEvent(Press(Key.F)));
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        Assert.Equal(new string?[] { "reader" }, seen);
+        Assert.Null(KeyContextHost.Current);
+    });
+
+    [Fact]
     public void APartlyYieldedFavouriteKeyMatchesOnThePagesThatKeepIt()
     {
         // A saved gallery command on F takes favorites.toggle's F from the gallery only.
@@ -58,6 +129,13 @@ public sealed class KeyContextHostTests
         string archive = Source("Desktop/Views/Archive/ArchivePage.axaml.cs"), media = Source("Desktop/Views/Media/MediaPage.cs");
         Assert.Contains("KeyContextHost.Install(this, e => e.Source is Visual source && ArchiveReaderPane is { } pane", archive);
         Assert.Contains("? \"reader\" : \"archive\");", archive);
+        // The large reader's pane carries the same context itself, installed after its own tunnel handlers (see TunnelHandlersOfOneElementRun...).
+        string reader = Source("Desktop/Views/Archive/ArchivePage.Reader.cs");
+        int wire = reader.IndexOf("private void WireReaderSurface", StringComparison.Ordinal);
+        int host = reader.IndexOf("KeyContextHost.Install(pane, _ => \"reader\")", wire, StringComparison.Ordinal);
+        Assert.True(wire >= 0 && host > wire);
+        Assert.True(host > reader.IndexOf("pane.AddHandler(KeyDownEvent, OnReaderKeyDown", wire, StringComparison.Ordinal));
+        Assert.True(host > reader.IndexOf("pane.AddHandler(KeyDownEvent, OnArchiveMediaContextKey", wire, StringComparison.Ordinal));
         Assert.Contains("KeyContextHost.Install(this, _ => \"media\");", media);
     }
 

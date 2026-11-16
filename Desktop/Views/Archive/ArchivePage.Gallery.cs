@@ -394,7 +394,8 @@ public partial class ArchivePage
     private void ShowPost(string postId, FilenameSearchOwner? filenameNavigation) => ShowPost(postId, filenameNavigation, reveal: true);
 
     // scroll: false when the caller aligns the post itself (FocusPostAsync); a minimal ScrollIntoView here would be a competing write.
-    private void ShowPost(string postId, FilenameSearchOwner? filenameNavigation, bool reveal, bool scroll = true)
+    // background: the Media tab stays selected and the media list is left alone (it does not depend on the page of posts); the selection is still made.
+    private void ShowPost(string postId, FilenameSearchOwner? filenameNavigation, bool reveal, bool scroll = true, bool background = false)
     {
         if (!ReferenceEquals(_filenameSearchOwner, filenameNavigation)) InvalidateFilenameSearch();
         if (_thread == null) return;
@@ -411,9 +412,13 @@ public partial class ArchivePage
             || !current.Any(post => post.Id == postId))
         {
             _postOffset = offset;
-            RenderThread();
+            RenderThread(refreshMedia: !background);
         }
-        ArchiveContentTabs.SelectedIndex = 0;
+        if (!background)
+        {
+            _postsAlignOnShow = null; // an explicit jump aligns the list itself
+            ArchiveContentTabs.SelectedIndex = 0;
+        }
         ListBox list = ArchivePosts;
         if (list.ItemsSource is System.Collections.Generic.IEnumerable<ArchivePostRow> posts)
         {

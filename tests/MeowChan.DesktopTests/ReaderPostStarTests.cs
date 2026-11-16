@@ -132,8 +132,9 @@ public sealed class ReaderPostStarTests : IDisposable
         // Every page the reader shows is followed by the wiring: RenderThread ends in RenderMedia, which wires first.
         string page = Source("Desktop/Views/Archive/ArchivePage.axaml.cs");
         Assert.Matches(@"private void RenderMedia\(\)\s*\{\s*ConfigureArchiveMediaFavorites\(\);", page);
-        int render = page.IndexOf("private void RenderThread()", StringComparison.Ordinal);
-        Assert.True(render >= 0 && page.IndexOf("RenderMedia();", render, StringComparison.Ordinal)
+        // (A page that only changed behind the Media tab skips the media list's rebuild but not the wiring.)
+        int render = page.IndexOf("private void RenderThread(bool refreshMedia = true)", StringComparison.Ordinal);
+        Assert.True(render >= 0 && page.IndexOf("if (refreshMedia) RenderMedia(); else ConfigureArchiveMediaFavorites();", render, StringComparison.Ordinal)
             < page.IndexOf("private readonly record struct PostRowContext", StringComparison.Ordinal));
     }
 }

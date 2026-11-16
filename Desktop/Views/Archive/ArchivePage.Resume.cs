@@ -53,7 +53,7 @@ public partial class ArchivePage
         }, priority);
     }
 
-    private bool CanCaptureReadingPosition => !_resumingPosition && _largeReader && ReaderShowsPosts
+    private bool CanCaptureReadingPosition => !_resumingPosition && _largeReader && (ReaderShowsPosts || ReaderPostsInBackground)
         && !_busy && !_ended && ReadingPositionCaptureAllowed?.Invoke() != false;
 
     internal Func<bool> CaptureReadingRequestGuard()

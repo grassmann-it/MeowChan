@@ -252,7 +252,7 @@ public partial class ArchivePage
         {
             if (e.Property == Visual.IsVisibleProperty) CancelReaderMediaActivation();
         };
-        ArchiveContentTabs.SelectionChanged += (_, _) => CancelReaderMediaActivation();
+        ArchiveContentTabs.SelectionChanged += (_, _) => { CancelReaderMediaActivation(); AlignPostsOnShow(); };
         // M / U / F on the selected post's medium (the shared resolver) first, then the media menu's other keys.
         posts.AddHandler(KeyDownEvent, (_, e) => { if (!TryRouteFavoriteKey(posts, e)) TryRouteArchiveMediaShortcut(posts, e); }, RoutingStrategies.Bubble);
         posts.AddHandler(PointerWheelChangedEvent, (_, _) => ++_readerInteractionRevision, RoutingStrategies.Tunnel, handledEventsToo: true);
@@ -300,6 +300,26 @@ public partial class ArchivePage
             ScrollViewer.SetBringIntoViewOnFocusChange(presenter, false);
     }
     internal bool ReaderShowsPosts => _showReader && ArchiveContentTabs.SelectedIndex == 0;
+    // The Media tab is shown: the posts list is not on screen, but paging and the post keys still move through the posts (the current post, the page,
+    // the reading position); the tab and the focus stay where they are, and the list is aligned to the current post when the user switches back.
+    internal bool ReaderPostsInBackground => _showReader && ArchiveContentTabs.SelectedIndex == 1;
+    /// <summary>The reader's current post (the identity the position, the counters and the next step start from); null without a page of posts.</summary>
+    internal string? CurrentReaderPostId => _readerPostId;
+    // The post the posts list has to be aligned to on its next appearance (a background move selected it while the list was hidden).
+    private string? _postsAlignOnShow;
+    private void AlignPostsOnShow()
+    {
+        if (_postsAlignOnShow is not { } post || _ended || !ReaderShowsPosts) return;
+        _postsAlignOnShow = null;
+        int request = _readerFocusRequest;
+        Dispatcher.UIThread.Post(() =>
+        {
+            // The same alignment as a jump, without taking the focus from the tab header the user just used. A jump of any kind in between
+            // (it bumps the request) has its own target and wins.
+            if (!_ended && ReaderShowsPosts && request == _readerFocusRequest && _thread?.FindPostIndex(post) >= 0)
+                OpenActions.Start(() => FocusPostAsync(post, null, restoreFocus: false), "archive.reader.alignPosts");
+        }, DispatcherPriority.Loaded);
+    }
     internal Action<Control?>? OpenReaderRequested { get; set; }
     internal Action? CloseReaderRequested { get; set; }
     private void OnCloseReaderClick(object? sender, RoutedEventArgs e) { if (IsFilenameSearchOpen) return; CloseThreadFind(); CloseReaderRequested?.Invoke(); }
@@ -314,10 +334,19 @@ public partial class ArchivePage
         pane.AddHandler(ContextRequestedEvent, OnArchiveMediaContextRequested, RoutingStrategies.Tunnel);
         pane.AddHandler(KeyDownEvent, OnArchiveMediaContextKey, RoutingStrategies.Tunnel);
         pane.AddHandler(ArchiveMediaTileView.RateAndTagRequestedEvent, OnTileRateAndTagRequested);
+        // Keys inside the pane run in the "reader" context: the page's own host only sees them while the pane is inside the page, and the large reader's
+        // pane is not. Installed after the handlers above on purpose: Avalonia runs the Tunnel handlers of one element in reverse registration order,
+        // so the context is entered before OnReaderKeyDown and the media context key run (KeyContextHostTests pins both facts).
+        _readerKeyContext?.Dispose();
+        _readerKeyContext = MeowChan.Desktop.Controls.KeyContextHost.Install(pane, _ => "reader");
     }
+
+    private IDisposable? _readerKeyContext;
 
     private void UnwireReaderSurface(Control pane)
     {
+        _readerKeyContext?.Dispose();
+        _readerKeyContext = null;
         pane.RemoveHandler(KeyDownEvent, OnReaderKeyDown);
         pane.RemoveHandler(ContextRequestedEvent, OnArchiveMediaContextRequested);
         pane.RemoveHandler(KeyDownEvent, OnArchiveMediaContextKey);
@@ -522,6 +551,38 @@ public partial class ArchivePage
         if (!IsCurrent()) return;
         Finish(targetRow != null ? posts.ContainerFromItem(targetRow) as Control : null);
     }
+    // The data side of a post jump, for a list that is not on screen (the Media tab is shown): the page, the selected and current post, the reading position
+    // and the navigation state follow exactly as for FocusPostAsync; the layout passes and the focus do not (nothing is realized), and the list is aligned to the
+    // post when the Posts tab is shown again (AlignPostsOnShow).
+    private async Task MoveReaderPostInBackgroundAsync(string postId)
+    {
+        if (_ended || IsFilenameSearchOpen || _thread?.FindPostIndex(postId) is not >= 0) return;
+        if (_projectionReady is { } preparing)
+        {
+            ResourceId? preparingThread = _thread?.Summary.Id;
+            int preparingContent = _contentRequest, interaction = _readerInteractionRevision;
+            await preparing.Task;
+            if (_ended || IsFilenameSearchOpen || preparingContent != _contentRequest || _thread?.Summary.Id != preparingThread
+                || _thread?.FindPostIndex(postId) is not >= 0 || interaction != _readerInteractionRevision) return;
+        }
+        if (Projection is not { } shownPosts) return;
+        int nearest = shownPosts.NearestPosition(postId);
+        if (nearest < 0) return;
+        postId = shownPosts[nearest].Post.PostId;
+        if (!ReaderPostsInBackground)
+        {
+            // The user switched tabs while the view was being prepared: it is an ordinary jump now.
+            await FocusPostAsync(postId, null);
+            return;
+        }
+        ++_readerFocusRequest; // supersedes a jump or a passive focus that is still settling
+        ShowPost(postId, null, reveal: false, scroll: false, background: true);
+        _readerPostId = postId;
+        _postsAlignOnShow = postId;
+        UpdateReaderNavigation();
+        ReaderPositionChanged(deliberate: true);
+    }
+
     // A realized container within one viewport height above or below the visible part of the list.
     private static bool RealizedNearViewport(ListBox posts, object row)
     {
@@ -873,7 +934,7 @@ public partial class ArchivePage
         bool previous = ShortcutService.Current.Matches(e, "pagination.previous");
         if (!previous && !ShortcutService.Current.Matches(e, "pagination.next")) return false;
         bool readReady = CanRead && !_busy && !_ended && !IsFilenameSearchOpen;
-        ReaderPageTarget target = ReaderPaging.Target(previous, ArchiveContentTabs.SelectedItem == ArchiveReferencesTab, ArchiveContentTabs.SelectedIndex == 0,
+        ReaderPageTarget target = ReaderPaging.Target(previous, ArchiveContentTabs.SelectedItem == ArchiveReferencesTab,
             readReady, _thread != null, _postOffset, ReaderPageSize, ShownPostCount, _backlinkPost != null, _referenceOffset, _referenceTotal, PageSize);
         if (target == ReaderPageTarget.None) return false;
         e.Handled = true;
@@ -885,10 +946,19 @@ public partial class ArchivePage
     }
 
     // The beside-the-list preview has no reader tunnel: its post list passes the same gesture on from its own bubble.
-    private void InitializePostPageKeys() => ArchivePosts.KeyDown += (_, e) =>
+    // With the Media tab shown the posts list is not on screen: the same gesture pages the posts from the tab (its list and its header) in the background.
+    // The handler is a plain bubble one, so a key the media list handled itself (it keeps those) never pages.
+    private void InitializePostPageKeys()
     {
-        if (!_largeReader && !IsReaderDialogOpen) TryPageByShortcut(e);
-    };
+        ArchivePosts.KeyDown += (_, e) =>
+        {
+            if (!_largeReader && !IsReaderDialogOpen) TryPageByShortcut(e);
+        };
+        ArchiveContentTabs.KeyDown += (_, e) =>
+        {
+            if (!_largeReader && !IsReaderDialogOpen && ReaderPostsInBackground) TryPageByShortcut(e);
+        };
+    }
 
     private void CancelReaderMediaActivation() => _readerMediaActivationCancellation?.Cancel();
 
@@ -1105,7 +1175,9 @@ public partial class ArchivePage
             // Up/Down follow the shown order: hidden posts are skipped, a conversation goes through its tree.
             int index = ReaderPostIndex + postDelta;
             if (ReaderPostIndex < 0 || index < 0 || index >= shown.Count) return;
-            await FocusPostAsync(shown[index].Post.PostId);
+            // With the Media tab shown the move happens behind it: no tab switch, no focus change.
+            if (ReaderPostsInBackground) await MoveReaderPostInBackgroundAsync(shown[index].Post.PostId);
+            else await FocusPostAsync(shown[index].Post.PostId);
         }
         UpdateReaderNavigation();
     }
@@ -1160,7 +1232,8 @@ public partial class ArchivePage
         if (_thread == null) return null;
         ListBox list = ArchivePosts;
         string? selected = (list.SelectedItem as ArchivePostRow)?.Id;
-        var visible = list.GetVisualDescendants().OfType<ListBoxItem>()
+        // Behind another tab the list shows nothing (its realized cards are stale): the anchor is the selected post or the page's first.
+        var visible = ArchiveContentTabs.SelectedIndex != 0 ? default : list.GetVisualDescendants().OfType<ListBoxItem>()
             .Select(item => (Item: item, Top: item.TranslatePoint(default, list)?.Y ?? double.NaN))
             .Where(item => item.Item.DataContext is ArchivePostRow && item.Top < list.Bounds.Height && item.Top + item.Item.Bounds.Height > 0)
             .OrderBy(item => item.Top).FirstOrDefault();
