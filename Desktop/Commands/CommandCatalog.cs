@@ -290,7 +290,7 @@ public static class CommandCatalog
         new("reader.font-size.larger", "command.reader.font-size.larger", "Larger reading font", "Größere Leseschrift", "zoom-in", "Primary+Plus", CommandScope.Reader, new[] { "reader-text" }),
         new("reader.font-size.smaller", "command.reader.font-size.smaller", "Smaller reading font", "Kleinere Leseschrift", "zoom-out", "Primary+Minus", CommandScope.Reader, new[] { "reader-text" }),
         new("reader.font-size.reset", "command.reader.font-size.reset", "Default reading font size", "Standard-Leseschriftgröße", "type", "Primary+0", CommandScope.Reader, new[] { "reader-text" }),
-        new("watch.follow-live", "command.watch.follow-live", "Show new posts automatically", "Neue Posts automatisch anzeigen", "arrow-down", "Primary+Shift+L", CommandScope.Reader | CommandScope.Downloads, new[] { "reader-settings", "threadwatcher" }),
+        new("watch.follow-live", "command.watch.follow-live", "Show new posts automatically", "Neue Posts automatisch anzeigen", "arrow-down", "Primary+Shift+L", CommandScope.Reader | CommandScope.Downloads, new[] { "reader-settings", "threadwatcher" }, new[] { "reader" }),
         new("reader.show-new-posts", "command.reader.show-new-posts", "Show new posts", "Neue Posts anzeigen", "arrow-down", "Primary+Shift+N", CommandScope.Reader, new[] { "reader-new-posts-notice" }),
         // The reader's view options (plan P0; the settings popover's session rows since RL1). No default gesture; each one can be given a shortcut. The conversation view
         // (P4) and the post filters (P2) appear in the menu once their package registers them.

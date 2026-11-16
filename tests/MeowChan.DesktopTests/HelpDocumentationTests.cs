@@ -1273,7 +1273,7 @@ public sealed class HelpDocumentationTests
         string shell = Read("Desktop/Shell/MainWindow.Fullscreen.cs");
         Assert.Contains("_sourcesPage?.ActivateAsync(SourcesPluginsFilter.AllPlugins)", shell, StringComparison.Ordinal);
         Assert.Contains("ShowStatus(segment)", shell, StringComparison.Ordinal);
-        Assert.Contains("CanExecuteShellPowerCommand(e.Source, e.Key)", shell, StringComparison.Ordinal);
+        Assert.Contains("CanExecuteShellPowerCommand(e)", shell, StringComparison.Ordinal);
     }
 
     [Fact]
