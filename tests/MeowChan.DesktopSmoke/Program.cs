@@ -477,6 +477,14 @@ internal static class Program
                     await ReaderInteractionChecks.RunMediaActivationInputAsync(mainWindow);
                     _checksPassed = true; mainWindow.Close(); return;
                 }
+                string? readerAlternative = SmokeScenarios.ReaderAlternative(Environment.GetEnvironmentVariable);
+                if (readerAlternative != null && readerAlternative != "gallery-close")
+                {
+                    await SmokeScenarios.RunReaderAlternativeAsync(readerAlternative, mainWindow);
+                    _checksPassed = true;
+                    mainWindow.Close();
+                    return;
+                }
                 bool videoFixture = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("MEOWCHAN_VIDEO_FIXTURE"));
                 if (!_galleryCloseOnly)
                 {

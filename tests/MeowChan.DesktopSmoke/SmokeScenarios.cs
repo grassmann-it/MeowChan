@@ -65,7 +65,12 @@ internal static partial class SmokeScenarios
         Alternative("shutdown-order", "MEOWCHAN_SHUTDOWN_ORDER_ONLY", "--download-session"),
         Mode("tray-lifecycle", "16 rapid native window/tray lifetimes, normal close and profile lease reuse"),
         Mode("visual", "actual release showcase with original offline demo content, no watches or HTTP"),
-        Mode("reader-ux", NormalPass),
+        Mode("reader-ux", NormalPass) with
+        {
+            Pass = env => ReaderAlternative(env) is { } id
+                ? "reader-ux scoped " + id + ": selected journey completed; unrelated reader/gallery journeys not claimed"
+                : NormalPass
+        },
         Alternative("gallery-close", "MEOWCHAN_GALLERY_CLOSE_ONLY", "--reader-ux"),
         Alternative("reader-media-input", "MEOWCHAN_READER_MEDIA_INPUT_ONLY", "--reader-ux") with { NightlyEnvironment = [Video] },
         Alternative("reader-shortcut-contexts", "MEOWCHAN_READER_SHORTCUT_CONTEXTS_ONLY", "--reader-ux"),
@@ -77,6 +82,11 @@ internal static partial class SmokeScenarios
         Alternative("reader-post-filter", "MEOWCHAN_READER_POST_FILTER_ONLY", "--reader-ux"),
         Alternative("reader-stability", "MEOWCHAN_READER_STABILITY_ONLY", "--reader-ux"),
         Alternative("reader-post-width", "MEOWCHAN_READER_POST_WIDTH_ONLY", "--reader-ux"),
+        Alternative("video-lifecycle", "MEOWCHAN_VIDEO_LIFECYCLE_ONLY", "--reader-ux"),
+        Alternative("window-minimum", "MEOWCHAN_WINDOW_MINIMUM_ONLY", "--reader-ux"),
+        Alternative("reader-owned-navigation", "MEOWCHAN_READER_OWNED_NAVIGATION_ONLY", "--reader-ux"),
+        Alternative("reader-gallery-roundtrip", "MEOWCHAN_READER_GALLERY_ROUNDTRIP_ONLY", "--reader-ux"),
+        Alternative("reader-list-gallery-return", "MEOWCHAN_READER_LIST_GALLERY_RETURN_ONLY", "--reader-ux"),
         Alternative("reader-navigation", "MEOWCHAN_READER_NAVIGATION_ONLY", "--reader-ux"),
         Alternative("reader-view", "MEOWCHAN_READER_VIEW_ONLY", "--reader-ux"),
         Alternative("reader-quick-settings", "MEOWCHAN_READER_QUICK_SETTINGS_ONLY", "--reader-ux"),
@@ -153,6 +163,11 @@ internal static partial class SmokeScenarios
         Root("reader-groups-binding", "MEOWCHAN_READER_GROUPS_BINDING_ONLY", "reader-group bindings: exact live labels for 3 row states in 5 languages on actual native UI thread; synthetic fixture only"),
         Root("native-transfer-preview", "MEOWCHAN_NATIVE_TRANSFER_PREVIEW_ONLY", "native transfer inventory-only preview: synthetic package, dialog terminal ownership and late picker/close paths; managed input, no Apply or native Windows/macOS acceptance"),
         Root("html-export-labels", "MEOWCHAN_HTML_EXPORT_LABELS_ONLY", "HTML export full labels: production inspector, results overflow and split/large reader layout; EN/DE/ES/FR/RU, recorded scale; managed input, no OCR or cross-platform claim"),
+        Root("gif-playback-core", "MEOWCHAN_GIF_PLAYBACK_CORE_ONLY", "GIF isolated playback-core: actual native viewer; private source-built evidence only") with { NightlyEnvironment = [Video, Mp4] },
+        Root("gif-successors", "MEOWCHAN_GIF_SUCCESSORS_ONLY", "GIF isolated successors: actual native viewer; private source-built evidence only") with { NightlyEnvironment = [Video, Mp4] },
+        Root("gif-verified-failures", "MEOWCHAN_GIF_VERIFIED_FAILURES_ONLY", "GIF isolated verified-failures: actual native viewer; private source-built evidence only") with { NightlyEnvironment = [Video, Mp4] },
+        Root("gif-reader-association", "MEOWCHAN_GIF_READER_ASSOCIATION_ONLY", "GIF isolated reader-association: actual native viewer; private source-built evidence only") with { NightlyEnvironment = [Video, Mp4] },
+        Root("gif-ownership", "MEOWCHAN_GIF_OWNERSHIP_ONLY", "GIF isolated ownership: actual native viewer; private source-built evidence only") with { NightlyEnvironment = [Video, Mp4] },
         Root("gif-playback", "MEOWCHAN_GIF_PLAYBACK_ONLY", "GIF actual rendered animation: encoded loops/disposal, native pause/next, verified failures/retirement and Reader-associated playback; private source-built evidence only") with { NightlyEnvironment = [Video, Mp4] },
         Root("clipboard-monitor", "MEOWCHAN_CLIPBOARD_MONITOR_ONLY", "clipboard monitor: isolated synthetic clipboard, Save/Discard, passive offer, local button confirmation and lifecycle; managed input"),
         Root("booru-workbench", "MEOWCHAN_BOORU_WORKBENCH_ONLY", "booru workbench: real app-menu command over fake ports; exact query, result cards, bounded paging, one explicit load, offline/429/restricted/error/empty states, post-link one-shot, watcher create/check/pause/resume/remove with local-media notice, EN/DE/ES/FR/RU and light/dark screenshots; no network, queue, scheduler or provider"),
@@ -174,6 +189,10 @@ internal static partial class SmokeScenarios
         // This scene deliberately loads VP8+Vorbis (including paused cleanup). An
         // isolated display without an owned audio service can strand native Stop in
         // ALSA/PipeWire device-open teardown; use the existing private sink owner.
+        Root("gallery-errors-retirement-clip", "MEOWCHAN_GALLERY_ERRORS_RETIREMENT_CLIP_ONLY", "Gallery isolated retirement-clip: actual native viewer; private source-built evidence only") with { NightlyEnvironment = [Video, FunctionalAudio] },
+        Root("gallery-errors-layout-roots", "MEOWCHAN_GALLERY_ERRORS_LAYOUT_ROOTS_ONLY", "Gallery isolated layout-roots: actual native viewer; private source-built evidence only") with { NightlyEnvironment = [Video, FunctionalAudio] },
+        Root("gallery-errors-notifications", "MEOWCHAN_GALLERY_ERRORS_NOTIFICATIONS_ONLY", "Gallery isolated notifications: actual native viewer; private source-built evidence only") with { NightlyEnvironment = [Video, FunctionalAudio] },
+        Root("gallery-errors-failure-reader-return", "MEOWCHAN_GALLERY_ERRORS_FAILURE_READER_RETURN_ONLY", "Gallery isolated failure-reader-return: actual native viewer; private source-built evidence only") with { NightlyEnvironment = [Video, FunctionalAudio] },
         Root("gallery-error", "MEOWCHAN_GALLERY_ERROR_ONLY", "gallery diagnostics-only notices: central acknowledgement, no transport/focus/autohide side effects; true failure safe") with { NightlyEnvironment = [Video, FunctionalAudio] },
         Root("feedback", "MEOWCHAN_FEEDBACK_ONLY", "feedback: real rendered banner/toast dismissal, matching duplicates, queue, stale close and passive expiry"),
         Root("gallery-playback-features", "MEOWCHAN_GALLERY_PLAYBACK_FEATURES_ONLY", env => env("MEOWCHAN_GALLERY_EDGE_ONLY") == "1"
@@ -286,6 +305,11 @@ internal static partial class SmokeScenarios
 
 
     internal static string WorkViewSelector(string page) => "MEOWCHAN_WORK_VIEWS_" + page.ToUpperInvariant() + "_ONLY";
+
+    // Only alternative reader runs are isolated here; observational debug selectors
+    // keep the historical unsplit reader mode. Validation rejects competing alternatives.
+    internal static string? ReaderAlternative(Func<string, string?> env) =>
+        All.FirstOrDefault(entry => entry.Group == "--reader-ux" && env(entry.Selector) == "1")?.Id;
 
     private static string? WorkViewPageSelector(Func<string, string?> env) =>
         WorkViewPages.FirstOrDefault(page => env(WorkViewSelector(page)) == "1");

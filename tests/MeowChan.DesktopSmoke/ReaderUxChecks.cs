@@ -214,6 +214,49 @@ internal static class ReaderUxChecks
             Console.WriteLine("SMOKE scoped reader navigation overlay: completed real reader setup and responsive overlay/last-post matrix; remaining reader-ux groups not run.");
             return;
         }
+        await CheckOwnedNavigationAsync(window, page, reader);
+        await CheckGalleryRoundtripAsync(window, page, reader);
+        await CheckListGalleryReturnAsync(window, page, reader);
+        await ReaderReturnChecks.RunAsync(window);
+        await ReaderStabilityChecks.RunAsync(window);
+        await ReaderGroupChecks.RunAsync(window);
+        Console.WriteLine("SMOKE reader UX: full-window ownership, readable media, real arrow routing, post page boundary, frozen thread navigation, A→D return, zoom, Tab and list-origin restore passed.");
+    }
+
+    // Each scoped journey starts from its own real archive query and opened reader.
+    // No prior journey's selected post, gallery session or query snapshot is reused.
+    internal static async Task RunJourneyAsync(MainWindow window, string id)
+    {
+        window.Width = 1520; window.Height = 920;
+        await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, 1520, 920));
+        await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+        SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Archive);
+        ArchivePage page = window.ArchivePage;
+        await Program.WaitUntilAsync(() => !page.IsBusy && page.FindControl<ListBox>("ArchiveThreads")!.ItemCount > 0);
+        page.FindControl<TextBox>("ArchiveSearchText")!.Text = "Reader UX";
+        page.FindControl<ComboBox>("ArchiveSort")!.SelectedIndex = 2;
+        await page.ApplySearchAsync();
+        page.FindControl<ListBox>("ArchiveThreads")!.SelectedIndex = 0;
+        await Program.WaitUntilAsync(() => !page.IsBusy && page.CurrentThread?.Summary.Id == Hero);
+        Click(page.FindControl<Button>("ArchiveReadPosts")!);
+        ContentControl reader = window.FindControl<ContentControl>("ReaderHost")!;
+        await Program.WaitUntilAsync(() => reader.IsVisible && !page.IsBusy && SelectedPost(page) == "1000");
+        await page.MediaLoadTask;
+        switch (id)
+        {
+            case "reader-owned-navigation": await CheckOwnedNavigationAsync(window, page, reader); break;
+            case "reader-gallery-roundtrip": await CheckGalleryRoundtripAsync(window, page, reader); break;
+            case "reader-list-gallery-return":
+                Click(page.FindControl<Button>("ArchiveCloseReader")!);
+                await Program.WaitUntilAsync(() => !reader.IsVisible);
+                await CheckListGalleryReturnAsync(window, page, reader);
+                break;
+            default: throw new ArgumentOutOfRangeException(nameof(id), id, "Unknown reader journey.");
+        }
+    }
+
+    private static async Task CheckOwnedNavigationAsync(MainWindow window, ArchivePage page, ContentControl reader)
+    {
         await Program.WaitUntilAsync(() => reader.GetVisualDescendants().OfType<ArchiveAttachmentView>()
             .Any(view => view.Thumbnail.Source is Bitmap bitmap && bitmap.PixelSize.Width > 240));
         await CheckOverlayChromeAsync(window, reader);
@@ -246,6 +289,10 @@ internal static class ReaderUxChecks
         await page.LoadThreadAsync(Hero);
         await page.FocusPostAsync("1000");
         await page.MediaLoadTask;
+    }
+
+    private static async Task CheckGalleryRoundtripAsync(MainWindow window, ArchivePage page, ContentControl reader)
+    {
         ArchiveAttachmentView inline = reader.GetVisualDescendants().OfType<ArchiveAttachmentView>()
             .First(view => view.DataContext is ArchiveAttachmentRow);
         Click(inline.PreviewButton);
@@ -317,6 +364,12 @@ internal static class ReaderUxChecks
             "Embedded archive retained the reader overlay or its reserved content band.");
         Require(!reader.IsVisible && page.FindControl<Grid>("ArchiveReaderPane")!.Parent == page.FindControl<Grid>("ArchiveSplit"),
             "Closing reader did not return control ownership.");
+    }
+
+    private static async Task CheckListGalleryReturnAsync(MainWindow window, ArchivePage page, ContentControl reader)
+    {
+        ContentControl gallery = window.FindControl<ContentControl>("GalleryHost")!;
+        GalleryViewer viewer;
         Click(page.FindControl<Button>("NextThreadsButton")!);
         await Program.WaitUntilAsync(() => !page.IsBusy && page.FindControl<ListBox>("ArchiveThreads")!.ItemCount == 2);
         string? listPage = page.FindControl<TextBlock>("ArchiveThreadPage")!.Text;
@@ -423,10 +476,6 @@ internal static class ReaderUxChecks
         Require(!returnedToOverflow || resultActions.More!.IsChecked != true,
             "Returning from the list-origin gallery reopened its overflow popup.");
         Require(ReferenceEquals(window.FocusManager!.GetFocusedElement(), expectedGalleryFocus), "List-origin focus was not restored.");
-        await ReaderReturnChecks.RunAsync(window);
-        await ReaderStabilityChecks.RunAsync(window);
-        await ReaderGroupChecks.RunAsync(window);
-        Console.WriteLine("SMOKE reader UX: full-window ownership, readable media, real arrow routing, post page boundary, frozen thread navigation, A→D return, zoom, Tab and list-origin restore passed.");
     }
 
     internal static async Task CheckOverlayChromeAsync(MainWindow window, ContentControl overlay)

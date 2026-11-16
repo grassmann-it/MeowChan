@@ -306,6 +306,9 @@ public sealed class SmokeScenariosTests
                     || program.Contains("args.Contains(\"" + entry.Selector + "\", StringComparer.Ordinal)", StringComparison.Ordinal),
                 SmokeScenarioKind.Root or SmokeScenarioKind.Branch => RunsSource().Contains("        [\"" + entry.Id + "\"] = new(SmokeStage.", StringComparison.Ordinal),
                 _ => driver.Contains("GetEnvironmentVariable(\"" + entry.Selector + "\")", StringComparison.Ordinal)
+                    || entry.Group == "--reader-ux"
+                        && program.Contains("SmokeScenarios.ReaderAlternative(Environment.GetEnvironmentVariable)", StringComparison.Ordinal)
+                        && RunsSource().Contains("\"" + entry.Id + "\"", StringComparison.Ordinal)
             };
             if (!reachable) unreachable.Add(entry.Kind + " " + entry.Id + " (" + entry.Selector + ")");
         }

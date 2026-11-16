@@ -42,6 +42,15 @@ internal sealed record SmokeRun(SmokeStage Stage, Func<MainWindow, Task> Run)
 
 internal static partial class SmokeScenarios
 {
+    internal static Task RunReaderAlternativeAsync(string id, MainWindow window) => id switch
+    {
+        "video-lifecycle" => VideoLifecycleChecks.RunAsync(),
+        "window-minimum" => WindowMinimumChecks.RunAsync(window),
+        "reader-owned-navigation" or "reader-gallery-roundtrip" or "reader-list-gallery-return"
+            => ReaderUxChecks.RunJourneyAsync(window, id),
+        _ => ReaderUxChecks.RunAsync(window)
+    };
+
     // Exactly the Root and Branch ids of All; Program refuses to start otherwise. Command-line
     // modes keep their bespoke profile, app and lifetime setup in Program; nested selectors are read
     // by their parent's checks.
@@ -134,6 +143,22 @@ internal static partial class SmokeScenarios
             await NativeTransferV4PreviewChecks.RunAsync(mainWindow);
         }),
         ["html-export-labels"] = new(SmokeStage.Ready, mainWindow => HtmlExportButtonLabelChecks.RunAsync(mainWindow)),
+        ["gif-playback-core"] = new(SmokeStage.Ready, mainWindow => GifPlaybackChecks.RunPlaybackAsync(mainWindow)),
+        ["gif-successors"] = new(SmokeStage.Ready, mainWindow => GifPlaybackChecks.RunSuccessorsAsync(mainWindow)),
+        ["gif-verified-failures"] = new(SmokeStage.Ready, mainWindow => GifPlaybackChecks.RunVerifiedFailuresAsync(mainWindow)),
+        ["gif-reader-association"] = new(SmokeStage.Ready, mainWindow => GifPlaybackChecks.RunReaderAssociationAsync(mainWindow)),
+        ["gif-ownership"] = new(SmokeStage.Ready, mainWindow => GifOwnershipChecks.RunAsync(mainWindow))
+        {
+            // The unsplit GIF root previously supplied this guard before ownership ran.
+            Precondition = () => (OperatingSystem.IsLinux()
+                ? Environment.GetEnvironmentVariable("MEOWCHAN_DESKTOP_SMOKE_XVFB") == "1"
+                : Environment.GetEnvironmentVariable("MEOWCHAN_DESKTOP_SMOKE_NATIVE_ALLOWED") == "1")
+                ? null : "GIF ownership requires an authorized disposable native desktop; no personal display fallback."
+        },
+        ["gallery-errors-retirement-clip"] = new(SmokeStage.Ready, mainWindow => GalleryErrorInteractionChecks.RunRetirementClipAsync(mainWindow)),
+        ["gallery-errors-layout-roots"] = new(SmokeStage.Ready, mainWindow => GalleryErrorInteractionChecks.RunLayoutRootsAsync(mainWindow)),
+        ["gallery-errors-notifications"] = new(SmokeStage.Ready, mainWindow => GalleryErrorInteractionChecks.RunNotificationsAsync(mainWindow)),
+        ["gallery-errors-failure-reader-return"] = new(SmokeStage.Ready, mainWindow => GalleryErrorInteractionChecks.RunFailureReaderReturnAsync(mainWindow)),
         ["gif-playback"] = new(SmokeStage.Ready, async mainWindow =>
         {
             await GifPlaybackChecks.RunAsync(mainWindow);

@@ -87,6 +87,11 @@ internal static class SmokeSelectors
                 return string.Join(" and ", alternatives.Order(StringComparer.Ordinal)) + " are alternative runs of "
                     + alternatives.Key + "; only one can take effect, set one per run";
 
+        if (SmokeScenarios.All.Any(entry => entry.Group == "--reader-ux" && active.Contains(entry.Selector)))
+            foreach (string review in new[] { "MEOWCHAN_GALLERY_TRANSITION_REVIEW", "MEOWCHAN_GALLERY_HELP_REVIEW" })
+                if (variables.TryGetValue(review, out string? value) && value is "observe" or "1")
+                    return review + " cannot be combined with a scoped reader alternative; use unsplit --reader-ux for observational review";
+
         scenario = string.Concat(active.Prepend(mode).Select((part, index) => index == 0 ? part : "+" + part));
         string selector = roots.Length == 1 ? roots[0] : args.Count == 0 ? "" : args[0];
         selected = SmokeScenarios.All.FirstOrDefault(entry => entry.Kind != SmokeScenarioKind.Nested && entry.Selector == selector);
