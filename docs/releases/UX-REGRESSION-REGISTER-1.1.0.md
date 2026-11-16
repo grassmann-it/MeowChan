@@ -73,3 +73,21 @@ Classify findings as release blocker, safe 1.1.0 quick fix, or explicitly deferr
 Apply a demonstrated fix to equivalent affected surfaces, but do not mechanically apply one handler or
 layout rule to contexts with different ownership. Keep unresolved items visible. A green CI run and this
 register do not replace the owner's final review; publication is not authorized, only a draft afterward.
+
+## Related product proposal — unified recent and saved searches
+
+User proposal (not yet an implementation/release-scope decision): reuse Archive's saved-search
+experience on Media and potentially other search surfaces; combine recent and saved searches in
+one interface, with a configurable recent-search count (suggested default: five).
+
+Suggested design for discussion: one search-history/saved-search entry point with two labeled
+sections. Wide layouts may place them side by side; narrow layouts stack them rather than create
+another mostly empty split pane. Let recent entries be pinned/saved, renamed when saved, removed
+individually, and history cleared/disabled. Preserve the complete query and supported filters/sort,
+not just text. Keep Archive and Media search scopes explicit: their query semantics are not
+interchangeable merely because the visual component is shared. Keyboard traversal, accessible
+names, duplicate suppression and avoiding history writes for each keystroke are acceptance topics.
+
+Recommendation pending user decision: treat this as planned feature work rather than silently
+expanding the currently running 1.1.0 release-validation scope. Existing broken behavior remains
+separate from adding this new shared experience.
