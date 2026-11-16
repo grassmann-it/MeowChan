@@ -95,8 +95,17 @@ public sealed partial class MediaPage
 
     private Control BuildFocusRow()
     {
-        StackPanel left = new() { Orientation = Orientation.Horizontal, Spacing = 4, ClipToBounds = true, VerticalAlignment = VerticalAlignment.Center };
-        left.Children.Add(_focusText); left.Children.Add(_focusSeparator); left.Children.Add(_focusFilters);
+        // Narrow-window sweep (16.11.2026): the counter, its dot and the filter count share the room right of the exit. A horizontal StackPanel
+        // measured the counter at its full length, so its ellipsis never came and the clip cut the filter count off the row's end; in a
+        // left-aligned grid the counter's star column gets what the dot and the count leave, trims there (the full status is its tooltip) and the
+        // count stays visible. The 4 dip gaps are the margins of the two that can be hidden, so a hidden one leaves no gap behind.
+        Grid left = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto"), ClipToBounds = true, VerticalAlignment = VerticalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Left };
+        _focusSeparator.Margin = new Thickness(4, 0, 0, 0);
+        _focusFilters.Margin = new Thickness(4, 0, 0, 0);
+        left.Children.Add(_focusText);
+        left.Children.Add(_focusSeparator); Avalonia.Controls.Grid.SetColumn(_focusSeparator, 1);
+        left.Children.Add(_focusFilters); Avalonia.Controls.Grid.SetColumn(_focusFilters, 2);
         // Tom's rule 14.11. evening: the way out stands at the far left, first in the row (and in its tab order), then a gap with a thin
         // separator, then the counter. Icon plus a short text; a narrow row keeps only the icon.
         _focusExit.HorizontalAlignment = HorizontalAlignment.Left;

@@ -146,9 +146,9 @@
                                 </StackPanel>
                                 <StackPanel x:Name="ArchiveFilterGroupDate" wv:WorkViewElement.Id="archive.filters.date" Spacing="{StaticResource Workspace.Space.8}">
                                     <TextBlock x:Name="ArchiveDateTitle" TextWrapping="Wrap" />
-                                    <TextBlock x:Name="ArchiveDateFromLabel" />
+                                    <TextBlock x:Name="ArchiveDateFromLabel" TextWrapping="Wrap" />
                                     <desktop:ArchiveDateEditor x:Name="ArchiveStartDate" />
-                                    <TextBlock x:Name="ArchiveDateToLabel" />
+                                    <TextBlock x:Name="ArchiveDateToLabel" TextWrapping="Wrap" />
                                     <desktop:ArchiveDateEditor x:Name="ArchiveEndDate" />
                                     <TextBlock x:Name="ArchiveDateHint" TextWrapping="Wrap" Classes="muted" FontSize="{StaticResource Workspace.Text.Caption}" />
                                 </StackPanel>
@@ -180,7 +180,7 @@
                                     <Border IsVisible="{Binding HasMatchGroupHeader}" Background="Transparent" Padding="8,8,8,2"
                                             PointerPressed="OnArchiveMatchGroupHeaderPressed" PointerReleased="OnArchiveMatchGroupHeaderReleased"
                                             Tapped="OnArchiveMatchGroupHeaderTapped" DoubleTapped="OnArchiveMatchGroupHeaderTapped">
-                                        <TextBlock Text="{Binding MatchGroupHeader}" Classes="workspace-meta" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                        <controls:TrimTipTextBlock Text="{Binding MatchGroupHeader}" Classes="workspace-meta" FontWeight="SemiBold" />
                                     </Border>
                                     <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="{StaticResource Workspace.Space.8}" Margin="8">
                                         <Grid.ContextMenu>
@@ -194,7 +194,7 @@
                                             <TextBlock Text="{Binding TitleOrId}" ToolTip.Tip="{Binding TitleOrId}" TextTrimming="CharacterEllipsis" FontWeight="Medium" />
                                             <TextBlock Text="{Binding PreviewText}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" Classes="workspace-meta" />
                                             <TextBlock Text="{Binding Identity}" ToolTip.Tip="{Binding Identity}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" Classes="workspace-meta" />
-                                            <TextBlock Text="{Binding Status}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" Classes="workspace-meta" />
+                                            <controls:TrimTipTextBlock Text="{Binding Status}" Classes="workspace-meta" />
                                             <TextBlock Text="{Binding TagsText}" ToolTip.Tip="{Binding TagsText}" IsVisible="{Binding HasTags}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" Classes="workspace-meta" />
                                         </StackPanel>
                                     </Grid>
@@ -276,7 +276,8 @@
                         <Button x:Name="ArchiveMediaReturn" controls:HeaderBar.IsBack="True" wv:WorkViewElement.Id="reader.toolbar.media-return" Content="Back to media" IsVisible="False" Click="OnMediaReturnClick" />
                         <Button x:Name="ArchiveBackButton" controls:HeaderBar.IsBack="True" wv:WorkViewElement.Id="reader.header.back" Tag="archive.back" Classes="localized" Click="OnBackClick" />
                         <Button x:Name="ArchiveCloseReader" controls:HeaderBar.IsBack="True" wv:WorkViewElement.Id="reader.toolbar.close" Tag="reader.close" Classes="localized" IsVisible="False" Click="OnCloseReaderClick" />
-                        <TextBlock x:Name="ArchiveReaderTitle" Classes="section-title" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                        <!-- Narrow-window sweep: the thread title trims beside the ways back; trimmed, its full text is the tooltip (TrimTipTextBlock). -->
+                        <controls:TrimTipTextBlock x:Name="ArchiveReaderTitle" Classes="section-title" VerticalAlignment="Center" />
                     </controls:HeaderBar>
                     <!-- WV3: every item has a work-view id. The view decides what sits under More; PrioritizedOverflow makes the
                          policy's ReaderToolbarKeepVisibleOrder (not the visual order below) decide what a narrow window moves first. -->
@@ -344,13 +345,13 @@
                         <TextBlock x:Name="ArchiveReaderStatus" wv:WorkViewElement.Id="reader.status.capture" Classes="workspace-meta" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,16,0" />
                         <!-- R3: following live is "Show new posts automatically" in the settings popover (section Thread); this line only says whether it is on. -->
                         <TextBlock x:Name="ReaderLiveState" wv:WorkViewElement.Id="reader.status.follow-live" Classes="workspace-meta" IsVisible="False" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,16,0" AutomationProperties.LiveSetting="Polite" />
-                        <TextBlock x:Name="ReaderNewPostsNotice" wv:WorkViewElement.Id="reader.status.new-posts" IsVisible="False" VerticalAlignment="Center" Margin="0,0,12,0" />
+                        <TextBlock x:Name="ReaderNewPostsNotice" wv:WorkViewElement.Id="reader.status.new-posts" IsVisible="False" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,12,0" />
                         <Button x:Name="ReaderShowNewPosts" wv:WorkViewElement.Id="reader.status.show-new-posts" IsVisible="False" Click="OnShowReaderUpdates" />
                     </WrapPanel>
                 </StackPanel>
                 <Border x:Name="ArchiveReaderContent" Grid.Row="1" Classes="workspace-section-flush">
                     <Grid x:Name="ReaderContentSurface">
-                        <TextBlock x:Name="ArchiveSelectHint" Tag="archive.select" Classes="muted localized" Margin="16" />
+                        <TextBlock x:Name="ArchiveSelectHint" Tag="archive.select" Classes="muted localized" TextWrapping="Wrap" Margin="16" />
                         <TabControl x:Name="ArchiveContentTabs" IsVisible="False">
                             <TabItem x:Name="ArchivePostsTab" wv:WorkViewElement.Id="reader.tabs.posts" Header="Posts">
                                 <Grid RowDefinitions="*,Auto" RowSpacing="{StaticResource Workspace.Space.8}">
@@ -587,11 +588,12 @@
                                                                             </DataTemplate>
                                                                         </ItemsControl.ItemTemplate>
                                                                     </ItemsControl>
-                                                                    <TextBlock Text="{Binding RepliesLoadingLabel}" IsVisible="{Binding RepliesLoading}" Classes="muted" />
-                                                                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource Workspace.Space.8}" IsVisible="{Binding HasMoreReplies}">
+                                                                    <TextBlock Text="{Binding RepliesLoadingLabel}" IsVisible="{Binding RepliesLoading}" Classes="muted" TextWrapping="Wrap" />
+                                                                    <!-- Narrow-window sweep: the button and its range share a line while they fit; in a narrow card the range wraps below. -->
+                                                                    <WrapPanel ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.4}" IsVisible="{Binding HasMoreReplies}">
                                                                         <Button Content="{Binding MoreRepliesLabel}" commands:CommandPresentation.Id="reader.show-replies" Click="OnMoreRepliesClick" />
-                                                                        <TextBlock Text="{Binding RepliesPageLabel}" VerticalAlignment="Center" Classes="muted" />
-                                                                    </StackPanel>
+                                                                        <TextBlock Text="{Binding RepliesPageLabel}" VerticalAlignment="Center" Classes="muted" TextWrapping="Wrap" />
+                                                                    </WrapPanel>
                                                                 </StackPanel>
                                                                 <TextBlock Text="{Binding RepliesError}" IsVisible="{Binding HasRepliesError}" TextWrapping="Wrap" Foreground="{DynamicResource Workspace.Error}" />
                                                             </StackPanel>
@@ -775,7 +777,7 @@
         <Border x:Name="ArchivePreview" Grid.RowSpan="3" Classes="workspace-section" IsVisible="False">
             <Grid RowDefinitions="Auto,*,Auto" RowSpacing="{StaticResource Workspace.Space.8}">
                 <controls:HeaderBar>
-                    <TextBlock x:Name="PreviewTitle" Classes="section-title" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                    <controls:TrimTipTextBlock x:Name="PreviewTitle" Classes="section-title" VerticalAlignment="Center" />
                     <Button x:Name="ClosePreviewButton" controls:HeaderBar.IsEnd="True" Click="OnClosePreview" />
                 </controls:HeaderBar>
                 <Grid Grid.Row="1">

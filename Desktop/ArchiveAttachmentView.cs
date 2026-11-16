@@ -81,7 +81,9 @@ public sealed class ArchiveAttachmentView : UserControl
     private bool _missing;
     // Imageboard file line above the preview: "name.ext (size)" when the capture knows the size.
     // It takes the block's width and wraps to two lines, then trims (one trimmed line in a compact list row): a long name never widens the block beyond the picture.
-    private readonly TextBlock _label = new TextBlock { TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.Wrap, MaxLines = 2,
+    // Narrow-window sweep (16.11.2026): a reader post's name cut after its second line shows the whole name as its tooltip (TrimTipTextBlock);
+    // a compact row keeps its tooltip at all times (AlwaysTip).
+    private readonly TrimTipTextBlock _label = new TrimTipTextBlock { TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.Wrap, MaxLines = 2,
         VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 4, 0) }.MetaText();
     // A quiet slot surface only while no thumbnail is shown (loading, missing, unsupported).
     private readonly Border _placeholder = new() { CornerRadius = new CornerRadius(5), IsHitTestVisible = false };
@@ -592,6 +594,7 @@ public sealed class ArchiveAttachmentView : UserControl
         bool compact = row?.Compact == true;
         _label.TextWrapping = compact ? TextWrapping.NoWrap : TextWrapping.Wrap;
         _label.MaxLines = compact ? 1 : 2;
+        _label.AlwaysTip = compact;
         ToolTip.SetTip(_label, compact ? _label.Text : null);
         _column.CenterFrame = compact;
         // The thread list never wires the file favourite (the thread's own star is on the right): no dead, always disabled star there,
