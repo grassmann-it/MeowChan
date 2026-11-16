@@ -2,6 +2,7 @@ using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 
 namespace MeowChan.DesktopSmoke;
@@ -13,6 +14,7 @@ internal sealed class MediaNativeInput : IDisposable
     private readonly Window _owner;
     private readonly Action<string, object>? _trace;
     private int _x, _y;
+    private TopLevel? _lastMacPointerRoot;
     private readonly HashSet<uint> _heldKeys = new();
     private uint _heldButton;
     internal const ulong Left = 0xff51, Right = 0xff53, Up = 0xff52, Down = 0xff54, Enter = 0xff0d, Tab = 0xff09, Escape = 0xff1b, Space = 0x20, ControlLeft = 0xffe3, ShiftLeft = 0xffe1, F6 = 0xffc3, Home = 0xff50, End = 0xff57, F7 = 0xffc4, F8 = 0xffc5;
@@ -154,14 +156,8 @@ internal sealed class MediaNativeInput : IDisposable
             { if (!SetCursorPos(_x, _y)) throw new InvalidOperationException("Win32 pointer movement rejected: " + Marshal.GetLastWin32Error()); }
             else
             {
-                var screenInfo = _owner.Screens.All.Single();
-                var bounds = CGDisplayBounds(CGMainDisplayID());
-                if (Math.Abs(screenInfo.Bounds.Width - bounds.Width * screenInfo.Scaling) > 2
-                    || Math.Abs(screenInfo.Bounds.Height - bounds.Height * screenInfo.Scaling) > 2)
-                    throw new PlatformNotSupportedException("Ambiguous Quartz/Avalonia display coordinate mapping.");
-                _macPoint = new(bounds.X + (pixel.X - screenInfo.Bounds.X) / screenInfo.Scaling,
-                    bounds.Y + (pixel.Y - screenInfo.Bounds.Y) / screenInfo.Scaling);
-                PostMouse(_heldButton != 0 ? 6u : 5u);
+                PostMacMotion(pixel);
+                _lastMacPointerRoot = TopLevel.GetTopLevel(target);
             }
             await Task.Delay(70); return;
         }
@@ -170,6 +166,72 @@ internal sealed class MediaNativeInput : IDisposable
             throw new InvalidOperationException("Native pointer target is outside private screen: " + target.Name);
         Require(XTestFakeMotionEvent(_display, screen, pixel.X, pixel.Y, 0));
         Flush(); await Task.Delay(70);
+    }
+
+    private void PostMacMotion(PixelPoint pixel)
+    {
+        var screenInfo = _owner.Screens.All.Single();
+        var bounds = CGDisplayBounds(CGMainDisplayID());
+        if (Math.Abs(screenInfo.Bounds.Width - bounds.Width * screenInfo.Scaling) > 2
+            || Math.Abs(screenInfo.Bounds.Height - bounds.Height * screenInfo.Scaling) > 2)
+            throw new PlatformNotSupportedException("Ambiguous Quartz/Avalonia display coordinate mapping.");
+        _x = pixel.X; _y = pixel.Y;
+        _macPoint = new(bounds.X + (pixel.X - screenInfo.Bounds.X) / screenInfo.Scaling,
+            bounds.Y + (pixel.Y - screenInfo.Bounds.Y) / screenInfo.Scaling);
+        PostMouse(_heldButton != 0 ? 6u : 5u);
+    }
+
+    private async Task ReenterMacOwnerAfterPopupAsync(Control target)
+    {
+        if (!OperatingSystem.IsMacOS() || _heldButton != 0
+            || _lastMacPointerRoot is not { IsVisible: false } retiredRoot
+            || ReferenceEquals(retiredRoot, _owner)
+            || !ReferenceEquals(TopLevel.GetTopLevel(target), _owner)) return;
+
+        // ARM 43906632831 / Intel 43907560972: after Help retires its native
+        // popup and its window closes, More is ready in the active main root,
+        // but a direct CGEvent click produces no main-root pointer events and
+        // leaves the flyout closed. Playing happened to cross back through the
+        // seek bar first; Paused must not seek or add an activation/toggle click.
+        // Cross into the unobstructed client header using motion ONLY, and require
+        // an actual routed native movement there before submitting the one click.
+        EnsureOwnActiveWindow();
+        if (!_owner.IsActive || !_owner.IsVisible)
+            throw new ArgumentException("Native owner has not regained activation after popup dismissal.", nameof(target));
+        Point entry = new(_owner.ClientSize.Width / 2, Math.Min(16, _owner.ClientSize.Height / 4));
+        if (!new Rect(_owner.ClientSize).Contains(entry) || _owner.ClientSize.Width <= 0 || _owner.ClientSize.Height <= 0)
+            throw new ArgumentException("Native owner has no client entry geometry.", nameof(target));
+        PixelPoint entryPixel = _owner.PointToScreen(entry);
+        TaskCompletionSource<bool> arrived = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        void Moved(object? sender, PointerEventArgs e)
+        {
+            Point actual = e.GetPosition(_owner);
+            if (e.Source is Visual source && ReferenceEquals(TopLevel.GetTopLevel(source), _owner)
+                && Math.Abs(actual.X - entry.X) <= 2 && Math.Abs(actual.Y - entry.Y) <= 2)
+                arrived.TrySetResult(true);
+        }
+        _owner.AddHandler(InputElement.PointerMovedEvent, Moved, RoutingStrategies.Tunnel, handledEventsToo: true);
+        try
+        {
+            PostMacMotion(entryPixel);
+            await arrived.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            _trace?.Invoke("native-owner-reentered", new
+            {
+                target.Name, retiredRoot = retiredRoot.GetType().Name,
+                entryX = entryPixel.X, entryY = entryPixel.Y, _owner.IsActive
+            });
+            _lastMacPointerRoot = _owner;
+        }
+        catch (TimeoutException)
+        {
+            _trace?.Invoke("native-owner-reentry-timeout", new
+            {
+                target.Name, retiredRoot = retiredRoot.GetType().Name,
+                entryX = entryPixel.X, entryY = entryPixel.Y, _owner.IsActive
+            });
+            throw new TimeoutException("Native pointer did not re-enter the main client after popup dismissal; no click was submitted.");
+        }
+        finally { _owner.RemoveHandler(InputElement.PointerMovedEvent, Moved); }
     }
 
     internal Task ClickAsync(Control target, Point? point = null, bool requireHitTest = true) =>
@@ -192,6 +254,7 @@ internal sealed class MediaNativeInput : IDisposable
             try
             {
                 target = await resolveTarget();
+                await ReenterMacOwnerAfterPopupAsync(target);
                 await PrepareTargetAsync(target, requireEnabled: true, requireHitTest);
                 point = resolvePoint == null ? null : await resolvePoint(target);
                 await MoveOnceAsync(target, point, true, requireHitTest);
