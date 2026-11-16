@@ -65,10 +65,15 @@ artifacts.
 
 ## Reproducibility and safety rules
 
-- All restore operations use the local `/home/tomka/.nuget/packages` feed and `--locked-mode`.
+- All restore operations use the explicitly supplied local `--offline-feed` and `--locked-mode`.
+  Populate that feed before entering the network-isolated acceptance run; the runner must not
+  download or repair missing dependencies during acceptance.
 - Restore, build, test, generator execution, and consumer read/write smoke processes are
-  serialized with `/home/tomka/.cache/claude-ssd-tmp/heavy.lock`; builds use one MSBuild node and
-  disable shared compilation.
+  serialized with the supplied `--heavy-lock`; builds use one MSBuild node and disable shared
+  compilation. Use runner-local paths rather than a developer home directory.
+- Supply a fresh `--out` below `--out-root` and a fresh detached candidate checkout through
+  `--root`. CI uses `--namespace-backend bwrap-root`; lack of isolation is a failure, not a
+  reason to use the diagnostic no-network-namespace override.
 - Child `HOME`, `TMPDIR`, `DOTNET_CLI_HOME`, and XDG directories are below the fresh evidence
   output. Desktop and profile environment variables are removed; no `~/.oChan` is opened.
 - The candidate, sealed build output trees, package root, and checksum file are checked again at
@@ -82,8 +87,13 @@ and the locally supplied stable-candidate paths:
 
 ```sh
 python3 tests/fixtures/upgrade-v1.0.2/ap04_run.py \
+  --root "$DETACHED_CANDIDATE" \
   --candidate-sha "$SHA" \
-  --out /home/tomka/.cache/claude-ssd-tmp/ap4/r1 \
+  --out-root "$EVIDENCE_ROOT" \
+  --out "$EVIDENCE_ROOT/r1" \
+  --offline-feed "$OFFLINE_FEED" \
+  --heavy-lock "$EVIDENCE_ROOT/heavy.lock" \
+  --namespace-backend bwrap-root \
   --linux-package-dir /path/to/linux-distribution-candidate-linux-x64/linux-packages \
   --sha256sums /path/to/stable-candidate-"$SHA"/SHA256SUMS \
   [--release-artifact /path/to/MeowChan-1.0.2-linux-x64.AppImage \
@@ -93,3 +103,23 @@ python3 tests/fixtures/upgrade-v1.0.2/ap04_run.py \
 Before that invocation, the owner may run the non-writing plan with `--dry-run`. If the package
 root is not available, use the same command with `--allow-no-package` instead of the two package
 options; that output is diagnostic only. No command in this contract is a final release PASS.
+
+## Candidate CI admission
+
+For `stable-candidate` or `prerelease-candidate` with `platform=all` and `scenario=all`,
+the independent `ap04-upgrade` job consumes the Linux packages and candidate inventory from
+that same Actions run. `ap04_stage.py stage` copies only the three expected Linux assets and
+manifest into a fresh strict package root, leaving checksums outside it. It verifies the run ID,
+source commit, inventory checksum and each asset's recorded and actual bytes before replay.
+
+Only the separate warming checkouts may restore online. The acceptance checkout is fresh,
+detached and pinned to the same commit; its full replay runs with an offline feed and verified
+network isolation. `ap04_stage.py check` then requires all 13 acceptance steps, unchanged sealed
+inputs, the bound package set, and a complete `PASS` report. Diagnostic `SOURCE-ONLY` runs,
+missing phases and failed isolation cannot satisfy candidate admission.
+
+`release-candidate-gate` requires this job as well as the existing platform, coverage and package
+gates. The candidate inventory is an input, not an approval: it may exist even when validation
+fails. AP04 still proves the synthetic source upgrade and package provenance described above,
+not execution of the packaged binaries. A successful candidate run does not authorize publishing
+without the release owner's review.
