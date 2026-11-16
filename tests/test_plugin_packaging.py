@@ -40,6 +40,14 @@ class PluginPackagingTests(unittest.TestCase):
         self.assertTrue(all(path.is_file() for path in sources))
         self.assertEqual(set(PACKAGE.SOURCES), {path.name for path in sources})
         self.assertEqual(len(PACKAGE.SOURCES), len(sources))
+        # The task's closed allowlists must agree with both its build graph and
+        # the verifier. In particular, do not re-stage retired single-site bundles
+        # alongside their family merely by leaving an old allowlist entry behind.
+        for property_name, expected in (('_ShippedPluginAssemblies', PACKAGE.PLUGINS),
+                                        ('_PluginExampleSourceNames', PACKAGE.SOURCES)):
+            with self.subTest(property_name=property_name):
+                declared = delivery.findtext('.//' + property_name).split(';')
+                self.assertCountEqual(expected, declared)
         probe = ast.parse((repository / 'tests/PluginDeliverySmoke/sdk_free_worker_probe.py').read_text())
         expected_ids = [ast.literal_eval(node.value) for node in ast.walk(probe)
                         if isinstance(node, ast.Assign)
