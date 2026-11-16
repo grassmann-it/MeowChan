@@ -15,6 +15,10 @@ SPEC = importlib.util.spec_from_file_location("aggregate_release_gates", SCRIPT)
 GATES = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None
 SPEC.loader.exec_module(GATES)
+REQ_SPEC = importlib.util.spec_from_file_location("compute_validation_required", ROOT / "scripts/compute-validation-required.py")
+GATE_REQUIRED = importlib.util.module_from_spec(REQ_SPEC)
+assert REQ_SPEC.loader is not None
+REQ_SPEC.loader.exec_module(GATE_REQUIRED)
 
 
 class AggregationTests(unittest.TestCase):
@@ -78,8 +82,11 @@ class WorkflowContractTests(unittest.TestCase):
     def test_validation_keeps_parallel_diagnostics_and_uses_aggregator(self):
         self.assertIn("continue-on-error: true", self.workflow)
         self.assertIn("python3 scripts/aggregate-release-gates.py steps", self.workflow)
-        self.assertIn('required=("${full_required[@]}" linux_setup tray_host core_tests smoke_plugins)', self.workflow)
-        self.assertIn('required=("${full_required[@]}" prepare_desktop mac_tests)', self.workflow)
+        self.assertIn("scripts/compute-validation-required.py", self.workflow)
+        full = GATE_REQUIRED.required_steps("push", "", "", "lane-a", "Linux", "X64")
+        self.assertTrue({"linux_setup", "tray_host", "core_tests", "smoke_plugins"} <= set(full))
+        mac = GATE_REQUIRED.required_steps("push", "", "", "native", "macOS", "ARM64")
+        self.assertTrue({"prepare_desktop", "mac_tests"} <= set(mac))
         gate = self.workflow.index("      - name: Fail validation after collecting all evidence")
         upload = self.workflow.index("      - name: Upload regression and graphical evidence")
         self.assertLess(gate, upload)
@@ -108,18 +115,10 @@ class WorkflowContractTests(unittest.TestCase):
         ):
             self.assertIn("--only " + identifier, section)
 
-        gate = self.workflow.split("      - name: Fail validation after collecting all evidence", 1)[1].split(
-            "      - name: Upload regression and graphical evidence", 1
-        )[0]
-        linux_required = gate.split('if [[ "${{ matrix.lane }}" == lane-a && "$RUNNER_OS" == Linux ]]; then', 1)[1].split(
-            'elif [[ "${{ matrix.lane }}" == lane-a && "$RUNNER_OS" == Windows ]]; then', 1
-        )[0]
-        self.assertIn('if [[ "$RUNNER_ARCH" == X64 ]]; then', linux_required)
-        self.assertIn("required+=(smoke_1_1_registry)", linux_required)
-        self.assertLess(
-            linux_required.index('if [[ "$RUNNER_ARCH" == X64 ]]; then'),
-            linux_required.index("required+=(smoke_1_1_registry)"),
-        )
+        candidate = ("workflow_dispatch", "prerelease-candidate", "all")
+        self.assertIn("smoke_1_1_registry", GATE_REQUIRED.required_steps(*candidate, "lane-a", "Linux", "X64"))
+        self.assertNotIn("smoke_1_1_registry", GATE_REQUIRED.required_steps(*candidate, "lane-a", "Linux", "ARM64"))
+        self.assertNotIn("smoke_1_1_registry", GATE_REQUIRED.required_steps("push", "", "", "lane-a", "Linux", "X64"))
         self.assertIn("artifacts/desktop-smoke-1.1-registry/**", self.workflow)
 
     def test_upgrade_gate_runs_the_released_102_fixture_and_binds_current_source(self):
@@ -143,7 +142,7 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("matches = [item for item in rows if item.get('testName') == expected]", section)
         self.assertIn("assert len(matches) == 1 and matches[0].get('outcome') == 'Passed'", section)
         self.assertNotIn("assert len(rows) == 1", section)
-        self.assertIn("required=(candidate_matrix", self.workflow)
+        self.assertIn("candidate_matrix", GATE_REQUIRED.required_steps("workflow_dispatch", "stable-candidate", "all", "lane-a", "Linux", "X64"))
         self.assertIn("upgrade_replay", self.workflow)
 
     def test_candidate_gate_waits_for_every_release_input_and_is_always_evaluated(self):

@@ -199,6 +199,7 @@ jobs:
           python -m unittest discover -s tests -p test_released102_migrated_check.py -v
           python -m unittest discover -s tests -p test_public_api_policy.py -v
           python -m unittest discover -s tests -p test_ci_desktop_preparation.py -v
+          python -m unittest discover -s tests -p test_validation_gate.py -v
           python -m unittest discover -s tests -p test_macos_test_watchdog.py -v
       - name: Check local library package contract fixtures
         id: local_package
@@ -663,28 +664,15 @@ jobs:
           # Every full lane requires the same evidence as the former single
           # validation job. Lanes B-D intentionally require only their own
           # two-shard result; selection diagnostics retain their skipped checks.
-          required=(record_source)
-          full_required=(record_source public_api dev_build restore_release retain_release_assets build_all package_fixtures local_package smoke_runner_contract smoke_restore smoke_assets smoke_build plugin_delivery smoke_normal upgrade_replay upgrade_102_replay first_run preference_startup scoped_diagnostics gif_playback gallery_errors reader_media gallery_features media_input tray_lifecycle)
-          if [[ "${{ inputs.mode }}" == prerelease-candidate || "${{ inputs.mode }}" == stable-candidate ]]; then
-            full_required=(candidate_matrix "${full_required[@]}")
-          fi
-          if [[ "${{ inputs.scenario }}" == all ]]; then
-            if [[ "${{ matrix.lane }}" == lane-a && "$RUNNER_OS" == Linux ]]; then
-              required=("${full_required[@]}" linux_setup tray_host core_tests smoke_plugins)
-              if [[ "${{ inputs.mode }}" == prerelease-candidate || "${{ inputs.mode }}" == stable-candidate ]]; then
-                if [[ "$RUNNER_ARCH" == X64 ]]; then
-                  required+=(smoke_1_1_registry)
-                fi
-              fi
-            elif [[ "${{ matrix.lane }}" == lane-a && "$RUNNER_OS" == Windows ]]; then
-              required=("${full_required[@]}" prepare_desktop core_tests)
-            elif [[ "$RUNNER_OS" == macOS ]]; then
-              required=("${full_required[@]}" prepare_desktop mac_tests)
-            else
-              required=(record_source core_tests)
-            fi
-          fi
-          required_csv="$(IFS=,; echo "${required[*]}")"
+          # Required ids come from one tested script so selected scenarios
+          # cannot be skipped silently; push/PR (empty scenario) are full.
+          required_csv="$(python3 scripts/compute-validation-required.py \
+            --event-name "${{ github.event_name }}" \
+            --mode "${{ inputs.mode }}" \
+            --scenario "${{ inputs.scenario }}" \
+            --lane "${{ matrix.lane }}" \
+            --runner-os "$RUNNER_OS" \
+            --runner-arch "$RUNNER_ARCH")"
           python3 scripts/aggregate-release-gates.py steps \
             --json-env VALIDATION_STEPS \
             --required "$required_csv" \
