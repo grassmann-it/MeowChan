@@ -1,4 +1,5 @@
 using System;
+using Avalonia;
 using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -45,6 +46,9 @@ internal sealed class ContextMenuHost : IDisposable
         // where a child that handles the key itself (a nested chip with a menu of its own) still wins.
         origin.AddHandler(InputElement.KeyDownEvent, OnKeyDown, (origin is ListBox or DataGrid) ? RoutingStrategies.Tunnel : RoutingStrategies.Bubble);
         origin.AddHandler(Control.ContextRequestedEvent, OnContextRequested, RoutingStrategies.Bubble);
+        // A card/row can be rebuilt while its popup is open (Booru paging, archive refresh, virtualized lists).
+        // Close before the detached control can leave a menu whose buttons still point at the old row.
+        origin.DetachedFromVisualTree += OnOriginDetached;
     }
 
     /// <summary>The menu that is open now, if any.</summary>
@@ -94,6 +98,8 @@ internal sealed class ContextMenuHost : IDisposable
         menu.Open(origin);
     }
 
+    private void OnOriginDetached(object? sender, VisualTreeAttachmentEventArgs e) => Close();
+
     /// <summary>Closes the open menu, if any.</summary>
     internal void Close()
     {
@@ -130,5 +136,6 @@ internal sealed class ContextMenuHost : IDisposable
         _disposed = true;
         _origin.RemoveHandler(InputElement.KeyDownEvent, OnKeyDown);
         _origin.RemoveHandler(Control.ContextRequestedEvent, OnContextRequested);
+        _origin.DetachedFromVisualTree -= OnOriginDetached;
     }
 }

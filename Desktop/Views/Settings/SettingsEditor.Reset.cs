@@ -269,6 +269,7 @@ public partial class SettingsEditor
         PostBookmarkLimit = defaults.PostBookmarkLimit;
         SavedSearchLimit = defaults.SavedSearchLimit;
         ReaderGroupLimit = defaults.ReaderGroupLimit;
+        ProfileRegistryLimit = defaults.ProfileRegistryLimit;
         SourcesWatchPreviewRows = defaults.SourcesWatchPreviewRows;
         ExportConfirmFiles = defaults.ExportConfirmFiles;
         ExportConfirmGiB = defaults.ExportConfirmGiB;
@@ -311,6 +312,7 @@ public partial class SettingsEditor
         ResetNumber(PostBookmarkLimitInput, defaults.PostBookmarkLimit);
         ResetNumber(SavedSearchLimitInput, defaults.SavedSearchLimit);
         ResetNumber(ReaderGroupLimitInput, defaults.ReaderGroupLimit);
+        ResetNumber(ProfileRegistryLimitInput, defaults.ProfileRegistryLimit);
         ResetNumber(SourcesWatchPreviewRowsInput, defaults.SourcesWatchPreviewRows);
         ResetNumber(ExportConfirmFilesInput, defaults.ExportConfirmFiles);
         ResetNumber(ExportConfirmGiBInput, defaults.ExportConfirmGiB);

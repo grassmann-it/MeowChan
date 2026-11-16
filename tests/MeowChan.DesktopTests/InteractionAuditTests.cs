@@ -269,6 +269,17 @@ public sealed class InteractionAuditTests
     }
 
     [Fact]
+    public void AContextMenuHostClosesWhenItsTargetIsRebuilt()
+    {
+        string host = Read("Desktop/Controls/ContextMenuHost.cs");
+        // Result cards and virtualized rows may be detached while a popup is open. The popup must not retain
+        // button handlers for the old card and must unregister the lifecycle hook when disposed.
+        Assert.Contains("origin.DetachedFromVisualTree += OnOriginDetached;", host, StringComparison.Ordinal);
+        Assert.Contains("private void OnOriginDetached(object? sender, VisualTreeAttachmentEventArgs e) => Close();", host, StringComparison.Ordinal);
+        Assert.Contains("_origin.DetachedFromVisualTree -= OnOriginDetached;", host, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void EveryContextMenuHostOpensFromThePointerAndFromTheKeyboard()
     {
         string host = Read("Desktop/Controls/ContextMenuHost.cs");

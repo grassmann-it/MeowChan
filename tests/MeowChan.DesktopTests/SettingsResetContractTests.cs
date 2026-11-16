@@ -91,6 +91,18 @@ public sealed class SettingsResetContractTests
     }
 
     [Fact]
+    public void WorkerBudgetResetIncludesTheProfileRegistryLimitDraft()
+    {
+        string reset = File.ReadAllText(Root("Desktop/Views/Settings/SettingsEditor.Reset.cs"));
+
+        // ProfileRegistryLimit is rendered in the worker-budgets page. A section reset
+        // must reset both the bound draft and the NumericUpDown's raw editing surface;
+        // omitting either leaves a user-visible value unchanged or saves the old one.
+        Assert.Contains("ProfileRegistryLimit = defaults.ProfileRegistryLimit;", reset, StringComparison.Ordinal);
+        Assert.Contains("ResetNumber(ProfileRegistryLimitInput, defaults.ProfileRegistryLimit);", reset, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void DefaultsKeepConfigMappingForTheEditorUnits()
     {
         Config expected = new();
