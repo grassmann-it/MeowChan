@@ -149,11 +149,69 @@ public partial class MainWindow
     /// </summary>
     private void ApplyHeaderMonitorVisibility()
     {
-        bool show = HeaderMonitorShown(_headerLayout.Hidden, Bounds.Width, ContinueReadingButton.IsVisible ? 1 + HeaderArrowRoom / HeaderIconRoom : 0);
+        bool show = HeaderMonitorShown(_headerLayout.Hidden, Bounds.Width, ContinueReadingButton.IsVisible ? 1 + HeaderArrowRoom / HeaderIconRoom : 0)
+            && HeaderMonitorFitsMeasured();
         if (TransferSpeed.IsVisible == show) return;
         TransferSpeed.IsVisible = show;
         UpdateSpeedSamplingState();
         if (show) _ioUpdate?.RequestImmediate(); // a graph that just appeared needs its history now
+    }
+
+    private readonly System.Collections.Generic.Dictionary<(string Text, double Size, string Family, FontWeight Weight), double> _headerTextWidths = new();
+
+    /// <summary>
+    /// Narrow-window sweep (16.11.2026): whether the display fits beside branding, the other header icons and the menu in the current
+    /// language (<see cref="HeaderMonitorFit"/>). The fixed breakpoint above was sized for the English words; the measured words and the
+    /// reserved rate column make the display give way exactly when it would push the header into the window controls. Until the header
+    /// has been laid out once nothing is hidden by this rule.
+    /// </summary>
+    private bool HeaderMonitorFitsMeasured()
+    {
+        double width = Bounds.Width;
+        bool captions = WindowCaptionButtons.IsVisible;
+        if (width <= 0 || WorkspaceBrand.DesiredSize.Width <= 0 || WorkspaceMenuBar.DesiredSize.Width <= 0
+            || (captions && WindowCaptionButtons.DesiredSize.Width <= 0)) return true;
+        double room = width - WorkspaceTitleBarFrame.Padding.Left - WorkspaceTitleBarFrame.Padding.Right
+            - (captions ? WindowCaptionButtons.DesiredSize.Width : 0) - WorkspaceHeader.Margin.Left - WorkspaceHeader.Margin.Right;
+        double tools = 0;
+        int toolCount = 0;
+        foreach (Control child in WorkspaceHeaderTools.Children)
+        {
+            if (ReferenceEquals(child, TransferSpeed) || !child.IsVisible) continue;
+            // A button that has just become visible has not been measured yet: its fixed width (header icons) stands in.
+            tools += double.IsNaN(child.Width) ? child.DesiredSize.Width : child.Width + child.Margin.Left + child.Margin.Right;
+            toolCount++;
+        }
+        double fixedParts = WorkspaceBrand.DesiredSize.Width + WorkspaceMenuBar.DesiredSize.Width + tools
+            + WorkspaceHeaderTools.Spacing * Math.Max(0, toolCount - 1)
+            + WorkspaceHeader.ColumnSpacing * Math.Max(0, WorkspaceHeader.ColumnDefinitions.Count - 1);
+        double monitor = HeaderMonitorFit.Width(_headerLayout,
+            HeaderWordWidth(TransferDownMark, TransferDownMarker), HeaderWordWidth(TransferUpMark, TransferUpMarker),
+            HeaderWordWidth(TransferReadMark, TransferReadMarker), HeaderWordWidth(TransferWriteMark, TransferWriteMarker),
+            HeaderTextWidth(HeaderMonitorFit.WidestRateText(), TransferSpeedLabel));
+        return HeaderMonitorFit.Fits(room, fixedParts, monitor, toolCount > 0 ? WorkspaceHeaderTools.Spacing : 0);
+    }
+
+    private double HeaderWordWidth(TextBlock word, Control marker) =>
+        _headerIcons ? (double.IsNaN(marker.Width) ? marker.DesiredSize.Width : marker.Width) : HeaderTextWidth(word.Text ?? string.Empty, word);
+
+    /// <summary>The natural width of <paramref name="text"/> in the font of <paramref name="reference"/> (tabular figures included), cached.</summary>
+    private double HeaderTextWidth(string text, TextBlock reference)
+    {
+        if (text.Length == 0) return 0;
+        var key = (text, reference.FontSize, reference.FontFamily.ToString(), reference.FontWeight);
+        if (_headerTextWidths.TryGetValue(key, out double known)) return known;
+        TextBlock probe = new()
+        {
+            Text = text, FontFamily = reference.FontFamily, FontSize = reference.FontSize, FontWeight = reference.FontWeight,
+            FontStyle = reference.FontStyle, FontStretch = reference.FontStretch, TextWrapping = TextWrapping.NoWrap, TextTrimming = TextTrimming.None
+        };
+        if (reference.FontFeatures != null) probe.FontFeatures = reference.FontFeatures;
+        probe.Measure(Size.Infinity);
+        double width = Math.Ceiling(probe.DesiredSize.Width);
+        if (_headerTextWidths.Count >= 128) _headerTextWidths.Clear();
+        _headerTextWidths[key] = width;
+        return width;
     }
 
     private void StopSpeedSampling()
@@ -238,6 +296,7 @@ public partial class MainWindow
         TransferWriteMark.Text = Texts.T("stats.header.write");
         TransferReadMark.Text = Texts.T("stats.header.read");
         ApplyIoSnapshot(force: true);
+        ApplyHeaderMonitorVisibility(); // the words of another language may no longer fit beside the header icons
     }
 
     private bool? _lastDarkThemeIcon;

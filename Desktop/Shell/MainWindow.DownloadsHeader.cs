@@ -32,9 +32,11 @@ public partial class MainWindow
     }
 
     internal static void RefreshWorkspaceModeSelectionPresentation(ComboBox modes) =>
+        // The selector has a fixed width in the footer: a long view name ("Zaawansowany", "Расширенный") ends in an ellipsis instead of
+        // running under the drop-down arrow (narrow-window sweep, 16.11.2026); the full name is the item's own text in the open list.
         modes.SelectionBoxItemTemplate = new FuncDataTemplate<object>((value, _) => new TextBlock
         {
-            Text = WorkspaceModeSelectionText(value)
+            Text = WorkspaceModeSelectionText(value), TextTrimming = Avalonia.Media.TextTrimming.CharacterEllipsis
         });
 
     private static string? WorkspaceModeSelectionText(object? value) => value switch

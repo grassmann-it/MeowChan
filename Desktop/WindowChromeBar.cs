@@ -45,7 +45,9 @@ public sealed class WindowChromeBar : UserControl
         var header = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Background = Brushes.Transparent };
         WindowDecorationProperties.SetElementRole(header, WindowDecorationsElementRole.User);
         header.PointerPressed += OnTitleBarPointerPressed;
-        _title = new TextBlock
+        // A long title (a file name in "Occurrences of …", a long language) ends in an ellipsis at a window's minimum width and carries its
+        // full text as tooltip while it is shortened (narrow-window sweep, 16.11.2026).
+        _title = new MeowChan.Desktop.Controls.TrimTipTextBlock
         {
             Name = "WindowCaptionTitle", TextWrapping = TextWrapping.NoWrap,
             Margin = new Thickness(16 + WindowChrome.LeadingInset(WindowChrome.Mode), 0, 16, 0), VerticalAlignment = VerticalAlignment.Center,

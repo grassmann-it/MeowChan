@@ -19,8 +19,10 @@
         <Border x:Name="WorkspaceTitleBarFrame" Classes="shell-bar" BorderThickness="0,0,0,1">
             <Grid x:Name="WorkspaceTitleBar" ColumnDefinitions="*,Auto" Background="Transparent"
                   WindowDecorationProperties.ElementRole="User" PointerPressed="OnTitleBarPointerPressed">
-                <Grid x:Name="WorkspaceHeader" ColumnDefinitions="Auto,*,Auto,Auto" Margin="16,0" ColumnSpacing="{StaticResource Workspace.Space.12}">
-                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource Workspace.Space.8}" VerticalAlignment="Center">
+                <!-- Narrow-window sweep (16.11.2026): the header never paints over the window controls (ClipToBounds), and the header display
+                     gives way when its measured width no longer fits beside branding, icons and menu (HeaderMonitorFit). -->
+                <Grid x:Name="WorkspaceHeader" ColumnDefinitions="Auto,*,Auto,Auto" Margin="16,0" ColumnSpacing="{StaticResource Workspace.Space.12}" ClipToBounds="True">
+                    <StackPanel x:Name="WorkspaceBrand" Orientation="Horizontal" Spacing="{StaticResource Workspace.Space.8}" VerticalAlignment="Center">
                         <Button x:Name="BrandAboutButton" Classes="subtle" Padding="2,0" MinWidth="34" Height="34"
                                 Background="Transparent" BorderThickness="0" Click="OnBrandAboutClick">
                             <!-- The header shows exactly one theme-appropriate cat. The button's own name ("About")
@@ -37,7 +39,7 @@
                         <TextBlock x:Name="WorkspaceSubtitle" Classes="muted" FontSize="{StaticResource Workspace.Text.Meta}"
                                    HorizontalAlignment="Left" VerticalAlignment="Center" FontStyle="Italic" TextTrimming="CharacterEllipsis" IsVisible="False" />
                     </Panel>
-                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="{StaticResource Workspace.Space.8}" VerticalAlignment="Center">
+                    <StackPanel x:Name="WorkspaceHeaderTools" Grid.Column="2" Orientation="Horizontal" Spacing="{StaticResource Workspace.Space.8}" VerticalAlignment="Center">
                         <!-- A button, so keyboard and screen reader reach it: the name is the current values and a click opens the
                              statistics page. The inner parts are not exposed separately. -->
                         <Button x:Name="TransferSpeed" Classes="subtle header-graph" VerticalAlignment="Center" Click="OnTransferSpeedClick">
@@ -101,7 +103,7 @@
                             <Path x:Name="ThemeToggleIcon" Classes="header-icon" />
                         </Button>
                     </StackPanel>
-                    <Menu Grid.Column="3" VerticalAlignment="Center">
+                    <Menu x:Name="WorkspaceMenuBar" Grid.Column="3" VerticalAlignment="Center">
                         <!-- The "more" icon is the header, set in code (WorkspaceIcons); the name and tooltip come from the command adapter. -->
                         <MenuItem x:Name="WorkspaceMenuItem">
                             <!-- F1 (Tom, 14.11.2026): the pages are not in this menu. They are reached through the footer buttons the person chose, the
@@ -244,10 +246,12 @@
                             <DataGridTemplateColumn Header="Source / board" Width="130" SortMemberPath="SourceBoard">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate x:DataType="desktop:ThreadRow">
-                                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource Workspace.Space.8}" VerticalAlignment="Center">
-                                            <TextBlock Text="{Binding HostName}" VerticalAlignment="Center" />
-                                            <TextBlock Grid.Column="1" Text="{Binding BoardLabel}" VerticalAlignment="Center" Classes="mono" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding BoardName}" />
-                                        </Grid>
+                                        <!-- A long host name in the 130 dip column shortens with an ellipsis (its full name as tooltip) and leaves the board
+                                             label readable; an Auto column measured the host without a limit and cut the board off (narrow-window sweep). -->
+                                        <controls:ShrinkRowPanel Spacing="{StaticResource Workspace.Space.8}" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding HostName}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding HostName}" />
+                                            <TextBlock Text="{Binding BoardLabel}" VerticalAlignment="Center" Classes="mono" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding BoardName}" />
+                                        </controls:ShrinkRowPanel>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
@@ -490,17 +494,22 @@
         <ContentControl Grid.Row="2" x:Name="TaggingPageHost" IsVisible="False" />
         </Grid>
         <Border x:Name="WorkspaceStatusBar" Grid.Row="2" BorderBrush="{DynamicResource Workspace.Border}" BorderThickness="0,1,0,0" Padding="16,0">
-            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.12}" VerticalAlignment="Center">
-                <TextBlock x:Name="WorkspaceStatus" Classes="muted" FontSize="{StaticResource Workspace.Text.Meta}" TextTrimming="CharacterEllipsis" />
+            <!-- Narrow-window sweep (16.11.2026): one row that never runs past the window. The state stays at the left and takes the room left
+                 over (FillFirst), the update notice, the limit warning and the counters stand at the right; when the row is too wide the
+                 widest of them shortens first and ends in an ellipsis with its full text as tooltip (ShrinkRowPanel). A grid with Auto columns
+                 let a long counter line push the state to zero and run past the window edge. MainWindow.Updates inserts the update notice
+                 as the second item. -->
+            <controls:ShrinkRowPanel x:Name="WorkspaceStatusRow" FillFirst="True" Spacing="{StaticResource Workspace.Space.12}" VerticalAlignment="Center">
+                <TextBlock x:Name="WorkspaceStatus" Classes="muted" FontSize="{StaticResource Workspace.Text.Meta}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                 <!-- Warns from 75 percent of the favorites, thread favorites and ratings limits and names the setting. -->
                 <!-- A link button (dead-affordance audit): a click opens the setting that raises the limit, Settings > Storage and limits. The text keeps its name. -->
-                <Button x:Name="WorkspaceStoreWarningButton" Grid.Column="1" Classes="link" IsVisible="False" MaxWidth="560" Padding="0" MinHeight="0" VerticalAlignment="Center"
+                <Button x:Name="WorkspaceStoreWarningButton" Classes="link" IsVisible="False" MaxWidth="560" Padding="0" MinHeight="0" VerticalAlignment="Center"
                         Click="OnStoreWarningClick">
                     <TextBlock x:Name="WorkspaceStoreWarning" FontSize="{StaticResource Workspace.Text.Meta}" TextTrimming="CharacterEllipsis"
                                Foreground="{DynamicResource Workspace.Warning}" AutomationProperties.LiveSetting="Polite" />
                 </Button>
-                <TextBlock x:Name="WorkspaceCounts" Grid.Column="2" Classes="muted tnum" FontSize="{StaticResource Workspace.Text.Meta}" TextTrimming="CharacterEllipsis" />
-            </Grid>
+                <TextBlock x:Name="WorkspaceCounts" Classes="muted tnum" FontSize="{StaticResource Workspace.Text.Meta}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+            </controls:ShrinkRowPanel>
         </Border>
         <Border x:Name="WorkspaceNavigation" Grid.Row="3" Classes="shell-bar" BorderThickness="0,1,0,0" Padding="12,4">
             <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.12}">

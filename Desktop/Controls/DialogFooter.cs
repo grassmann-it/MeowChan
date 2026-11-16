@@ -46,7 +46,8 @@ internal static class DialogFooter
             return footer;
         }
         status.Margin = new Avalonia.Thickness(0, 0, 8, 0);
-        DockPanel row = new() { LastChildFill = true };
+        // At a dialog's minimum width the actions can take nearly the whole row: the row then puts the status above them (DialogFooterRow).
+        DialogFooterRow row = new() { LastChildFill = true };
         DockPanel.SetDock(actions, Dock.Right);
         row.Children.Add(actions);
         row.Children.Add(status);
@@ -93,5 +94,61 @@ internal static class DialogFooter
             }
         if (primary != null) ordered.Add(primary);
         return ordered;
+    }
+}
+
+/// <summary>
+/// The footer row of <see cref="DialogFooter"/> with a status beside the actions (narrow-window sweep, Tom 16.11.2026). It docks the actions
+/// right and gives the status the rest, like a <see cref="DockPanel"/>, while that rest still holds the status (or at least
+/// <see cref="StatusMinimumWidth"/> dip of it). At a dialog's minimum width in a long language the wrapped actions could leave the status a
+/// sliver: a wrapping status became a column of single words, a trimmed one only an ellipsis. Then the status stands above the actions at
+/// the full width and the actions stay right-aligned below it.
+/// </summary>
+internal sealed class DialogFooterRow : DockPanel
+{
+    /// <summary>The narrowest room (dip) a long status keeps beside the actions; a shorter status only needs its own width.</summary>
+    internal const double StatusMinimumWidth = 160;
+
+    /// <summary>The gap between a stacked status and the actions below it.</summary>
+    internal const double StackedGap = 8;
+
+    /// <summary>Whether the last layout put the status above the actions (tests and smokes).</summary>
+    internal bool Stacked { get; private set; }
+
+    /// <summary>
+    /// Whether the status goes above the actions: when the room left beside actions of <paramref name="actionsWidth"/> dip is narrower than the
+    /// status (<paramref name="statusWidth"/>, its natural width) and narrower than <see cref="StatusMinimumWidth"/>. Pure, for tests.
+    /// </summary>
+    internal static bool Stacks(double available, double actionsWidth, double statusWidth)
+    {
+        if (!double.IsFinite(available) || statusWidth <= 0) return false;
+        return available - Math.Max(0, actionsWidth) < Math.Min(statusWidth, StatusMinimumWidth);
+    }
+
+    protected override Avalonia.Size MeasureOverride(Avalonia.Size availableSize)
+    {
+        Stacked = false;
+        if (Children.Count != 2 || !Children[0].IsVisible || !Children[1].IsVisible) return base.MeasureOverride(availableSize);
+        Control actions = Children[0], status = Children[1];
+        actions.Measure(availableSize);
+        status.Measure(new Avalonia.Size(double.PositiveInfinity, availableSize.Height));
+        Stacked = Stacks(availableSize.Width, actions.DesiredSize.Width, status.DesiredSize.Width);
+        if (!Stacked) return base.MeasureOverride(availableSize);
+        status.Measure(new Avalonia.Size(availableSize.Width, double.PositiveInfinity));
+        double width = Math.Max(actions.DesiredSize.Width, status.DesiredSize.Width);
+        double height = status.DesiredSize.Height + StackedGap + actions.DesiredSize.Height;
+        return new Avalonia.Size(double.IsFinite(availableSize.Width) ? Math.Min(width, availableSize.Width) : width, height);
+    }
+
+    protected override Avalonia.Size ArrangeOverride(Avalonia.Size finalSize)
+    {
+        if (!Stacked || Children.Count != 2) return base.ArrangeOverride(finalSize);
+        Control actions = Children[0], status = Children[1];
+        double statusHeight = status.DesiredSize.Height;
+        status.Arrange(new Avalonia.Rect(0, 0, finalSize.Width, statusHeight));
+        double top = Math.Min(finalSize.Height, statusHeight + StackedGap);
+        // The actions keep their right alignment (HorizontalAlignment.Right) inside the full width.
+        actions.Arrange(new Avalonia.Rect(0, top, finalSize.Width, Math.Max(0, finalSize.Height - top)));
+        return finalSize;
     }
 }
