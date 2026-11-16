@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
 using MeowChan.Persistence;
@@ -25,9 +26,22 @@ internal static class ReaderSettingsProbe
     internal static async Task<QuickSettingsSurface> OpenAsync(ArchivePage page)
     {
         page.QuickSettingsHost ??= StandIn();
+        string State()
+        {
+            Button? gear = page.FindControl<Button>("ReaderSettingsOpen");
+            ActionToolBar? bar = page.FindControl<ActionToolBar>("ReaderToolbar");
+            Control? anchor = gear?.IsEffectivelyVisible == true ? gear : bar?.More?.IsEffectivelyVisible == true ? bar.More : bar;
+            QuickSettingsSurface? surface = page.ReaderQuickSettings?.Surface;
+            string ControlState(Control? control) => control == null ? "null" : $"{control.Name ?? control.GetType().Name}: visible={control.IsEffectivelyVisible}, bounds={control.Bounds}, root={TopLevel.GetTopLevel(control)?.GetType().Name ?? "null"}, parent={control.Parent?.GetType().Name ?? "null"}";
+            return $"dialog={page.IsReaderDialogOpen}, open={page.IsQuickSettingsOpen}; gear=[{ControlState(gear)}]; more=[{ControlState(bar?.More)}]; anchor=[{ControlState(anchor)}]; surface=[{ControlState(surface)}]";
+        }
+        Console.WriteLine("SMOKE reader settings before open: " + State());
         if (!page.IsQuickSettingsOpen) page.OpenReaderQuickSettings();
+        Console.WriteLine("SMOKE reader settings after open: " + State());
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+        Console.WriteLine("SMOKE reader settings after layout: " + State());
         await Program.WaitUntilAsync(() => page.IsQuickSettingsOpen && page.ReaderQuickSettings!.Surface.Bounds.Width > 0,
-            () => "the reader settings popover did not open");
+            () => "the reader settings popover did not open; " + State());
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
         QuickSettingsSurface surface = page.ReaderQuickSettings!.Surface;
         surface.RefreshSession();
