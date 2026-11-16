@@ -162,7 +162,8 @@ public sealed partial class TaggingPage
         AutomationProperties.SetName(_selState, stateText);
         AutomationProperties.SetHelpText(_selState, stateTip);
         _selGroupText.Text = Texts.T("tagging.page.group.assign");
-        _selGroup.IsEnabled = count > 0 && CanChange && _queueWork.Queue.Groups.Count > 0;
+        // The menu starts with "New group…", so the button is useful before the first group exists (it used to stay disabled without a reason).
+        _selGroup.IsEnabled = count > 0 && CanChange;
         AutomationProperties.SetName(_selGroup, Texts.T("tagging.page.group.assign"));
         WorkViewGate.Apply(_selectionBar, _workView, stateVisible: count > 0);
         _selClear.IsEnabled = count > 0;

@@ -77,16 +77,20 @@ public sealed partial class TaggingPage
             ActionToolBar.SetGroup(item, group);
             _actions.Items.Add(item);
         }
+        // The error banner's "Retry" reads the queue file again (RetryLoadAsync is a no-op unless the page may reload now).
+        _retryLoad.Click += (_, _) => OpenActions.Start(RetryLoadAsync, "tagging.retry");
         _clearYes.Click += async (_, _) => await ClearAllAsync();
         _clearNo.Click += (_, _) => CloseClearQuestion(focusClear: true);
         _clearConfirm.KeyDown += (_, e) => { if (e.Key == Key.Escape) { e.Handled = true; CloseClearQuestion(focusClear: true); } };
 
         _menuHost = new ContextMenuHost(_list, ComposeRowMenu, fallbackFocus: () => FocusContent());
         _list.AddHandler(KeyDownEvent, OnListKeyDown, RoutingStrategies.Tunnel);
+        // A double-click on an entry runs "Continue here" like Enter; one that cannot (a finished entry, a busy queue) says why in the status line
+        // instead of doing nothing (the gate used to sit here, so the sentence of ExecuteRowCommandAsync was never reached).
         _list.DoubleTapped += (_, e) =>
         {
-            if (e.Source is Visual visual && visual.FindAncestorOfType<ListBoxItem>(includeSelf: true) != null && CanRowCommand("tagging.continue-here"))
-                OpenActions.Start(() => ExecuteRowCommandAsync("tagging.continue-here"), "tagging.list.doubleClick");
+            if (e.Source is Visual visual && visual.FindAncestorOfType<ListBoxItem>(includeSelf: true) != null)
+                OpenActions.Start(() => ExecuteRowCommandAsync("tagging.continue-here", explain: true), "tagging.list.doubleClick");
         };
         _list.SelectionChanged += OnSelectionChanged;
         InstallMiddleClick(_list);
@@ -185,8 +189,11 @@ public sealed partial class TaggingPage
 
     internal bool CanRowCommand(string id) => TaggingRowCommands.Evaluate(id, CommandContext()).Available;
 
-    /// <summary>Runs a command on the selection (the lead entry for continue and the ones that open something); refused silently when it does not apply.</summary>
-    internal Task ExecuteRowCommandAsync(string id)
+    /// <summary>
+    /// Runs a command on the selection (the lead entry for continue and the ones that open something). A command that does not apply is
+    /// refused; with <paramref name="explain"/> (a key or a double-click, which have no disabled entry to carry the reason) the status line says why.
+    /// </summary>
+    internal Task ExecuteRowCommandAsync(string id, bool explain = false)
     {
         // T1: a double-click or Enter on a finished or skipped row says why nothing starts (only open entries can be continued from).
         if (id == TaggingCommands.ContinueHere && StartTagging != null && CanChange && Lead is { Item.State: not TagQueueState.Open })
@@ -198,7 +205,11 @@ public sealed partial class TaggingPage
         if (id == TaggingCommands.GroupRemove) return AssignSelectionToGroupAsync(null);
         if (id.StartsWith(TaggingCommands.GroupPrefix, StringComparison.Ordinal))
             return AssignSelectionToGroupAsync(id[TaggingCommands.GroupPrefix.Length..]);
-        if (!CanRowCommand(id) || Lead is not { } lead) return Task.CompletedTask;
+        if (!CanRowCommand(id) || Lead is not { } lead)
+        {
+            if (explain && !_queueWork.Ended && TaggingRowCommands.Evaluate(id, CommandContext()).Reason is { Length: > 0 } reason) ShowStatus(reason);
+            return Task.CompletedTask;
+        }
         IReadOnlyList<TaggingQueueRow> selected = Selected;
         TagQueueKey[] keys = selected.Select(row => row.Key).ToArray();
         return id switch
@@ -261,7 +272,7 @@ public sealed partial class TaggingPage
             e.Handled = true;
             // The Tag key over several entries is "Tag together…" (the entry of one medium is off for a selection).
             string command = id == TaggingCommands.Tag && Selected.Count > 1 ? TaggingCommands.TagTogether : id;
-            OpenActions.Start(() => ExecuteRowCommandAsync(command), "tagging.list.key");
+            OpenActions.Start(() => ExecuteRowCommandAsync(command, explain: true), "tagging.list.key");
             return;
         }
     }
