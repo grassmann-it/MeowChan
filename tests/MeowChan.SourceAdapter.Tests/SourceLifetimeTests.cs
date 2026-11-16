@@ -30,6 +30,27 @@ public sealed class SourceLifetimeTests
     }
 
     [Fact]
+    public async Task ADisabledSourceNamesWhyItRefusesWorkWithTheSameErrorCode()
+    {
+        using PluginSourceImageBoard source = new(new FourChanPlugin().Describe(), "4chan",
+            _ => throw new InvalidOperationException("A disabled source must not acquire a worker."));
+        Assert.Equal(PluginSourceUnavailableReason.None, source.UnavailableReason);
+        source.SetEnabled(false, PluginSourceUnavailableReason.NeedsRepairReview, PluginHost.Configuration.PluginActivationProblems.ExecutableChanged);
+        Assert.Equal(PluginSourceUnavailableReason.NeedsRepairReview, source.UnavailableReason);
+        PluginWorkerException review = await Assert.ThrowsAsync<PluginWorkerException>(() => ReadAsync(source));
+        Assert.Equal("source_unavailable", review.Code);
+        Assert.Contains("repair review", review.Message, StringComparison.Ordinal);
+        Assert.Contains(PluginHost.Configuration.PluginActivationProblems.ExecutableChanged, review.Message, StringComparison.Ordinal);
+        source.SetEnabled(false, PluginSourceUnavailableReason.SiteDisabled);
+        Assert.Contains("site", (await Assert.ThrowsAsync<PluginWorkerException>(() => ReadAsync(source))).Message, StringComparison.Ordinal);
+        source.SetEnabled(true);
+        Assert.Equal(PluginSourceUnavailableReason.None, source.UnavailableReason);
+        source.SetEnabled(false);
+        Assert.Equal(PluginSourceUnavailableReason.Unavailable, source.UnavailableReason);
+        Assert.Equal("The source plugin is disabled or unavailable.", (await Assert.ThrowsAsync<PluginWorkerException>(() => ReadAsync(source))).Message);
+    }
+
+    [Fact]
     public async Task ReenableUsesFreshLifetimeAndRejectsLateDisabledResult()
     {
         TaskCompletionSource entered = new(TaskCreationOptions.RunContinuationsAsynchronously);

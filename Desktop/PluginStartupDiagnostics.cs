@@ -89,6 +89,12 @@ internal static class PluginStartupDiagnostics
     internal static void LogActivationProblem(ILogger logger, PluginActivationSnapshot activation)
     {
         if (activation.Problem is null) return;
+        // The one problem a restart never fixes: say what to do and which sources wait for it.
+        if (MeowChan.PluginHost.Configuration.PluginActivationProblems.RequiresRepairReview(activation.Problem))
+            logger.Warning("Plugin {PluginId} is not running: its bundled build waits for a repair review (Sources & Plugins, Review bundled repairs); its sources {SourceIds} stay unavailable until it is confirmed. {Problem}",
+                activation.PluginId,
+                (activation.Active?.Description ?? activation.LastGood?.Description)?.Sources.Select(source => source.SourceId).ToArray() ?? Array.Empty<string>(),
+                activation.Problem);
         logger.ForContext("PluginStartupPhase", "activation").Warning("Plugin startup activation advisory candidate {PluginStartupCandidateId} plugin {PluginStartupPluginId} declared sources {PluginStartupSourceIds} activation available {PluginStartupActivationAvailable}: {PluginStartupProblem}",
             activation.SelectedCandidateId, activation.PluginId,
             (activation.Active?.Description ?? activation.LastGood?.Description)?.Sources.Select(source => source.SourceId).ToArray() ?? Array.Empty<string>(),

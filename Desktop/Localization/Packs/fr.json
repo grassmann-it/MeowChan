@@ -1701,6 +1701,8 @@
     "plugins.step.next.missing": "Ensuite : le fichier n’est plus dans le dossier des extensions. Ajoutez-le de nouveau avec « {0} » ou remettez-le-y, puis actualisez l’état.",
     "plugins.step.next.fix": "Ensuite : corrigez le problème décrit ici, puis redémarrez MeowChan.",
     "plugins.step.next.restart": "Ensuite : redémarrez MeowChan. Un fichier nouveau ou modifié n’est compilé et enregistré qu’au démarrage.",
+    "plugins.step.next.review": "Ensuite : cette compilation fournie a changé et attend votre vérification ; un redémarrage seul ne la démarre pas. Choisissez « {0} ».",
+    "plugins.repair.reviewNow": "Vérifier cette réparation",
     "plugins.step.next.restartSaved": "Ensuite : redémarrez MeowChan pour utiliser la compilation enregistrée pour le prochain démarrage.",
     "plugins.step.next.enable": "Ensuite : choisissez « {0} ». C’est effectif immédiatement.",
     "plugins.step.next.select": "Ensuite : choisissez « {0} », puis redémarrez MeowChan.",

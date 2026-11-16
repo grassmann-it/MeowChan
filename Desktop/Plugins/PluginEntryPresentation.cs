@@ -58,6 +58,8 @@ internal sealed class PluginEntryPresentation
     internal bool HasCandidateConflict { get; private init; }
     internal string? CandidateProblem { get; private init; }
     internal string? ActivationProblem { get; private init; }
+    /// <summary>The plugin is not running because its bundled build waits for an explicit repair review.</summary>
+    internal bool NeedsRepairReview => !IsActiveCandidate && MeowChan.PluginHost.Configuration.PluginActivationProblems.RequiresRepairReview(ActivationProblem);
     internal bool CanSelectCandidate { get; private init; }
     internal bool CandidateChoiceRequired { get; private init; }
     internal PluginWorkerSnapshot? Worker { get; private init; }

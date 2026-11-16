@@ -80,7 +80,8 @@ public partial class SourcesPage
         SourcePluginManagement.CopySourcePluginPresentation(
             this.FindControl<TextBlock>("SourcePluginSummary")!, this.FindControl<WrapPanel>("SourcePluginSteps")!,
             this.FindControl<TextBlock>("SourcePluginNext")!, this.FindControl<TextBlock>("SourcePluginShared")!,
-            this.FindControl<Button>("SourcePluginEnabled")!, this.FindControl<Button>("SourcePluginCandidate")!, this.FindControl<Button>("SourcePluginSdk")!, row!.Id);
+            this.FindControl<Button>("SourcePluginEnabled")!, this.FindControl<Button>("SourcePluginCandidate")!, this.FindControl<Button>("SourcePluginSdk")!, row!.Id,
+            this.FindControl<Button>("SourcePluginReview"));
         ApplyChanSiteSwitch(plugin, row);
         Button details = this.FindControl<Button>("SourcePluginButton")!;
         CommandBindings.ApplyLabeled(details, "plugins.details", Texts.T("sources.pluginDetails"));
@@ -135,6 +136,7 @@ public partial class SourcesPage
     private Task ExecuteSourcePluginButton(object? sender) => sender is Button action && !IsBusy
         ? SourcePluginManagement.ExecuteSourcePluginActionAsync(action) : Task.CompletedTask;
     private void OnSourcePluginSdkClick(object? sender, RoutedEventArgs e) { if (!IsBusy) SourcePluginManagement.ApproveSourceSdk(); }
+    private void OnSourcePluginReviewClick(object? sender, RoutedEventArgs e) { if (!IsBusy) SourcePluginManagement.ReviewSourceRepair(); }
     private void OnSourcePluginMoreClick(object? sender, RoutedEventArgs e)
     {
         if (!IsBusy && Selected?.Plugin is { } plugin && sender is Button origin)

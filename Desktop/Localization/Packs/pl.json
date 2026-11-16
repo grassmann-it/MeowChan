@@ -1223,6 +1223,8 @@
     "plugins.step.next.missing": "Następny krok: pliku nie ma już w folderze wtyczek. Dodaj go ponownie przez „{0}” albo przywróć go tam, a potem odśwież stan.",
     "plugins.step.next.fix": "Następny krok: usuń opisany tu problem, a potem uruchom MeowChan ponownie.",
     "plugins.step.next.restart": "Następny krok: uruchom MeowChan ponownie. Nowy lub zmieniony plik jest kompilowany i rejestrowany tylko przy starcie.",
+    "plugins.step.next.review": "Następny krok: ta dołączona kompilacja zmieniła się i czeka na Twoje sprawdzenie; samo ponowne uruchomienie jej nie uruchomi. Wybierz „{0}”.",
+    "plugins.repair.reviewNow": "Sprawdź tę naprawę",
     "plugins.step.next.restartSaved": "Następny krok: uruchom MeowChan ponownie, aby użyć kompilacji zapisanej na następne uruchomienie.",
     "plugins.step.next.enable": "Następny krok: wybierz „{0}”. Działa od razu.",
     "plugins.step.next.select": "Następny krok: wybierz „{0}”, a potem uruchom MeowChan ponownie.",

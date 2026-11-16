@@ -140,6 +140,33 @@ public sealed class CompilerIntegrationTests : IDisposable
     }
 
     [Fact]
+    public async Task ScopedCleanupRemovesOnlyTheNamedUnretainedBuilds()
+    {
+        string path = await SourceAsync();
+        PluginBuildResult kept = await Service().BuildAsync(path);
+        await File.WriteAllTextAsync(path, ValidSource + "\n// retired");
+        PluginBuildResult retired = await Service().BuildAsync(path);
+        await File.WriteAllTextAsync(path, ValidSource + "\n// unrelated");
+        PluginBuildResult unrelated = await Service().BuildAsync(path);
+        Success(kept); Success(retired); Success(unrelated);
+        HashSet<string> empty = new();
+        // A named build that something still retains is never removed.
+        PluginCacheCleanupResult guarded = await Service().CleanupOnlyAsync(new HashSet<string> { kept.Artifact!.ExecutionRevision },
+            new HashSet<string> { kept.CompilationFingerprint! }, new HashSet<string> { kept.Artifact.ExecutionRevision }, new HashSet<string> { kept.CompilationFingerprint! });
+        Assert.Equal(0, guarded.RemovedArtifacts + guarded.RemovedCompilations);
+        PluginCacheCleanupResult cleanup = await Service().CleanupOnlyAsync(new HashSet<string> { retired.Artifact!.ExecutionRevision },
+            new HashSet<string> { retired.CompilationFingerprint! }, empty, empty);
+        Assert.Empty(cleanup.Diagnostics);
+        Assert.Equal(1, cleanup.RemovedArtifacts);
+        Assert.Equal(1, cleanup.RemovedCompilations);
+        Assert.Null(await Service().FindArtifactAsync(retired.Artifact.ExecutionRevision));
+        // Builds that were not named stay, even though nothing retains them.
+        Assert.NotNull(await Service().FindArtifactAsync(kept.Artifact.ExecutionRevision));
+        Assert.NotNull(await Service().FindArtifactAsync(unrelated.Artifact!.ExecutionRevision));
+        Assert.Equal(0, (await Service().CleanupOnlyAsync(empty, empty, empty, empty)).RemovedArtifacts);
+    }
+
+    [Fact]
     public async Task CancelAndTimeoutKillRealCompilerProcessTreeWithoutPartialPublication()
     {
         if (OperatingSystem.IsWindows()) return; // Linux shell process fixture; Windows native package verification is separate.

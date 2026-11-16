@@ -120,6 +120,30 @@ public sealed class PluginLifecycleStepsTests
         Assert.Equal(PluginNextAction.FixProblem, view.Next);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ABundledBuildWaitingForItsRepairReviewSaysSoInsteadOfRestart(bool enabled)
+    {
+        // The observed state: enabled, not running, last good build kept, the changed bundled build present.
+        PluginCatalogEntry plain = Entry(null, Candidate("changed"), enabled: enabled);
+        PluginActivationSnapshot waiting = plain.Activation! with
+        {
+            LastGood = Release("old"), Problem = MeowChan.PluginHost.Configuration.PluginActivationProblems.ExecutableChanged
+        };
+        PluginCatalogEntry entry = plain with { Activation = waiting };
+        PluginEntryPresentation presentation = PluginEntryPresentation.Create(entry);
+        Assert.True(presentation.NeedsRepairReview);
+        PluginLifecycleView view = View(entry);
+        Assert.Equal(PluginNextAction.ReviewRepair, view.Next);
+        Assert.False(view.ActiveNow);
+        if (enabled) Assert.Equal(PluginStepState.Problem, view.Steps[2].State);
+        // Any other startup problem keeps its own next step.
+        PluginCatalogEntry other = plain with { Activation = waiting with { Problem = "Settings correction required: x" } };
+        Assert.False(PluginEntryPresentation.Create(other).NeedsRepairReview);
+        Assert.NotEqual(PluginNextAction.ReviewRepair, View(other).Next);
+    }
+
     private static PluginDescription Description() =>
         new(PluginId, "Lifecycle fixture", "1.0.0", SdkContract.Version, "Reads a supported source.", [], [], new("1", []), []);
 

@@ -1701,6 +1701,8 @@
     "plugins.step.next.missing": "Siguiente: el archivo ya no está en la carpeta de complementos. Añádalo de nuevo con «{0}» o restáurelo allí y luego actualice el estado.",
     "plugins.step.next.fix": "Siguiente: solucione el problema descrito aquí y luego reinicie MeowChan.",
     "plugins.step.next.restart": "Siguiente: reinicie MeowChan. Un archivo nuevo o modificado se compila y se registra solo al iniciar.",
+    "plugins.step.next.review": "Siguiente: esta compilación incluida cambió y espera su revisión; reiniciar no basta para iniciarla. Elija «{0}».",
+    "plugins.repair.reviewNow": "Revisar esta reparación",
     "plugins.step.next.restartSaved": "Siguiente: reinicie MeowChan para usar la compilación guardada para el próximo inicio.",
     "plugins.step.next.enable": "Siguiente: elija «{0}». Surte efecto de inmediato.",
     "plugins.step.next.select": "Siguiente: elija «{0}» y luego reinicie MeowChan.",

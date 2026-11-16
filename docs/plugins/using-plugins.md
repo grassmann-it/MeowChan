@@ -102,7 +102,10 @@ also has its own switch (**Turn this site on/off** on the Sources page, saved in
 starts on. The activation confirmation below turns on only the submitted site
 (and its plugin, if that was off). When a profile from 1.0.x is first opened, each
 site takes over the on/off state of its former single-site plugin; the source IDs
-are unchanged, so watches, archives and rules keep working. A size/MD5 difference
+are unchanged, so watches, archives and rules keep working. The old single-site plugins then leave the plugin
+list for good: their state is kept as the site switch and in a backup file `plugin-state/state.pre-retirement-*.json`,
+and their cached builds are removed from `plugin-cache`. A bundled plugin whose build changed and that waits for a
+repair review is not running; its plugin detail and its sources show **Review this repair**, which opens the review. A size/MD5 difference
 permission belongs to the plugin that owns a source, so after that upgrade a site
 starts strict again until you allow it once more on the Sources page.
 
