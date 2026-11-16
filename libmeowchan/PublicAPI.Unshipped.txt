@@ -1,1 +1,3 @@
 #nullable enable
+MeowChan.Interfaces.ThreadActivity.SourceUnavailable = 8 -> MeowChan.Interfaces.ThreadActivity
+virtual MeowChan.Boards.Base.BaseThread.WaitForSourceAvailableAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!

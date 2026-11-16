@@ -576,6 +576,7 @@
     "status.error": "错误",
     "status.notFound": "未找到",
     "status.stopped": "已停止",
+    "status.sourceUnavailable": "来源不可用",
     "status.unknown": "未知",
     "status.monitoring": "关注中",
     "status.checkFailed": "检查失败 · {0}",

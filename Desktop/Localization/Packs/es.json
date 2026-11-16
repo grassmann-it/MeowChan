@@ -578,6 +578,7 @@
     "status.error": "Error",
     "status.notFound": "No encontrado",
     "status.stopped": "Detenido",
+    "status.sourceUnavailable": "Fuente no disponible",
     "status.unknown": "Desconocido",
     "status.monitoring": "En seguimiento",
     "status.checkFailed": "Error de comprobación · {0}",

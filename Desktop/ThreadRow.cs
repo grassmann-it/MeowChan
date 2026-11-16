@@ -156,6 +156,7 @@ public sealed class ThreadRow : INotifyPropertyChanged, IDisposable
             ThreadActivity.Error => Texts.T("status.error"),
             ThreadActivity.NotFound => Texts.T("status.notFound"),
             ThreadActivity.Stopped => Texts.T("status.stopped"),
+            ThreadActivity.SourceUnavailable => Texts.T("status.sourceUnavailable"),
             _ => Texts.T("status.unknown")
         };
         string? request = RequestStatus.Format(snapshot.RequestProgress);

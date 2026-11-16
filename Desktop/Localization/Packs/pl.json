@@ -371,6 +371,7 @@
     "status.error": "Błąd",
     "status.notFound": "Nie znaleziono",
     "status.stopped": "Zatrzymano",
+    "status.sourceUnavailable": "Źródło niedostępne",
     "status.unknown": "Nieznany",
     "status.monitoring": "Obserwowanie",
     "status.checkFailed": "Sprawdzanie nieudane · {0}",

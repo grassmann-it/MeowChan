@@ -36,7 +36,17 @@ internal sealed class PluginSourceThread(PluginSourceBoard board, string threadI
     public override async Task checkThreadAsync(DownloadQueue queue, CancellationToken cancellationToken = default)
     {
         await _readGate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try { await CheckCoreAsync(queue, cancellationToken).ConfigureAwait(false); }
+        try
+        {
+            // Before the base check marks the thread "Checking": a switched-off source is an expected state, so the
+            // thread neither flips through Checking/Error nor reaches the worker. Terminal threads never read the source.
+            if (SourceState == ThreadSourceState.Active && !Source.Enabled) throw Unavailable(null);
+            try { await CheckCoreAsync(queue, cancellationToken).ConfigureAwait(false); }
+            // Disabled while this check was already running: its lifetime cancelled (or refused) the read.
+            catch (PluginWorkerException exception) when (exception.Code == "source_unavailable") { throw Unavailable(exception); }
+            catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested && !Source.Enabled)
+            { throw Unavailable(exception); }
+        }
         finally
         {
             // History is retired before this clear; the gate still excludes a successor.
@@ -44,6 +54,12 @@ internal sealed class PluginSourceThread(PluginSourceBoard board, string threadI
             _readGate.Release();
         }
     }
+
+    private static SourceUnavailableException Unavailable(Exception? inner) =>
+        new("The source plugin is disabled or unavailable.", inner);
+
+    protected override Task WaitForSourceAvailableAsync(CancellationToken cancellationToken) =>
+        Source.WaitUntilAvailableAsync(cancellationToken);
 
     private async Task CheckCoreAsync(DownloadQueue queue, CancellationToken token)
     {
