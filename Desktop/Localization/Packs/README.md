@@ -112,6 +112,14 @@ can be considered reviewed for this dialog. The Russian `plugins.approval.submit
 uses a count-agnostic "label: number" form because one singular key cannot cover
 Russian's plural forms.
 
+The plain-language card texts of the same dialog (16.11.2026) are likewise
+**unreviewed machine translations** in all ten packs: `plugins.repair.intro`,
+`plugins.repair.status.*` (`relocated`, `updatedElsewhere`, `updated`, `rights`,
+`changes`, `blocked`, `confirmed`), `plugins.repair.restartNote`,
+`plugins.repair.pluginId` and the Plugins page status `plugins.repair.reviewOpen`.
+They say that a confirmed plugin is used only from the next start and how to
+restart, so they need the same qualified review as the approval texts above.
+
 ## Select and customize
 
 Select the desired language in Settings → Interface and save normally. Merely

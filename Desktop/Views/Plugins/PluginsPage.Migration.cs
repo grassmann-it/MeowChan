@@ -12,10 +12,12 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.Plugins;
 using MeowChan.PluginHost.Configuration;
 using MeowChan.PluginSdk;
 
@@ -54,6 +56,16 @@ public partial class PluginsPage
             _migrationWindow = window;
             PluginMultiApproval approval = new(services.ProfileStore);
             _migrationApproval = approval;
+            // The review owns this page operation while it is open: the page shows that instead of a spinner and a Cancel
+            // the modal keeps out of reach. Cancelling the operation (the page is deactivated or its selection is replaced)
+            // closes the review like its own Close: a save in flight finishes first, nothing else is written.
+            RenderDetails();
+            using CancellationTokenRegistration closeOnCancel = token.Register(() => Dispatcher.UIThread.Post(() =>
+            {
+                if (!ReferenceEquals(_migrationWindow, window) || !window.IsVisible) return;
+                approval.Stop();
+                window.Close();
+            }));
             bool saving = false, closeRequested = false;
             bool coherent = preview.ProfileRevision == selections.ProfileRevision;
             bool SessionCurrent() => Current(generation) && ReferenceEquals(_services, services) &&
@@ -130,9 +142,16 @@ public partial class PluginsPage
             void RenderReceipts()
             {
                 receipts.Children.Clear();
-                foreach (var receipt in approval.Receipts)
-                    receipts.Children.Add(RepairText(Texts.T("plugins.approval.receipt", receipt.Choice.PluginId, receipt.Choice.Repair?.NewExecutionRevision ?? receipt.Choice.Selection?.NewExecutionRevision,
-                        Texts.T("plugins.approval.state." + receipt.State))));
+                foreach (var receipt in approval.Receipts) receipts.Children.Add(BundledReceiptCard(receipt));
+                // Plugins switch builds only during startup (PluginSession.StartAsync → ApplyBundledStartupAsync); there is no
+                // in-session activation and no relaunch of the same profile, so a saved approval says plainly how to use it now.
+                if (BundledRepairPresentation.NeedsRestartNote(approval.Receipts.Select(receipt => receipt.State)))
+                {
+                    TextBlock note = RepairText(Texts.T("plugins.repair.restartNote"));
+                    note.FontWeight = FontWeight.SemiBold;
+                    AutomationProperties.SetAutomationId(note, "BundledApprovalRestartNote");
+                    receipts.Children.Add(note);
+                }
             }
             async Task SaveAsync(IReadOnlyList<PluginApprovalChoice> choices)
             {
@@ -184,35 +203,34 @@ public partial class PluginsPage
                 AutomationProperties.SetAutomationId(repairRows, "BundledProvenRepairs");
                 AutomationProperties.SetAutomationId(selectionRows, "BundledNewSelections");
                 bool onlyChangeReviews = preview.Rows.Count > 0 && preview.Rows.All(row => row.CanReviewChanges) && selections.Rows.Count == 0;
-                if (!onlyChangeReviews)
-                {
-                    repairRows.Children.Add(RepairText(Texts.T("plugins.reselection.repairSection")));
-                    repairRows.Children.Add(RepairText(Texts.T("plugins.repair.policy")));
-                }
+                if (!onlyChangeReviews) repairRows.Children.Add(RepairText(Texts.T("plugins.reselection.repairSection")));
+                // Why these rows exist at all, in plain words; after #130 a relocation is the main remaining case.
+                if (preview.Rows.Count > 0) repairRows.Children.Add(RepairText(Texts.T("plugins.repair.intro")));
+                if (!onlyChangeReviews) repairRows.Children.Add(RepairText(Texts.T("plugins.repair.policy")));
                 if (preview.Rows.Count == 0) repairRows.Children.Add(RepairText(Texts.T("plugins.repair.empty")));
                 int repairRowIndex = 0;
                 foreach (BundledCandidateRepair row in preview.Rows.OrderByDescending(row => row.CanReviewChanges || row.CanReauthorize || row.CanConfirm))
                 {
                     string automationPrefix = "BundledRepairReauthorization" + repairRowIndex++;
                     BundledRepairPermissions? permissions = ReadBundledRepairPermissions(row);
-                    StackPanel content = new() { Spacing = 8 };
-                    content.Children.Add(new TextBlock { Text = row.PluginId, FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap });
-                    Expander technical = new() { Header = PluginChangeReviewCatalog.T("plugins.changeReview.technical"), IsExpanded = false,
-                        Content = RepairText(Texts.T("plugins.repair.identities", row.OldCandidateId,
-                            row.NewCandidateId ?? Texts.T("plugins.repair.unknown"), row.SlotId ?? Texts.T("plugins.repair.unknown")) + "\n" +
-                            Texts.T("plugins.repair.paths", row.OldPath ?? Texts.T("plugins.repair.unknown"), row.NewPath ?? Texts.T("plugins.repair.unknown")) + "\n" +
-                            Texts.T("plugins.repair.executions", row.OldExecutionRevision ?? Texts.T("plugins.repair.unknown"),
-                                row.NewExecutionRevision ?? Texts.T("plugins.repair.unknown"))) };
-                    content.Children.Add(technical);
-                    content.Children.Add(RepairText(Texts.T(permissions is not null ? "plugins.repair.reauthorize.ready" :
-                        row.BlockedReason is { } reason ? "plugins.repair.blocked." + reason :
-                        row.BuildChanged ? "plugins.repair.changed" : "plugins.repair.sameBuild")));
                     if (row.CanReviewChanges)
                     {
                         AddBundledChangeReviewRow(repairRows, row, preview.ProfileRevision, approval, SaveAsync,
                             () => coherent, () => saving, UpdateSubmit);
                         continue;
                     }
+                    // One card per plugin: its name, one plain status line, the reason, the action; identities and hashes
+                    // live in the collapsed technical details. What may be confirmed is unchanged (the row's own flags).
+                    StackPanel content = new() { Spacing = 8 };
+                    content.Children.Add(new TextBlock
+                    {
+                        Text = BundledRepairPresentation.DisplayName(row.PluginId, _catalog?.Profile, row.NewCandidateId, row.OldCandidateId),
+                        FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap
+                    });
+                    TextBlock statusLine = RepairText(Texts.T(BundledRepairPresentation.StatusKey(BundledRepairPresentation.Status(row))));
+                    AutomationProperties.SetAutomationId(statusLine, "BundledRepairStatus:" + row.PluginId);
+                    content.Children.Add(statusLine);
+                    content.Children.Add(RepairText(Texts.T(BundledRepairPresentation.ReasonKey(row, permissions is not null))));
                     if (row.CanReauthorize)
                     {
                         // Keep this permission decision bound to the exact backend row, fingerprint and profile revision.
@@ -240,7 +258,7 @@ public partial class PluginsPage
                         AutomationProperties.SetName(acknowledgement, acknowledgementText);
                         Button reauthorize = new()
                         {
-                            Content = Texts.T("plugins.repair.reauthorize.confirm"), IsEnabled = false,
+                            Content = RepairText(Texts.T("plugins.repair.reauthorize.confirm")), IsEnabled = false,
                             HorizontalAlignment = HorizontalAlignment.Left
                         };
                         AutomationProperties.SetAutomationId(reauthorize, automationPrefix + "Confirm");
@@ -271,10 +289,11 @@ public partial class PluginsPage
                         var choice = new PluginApprovalChoice(PluginApprovalKind.Repair, preview.ProfileRevision, Repair: row);
                         Button confirm = new()
                         {
-                            Content = Texts.T("plugins.repair.confirm"), IsEnabled = coherent && approval.MayOffer(row.PluginId) && row.CanConfirm,
+                            Content = RepairText(Texts.T("plugins.repair.confirm")), IsEnabled = coherent && approval.MayOffer(row.PluginId) && row.CanConfirm,
                             HorizontalAlignment = HorizontalAlignment.Left
                         };
                         AutomationProperties.SetName(confirm, Texts.T("plugins.repair.confirmNamed", row.PluginId));
+                        AutomationProperties.SetAutomationId(confirm, "BundledRepairConfirm:" + row.PluginId);
                         confirm.Click += async (_, _) =>
                         {
                             if (!saving && coherent && approval.MayOffer(row.PluginId) && row.CanConfirm)
@@ -282,7 +301,9 @@ public partial class PluginsPage
                         };
                         content.Children.Add(confirm);
                     }
-                    repairRows.Children.Add(new Border { Child = content, Padding = new Thickness(12), BorderThickness = new Thickness(1) });
+                    content.Children.Add(RepairTechnicalDetails(row.PluginId, row.OldCandidateId, row.NewCandidateId, row.SlotId,
+                        row.OldPath, row.NewPath, row.OldExecutionRevision, row.NewExecutionRevision, "BundledRepairTechnical:" + row.PluginId));
+                    repairRows.Children.Add(RepairCard(content));
                 }
                 selectionRows.Children.Add(RepairText(Texts.T("plugins.reselection.section")));
                 selectionRows.Children.Add(RepairText(Texts.T("plugins.reselection.policy")));
@@ -294,15 +315,13 @@ public partial class PluginsPage
                     var choice = new PluginApprovalChoice(PluginApprovalKind.Reselection, selections.ProfileRevision, Selection: row);
                     StackPanel content = new() { Spacing = 8 };
                     content.Children.Add(RepairText(Texts.T("plugins.reselection.section")));
-                    content.Children.Add(new TextBlock { Text = row.PluginId, FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap });
-                    Expander technical = new() { Header = PluginChangeReviewCatalog.T("plugins.changeReview.technical"), IsExpanded = false,
-                        Content = RepairText(Texts.T("plugins.repair.identities", row.OldCandidateId,
-                            row.NewCandidateId ?? Texts.T("plugins.repair.unknown"), row.SlotId ?? Texts.T("plugins.repair.unknown")) + "\n" +
-                            Texts.T("plugins.repair.paths", row.OldPath ?? Texts.T("plugins.repair.unknown"), row.NewPath ?? Texts.T("plugins.repair.unknown")) + "\n" +
-                            Texts.T("plugins.repair.executions", row.OldExecutionRevision ?? Texts.T("plugins.repair.unknown"),
-                                row.NewExecutionRevision ?? Texts.T("plugins.repair.unknown"))) };
-                    AutomationProperties.SetAutomationId(technical, "BundledReselectionTechnical:" + row.PluginId);
-                    content.Children.Add(technical);
+                    content.Children.Add(new TextBlock
+                    {
+                        Text = BundledRepairPresentation.DisplayName(row.PluginId, _catalog?.Profile, row.NewCandidateId, row.OldCandidateId),
+                        FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap
+                    });
+                    content.Children.Add(RepairTechnicalDetails(row.PluginId, row.OldCandidateId, row.NewCandidateId, row.SlotId,
+                        row.OldPath, row.NewPath, row.OldExecutionRevision, row.NewExecutionRevision, "BundledReselectionTechnical:" + row.PluginId));
                     Expander configurationDetails = new() { Header = RepairText(Texts.T("plugins.reselection.configuration")), IsExpanded = false };
                     TextBox configuration = new()
                     {
@@ -325,7 +344,7 @@ public partial class PluginsPage
                     AutomationProperties.SetName(acknowledgement, Texts.T("plugins.reselection.acknowledge"));
                     Button confirm = new()
                     {
-                        Content = Texts.T("plugins.reselection.confirm"), IsEnabled = false,
+                        Content = RepairText(Texts.T("plugins.reselection.confirm")), IsEnabled = false,
                         HorizontalAlignment = HorizontalAlignment.Left
                     };
                     AutomationProperties.SetName(confirm, Texts.T("plugins.reselection.confirmNamed", row.PluginId));
@@ -338,7 +357,7 @@ public partial class PluginsPage
                     };
                     content.Children.Add(acknowledgement);
                     content.Children.Add(confirm);
-                    selectionRows.Children.Add(new Border { Child = content, Padding = new Thickness(12), BorderThickness = new Thickness(1) });
+                    selectionRows.Children.Add(RepairCard(content));
                 }
                 actionable = reauthorizations.Any(item => item.Ack.IsEnabled) ||
                     preview.Rows.Any(row => (row.CanReviewChanges || !row.CanReauthorize && row.CanConfirm) && coherent && approval.MayOffer(row.PluginId)) ||
@@ -446,4 +465,65 @@ public partial class PluginsPage
     };
 
     private static TextBlock RepairText(string text) => new() { Text = text, TextWrapping = TextWrapping.Wrap };
+
+    private static Border RepairCard(Control content) =>
+        new() { Child = content, Padding = new Thickness(12), BorderThickness = new Thickness(1), HorizontalAlignment = HorizontalAlignment.Stretch };
+
+    /// <summary>The collapsed identities of one row: plugin ID, candidates, slot, paths and execution revisions.</summary>
+    private static Expander RepairTechnicalDetails(string pluginId, string oldCandidateId, string? newCandidateId, string? slotId,
+        string? oldPath, string? newPath, string? oldExecution, string? newExecution, string automationId)
+    {
+        string unknown = Texts.T("plugins.repair.unknown");
+        Expander technical = new()
+        {
+            Header = PluginChangeReviewCatalog.T("plugins.changeReview.technical"), IsExpanded = false,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Content = RepairText(Texts.T("plugins.repair.pluginId", pluginId) + "\n" +
+                Texts.T("plugins.repair.identities", oldCandidateId, newCandidateId ?? unknown, slotId ?? unknown) + "\n" +
+                Texts.T("plugins.repair.paths", oldPath ?? unknown, newPath ?? unknown) + "\n" +
+                Texts.T("plugins.repair.executions", oldExecution ?? unknown, newExecution ?? unknown))
+        };
+        AutomationProperties.SetAutomationId(technical, automationId);
+        return technical;
+    }
+
+    /// <summary>
+    /// What one dispatched approval came to: the plugin's name and a plain status line. The exact receipt line (plugin ID,
+    /// execution revision, state) stays in the collapsed technical details.
+    /// </summary>
+    private Border BundledReceiptCard(PluginApprovalReceipt receipt)
+    {
+        PluginApprovalChoice choice = receipt.Choice;
+        StackPanel content = new() { Spacing = 8 };
+        content.Children.Add(new TextBlock
+        {
+            Text = BundledRepairPresentation.DisplayName(choice.PluginId, _catalog?.Profile,
+                choice.Repair?.NewCandidateId ?? choice.Selection?.NewCandidateId, choice.Repair?.OldCandidateId ?? choice.Selection?.OldCandidateId),
+            FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap
+        });
+        TextBlock state = RepairText(Texts.T(BundledRepairPresentation.ReceiptStatusKey(receipt.State)));
+        AutomationProperties.SetAutomationId(state, "BundledApprovalReceiptStatus:" + choice.PluginId);
+        content.Children.Add(state);
+        Expander technical = new()
+        {
+            Header = PluginChangeReviewCatalog.T("plugins.changeReview.technical"), IsExpanded = false,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Content = new StackPanel
+            {
+                Spacing = 4,
+                Children =
+                {
+                    RepairText(Texts.T("plugins.repair.pluginId", choice.PluginId)),
+                    RepairText(Texts.T("plugins.approval.receipt", choice.PluginId,
+                        choice.Repair?.NewExecutionRevision ?? choice.Selection?.NewExecutionRevision,
+                        Texts.T("plugins.approval.state." + receipt.State)))
+                }
+            }
+        };
+        AutomationProperties.SetAutomationId(technical, "BundledApprovalReceiptTechnical:" + choice.PluginId);
+        content.Children.Add(technical);
+        Border card = RepairCard(content);
+        AutomationProperties.SetAutomationId(card, "BundledApprovalReceipt:" + choice.PluginId);
+        return card;
+    }
 }

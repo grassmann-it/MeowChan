@@ -143,6 +143,11 @@ public partial class PluginsPage
 
         content.Children.Add(new TextBlock { Text = PluginChangeReviewCatalog.T("plugins.changeReview.plugin", review.NewDescription.Name),
             FontWeight = Avalonia.Media.FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap });
+        // The same one-line status as every other repair card; the plugin ID and hashes stay in the technical details below.
+        TextBlock statusLine = new() { Text = Texts.T(BundledRepairPresentation.StatusKey(BundledRepairStatus.NeedsChangeReview)),
+            TextWrapping = TextWrapping.Wrap };
+        AutomationProperties.SetAutomationId(statusLine, "BundledRepairStatus:" + row.PluginId);
+        content.Children.Add(statusLine);
         content.Children.Add(new TextBlock { Text = PluginChangeReviewCatalog.T("plugins.changeReview.explanation"), TextWrapping = TextWrapping.Wrap });
         content.Children.Add(new TextBlock { Text = PluginChangeReviewCatalog.T("plugins.changeReview.capabilities"), FontWeight = Avalonia.Media.FontWeight.SemiBold });
         content.Children.Add(new Grid
@@ -296,7 +301,8 @@ public partial class PluginsPage
         save.Classes.Add("primary");
         content.Children.Add(save);
         Expander technical = new() { Header = PluginChangeReviewCatalog.T("plugins.changeReview.technical"), IsExpanded = false,
-            Content = new TextBox { Text = PluginChangeReviewCatalog.T("plugins.changeReview.identities", row.OldCandidateId, row.NewCandidateId ?? "?",
+            Content = new TextBox { Text = Texts.T("plugins.repair.pluginId", row.PluginId) + "\n" +
+                PluginChangeReviewCatalog.T("plugins.changeReview.identities", row.OldCandidateId, row.NewCandidateId ?? "?",
                 row.SlotId ?? "?", row.OldExecutionRevision ?? "?", row.NewExecutionRevision ?? "?") + "\n\n" +
                 PluginChangeReviewCatalog.T("plugins.changeReview.json") + "\n" + row.ChangeReviewJson,
                 IsReadOnly = true, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MaxHeight = 260 } };
