@@ -61,6 +61,8 @@ public partial class MainWindow
     private bool _galleryLargeReaderOrigin;
     private GalleryViewerState? _galleryReturnState;
     private WorkspacePage _galleryOriginPage;
+    // F4/F7: where a gallery opened on the Media page closes back to (selection, view, the opened tile), taken while the page is still in front.
+    private MediaLibraryReturnPoint? _galleryMediaReturn;
 
     // Direct archive list/media-menu delegates share the same contract as the specialized wrappers.
     // Downloads, Favorites and Media retain their existing independent entry contracts.
@@ -131,8 +133,10 @@ public partial class MainWindow
     }
 
     internal GalleryReturnTarget GalleryReturnTargetFor(Control? origin, bool readerOrigin, WorkspacePage originPage) =>
-        origin != null && ReferenceEquals(origin, _mediaPage?.Grid) ? GalleryReturnTarget.Media
-        : readerOrigin ? GalleryReturnTarget.Thread
+        // Reader-origin is authoritative: a stale or reused media control must never relabel a reader gallery.
+        readerOrigin ? GalleryReturnTarget.Thread
+        : originPage == WorkspacePage.Media || origin != null && ReferenceEquals(origin, _mediaPage?.Grid)
+            ? GalleryReturnTarget.Media
         : originPage switch
         {
             WorkspacePage.Archive => GalleryReturnTarget.Archive,
@@ -162,6 +166,7 @@ public partial class MainWindow
             || stillRequested?.Invoke() == false) return;
         _galleryOrigin = origin;
         _galleryOriginPage = originPage;
+        _galleryMediaReturn = CaptureGalleryMediaReturn(GalleryReturnTargetFor(origin, readerOrigin, originPage));
         _galleryReaderOrigin = readerOrigin;
         _galleryLargeReaderOrigin = largeReaderOrigin;
         _galleryRestoreOrigin = _archivePage?.CaptureGalleryOrigin();
@@ -519,6 +524,8 @@ public partial class MainWindow
         GalleryEntry? current = _galleryIndex >= 0 && _galleryIndex < _galleryEntries.Count ? _galleryEntries[_galleryIndex] : null;
         bool followReader = restoreOrigin && _galleryReaderOrigin;
         bool restorePage = restoreOrigin && _galleryVisitedReader;
+        MediaLibraryReturnPoint? mediaReturn = _galleryMediaReturn;
+        _galleryMediaReturn = null;
         Action? restore = _galleryRestoreOrigin;
         Action? completed = _galleryCompleted;
         _galleryCompleted = null;
@@ -552,15 +559,37 @@ public partial class MainWindow
             (_archivePage == null ? _galleryOrigin : _archivePage.GalleryOriginFocusTarget(_galleryOrigin))?.Focus();
         }
         else if (restoreOrigin) (_archivePage == null ? _galleryOrigin : _archivePage.GalleryOriginFocusTarget(_galleryOrigin))?.Focus();
-        Control? closedOrigin = _galleryOrigin;
         _galleryOrigin = null;
         _galleryResolvingRequest = -1;
         RefreshMediaPageUserData();
-        // The media grid itself cannot take focus; its selected tile does, once the refreshed tiles are laid out.
-        if (restoreOrigin && !_isClosing && closedOrigin != null && ReferenceEquals(closedOrigin, _mediaPage?.Grid)) _mediaPage.FocusGrid();
+        // The media grid itself cannot take focus; its selected tile does, once the refreshed tiles are laid out. Keyed on the way back the
+        // gallery named, not on its origin control: a tag-queue walk from the page's header has none (F7). The activation of a page that the
+        // reader had replaced (and the refresh of own state just above) rebuilds and swaps the rows after a single focus, which resets focus and
+        // scroll; the page's own return restores now and once more after that presentation, as "Back to media" does (F4).
+        if (restoreOrigin && !_isClosing && closingTarget == GalleryReturnTarget.Media && _mediaPage != null && _selectedPage == WorkspacePage.Media)
+        {
+            if (mediaReturn != null) StartMediaPageReturn(mediaReturn, "gallery.mediaReturn");
+            else _mediaPage.FocusGrid();
+        }
         if (restoreOrigin && !_isClosing) completed?.Invoke();
         UpdateMediaReturn();
         if (restoreOrigin && closingTarget == GalleryReturnTarget.Tagging) ReturnToTaggingPage(lastTagged);
+    }
+
+    private MediaLibraryReturnPoint? CaptureGalleryMediaReturn(GalleryReturnTarget target)
+    {
+        // The grid's own entry has already ended a pending second restore (OpenMediaLibraryGalleryAsync); ending it here as well would also
+        // revoke a Booru handoff that still guards this open.
+        if (target != GalleryReturnTarget.Media || _mediaPage == null || _selectedPage != WorkspacePage.Media) return null;
+        return _mediaPage.CaptureGalleryReturnPoint();
+    }
+
+    // The restore runs on after the navigation and nobody awaits it: OpenActions logs and shows a failure instead of dropping it (F8).
+    // MediaReturnTask is that observed run, for the smokes that wait for the second restore.
+    private void StartMediaPageReturn(MediaLibraryReturnPoint point, string operation)
+    {
+        MediaPage page = _mediaPage!;
+        MediaReturnTask = OpenActions.StartObserved(() => page.ReturnToAsync(point), operation);
     }
 
     private void UpdateGalleryFullscreenPresentation()

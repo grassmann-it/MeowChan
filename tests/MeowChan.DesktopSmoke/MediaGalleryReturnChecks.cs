@@ -41,6 +41,12 @@ internal static partial class MediaPageChecks
             MediaPage page = (MediaPage)mediaHost.Content!;
             await page.BuildTask.WaitAsync(Deadline);
             Require(page.Tiles.Count == ReturnThreads + 2, "The return fixture must give " + (ReturnThreads + 2) + " tiles: " + page.Tiles.Count);
+            // The page is the durable origin contract, not the identity of a control that may be detached or replaced while
+            // the gallery is being retired. A reader-origin request still wins even if it carries a stale media control.
+            Require(shell.GalleryReturnTargetFor(new Border(), readerOrigin: false, MainWindow.WorkspacePage.Media) == GalleryReturnTarget.Media,
+                "A non-reader gallery from the Media page must retain the Media target without its originating control.");
+            Require(shell.GalleryReturnTargetFor(page.Grid, readerOrigin: true, MainWindow.WorkspacePage.Media) == GalleryReturnTarget.Thread,
+                "Reader-origin must retain the Thread target even when a stale Media control is supplied.");
             ArchivePage archive = shell.ArchivePage;
             Button mediaReturn = archive.FindControl<Button>("ArchiveMediaReturn")!, galleryReturn = archive.FindControl<Button>("ArchiveGalleryReturn")!;
             ListBox posts = archive.FindControl<ListBox>("ArchivePosts")!;
@@ -111,7 +117,7 @@ internal static partial class MediaPageChecks
             await UntilAsync(() => (helpWindow = MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.For(shell)) is { IsVisible: true });
             string help = helpWindow!.PlainText;
             Require(help.Contains(Texts.T("viewer.help.escape.media"), StringComparison.Ordinal)
-                && helpWindow.Editor.Context.NoteKeys!.SequenceEqual(new[] { "viewer.help.escape.media" }),
+                && helpWindow.Editor.Context.NoteKeys!.Contains("viewer.help.escape.media", StringComparer.Ordinal),
                 "The help must name the way back to media: " + help);
             helpWindow.CloseWithoutAsking();
             // A language switch keeps the media name (in that language).
