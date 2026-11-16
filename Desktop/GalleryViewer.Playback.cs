@@ -124,7 +124,12 @@ internal sealed partial class GalleryViewer
         _slideshowHome = new StackPanel { Name = "GalleryPlaybackTools", Spacing = 2 };
         AddOverflowItem(_videoRepeatToggle, "video.loop", check: true, keepOpen: true,
             label: () => GalleryPlaybackCatalog.Get("viewer.playback.repeat"), host: _slideshowHome);
-        _videoRepeatToggle.Click += (_, _) => ChangePlaybackPreferences(_playbackPreferences with { VideoRepeat = !_playbackPreferences.VideoRepeat });
+        _videoRepeatToggle.Click += (_, _) =>
+        {
+            bool enabled = !_playbackPreferences.VideoRepeat;
+            if (enabled) ReleaseSlideshowForVideoRepeat();
+            ChangePlaybackPreferences(_playbackPreferences with { VideoRepeat = enabled });
+        };
         // One inset for everything in the menu: a choice box starts where a row's lead mark starts and ends where its shortcut ends,
         // a caption is a field label of the box below it (Space.4 between them), and the box leaves Space.4 before the next row.
         foreach (Control choice in new Control[] { _playbackMode, _slideshowSeconds, _videoRule, _videoSeconds, _videoRepeats })
@@ -386,7 +391,8 @@ internal sealed partial class GalleryViewer
         TimeSpan.FromSeconds(_playbackPreferences.VideoSeconds), _playbackPreferences.VideoRepeats);
 
     // The player repeats a video by itself only outside a running slideshow; inside, the slideshow's video rule decides
-    // (two loops must never compete). The loop button then shows the saved choice as unavailable and says why.
+    // (two loops must never compete). The repeat action stays available so an explicit choice can hand the current video
+    // back to the player and stop slideshow navigation without issuing a native pause.
     private void ApplyEffectiveVideoLoop()
     {
         if (_video == null || _slideshow == null) return;
@@ -457,7 +463,18 @@ internal sealed partial class GalleryViewer
 
 
     // The transport's loop button: the same "Repeat video" preference as the menu row; the playback mode stays as it is.
-    private void OnVideoLoopChanged(bool enabled) => ChangePlaybackPreferences(_playbackPreferences with { VideoRepeat = enabled });
+    // Enabling it is an explicit takeover of the current video, not a native pause command.
+    private void OnVideoLoopChanged(bool enabled)
+    {
+        if (enabled) ReleaseSlideshowForVideoRepeat();
+        ChangePlaybackPreferences(_playbackPreferences with { VideoRepeat = enabled });
+    }
+
+    private void ReleaseSlideshowForVideoRepeat()
+    {
+        if (_slideshow.IsRunning && _entry?.Kind == SavedMediaKind.Video)
+            PauseSlideshow(pauseVideo: false);
+    }
 
     // The slideshow's video rule asks for another pass of the same video: replay it from the start (silently, as the
     // slideshow's own playback). Selection and generation stay; a newer selection has already rebound these signals.
