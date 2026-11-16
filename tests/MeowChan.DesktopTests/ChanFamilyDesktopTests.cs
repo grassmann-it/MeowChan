@@ -71,13 +71,16 @@ public sealed class ChanSiteSwitchesTests
     [InlineData("{ not json")]
     [InlineData("{\"Version\":2,\"Enabled\":{\"wizchan\":true},\"Migrated\":[]}")]
     [InlineData("{\"Version\":1}")]
-    public void AnUnusableFileKeepsDefaultsAndIsNeverOverwritten(string content)
+    public void AnUnusableFileTurnsNoFamilySiteOnAndIsNeverOverwritten(string content)
     {
         using TempDirectory profile = new();
         string file = Path.Combine(profile.Path, ChanSiteSwitches.FileName);
         File.WriteAllText(file, content);
         ChanSiteSwitches switches = new(profile.Path);
         Assert.False(switches.IsEnabled(ChanSourceFamilies.Vichan, "wizchan"));
+        // Fail safe: the stored choices are unknown, so even the default-on site stays off (the user may have turned it off).
+        Assert.False(switches.IsEnabled(ChanSourceFamilies.Vichan, "lainchan"));
+        Assert.True(switches.IsEnabled("meowchan.source.kohlchan", "kohlchan")); // Other plugins have no site switch.
         Assert.True(switches.IsUnreadable);
         Assert.False(switches.SetEnabled(ChanSourceFamilies.Vichan, "wizchan", true));
         switches.MigrateFrom(Profile(("meowchan.source.wizchan", true)));
@@ -296,7 +299,7 @@ public sealed class ChanFamilyUpgradeTests
         }
     }
 
-    private static string[] ReadRestrictedSourceIds(string profile)
+    internal static string[] ReadRestrictedSourceIds(string profile)
     {
         using System.Text.Json.JsonDocument envelope = System.Text.Json.JsonDocument.Parse(File.ReadAllBytes(Path.Combine(profile, "plugin-state", "state.json")));
         byte[] payload = envelope.RootElement.GetProperty("payload").GetBytesFromBase64();
@@ -306,7 +309,7 @@ public sealed class ChanFamilyUpgradeTests
             ? restricted.EnumerateArray().Select(item => item.GetString()!).ToArray() : [];
     }
 
-    private static PluginProfileSnapshot ReadEnvelope(string file)
+    internal static PluginProfileSnapshot ReadEnvelope(string file)
     {
         using System.Text.Json.JsonDocument envelope = System.Text.Json.JsonDocument.Parse(File.ReadAllBytes(file));
         byte[] payload = envelope.RootElement.GetProperty("payload").GetBytesFromBase64();
@@ -317,7 +320,7 @@ public sealed class ChanFamilyUpgradeTests
             : SdkJson.Deserialize<PluginProfileSnapshot>(payload);
     }
 
-    private static async Task SeedLegacyAsync(string profile, params (string PluginId, string SourceId, bool Enabled)[] plugins)
+    internal static async Task SeedLegacyAsync(string profile, params (string PluginId, string SourceId, bool Enabled)[] plugins)
     {
         // A store-level stand-in for the 1.0.x delivered single-site bundles (same plugin and source IDs).
         PluginProfileStore store = new(profile, ExperimentalSourceActivationPolicy.InitiallyEnabled);
@@ -338,7 +341,7 @@ public sealed class ChanFamilyUpgradeTests
         Assert.All(state.Plugins, plugin => Assert.NotNull(plugin.Active));
     }
 
-    private static void Configure(string profile, params SourceMediaIntegrityPermission[] permissions) => new Config
+    internal static void Configure(string profile, params SourceMediaIntegrityPermission[] permissions) => new Config
     {
         DownloadPath = Path.Combine(profile, "media"), DownloadsPaused = true, SaveUrlsOnExit = true,
         AutomaticUpdateChecks = false, MaxParallelDownloads = 2, RecheckTimer = 3600, MinimumFreeSpaceGiB = 0,
@@ -346,7 +349,7 @@ public sealed class ChanFamilyUpgradeTests
             permission => permission, StringComparer.Ordinal)
     }.SaveConfig(profile);
 
-    private static DesktopSessionHost Create(string profile, DesktopPluginFixtures fixture) => new(profile,
+    internal static DesktopSessionHost Create(string profile, DesktopPluginFixtures fixture) => new(profile,
         updateSessionFactory: (path, config) => new UpdateSession(path, config, fixture.Client(), disableEnvironment: () => "1"),
         pluginTransportFactory: fixture.Client);
 }
