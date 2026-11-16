@@ -252,6 +252,7 @@ public partial class ArchivePage
         {
             if (e.Property == Visual.IsVisibleProperty) CancelReaderMediaActivation();
         };
+        ArchiveContentTabs.PropertyChanged += OnReaderTabPropertyChanged;
         ArchiveContentTabs.SelectionChanged += (_, _) => { CancelReaderMediaActivation(); AlignPostsOnShow(); };
         // M / U / F on the selected post's medium (the shared resolver) first, then the media menu's other keys.
         posts.AddHandler(KeyDownEvent, (_, e) => { if (!TryRouteFavoriteKey(posts, e)) TryRouteArchiveMediaShortcut(posts, e); }, RoutingStrategies.Bubble);
@@ -268,6 +269,24 @@ public partial class ArchivePage
         // The automatic scroll stays off for jumps and the pointer; a control inside a realized card that the keyboard focuses
         // (Tab to a link below the view) is brought in explicitly, so keyboard users never lose sight of the focus.
         posts.AddHandler(GotFocusEvent, OnReaderPostsGotFocus, RoutingStrategies.Bubble);
+    }
+
+    private void OnReaderTabPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.Property != SelectingItemsControl.SelectedIndexProperty) return;
+        int previous = e.GetOldValue<int>();
+        int current = e.GetNewValue<int>();
+        if (previous == 0 && current != 0)
+        {
+            // SelectionChanged runs after the tab has hidden the posts. Capture the
+            // actual viewport while it is still visible, rather than falling back
+            // to the selected card on a later live refresh.
+            _readerBackgroundAnchor = CaptureReaderAnchor(postsVisible: true);
+        }
+        else if (current == 0)
+        {
+            _readerBackgroundAnchor = null;
+        }
     }
 
     private void OnReaderPostsGotFocus(object? sender, FocusChangedEventArgs e)
@@ -307,6 +326,10 @@ public partial class ArchivePage
     internal string? CurrentReaderPostId => _readerPostId;
     // The post the posts list has to be aligned to on its next appearance (a background move selected it while the list was hidden).
     private string? _postsAlignOnShow;
+    // The posts list remains rendered while Media/References is selected, but
+    // its realized viewport is stale once the tab is hidden. Keep the last real
+    // viewport anchor so a refresh does not jump back to the selected card.
+    private ReaderAnchor? _readerBackgroundAnchor;
     private void AlignPostsOnShow()
     {
         if (_postsAlignOnShow is not { } post || _ended || !ReaderShowsPosts) return;
@@ -579,8 +602,20 @@ public partial class ArchivePage
         ShowPost(postId, null, reveal: false, scroll: false, background: true);
         _readerPostId = postId;
         _postsAlignOnShow = postId;
+        UpdateReaderBackgroundAnchor(postId);
         UpdateReaderNavigation();
         ReaderPositionChanged(deliberate: true);
+    }
+
+    private void UpdateReaderBackgroundAnchor(string? selectedPostId)
+    {
+        if (!ReaderPostsInBackground || _thread == null) return;
+        ReaderAnchor? current = _readerBackgroundAnchor;
+        string? postId = Projection is { } shown && _postOffset < shown.Count
+            ? shown[_postOffset].Post.PostId
+            : _readerPostId;
+        if (postId == null) return;
+        _readerBackgroundAnchor = new ReaderAnchor(_thread.Summary.Id, postId, current?.Top ?? 0, selectedPostId ?? _readerPostId);
     }
 
     // A realized container within one viewport height above or below the visible part of the list.
@@ -1227,13 +1262,18 @@ public partial class ArchivePage
         };
     }
 
-    private ReaderAnchor? CaptureReaderAnchor()
+    private ReaderAnchor? CaptureReaderAnchor(bool postsVisible = false)
     {
         if (_thread == null) return null;
         ListBox list = ArchivePosts;
         string? selected = (list.SelectedItem as ArchivePostRow)?.Id;
-        // Behind another tab the list shows nothing (its realized cards are stale): the anchor is the selected post or the page's first.
-        var visible = ArchiveContentTabs.SelectedIndex != 0 ? default : list.GetVisualDescendants().OfType<ListBoxItem>()
+        if (!postsVisible && ArchiveContentTabs.SelectedIndex != 0
+            && _readerBackgroundAnchor is { } background
+            && background.Thread == _thread.Summary.Id)
+            return background with { SelectedPostId = selected ?? background.SelectedPostId };
+        // Behind another tab the list shows nothing (its realized cards are stale): the
+        // cached viewport is preferred, then the page's first post, never the selection alone.
+        var visible = !postsVisible && ArchiveContentTabs.SelectedIndex != 0 ? default : list.GetVisualDescendants().OfType<ListBoxItem>()
             .Select(item => (Item: item, Top: item.TranslatePoint(default, list)?.Y ?? double.NaN))
             .Where(item => item.Item.DataContext is ArchivePostRow && item.Top < list.Bounds.Height && item.Top + item.Item.Bounds.Height > 0)
             .OrderBy(item => item.Top).FirstOrDefault();

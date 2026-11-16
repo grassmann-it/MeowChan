@@ -4,6 +4,8 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml.Styling;
 using Avalonia.Platform;
+using Avalonia.Threading;
+using System.Threading;
 using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
@@ -50,6 +52,51 @@ public sealed class ReaderBackgroundPagingTests
             Assert.Equal("p000", FirstRow(posts));
             Assert.Same(mediaItems, media.ItemsSource);
         }));
+    }
+
+    [Fact]
+    public async Task RefreshWithMediaTabOpenPreservesTheScrolledPostAndIntentionalSelection()
+    {
+        ArchivedThreadView view = await SeedAndReadAsync();
+        BooruComponentDispatcher.Run(() =>
+        {
+            using IDisposable scope = AvaloniaLocator.EnterScope();
+            AvaloniaLocator.CurrentMutable.Bind<ICursorFactory>().ToConstant(new DeadAffordanceGuard.RecordingCursorFactory());
+            TokenApplication app = new();
+            AvaloniaLocator.CurrentMutable.Bind<Application>().ToConstant(app);
+            app.Initialize();
+            MeowChan.ArchivePage page = new(_ => Task.FromResult<ArchiveReader>(null!), (_, _) => Task.CompletedTask, _ => { });
+            try
+            {
+                page.IsReadable = true;
+                page.LoadThreadAsync(view.Summary.Id, true, view).GetAwaiter().GetResult();
+                ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
+                TabControl tabs = page.FindControl<TabControl>("ArchiveContentTabs")!;
+                Button next = page.FindControl<Button>("NextPostsButton")!;
+                next.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                ArchivePostRow scrolled = (posts.ItemsSource as IEnumerable<ArchivePostRow>)!.First();
+                ArchivePostRow selected = (posts.ItemsSource as IEnumerable<ArchivePostRow>)!.ElementAt(10);
+                Assert.Equal("p050", scrolled.Id);
+                Assert.Equal(scrolled.Id, FirstRow(posts));
+
+                // The user selected a different card intentionally after moving
+                // the reader position; a refresh must retain that selection
+                // without using it as the viewport anchor.
+                posts.SelectedItem = selected;
+                tabs.SelectedIndex = 1;
+                Task refresh = page.LoadThreadAsync(view.Summary.Id, resetPage: false, preparedThread: view);
+                for (int pass = 0; pass < 200 && !refresh.IsCompleted; pass++)
+                {
+                    Dispatcher.UIThread.RunJobs();
+                    System.Threading.Thread.Yield();
+                }
+                refresh.GetAwaiter().GetResult();
+
+                Assert.Equal(scrolled.Id, FirstRow(posts));
+                Assert.Equal(selected.Id, (posts.SelectedItem as ArchivePostRow)?.Id);
+            }
+            finally { page.EndLifetime(); }
+        });
     }
 
     [Fact]
