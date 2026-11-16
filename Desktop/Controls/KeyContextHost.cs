@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -34,6 +35,16 @@ internal static class KeyContextHost
 
     /// <summary>The context the current key is handled in, or null outside any scope (tests).</summary>
     internal static string? Current => EffectiveShortcutBindings.CurrentKeyContext;
+
+    // The context the innermost host resolved for a key event (ContextOf). Weak: the entry goes with the event.
+    private static readonly ConditionalWeakTable<KeyEventArgs, string> Resolved = new();
+
+    /// <summary>
+    /// The context the innermost host on the key's route resolved for <paramref name="e"/>, or null when no host saw it (a key from the header, the
+    /// footer or the window itself). The window's own routes run in its Bubble handler, after every page scope has closed; they enter this context
+    /// again (MainWindow.ShellKeyContext), so a default that gives way only in another context stays active for them too.
+    /// </summary>
+    internal static string? ContextOf(KeyEventArgs e) => Resolved.TryGetValue(e, out string? context) ? context : null;
 
     private sealed class Entry
     {
@@ -82,6 +93,8 @@ internal static class KeyContextHost
         {
             if (_disposed) return;
             string name = _context(e);
+            // Tunnel runs from the root inward, so a host nearer the source (the pane inside the page) records last.
+            Resolved.AddOrUpdate(e, name);
             Entry entry = new(e);
             // Another host (the page above a pane that is back inside it) already runs this key in the same context: nothing to enter, nothing to end.
             if (!string.Equals(EffectiveShortcutBindings.CurrentKeyContext, name, StringComparison.Ordinal))

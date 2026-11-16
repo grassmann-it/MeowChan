@@ -37,6 +37,9 @@ public partial class StatisticsPage : UserControl
 
     public StatisticsPage()
     {
+        // Every key of the Status page's statistics segment runs in the "statistics" context (S3 P2-4): a default that a saved binding took away only
+        // elsewhere (a partial yield) stays active here (EffectiveShortcutBindings.EnterKeyContext).
+        MeowChan.Desktop.Controls.KeyContextHost.Install(this, _ => "statistics");
         InitializeComponent();
         _pageMargin = StatisticsContent.Margin;
         StatisticsGrid.ItemsSource = _rows;

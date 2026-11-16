@@ -140,6 +140,70 @@ public sealed class KeyContextHostTests
         Assert.Contains("KeyContextHost.Install(this, _ => \"media\");", media);
     }
 
+    // S3 P2-5: the window's own routes run after every page scope has closed; they ask for the context the innermost host resolved for the key.
+    [Fact]
+    public void TheContextTheInnermostHostResolvedStaysReadableForTheWindowAfterTheScopeClosed()
+    {
+        StackPanel page = new();
+        Border pane = new(), list = new(), child = new();
+        page.Children.Add(pane); page.Children.Add(list);
+        pane.Child = child;
+        KeyContextHost.Install(page, _ => "sources", closeNow: true);
+        KeyContextHost.Install(pane, _ => "plugins", closeNow: true);
+
+        KeyEventArgs inPane = new() { RoutedEvent = InputElement.KeyDownEvent, Key = Key.F10, KeyModifiers = KeyModifiers.Shift };
+        child.RaiseEvent(inPane);
+        Assert.Null(KeyContextHost.Current);
+        Assert.Equal("plugins", KeyContextHost.ContextOf(inPane)); // the nearer host wins
+        KeyEventArgs inList = Press(Key.F10);
+        list.RaiseEvent(inList);
+        Assert.Equal("sources", KeyContextHost.ContextOf(inList));
+        Assert.Null(KeyContextHost.ContextOf(Press(Key.F10))); // a key no host saw (header, footer, the window)
+    }
+
+    // S3 P2-4: the pages without a host asked without a context, so a saved binding of another page's command on the key of "Open context menu"
+    // (Shift+F10 / Menu) made it dead on their lists while their handlers still swallowed Shift+F10. Every main page root now installs its host.
+    [Theory]
+    [InlineData("Desktop/Views/Sources/SourcesPage.axaml.cs", "sources")]
+    [InlineData("Desktop/Views/Plugins/PluginsPage.axaml.cs", "plugins")]
+    [InlineData("Desktop/Views/Diagnostics/DiagnosticsPage.axaml.cs", "diagnostics")]
+    [InlineData("Desktop/Views/Statistics/StatisticsPage.axaml.cs", "statistics")]
+    [InlineData("Desktop/Views/Rules/RulesPage.axaml.cs", "rules")]
+    [InlineData("Desktop/Views/Booru/BooruWorkbenchView.cs", "booru")]
+    [InlineData("Desktop/Views/Tagging/TaggingPage.cs", "tagging")]
+    [InlineData("Desktop/Views/Media/MediaPage.cs", "media")]
+    public void EveryMainPageRootInstallsItsHost(string file, string context)
+    {
+        Assert.Contains($"KeyContextHost.Install(this, _ => \"{context}\");", Source(file));
+        // The name is one the commands declare (ExecutionContexts): a yield is recorded under that name.
+        Assert.Contains(CommandCatalog.All, command => command.ExecutionContexts.Contains(context));
+    }
+
+    [Theory]
+    [InlineData("sources")]
+    [InlineData("plugins")]
+    [InlineData("diagnostics")]
+    [InlineData("statistics")]
+    [InlineData("rules")]
+    [InlineData("booru")]
+    public void OpenContextMenuStaysOnAPageAfterASavedArchiveCommandTookItsKeyInTheArchive(string page)
+    {
+        Assert.Contains(page, EffectiveShortcutBindings.ExecutionContexts("menu.context-open"));
+        foreach (string key in new[] { "Shift+F10", "Apps" })
+        {
+            ShortcutGesture gesture = ShortcutGesture.Parse(key);
+            EffectiveShortcutBindings bindings = EffectiveShortcutBindings.Build(
+                new ShortcutBindingsSection().Set("archive.refresh", [gesture]), ShortcutPlatform.Linux);
+            KeyGesture resolved = gesture.Resolve(ShortcutPlatform.Linux);
+            KeyEventArgs e = new() { RoutedEvent = InputElement.KeyDownEvent, Key = resolved.Key, KeyModifiers = resolved.KeyModifiers };
+            Assert.False(bindings.Matches(e, "menu.context-open"), key); // no context named: a saved binding is never overridden
+            using (EffectiveShortcutBindings.EnterKeyContext("archive"))
+                Assert.False(bindings.Matches(e, "menu.context-open"), key);
+            using (EffectiveShortcutBindings.EnterKeyContext(page))
+                Assert.True(bindings.Matches(e, "menu.context-open"), page + " " + key);
+        }
+    }
+
     private static string Source(string relative, [CallerFilePath] string sourcePath = "") =>
         File.ReadAllText(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sourcePath)!, "../..", relative)));
 }

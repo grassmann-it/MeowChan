@@ -104,7 +104,8 @@ public static class CommandCatalog
         new("plugins.show-grants", "plugins.showGrants", "View permissions", "Zugriffsrechte ansehen", "sliders", null, CommandScope.Settings, new[] { "plugins" }),
         new("plugins.show-developer-tools", "plugins.showDeveloperTools", "Show developer details", "Entwicklerdetails anzeigen", "tool", null, CommandScope.Settings, new[] { "plugins" }),
         new("plugins.actions", "plugins.actions", "Actions", "Aktionen", "more-horizontal", null, CommandScope.Settings, new[] { "plugins" }),
-        new("updates.check", "updates.check", "Check for updates", "Nach Updates suchen", "refresh-cw", null, CommandScope.Application | CommandScope.Settings, new[] { "app-menu", "about" }),
+        // A command of the app menu that runs from every page (MainWindow.TryRunUnroutedShellCommand): its key competes with every page's keys (S3 P2-2/P2-3).
+        new("updates.check", "updates.check", "Check for updates", "Nach Updates suchen", "refresh-cw", null, CommandScope.Application | CommandScope.Settings, new[] { "app-menu", "about" }, new[] { "shell" }),
         new("navigation.plugins", "command.navigation.plugins", "Show all plugins", "Alle Plugins anzeigen", "tool", null, CommandScope.Application, new[] { "sources" }),
         new("navigation.status", "command.navigation.status", "Status", "Status", "activity", null, CommandScope.Application, new[] { "footer", "tools-menu" }),
         // The Statistics segment of Status: no default gesture; the header graph and the tray open it.
@@ -120,7 +121,9 @@ public static class CommandCatalog
         new("app.show", "command.app.show", "Show MeowChan", "MeowChan anzeigen", "monitor", null, CommandScope.Application, new[] { "tray" }),
         new("app.quit", "command.app.quit", "Quit", "Beenden", "power", null, CommandScope.Application, new[] { "app-menu", "tray", "startup-error" }),
         new("session.pause", "command.session.pause", "Pause / resume downloads and checks", "Downloads und Prüfungen pausieren / fortsetzen", "pause", "Primary+Shift+P", CommandScope.Application, new[] { "header", "app-menu", "workspace-keyboard", "tray" }),
-        new("appearance.theme", "command.appearance.theme", "Change theme", "Farbschema wechseln", "moon", null, CommandScope.Settings | CommandScope.Application, new[] { "header", "settings", "app-menu" }),
+        // The header button and the app menu entry run it from every page (MainWindow.TryRunUnroutedShellCommand): a shell command, so the conflict check compares
+        // its key with every page's keys (S3 P2-2: as a "settings" command, F was accepted and then toggled the theme in the gallery).
+        new("appearance.theme", "command.appearance.theme", "Change theme", "Farbschema wechseln", "moon", null, CommandScope.Settings | CommandScope.Application, new[] { "header", "settings", "app-menu" }, new[] { "shell" }),
         new("window.minimize", "command.window.minimize", "Minimize window", "Fenster minimieren", "minus", null, CommandScope.Application, new[] { "window-caption" }),
         new("window.maximize", "command.window.maximize", "Maximize / restore window", "Fenster maximieren / wiederherstellen", "square", null, CommandScope.Application, new[] { "window-caption", "titlebar-double-click" }),
         new("window.close", "command.window.close", "Close window", "Fenster schließen", "x", null, CommandScope.Application, new[] { "window-caption" }),
@@ -421,7 +424,8 @@ public static class CommandCatalog
         new("feedback.dismiss-all", "command.feedback.dismiss-all", "Close all notifications", "Alle Benachrichtigungen schließen", "x", null, CommandScope.Application, new[] { "notification" }),
         new("settings.reset-default", "command.settings.reset-default", "Reset setting", "Einstellung zurücksetzen", "rotate-ccw", null, CommandScope.Settings, new[] { "settings-row" }),
         new("settings.copy-id", "command.settings.copy-id", "Copy setting id", "Einstellungs-ID kopieren", "copy", null, CommandScope.Settings, new[] { "settings-row" }),
-        new("menu.context-open", "command.menu.context-open", "Open context menu", "Kontextmenü öffnen", "more-horizontal", "Shift+F10", CommandScope.Archive | CommandScope.Downloads | CommandScope.Settings, new[] { "downloads-thread-list", "downloads-board-list", "archive-card-list", "archive-table", "plugins-list", "header-io-monitor", "rules-overview-row", "statistics-table", "settings-row", "archive-active-filter-chip", "tag-filter-picker", "notification", "media-filter-chip", "media-filter-row", "diagnostics-table", "booru-hit", "post-bookmarks-list", "reader-groups-list", "saved-searches-list" }, new[] { "downloads", "archive", "plugins", "header-io-monitor", "rules", "statistics", "settings", "notification", "diagnostics", "booru", "dialog:post-bookmarks", "dialog:reader-groups", "dialog:saved-searches" }),
+        // "sources": the merged Sources page's watch rows and source cards open their menu with it too (SourcesPage.ItemEnter, SourcesPage.Plugins).
+        new("menu.context-open", "command.menu.context-open", "Open context menu", "Kontextmenü öffnen", "more-horizontal", "Shift+F10", CommandScope.Archive | CommandScope.Downloads | CommandScope.Settings, new[] { "downloads-thread-list", "downloads-board-list", "archive-card-list", "archive-table", "plugins-list", "header-io-monitor", "rules-overview-row", "statistics-table", "settings-row", "archive-active-filter-chip", "tag-filter-picker", "notification", "media-filter-chip", "media-filter-row", "diagnostics-table", "booru-hit", "post-bookmarks-list", "reader-groups-list", "saved-searches-list" }, new[] { "downloads", "archive", "sources", "plugins", "header-io-monitor", "rules", "statistics", "settings", "notification", "diagnostics", "booru", "dialog:post-bookmarks", "dialog:reader-groups", "dialog:saved-searches" }),
     };
     private static readonly IReadOnlyDictionary<string, CommandDefinition> ById =
         new ReadOnlyDictionary<string, CommandDefinition>(Entries.ToDictionary(x => x.Id, StringComparer.Ordinal));

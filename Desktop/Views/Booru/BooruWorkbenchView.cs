@@ -161,6 +161,9 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         _model = model ?? throw new ArgumentNullException(nameof(model));
         _ownsModel = ownsModel;
         Name = "BooruWorkbenchView";
+        // Every key of the workbench, on the Danbooru page and in its window, runs in the "booru" context (S3 P2-4): a default that a saved binding took
+        // away only elsewhere (a partial yield) stays active here (EffectiveShortcutBindings.EnterKeyContext).
+        MeowChan.Desktop.Controls.KeyContextHost.Install(this, _ => "booru");
         Header = BuildHeader();
         Body = BuildBody();
         Footer = BuildFooter();

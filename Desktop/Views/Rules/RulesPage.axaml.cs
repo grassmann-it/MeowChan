@@ -58,6 +58,9 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
     {
         _getRules = getRules ?? throw new ArgumentNullException(nameof(getRules));
         _saveRules = saveRules ?? throw new ArgumentNullException(nameof(saveRules));
+        // Every key of the page runs in the "rules" context (S3 P2-4): a default that a saved binding took away only elsewhere (a partial yield) stays
+        // active here (EffectiveShortcutBindings.EnterKeyContext).
+        MeowChan.Desktop.Controls.KeyContextHost.Install(this, _ => "rules");
         InitializeComponent();
         InitializeWorkViewPresentation();
         InitializeRuleSuggestions();
