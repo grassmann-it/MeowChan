@@ -1805,6 +1805,7 @@ internal sealed partial class GalleryViewer : UserControl
             e.Handled = true;
             return;
         }
+        if (ConsumeRecentlyClosedPlaybackMenuEscape(e)) return;
         ShellKeyRequested?.Invoke(this, e);
     }
     private double DisplayScale => TopLevel.GetTopLevel(this)?.RenderScaling ?? 1;
