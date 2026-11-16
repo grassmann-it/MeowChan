@@ -15,7 +15,9 @@ internal enum SmokeStage
     // The session reached Ready with an empty isolated profile.
     Ready,
     // After CommandRefreshChecks.Run(), which every later run and the modes share.
-    AfterCommandRefresh
+    AfterCommandRefresh,
+    // The ordinary normal head has completed and disposed its synthetic rows.
+    NormalHead
 }
 
 // A Root/Branch scenario's run. Program sets _checksPassed and closes the window after Run returns.
@@ -270,6 +272,11 @@ internal static partial class SmokeScenarios
             await MediaTileRefillChecks.RunAsync(mainWindow);
         }),
         ["diagnostic-feedback"] = new(SmokeStage.AfterCommandRefresh, mainWindow => DiagnosticsFeedbackChecks.RunAsync(mainWindow)),
+        ["normal-core"] = new(SmokeStage.NormalHead, _ => Task.CompletedTask),
+        ["normal-board-admission"] = new(SmokeStage.AfterCommandRefresh, mainWindow => BoardAdmissionChecks.RunAsync(mainWindow)),
+        ["normal-grid"] = new(SmokeStage.AfterCommandRefresh, mainWindow => GridChecks.RunAsync(mainWindow)),
+        ["normal-settings-page"] = new(SmokeStage.AfterCommandRefresh, mainWindow => SettingsPageChecks.RunAsync(mainWindow)),
+        ["normal-diagnostics"] = new(SmokeStage.AfterCommandRefresh, mainWindow => DiagnosticsChecks.RunAsync(mainWindow)),
         ["sources-page"] = new(SmokeStage.AfterCommandRefresh, mainWindow => SourcesChecks.RunAsync(mainWindow)),
         ["pause-controls"] = new(SmokeStage.AfterCommandRefresh, mainWindow => PauseChecks.RunAsync(mainWindow)),
         ["rules-page"] = new(SmokeStage.AfterCommandRefresh, mainWindow => RulesPageChecks.RunAsync(mainWindow)),

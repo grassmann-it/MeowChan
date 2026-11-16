@@ -691,6 +691,7 @@ internal static class Program
                 throw new InvalidOperationException("A disposed row still accepted updates.");
 
             await synthetic.DisposeAsync();
+            if (await RunSelectedAsync(SmokeStage.NormalHead, mainWindow)) return;
             await GridChecks.RunAsync(mainWindow);
             await SettingsPageChecks.RunAsync(mainWindow);
             await DiagnosticsChecks.RunAsync(mainWindow);
@@ -699,15 +700,7 @@ internal static class Program
             await PauseChecks.RunAsync(mainWindow);
             await RulesPageChecks.RunAsync(mainWindow);
             await SettingsChecks.RunAsync(mainWindow);
-            Console.WriteLine($"SMOKE after settings: owned windows={mainWindow.OwnedWindows.Count}, enabled={mainWindow.IsEnabled}, effectively enabled={mainWindow.IsEffectivelyEnabled}.");
-            foreach (Window ownedWindow in mainWindow.OwnedWindows)
-            {
-                Console.WriteLine($"SMOKE remaining owned window: type={ownedWindow.GetType().Name}, visible={ownedWindow.IsVisible}, enabled={ownedWindow.IsEnabled}.");
-            }
-            _checksPassed = true;
-            Console.WriteLine("SMOKE requesting close through the custom window caption.");
-            mainWindow.FindControl<Button>("WindowCloseButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            Console.WriteLine($"SMOKE caption close returned: closed={_closed}, visible={window.IsVisible}.");
+            CloseNormalThroughCaption(mainWindow);
         }
         catch (Exception exception)
         {
@@ -725,13 +718,32 @@ internal static class Program
         }
     }
 
+    // Shared by the complete manual normal run and its bounded CI head.
+    private static void CloseNormalThroughCaption(MainWindow mainWindow)
+    {
+        Console.WriteLine($"SMOKE after settings: owned windows={mainWindow.OwnedWindows.Count}, enabled={mainWindow.IsEnabled}, effectively enabled={mainWindow.IsEffectivelyEnabled}.");
+        foreach (Window ownedWindow in mainWindow.OwnedWindows)
+        {
+            Console.WriteLine($"SMOKE remaining owned window: type={ownedWindow.GetType().Name}, visible={ownedWindow.IsVisible}, enabled={ownedWindow.IsEnabled}.");
+        }
+        _checksPassed = true;
+        Console.WriteLine("SMOKE requesting close through the custom window caption.");
+        mainWindow.FindControl<Button>("WindowCloseButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Console.WriteLine($"SMOKE caption close returned: closed={_closed}, visible={mainWindow.IsVisible}.");
+    }
+
     // Runs the selected Root/Branch scenario when this is its stage; true when it ran and closed the window.
     private static async Task<bool> RunSelectedAsync(SmokeStage stage, MainWindow mainWindow)
     {
         if (_run == null || _run.Stage != stage) return false;
         await _run.Run(mainWindow);
-        _checksPassed = true;
-        mainWindow.Close();
+        if (stage == SmokeStage.NormalHead)
+            CloseNormalThroughCaption(mainWindow);
+        else
+        {
+            _checksPassed = true;
+            mainWindow.Close();
+        }
         return true;
     }
 
