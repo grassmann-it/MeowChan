@@ -633,8 +633,16 @@ internal static class ReaderNavigationOverlayChecks
                 Require(Contains(box, Bounds(content, window)), item.Button.Name + " clips its visible icon or label.");
         }
         for (int index = 1; index < buttons.Length; index++)
-            Require(Math.Abs(buttons[index].Box.Left - buttons[index - 1].Box.Right - 8) <= 1,
-                "Visible reader toolbar actions lost their 8-DIP horizontal spacing: " + Describe());
+        {
+            // ActionToolBar deliberately reserves a larger, separator-bearing gap between
+            // groups; within a group the compact action gap is 8 DIP. Measure the actual
+            // contract instead of treating the decorative group separator as a spacing bug.
+            int previousGroup = ActionToolBar.GetGroup(buttons[index - 1].Button);
+            int group = ActionToolBar.GetGroup(buttons[index].Button);
+            double expectedGap = previousGroup == group ? ActionToolBarPanel.ItemGap : ActionToolBarPanel.GroupGap;
+            Require(Math.Abs(buttons[index].Box.Left - buttons[index - 1].Box.Right - expectedGap) <= 1,
+                "Visible reader toolbar actions lost their measured horizontal spacing: " + Describe());
+        }
         Require(Math.Abs(area.Height - 32) <= 1, "Reader toolbar reserves unexplained vertical space: " + Describe());
         // WV3: the work view decides what sits under More, and the width moves the tail of the policy's keep-visible order
         // (WorkViewPolicy.ReaderToolbarKeepVisibleOrder) first; Required actions (way back, star, state returns) never move.
