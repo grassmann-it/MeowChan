@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.IO.Pipes;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -14,12 +15,11 @@ namespace MeowChan.Tests.Transfer;
 /// SessionStoreTests lease-probe pattern. No writer/rescue handle exists on the
 /// passing path, and the parent never owns the child's ProfileLease monitor.
 /// </summary>
-public sealed class NativePrivateMetadataSpecialFileTests
+public sealed class NativePrivateMetadataSpecialFileTests(NativePrivateMetadataSpecialFileTests.FifoProcessFixture fifo)
+    : IClassFixture<NativePrivateMetadataSpecialFileTests.FifoProcessFixture>
 {
     internal const string ProbeVariable = "MEOWCHAN_PRIVATE_METADATA_FIFO_PROBE";
-    private const string RootVariable = "MEOWCHAN_PRIVATE_METADATA_FIFO_ROOT";
-    private const string TargetVariable = "MEOWCHAN_PRIVATE_METADATA_FIFO_TARGET";
-    private const string RecheckVariable = "MEOWCHAN_PRIVATE_METADATA_FIFO_RECHECK";
+
     private const string PrivateMarker = "synthetic-private-profile-and-note-marker";
     private static readonly ResourceId Thread = new("synthetic", "b", "100");
     private static readonly TimeSpan PromptLimit = TimeSpan.FromSeconds(5);
@@ -154,29 +154,32 @@ public sealed class NativePrivateMetadataSpecialFileTests
     [NativePrivateFifoProbeFact]
     public void FifoChildProbe()
     {
-        string scenario = Environment.GetEnvironmentVariable(ProbeVariable)!;
-        string root = Environment.GetEnvironmentVariable(RootVariable)
-            ?? throw new InvalidOperationException("FIFO probe root was not supplied.");
-        string name = Environment.GetEnvironmentVariable(TargetVariable)
-            ?? throw new InvalidOperationException("FIFO probe target was not supplied.");
-        NativePrivateMetadataSelection selected = SelectionFor(name); // Validates the exact target name.
-        string profile = Path.Combine(root, PrivateMarker);
-        using (ProfileLease lease = ProfileLease.Acquire(profile))
+        using NamedPipeClientStream pipe = new(".", Environment.GetEnvironmentVariable(ProbeVariable)!, PipeDirection.InOut);
+        pipe.Connect((int)ChildLimit.TotalMilliseconds);
+        using StreamReader reader = new(pipe, leaveOpen: true);
+        using StreamWriter writer = new(pipe, leaveOpen: true) { AutoFlush = true };
+        while (reader.ReadLine() is { } line)
         {
-            SeedPendingEvidence(profile);
-            if (scenario == "selected")
+            FifoRequest request = JsonSerializer.Deserialize<FifoRequest>(line)!;
+            NativePrivateMetadataSelection selected = SelectionFor(request.Name);
+            string profile = Path.Combine(request.Root, PrivateMarker);
+            using (ProfileLease lease = ProfileLease.Acquire(profile))
             {
-                bool recheck = Environment.GetEnvironmentVariable(RecheckVariable) == "true";
-                CheckSelectedFifo(lease, name, selected, recheck);
-            }
-            else
-            {
-                Assert.Equal("unselected", scenario);
-                CheckUnselectedFifo(lease, name, selected);
-            }
-        } // The parent also contains a regression that blocks lease.Dispose().
-        File.WriteAllText(Path.Combine(root, "completed"), "fifo-probe-completed");
+                SeedPendingEvidence(profile);
+                if (request.Scenario == "selected")
+                    CheckSelectedFifo(lease, request.Name, selected, request.Recheck);
+                else
+                {
+                    Assert.Equal("unselected", request.Scenario);
+                    CheckUnselectedFifo(lease, request.Name, selected);
+                }
+            } // Receipt is sent only AFTER lease.Dispose(), still covered by the parent watchdog.
+            File.WriteAllText(Path.Combine(request.Root, "completed"), "fifo-probe-completed");
+            writer.WriteLine(request.Root);
+        }
     }
+
+    private sealed record FifoRequest(string Scenario, string Name, bool Recheck, string Root);
 
     private static void CheckSelectedFifo(ProfileLease lease, string name,
         NativePrivateMetadataSelection selection, bool recheck)
@@ -365,49 +368,156 @@ public sealed class NativePrivateMetadataSpecialFileTests
     private readonly record struct FifoStamp(long Device, long Inode, int Mode, long Size,
         long AccessSeconds, long AccessNanos, long ModifiedSeconds, long ModifiedNanos, long ChangedSeconds, long ChangedNanos);
 
-    private static async Task RunFifoChildAsync(string scenario, string name, bool recheck)
+    private Task RunFifoChildAsync(string scenario, string name, bool recheck) =>
+        fifo.RunAsync(scenario, name, recheck);
+
+    // Only the test-platform process is shared. Every request has a fresh workspace,
+    // profile lease, FIFO and completion receipt; no snapshot or product state is reused.
+    public sealed class FifoProcessFixture : IAsyncLifetime
     {
-        using TempDirectory temp = new(); // Parent owns only the synthetic workspace, never its profile lease.
-        ProcessStartInfo start = new(Environment.GetEnvironmentVariable("DOTNET_HOST_PATH") ?? "dotnet")
+        private Process? child;
+        private Exception? poisoned;
+        private readonly List<TempDirectory> unreapedWorkspaces = [];
+        private NamedPipeServerStream? pipe;
+        private StreamReader? reader;
+        private StreamWriter? writer;
+        private Task<string>? output, errors;
+        private readonly SemaphoreSlim gate = new(1, 1);
+
+        public Task InitializeAsync() => Task.CompletedTask;
+
+        public async Task RunAsync(string scenario, string name, bool recheck)
         {
-            UseShellExecute = false,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true
-        };
-        start.ArgumentList.Add("vstest"); // Runs the already-built assembly; never builds/restores.
-        start.ArgumentList.Add(typeof(NativePrivateMetadataSpecialFileTests).Assembly.Location);
-        start.ArgumentList.Add("--TestCaseFilter:FullyQualifiedName=MeowChan.Tests.Transfer.NativePrivateMetadataSpecialFileTests.FifoChildProbe");
-        start.Environment[ProbeVariable] = scenario;
-        start.Environment[RootVariable] = temp.Path;
-        start.Environment[TargetVariable] = name;
-        start.Environment[RecheckVariable] = recheck ? "true" : "false";
-        using Process child = Process.Start(start) ?? throw new InvalidOperationException("Could not start the private metadata FIFO probe.");
-        Task<string> output = child.StandardOutput.ReadToEndAsync();
-        Task<string> errors = child.StandardError.ReadToEndAsync();
-        try
-        {
-            using CancellationTokenSource timeout = new(ChildLimit);
-            try { await child.WaitForExitAsync(timeout.Token); }
-            catch (OperationCanceledException)
+            await gate.WaitAsync();
+            try
             {
-                // Kill the testhost as well as vstest. Never await blocked product
-                // work or call its lease.Dispose() from the parent timeout path.
-                if (!child.HasExited) child.Kill(entireProcessTree: true);
-                await child.WaitForExitAsync().WaitAsync(ReapLimit);
-                Assert.Fail($"FIFO {scenario}/{name}/recheck={recheck} exceeded the 30-second child watchdog; " +
-                    $"the isolated process tree was killed. A blocking open or held ProfileLease may have regressed.\n" +
-                    $"{await output.WaitAsync(ReapLimit)}\n{await errors.WaitAsync(ReapLimit)}");
+                Assert.True(poisoned == null, $"A previous FIFO child could not be reaped; refusing another probe. {poisoned}");
+                TempDirectory temp = new(); // Parent never acquires the profile lease.
+                using CancellationTokenSource timeout = new(ChildLimit);
+                try
+                {
+                    if (child == null)
+                        await StartAsync(timeout.Token);
+                    await writer!.WriteLineAsync(JsonSerializer.Serialize(new FifoRequest(scenario, name, recheck, temp.Path))
+                        .AsMemory(), timeout.Token);
+                    string? receipt = await reader!.ReadLineAsync(timeout.Token);
+                    Assert.Equal(temp.Path, receipt);
+                    Assert.Equal("fifo-probe-completed", File.ReadAllText(Path.Combine(temp.Path, "completed")));
+                }
+                catch (Exception error)
+                {
+                    // A blocked FIFO open OR lease disposal must kill the whole process
+                    // tree before workspace cleanup. Do not rescue/open/drain the FIFO.
+                    Exception? cleanup = null;
+                    try { await StopAsync(kill: true); }
+                    catch (Exception failure) { cleanup = failure; }
+                    Assert.Fail($"FIFO {scenario}/{name}/recheck={recheck} failed within the 30-second child watchdog. " +
+                        $"{error}\nCleanup: {cleanup}\n" +
+                        $"{await DiagnosticAsync(output)}\n{await DiagnosticAsync(errors)}");
+                }
+                finally
+                {
+                    if (poisoned == null) temp.Dispose();
+                    else unreapedWorkspaces.Add(temp); // Never delete a workspace beneath a possibly live child.
+                }
             }
-            Assert.True(child.ExitCode == 0,
-                $"FIFO child failed ({scenario}/{name}/recheck={recheck}).\n{await output.WaitAsync(ReapLimit)}\n{await errors.WaitAsync(ReapLimit)}");
-            Assert.Equal("fifo-probe-completed", File.ReadAllText(Path.Combine(temp.Path, "completed")));
+            finally { gate.Release(); }
         }
-        finally
+
+        private async Task StartAsync(CancellationToken cancellation)
         {
-            if (!child.HasExited)
+            string pipeName = "meowchan-fifo-" + Guid.NewGuid().ToString("N");
+            pipe = new(pipeName, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
+            ProcessStartInfo start = new(Environment.GetEnvironmentVariable("DOTNET_HOST_PATH") ?? "dotnet")
             {
-                child.Kill(entireProcessTree: true);
-                await child.WaitForExitAsync().WaitAsync(ReapLimit);
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
+            start.ArgumentList.Add("vstest"); // Already built; no restore/build, only one discovery per class.
+            start.ArgumentList.Add(typeof(NativePrivateMetadataSpecialFileTests).Assembly.Location);
+            start.ArgumentList.Add("--TestCaseFilter:FullyQualifiedName=MeowChan.Tests.Transfer.NativePrivateMetadataSpecialFileTests.FifoChildProbe");
+            start.Environment[ProbeVariable] = pipeName;
+            child = Process.Start(start) ?? throw new InvalidOperationException("Could not start the private metadata FIFO probe.");
+            output = child.StandardOutput.ReadToEndAsync();
+            errors = child.StandardError.ReadToEndAsync();
+            await pipe.WaitForConnectionAsync(cancellation);
+            reader = new(pipe, leaveOpen: true);
+            writer = new(pipe, leaveOpen: true) { AutoFlush = true };
+        }
+
+        private static async Task<string> DiagnosticAsync(Task<string>? capture)
+        {
+            try { return capture == null ? "" : await capture.WaitAsync(ReapLimit); }
+            catch (Exception error) { return $"Could not capture child diagnostics: {error}"; }
+        }
+
+        private async Task StopAsync(bool kill)
+        {
+            List<Exception> failures = [];
+            void Attempt(Action action)
+            {
+                try { action(); }
+                catch (Exception error) { failures.Add(error); }
+            }
+            void Kill()
+            {
+                if (child != null && !child.HasExited) child.Kill(entireProcessTree: true);
+            }
+            // Kill BEFORE closing IPC on failure. A broken-pipe flush must never
+            // bypass termination/reap or let workspace cleanup race a live lease.
+            if (kill) Attempt(Kill);
+            Attempt(() => writer?.Dispose());
+            Attempt(() => reader?.Dispose());
+            Attempt(() => pipe?.Dispose());
+            writer = null;
+            reader = null;
+            pipe = null;
+            if (child != null)
+            {
+                try
+                {
+                    if (failures.Count != 0) Attempt(Kill);
+                    try { await child.WaitForExitAsync().WaitAsync(ReapLimit); }
+                    catch (Exception error)
+                    {
+                        failures.Add(error);
+                        Attempt(Kill);
+                        try { await child.WaitForExitAsync().WaitAsync(ReapLimit); }
+                        catch (Exception reapError) { failures.Add(reapError); }
+                    }
+                    if (!kill && child.HasExited && child.ExitCode != 0)
+                        failures.Add(new InvalidOperationException(
+                            $"FIFO child failed.\n{await DiagnosticAsync(output)}\n{await DiagnosticAsync(errors)}"));
+                }
+                finally
+                {
+                    bool exited = false;
+                    Attempt(() => exited = child.HasExited);
+                    if (exited) { child.Dispose(); child = null; }
+                    else
+                    {
+                        poisoned = new InvalidOperationException("FIFO child termination could not be proven.");
+                        failures.Add(poisoned);
+                        // Keep the handle for fixture teardown to retry; never start
+                        // another child while this one's termination is unproven.
+                    }
+                }
+            }
+            if (failures.Count != 0) throw new AggregateException("FIFO child cleanup failed.", failures);
+        }
+
+        public async Task DisposeAsync()
+        {
+            try { await StopAsync(kill: false); }
+            finally
+            {
+                try
+                {
+                    if (child == null)
+                        foreach (TempDirectory workspace in unreapedWorkspaces) workspace.Dispose();
+                }
+                finally { gate.Dispose(); }
             }
         }
     }
