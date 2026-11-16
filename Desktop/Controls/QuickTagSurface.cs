@@ -415,6 +415,12 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         _more.Click += OnMore;
         _decorated = new QuickTagStampSource(_source, _session.Stamp);
         TagSuggestionInput.Attach(_input, () => _session.Busy ? null : _session.Snapshot, _session.OnAll, () => OpenActions.Start(() => AddTypedAsync(), "tags.quick.add.key"), _sourceTags);
+        // Rate-and-tag opens with the rating row focused for R.  Some Avalonia/Ursa templates do not
+        // transfer mouse focus from the flyout frame to the inner editor reliably, leaving the field
+        // visibly clickable but sending subsequent typing to the star row.  Claim focus on an explicit
+        // left click in the field after the template has processed the pointer, without changing the
+        // normal caret/selection gesture.
+        _input.AddHandler(PointerPressedEvent, OnInputPointerPressed, RoutingStrategies.Tunnel);
         _input.AddHandler(KeyDownEvent, OnInputKey, RoutingStrategies.Tunnel);
         AddHandler(KeyDownEvent, OnKey, RoutingStrategies.Tunnel);
         SizeChanged += OnSizeChanged;
@@ -1344,6 +1350,16 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     }
 
     // ---- lifetime -----------------------------------------------------------------------------------------------------
+
+    private void OnInputPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (!_input.IsEffectivelyEnabled || e.Pointer.Type != PointerType.Mouse
+            || e.GetCurrentPoint(_input).Properties.PointerUpdateKind != PointerUpdateKind.LeftButtonPressed) return;
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (!_disposed && _input.IsEffectivelyEnabled) _input.Focus();
+        }, DispatcherPriority.Input);
+    }
 
     private void OnAttached(object? sender, VisualTreeAttachmentEventArgs e)
     {

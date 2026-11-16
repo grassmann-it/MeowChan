@@ -27,6 +27,8 @@ internal static class WorkspaceIcons
     internal const string More = "more";
     internal const string Star = "star";
     internal const string StarFilled = "star-filled";
+    // A rated star with a diagonal strike: clearer than a generic close icon for removing a rating.
+    internal const string StarClear = "star-clear";
     internal const string Check = "check";
     internal const string ChevronLeft = "chevron-left";
     internal const string ChevronUp = "chevron-up";
@@ -66,6 +68,7 @@ internal static class WorkspaceIcons
         [More] = new("M3.5,8 L3.6,8 M8,8 L8.1,8 M12.4,8 L12.5,8", HeavyClass),
         [Star] = new("M8,1.6 L9.9,5.8 L14.4,6.3 L11.1,9.4 L12,13.8 L8,11.6 L4,13.8 L4.9,9.4 L1.6,6.3 L6.1,5.8 Z"),
         [StarFilled] = new("M8,1.6 L9.9,5.8 L14.4,6.3 L11.1,9.4 L12,13.8 L8,11.6 L4,13.8 L4.9,9.4 L1.6,6.3 L6.1,5.8 Z"),
+        [StarClear] = new("M8,1.6 L9.9,5.8 L14.4,6.3 L11.1,9.4 L12,13.8 L8,11.6 L4,13.8 L4.9,9.4 L1.6,6.3 L6.1,5.8 Z M2.5,2.5 L13.5,13.5"),
         [Check] = new("M3,8.5 L6.5,12 L13,4.5"),
         [ChevronLeft] = new("M10,3.5 L5.5,8 L10,12.5", HeavyClass),
         [ChevronUp] = new("M3.5,10 L8,5.5 L12.5,10", HeavyClass),

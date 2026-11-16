@@ -250,7 +250,7 @@ internal sealed class GalleryDecisionRow : StackPanel
             ToolTip.SetTip(_stars[number - 1], CommandCatalog.ShortcutTooltipDisplay(id, _keyContext) is { } gesture ? label + " · " + gesture : label);
         }
         string clear = CommandCatalog.Label("media.rating.clear");
-        WorkspaceIcons.MakeSquare(_clear, WorkspaceIcons.Close, clear,
+        WorkspaceIcons.MakeSquare(_clear, WorkspaceIcons.StarClear, clear,
             CommandCatalog.ShortcutTooltipDisplay("media.rating.clear", _keyContext) is { } clearGesture ? clear + " · " + clearGesture : clear);
         AutomationProperties.SetName(_group, MediaRatingText.Label);
         // The stars are one group of toggle buttons that act as a radio group: a screen reader names the group "Rating" with the summary as its help.
