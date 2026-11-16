@@ -107,11 +107,11 @@ internal static class DiagnosticsChecks
                                 theme, mode, language, window = window.Bounds.ToString(), page = page.Bounds.ToString(),
                                 grid = grid.Bounds.ToString(), selected = (grid.SelectedItem as DiagnosticEntry)?.Key,
                                 detailsContainHttp429 = page.FindControl<TextBox>("DiagnosticDetails")!.Text?.Contains("HTTP 429") == true,
-                                controls = new[] { "CopyDiagnosticButton", "OpenDiagnosticWatchButton", "RetryDiagnosticButton", "SessionFeedbackSection", "DiagnosticDetails" }
+                                controls = new[] { "CopyDiagnosticButton", "OpenDiagnosticWatchButton", "RetryDiagnosticButton", "SessionFeedbackSection", "DiagnosticDetails", "DiagnosticsLayout", "DiagnosticsActions", "DiagnosticsContentScroll", "DiagnosticsActionErrorScroll", "DiagnosticsActionToolbar" }
                                     .Select(name =>
                                     {
                                         Control control = page.FindControl<Control>(name)!;
-                                        return new { name, visible = control.IsEffectivelyVisible, bounds = control.Bounds.ToString(),
+                                        return new { name, visible = control.IsEffectivelyVisible, bounds = control.Bounds.ToString(), desired = control.DesiredSize.ToString(),
                                             origin = control.TranslatePoint(new Point(0, 0), window)?.ToString(), host = window.StatusPage.DiagnosticsHost.Bounds.ToString(),
                                             hostOrigin = window.StatusPage.DiagnosticsHost.TranslatePoint(new Point(0, 0), window)?.ToString(), fits = FitsDiagnosticsSegment(window, page, control) };
                                     }).ToArray(),

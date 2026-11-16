@@ -11,11 +11,29 @@
     </UserControl.Styles>
     <!-- Hosted by the Status page: no page header, hint or summary of its own (the Status head carries them). The page inset is
          the one the Status head and segment bar use, so the sides line up at 12 dip, not 24. -->
-    <Grid Margin="{StaticResource Workspace.Inset.Page}" RowDefinitions="*,Auto" RowSpacing="{StaticResource Workspace.Space.8}">
+    <!-- Dock the fixed footer before measuring the fill child. A scroll viewer can retain a larger desired/minimum
+         viewport during a compact native resize; it must never push the actions below the segment's bottom edge.
+         Local tab groups keep the content before the footer in keyboard order despite the docking order. -->
+    <DockPanel x:Name="DiagnosticsLayout" Margin="{StaticResource Workspace.Inset.Page}" LastChildFill="True" VerticalSpacing="{StaticResource Workspace.Space.8}">
+        <StackPanel x:Name="DiagnosticsActions" DockPanel.Dock="Bottom" KeyboardNavigation.TabNavigation="Local" TabIndex="1" Spacing="{StaticResource Workspace.Space.8}">
+            <ScrollViewer x:Name="DiagnosticsActionErrorScroll" MaxHeight="64" HorizontalScrollBarVisibility="Disabled">
+                <TextBlock x:Name="DiagnosticsActionError" wv:WorkViewElement.Id="diagnostics.error" Classes="workspace-error" TextWrapping="Wrap" VerticalAlignment="Center" />
+            </ScrollViewer>
+            <!-- Work views: the three error-path actions never move; "retry filtered" and "copy details" sit under More where the view says so.
+                 The row keeps wrapping like before (no width-driven overflow); More lists exactly what the view moved. -->
+            <WrapPanel x:Name="DiagnosticsActionToolbar" Classes="workspace-toolbar">
+                <Button x:Name="RetryDiagnosticButton" wv:WorkViewElement.Id="diagnostics.toolbar.check-now" Tag="check.action" Classes="localized" Click="OnRetryClick" ToolTip.ShowOnDisabled="True" />
+                <Button x:Name="RetryDiagnosticSelectionButton" wv:WorkViewElement.Id="diagnostics.toolbar.retry-selection" Click="OnRetryDiagnosticSelection" />
+                <Button x:Name="RetryDiagnosticFilteredButton" wv:WorkViewElement.Id="diagnostics.toolbar.retry-filtered" Click="OnRetryDiagnosticFiltered" />
+                <Button x:Name="CopyDiagnosticButton" wv:WorkViewElement.Id="diagnostics.toolbar.copy" Tag="diagnostics.copy" Classes="localized" Click="OnCopyClick" />
+                <Button x:Name="OpenDiagnosticWatchButton" wv:WorkViewElement.Id="diagnostics.toolbar.show-in-downloads" Tag="diagnostics.openWatch" Classes="localized" Click="OnOpenWatchClick" ToolTip.ShowOnDisabled="True" />
+                <Button x:Name="DiagnosticMoreButton" wv:WorkViewElement.Id="diagnostics.toolbar.more" IsVisible="False" Click="OnDiagnosticMoreClick" />
+            </WrapPanel>
+        </StackPanel>
         <!-- Keep page content scrollable at the shell minimum, including with a retained error banner. The Status page above
              already carries the title, the hint and the counts, so the segment starts with its filters. The fixed action row
              below owns the remaining space; the scroll content must not claim that same viewport a second time. -->
-        <ScrollViewer x:Name="DiagnosticsContentScroll" HorizontalScrollBarVisibility="Disabled" SizeChanged="OnDiagnosticScrollSizeChanged">
+        <ScrollViewer x:Name="DiagnosticsContentScroll" KeyboardNavigation.TabNavigation="Local" TabIndex="0" HorizontalScrollBarVisibility="Disabled" SizeChanged="OnDiagnosticScrollSizeChanged">
             <Grid x:Name="DiagnosticsContentRoot" RowDefinitions="Auto,Auto,*,Auto,Auto" RowSpacing="{StaticResource Workspace.Space.8}">
                 <!-- Work views: Barebones starts with the filters closed (an active filter opens them, R6); the data and the default values are the same in every view. -->
                 <Expander x:Name="DiagnosticFiltersSection" wv:WorkViewElement.Id="diagnostics.filters" IsExpanded="True"
@@ -92,20 +110,5 @@
                 </Expander>
             </Grid>
         </ScrollViewer>
-        <StackPanel Grid.Row="1" Spacing="{StaticResource Workspace.Space.8}">
-            <ScrollViewer MaxHeight="64" HorizontalScrollBarVisibility="Disabled">
-                <TextBlock x:Name="DiagnosticsActionError" wv:WorkViewElement.Id="diagnostics.error" Classes="workspace-error" TextWrapping="Wrap" VerticalAlignment="Center" />
-            </ScrollViewer>
-            <!-- Work views: the three error-path actions never move; "retry filtered" and "copy details" sit under More where the view says so.
-                 The row keeps wrapping like before (no width-driven overflow); More lists exactly what the view moved. -->
-            <WrapPanel Classes="workspace-toolbar">
-                <Button x:Name="RetryDiagnosticButton" wv:WorkViewElement.Id="diagnostics.toolbar.check-now" Tag="check.action" Classes="localized" Click="OnRetryClick" ToolTip.ShowOnDisabled="True" />
-                <Button x:Name="RetryDiagnosticSelectionButton" wv:WorkViewElement.Id="diagnostics.toolbar.retry-selection" Click="OnRetryDiagnosticSelection" />
-                <Button x:Name="RetryDiagnosticFilteredButton" wv:WorkViewElement.Id="diagnostics.toolbar.retry-filtered" Click="OnRetryDiagnosticFiltered" />
-                <Button x:Name="CopyDiagnosticButton" wv:WorkViewElement.Id="diagnostics.toolbar.copy" Tag="diagnostics.copy" Classes="localized" Click="OnCopyClick" />
-                <Button x:Name="OpenDiagnosticWatchButton" wv:WorkViewElement.Id="diagnostics.toolbar.show-in-downloads" Tag="diagnostics.openWatch" Classes="localized" Click="OnOpenWatchClick" ToolTip.ShowOnDisabled="True" />
-                <Button x:Name="DiagnosticMoreButton" wv:WorkViewElement.Id="diagnostics.toolbar.more" IsVisible="False" Click="OnDiagnosticMoreClick" />
-            </WrapPanel>
-        </StackPanel>
-    </Grid>
+    </DockPanel>
 </UserControl>
