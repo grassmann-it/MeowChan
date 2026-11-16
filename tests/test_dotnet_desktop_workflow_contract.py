@@ -1,3 +1,4 @@
+import json
 import re
 import shlex
 import unittest
@@ -72,6 +73,28 @@ class DotnetDesktopWorkflowContractTests(unittest.TestCase):
     def test_mac_step_is_outside_shard_step_and_non_macos_guard_remains(self):
         self.assertIn("if: runner.os != 'macOS'", self.step)
         self.assertNotIn("macos-test-watchdog.py", self.step)
+
+    def test_single_platform_matrix_formats_escaped_json_and_keeps_jobs(self):
+        workflow = WORKFLOW.read_text(encoding="utf-8")
+        matrix_line = next(
+            line for line in workflow.splitlines()
+            if line.strip().startswith("matrix: ${{ fromJSON(")
+        )
+        literals = re.findall(r"format\('([^']+)', inputs\.platform\)", matrix_line)
+        self.assertEqual(2, len(literals))
+        self.assertTrue(all("{{" in literal and "}}" in literal for literal in literals))
+        self.assertNotIn("format('{\"include\"", matrix_line)
+
+        def render(literal, platform):
+            return literal.replace("{{", "{").replace("}}", "}").replace("{0}", platform)
+
+        macos = json.loads(render(literals[0], "macos-15"))
+        self.assertEqual([{"os": "macos-15", "lane": "native", "full": True}], macos["include"])
+        linux = json.loads(render(literals[1], "ubuntu-24.04"))
+        self.assertEqual(4, len(linux["include"]))
+        self.assertEqual("ubuntu-24.04", linux["include"][0]["os"])
+        self.assertEqual("lane-d", linux["include"][-1]["lane"])
+
 
 
 if __name__ == "__main__":
