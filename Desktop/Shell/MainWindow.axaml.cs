@@ -991,11 +991,12 @@ public partial class MainWindow : Window
         // A state-dependent entry (pause) sets its own header; the command binding would reset it.
         // The header names a shortcut only when it works from the whole window (shell): "Open folder" of the tray opens the download
         // folder, while Ctrl/Cmd+O opens the selected thread's folder, and the clipboard import key acts in the Downloads list only.
-        if (icon == null) CommandBindings.Apply(item, command, shortcut: () => TrayShortcut(command));
+        if (icon == null) CommandBindings.Apply(item, command, shortcut: () => TrayShortcut(command), applyIcon: false);
         // Native menu exporters require actual tinted pixels, rather than an Avalonia mask.
         // The icon cache may share one instance between several native menu items.
-        // Dispose only a temporary bitmap made by CommandBindings.Apply; cached
-        // icons are released together with the tray in DisposeTrayIcon().
+        // CommandBindings updates labels/shortcuts only: this tray owns its icons,
+        // never the shared native-menu cache. Cached tray icons are released
+        // together with the tray in DisposeTrayIcon().
         if (item.Icon is Bitmap previous && !_trayMenuIcons.Values.Any(cached => ReferenceEquals(cached, previous)))
             previous.Dispose();
         icon ??= CommandCatalog.Get(command).Icon;
