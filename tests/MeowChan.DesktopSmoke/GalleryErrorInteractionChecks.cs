@@ -21,16 +21,27 @@ using SkiaSharp;
 
 namespace MeowChan.DesktopSmoke;
 
-// Optional central harness entry; no shared Program edit and no execution by S2.
+// Each split entry is intended for its own fresh harness process. RunAsync remains
+// the original fail-fast, unsplit debug chain; selector wiring lives in Program.
 internal static class GalleryErrorInteractionChecks
 {
     internal static Task RunAsync(MainWindow owner) => GalleryPlaybackFeatureChecks.RunErrorInteractionChecksAsync(owner);
+    internal static Task RunRetirementClipAsync(MainWindow owner) =>
+        GalleryPlaybackFeatureChecks.RunErrorInteractionChecksAsync(owner, GalleryErrorCheckGroup.RetirementClip);
+    internal static Task RunLayoutRootsAsync(MainWindow owner) =>
+        GalleryPlaybackFeatureChecks.RunErrorInteractionChecksAsync(owner, GalleryErrorCheckGroup.LayoutRoots);
+    internal static Task RunNotificationsAsync(MainWindow owner) =>
+        GalleryPlaybackFeatureChecks.RunErrorInteractionChecksAsync(owner, GalleryErrorCheckGroup.Notifications);
+    internal static Task RunFailureReaderReturnAsync(MainWindow owner) =>
+        GalleryPlaybackFeatureChecks.RunErrorInteractionChecksAsync(owner, GalleryErrorCheckGroup.FailureReaderReturn);
 }
 
 internal static partial class GalleryPlaybackFeatureChecks
 {
-    internal static async Task RunErrorInteractionChecksAsync(MainWindow owner)
+    internal static async Task RunErrorInteractionChecksAsync(MainWindow owner,
+        GalleryErrorCheckGroup group = GalleryErrorCheckGroup.All)
     {
+        if (!Enum.IsDefined(group)) throw new ArgumentOutOfRangeException(nameof(group));
         if (OperatingSystem.IsLinux() && Environment.GetEnvironmentVariable("MEOWCHAN_DESKTOP_SMOKE_XVFB") != "1"
             || !OperatingSystem.IsLinux() && Environment.GetEnvironmentVariable("MEOWCHAN_DESKTOP_SMOKE_NATIVE_ALLOWED") != "1")
             throw new InvalidOperationException("Error interaction checks require an authorized disposable native desktop.");
@@ -61,21 +72,42 @@ internal static partial class GalleryPlaybackFeatureChecks
         string directory = TemporaryWorkspacePaths.CreateDirectory("meowchan-gallery-errors-");
         try
         {
-            await CheckExternalTransportRetirementAsync(owner);
-            await CheckNativeClipFeedbackAsync(owner);
-            GalleryEntry clip = await AssetAsync(directory, "notice-video", "notice-video.webm",
-                await File.ReadAllBytesAsync(FindSyntheticAudioFixture(video)));
-            GalleryEntry image = await ImageAsync(directory, "notice-image", SKColors.DarkSlateBlue);
-            await CheckContextLayoutRootsAsync(owner);
-            foreach (bool overlay in new[] { false, true })
-            foreach (bool paused in new[] { false, true })
-                await CheckNotificationTransportAsync(owner, clip, overlay, paused);
-            await CheckExplicitActualFailureAsync(owner, clip);
-            await CheckImageNotificationAsync(owner, image);
-            await CheckActualMediaUnavailableAsync(owner, directory);
-            // FIX03: genuine shell/session IO and reader-return paths, not SetNotice stand-ins.
-            foreach (bool paused in new[] { false, true })
-                await CheckShellFailureAndReaderReturnAsync(owner, clip, paused);
+            bool all = group == GalleryErrorCheckGroup.All;
+            bool notifications = all || group == GalleryErrorCheckGroup.Notifications;
+            bool failures = all || group == GalleryErrorCheckGroup.FailureReaderReturn;
+            if (all || group == GalleryErrorCheckGroup.RetirementClip)
+            {
+                await CheckExternalTransportRetirementAsync(owner);
+                await CheckNativeClipFeedbackAsync(owner);
+            }
+            // Only decoder-bearing groups materialize media. Bad/missing fixtures
+            // still fail normally; never catch and continue into later checks.
+            GalleryEntry? clip = notifications || failures
+                ? await AssetAsync(directory, "notice-video", "notice-video.webm",
+                    await File.ReadAllBytesAsync(FindSyntheticAudioFixture(video))) : null;
+            GalleryEntry? image = notifications
+                ? await ImageAsync(directory, "notice-image", SKColors.DarkSlateBlue) : null;
+            if (all || group == GalleryErrorCheckGroup.LayoutRoots)
+                await CheckContextLayoutRootsAsync(owner);
+            if (notifications)
+            {
+                foreach (bool overlay in new[] { false, true })
+                foreach (bool paused in new[] { false, true })
+                    await CheckNotificationTransportAsync(owner, clip!, overlay, paused);
+            }
+            // Keep the unsplit chain's exact historical ordering, including the
+            // image notice between explicit failure and missing-media checks.
+            if (failures)
+                await CheckExplicitActualFailureAsync(owner, clip!);
+            if (notifications)
+                await CheckImageNotificationAsync(owner, image!);
+            if (failures)
+            {
+                await CheckActualMediaUnavailableAsync(owner, directory);
+                // Genuine shell/session IO and reader-return paths, not SetNotice stand-ins.
+                foreach (bool paused in new[] { false, true })
+                    await CheckShellFailureAndReaderReturnAsync(owner, clip!, paused);
+            }
         }
         finally { traceTimer?.Change(Timeout.Infinite, Timeout.Infinite); FlushTrace(); Directory.Delete(directory, recursive: true); }
     }
