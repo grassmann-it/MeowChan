@@ -175,8 +175,19 @@ internal static partial class MediaPageChecks
             StackPanel secondRow = occurrences.GetVisualDescendants().OfType<StackPanel>().Single(row => row.Name == "MediaOccurrence"
                 && row.Children.OfType<TextBlock>().Any(text => text.Name == "MediaOccurrenceFile" && text.Text?.StartsWith("dup-701.png", StringComparison.Ordinal) == true));
             Button second = secondRow.Children.OfType<Button>().Single(button => button.Name == "MediaOccurrenceShow");
-            second.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            await InArchiveAsync("701", "701");
+            Func<MediaLibraryEntry, Task> showOccurrence = page.ShowInThread!;
+            page.ShowInThread = entry =>
+            {
+                Require(!occurrences.IsVisible && page.OccurrencesWindow == null,
+                    "The originating occurrences window must close before reader navigation can take focus.");
+                return showOccurrence(entry);
+            };
+            try
+            {
+                second.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                await InArchiveAsync("701", "701");
+            }
+            finally { page.ShowInThread = showOccurrence; }
             await UntilAsync(() => page.OccurrencesWindow == null);
             await UntilAsync(() => mediaReturn.IsEffectivelyVisible);
             mediaReturn.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));

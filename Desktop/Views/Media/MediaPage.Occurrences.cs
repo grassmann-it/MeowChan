@@ -51,8 +51,11 @@ public sealed partial class MediaPage
     private async Task ShowOccurrenceInThreadAsync(MediaLibraryEntry entry)
     {
         if (entry.PostId == null || ShowInThread == null) return;
+        // Close the originating window before the reader takes focus. Closing it after
+        // navigation can restore its old focus over the newly focused reader (and an
+        // awaited jump must never close a newer occurrences window).
+        _occurrences?.Close();
         await ShowInThread(entry);
-        _occurrences?.Close(); // The archive is now in front; the list would only cover it.
     }
 
     // The occurrence's own media tags and the tags of its thread, as the filter sees them.
