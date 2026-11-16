@@ -102,11 +102,39 @@ public sealed class GalleryEntryPointAuditTests
     {
         List<string> said = Explanations(viewer);
         Set(viewer, "_entry", LooseImage());
-        KeyEventArgs press = Key(viewer, Avalonia.Input.Key.T, KeyModifiers.Control | KeyModifiers.Shift);
+        // Primary is Command on macOS, Control on Windows/Linux; do not change the production shortcut to fit this fixture.
+        KeyModifiers primary = OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control;
+        KeyModifiers other = OperatingSystem.IsMacOS() ? KeyModifiers.Control : KeyModifiers.Meta;
+        KeyEventArgs wrong = Key(viewer, Avalonia.Input.Key.T, other | KeyModifiers.Shift);
+        viewer.RouteKeyForTests(wrong);
+        Assert.False(wrong.Handled);
+        Assert.Empty(said);
+
+        KeyEventArgs press = Key(viewer, Avalonia.Input.Key.T, primary | KeyModifiers.Shift);
         viewer.RouteKeyForTests(press);
         Assert.True(press.Handled);
         Assert.Equal(MediaMenuReasons.TagsUnknown, Assert.Single(said));
     });
+
+    [Theory]
+    [InlineData(ShortcutPlatform.Windows, KeyModifiers.Control)]
+    [InlineData(ShortcutPlatform.Linux, KeyModifiers.Control)]
+    [InlineData(ShortcutPlatform.MacOS, KeyModifiers.Meta)]
+    public void TheTagShortcutAndItsHelpUseThePlatformsPrimaryModifier(ShortcutPlatform platform, KeyModifiers primary)
+    {
+        EffectiveShortcutBindings bindings = EffectiveShortcutBindings.Build(platform: platform);
+        ShortcutGesture gesture = Assert.Single(bindings.For("media.tags.edit"));
+        Assert.Equal("Primary+Shift+T", string.Join("+", gesture.Modifiers.Append(gesture.Key)));
+        KeyGesture resolved = gesture.Resolve(platform);
+        Assert.Equal(Avalonia.Input.Key.T, resolved.Key);
+        Assert.Equal(primary | KeyModifiers.Shift, resolved.KeyModifiers);
+        Assert.True(bindings.Matches(new KeyEventArgs { Key = resolved.Key, KeyModifiers = resolved.KeyModifiers }, "media.tags.edit", "gallery"));
+        KeyModifiers other = primary == KeyModifiers.Meta ? KeyModifiers.Control : KeyModifiers.Meta;
+        Assert.False(bindings.Matches(new KeyEventArgs { Key = resolved.Key, KeyModifiers = other | KeyModifiers.Shift }, "media.tags.edit", "gallery"));
+        Assert.Equal(gesture.Display(platform), bindings.Display("media.tags.edit"));
+        Assert.Equal(bindings.Display("media.tags.edit"), Assert.Single(CommandCatalog.TooltipGestures(
+            "media.tags.edit", platform == ShortcutPlatform.MacOS, "gallery", bindings)));
+    }
 
     // SILENT NO-OP: the "Rating: –" segment of the info line (and R) with neither stars nor tags available.
     [Fact]
