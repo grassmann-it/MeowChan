@@ -152,12 +152,35 @@ public sealed partial class PluginCompilationService : IPluginCompilationService
         catch (Exception exception) when (exception is IOException or InvalidDataException or UnauthorizedAccessException) { return null; }
     }
 
-    public async Task<PluginCacheCleanupResult> CleanupAsync(IReadOnlySet<string> retainedExecutionRevisions,
+    public Task<PluginCacheCleanupResult> CleanupAsync(IReadOnlySet<string> retainedExecutionRevisions,
         IReadOnlySet<string> retainedCompilationFingerprints, TimeSpan minimumAge, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(retainedExecutionRevisions);
         ArgumentNullException.ThrowIfNull(retainedCompilationFingerprints);
         if (minimumAge < TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(minimumAge));
+        return CleanupCoreAsync(retainedExecutionRevisions, retainedCompilationFingerprints, minimumAge, null, cancellationToken);
+    }
+
+    public Task<PluginCacheCleanupResult> CleanupOnlyAsync(IReadOnlySet<string> executionRevisions, IReadOnlySet<string> compilationFingerprints,
+        IReadOnlySet<string> retainedExecutionRevisions, IReadOnlySet<string> retainedCompilationFingerprints,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(executionRevisions);
+        ArgumentNullException.ThrowIfNull(compilationFingerprints);
+        ArgumentNullException.ThrowIfNull(retainedExecutionRevisions);
+        ArgumentNullException.ThrowIfNull(retainedCompilationFingerprints);
+        if (executionRevisions.Count == 0 && compilationFingerprints.Count == 0)
+            return Task.FromResult(new PluginCacheCleanupResult(0, 0, Array.Empty<PluginBuildDiagnostic>()));
+        // Named entries are explicitly unreferenced, so no age margin; staging is never named.
+        return CleanupCoreAsync(retainedExecutionRevisions, retainedCompilationFingerprints, TimeSpan.Zero,
+            (kind, id) => kind == "artifacts" ? executionRevisions.Contains(id) : kind == "compilations" && compilationFingerprints.Contains(id),
+            cancellationToken);
+    }
+
+    private async Task<PluginCacheCleanupResult> CleanupCoreAsync(IReadOnlySet<string> retainedExecutionRevisions,
+        IReadOnlySet<string> retainedCompilationFingerprints, TimeSpan minimumAge, Func<string, string, bool>? only,
+        CancellationToken cancellationToken)
+    {
         await BuildGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         int artifacts = 0, compilations = 0;
         List<PluginBuildDiagnostic> diagnostics = new();
@@ -174,6 +197,7 @@ public sealed partial class PluginCompilationService : IPluginCompilationService
                     cancellationToken.ThrowIfCancellationRequested();
                     if (++visited > 4096) { diagnostics.Add(new("MCLIMIT", "Cache cleanup stopped after 4096 entries.", root, Severity: "warning")); break; }
                     string id = Path.GetFileName(directory);
+                    if (only is not null && !only(kind, id)) continue;
                     if (retainedExecutionRevisions.Contains(id) || retainedCompilationFingerprints.Contains(id)) continue;
                     try
                     {

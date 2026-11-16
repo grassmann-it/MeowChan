@@ -5,6 +5,7 @@ using MeowChan.Desktop.Updates;
 using MeowChan.PluginHost.Activation;
 using MeowChan.PluginHost.Configuration;
 using MeowChan.PluginHost.Contracts;
+using MeowChan.PluginHost.Sources;
 using MeowChan.PluginSdk;
 
 namespace MeowChan.DesktopTests;
@@ -124,6 +125,15 @@ public sealed class ChanFamilyUpgradeTests
             Assert.False(plugins.SiteSwitches.IsEnabled(ChanSourceFamilies.Vichan, "lainchan"));
             Assert.False(plugins.SiteSwitches.IsEnabled(ChanSourceFamilies.Vichan, "leftypol"));
             Assert.False(plugins.SiteSwitches.IsEnabled(ChanSourceFamilies.Vichan, "sushichan"));
+            // Routing guard: a thread of a family site resolves to exactly one adapter, owned by the family, never to
+            // a replaced single-site plugin; a site that is off says so instead of a generic "unavailable".
+            Uri lainchanThread = new(DesktopPluginFixtures.ThreadUrl("lainchan"));
+            PluginSourceImageBoard routed = Assert.Single(plugins.Sources, source => source.CanHandle(lainchanThread));
+            Assert.Equal(ChanSourceFamilies.Vichan, plugins.SourceOwner(routed));
+            Assert.Equal(PluginSourceUnavailableReason.SiteDisabled, routed.UnavailableReason);
+            Assert.All(plugins.Sources.Where(source => VichanSites.Append("zzzchan").Contains(source.Name)),
+                source => Assert.True(ChanSourceFamilies.IsFamily(plugins.SourceOwner(source)!), source.Name));
+            Assert.Equal(PluginSourceUnavailableReason.None, plugins.Sources.Single(source => source.Name == "wizchan").UnavailableReason);
             Assert.True(plugins.Sources.Single(source => source.Name == "wizchan").Enabled);
             Assert.True(plugins.Sources.Single(source => source.Name == "zzzchan").Enabled);
             Assert.False(plugins.Sources.Single(source => source.Name == "lainchan").Enabled);
@@ -132,16 +142,19 @@ public sealed class ChanFamilyUpgradeTests
             Assert.All(host.GetSourceMediaIntegrityPolicies().Where(policy => policy.Snapshot.SourceId is "wizchan" or "zzzchan"),
                 policy => { Assert.Equal(policy.Snapshot.SourceId == "wizchan" ? ChanSourceFamilies.Vichan : ChanSourceFamilies.Jschan, policy.Snapshot.PluginOwnerId); Assert.False(policy.IsGranted); });
 
-            // The old records are kept untouched for an older release, but are not plugins to manage or repair.
+            // The replaced records left the profile on the first start: their state lives on in the site switches and in
+            // one immutable pre-retirement backup, which holds every old record exactly as it was.
+            Assert.DoesNotContain(state.Plugins, plugin => ChanSourceFamilies.Replaced.ContainsKey(plugin.PluginId));
+            Assert.Empty(SupersededBundledPlugins.InProfile(state, ChanSourceFamilies.Successors));
+            string backup = Assert.Single(Directory.GetFiles(Path.Combine(profile.Path, "plugin-state"), "state.pre-retirement-*.json"));
+            PluginProfileSnapshot saved = ReadEnvelope(backup);
             foreach (PluginActivationSnapshot old in legacy.Plugins)
             {
-                PluginActivationSnapshot now = Assert.Single(state.Plugins, plugin => plugin.PluginId == old.PluginId);
-                Assert.Equal(old.Enabled, now.Enabled);
-                Assert.Equal(old.SelectedCandidateId, now.SelectedCandidateId);
-                Assert.Null(now.Active);
-                Assert.Contains("Replaced by the bundled plugin", now.Problem);
+                PluginActivationSnapshot kept = Assert.Single(saved.Plugins, plugin => plugin.PluginId == old.PluginId);
+                Assert.Equal(old.Enabled, kept.Enabled);
+                Assert.Equal(old.SelectedCandidateId, kept.SelectedCandidateId);
+                Assert.Equal(old.Active!.ExecutionRevision, kept.LastGood!.ExecutionRevision);
             }
-            Assert.Equal(legacy.Plugins.Select(plugin => plugin.PluginId).Order(), SupersededBundledPlugins.InProfile(state, ChanSourceFamilies.Successors).Order());
             PluginCatalogSnapshot catalog = await new PluginManagementServices(plugins.ProfileStore, plugins.CompilationService, plugins.Inventory,
                 plugins.PluginDirectory, (_, _) => throw new InvalidOperationException(), (_, _, _) => throw new InvalidOperationException(),
                 (_, _, _, _, _) => throw new InvalidOperationException()).ReadCatalogAsync(CancellationToken.None);
@@ -178,6 +191,17 @@ public sealed class ChanFamilyUpgradeTests
             Assert.True(state.Plugins.Count(plugin => plugin.Active?.Description.Sources.Any(source => source.SourceId == site) == true) <= 1, site);
         Assert.Contains("Source identity conflict", state.Plugins.Single(plugin => plugin.PluginId == ChanSourceFamilies.Vichan).Problem);
         Assert.Empty(fixture.Requests);
+    }
+
+    private static PluginProfileSnapshot ReadEnvelope(string file)
+    {
+        using System.Text.Json.JsonDocument envelope = System.Text.Json.JsonDocument.Parse(File.ReadAllBytes(file));
+        byte[] payload = envelope.RootElement.GetProperty("payload").GetBytesFromBase64();
+        using System.Text.Json.JsonDocument document = System.Text.Json.JsonDocument.Parse(payload);
+        // The delivered (v2) envelope wraps the profile in a document; a v1 envelope is the profile itself.
+        return document.RootElement.TryGetProperty("Profile", out System.Text.Json.JsonElement inner) || document.RootElement.TryGetProperty("profile", out inner)
+            ? SdkJson.Deserialize<PluginProfileSnapshot>(System.Text.Encoding.UTF8.GetBytes(inner.GetRawText()))
+            : SdkJson.Deserialize<PluginProfileSnapshot>(payload);
     }
 
     private static async Task SeedLegacyAsync(string profile, params (string PluginId, string SourceId, bool Enabled)[] plugins)

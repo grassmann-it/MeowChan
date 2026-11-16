@@ -113,7 +113,7 @@ public partial class PluginsPage
     internal bool SourcePluginNeedsAttention(PluginCatalogEntry entry) => GroupNeedsAttention(entry);
 
     internal void CopySourcePluginPresentation(TextBlock summary, WrapPanel steps, TextBlock next, TextBlock shared,
-        Button enabled, Button candidate, Button sdk, string sourceId)
+        Button enabled, Button candidate, Button sdk, string sourceId, Button? review = null)
     {
         if (Selected is not { } entry) return;
         PluginEntryPresentation presentation = PluginEntryPresentation.Create(entry, _services?.GetProductionWorkerSnapshots?.Invoke(), CurrentDraft, _catalog?.Profile.Revision);
@@ -127,14 +127,15 @@ public partial class PluginsPage
         CopyAction("PluginEnabled", enabled);
         CopyAction("PluginSelectCandidate", candidate);
         CopyAction("PluginApproveSdkTransition", sdk);
+        if (review is not null) CopyAction("PluginReviewRepair", review);
         void CopyAction(string name, Button target)
         {
             Button original = C<Button>(name);
             string id = name == "PluginEnabled" ? entry.Activation?.Enabled == true ? "plugins.disable" : "plugins.enable"
                 : "plugins.select-candidate";
-            if (name == "PluginApproveSdkTransition")
+            if (name is "PluginApproveSdkTransition" or "PluginReviewRepair")
             {
-                string label = Texts.T("plugins.sdkTransition.action");
+                string label = Texts.T(name == "PluginReviewRepair" ? "plugins.repair.reviewNow" : "plugins.sdkTransition.action");
                 target.Content = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 8,
                     Children = { CommandBindings.NamedIcon("check"), new TextBlock { Text = label } } };
                 AutomationProperties.SetName(target, label);
@@ -165,6 +166,18 @@ public partial class PluginsPage
                 CanExecute(), PluginActionUnavailableReason(invocation), availableWhen: CanExecute,
                 reasonWhen: () => PluginActionUnavailableReason(invocation));
         }
+    }
+
+    /// <summary>Opens the plugin's details and there the bundled repair review, as the plugin page's own button does.</summary>
+    internal void ReviewSourceRepair()
+    {
+        if (Selected is not { } entry || _busy || IsDiscardConfirmationOpen) return;
+        SelectSourcePlugin(entry.Key, details: true);
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (!_ended && Selected?.Key == entry.Key && ShowingSourcePluginDetails)
+                OnReviewBundledRepairsClick(C<Button>("PluginReviewRepair"), new Avalonia.Interactivity.RoutedEventArgs());
+        }, DispatcherPriority.Loaded);
     }
 
     internal void ApproveSourceSdk()

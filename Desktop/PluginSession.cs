@@ -210,6 +210,9 @@ internal sealed partial class PluginSession : IAsyncDisposable
         PluginProfileSnapshot activated = await MeasureStartupAsync("activation", null,
             () => ProfileStore.ApplyBundledStartupAsync(observations, delivered, _repairRestrictedSourceIds, previous.Revision, token)).ConfigureAwait(false);
         PluginStartupDiagnostics.RecordResources("plugin.startup.activation", "end");
+        // A replaced single-site chan plugin whose site switch holds its state leaves the profile (backup kept) and its
+        // cached builds go through the cache cleanup; its record would only show a stale state and keep files alive.
+        activated = await RetireReplacedSingleSitePluginsAsync(activated, token).ConfigureAwait(false);
         foreach (PluginActivationSnapshot activation in activated.Plugins)
             PluginStartupDiagnostics.LogActivationProblem(_logger, activation);
         long adaptersStarted = Stopwatch.GetTimestamp();
@@ -248,8 +251,7 @@ internal sealed partial class PluginSession : IAsyncDisposable
                 _services.Add(media);
                 PluginSourceImageBoard adapter = new(description, source.SourceId, ct => GetWorkerAsync(activation.PluginId, ct), media, _logger, _queue)
                 { MediaIntegrityPolicy = _sourceMediaIntegrityPolicyFactory?.Invoke(activation.PluginId, source.SourceId) };
-                if (!activation.Enabled || activation.Active == null || !SiteSwitches.IsEnabled(activation.PluginId, source.SourceId))
-                    adapter.SetEnabled(false);
+                ApplyAdapterState(adapter, activation, activation.Enabled);
                 sources.Add(adapter);
                 lock (_state) _sourceOwners.Add(adapter, activation.PluginId);
             }
@@ -274,6 +276,35 @@ internal sealed partial class PluginSession : IAsyncDisposable
         }
         Volatile.Write(ref _warnings, warnings.Distinct(StringComparer.Ordinal).ToArray());
         LogStartupPhase("adapters-routing", null, adaptersStarted, true);
+    }
+
+    private async Task<PluginProfileSnapshot> RetireReplacedSingleSitePluginsAsync(PluginProfileSnapshot activated, CancellationToken token)
+    {
+        if (ProfileStore is not PluginProfileStore store) return activated;
+        SupersededRetirement retirement;
+        try { retirement = await store.RetireSupersededAsync(SiteSwitches.TakenOver(), activated.Revision, token).ConfigureAwait(false); }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or PluginProfileConflictException
+            or InvalidDataException or ArgumentException)
+        {
+            // Retirement is housekeeping: the replaced records keep never owning a source, so startup goes on unchanged.
+            _logger.Warning(exception, "The replaced single-site chan plugins could not be retired from the plugin profile; they stay as inactive history");
+            return activated;
+        }
+        if (retirement.RetiredPluginIds.Count == 0) return retirement.Profile;
+        _logger.Information("Retired {Count} single-site chan plugins replaced by their family plugins ({PluginIds}); their sites keep their own switches and the previous plugin state is kept in {Backup}",
+            retirement.RetiredPluginIds.Count, retirement.RetiredPluginIds, Path.GetFileName(retirement.BackupPath));
+        try
+        {
+            PluginCacheCleanupResult cleanup = await CompilationService.CleanupOnlyAsync(retirement.ReleasedExecutionRevisions,
+                retirement.ReleasedCompilationFingerprints, retirement.Profile.RetainedExecutionRevisions,
+                retirement.Profile.RetainedCompilationFingerprints, token).ConfigureAwait(false);
+            if (cleanup.RemovedArtifacts + cleanup.RemovedCompilations > 0 || cleanup.Diagnostics.Count > 0)
+                _logger.Information("Removed {Artifacts} cached builds and {Compilations} compilations of the retired plugins ({Diagnostics} kept with a warning)",
+                    cleanup.RemovedArtifacts, cleanup.RemovedCompilations, cleanup.Diagnostics.Count);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        { _logger.Warning(exception, "The cached builds of the retired plugins stay in the plugin cache"); }
+        return retirement.Profile;
     }
 
     private static void CancelQuietly(CancellationTokenSource source)
@@ -437,7 +468,7 @@ internal sealed partial class PluginSession : IAsyncDisposable
                 bool enabled = change.Enabled && activation.Active != null && SiteSwitches.IsEnabled(change.PluginId, item.Key.Name);
                 // Invalidate before returning from the synchronous lifecycle notification.
                 SetSourceMediaIntegrityActive(item.Key, enabled);
-                item.Key.SetEnabled(enabled);
+                ApplyAdapterState(item.Key, activation, change.Enabled);
             }
             if (!change.Enabled) _clients.Remove(change.PluginId, out client);
         }

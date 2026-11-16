@@ -99,6 +99,8 @@
                 <Button x:Name="PluginEnabled" Click="OnEnabledClick" />
                 <Button x:Name="PluginSelectCandidate" Click="OnSelectCandidateClick" />
                 <Button x:Name="PluginApproveSdkTransition" wv:WorkViewElement.Id="plugins.detail.sdk-transition" Click="OnApproveSdkTransitionClick" IsVisible="False" />
+                <!-- Shown only while this plugin's bundled build waits for its repair review: opens that review in one click. -->
+                <Button x:Name="PluginReviewRepair" Click="OnReviewBundledRepairsClick" IsVisible="False" />
                 <Button x:Name="PluginWatches" wv:WorkViewElement.Id="plugins.detail.watches" Click="OnWatchesClick" />
                 <Button x:Name="PluginMoreActions" Classes="icon-square" Click="OnPluginMoreActionsClick" />
               </WrapPanel>

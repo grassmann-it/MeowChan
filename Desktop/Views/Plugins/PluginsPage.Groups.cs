@@ -57,8 +57,17 @@ public partial class PluginsPage
     private bool GroupNeedsAttention(PluginCatalogEntry entry)
     {
         var productionWorkers = _services?.GetProductionWorkerSnapshots?.Invoke();
-        return GroupMembers(entry).Any(member => HasProblem(PluginEntryPresentation.Create(member, productionWorkers)));
+        PluginCatalogEntry[] members = GroupMembers(entry).ToArray();
+        // A file the profile remembers from another app or build folder (for example an old worktree) is history while
+        // another file of the plugin is here: it is listed under Files but does not mark the whole plugin as a problem.
+        bool anyPresent = members.Any(member => member.Candidate?.IsPresent == true);
+        return members.Where(member => !(anyPresent && member.Candidate is { IsPresent: false } && !IsChosen(member)))
+            .Any(member => HasProblem(PluginEntryPresentation.Create(member, productionWorkers)));
     }
+
+    // The file selected for the next start or the one in use; its absence is a real problem.
+    private static bool IsChosen(PluginCatalogEntry member) => member.CandidateId is { } id
+        && (member.Activation?.SelectedCandidateId == id || member.Activation?.Active?.CandidateId == id);
 
     private int GroupCount => _catalog?.Entries.Select(entry => entry.PluginId ?? entry.Key).Distinct(StringComparer.Ordinal).Count() ?? 0;
 

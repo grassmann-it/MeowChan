@@ -95,6 +95,7 @@
                                 <Button x:Name="SourcePluginEnabled" Click="OnSourcePluginEnabledClick" />
                                 <Button x:Name="SourcePluginCandidate" Click="OnSourcePluginCandidateClick" />
                                 <Button x:Name="SourcePluginSdk" Click="OnSourcePluginSdkClick" />
+                                <Button x:Name="SourcePluginReview" Click="OnSourcePluginReviewClick" IsVisible="False" />
                                 <Button x:Name="SourcePluginButton" wv:WorkViewElement.Id="sources.detail.plugin" Click="OnPluginClick" />
                                 <Button x:Name="SourcePluginMore" Classes="icon-square" Click="OnSourcePluginMoreClick" />
                             </WrapPanel>

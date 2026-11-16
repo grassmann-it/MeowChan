@@ -102,9 +102,39 @@ internal sealed partial class PluginSession
             bool active = IsSourceMediaIntegrityActive(source);
             // Invalidate before returning, as the plugin lifecycle callback does.
             SetSourceMediaIntegrityActive(source, active);
-            source.SetEnabled(active);
+            if (_active.TryGetValue(owner, out PluginActivationSnapshot? activation)) ApplyAdapterState(source, activation, activation.Enabled);
+            else source.SetEnabled(active);
             return true;
         }
+    }
+
+    /// <summary>
+    /// Why a source of this activation cannot run, or None when it can: the plugin is off, it is not running (a build
+    /// that waits for an explicit repair review is named as such, since a restart does not help), or its site is off.
+    /// </summary>
+    internal PluginSourceUnavailableReason AdapterState(PluginActivationSnapshot activation, bool pluginEnabled, string sourceId, out string? detail)
+    {
+        detail = null;
+        if (!pluginEnabled) return PluginSourceUnavailableReason.PluginDisabled;
+        if (activation.Active == null)
+        {
+            detail = activation.Problem;
+            return PluginActivationProblems.RequiresRepairReview(activation.Problem)
+                ? PluginSourceUnavailableReason.NeedsRepairReview : PluginSourceUnavailableReason.NotActive;
+        }
+        return SiteSwitches.IsEnabled(activation.PluginId, sourceId) ? PluginSourceUnavailableReason.None : PluginSourceUnavailableReason.SiteDisabled;
+    }
+
+    /// <summary>The plugin that owns this adapter (routing and lifecycle follow it), or null for a foreign adapter.</summary>
+    internal string? SourceOwner(PluginSourceImageBoard source)
+    {
+        lock (_state) return _sourceOwners.TryGetValue(source, out string? owner) ? owner : null;
+    }
+
+    private void ApplyAdapterState(PluginSourceImageBoard adapter, PluginActivationSnapshot activation, bool pluginEnabled)
+    {
+        PluginSourceUnavailableReason reason = AdapterState(activation, pluginEnabled, adapter.Name, out string? detail);
+        adapter.SetEnabled(reason == PluginSourceUnavailableReason.None, reason, detail);
     }
 
     /// <summary>The site's own switch, or null for a source that has none (a single-site or non-family plugin).</summary>

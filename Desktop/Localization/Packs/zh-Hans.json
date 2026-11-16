@@ -1523,6 +1523,8 @@
     "plugins.step.next.missing": "下一步：该文件已不在插件文件夹中。请用“{0}”重新添加，或将其放回该文件夹，然后刷新状态。",
     "plugins.step.next.fix": "下一步：解决此处描述的问题，然后重新启动 MeowChan。",
     "plugins.step.next.restart": "下一步：重新启动 MeowChan。新建或已更改的文件只会在启动时构建并注册。",
+    "plugins.step.next.review": "下一步：此内置版本已更改，正在等待你的审核；仅重新启动不会启动它。请选择“{0}”。",
+    "plugins.repair.reviewNow": "审核此修复",
     "plugins.step.next.restartSaved": "下一步：重新启动 MeowChan，以使用为下次启动保存的版本。",
     "plugins.step.next.enable": "下一步：选择“{0}”。它会立即生效。",
     "plugins.step.next.select": "下一步：选择“{0}”，然后重新启动 MeowChan。",

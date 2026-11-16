@@ -15,6 +15,8 @@ namespace MeowChan.PluginHost.Configuration;
 /// covers every source the replaced identity ever declared — at startup through a delivered, problem-free
 /// candidate, afterwards through the successor's own activated release. A local copy of the old plugin, a
 /// pinned build or a missing successor keeps the ordinary explicit source-conflict rules.
+/// Once the host has taken over what it needs from such a record, <see cref="PluginProfileStore.RetireSupersededAsync"/>
+/// removes it from the active profile; the exact state before that stays in an immutable pre-retirement backup.
 /// </remarks>
 public static class SupersededBundledPlugins
 {

@@ -34,6 +34,8 @@ internal enum PluginNextAction
     RestartToUse,
     /// <summary>The explicit review of an automatic SDK transition.</summary>
     ApproveSdkTransition,
+    /// <summary>The bundled build changed and waits for the "Review bundled repairs" confirmation; a restart alone never starts it.</summary>
+    ReviewRepair,
     /// <summary>The plugin is in use and further saved settings apply at the next start.</summary>
     SavedChangesApplyAtRestart
 }
@@ -65,6 +67,8 @@ internal static class PluginLifecycleSteps
         else if (facts.FileProblem) next = PluginNextAction.FixProblem;
         else if (!facts.Registered) next = PluginNextAction.RestartToRegister;
         else if (presentation.HasAutomaticSdkTransition) next = PluginNextAction.ApproveSdkTransition;
+        // Before "Enable": turning a plugin on does not start a build that waits for its repair review.
+        else if (presentation.NeedsRepairReview) next = PluginNextAction.ReviewRepair;
         else if (!facts.Enabled) next = PluginNextAction.Enable;
         else if (presentation.CandidateChoiceRequired) next = PluginNextAction.SelectBuild;
         else if (presentation.IsActiveCandidate && presentation.HasWorkerProblem) next = PluginNextAction.FixProblem;
@@ -76,6 +80,7 @@ internal static class PluginLifecycleSteps
         PluginStepState enabled = installed != PluginStepState.Done ? PluginStepState.Later : facts.Enabled ? PluginStepState.Done : PluginStepState.Next;
         PluginStepState active = activeNow ? PluginStepState.Done
             : facts.Enabled && presentation.IsActiveCandidate && presentation.HasWorkerProblem ? PluginStepState.Problem
+            : facts.Enabled && next == PluginNextAction.ReviewRepair ? PluginStepState.Problem
             : PluginStepState.Later;
         // The first step that has not happened is the one the next action belongs to (a blocked step keeps its Problem tone).
         if (installed == PluginStepState.Done && enabled == PluginStepState.Done && active == PluginStepState.Later) active = PluginStepState.Next;

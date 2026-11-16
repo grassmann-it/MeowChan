@@ -1214,6 +1214,8 @@
     "plugins.step.next.missing": "Próximo passo: o arquivo não está mais na pasta de plugins. Adicione-o novamente com “{0}” ou restaure-o lá e depois atualize o status.",
     "plugins.step.next.fix": "Próximo passo: corrija o problema descrito aqui e depois reinicie o MeowChan.",
     "plugins.step.next.restart": "Próximo passo: reinicie o MeowChan. Um arquivo novo ou alterado só é compilado e registrado na inicialização.",
+    "plugins.step.next.review": "Próximo passo: este build incluído mudou e aguarda sua revisão; apenas reiniciar não o inicia. Escolha “{0}”.",
+    "plugins.repair.reviewNow": "Revisar este reparo",
     "plugins.step.next.restartSaved": "Próximo passo: reinicie o MeowChan para usar o build salvo para a próxima inicialização.",
     "plugins.step.next.enable": "Próximo passo: escolha “{0}”. Isso vale imediatamente.",
     "plugins.step.next.select": "Próximo passo: escolha “{0}” e depois reinicie o MeowChan.",

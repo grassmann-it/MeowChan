@@ -1523,6 +1523,8 @@
     "plugins.step.next.missing": "次の手順: ファイルがプラグインフォルダーにありません。「{0}」でもう一度追加するか、フォルダーに戻してから、状態を更新してください。",
     "plugins.step.next.fix": "次の手順: ここに表示されている問題を解決してから、MeowChan を再起動してください。",
     "plugins.step.next.restart": "次の手順: MeowChan を再起動してください。新規または変更されたファイルは、起動時にのみビルドされ登録されます。",
+    "plugins.step.next.review": "次の手順: この同梱ビルドは変更されており、確認を待っています。再起動だけでは開始されません。「{0}」を選択してください。",
+    "plugins.repair.reviewNow": "この修復を確認",
     "plugins.step.next.restartSaved": "次の手順: MeowChan を再起動して、次回起動用に保存されたビルドを使用してください。",
     "plugins.step.next.enable": "次の手順: 「{0}」を選択してください。すぐに反映されます。",
     "plugins.step.next.select": "次の手順: 「{0}」を選択してから、MeowChan を再起動してください。",

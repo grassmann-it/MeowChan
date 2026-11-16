@@ -45,7 +45,7 @@ public sealed class Release102UpgradeTests
                     originalEnvelope.RootElement.GetProperty("payload").GetBytesFromBase64());
                 AssertPreserved(originalProfile, baseline);
             }
-            foreach (JsonElement entry in old.GetProperty("plugins").EnumerateArray())
+            foreach (JsonElement entry in old.GetProperty("plugins").EnumerateArray().Where(entry => !ChanSourceFamilies.Replaced.ContainsKey(entry.GetProperty("PluginId").GetString()!)))
             {
                 var now = Assert.Single(baseline.Plugins, p => p.PluginId == entry.GetProperty("PluginId").GetString());
                 Assert.Equal(entry.GetProperty("Enabled").GetBoolean(), now.Enabled);
@@ -61,7 +61,7 @@ public sealed class Release102UpgradeTests
             var repairs = await store.PreviewBundledRepairsAsync();
             IReadOnlySet<string> superseded = SupersededBundledPlugins.InProfile(baseline, ChanSourceFamilies.Successors);
             Assert.DoesNotContain(repairs.Rows, row => superseded.Contains(row.PluginId));
-            foreach (JsonElement entry in old.GetProperty("plugins").EnumerateArray())
+            foreach (JsonElement entry in old.GetProperty("plugins").EnumerateArray().Where(entry => !ChanSourceFamilies.Replaced.ContainsKey(entry.GetProperty("PluginId").GetString()!)))
             {
                 var now = Assert.Single(baseline.Plugins, p => p.PluginId == entry.GetProperty("PluginId").GetString());
                 if (entry.GetProperty("available").GetBoolean() && now.Active is null && now.Pinned is null &&
@@ -207,9 +207,12 @@ public sealed class Release102UpgradeTests
 
     private static void AssertPreserved(PluginProfileSnapshot before, PluginProfileSnapshot after)
     {
-        Assert.Equal(before.Grants.ToArray(), after.Grants.ToArray());
-        Assert.Equal(before.SelectedSourceOwners.OrderBy(p => p.Key).ToArray(), after.SelectedSourceOwners.OrderBy(p => p.Key).ToArray());
-        foreach (var prior in before.Plugins)
+        // A replaced single-site chan plugin is retired from the profile (its state is in the pre-retirement backup).
+        static bool Retired(string pluginId) => ChanSourceFamilies.Replaced.ContainsKey(pluginId);
+        Assert.Equal(before.Grants.Where(g => !Retired(g.PluginId)).ToArray(), after.Grants.ToArray());
+        Assert.Equal(before.SelectedSourceOwners.Where(p => !Retired(p.Value)).OrderBy(p => p.Key).ToArray(), after.SelectedSourceOwners.OrderBy(p => p.Key).ToArray());
+        Assert.DoesNotContain(after.Plugins, p => Retired(p.PluginId));
+        foreach (var prior in before.Plugins.Where(p => !Retired(p.PluginId)))
         {
             var now = Assert.Single(after.Plugins, p => p.PluginId == prior.PluginId);
             Assert.Equal(prior.Enabled, now.Enabled);

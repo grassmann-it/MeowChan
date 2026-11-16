@@ -136,6 +136,13 @@ public partial class PluginsPage
         AutomationProperties.SetHelpText(sdkTransition, view.HasAutomaticSdkTransition && view.AutomaticSdkTransition is { } transition
             ? Texts.T("plugins.sdkTransition.automaticHint", transition.FromSdkVersion, transition.ToSdkVersion, transition.ExecutionRevision)
             : string.Empty);
+        Button reviewRepair = C<Button>("PluginReviewRepair");
+        reviewRepair.Content = Texts.T("plugins.repair.reviewNow");
+        CommandBindings.EnsureIconBeforeText(reviewRepair, "check");
+        reviewRepair.IsVisible = view.NeedsRepairReview;
+        reviewRepair.IsEnabled = view.NeedsRepairReview && !_busy && !IsDiscardConfirmationOpen;
+        AutomationProperties.SetName(reviewRepair, Texts.T("plugins.repair.reviewNow"));
+        AutomationProperties.SetHelpText(reviewRepair, view.NeedsRepairReview ? view.ActivationProblem ?? string.Empty : string.Empty);
         // Watches: under the plugin's More actions in Barebones (the menu lists them in every view).
         WorkViewGate.Apply(C<Button>("PluginWatches"), _workView, view.Sources.Count > 0);
         if (view.CandidateChoiceRequired) ShowReasons("PluginActivationReasons", "PluginEnabled", "PluginSelectCandidate");

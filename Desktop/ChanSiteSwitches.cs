@@ -93,6 +93,20 @@ internal sealed class ChanSiteSwitches
         }
     }
 
+    /// <summary>
+    /// The replaced single-site plugins whose enabled state is safely stored as their site's switch (taken over by
+    /// <see cref="MigrateFrom"/>). Only these may leave the plugin profile; with an unusable file nothing has been taken
+    /// over, so nothing is returned and every old record stays.
+    /// </summary>
+    internal IReadOnlySet<string> TakenOver()
+    {
+        lock (_sync)
+        {
+            Load();
+            return IsUnreadable ? new HashSet<string>(StringComparer.Ordinal) : new HashSet<string>(_migrated, StringComparer.Ordinal);
+        }
+    }
+
     // Caller holds _sync. Read once; an unusable file is reported and retried on the next session.
     private void Load()
     {

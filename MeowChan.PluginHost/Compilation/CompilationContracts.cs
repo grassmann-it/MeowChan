@@ -35,6 +35,12 @@ public interface IPluginCompilationService
     Task<PluginCacheCleanupResult> CleanupAsync(IReadOnlySet<string> retainedExecutionRevisions,
         IReadOnlySet<string> retainedCompilationFingerprints, TimeSpan minimumAge,
         CancellationToken cancellationToken = default);
+    /// <summary>The same cache cleanup, limited to the named builds and compilations (for example those that only a
+    /// retired profile record referenced). A retained name is never removed. Services without a cache remove nothing.</summary>
+    Task<PluginCacheCleanupResult> CleanupOnlyAsync(IReadOnlySet<string> executionRevisions, IReadOnlySet<string> compilationFingerprints,
+        IReadOnlySet<string> retainedExecutionRevisions, IReadOnlySet<string> retainedCompilationFingerprints,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(new PluginCacheCleanupResult(0, 0, Array.Empty<PluginBuildDiagnostic>()));
 }
 
 public sealed record PluginCacheCleanupResult(int RemovedArtifacts, int RemovedCompilations,

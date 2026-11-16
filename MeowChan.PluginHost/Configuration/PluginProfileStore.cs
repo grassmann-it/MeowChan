@@ -252,19 +252,19 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
                     else if (candidate is null || !candidate.IsPresent || candidate.Problem is not null || candidate.Artifact is null || candidate.Description is null)
                         next = next with { Problem = candidate?.Problem ?? "Selected candidate is unavailable." };
                     else if (binding is not null && !bindingMatches)
-                        next = next with { Problem = "Confirmed bundled target changed or disappeared; review repair again." };
+                        next = next with { Problem = PluginActivationProblems.ConfirmedTargetChanged };
                     else if (deliveredIdentity && !deliveredCandidate && !selectedLocalAlias)
-                        next = next with { Problem = "Bundled target has no matching delivered provenance; review is required." };
+                        next = next with { Problem = PluginActivationProblems.NoDeliveredProvenance };
                     else if (deliveredIdentity && previous.Missing)
-                        next = next with { Problem = "Bundled replacement has no unambiguous trusted pre-replacement basis; review is required." };
+                        next = next with { Problem = PluginActivationProblems.NoTrustedBasis };
                     else if (deliveredCandidate && buildChanged && !bindingMatches && !automaticBundleUpdate)
-                        next = next with { Problem = "Bundled executable changed; explicit repair review is required." };
+                        next = next with { Problem = PluginActivationProblems.ExecutableChanged };
                     // Persisted consent cannot replace serialization of a live permission authority.
                     // Legacy callers without its shared gate retain the raw inheritance guard.
                     else if (deliveredCandidate && !sdkUpgrade && (repairRestrictedSources is not null && repairPermissionGate is null
                         ? BundledCandidateMigration.HasInheritedRights(document, old, candidate, buildChanged)
                         : BundledCandidateMigration.HasUnreviewedInheritedRights(document, old, candidate, buildChanged)))
-                        next = next with { Problem = "Bundled replacement is blocked: existing grants cannot be inherited." };
+                        next = next with { Problem = PluginActivationProblems.InheritedGrantsBlocked };
                     else
                     {
                         PluginReleaseSnapshot? basis = MatchingBasis(old, candidate.CandidateId);
@@ -561,7 +561,8 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
 
     private async Task<PluginProfileSnapshot> MutateDocumentAsync(long expectedRevision,
         Func<BundledProfileDocument, Task<BundledProfileDocument>> update, CancellationToken cancellationToken,
-        bool preserveReselectionBackup = false, bool skipWriteWhenUnchanged = false)
+        bool preserveReselectionBackup = false, bool skipWriteWhenUnchanged = false,
+        Func<byte[], CancellationToken, Task>? preserveOriginal = null)
     {
         // Opt-in startup evidence: boundary markers only (inert without an active diagnostic run).
         MeowChan.Diagnostics.PerformanceDiagnostics.Record("plugin.profile.write", "begin");
@@ -604,6 +605,9 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
             await PreservePreV2Async(original, cancellationToken).ConfigureAwait(false);
         if (preserveReselectionBackup && original is not null)
             await PreserveReselectionBackupAsync(original, updated.ReselectionBackupSha256!, cancellationToken).ConfigureAwait(false);
+        // A caller-owned immutable copy of the exact replaced envelope (for example before a retirement); it aborts the write on failure.
+        if (preserveOriginal is not null && original is not null)
+            await preserveOriginal(original, cancellationToken).ConfigureAwait(false);
         string temporary = Path.Combine(directory, ".state-" + Guid.NewGuid().ToString("N") + ".tmp");
         bool preserveTemporary = false;
         try
@@ -686,7 +690,8 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
             throw new IOException("Pre-v2 backup must be a regular file, not a symbolic link or reparse point.");
     }
 
-    private async Task PreserveExactFileAsync(string destination, byte[] original, int limit, CancellationToken token)
+    private async Task PreserveExactFileAsync(string destination, byte[] original, int limit, CancellationToken token,
+        string label = "Pre-v2 backup")
     {
         string temporary = Path.Combine(directory, ".pre-v2-" + Guid.NewGuid().ToString("N") + ".tmp");
         try
@@ -706,7 +711,7 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
             byte[] saved = await ReadBoundedStateBytesAsync(destination, token, limit).ConfigureAwait(false);
             if (!saved.AsSpan().SequenceEqual(original) ||
                 !SHA256.HashData(saved).AsSpan().SequenceEqual(SHA256.HashData(original)))
-                throw new IOException("Pre-v2 backup differs from the original state. Preserve both files; upgrade was not published.");
+                throw new IOException(label + " differs from the original state. Preserve both files; the change was not published.");
         }
         finally { if (File.Exists(temporary)) File.Delete(temporary); }
     }
