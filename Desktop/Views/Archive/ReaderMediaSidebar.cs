@@ -311,6 +311,8 @@ internal sealed class ReaderMediaSidebar : Border
     internal Control HeaderRow => _header;
     /// <summary>The space between the header line and the card (a host that lifts the header out of its own row needs it).</summary>
     internal const double HeaderGap = 8;
+    /// <summary>The height of the header line when a host fixes it (the Media page's panel and the reader's sidebar: the 32 dip line of Workspace.Size.Control rows).</summary>
+    internal const double HeaderLineHeight = 32;
     /// <summary>A fixed height for the header line (NaN: its content's), so a host can centre it on a line of its own.</summary>
     internal double HeaderHeight { get => _header.Height; set => _header.Height = value; }
     internal Image Picture => _image;
