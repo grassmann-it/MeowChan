@@ -536,12 +536,16 @@ public sealed class RateAndTagSurfaceTests : IDisposable
         Assert.Contains("TryRouteFavoriteKey(sidebar, e)", sidebarRoute);
         Assert.Contains("TryRouteArchiveMediaShortcut(sidebar, e)", sidebarRoute);
         Assert.Contains("sidebar.Strip", sidebarRoute);
+        int helper = sidebar.IndexOf("private bool TryRouteSidebarSelectionShortcut", StringComparison.Ordinal);
+        Assert.Contains("OnReaderViewKeyDown(sidebar, e);", sidebar[helper..selectorEnd]);
+        Assert.Contains("return e.Handled;", sidebar[helper..selectorEnd]);
         Assert.Contains("ReaderSelectionOwnsActivationKey(e)", sidebarRoute);
         Assert.Contains("CommandRouter.IsNativeInput(e.Source, e.Key)", Source("Desktop/Views/Archive/ArchivePage.InlineVideo.cs"));
 
         string filters = Source("Desktop/Views/Archive/ArchivePage.PostFilter.cs");
         Assert.Contains("ArchiveReaderPane.AddHandler(KeyDownEvent, OnPostFilterKeyDown, RoutingStrategies.Tunnel);", filters);
         Assert.Contains("CommandRouter.IsRoutingContextActive(ArchiveReaderPane, e.Source)", filters);
+        Assert.Contains("ReaderSelectionOwnsActivationKey(e)", filters);
     }
 
     public static IEnumerable<object[]> NativeInputBoundaries() =>

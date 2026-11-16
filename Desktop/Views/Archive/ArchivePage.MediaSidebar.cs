@@ -86,6 +86,9 @@ public partial class ArchivePage
         // stand over the posts card's column only: the sidebar's own header line sits in the strip above its frame, on the side of the card
         // (ReaderSidebarAlignment). A hidden sidebar leaves the posts card and its header rows alone in the first, star column.
         Grid pane = ArchiveReaderPane;
+        // The shell's generic native-input guard reserves arrows for ListBox. These two reader-owned
+        // commands must run before the post list/strip, in both the embedded and detached hosts.
+        pane.AddHandler(KeyDownEvent, OnMediaSidebarStepKey, RoutingStrategies.Tunnel);
         pane.ColumnDefinitions = new ColumnDefinitions("*,0,0");
         pane.SizeChanged += (_, _) => { if (!_largeReader) LayoutMediaSidebar(); };
         pane.PropertyChanged += (_, e) => { if (e.Property == IsVisibleProperty && !_largeReader) LayoutMediaSidebar(); };
@@ -170,6 +173,7 @@ public partial class ArchivePage
         // while every resolver preserves native input and the context guard preserves
         // popups and foreign top-levels. The strip's Space/Enter selection remains
         // local; only the other playback bindings are lifted before type-ahead.
+        sidebar.AddHandler(KeyDownEvent, OnMediaSidebarStepKey, RoutingStrategies.Tunnel);
         sidebar.AddHandler(KeyDownEvent, (_, e) =>
         {
             if (!ReaderSelectionOwnsActivationKey(e)) RouteSidebarRatingKey(e);
@@ -201,16 +205,18 @@ public partial class ArchivePage
         return sidebar;
     }
 
-    // A focused thumbnail is a selecting control: lift only the page-owned media routes before its type-ahead.
+    // A focused thumbnail is a selecting control: lift only the page-owned media/view routes before its type-ahead.
     // Space is deliberately left to ReaderMediaSidebar.OnStripKeyDown, and the actual inline-video surface keeps its own
-    // slot handler. Header buttons and the picture have no ListBox type-ahead and continue through the bubble route.
+    // slot handler. The sidebar can be a sibling of the pane, so it must route configured reader view options too.
     private bool TryRouteSidebarSelectionShortcut(ReaderMediaSidebar sidebar, KeyEventArgs e)
     {
         if (ReaderSelectionOwnsActivationKey(e)) return false;
         bool inStrip = e.Source is Visual source
             && source.GetSelfAndVisualAncestors().Any(node => ReferenceEquals(node, sidebar.Strip));
         if (inStrip && TryRouteSidebarVideoKey(e)) return true;
-        return TryRouteFavoriteKey(sidebar, e) || TryRouteArchiveMediaShortcut(sidebar, e);
+        if (TryRouteFavoriteKey(sidebar, e) || TryRouteArchiveMediaShortcut(sidebar, e)) return true;
+        OnReaderViewKeyDown(sidebar, e);
+        return e.Handled;
     }
 
     // Puts the (hidden) sidebar and its splitter into the large reader's frame or the archive view's pane. The archive view shows it as a
@@ -452,6 +458,20 @@ public partial class ArchivePage
     internal bool CanStepMediaSidebar(int delta) => !_ended && _mediaSidebarShown && !IsReaderDialogOpen
         && ArchivePosts.SelectedItem is ArchivePostRow { ShowsMedia: true } post
         && ReaderMediaSidebarRules.CanStep(_sidebarIndex, post.Attachments.Count, delta);
+
+    private void OnMediaSidebarStepKey(object? sender, KeyEventArgs e)
+    {
+        if (e.Handled || ShortcutService.IsCapturing || _ended || _busy || _obscuredByGallery || IsReaderDialogOpen
+            || !_mediaSidebarShown || sender is not Control owner || e.Source is not Visual source
+            || !source.GetSelfAndVisualAncestors().Contains(owner)
+            || !CommandRouter.IsRoutingContextActive(owner, source)) return;
+        int direction = ReaderSidebarStepKeys.Direction(e, ArchivePosts, _mediaSidebar?.Strip,
+            id => ShortcutService.Current.Matches(e, id));
+        if (direction == 0) return;
+        // At an edge the matching command is still ours; it must not fall through into list navigation.
+        e.Handled = true;
+        StepMediaSidebar(direction);
+    }
 
     /// <summary>Alt+Shift+←/→: the previous or next medium of the focused post.</summary>
     internal void StepMediaSidebar(int delta)

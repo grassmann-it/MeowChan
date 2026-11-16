@@ -111,7 +111,7 @@ public partial class ArchivePage
     private void OnPostFilterKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Handled || ShortcutService.IsCapturing || !CommandRouter.IsRoutingContextActive(ArchiveReaderPane, e.Source)
-            || IsReaderDialogOpen || !CanChangePostFilters || _thread == null
+            || ReaderSelectionOwnsActivationKey(e) || IsReaderDialogOpen || !CanChangePostFilters || _thread == null
             || ArchivePosts.SelectedItem is not ArchivePostRow row || _thread.FindPostIndex(row.Id) < 0) return;
         ResourceId thread = _thread.Summary.Id;
         bool hidden = _postFilters!.IsHidden(thread, row.Id);

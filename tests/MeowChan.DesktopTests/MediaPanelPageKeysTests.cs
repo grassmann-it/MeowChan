@@ -59,6 +59,47 @@ public sealed class MediaPanelPageKeysTests
         Assert.Same(fixture.Entries[1], entry);
     });
 
+    [Theory]
+    [InlineData(Key.D0, "media.rating.clear")]
+    [InlineData(Key.D1, "media.rating.set-1")]
+    [InlineData(Key.D2, "media.rating.set-2")]
+    [InlineData(Key.D3, "media.rating.set-3")]
+    [InlineData(Key.D4, "media.rating.set-4")]
+    [InlineData(Key.D5, "media.rating.set-5")]
+    public void DirectRatingsUseThePanelsRowNotAnUnrelatedGridSelection(Key key, string id) => WithPanel((fixture, recorder, _) =>
+    {
+        fixture.Rows[1] = fixture.Rows[1] with
+        {
+            StateOf = _ => new MediaLibraryEntryState(MediaLibraryFlag.No, true, null, false, [], [], null)
+        };
+        fixture.Grid.SelectedIndex = 0;
+        Control open = fixture.ShowPanelOn(1);
+        fixture.Press(open, key, KeyModifiers.Shift);
+        Assert.True(fixture.LastHandled);
+        (string actual, MediaLibraryEntry entry) = Assert.Single(recorder.Actions);
+        Assert.Equal(id, actual);
+        Assert.Same(fixture.Entries[1], entry);
+        Assert.Equal(0, fixture.Grid.SelectedIndex);
+    });
+
+    [Theory]
+    [InlineData("TextBox", Key.I, KeyModifiers.None)]
+    [InlineData("ComboBox", Key.I, KeyModifiers.None)]
+    [InlineData("NumericUpDown", Key.D2, KeyModifiers.Shift)]
+    [InlineData("TextBox", Key.E, KeyModifiers.Control)]
+    public void SharedPanelCommandsDoNotEscapeNativeEditors(string kind, Key key, KeyModifiers modifiers) => WithPanel((fixture, recorder, _) =>
+    {
+        Control editor = kind switch
+        {
+            "TextBox" => new TextBox(), "ComboBox" => new ComboBox(), "NumericUpDown" => new NumericUpDown(),
+            _ => throw new ArgumentOutOfRangeException(nameof(kind))
+        };
+        fixture.PanelView!.VideoRow.Children.Add(editor);
+        fixture.Press(editor, key, modifiers);
+        Assert.Empty(recorder.Actions);
+        Assert.Empty(recorder.Threads);
+    });
+
     [Fact]
     public void TheQueueKeyAddsThePanelsMediumToTheTaggingQueueWithTheFocusInThePanel() => WithPanel((fixture, recorder, _) =>
     {

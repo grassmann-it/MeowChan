@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 
@@ -139,6 +140,45 @@ public sealed class KeyContextHostTests
         Assert.True(host > reader.IndexOf("pane.AddHandler(KeyDownEvent, OnArchiveMediaContextKey", wire, StringComparison.Ordinal));
         Assert.Contains("KeyContextHost.Install(this, _ => \"media\");", media);
     }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TheRealDetachedSidebarCarriesItsOwnContextBesideThePane(bool fromStrip) => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable scope = Avalonia.AvaloniaLocator.EnterScope();
+        Avalonia.AvaloniaLocator.CurrentMutable.Bind<Avalonia.Platform.ICursorFactory>()
+            .ToConstant(new DeadAffordanceGuard.RecordingCursorFactory());
+        TokenApplication.Bind();
+        ArchivePage page = new();
+        try
+        {
+            Control frame = page.DetachReader();
+            ReaderMediaSidebar sidebar = page.MediaSidebar!;
+            Grid pane = page.FindControl<Grid>("ArchiveReaderPane")!;
+            Assert.Same(frame, sidebar.Parent);
+            Assert.Same(frame, pane.Parent); // sibling, not a descendant: the pane's context cannot help it
+            Control source = fromStrip ? sidebar.Strip : sidebar.Open;
+            EffectiveShortcutBindings bindings = EffectiveShortcutBindings.Build(
+                new ShortcutBindingsSection().Set("gallery.close", [ShortcutGesture.Parse("F")]), ShortcutPlatform.Linux);
+            string? context = null;
+            bool favorite = false;
+            source.AddHandler(InputElement.KeyDownEvent, (_, e) =>
+            {
+                context = KeyContextHost.Current;
+                favorite = bindings.Matches(e, "favorites.toggle");
+            }, RoutingStrategies.Tunnel);
+            KeyEventArgs press = Press(Key.F);
+            source.RaiseEvent(press);
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs(); // detached tree: the safety-net closes its scope
+            Assert.Equal("reader", context);
+            Assert.True(favorite, "A gallery-only rebind must not steal F from the detached reader sidebar.");
+            Assert.Equal("reader", KeyContextHost.ContextOf(press));
+            Assert.Null(KeyContextHost.Current);
+            page.AttachReader(frame);
+        }
+        finally { page.EndLifetime(); }
+    });
 
     // S3 P2-5: the window's own routes run after every page scope has closed; they ask for the context the innermost host resolved for the key.
     [Fact]
