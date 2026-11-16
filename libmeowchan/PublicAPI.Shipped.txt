@@ -410,9 +410,17 @@ MeowChan.Archive.ArchiveReader.SelectThreadIdsAsync(MeowChan.Archive.ArchiveThre
 MeowChan.Archive.ArchiveReader.SelectThreadIdsBySpecAsync(MeowChan.Archive.ArchiveSearchRequest! request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<MeowChan.ResourceId!>!>!
 MeowChan.Archive.ArchiveReader.SelectThreadSummariesAsync(MeowChan.Archive.ArchiveThreadQuery! query, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<MeowChan.Archive.ArchiveThreadSummary!>!>!
 MeowChan.Archive.ArchiveReader.SelectThreadSummariesBySpecAsync(MeowChan.Archive.ArchiveSearchRequest! request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<MeowChan.Archive.ArchiveThreadSummary!>!>!
+MeowChan.Archive.ArchiveSearchMatchTier
+MeowChan.Archive.ArchiveSearchMatchTier.OpeningPost = 1 -> MeowChan.Archive.ArchiveSearchMatchTier
+MeowChan.Archive.ArchiveSearchMatchTier.OtherPosts = 2 -> MeowChan.Archive.ArchiveSearchMatchTier
+MeowChan.Archive.ArchiveSearchMatchTier.Title = 0 -> MeowChan.Archive.ArchiveSearchMatchTier
 MeowChan.Archive.ArchiveSearchRequest
 MeowChan.Archive.ArchiveSearchRequest.DateWindow.get -> MeowChan.Archive.ResolvedDateWindow?
 MeowChan.Archive.ArchiveSearchRequest.Spec.get -> MeowChan.Archive.ArchiveSearchSpec!
+MeowChan.Archive.ArchiveSearchScope
+MeowChan.Archive.ArchiveSearchScope.AllPosts = 0 -> MeowChan.Archive.ArchiveSearchScope
+MeowChan.Archive.ArchiveSearchScope.Title = 2 -> MeowChan.Archive.ArchiveSearchScope
+MeowChan.Archive.ArchiveSearchScope.TitleAndOpeningPost = 1 -> MeowChan.Archive.ArchiveSearchScope
 MeowChan.Archive.ArchiveSearchSpec
 MeowChan.Archive.ArchiveSearchSpec.ArchiveSearchSpec(string! text = "", System.Collections.Generic.IEnumerable<string!>? sources = null, System.Collections.Generic.IEnumerable<MeowChan.Archive.ArchiveBoardConstraint!>? boards = null, System.Collections.Generic.IEnumerable<MeowChan.Interfaces.ThreadSourceState>? sourceStates = null, bool? captureEnabled = null, bool? hasPosts = null, MeowChan.Archive.ArchiveThreadSort sort = MeowChan.Archive.ArchiveThreadSort.LatestCapture, MeowChan.Archive.ArchiveWorkFilter workFilter = MeowChan.Archive.ArchiveWorkFilter.All, MeowChan.Archive.ArchiveDateRange? dateRange = null, int schemaVersion = 1) -> void
 MeowChan.Archive.ArchiveSearchSpec.Boards.get -> System.Collections.Generic.IReadOnlyList<MeowChan.Archive.ArchiveBoardConstraint!>!
@@ -420,11 +428,14 @@ MeowChan.Archive.ArchiveSearchSpec.CaptureEnabled.get -> bool?
 MeowChan.Archive.ArchiveSearchSpec.DateRange.get -> MeowChan.Archive.ArchiveDateRange?
 MeowChan.Archive.ArchiveSearchSpec.Equals(MeowChan.Archive.ArchiveSearchSpec? other) -> bool
 MeowChan.Archive.ArchiveSearchSpec.HasPosts.get -> bool?
+MeowChan.Archive.ArchiveSearchSpec.RanksByMatchTier.get -> bool
 MeowChan.Archive.ArchiveSearchSpec.SchemaVersion.get -> int
+MeowChan.Archive.ArchiveSearchSpec.Scope.get -> MeowChan.Archive.ArchiveSearchScope
 MeowChan.Archive.ArchiveSearchSpec.Sort.get -> MeowChan.Archive.ArchiveThreadSort
 MeowChan.Archive.ArchiveSearchSpec.SourceStates.get -> System.Collections.Generic.IReadOnlyList<MeowChan.Interfaces.ThreadSourceState>!
 MeowChan.Archive.ArchiveSearchSpec.Sources.get -> System.Collections.Generic.IReadOnlyList<string!>!
 MeowChan.Archive.ArchiveSearchSpec.Text.get -> string!
+MeowChan.Archive.ArchiveSearchSpec.WithScope(MeowChan.Archive.ArchiveSearchScope scope) -> MeowChan.Archive.ArchiveSearchSpec!
 MeowChan.Archive.ArchiveSearchSpec.WorkFilter.get -> MeowChan.Archive.ArchiveWorkFilter
 MeowChan.Archive.ArchiveSearchSpecJson
 MeowChan.Archive.ArchiveText
@@ -432,12 +443,18 @@ MeowChan.Archive.ArchiveThreadPage
 MeowChan.Archive.ArchiveThreadPage.ArchiveThreadPage(System.Collections.Generic.IReadOnlyList<MeowChan.Archive.ArchiveThreadSummary!>! Items, int TotalCount, int Offset) -> void
 MeowChan.Archive.ArchiveThreadPage.Items.get -> System.Collections.Generic.IReadOnlyList<MeowChan.Archive.ArchiveThreadSummary!>!
 MeowChan.Archive.ArchiveThreadPage.Items.init -> void
+MeowChan.Archive.ArchiveThreadPage.MatchTierCounts.get -> System.Collections.Generic.IReadOnlyList<int>?
+MeowChan.Archive.ArchiveThreadPage.MatchTierCounts.init -> void
+MeowChan.Archive.ArchiveThreadPage.MatchTiers.get -> System.Collections.Generic.IReadOnlyList<MeowChan.Archive.ArchiveSearchMatchTier>?
+MeowChan.Archive.ArchiveThreadPage.MatchTiers.init -> void
 MeowChan.Archive.ArchiveThreadPage.Offset.get -> int
 MeowChan.Archive.ArchiveThreadPage.Offset.init -> void
 MeowChan.Archive.ArchiveThreadPage.TotalCount.get -> int
 MeowChan.Archive.ArchiveThreadPage.TotalCount.init -> void
 MeowChan.Archive.ArchiveThreadPreview
 MeowChan.Archive.ArchiveThreadPreview.ArchiveThreadPreview(MeowChan.ResourceId! Id, string? FirstPostId, string! FirstCapturedText, MeowChan.Archive.CapturedAttachment? FirstAttachment) -> void
+MeowChan.Archive.ArchiveThreadPreview.Attachments.get -> System.Collections.Generic.IReadOnlyList<MeowChan.Archive.CapturedAttachment!>!
+MeowChan.Archive.ArchiveThreadPreview.Attachments.init -> void
 MeowChan.Archive.ArchiveThreadPreview.FirstAttachment.get -> MeowChan.Archive.CapturedAttachment?
 MeowChan.Archive.ArchiveThreadPreview.FirstAttachment.init -> void
 MeowChan.Archive.ArchiveThreadPreview.FirstCapturedText.get -> string!
@@ -479,6 +496,7 @@ MeowChan.Archive.ArchiveThreadRegistration.Url.init -> void
 MeowChan.Archive.ArchiveThreadSort
 MeowChan.Archive.ArchiveThreadSort.LatestCapture = 0 -> MeowChan.Archive.ArchiveThreadSort
 MeowChan.Archive.ArchiveThreadSort.OldestFirst = 1 -> MeowChan.Archive.ArchiveThreadSort
+MeowChan.Archive.ArchiveThreadSort.Relevance = 3 -> MeowChan.Archive.ArchiveThreadSort
 MeowChan.Archive.ArchiveThreadSort.Title = 2 -> MeowChan.Archive.ArchiveThreadSort
 MeowChan.Archive.ArchiveThreadSummary
 MeowChan.Archive.ArchiveThreadSummary.ArchiveThreadSummary(MeowChan.ResourceId! Id, string! Url, string! Title, string! MediaDirectory, MeowChan.Interfaces.ThreadSourceState SourceState, bool CaptureEnabled, System.DateTimeOffset FirstSeenAt, System.DateTimeOffset? LastCapturedAt, int PostCount, long Revision) -> void
@@ -1118,6 +1136,7 @@ MeowChan.Interfaces.ThreadActivity.Finished = 3 -> MeowChan.Interfaces.ThreadAct
 MeowChan.Interfaces.ThreadActivity.NoMedia = 4 -> MeowChan.Interfaces.ThreadActivity
 MeowChan.Interfaces.ThreadActivity.NotFound = 6 -> MeowChan.Interfaces.ThreadActivity
 MeowChan.Interfaces.ThreadActivity.Pending = 0 -> MeowChan.Interfaces.ThreadActivity
+MeowChan.Interfaces.ThreadActivity.SourceUnavailable = 8 -> MeowChan.Interfaces.ThreadActivity
 MeowChan.Interfaces.ThreadActivity.Stopped = 7 -> MeowChan.Interfaces.ThreadActivity
 MeowChan.Interfaces.ThreadSourceState
 MeowChan.Interfaces.ThreadSourceState.Active = 0 -> MeowChan.Interfaces.ThreadSourceState
@@ -1970,4 +1989,5 @@ virtual MeowChan.Boards.Base.BaseThread.SupportsContent.get -> bool
 virtual MeowChan.Boards.Base.BaseThread.Title.get -> string!
 virtual MeowChan.Boards.Base.BaseThread.Title.set -> void
 virtual MeowChan.Boards.Base.BaseThread.WaitForNextCheckAsync(System.TimeSpan interval, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+virtual MeowChan.Boards.Base.BaseThread.WaitForSourceAvailableAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 virtual MeowChan.Boards.Base.BaseThread.checkThreadAsync(MeowChan.Downloader.DownloadQueue! queue, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
