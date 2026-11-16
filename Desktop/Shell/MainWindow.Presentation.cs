@@ -170,7 +170,7 @@ public partial class MainWindow
                     // Initial mode selects presentation only. Persisted geometry is
                     // already installed before the first native window is opened.
                     if (_barebonesGeometry.Capture(_config.ShrinkWindowForBarebones, _appliedWorkspaceMode != null,
-                            Width, Height, WindowState))
+                            Width, Height, WindowState, _lastNormalClient))
                     {
                         WindowState = WindowState.Normal;
                         SetWorkspaceWindowSize(850, 530);
@@ -686,7 +686,9 @@ internal sealed class BarebonesWindowGeometry
         if (!enabled) _captured = null;
     }
 
-    internal bool Capture(bool enabled, bool hasPreviousMode, double width, double height, WindowState state)
+    // Width/Height follow the native client, so outside Normal they hold the maximized or fullscreen size.
+    // The window's last normal client is then the size to restore underneath that state.
+    internal bool Capture(bool enabled, bool hasPreviousMode, double width, double height, WindowState state, Size? lastNormal = null)
     {
         if (!enabled) { _captured = null; return false; }
         if (!hasPreviousMode)
@@ -694,6 +696,9 @@ internal sealed class BarebonesWindowGeometry
             _captured = (1380, 850, WindowState.Normal);
             return false; // persisted startup geometry is not resized
         }
+        if (state != WindowState.Normal && lastNormal is { Width: > 0, Height: > 0 } normal
+            && double.IsFinite(normal.Width) && double.IsFinite(normal.Height))
+            (width, height) = (normal.Width, normal.Height);
         _captured = (double.IsFinite(width) ? width : 1380, double.IsFinite(height) ? height : 850, state);
         return true;
     }

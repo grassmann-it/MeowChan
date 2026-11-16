@@ -395,6 +395,8 @@ public partial class MainWindow
                 TraceFullscreen("maximized exit superseded by explicit normal request");
             }
             UpdateGalleryFullscreenPresentation();
+            if (e.OldValue is WindowState before && e.NewValue is WindowState after
+                && FullscreenPresentationChanged(before, after)) RefreshFullscreenButton();
             ContinueLinuxFullscreenNormalRestore();
             ContinueFullscreenRestore();
             ContinuePendingFullscreenExitSizeRepair();
@@ -930,9 +932,8 @@ public partial class MainWindow
     private bool HasVisibleShellDialog() => OwnedWindows.Any(window => window.IsVisible
         && !(_gallery?.OwnsOverlayWindow(window) ?? false) && !MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.IsPassive(window));
 
-    private void RefreshShellCommands()
+    private void RefreshFullscreenButton()
     {
-        RefreshReaderGroupsEntry(); // URSA-12 shared localization/availability refresh.
         if (!_workspaceInitialized) return;
         CommandBindings.Apply(FullscreenButton, "window.fullscreen", iconOnly: true);
         FullscreenButton.Content = CommandBindings.Icon("window.fullscreen", 16,
@@ -940,6 +941,13 @@ public partial class MainWindow
         FullscreenButton.Classes.Set("selected", WindowState == WindowState.FullScreen);
         Avalonia.Automation.AutomationProperties.SetHelpText(FullscreenButton,
             CommandBindings.Tooltip("window.fullscreen") + " · " + MeowChan.Desktop.Localization.Texts.T(WindowState == WindowState.FullScreen ? "window.fullscreen.on" : "window.fullscreen.off"));
+    }
+
+    private void RefreshShellCommands()
+    {
+        RefreshReaderGroupsEntry(); // URSA-12 shared localization/availability refresh.
+        if (!_workspaceInitialized) return;
+        RefreshFullscreenButton();
         // The help's close cross in its header bar: the catalog icon, the same name and tooltip as the former footer button.
         CommandBindings.Apply(ShellHelpClose, "window.close", iconOnly: true);
         foreach (var pair in new[] { ("ManualImportMenuItem", "import.open"), ("SettingsMenuItem", "navigation.settings"), ("AboutMenuItem", "navigation.about"),

@@ -96,6 +96,8 @@ public partial class MainWindow
     {
         // X11 can report the same state while a request awaits the window manager.
         // Keep the restore snapshot until an actual state transition arrives.
+        if (e.Property == WindowStateProperty && e.OldValue is WindowState previous && e.NewValue is WindowState current)
+            _minimizeRestore.StateChanged(previous, current);
         if (e.Property == WindowStateProperty && !Equals(e.OldValue, e.NewValue)) CompleteCaptionRestore();
         else if (e.Property == BoundsProperty || e.Property == WidthProperty || e.Property == HeightProperty)
             ContinueCaptionRestore();

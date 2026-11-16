@@ -875,7 +875,7 @@ public partial class MainWindow : Window
         Show();
         if (WindowState == WindowState.Minimized)
         {
-            WindowState = WindowState.Normal;
+            WindowState = _minimizeRestore.RestoreTarget;
         }
 
         Activate();
