@@ -62,10 +62,18 @@ internal static partial class MediaPageChecks
             void Key(Control target, Key key, KeyModifiers modifiers = KeyModifiers.None) =>
                 target.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = key, KeyModifiers = modifiers });
             Control Tile(int index) => page.Grid.ContainerFromIndex(index) as Control ?? throw new InvalidOperationException("Tile " + index + " is not realized.");
-            async Task InArchiveAsync(string thread, string post)
+            ContentControl readerHost = shell.FindControl<ContentControl>("ReaderHost")!;
+            ListBox threadCards = archive.FindControl<ListBox>("ArchiveThreads")!;
+            async Task InArchiveAsync(string thread, string post, bool largeReader = true)
             {
                 await UntilAsync(() => archiveHost.IsVisible && archive.CurrentThread?.Summary.Id.Thread == thread && ReaderPost() == post);
                 Require(!mediaHost.IsVisible, "The Medien page must be hidden behind the archive.");
+                if (!largeReader) return;
+                // 16.11.2026: like the gallery's "Show in thread", the jump opens the large reader on the post, over an archive whose list selects the thread.
+                await UntilAsync(() => readerHost.IsVisible && posts.GetVisualAncestors().Contains(readerHost)
+                    && shell.FocusManager?.GetFocusedElement() is Visual focused && focused.GetSelfAndVisualAncestors().Contains(readerHost));
+                Require(threadCards.SelectedItems!.OfType<ArchiveThreadRow>().Select(row => row.Summary.Id.Thread).SequenceEqual(new[] { thread }),
+                    "The archive list must select exactly the opened thread.");
             }
             async Task BackOnMediaAsync()
             {
@@ -233,7 +241,7 @@ internal static partial class MediaPageChecks
             await UntilAsync(() => viewer.CaptureState().PostId == "610");
             viewer.Focus();
             Key(viewer, Avalonia.Input.Key.T);
-            await InArchiveAsync("610", "610");
+            await InArchiveAsync("610", "610", largeReader: false); // the gallery's own path (its reader is checked by the gallery smokes)
             await UntilAsync(() => galleryReturn.IsEffectivelyVisible);
             Require(!mediaReturn.IsVisible && !shell.MediaReturnAvailableForTests, "While the gallery waits, only its own return is offered.");
             galleryReturn.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));

@@ -346,12 +346,17 @@ public partial class ArchivePage
         await OpenActions.RunAsync(() => OpenAssetGalleryAsync(row, e.Source as Control), "archive.media.open");
     }
 
+    /// <summary>
+    /// "Large reader" (reader.expand) of the reader's toolbar acts on the thread the reader shows, whatever the list shows or selects: a thread
+    /// opened by a jump (Media, Tagging, a quote) may be on no page of the list, and a list selection of several threads still leaves the reader
+    /// with its one thread (16.11.2026: the gate used to demand exactly one selected list row).
+    /// </summary>
+    internal bool CanExpandReader => CanRead && !_busy && !_ended && !IsFilenameSearchOpen && _selectedThread != null;
+
     private async void OnReadPostsClick(object? sender, RoutedEventArgs e)
     {
-        if (IsFilenameSearchOpen) return;
-        if (_selectedThread == null || FrozenArchiveSelection().Length != 1) return;
+        if (!CanExpandReader || _selectedThread is not { } selectedThread) return;
         OpenReaderRequested?.Invoke(sender as Control);
-        ResourceId selectedThread = _selectedThread;
         await OpenActions.RunAsync(() => LoadThreadAsync(selectedThread), "archive.readPosts");
         ArchiveContentTabs.SelectedIndex = 0;
         ReaderPositionChanged(deliberate: true);

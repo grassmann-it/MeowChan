@@ -598,6 +598,8 @@
     "archive.textChip": "Texto: {0}",
     "archive.sourceChip": "Fonte: {0}",
     "archive.boardChip": "Board: {0}",
+    "archive.reveal.searchReplaced": "A pesquisa do acervo foi alterada para a board {0} para que o tópico aberto apareça na lista.",
+    "archive.reveal.restoreSearch": "Restaurar a pesquisa anterior",
     "archive.dateChip": "Primeiro registro local: {0} – {1} · {2}",
     "archive.pageAction": "Página de resultados {0} de {1}",
     "savedSearch.openManager": "Pesquisas salvas…",

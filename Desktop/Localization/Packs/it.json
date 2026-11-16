@@ -598,6 +598,8 @@
     "archive.textChip": "Testo: {0}",
     "archive.sourceChip": "Fonte: {0}",
     "archive.boardChip": "Board: {0}",
+    "archive.reveal.searchReplaced": "La ricerca dell'archivio è stata impostata sulla board {0} perché il thread aperto compaia nell'elenco.",
+    "archive.reveal.restoreSearch": "Ripristina la ricerca precedente",
     "archive.dateChip": "Prima registrazione locale: {0} – {1} · {2}",
     "archive.pageAction": "Pagina di risultati {0} di {1}",
     "savedSearch.openManager": "Ricerche salvate…",

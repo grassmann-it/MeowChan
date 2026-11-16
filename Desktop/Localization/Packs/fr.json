@@ -842,6 +842,8 @@
     "archive.textChip": "Texte : {0}",
     "archive.sourceChip": "Source : {0}",
     "archive.boardChip": "Tableau : {0}",
+    "archive.reveal.searchReplaced": "La recherche des archives porte désormais sur le tableau {0} pour que le fil ouvert figure dans la liste.",
+    "archive.reveal.restoreSearch": "Rétablir la recherche précédente",
     "archive.dateChip": "Premier enregistrement local : {0} – {1} · {2}",
     "archive.pageAction": "Page de résultats {0} sur {1}",
     "savedSearch.openManager": "Recherches enregistrées…",

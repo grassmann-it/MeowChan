@@ -798,6 +798,8 @@
     "archive.textChip": "텍스트: {0}",
     "archive.sourceChip": "소스: {0}",
     "archive.boardChip": "게시판: {0}",
+    "archive.reveal.searchReplaced": "열린 스레드가 목록에 표시되도록 보관함 검색을 게시판 {0}(으)로 바꿨습니다.",
+    "archive.reveal.restoreSearch": "이전 검색 복원",
     "archive.dateChip": "로컬 최초 등록: {0} – {1} · {2}",
     "archive.pageAction": "결과 페이지 {0} / {1}",
     "savedSearch.openManager": "저장된 검색…",

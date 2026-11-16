@@ -842,6 +842,8 @@
     "archive.textChip": "Texto: {0}",
     "archive.sourceChip": "Fuente: {0}",
     "archive.boardChip": "Tablón: {0}",
+    "archive.reveal.searchReplaced": "La búsqueda del archivo se ha cambiado al tablón {0} para que el hilo abierto aparezca en la lista.",
+    "archive.reveal.restoreSearch": "Restaurar la búsqueda anterior",
     "archive.dateChip": "Primer registro local: {0} – {1} · {2}",
     "archive.pageAction": "Página de resultados {0} de {1}",
     "savedSearch.openManager": "Búsquedas guardadas…",

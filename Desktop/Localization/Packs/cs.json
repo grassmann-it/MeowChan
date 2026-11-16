@@ -602,6 +602,8 @@
     "archive.textChip": "Text: {0}",
     "archive.sourceChip": "Zdroj: {0}",
     "archive.boardChip": "Board: {0}",
+    "archive.reveal.searchReplaced": "Hledání v archivu bylo přepnuto na board {0}, aby otevřené vlákno bylo v seznamu.",
+    "archive.reveal.restoreSearch": "Obnovit předchozí hledání",
     "archive.dateChip": "Poprvé místně zaznamenáno: {0} – {1} · {2}",
     "archive.pageAction": "Stránka výsledků {0} z {1}",
     "savedSearch.openManager": "Uložená hledání…",

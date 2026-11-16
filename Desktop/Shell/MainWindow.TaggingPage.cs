@@ -174,9 +174,7 @@ public partial class MainWindow
         ForgetMediaReturn();
         int request = ++_mediaJumpRequest;
         if (!NavigateWorkspace(WorkspacePage.Archive, activateArchive: false)) return;
-        await ArchivePage.LoadThreadAsync(item.Thread);
-        if (request != _mediaJumpRequest || _isClosing || _selectedPage != WorkspacePage.Archive) return;
-        await ArchivePage.FocusPostAsync(item.PostId);
+        await ShowThreadPostInLargeReaderAsync(item.Thread, item.PostId, request); // as the Media page's "Show in thread", without its return point
     }
 
     // The media page with the entry's tile selected; a filter that hides it is cleared by the page's own exact-focus rule or says so.

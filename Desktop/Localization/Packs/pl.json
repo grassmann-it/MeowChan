@@ -602,6 +602,8 @@
     "archive.textChip": "Tekst: {0}",
     "archive.sourceChip": "Źródło: {0}",
     "archive.boardChip": "Tablica: {0}",
+    "archive.reveal.searchReplaced": "Wyszukiwanie w archiwum przełączono na tablicę {0}, aby otwarty wątek był na liście.",
+    "archive.reveal.restoreSearch": "Przywróć poprzednie wyszukiwanie",
     "archive.dateChip": "Pierwsza rejestracja lokalna: {0} – {1} · {2}",
     "archive.pageAction": "Strona wyników {0} z {1}",
     "savedSearch.openManager": "Zapisane wyszukiwania…",

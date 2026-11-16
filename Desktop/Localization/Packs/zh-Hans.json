@@ -798,6 +798,8 @@
     "archive.textChip": "文本：{0}",
     "archive.sourceChip": "来源：{0}",
     "archive.boardChip": "版块：{0}",
+    "archive.reveal.searchReplaced": "归档搜索已改为版块 {0}，以便打开的串出现在列表中。",
+    "archive.reveal.restoreSearch": "恢复之前的搜索",
     "archive.dateChip": "首次在本地登记：{0} – {1} · {2}",
     "archive.pageAction": "结果第 {0} 页，共 {1} 页",
     "savedSearch.openManager": "已保存的搜索…",
