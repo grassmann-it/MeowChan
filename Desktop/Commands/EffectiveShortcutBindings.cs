@@ -308,6 +308,8 @@ public sealed class EffectiveShortcutBindings
     /// <see cref="ExecutionContexts"/>) the key is handled in. The gallery's key handler wraps itself in it, so a default that a saved binding of another
     /// page took away stays active there.</summary>
     public static KeyContextScope EnterKeyContext(string context) => new(context);
+    /// <summary>The execution context of the key being handled on this thread, or null outside any <see cref="EnterKeyContext"/> scope.</summary>
+    internal static string? CurrentKeyContext => _keyContext;
     public readonly struct KeyContextScope : IDisposable
     {
         private readonly string? _previous;

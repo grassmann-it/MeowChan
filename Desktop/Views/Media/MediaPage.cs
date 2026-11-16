@@ -176,6 +176,9 @@ public sealed partial class MediaPage : UserControl
         Func<string, CancellationToken, Task<MediaAssetSnapshot>>? openManifest = null, string? cachePath = null)
     {
         _openReader = openReader ?? throw new ArgumentNullException(nameof(openReader));
+        // Every key of the page runs in the "media" context, as the gallery's keys do in theirs: a default that a saved binding took away only elsewhere
+        // (a partial yield) stays active here (EffectiveShortcutBindings.EnterKeyContext).
+        KeyContextHost.Install(this, _ => "media");
         _openManifest = openManifest ?? MediaAssetReader.OpenAsync;
         // Only the real manifest reader is checked by file identity; a supplied opener keeps the per-build behavior.
         _manifests = new MediaManifestCache(openManifest, _lifetime.Token);

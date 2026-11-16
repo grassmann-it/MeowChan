@@ -119,6 +119,10 @@ public partial class ArchivePage : UserControl
 
     public ArchivePage()
     {
+        // Every key of the page runs in its execution context, as the gallery's keys do: the reader pane is "reader", the rest of the page "archive".
+        // A default that a saved binding took away only elsewhere (a partial yield) stays active here (EffectiveShortcutBindings.EnterKeyContext).
+        MeowChan.Desktop.Controls.KeyContextHost.Install(this, e => e.Source is Visual source && ArchiveReaderPane is { } pane
+            && (ReferenceEquals(source, pane) || pane.IsVisualAncestorOf(source)) ? "reader" : "archive");
         InitializeComponent(); InitializeThreadFind(); InitializeUnifiedSearch(); InitializePostPageKeys(); InitializeTransferPreview(); InitializeArchiveResultActions(); InitializeSuggestions(); InitializeSearchEditors(); InitializeArchiveSelection(); InitializeArchiveMediaCommands(); InitializeRatingCommands(); InitializeMediaPositionInput(); InitializeMediaSelection(); InitializeThreadFavoriteCommands(); InitializePrivateTags(); InitializeArchiveColumnMenus(); InitializeStatusOverlay(); InitializeReaderToolbarIcons();
         // Navigation scrolls explicitly; selection must not re-anchor while media is loading.
         ArchivePosts.AutoScrollToSelectedItem = false;
