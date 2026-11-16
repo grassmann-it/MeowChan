@@ -569,7 +569,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         _statusHost.IsVisible = true;
         ApplyTone(_statusHost, tone);
         _retry.Content = Texts.T("booru.ui.status.retry");
-        _retry.IsVisible = view.Status is BooruSearchStatus.Offline or BooruSearchStatus.Failed;
+        _retry.IsVisible = view.CanRetry;
         _retry.IsEnabled = !paused;
 
         bool paging = view.Status is BooruSearchStatus.Results or BooruSearchStatus.Empty && view.ExecutedQuery is not null && !view.IsPostResult;

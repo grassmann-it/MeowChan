@@ -39,6 +39,9 @@ internal sealed record BooruSearchView(
     internal bool HasPreviousPage => Status is BooruSearchStatus.Results or BooruSearchStatus.Empty
         or BooruSearchStatus.Offline or BooruSearchStatus.Failed or BooruSearchStatus.Idle
         && ExecutedQuery is not null && !IsPostResult && Page > 1;
+    /// <summary>Explicit repeat of the shown search or lookup after an offline, failed or cancelled request; never for the initial Idle.</summary>
+    internal bool CanRetry => Status is BooruSearchStatus.Offline or BooruSearchStatus.Failed or BooruSearchStatus.Idle
+        && (ExecutedQuery is not null || ExecutedPostId is not null);
     /// <summary>True when the five-page bound, not the provider, is what stops the paging.</summary>
     internal bool PageLimitReached => Status == BooruSearchStatus.Results && ExecutedQuery is not null && !IsPostResult
         && !IsEnd && Page >= BooruSearchModel.MaximumPage;
@@ -206,8 +209,7 @@ internal sealed class BooruSearchModel : IDisposable
         int page;
         lock (_gate)
         {
-            if (_disposed || _view.IsBusy || PauseEnd(_view) is not null
-                || _view.Status is not (BooruSearchStatus.Offline or BooruSearchStatus.Failed or BooruSearchStatus.Idle))
+            if (_disposed || _view.IsBusy || PauseEnd(_view) is not null || !_view.CanRetry)
                 return Task.CompletedTask;
             (query, postId, page) = (_view.ExecutedQuery, _view.ExecutedPostId, _view.Page);
         }

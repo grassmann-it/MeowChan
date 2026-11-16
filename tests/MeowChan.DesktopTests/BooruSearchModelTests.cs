@@ -186,6 +186,41 @@ public sealed class BooruSearchModelTests : IDisposable
     }
 
     [Fact]
+    public async Task RetryIsOfferedOnlyForAnExecutedSearchOrLookupNeverForTheInitialIdle()
+    {
+        Assert.False(_model.View.CanRetry);
+        int requests = _h.Search.Requests;
+        await _model.RetryAsync();
+        Assert.Equal(requests, _h.Search.Requests);
+
+        TaskCompletionSource<BooruCallResult<BooruResultPage>> gate = new();
+        _h.Search.OnSearch = (_, _, _) => gate.Task;
+        Task running = BooruTestSupport.SearchAsync(_model, "cat");
+        await BooruTestSupport.WaitAsync(() => _model.View.IsBusy, "busy");
+        Assert.False(_model.View.CanRetry); // busy
+        _model.Cancel();
+        Assert.True(_model.View.CanRetry);
+        gate.SetResult(BooruCallResult<BooruResultPage>.Ok(BooruUiFixtures.Page("cat", 1, true, BooruUiFixtures.Post("late"))));
+        await running;
+        Assert.Empty(_model.View.Rows);
+        _h.Serve(pages: 3);
+        await _model.RetryAsync();
+        Assert.Equal(("cat", 1), _h.Search.Searches[^1]);
+        Assert.False(_model.View.CanRetry); // Results
+    }
+
+    [Fact]
+    public async Task RetryIsRefusedWhileAProviderPauseIsInForce()
+    {
+        _h.Search.OnSearch = (_, _, _) => Task.FromResult(BooruCallResult<BooruResultPage>.Of(BooruCallStatus.Cooldown, "c"));
+        await BooruTestSupport.SearchAsync(_model, "cat");
+        Assert.False(_model.View.CanRetry);
+        int requests = _h.Search.Requests;
+        await _model.RetryAsync();
+        Assert.Equal(requests, _h.Search.Requests);
+    }
+
+    [Fact]
     public async Task APageAnswerForAnotherQueryOrPageIsNotShown()
     {
         _h.Search.OnSearch = (query, page, _) => Task.FromResult(BooruCallResult<BooruResultPage>.Ok(
