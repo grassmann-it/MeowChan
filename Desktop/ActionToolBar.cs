@@ -74,6 +74,17 @@ public sealed class ActionToolBar : ToolBar
     public static int GetGroup(Control item) => item.GetValue(GroupProperty);
     public static void SetGroup(Control item, int group) => item.SetValue(GroupProperty, group);
 
+    /// <summary>
+    /// Opt-in for a joined segment group (the List|Table pair): when the group is the last thing standing on the bar and "More" is
+    /// shown, its segments share the width up to "More" (the item gap in front of it stays) instead of leaving it empty. Without
+    /// "More", with other items after the group, or while the group is under "More" nothing stretches; the items' measured widths
+    /// (so the overflow decision) never change, only their arranged slots.
+    /// </summary>
+    public static readonly AttachedProperty<bool> StretchProperty =
+        AvaloniaProperty.RegisterAttached<ActionToolBar, Control, bool>("Stretch");
+    public static bool GetStretch(Control item) => item.GetValue(StretchProperty);
+    public static void SetStretch(Control item, bool stretch) => item.SetValue(StretchProperty, stretch);
+
     /// <summary>The Control items in item order, kept in step with <see cref="ItemsControl.Items"/> (no per-pass LINQ in the panel).</summary>
     internal Control[] GeneratedItems => _generatedItems;
 
@@ -97,6 +108,7 @@ public sealed class ActionToolBar : ToolBar
         // that only turns an item from Always into AsNeeded (Simple → Advanced: full screen) must re-run the bar's measure, else the
         // item stays under More at an unchanged width.
         GroupProperty.Changed.AddClassHandler<Control>((item, _) => (item.Parent as Panel)?.InvalidateArrange());
+        StretchProperty.Changed.AddClassHandler<Control>((item, _) => (item.Parent as Panel)?.InvalidateArrange());
         foreach (AvaloniaProperty property in new AvaloniaProperty[] { OmittedProperty, OverflowPriorityProperty, ToolBar.OverflowModeProperty })
             property.Changed.AddClassHandler<Control>((item, _) =>
             {
@@ -399,6 +411,10 @@ public sealed class ActionToolBarPanel : StackPanel
     private readonly List<GroupSeparatorMark> _marks = new();
     private readonly HashSet<Control> _overflow = new();
     private readonly HashSet<Control> _omitted = new();
+    // The right edge of the items' budget with "More" shown (NaN: unbounded), and the shown items of one arrange pass (scratch).
+    private double _stretchRight = double.NaN;
+    private readonly List<Control> _shown = new();
+    private double[] _stretched = Array.Empty<double>();
     // Scratch buffers of one measure pass, reused so a pass allocates nothing.
     private double[] _widths = Array.Empty<double>();
     private OverflowMode[] _modes = Array.Empty<OverflowMode>();
@@ -434,6 +450,60 @@ public sealed class ActionToolBarPanel : StackPanel
     public static double LeadingGap(Control? previous, Control item) => previous == null ? 0
         : LeadingGap(IsSegment(previous), ActionToolBar.GetGroup(previous), IsSegment(item), ActionToolBar.GetGroup(item));
 
+    private static bool Stretches(Control item) => IsSegment(item) && ActionToolBar.GetStretch(item);
+
+    /// <summary>
+    /// The index of the first member of the trailing stretch run among the shown items (the last shown item and the segments of its
+    /// group directly before it that all carry <see cref="ActionToolBar.StretchProperty"/>), or -1 when the bar does not end in one.
+    /// </summary>
+    private static int StretchRunStart(List<Control> shown)
+    {
+        int start = shown.Count - 1;
+        if (start < 0 || !Stretches(shown[start])) return -1;
+        int group = ActionToolBar.GetGroup(shown[start]);
+        while (start > 0 && Stretches(shown[start - 1]) && ActionToolBar.GetGroup(shown[start - 1]) == group) start--;
+        return start;
+    }
+
+    private static void StretchShown(double span, List<Control> shown, int start, double[] slots)
+    {
+        int count = shown.Count - start;
+        double[] naturals = new double[count], margins = new double[count];
+        for (int i = 0; i < count; i++)
+        {
+            Control member = shown[start + i];
+            naturals[i] = member.DesiredSize.Width;
+            margins[i] = member.Margin.Left + member.Margin.Right;
+        }
+        StretchWidths(span, naturals, margins).CopyTo(slots, 0);
+    }
+
+    /// <summary>
+    /// The slot widths of a joined stretch group that shares <paramref name="span"/> (the slots' sum; the members' natural widths are
+    /// <paramref name="naturals"/> and <paramref name="margins"/> their horizontal margins, negative for the overlapping edge of a segment).
+    /// The members' visible widths (slot minus margins) become equal; where one member's natural width is wider than that share, or
+    /// there is no spare room, every member keeps its natural width and the spare room is split evenly, so nothing is ever clipped.
+    /// </summary>
+    public static double[] StretchWidths(double span, IReadOnlyList<double> naturals, IReadOnlyList<double> margins)
+    {
+        int count = naturals.Count;
+        double[] slots = new double[count];
+        if (count == 0) return slots;
+        double sum = 0, marginSum = 0;
+        for (int i = 0; i < count; i++) { sum += naturals[i]; marginSum += margins[i]; }
+        double extra = span - sum;
+        if (!(extra > 0))
+        {
+            for (int i = 0; i < count; i++) slots[i] = naturals[i];
+            return slots;
+        }
+        double visible = (span - marginSum) / count;
+        bool fits = true;
+        for (int i = 0; i < count; i++) if (visible + margins[i] < naturals[i]) { fits = false; break; }
+        for (int i = 0; i < count; i++) slots[i] = fits ? visible + margins[i] : naturals[i] + extra / count;
+        return slots;
+    }
+
     protected override Size MeasureOverride(Size availableSize)
     {
         ActionToolBar? owner = Owner;
@@ -459,8 +529,11 @@ public sealed class ActionToolBarPanel : StackPanel
         }
         // One measure of the More content per pass: it lives in another subtree and is measured mid-pass. It holds the gap before "⋮".
         double moreWidth = owner.MoreWidth();
+        double available = availableSize.Width + (owner.More?.IsVisible == true ? moreWidth : 0);
+        // Where the items end when "More" is shown: the same budget the overflow decision used (the item gap in front of "More" is part of its slot).
+        _stretchRight = double.IsFinite(available) ? available - moreWidth : double.NaN;
         double width = ActionOverflowLayout.ResolveSpaced(count, _itemWidths, _groups, _segments, _modes, _visible,
-            availableSize.Width + (owner.More?.IsVisible == true ? moreWidth : 0), moreWidth,
+            available, moreWidth,
             prioritized ? _priorities : null, _overflowed, _gaps, _widths, _previous, _order);
         _overflow.Clear();
         _omitted.Clear();
@@ -500,17 +573,35 @@ public sealed class ActionToolBarPanel : StackPanel
         }
         // One horizontal row with the bar's own gaps (the measure counted the same ones): the item gap between neighbours, the group gap
         // where a new group starts (the line stands in its middle), none between two joined segments and none at either end.
+        // A trailing joined stretch group (ActionToolBar.Stretch) takes the room between the last natural item end and "More".
+        _shown.Clear();
+        foreach (Control child in Children) if (child.IsVisible) _shown.Add(child);
+        int run = _overflow.Count > 0 ? StretchRunStart(_shown) : -1;
+        double natural = 0;
+        Control? last = null;
+        foreach (Control child in _shown) { natural += LeadingGap(last, child) + child.DesiredSize.Width; last = child; }
+        double right = double.IsNaN(_stretchRight) ? finalSize.Width : Math.Min(_stretchRight, finalSize.Width);
+        int stretchedCount = _shown.Count - run;
+        if (run >= 0 && right > natural)
+        {
+            if (_stretched.Length < stretchedCount) _stretched = new double[Math.Max(stretchedCount, 4)];
+            double span = right - natural;
+            for (int i = 0; i < stretchedCount; i++) span += _shown[run + i].DesiredSize.Width;
+            StretchShown(span, _shown, run, _stretched);
+        }
+        else run = -1;
         double x = 0;
         Control? previous = null;
-        foreach (Control child in Children)
+        for (int index = 0; index < _shown.Count; index++)
         {
-            if (!child.IsVisible) continue;
+            Control child = _shown[index];
             x += LeadingGap(previous, child);
-            double width = child.DesiredSize.Width;
+            double width = run >= 0 && index >= run ? _stretched[index - run] : child.DesiredSize.Width;
             child.Arrange(new Rect(x, 0, width, finalSize.Height));
             x += width;
             previous = child;
         }
+        _shown.Clear();
         UpdateGroupSeparators();
         return finalSize;
     }
