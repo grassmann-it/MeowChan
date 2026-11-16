@@ -252,7 +252,6 @@ public partial class ArchivePage
         {
             if (e.Property == Visual.IsVisibleProperty) CancelReaderMediaActivation();
         };
-        ArchiveContentTabs.PropertyChanged += OnReaderTabPropertyChanged;
         ArchiveContentTabs.SelectionChanged += (_, _) => { CancelReaderMediaActivation(); AlignPostsOnShow(); };
         // M / U / F on the selected post's medium (the shared resolver) first, then the media menu's other keys.
         posts.AddHandler(KeyDownEvent, (_, e) => { if (!TryRouteFavoriteKey(posts, e)) TryRouteArchiveMediaShortcut(posts, e); }, RoutingStrategies.Bubble);
@@ -269,24 +268,6 @@ public partial class ArchivePage
         // The automatic scroll stays off for jumps and the pointer; a control inside a realized card that the keyboard focuses
         // (Tab to a link below the view) is brought in explicitly, so keyboard users never lose sight of the focus.
         posts.AddHandler(GotFocusEvent, OnReaderPostsGotFocus, RoutingStrategies.Bubble);
-    }
-
-    private void OnReaderTabPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
-    {
-        if (e.Property != SelectingItemsControl.SelectedIndexProperty) return;
-        int previous = e.GetOldValue<int>();
-        int current = e.GetNewValue<int>();
-        if (previous == 0 && current != 0)
-        {
-            // SelectionChanged runs after the tab has hidden the posts. Capture the
-            // actual viewport while it is still visible, rather than falling back
-            // to the selected card on a later live refresh.
-            _readerBackgroundAnchor = CaptureReaderAnchor(postsVisible: true);
-        }
-        else if (current == 0)
-        {
-            _readerBackgroundAnchor = null;
-        }
     }
 
     private void OnReaderPostsGotFocus(object? sender, FocusChangedEventArgs e)
@@ -326,10 +307,6 @@ public partial class ArchivePage
     internal string? CurrentReaderPostId => _readerPostId;
     // The post the posts list has to be aligned to on its next appearance (a background move selected it while the list was hidden).
     private string? _postsAlignOnShow;
-    // The posts list remains rendered while Media/References is selected, but
-    // its realized viewport is stale once the tab is hidden. Keep the last real
-    // viewport anchor so a refresh does not jump back to the selected card.
-    private ReaderAnchor? _readerBackgroundAnchor;
     private void AlignPostsOnShow()
     {
         if (_postsAlignOnShow is not { } post || _ended || !ReaderShowsPosts) return;
@@ -602,20 +579,8 @@ public partial class ArchivePage
         ShowPost(postId, null, reveal: false, scroll: false, background: true);
         _readerPostId = postId;
         _postsAlignOnShow = postId;
-        UpdateReaderBackgroundAnchor(postId);
         UpdateReaderNavigation();
         ReaderPositionChanged(deliberate: true);
-    }
-
-    private void UpdateReaderBackgroundAnchor(string? selectedPostId)
-    {
-        if (!ReaderPostsInBackground || _thread == null) return;
-        ReaderAnchor? current = _readerBackgroundAnchor;
-        string? postId = Projection is { } shown && _postOffset < shown.Count
-            ? shown[_postOffset].Post.PostId
-            : _readerPostId;
-        if (postId == null) return;
-        _readerBackgroundAnchor = new ReaderAnchor(_thread.Summary.Id, postId, current?.Top ?? 0, selectedPostId ?? _readerPostId);
     }
 
     // A realized container within one viewport height above or below the visible part of the list.
@@ -880,7 +845,7 @@ public partial class ArchivePage
         if (_thread != null && ReaderFindBar.IsVisible && TryMoveThreadFindByShortcut(e)) return;
         if (e.Source is Visual source)
         {
-            if (source.GetSelfAndVisualAncestors().Any(control => control is TextBox or ComboBox or NumericUpDown or MenuItem or Slider or ScrollBar)) return;
+            if (KeyBelongsToNativeEditor(e)) return;
             if (source.GetVisualAncestors().Prepend(source).OfType<SelectableTextBlock>()
                 .Any(text => text.SelectionStart != text.SelectionEnd)) return;
         }
@@ -980,20 +945,20 @@ public partial class ArchivePage
         return true;
     }
 
-    // The beside-the-list preview has no reader tunnel: its post list passes the same gesture on from its own bubble.
-    // With the Media tab shown the posts list is not on screen: the same gesture pages the posts from the tab (its list and its header) in the background.
-    // The handler is a plain bubble one, so a key the media list handled itself (it keeps those) never pages.
-    private void InitializePostPageKeys()
-    {
-        ArchivePosts.KeyDown += (_, e) =>
+    // The inline reader (and the beside-the-list preview) has no reader tunnel: the paging gesture is one tunnel handler on the content tabs, so it
+    // reaches the posts list, the Media tile list and table and the References before their own key handling. A focused tile or row would
+    // otherwise consume Alt+PageUp/PageDown (a ListBox and a DataGrid take PageUp/PageDown whatever the modifier). Paging is a reader command, not a
+    // list key, as in the large reader (whose pane tunnel pages first); the keys the lists need (arrows, Home/End, plain and Shift/Ctrl PageUp/PageDown,
+    // Space/Enter, Select All) are not among its default gestures. Native editors keep their keys (the media sort, the page-size field).
+    private void InitializePostPageKeys() =>
+        ArchiveContentTabs.AddHandler(KeyDownEvent, (_, e) =>
         {
-            if (!_largeReader && !IsReaderDialogOpen) TryPageByShortcut(e);
-        };
-        ArchiveContentTabs.KeyDown += (_, e) =>
-        {
-            if (!_largeReader && !IsReaderDialogOpen && ReaderPostsInBackground) TryPageByShortcut(e);
-        };
-    }
+            if (!_largeReader && !IsReaderDialogOpen && !KeyBelongsToNativeEditor(e)) TryPageByShortcut(e);
+        }, RoutingStrategies.Tunnel);
+
+    // Native editors and menus keep their keys in every reader: a key from a text box, a combo box, a number field, a menu item, a slider or a scroll bar.
+    private static bool KeyBelongsToNativeEditor(KeyEventArgs e) =>
+        e.Source is Visual source && source.GetSelfAndVisualAncestors().Any(control => control is TextBox or ComboBox or NumericUpDown or MenuItem or Slider or ScrollBar);
 
     private void CancelReaderMediaActivation() => _readerMediaActivationCancellation?.Cancel();
 
@@ -1262,20 +1227,22 @@ public partial class ArchivePage
         };
     }
 
-    private ReaderAnchor? CaptureReaderAnchor(bool postsVisible = false)
+    /// <summary>The place the reader would retain now (the post and its offset in the list), for the checks of the anchor rules.</summary>
+    internal (string PostId, double Top)? CurrentReaderAnchor => CaptureReaderAnchor() is { } anchor ? (anchor.PostId, anchor.Top) : null;
+
+    private ReaderAnchor? CaptureReaderAnchor()
     {
         if (_thread == null) return null;
         ListBox list = ArchivePosts;
         string? selected = (list.SelectedItem as ArchivePostRow)?.Id;
-        if (!postsVisible && ArchiveContentTabs.SelectedIndex != 0
-            && _readerBackgroundAnchor is { } background
-            && background.Thread == _thread.Summary.Id)
-            return background with { SelectedPostId = selected ?? background.SelectedPostId };
-        // Behind another tab the list shows nothing (its realized cards are stale): the
-        // cached viewport is preferred, then the page's first post, never the selection alone.
-        var visible = !postsVisible && ArchiveContentTabs.SelectedIndex != 0 ? default : list.GetVisualDescendants().OfType<ListBoxItem>()
+        // The realized cards keep their scroll position behind another tab (Media, References) and stay the anchor there. They are stale only after
+        // a background step or page is waiting for alignment (_postsAlignOnShow): then the anchor is the selected post or the page's first. A card
+        // whose row is not in the current ItemsSource belongs to a page that was replaced behind the tab and is never the anchor.
+        IEnumerable<ArchivePostRow>? current = list.ItemsSource as IEnumerable<ArchivePostRow>;
+        var visible = _postsAlignOnShow != null ? default : list.GetVisualDescendants().OfType<ListBoxItem>()
             .Select(item => (Item: item, Top: item.TranslatePoint(default, list)?.Y ?? double.NaN))
-            .Where(item => item.Item.DataContext is ArchivePostRow && item.Top < list.Bounds.Height && item.Top + item.Item.Bounds.Height > 0)
+            .Where(item => item.Item.DataContext is ArchivePostRow candidate && current?.Contains(candidate) == true
+                && item.Top < list.Bounds.Height && item.Top + item.Item.Bounds.Height > 0)
             .OrderBy(item => item.Top).FirstOrDefault();
         if (visible.Item?.DataContext is ArchivePostRow row)
             return new ReaderAnchor(_thread.Summary.Id, row.Id, visible.Top, selected);
