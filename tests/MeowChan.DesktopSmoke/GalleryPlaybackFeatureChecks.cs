@@ -461,8 +461,10 @@ internal static partial class GalleryPlaybackFeatureChecks
         using (MediaNativeInput native = new(fixture.Window))
         {
             // The video transport is retained while the slideshow changes the
-            // presentation root. Resolve the current, hit-testable slider after that
-            // transfer instead of calling Single() on the previous visual snapshot.
+            // presentation root. Reveal the auto-hidden transport and settle its
+            // layout before resolving the current, hit-testable slider instead of
+            // calling Single() on the previous visual snapshot.
+            await RevealAutoHiddenTransportAsync(fixture);
             Slider seek = await NativeTargetAsync<Slider>(viewer, "GalleryVideoSeek");
             await native.ClickAsync(seek, await MediaInteractionSmokeHelpers.TrackPointAsync(seek, .10));
             await UntilAsync(async () =>
@@ -838,26 +840,11 @@ internal static partial class GalleryPlaybackFeatureChecks
         }
         viewer.MoveRequested += delta => transition = ShowNextAsync(delta);
         // After the ended video the auto-hidden transport is no longer a visible
-        // keyboard target. Opening More is the stable way to reveal it before starting.
-        viewer.SetOverflowOpen(true);
-        await UntilAsync(() => viewer.IsOverflowOpen, "Playback controls overflow menu did not open after video end.");
-        // The open More flyout is a popup and deliberately blocks starting a
-        // slideshow. It still has to reveal the auto-hidden footer, so settle that
-        // lifecycle first, close the popup, then resolve the current toolbar target.
-        viewer.SetOverflowOpen(false);
-        await UntilAsync(() => !viewer.IsOverflowOpen, "Playback controls overflow menu did not close before starting slideshow.");
-        Button? currentAction = null;
-        await UntilAsync(() =>
-        {
-            // The chosen slideshow is kept on the split toolbar control (R6). Use
-            // that current owner after the popup closes, not the viewer-wide
-            // descendant snapshot which also contains the retained More rows.
-            currentAction = viewer.SlideshowSplit.GetVisualDescendants().OfType<Button>()
-                .FirstOrDefault(button => button.Name == "GallerySlideshowToggle");
-            return currentAction is { IsEffectivelyVisible: true, IsEffectivelyEnabled: true }
-                && currentAction.IsAttachedToVisualTree();
-        }, "Slideshow action did not become visible and enabled after opening playback controls.");
-        Click(currentAction!);
+        // keyboard target. Opening More is the stable way to reveal it before
+        // resolving the current toolbar action.
+        await RevealAutoHiddenTransportAsync(fixture);
+        Button currentAction = await KeyboardReachableSlideshowActionAsync(fixture);
+        Click(currentAction);
         Require(Running(viewer), "Explicit Start after an ended video failed to create a runnable replay generation.");
         GalleryVideoPlayer.PlaybackEvidence replay = await player.InspectPlaybackAsync();
         await UntilAsync(async () =>
@@ -929,6 +916,35 @@ internal static partial class GalleryPlaybackFeatureChecks
         Require(button.IsEffectivelyVisible && button.IsEffectivelyEnabled && button.Focus(NavigationMethod.Tab),
             "Feature action is not visibly keyboard reachable: " + button.Name);
         SendKey(button, Key.Space); // Ordinary Button/ToggleButton activation, including its checked state.
+    }
+    private static async Task RevealAutoHiddenTransportAsync(Fixture fixture)
+    {
+        GalleryViewer viewer = fixture.Viewer;
+        // More is the production entry point that reveals auto-hidden transport. Close
+        // its popup before resolving a toolbar target: an open popup intentionally gates
+        // slideshow navigation and can leave the old presentation root hit-testable.
+        viewer.SetOverflowOpen(true);
+        await UntilAsync(() => viewer.IsOverflowOpen,
+            "Playback controls overflow menu did not open while revealing auto-hidden transport.");
+        viewer.SetOverflowOpen(false);
+        await UntilAsync(() => !viewer.IsOverflowOpen,
+            "Playback controls overflow menu did not close after revealing auto-hidden transport.");
+        await LayoutAsync(fixture.Window);
+    }
+    private static async Task<Button> KeyboardReachableSlideshowActionAsync(Fixture fixture)
+    {
+        Button? action = null;
+        await UntilAsync(async () =>
+        {
+            await LayoutAsync(fixture.Window);
+            action = fixture.Viewer.SlideshowSplit.GetVisualDescendants().OfType<Button>()
+                .FirstOrDefault(button => button.Name == "GallerySlideshowToggle");
+            return action is { IsEffectivelyVisible: true, IsEffectivelyEnabled: true }
+                && action.IsAttachedToVisualTree()
+                && action.Focus(NavigationMethod.Tab)
+                && action.IsKeyboardFocusWithin;
+        }, "Slideshow action did not become keyboard reachable after layout settled.");
+        return action!;
     }
     private static async Task LayoutAsync(Window window) => await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
     private static async Task HoldAsync(TimeSpan duration, Action assertion)

@@ -318,14 +318,16 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
         SetLoopEnabled(!LoopEnabled, notify: true);
     }
 
-    /// <summary>While a slideshow runs, its video rule (not the loop button) decides about repetition: the button is then
-    /// unavailable and its tooltip says why. The saved "Repeat video" choice is unchanged.</summary>
+    /// <summary>While a slideshow runs, its video rule owns automatic navigation, but the loop button remains available
+    /// so an explicit Repeat choice can take over the current video without pausing it.</summary>
     internal void SetRepeatOwnedBySlideshow(bool owned, string reason)
     {
         Dispatcher.UIThread.VerifyAccess();
         if (_repeatOwnedBySlideshow == owned && _repeatOwnedReason == reason) return;
         _repeatOwnedBySlideshow = owned; _repeatOwnedReason = reason;
-        _loop.IsEnabled = _playPause.IsEnabled && !owned;
+        // Keep Repeat actionable while the slideshow owns automatic progression. The viewer
+        // stops that progression before persisting an explicit Repeat choice.
+        _loop.IsEnabled = _playPause.IsEnabled;
         // The A–B loop is a repeat too: a running slideshow's video rule owns repetition, so the loop ends and waits.
         if (owned) ClearAbLoop();
         RefreshTransportPresentation();
@@ -1103,7 +1105,9 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
     private void EnableTransport(bool enabled)
     {
         _playPause.IsEnabled = _speed.IsEnabled = enabled;
-        _loop.IsEnabled = enabled && !_repeatOwnedBySlideshow;
+        // A ready/playing transport must keep Repeat available even while slideshow
+        // ownership is presented; an explicit toggle releases that ownership in the viewer.
+        _loop.IsEnabled = enabled;
         _mute.IsEnabled = _volume.IsEnabled = enabled && _audioAvailable;
         _seek.IsEnabled = enabled && _canSeek && _length > 0;
         UpdateTransportExtrasEnabled();
