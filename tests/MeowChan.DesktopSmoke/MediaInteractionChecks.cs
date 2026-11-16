@@ -344,39 +344,72 @@ internal static class MediaInteractionChecks
             // the pre-open control returned by Named<T>: it may be the retained template
             // row and never become a valid native target after the reparenting turn.
             T? target = null;
+            string? previousPredicate = null;
+            int transitions = 0, probes = 0;
+            object? lastState = null;
             await Program.WaitUntilAsync(() =>
             {
+                target = null;
+                probes++;
+                TopLevel? popup = null;
+                ScrollViewer? scroller = viewer?.OverflowFlyout.Content as ScrollViewer;
+                Point? centerInRoot = null;
+                string operation = "menu-state";
+                bool Observe(string predicate)
+                {
+                    Control? content = viewer?.OverflowMenuContent;
+                    lastState = new
+                    {
+                        name, requireHitTest, predicate, operation, probes,
+                        overflowOpen = viewer?.IsOverflowOpen,
+                        contentAttached = content?.IsAttachedToVisualTree(),
+                        contentVisible = content?.IsEffectivelyVisible,
+                        contentBounds = content?.Bounds.ToString(),
+                        contentRoot = Target(content == null ? null : TopLevel.GetTopLevel(content)),
+                        target = Target(target), attached = target?.IsAttachedToVisualTree(),
+                        visible = target?.IsEffectivelyVisible, enabled = target?.IsEffectivelyEnabled,
+                        arrangeValid = target?.IsArrangeValid, bounds = target?.Bounds.ToString(),
+                        root = Target(popup), rootIsMainWindow = ReferenceEquals(popup, window),
+                        rootVisible = popup?.IsVisible, clientSize = popup?.ClientSize.ToString(),
+                        // An OverlayPopupHost legitimately shares the main TopLevel.
+                        // Record it separately; do not infer popup ownership from TopLevel alone.
+                        popupAncestry = (target as Control ?? content)?.GetVisualAncestors()
+                            .Take(16).Select(v => v.GetType().Name).ToArray(),
+                        centerInRoot = centerInRoot?.ToString(),
+                        scrollOffset = scroller?.Offset.ToString(), viewport = scroller?.Viewport.ToString(),
+                        extent = scroller?.Extent.ToString(),
+                        focus = Target(window.FocusManager?.GetFocusedElement()), window.IsActive
+                    };
+                    // Keep first/changed predicates bounded, plus an unconditional final
+                    // snapshot on timeout. A long layout race must not exhaust input evidence.
+                    if (predicate != previousPredicate && transitions < 16)
+                    {
+                        Record("overflow-target-probe", lastState);
+                        transitions++;
+                    }
+                    previousPredicate = predicate;
+                    return predicate == "ready";
+                }
                 try
                 {
-                    if (viewer is not { IsOverflowOpen: true }
-                        || !viewer.OverflowMenuContent.IsAttachedToVisualTree()
-                        || !viewer.OverflowMenuContent.IsEffectivelyVisible
-                        || viewer.OverflowMenuContent.Bounds.Width <= 0
-                        || viewer.OverflowMenuContent.Bounds.Height <= 0)
-                        return false;
-
+                    if (viewer is not { IsOverflowOpen: true }) return Observe("overflow-closed");
+                    if (!viewer.OverflowMenuContent.IsAttachedToVisualTree()) return Observe("content-detached");
+                    if (!viewer.OverflowMenuContent.IsEffectivelyVisible) return Observe("content-hidden");
+                    if (viewer.OverflowMenuContent.Bounds.Width <= 0 || viewer.OverflowMenuContent.Bounds.Height <= 0)
+                        return Observe("content-empty-bounds");
                     target = viewer.OverflowMenuContent.GetVisualDescendants()
-                        .OfType<T>()
-                        .FirstOrDefault(control => control.Name == name);
-                    if (target is null) return false;
+                        .OfType<T>().FirstOrDefault(control => control.Name == name);
+                    if (target is null) return Observe("target-missing");
 
-                    // The row can be current and attached while still outside the visible
-                    // ScrollViewer viewport. Bring this current instance into view before
-                    // asking for screen geometry; a retained row from a previous popup must
-                    // never be reused for native input. Avalonia processes BringIntoView on
-                    // the popup's dispatcher turn, so update both the popup and its bounded
-                    // scroller before converting the row to screen coordinates.
-                    ScrollViewer? scroller = viewer.OverflowFlyout.Content as ScrollViewer;
-                    TopLevel? popup = TopLevel.GetTopLevel(target);
+                    // Resolve the current row, then scroll it into the bounded viewport.
+                    // Never reuse a retained row or screen coordinate from a prior popup.
+                    operation = "layout-and-scroll";
+                    popup = TopLevel.GetTopLevel(target);
                     popup?.UpdateLayout();
                     scroller?.UpdateLayout();
                     target.BringIntoView();
                     if (scroller != null && target.TranslatePoint(default, scroller) is { } origin)
                     {
-                        // The help row is below the bounded menu on the 3200x2000 Linux
-                        // smoke desktop. BringIntoView is routed asynchronously and can
-                        // miss the first popup layout; correct the current ScrollViewer
-                        // offset from the current row geometry, never from a stale row.
                         double y = scroller.Offset.Y;
                         if (origin.Y < 0) y += origin.Y;
                         else if (origin.Y + target.Bounds.Height > scroller.Viewport.Height)
@@ -386,23 +419,58 @@ internal static class MediaInteractionChecks
                     }
                     scroller?.UpdateLayout();
                     popup?.UpdateLayout();
-                    return target.IsAttachedToVisualTree()
-                        && popup is not null
+                    operation = "readiness";
+                    // Evaluate the original admission expression unchanged. The checks
+                    // below only diagnose rejection; they must not tighten or loosen it.
+                    if (target.IsAttachedToVisualTree() && popup is not null
                         && !ReferenceEquals(popup, window)
                         && (requireHitTest
                             ? MediaInteractionSmokeHelpers.IsPointerTargetReady(target)
-                            : MediaInteractionSmokeHelpers.IsNativeGeometryReady(target));
+                            : MediaInteractionSmokeHelpers.IsNativeGeometryReady(target)))
+                        return Observe("ready");
+                    if (!target.IsAttachedToVisualTree()) return Observe("target-detached");
+                    if (popup is null) return Observe("root-missing");
+                    if (ReferenceEquals(popup, window)) return Observe("root-is-main-window");
+                    if (!target.IsArrangeValid) return Observe("target-not-arranged");
+                    if (!target.IsEffectivelyVisible) return Observe("target-hidden");
+                    if (!target.IsEffectivelyEnabled) return Observe("target-disabled");
+                    if (target.Bounds.Width <= 0 || target.Bounds.Height <= 0) return Observe("target-empty-bounds");
+                    if (!popup.IsVisible) return Observe("root-hidden");
+                    operation = "screen-conversion";
+                    centerInRoot = popup.PointToClient(target.PointToScreen(new Point(target.Bounds.Width / 2, target.Bounds.Height / 2)));
+                    if (!new Rect(popup.ClientSize).Contains(centerInRoot.Value)) return Observe("center-outside-root");
+                    operation = "geometry-or-hit-test";
+                    return Observe(requireHitTest ? "hit-test-or-geometry-race" : "geometry-race");
                 }
                 catch (ArgumentException)
                 {
-                    // PopupRoot replacement can race BringIntoView/TranslatePoint.
-                    // Re-run the complete current-row probe rather than using a stale
-                    // row or reporting this transient cross-root conversion as failure.
-                    target = null;
-                    return false;
+                    // Preserve bounded retry for cross-root layout/conversion races.
+                    // Keep the current probe's target and operation in the evidence.
+                    return Observe("argument-exception");
                 }
-            }, () => $"The {name} control did not settle as a native popup target.");
+            }, () =>
+            {
+                Record("overflow-target-timeout", lastState!);
+                return $"The {name} control did not settle as a native popup target: {JsonSerializer.Serialize(lastState)}";
+            });
             return target!;
+        }
+        async Task OpenOverflowForNativeTargetAsync(string targetName)
+        {
+            // One native click only. Record both sides so a closed flyout is not
+            // misdiagnosed as a row geometry/hit-test failure, and never retry a
+            // toggle click that could close an already-open menu.
+            void Snapshot(string phase) => Record("overflow-open-input", new
+            {
+                targetName, phase, overflowOpen = viewer?.IsOverflowOpen,
+                contentAttached = viewer?.OverflowMenuContent.IsAttachedToVisualTree(),
+                contentVisible = viewer?.OverflowMenuContent.IsEffectivelyVisible,
+                root = Target(viewer == null ? null : TopLevel.GetTopLevel(viewer.OverflowMenuContent)),
+                focus = Target(window.FocusManager?.GetFocusedElement()), window.IsActive
+            });
+            Snapshot("before-click");
+            await native!.ClickAsync(() => NativeTargetAsync<Button>("GalleryMore"));
+            Snapshot("after-click");
         }
         Slider Seek() => Named<Slider>("GalleryVideoSeek");
         GalleryVideoPlayer Player()
@@ -414,7 +482,14 @@ internal static class MediaInteractionChecks
         }
         async Task<GalleryVideoPlayer.PlaybackEvidence> SampleAsync(string label)
         {
-            var evidence = await Player().InspectPlaybackAsync().WaitAsync(TimeSpan.FromSeconds(4));
+            GalleryVideoPlayer.PlaybackEvidence evidence;
+            try { evidence = await Player().InspectPlaybackAsync().WaitAsync(TimeSpan.FromSeconds(4)); }
+            catch (TimeoutException)
+            {
+                Record("playback-observation-timeout", new { label, post = viewer?.CaptureState().PostId, timeoutMs = 4000 });
+                Console.Error.WriteLine($"SMOKE playback observation timeout: stage={stage}, label={label}, post={viewer?.CaptureState().PostId}");
+                throw;
+            }
             foreach (Window inputRoot in window.OwnedWindows.Where(w => viewer!.OwnsOverlayWindow(w))) ObserveRoot(inputRoot);
             Slider seek = Seek();
             Record("sample", new { label, post = viewer!.CaptureState().PostId, evidence,
@@ -678,7 +753,7 @@ internal static class MediaInteractionChecks
                     // the row coordinate. Popup-root hit testing can lag one layout
                     // turn, so the native click and shortcuts-window assertion below
                     // remain the delivery proof.
-                    await native.ClickAsync(() => NativeTargetAsync<Button>("GalleryMore"));
+                    await OpenOverflowForNativeTargetAsync(panel);
                     bool requirePanelPopupHitTest = !OperatingSystem.IsMacOS();
                     await native.ClickAsync(
                         () => NativeOverflowTargetAsync<Button>(panel, requirePanelPopupHitTest),
@@ -701,7 +776,7 @@ internal static class MediaInteractionChecks
                     "Panel dismissal closed/navigated the gallery.");
             }
             if (expected == "Playing") await SeekClickAsync(.05);
-            await native.ClickAsync(() => NativeTargetAsync<Button>("GalleryMore"));
+            await OpenOverflowForNativeTargetAsync("GalleryPlaybackModeSelector");
             // On macOS Avalonia's PopupRoot can expose the current ComboBox with
             // valid native geometry one dispatcher turn before its hit-test cache
             // includes the freshly reparented row. Keep current-target resolution

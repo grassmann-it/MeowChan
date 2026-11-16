@@ -196,6 +196,14 @@ internal sealed class MediaNativeInput : IDisposable
                 point = resolvePoint == null ? null : await resolvePoint(target);
                 await MoveOnceAsync(target, point, true, requireHitTest);
                 await ButtonAsync(true); await ButtonAsync(false);
+                // This is OS submission evidence, not proof that Avalonia handled
+                // the click. The caller still asserts the actual menu/panel effect.
+                _trace?.Invoke("native-click-submitted", new
+                {
+                    target = target.GetType().Name, target.Name, attempt, requireHitTest,
+                    root = TopLevel.GetTopLevel(target)?.GetType().Name,
+                    _owner.IsActive
+                });
                 return;
             }
             catch (ArgumentException) when (attempt < MaxTargetAttempts)
