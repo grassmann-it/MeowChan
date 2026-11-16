@@ -235,7 +235,8 @@ internal static class SourcesChecks
                 // Opening details retained _showDetails; shrinking must move focus out of the hidden list.
                 selectedSource.Focus();
                 window.Width = 760;
-                await Program.WaitUntilAsync(() => page.FindControl<Button>("SourceBackButton")!.IsFocused);
+                await Program.WaitUntilAsync(() => page.FindControl<Button>("SourceBackButton")!.IsFocused,
+                    () => DescribeResponsiveFocus(page));
                 window.Width = targetWidth;
                 await Program.WaitUntilAsync(() => page.FindControl<Button>("SourceWebsiteButton")!.IsFocused);
                 window.Width = 760;
@@ -300,6 +301,31 @@ internal static class SourcesChecks
                 "The normal Sources command did not restore the Sources dropdown in the merged workspace.");
         }
         finally { ShortcutService.Publish(original); }
+    }
+
+    private static string DescribeResponsiveFocus(SourcesPage page)
+    {
+        Button back = page.FindControl<Button>("SourceBackButton")!;
+        Control? focused = TopLevel.GetTopLevel(page)?.FocusManager?.GetFocusedElement() as Control;
+        Grid split = page.FindControl<Grid>("SourcesSplit")!;
+        return System.Text.Json.JsonSerializer.Serialize(new
+        {
+            page = page.Bounds.ToString(),
+            pageVisible = page.IsEffectivelyVisible,
+            listVisible = page.FindControl<StackPanel>("SourcesListPane")!.IsVisible,
+            detailsVisible = page.FindControl<Border>("SourceDetailsPanel")!.IsVisible,
+            backVisible = back.IsVisible,
+            backEffectivelyVisible = back.IsEffectivelyVisible,
+            backEnabled = back.IsEffectivelyEnabled,
+            backFocused = back.IsFocused,
+            backKeyboardFocusWithin = back.IsKeyboardFocusWithin,
+            backBounds = back.Bounds.ToString(),
+            focused = focused == null ? null : (focused.Name ?? focused.GetType().Name),
+            focusedType = focused?.GetType().FullName,
+            selectedFocused = page.FindControl<SelectionList>("SourceCards")!.SelectedItem is Control selected && selected.IsFocused,
+            firstColumn = split.ColumnDefinitions[0].ActualWidth,
+            spacing = split.ColumnSpacing
+        });
     }
 
     private static async Task CheckSourceListKeyboardAsync(SourcesPage page)

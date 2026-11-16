@@ -95,6 +95,9 @@ public sealed class SourcesPluginsDesktopContractTests
         string source = Read("Desktop/Views/Sources/SourcesPage.axaml.cs");
         Assert.Contains("private const int SourceFocusMaxPasses = 3;", source);
         Assert.Contains("request != _focusRequest", source);
+        Assert.Contains("GetFocusedElement()", source);
+        Assert.Contains("++_focusRequest", source);
+        Assert.Contains("if (!_applyingSourceFocus)", source);
         Assert.Contains("pass + 1 >= SourceFocusMaxPasses", source);
         Assert.Contains("Dispatcher.UIThread.Post(() => FocusWhenReady(pass + 1), DispatcherPriority.Background);", source);
         Assert.DoesNotContain("Dispatcher.UIThread.Post(FocusWhenReady, DispatcherPriority.Background);", source);

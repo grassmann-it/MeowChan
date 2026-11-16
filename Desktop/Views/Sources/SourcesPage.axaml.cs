@@ -8,6 +8,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
+using Avalonia.VisualTree;
 using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
@@ -61,6 +62,10 @@ public partial class SourcesPage : UserControl
     public SourcesPage()
     {
         InitializeComponent(); InitializeContextMenus(); InitializeMergedSources();
+        AddHandler(GotFocusEvent, (_, _) =>
+        {
+            if (!_applyingSourceFocus) ++_focusRequest;
+        }, RoutingStrategies.Bubble, handledEventsToo: true);
     }
 
     /// <param name="openDiagnostics">Opens Status › Diagnostics with the source filter preset to the canonical id of the source.</param>
@@ -198,9 +203,12 @@ public partial class SourcesPage : UserControl
         Border details = this.FindControl<Border>("SourceDetailsPanel")!;
         StackPanel list = this.FindControl<StackPanel>("SourcesListPane")!;
         Button back = this.FindControl<Button>("SourceBackButton")!;
-        bool listHadFocus = list.IsKeyboardFocusWithin;
-        bool detailsHadFocus = details.IsKeyboardFocusWithin;
-        bool backHadFocus = back.IsKeyboardFocusWithin;
+        Control? focused = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() as Control;
+        bool ContainsFocus(Control container) => focused != null
+            && (ReferenceEquals(focused, container) || focused.GetVisualAncestors().Contains(container));
+        bool listHadFocus = ContainsFocus(list);
+        bool detailsHadFocus = ContainsFocus(details);
+        bool backHadFocus = ContainsFocus(back);
         details.IsVisible = row != null && (!_narrow || _showDetails);
         list.IsVisible = !_narrow || !_showDetails || row == null;
         back.IsVisible = _narrow;
@@ -370,6 +378,7 @@ public partial class SourcesPage : UserControl
 
     private const int SourceFocusMaxPasses = 3;
     private int _focusRequest;
+    private bool _applyingSourceFocus;
     private void FocusSourceControlAfterLayout(Control target)
     {
         int request = ++_focusRequest;
@@ -383,8 +392,13 @@ public partial class SourcesPage : UserControl
             {
                 // BringIntoView may itself queue a native/layout update. Focus once before it and
                 // once on the next bounded pass so Linux, ARM and Windows agree on the settled target.
-                target.BringIntoView();
-                target.Focus();
+                _applyingSourceFocus = true;
+                try
+                {
+                    target.BringIntoView();
+                    target.Focus();
+                }
+                finally { _applyingSourceFocus = false; }
                 if (pass > 0 && target.IsFocused) return;
             }
             if (pass + 1 >= SourceFocusMaxPasses) return;
@@ -433,16 +447,37 @@ public partial class SourcesPage : UserControl
     private void OnRulesClick(object? sender, RoutedEventArgs e) { if (_available && !IsBusy && Selected is SourceListRow row) _editRules?.Invoke(row.Id); }
     private void OnPageSizeChanged(object? sender, SizeChangedEventArgs e)
     {
+        Control? focused = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() as Control;
+        bool ContainsFocus(Control container) => focused != null
+            && (ReferenceEquals(focused, container) || focused.GetVisualAncestors().Contains(container));
+        StackPanel list = this.FindControl<StackPanel>("SourcesListPane")!;
+        Border details = this.FindControl<Border>("SourceDetailsPanel")!;
+        bool listHadFocus = ContainsFocus(list);
+        bool detailsHadFocus = ContainsFocus(details);
+        bool backHadFocus = ContainsFocus(this.FindControl<Button>("SourceBackButton")!);
         // The detail grid needs 520 DIP after list, gutters and panel padding.
         bool narrow = Bounds.Width - 40 - 280 - 14 - 32 < 520;
         if (_narrow == narrow) return;
+        // A focus request queued by the preceding wide layout must not win over the
+        // control that owns focus at this breakpoint transition.
+        ++_focusRequest;
         _narrow = narrow;
         Grid split = this.FindControl<Grid>("SourcesSplit")!;
         // Preserve the track collection while SizeChanged runs inside layout.
         split.ColumnDefinitions[0].Width = new GridLength(narrow ? 0 : 280);
         split.ColumnSpacing = narrow ? 0 : 16;
-        Grid.SetColumn(this.FindControl<StackPanel>("SourcesListPane")!, narrow ? 1 : 0);
+        Grid.SetColumn(list, narrow ? 1 : 0);
         RenderDetails();
+        // RenderDetails schedules the same handoff for ordinary visibility changes;
+        // keep this explicit breakpoint path based on the actual FocusManager owner
+        // rather than a transient IsKeyboardFocusWithin value during SizeChanged.
+        if (narrow && listHadFocus && _showDetails)
+            FocusSourceControlAfterLayout(this.FindControl<Button>("SourceBackButton")!);
+        else if (!narrow && backHadFocus && details.IsVisible)
+            FocusSourceControlAfterLayout(this.FindControl<Button>("SourceWebsiteButton")!);
+        else if (narrow && detailsHadFocus && !details.IsVisible && _selectedId is string id
+            && _sourceCards.TryGetValue(id, out SourceCard? selectedCard))
+            FocusSourceControlAfterLayout(selectedCard.Control);
     }
     private void OnBackClick(object? sender, RoutedEventArgs e)
     {
