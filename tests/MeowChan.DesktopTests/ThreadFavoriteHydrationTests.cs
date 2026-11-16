@@ -1,4 +1,6 @@
 using System.Reflection;
+using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Avalonia;
 using Avalonia.Controls;
@@ -230,6 +232,127 @@ public sealed class ThreadFavoriteHydrationTests
             Assert.True(row.ThreadFavorite);
             Assert.True(row.CanToggleThreadFavorite);
         });
+    }
+
+    // Headless Downloads -> frozen scope -> detached reader entry-chain proof. These are real
+    // host bindings and catalog reads, not a native context-menu click or native-window proof.
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    [InlineData(false, true)]
+    public async Task DownloadsReadWithoutAnyArchiveListLoadUsesTheBoundHostsPublishedFavorite(bool marked, bool attachBeforeStartup)
+    {
+        using TempDirectory profile = new(), otherProfile = new();
+        Seed(profile.Path, marked);
+        Seed(otherProfile.Path, !marked);
+        byte[] otherBefore = File.ReadAllBytes(Path.Combine(otherProfile.Path, "thread-favorites.json"));
+        using (ProfileLease lease = ProfileLease.Acquire(profile.Path))
+        {
+            await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(profile.Path, lease);
+            await catalog.CaptureAsync(new(ThreadId, "https://offline.invalid/thread/42", "Downloads Read fixture",
+                ThreadSourceState.NotFound, DateTimeOffset.UnixEpoch, Path.Combine(profile.Path, "uncreated-media"),
+                new[] { new CapturedPost("42", 0, PostFieldPresence.All, Html: "Saved local post") }));
+        }
+        await using DesktopSessionHost host = new(profile.Path, Array.Empty<IImageBoard>());
+        if (!attachBeforeStartup) await host.StartAsync().WaitAsync(Deadline);
+        BooruComponentDispatcher.Run(() =>
+        {
+            using IDisposable scope = AvaloniaLocator.EnterScope();
+            AvaloniaLocator.CurrentMutable.Bind<ICursorFactory>().ToConstant(new DeadAffordanceGuard.RecordingCursorFactory());
+            TokenApplication.Bind();
+            int readerOpens = 0;
+            ArchivePage page = new(token => { readerOpens++; return host.OpenArchiveReaderAsync(token); },
+                host.SetCaptureEnabledAsync, _ => { });
+            ContentControl readerHost = new();
+            try
+            {
+                // Same host binding as InitializeWorkspacePages, even when Archive was never visited.
+                page.AttachThreadFavorites(host);
+                Assert.Same(host, ((Delegate)Get(page, "_loadThreadFavorites")!).Target);
+                Assert.Same(host, ((Delegate)Get(page, "_setThreadFavorite")!).Target);
+                if (attachBeforeStartup)
+                {
+                    Assert.Equal(ThreadFavoriteLoadState.Loading, host.GetPublishedThreadFavoriteSnapshot().State);
+                    Assert.Null(Get(page, "_threadFavoriteSnapshot"));
+                    Pump(host.StartAsync());
+                }
+                Assert.Equal(DesktopSessionState.Ready, host.State);
+                Assert.Equal(marked, host.GetPublishedThreadFavoriteSnapshot().Snapshot!.Threads.Contains(ThreadId));
+                page.IsAvailable = true; // shell readiness refresh, not archive list activation
+                Assert.Null(page.FindControl<DataGrid>("ArchiveThreadTable")!.ItemsSource);
+                Assert.Equal(0, readerOpens);
+
+                // OpenFrozenReaderAsync -> OpenLargeReader(origin, frozen.Scope) uses exactly this
+                // detach/scope/load chain; the source contract below guards that shell wiring.
+                page.SetReaderCloseTarget("command.reader.close.toDownloads");
+                readerHost.Content = page.DetachReader();
+                page.SetReaderScope(new[] { ThreadId });
+                Pump(page.LoadThreadAsync(ThreadId));
+                Pump(page.MediaLoadTask);
+                Assert.NotNull(readerHost.Content);
+                Assert.Equal(ThreadId, page.CurrentThread!.Summary.Id);
+                Assert.Single(page.CurrentThread.Posts);
+                Assert.Equal(2, readerOpens); // thread read plus inline backlink counts, not a list load
+                Assert.False((bool)Get(page, "_listLoaded")!);
+                Assert.Null(Get(page, "_appliedSearch"));
+                Assert.Null(page.FindControl<DataGrid>("ArchiveThreadTable")!.ItemsSource);
+                ArchiveThreadFavoriteButton button = page.FindControl<ArchiveThreadFavoriteButton>("ArchiveCurrentThreadFavorite")!;
+                ArchiveThreadRow detail = Assert.IsType<ArchiveThreadRow>(button.DataContext);
+                Assert.Equal(marked, detail.ThreadFavorite);
+                Assert.Null(detail.ThreadFavoriteError);
+                Assert.True(detail.CanToggleThreadFavorite);
+                // No visual root here: the button subscribes to row changes on visual attachment.
+                // Assert the bound action state, not an unattached control's cached presentation.
+                Assert.Same(host, ((Delegate)Get(page, "_loadThreadFavorites")!).Target);
+
+                Pump(detail.ToggleThreadFavoriteAsync!());
+                Assert.Equal(!marked, detail.ThreadFavorite);
+                Assert.True(detail.CanToggleThreadFavorite);
+                Assert.Equal(!marked, host.GetThreadFavorites().Contains(ThreadId));
+                Assert.Equal(otherBefore, File.ReadAllBytes(Path.Combine(otherProfile.Path, "thread-favorites.json")));
+                Assert.Equal(2, readerOpens); // changing the mark does not reload the catalog/list
+                Assert.False((bool)Get(page, "_listLoaded")!);
+                Assert.Null(Get(page, "_appliedSearch"));
+            }
+            finally { page.EndLifetime(); readerHost.Content = null; }
+        });
+    }
+
+    [Fact]
+    public void DownloadsContextReadWiringKeepsTheSingleHostBoundPageAndDoesNotRequireAnArchiveListLoad()
+    {
+        string menus = Source("Desktop/Shell/MainWindow.Menus.cs");
+        Assert.Contains("Add(\"thread.read\", () => OpenActions.Start(() => OpenFrozenReaderAsync(frozen, grid)", menus);
+        string entry = menus[menus.IndexOf("private async Task OpenFrozenReaderAsync", StringComparison.Ordinal)..];
+        entry = entry[..entry.IndexOf("private void OpenFrozenDetails", StringComparison.Ordinal)];
+        Assert.Contains("OpenLargeReader(origin, frozen.Scope)", entry);
+        Assert.Contains("await ArchivePage.LoadThreadAsync(frozen.Lead)", entry);
+        Assert.DoesNotContain("LoadListAsync", entry);
+        string navigation = Source("Desktop/Shell/MainWindow.Navigation.cs");
+        Assert.Contains("_archivePage = new ArchivePage(_session.OpenArchiveReaderAsync", navigation);
+        Assert.Contains("_archivePage.AttachThreadFavorites(_session)", navigation);
+        string reader = Source("Desktop/Shell/MainWindow.Reader.cs");
+        Assert.Contains("host.Content = ArchivePage.DetachReader()", reader);
+        Assert.Contains("if (frozenThreads != null) ArchivePage.SetReaderScope(frozenThreads)", reader);
+        Assert.DoesNotContain("new ArchivePage", reader);
+        Assert.DoesNotContain("AttachThreadFavorites", reader); // no second/rebound reader host
+    }
+
+    private static string Source(string relative, [CallerFilePath] string file = "") =>
+        File.ReadAllText(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(file)!, "../..", relative)));
+
+    private static void Pump(Task task)
+    {
+        Stopwatch elapsed = Stopwatch.StartNew();
+        while (!task.IsCompleted && elapsed.Elapsed < Deadline)
+        {
+            Dispatcher.UIThread.RunJobs();
+            Thread.Sleep(1);
+        }
+        Assert.True(task.IsCompleted, "Headless reader operation did not settle within the existing test deadline.");
+        task.GetAwaiter().GetResult();
+        Dispatcher.UIThread.RunJobs();
     }
 
     private static ThreadFavoriteLoadSnapshot Ready(bool marked, long revision) => new(ThreadFavoriteLoadState.Ready,
