@@ -45,6 +45,13 @@ internal enum PrivateTagStoreError
 /// </summary>
 internal sealed record PrivateTagAlias(PrivateTagName Name, TagId Tag, TagId? Former = null);
 
+/// <summary>
+/// A merged-away tag's ID that still resolves to <see cref="Tag"/> but reserves no name (private-tag-store-v3, stored as an
+/// alias entry whose name is null). It appears when a tag is renamed to the alias that carried the ID: the alias goes (the name is the
+/// tag's own again) and the ID lives on here, so saved filters keep finding the tag and the tag's old name stays free.
+/// </summary>
+internal sealed record PrivateTagFormerId(TagId Former, TagId Tag);
+
 /// <summary>A rejected tag operation. Nothing was written; the message is a constant.</summary>
 internal sealed class PrivateTagStoreException : Exception
 {
@@ -66,7 +73,7 @@ internal sealed class PrivateTagStoreSnapshot
     internal PrivateTagStoreSnapshot(long revision, string fingerprint, IEnumerable<PrivateTagDefinition> tags,
         IEnumerable<PrivateThreadTagAssignment> threads, IEnumerable<PrivateMediaTagAssignment> media,
         LocalMediaRegistry? localRegistry = null, IEnumerable<PrivateLocalMediaTagAssignment>? local = null, int formatVersion = 1,
-        IEnumerable<PrivateTagAlias>? aliases = null)
+        IEnumerable<PrivateTagAlias>? aliases = null, IEnumerable<PrivateTagFormerId>? formers = null)
     {
         Revision = revision;
         Fingerprint = fingerprint;
@@ -77,11 +84,14 @@ internal sealed class PrivateTagStoreSnapshot
         LocalAssignments = Array.AsReadOnly((local ?? Array.Empty<PrivateLocalMediaTagAssignment>()).ToArray());
         FormatVersion = formatVersion;
         Aliases = Array.AsReadOnly((aliases ?? Array.Empty<PrivateTagAlias>()).ToArray());
+        Formers = Array.AsReadOnly((formers ?? Array.Empty<PrivateTagFormerId>()).ToArray());
     }
 
     internal long Revision { get; }
     /// <summary>Other names of the tags (v3), in the order they were added. Empty for v1 and v2 documents.</summary>
     internal IReadOnlyList<PrivateTagAlias> Aliases { get; }
+    /// <summary>Merged-away tag IDs that resolve to a tag without reserving a name (v3). Empty unless a tag took back its merged-away name.</summary>
+    internal IReadOnlyList<PrivateTagFormerId> Formers { get; }
 
     /// <summary>The aliases of one tag, in the order they were added.</summary>
     internal IReadOnlyList<PrivateTagAlias> AliasesOf(TagId tag) => Aliases.Where(item => item.Tag == tag).ToArray();
@@ -117,6 +127,8 @@ internal sealed class PrivateTagStoreSnapshot
         if (Find(id) != null) return id;
         foreach (PrivateTagAlias alias in Aliases)
             if (alias.Former == id && Find(alias.Tag) != null) return alias.Tag;
+        foreach (PrivateTagFormerId former in Formers)
+            if (former.Former == id && Find(former.Tag) != null) return former.Tag;
         return null;
     }
 
@@ -323,12 +335,13 @@ internal sealed class PrivateTagStore
         internal readonly List<PrivateLocalMediaTagAssignment> Local = new();
         internal readonly HashSet<PrivateLocalMediaTagAssignment> LocalSet = new();
         internal readonly List<PrivateTagAlias> Aliases = new();
+        internal readonly List<PrivateTagFormerId> Formers = new();
 
         internal bool HasLocalData => Occurrences.Count > 0 || Local.Count > 0;
 
         internal PrivateTagStoreSnapshot Snapshot(byte[] bytes) =>
             new(Revision, Convert.ToHexString(SHA256.HashData(bytes)), Catalog.Definitions, Threads, Media,
-                new LocalMediaRegistry(Occurrences), Local, Version, Aliases);
+                new LocalMediaRegistry(Occurrences), Local, Version, Aliases, Formers);
 
         /// <summary>The tag a typed name stands for: by name, else through an alias (exact, then fold). Null: none.</summary>
         internal PrivateTagDefinition? Resolve(PrivateTagName name) =>
@@ -349,6 +362,7 @@ internal sealed class PrivateTagStore
             Local.Clear(); Local.AddRange(other.Local);
             LocalSet.Clear(); LocalSet.UnionWith(other.LocalSet);
             Aliases.Clear(); Aliases.AddRange(other.Aliases);
+            Formers.Clear(); Formers.AddRange(other.Formers);
         }
 
         internal LocalMediaResolution Resolve(LocalMediaObservation observation) => LocalMediaRegistry.Resolve(
@@ -455,8 +469,8 @@ internal sealed class PrivateTagStore
     }
 
     /// <summary>
-    /// Renames in place; the ID and every assignment are retained. A name that is a merged-away alias of this tag swaps places with the
-    /// tag's old name, so the merged tag's former ID keeps resolving.
+    /// Renames in place; the ID and every assignment are retained. A name that is a merged-away alias of this tag becomes the tag's
+    /// name again; the merged tag's former ID keeps resolving without reserving any name, so the tag's old name is free.
     /// </summary>
     internal PrivateTagCommit Rename(TagId tag, string? name, long? expectedRevision = null,
         CancellationToken token = default)
@@ -475,7 +489,6 @@ internal sealed class PrivateTagStore
             int alias = model.Aliases.FindIndex(item => item.Name.Key == parsed.Key);
             if (alias >= 0 && model.Aliases[alias].Tag != tag)
                 throw new PrivateTagStoreException(model.Catalog.Contains(tag) ? PrivateTagStoreError.NameCollision : PrivateTagStoreError.UnknownTag);
-            PrivateTagName? previous = model.Catalog.Definitions.FirstOrDefault(item => item.Id == tag)?.Name;
             if (!model.Catalog.TryRename(tag, parsed, model.Catalog.Revision, out PrivateTagCatalog next,
                 out PrivateTagCatalogError error))
                 throw new PrivateTagStoreException(Map(error));
@@ -483,11 +496,10 @@ internal sealed class PrivateTagStore
             model.Catalog = next;
             if (alias >= 0)
             {
-                // A merged-away name carries the merged tag's ID (Former), which saved searches still name. Swapping the names keeps it:
-                // the tag's old name takes the alias's place with the same Former. Without a Former the alias simply goes.
-                if (model.Aliases[alias].Former is { } former && previous != null)
-                    model.Aliases[alias] = new PrivateTagAlias(previous, tag, former);
-                else model.Aliases.RemoveAt(alias);
+                // A merged-away name carries the merged tag's ID (Former), which saved searches still name. The alias goes (the name is
+                // the tag's own now) and the ID moves to a nameless mapping, so it keeps resolving and the old name is not reserved.
+                if (model.Aliases[alias].Former is { } former) model.Formers.Add(new PrivateTagFormerId(former, tag));
+                model.Aliases.RemoveAt(alias);
                 changed = true;
             }
             return (changed, tag);
@@ -830,6 +842,7 @@ internal sealed class PrivateTagStore
             model.LocalSet.RemoveWhere(item => item.TagId == tag);
             // Its other names go with it; a later tag of such a name is a new tag.
             model.Aliases.RemoveAll(item => item.Tag == tag);
+            model.Formers.RemoveAll(item => item.Tag == tag);
             return (true, tag);
         });
 
@@ -896,7 +909,8 @@ internal sealed class PrivateTagStore
         List<PrivateTagAlias> aliases = model.Aliases.Select(item => sources.Contains(item.Tag) ? item with { Tag = target } : item).ToList();
         foreach (PrivateTagDefinition source in model.Catalog.Definitions.Where(item => sources.Contains(item.Id)))
             aliases.Add(new PrivateTagAlias(source.Name, target, source.Id));
-        if (aliases.Count > MaximumAliases) throw new PrivateTagStoreException(PrivateTagStoreError.CapacityExceeded);
+        List<PrivateTagFormerId> formers = model.Formers.Select(item => sources.Contains(item.Tag) ? item with { Tag = target } : item).ToList();
+        if (aliases.Count + formers.Count > MaximumAliases) throw new PrivateTagStoreException(PrivateTagStoreError.CapacityExceeded);
         if (!PrivateTagCatalog.TryCreate(model.Catalog.Definitions.Where(item => !sources.Contains(item.Id)),
             out PrivateTagCatalog? rebuilt, out _))
             throw new InvalidDataException(Invalid);
@@ -908,6 +922,7 @@ internal sealed class PrivateTagStore
         model.Local.Clear(); model.Local.AddRange(local);
         model.LocalSet.Clear(); model.LocalSet.UnionWith(localSet);
         model.Aliases.Clear(); model.Aliases.AddRange(aliases);
+        model.Formers.Clear(); model.Formers.AddRange(formers);
     }
 
     /// <summary>
@@ -955,7 +970,7 @@ internal sealed class PrivateTagStore
             if (model.Catalog.Find(parsed) != null) throw new PrivateTagStoreException(PrivateTagStoreError.NameCollision);
             if (model.Aliases.FirstOrDefault(item => item.Name.Key == parsed.Key) is { } known)
                 return known.Tag == tag ? (false, tag) : throw new PrivateTagStoreException(PrivateTagStoreError.NameCollision);
-            if (model.Aliases.Count >= MaximumAliases) throw new PrivateTagStoreException(PrivateTagStoreError.CapacityExceeded);
+            if (model.Aliases.Count + model.Formers.Count >= MaximumAliases) throw new PrivateTagStoreException(PrivateTagStoreError.CapacityExceeded);
             model.Aliases.Add(new PrivateTagAlias(parsed, tag));
             return (true, tag);
         });
@@ -1037,7 +1052,7 @@ internal sealed class PrivateTagStore
             model.Revision++;
             // The first committed local data upgrades the document to v2, the first alias to v3; a version never goes back
             // (never silently downgraded). Only a document that was read as v1 from an existing primary has v1 bytes worth keeping.
-            int needed = model.Aliases.Count > 0 ? AliasVersion : model.HasLocalData ? LocalVersion : BoundOnlyVersion;
+            int needed = model.Aliases.Count > 0 || model.Formers.Count > 0 ? AliasVersion : model.HasLocalData ? LocalVersion : BoundOnlyVersion;
             bool upgradesV1 = needed > BoundOnlyVersion && model.Version == BoundOnlyVersion && bytes.Length > 0;
             model.Version = Math.Max(model.Version, needed);
             byte[] next = Serialize(model);
@@ -1332,10 +1347,18 @@ internal sealed class PrivateTagStore
         foreach (JsonElement item in Items(root.GetProperty("Aliases"), MaximumAliases))
         {
             CheckObject(item, ["Name", "Tag", "Former"]);
-            string text = Text(item.GetProperty("Name"));
             TagId tag = ReadTagId(item.GetProperty("Tag"));
             JsonElement former = item.GetProperty("Former");
             TagId? formerId = former.ValueKind == JsonValueKind.Null ? null : ReadTagId(former);
+            // A null name is a nameless former-ID mapping: the ID resolves to the tag, no name is reserved.
+            if (item.GetProperty("Name").ValueKind == JsonValueKind.Null)
+            {
+                if (formerId is not { } nameless || !model.Catalog.Contains(tag) || model.Catalog.Contains(nameless) || !formers.Add(nameless))
+                    throw new InvalidDataException(Invalid);
+                model.Formers.Add(new PrivateTagFormerId(nameless, tag));
+                continue;
+            }
+            string text = Text(item.GetProperty("Name"));
             // Canonical name, a known tag, no tag already carries the name, one alias per name, a former ID that no tag
             // has any more and that only one alias records.
             if (!PrivateTagName.TryCreate(text, out PrivateTagName? name, out _)
@@ -1489,6 +1512,14 @@ internal sealed class PrivateTagStore
                     writer.WriteString("Tag", alias.Tag.Value.ToString("D"));
                     if (alias.Former is { } former) writer.WriteString("Former", former.Value.ToString("D"));
                     else writer.WriteNull("Former");
+                    writer.WriteEndObject();
+                }
+                foreach (PrivateTagFormerId former in model.Formers)
+                {
+                    writer.WriteStartObject();
+                    writer.WriteNull("Name");
+                    writer.WriteString("Tag", former.Tag.Value.ToString("D"));
+                    writer.WriteString("Former", former.Former.Value.ToString("D"));
                     writer.WriteEndObject();
                 }
                 writer.WriteEndArray();

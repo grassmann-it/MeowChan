@@ -258,22 +258,43 @@ public sealed class PrivateTagMergeTests
         store.Merge(keep, [gone]);
         Assert.Equal(keep, store.ReadSnapshot().ResolveId(gone));
 
-        // The tag takes the merged-away name; its old name takes the alias's place with the same former ID.
+        // The tag takes the merged-away name; the former ID keeps resolving without any name reserved.
         Assert.True(store.Rename(keep, "Felines").Changed);
         PrivateTagStoreSnapshot renamed = store.ReadSnapshot();
         Assert.Equal("Felines", renamed.Find(keep)!.Name.Display);
-        PrivateTagAlias alias = Assert.Single(renamed.Aliases);
-        Assert.Equal("cats", alias.Name.Display);
-        Assert.Equal(keep, alias.Tag);
-        Assert.Equal(gone, alias.Former);
+        Assert.Empty(renamed.Aliases);
+        PrivateTagFormerId mapping = Assert.Single(renamed.Formers);
+        Assert.Equal((gone, keep), (mapping.Former, mapping.Tag));
         Assert.Equal(keep, renamed.ResolveId(gone));
-        Assert.Equal(keep, renamed.Resolve("cats", out _)?.Id);
-        // Durable, and renaming back swaps again.
+        // The old name is free: typing it gives nothing, and a new tag may take it.
+        Assert.Null(renamed.Resolve("cats", out _));
+        // Durable (nameless entry in the v3 aliases array).
         Assert.Equal(keep, new PrivateTagStore(temp.Path, lease).ReadSnapshot().ResolveId(gone));
-        Assert.True(store.Rename(keep, "cats").Changed);
-        PrivateTagStoreSnapshot back = store.ReadSnapshot();
-        Assert.Equal("Felines", Assert.Single(back.Aliases).Name.Display);
-        Assert.Equal(keep, back.ResolveId(gone));
+        TagId fresh = store.Define("cats").Tag;
+        Assert.NotEqual(keep, fresh);
+        Assert.Equal(keep, store.ReadSnapshot().ResolveId(gone));
+        // A later rename keeps the mapping; deleting the tag takes it with it.
+        Assert.True(store.Rename(keep, "Lions").Changed);
+        Assert.Equal(keep, store.ReadSnapshot().ResolveId(gone));
+        store.Delete(keep);
+        Assert.Null(store.ReadSnapshot().ResolveId(gone));
+        Assert.Empty(store.ReadSnapshot().Formers);
+    }
+
+    [Fact]
+    public void ANamelessFormerIdFollowsALaterMergeAndUndo()
+    {
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        PrivateTagStore store = new(temp.Path, lease);
+        TagId keep = store.Define("cats").Tag, gone = store.Define("felines").Tag, other = store.Define("lions").Tag;
+        store.Merge(keep, [gone]);
+        store.Rename(keep, "felines");
+        PrivateTagMergeCommit merge = store.Merge(other, [keep]);
+        Assert.Equal(other, store.ReadSnapshot().ResolveId(gone));
+        Assert.Equal(other, Assert.Single(store.ReadSnapshot().Formers).Tag);
+        store.UndoMerge(merge.Undo);
+        Assert.Equal(keep, store.ReadSnapshot().ResolveId(gone));
     }
 
     [Fact]
@@ -284,8 +305,14 @@ public sealed class PrivateTagMergeTests
             + "\"Threads\":[],\"Media\":[],\"LocalOccurrences\":[],\"LocalMedia\":[],\"Aliases\":[" + aliases + "]}";
         Assert.Equal(3, PrivateTagStore.ValidateDocumentBytes(Encoding.UTF8.GetBytes(Document(
             "{\"Name\":\"kitty\",\"Tag\":\"" + tag + "\",\"Former\":\"" + other + "\"}"))));
+        // A nameless entry names a former ID; older documents without one stay readable.
+        Assert.Equal(3, PrivateTagStore.ValidateDocumentBytes(Encoding.UTF8.GetBytes(Document(
+            "{\"Name\":null,\"Tag\":\"" + tag + "\",\"Former\":\"" + other + "\"}"))));
         foreach (string bad in new[]
         {
+            "{\"Name\":null,\"Tag\":\"" + tag + "\",\"Former\":null}",                       // nameless without a former ID
+            "{\"Name\":null,\"Tag\":\"" + tag + "\",\"Former\":\"" + tag + "\"}",             // former ID still a tag
+            "{\"Name\":null,\"Tag\":\"" + tag + "\",\"Former\":\"" + other + "\"},{\"Name\":\"kitty\",\"Tag\":\"" + tag + "\",\"Former\":\"" + other + "\"}",
             "{\"Name\":\"kitty\",\"Tag\":\"" + other + "\",\"Former\":null}",                      // unknown tag
             "{\"Name\":\"CAT\",\"Tag\":\"" + tag + "\",\"Former\":null}",                         // a tag's name
             "{\"Name\":\"kitty\",\"Tag\":\"" + tag + "\",\"Former\":\"" + tag + "\"}",              // former ID still a tag

@@ -179,6 +179,28 @@ public sealed class ArchiveTransferExportEntrypointTests : IDisposable
         Assert.Contains("Packages already written stay complete", ArchiveTransferExportDialog.DescribeResult(result with { Error = ArchiveTransferExportError.StaleSnapshot }));
     }
 
+    [Fact]
+    public void ANumberedPackageNameIsMatchedByThePlatformsFileNameCaseRules()
+    {
+        DirectoryInfo directory = Directory.CreateTempSubdirectory("meowchan-export-parts-");
+        try
+        {
+            string full = Path.Combine(directory.FullName, "name.zip");
+            File.WriteAllText(Path.Combine(directory.FullName, "NAME-PART-01.ZIP"), "x");
+            File.WriteAllText(Path.Combine(directory.FullName, "name-part-xx.zip"), "x");
+            // The pure rule: case-insensitive finds the upper-case name, case-sensitive does not.
+            Assert.Equal(Path.Combine(directory.FullName, "NAME-PART-01.ZIP"),
+                ArchiveTransferExportDestination.FirstExistingPart(full, StringComparison.OrdinalIgnoreCase));
+            Assert.Null(ArchiveTransferExportDestination.FirstExistingPart(full, StringComparison.Ordinal));
+            // The platform default: Windows and macOS insensitive, Linux sensitive.
+            Assert.Equal(OperatingSystem.IsWindows() || OperatingSystem.IsMacOS() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal,
+                ArchiveTransferExportDestination.FileNameComparison);
+            File.WriteAllText(ArchiveTransferExportDestination.PartPath(full, 2), "x");
+            Assert.Equal(ArchiveTransferExportDestination.PartPath(full, 2), ArchiveTransferExportDestination.FirstExistingPart(full, StringComparison.Ordinal));
+        }
+        finally { directory.Delete(true); }
+    }
+
     [Theory]
     [InlineData("DestinationExists", "transfer.export.error.exists")]
     [InlineData("StaleSnapshot", "transfer.export.error.stale")]
