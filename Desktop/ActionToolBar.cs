@@ -652,6 +652,9 @@ public static class ActionOverflowLayout
     /// on what overflows: each pass counts every item with the largest gap it had so far against the items then on the bar, so the widths
     /// only grow, what overflows only grows, and the passes end; a prioritized bar whose middle item moved away is never underestimated.
     /// A final greedy pass then takes back the items that fit with the gaps they really have.
+    /// A joined pair (a run of neighbouring visible segments of one group and one overflow mode, <see cref="JoinedSegments"/>) is one
+    /// unit for every decision: its width is the sum of its members, its rank the best of theirs, and it stays or moves as a whole, so
+    /// the bar never keeps half of a List|Table choice while the other half sits under "More".
     /// <paramref name="gaps"/> ends with the real gap of each item that stays (0 for the others); <paramref name="widths"/>,
     /// <paramref name="previous"/> and <paramref name="order"/> are scratch of at least <paramref name="count"/>.
     /// </summary>
@@ -671,7 +674,7 @@ public static class ActionOverflowLayout
                 widths[i] = itemWidths[i] + gaps[i];
                 if (!previous[i]) last = i;
             }
-            Resolve(count, widths, modes, visible, available, moreWidth, priorities, result, order);
+            Resolve(count, widths, modes, visible, available, moreWidth, priorities, result, order, segments, groups);
             bool settled = true;
             for (int i = 0; i < count; i++)
                 if (result[i] != previous[i]) { settled = false; previous[i] = result[i]; }
@@ -681,14 +684,21 @@ public static class ActionOverflowLayout
         // it really has (a group start that fits at 8 but not at 16). One greedy pass takes such items back, in the order they would have
         // been kept (first overflowed item first, so what stays under More is still the tail) and stops at the first one that does not fit.
         // Each candidate is counted with the real gaps of the bar it would make, and More is counted while anything remains under it.
+        // A joined pair comes back as a whole or not at all (its best-ranked member comes first in the order; the others then stand on
+        // the bar already or the pass has stopped).
         for (int k = 0; k < count; k++)
         {
             int i = order[k];
             if (!visible[i] || !result[i] || modes[i] == OverflowMode.Always) continue;
-            result[i] = false;
+            int start = UnitStart(i, groups, segments, modes, visible), end = UnitEnd(i, count, groups, segments, modes, visible);
+            SetUnit(start, end, visible, result, false);
             bool remaining = false;
             for (int j = 0; j < count; j++) if (visible[j] && result[j]) { remaining = true; break; }
-            if (BarWidth(count, itemWidths, groups, segments, visible, result) + (remaining ? moreWidth : 0) > available) { result[i] = true; break; }
+            if (BarWidth(count, itemWidths, groups, segments, visible, result) + (remaining ? moreWidth : 0) > available)
+            {
+                SetUnit(start, end, visible, result, true);
+                break;
+            }
         }
         double total = 0;
         int shown = -1;
@@ -717,11 +727,56 @@ public static class ActionOverflowLayout
     }
 
     /// <summary>
+    /// Whether the visible items <paramref name="previous"/> and <paramref name="item"/> (neighbours among the visible items) form one
+    /// joined unit: both are segments of one group with one overflow mode. Items with different modes stay independent, because an
+    /// explicit Never or Always of one item must not drag its neighbour along.
+    /// </summary>
+    public static bool JoinedSegments(int previous, int item, int[] groups, bool[] segments, OverflowMode[] modes) =>
+        segments[previous] && segments[item] && groups[previous] == groups[item] && modes[previous] == modes[item];
+
+    // The first and last index of the joined unit of item i (i itself when it stands alone); invisible items in between take no part.
+    private static int UnitStart(int i, int[] groups, bool[] segments, OverflowMode[] modes, bool[] visible)
+    {
+        int start = i;
+        for (int j = i - 1; j >= 0; j--)
+        {
+            if (!visible[j]) continue;
+            if (!JoinedSegments(j, start, groups, segments, modes)) break;
+            start = j;
+        }
+        return start;
+    }
+
+    private static int UnitEnd(int i, int count, int[] groups, bool[] segments, OverflowMode[] modes, bool[] visible)
+    {
+        int end = i;
+        for (int j = i + 1; j < count; j++)
+        {
+            if (!visible[j]) continue;
+            if (!JoinedSegments(end, j, groups, segments, modes)) break;
+            end = j;
+        }
+        return end;
+    }
+
+    private static void SetUnit(int start, int end, bool[] visible, bool[] result, bool overflow)
+    {
+        for (int j = start; j <= end; j++) if (visible[j]) result[j] = overflow;
+    }
+
+    /// <summary>
     /// Allocation-free form for the toolbar panel: the first <paramref name="count"/> entries of the arrays are read and
     /// <paramref name="result"/> is overwritten. <paramref name="order"/> is scratch of at least <paramref name="count"/>.
     /// </summary>
     public static void Resolve(int count, double[] widths, OverflowMode[] modes, bool[] visible, double available,
-        double moreWidth, int[]? priorities, bool[] result, int[] order)
+        double moreWidth, int[]? priorities, bool[] result, int[] order) =>
+        Resolve(count, widths, modes, visible, available, moreWidth, priorities, result, order, null, null);
+
+    // With segments and groups, a joined unit (JoinedSegments) is decided once, at the place of its best-ranked member (lowest
+    // priority, ties in item order: the member the stable sort puts first), with the sum of its members' widths; without them every
+    // item is its own unit (the historical rule).
+    private static void Resolve(int count, double[] widths, OverflowMode[] modes, bool[] visible, double available,
+        double moreWidth, int[]? priorities, bool[] result, int[] order, bool[]? segments, int[]? groups)
     {
         double total = 0, required = 0; bool forced = false;
         for (int i = 0; i < count; i++)
@@ -750,8 +805,30 @@ public static class ActionOverflowLayout
             int i = order[k];
             if (!visible[i] || modes[i] == OverflowMode.Never) continue;
             if (modes[i] == OverflowMode.Always) { result[i] = true; continue; }
-            if (spilling || required + widths[i] > budget) result[i] = spilling = true;
-            else required += widths[i];
+            int start = i, end = i;
+            if (segments != null && groups != null)
+            {
+                start = UnitStart(i, groups, segments, modes, visible);
+                end = UnitEnd(i, count, groups, segments, modes, visible);
+            }
+            if (start == end)
+            {
+                if (spilling || required + widths[i] > budget) result[i] = spilling = true;
+                else required += widths[i];
+                continue;
+            }
+            int head = -1;
+            double unit = 0;
+            for (int j = start; j <= end; j++)
+            {
+                if (!visible[j]) continue;
+                unit += widths[j];
+                if (head < 0 || (priorities != null && priorities[j] < priorities[head])) head = j;
+            }
+            // The other members were (or will be) decided with their head.
+            if (head != i) continue;
+            if (spilling || required + unit > budget) { SetUnit(start, end, visible, result, true); spilling = true; }
+            else required += unit;
         }
     }
 }
