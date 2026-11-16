@@ -248,8 +248,15 @@ internal static class ReaderUxChecks
         WindowStartupFit target = SetReaderJourneyGeometry(window);
         try
         {
-            await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(
-                window, target.Client.Width, target.Client.Height));
+            await Program.WaitUntilAsync(() =>
+            {
+                // Native window resizes can update Bounds one dispatcher turn after
+                // the request. Re-measure after layout so macOS does not report a
+                // stale client size during the transition.
+                window.UpdateLayout();
+                return PresentationChecks.MatchesRequestedSize(
+                    window, target.Client.Width, target.Client.Height);
+            });
         }
         finally
         {
