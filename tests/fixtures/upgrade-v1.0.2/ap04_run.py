@@ -108,6 +108,25 @@ class Context:
         return ['flock', '--close', '--wait', str(self.lock_wait), '--conflict-exit-code', str(LOCK_BUSY), str(LOCK),
                 'nice', '-n', '19', *argv]
 
+    def _bwrap(self, argv, bind_worktrees):
+        # bwrap's --unshare-net always configures lo with RTM_NEWADDR. Hosted
+        # runners can reject that netlink operation even though creating an
+        # empty network namespace is allowed. Keep bwrap for the user namespace,
+        # create the netns with unshare, and drop the temporary setup caps before
+        # the command starts. The replay needs neither loopback nor host routes.
+        bwrap = shutil.which('bwrap') or 'bwrap'
+        unshare = shutil.which('unshare') or 'unshare'
+        setpriv = shutil.which('setpriv') or 'setpriv'
+        command = [bwrap, '--die-with-parent', '--unshare-user',
+                   '--cap-add', 'CAP_SYS_ADMIN', '--cap-add', 'CAP_SETPCAP',
+                   '--disable-userns', '--ro-bind', '/', '/', '--proc', '/proc', '--dev', '/dev',
+                   '--tmpfs', '/tmp']
+        if bind_worktrees:
+            command += ['--bind', str(self.root), str(self.root), '--bind', str(self.out), str(self.out)]
+        command += ['--', unshare, '--net', '--', setpriv,
+                    '--bounding-set=-all', '--inh-caps=-all', '--ambient-caps=-all', '--nnp', '--', *argv]
+        return command
+
     def isolated(self, argv):
         if not self.netns:
             return list(argv)
@@ -115,21 +134,33 @@ class Context:
             # Keep the root read-only, then re-open only the candidate and AP04
             # output trees for the writes owned by this command. Network and
             # user namespaces are both mandatory; there is no best-effort mode.
-            bwrap = shutil.which('bwrap') or 'bwrap'
-            return [bwrap, '--die-with-parent', '--unshare-user', '--unshare-net',
-                    '--cap-add', 'CAP_NET_ADMIN', '--disable-userns', '--ro-bind', '/', '/', '--proc', '/proc', '--dev', '/dev',
-                    '--tmpfs', '/tmp', '--bind', str(self.root), str(self.root),
-                    '--bind', str(self.out), str(self.out), '--', *argv]
+            return self._bwrap(argv, bind_worktrees=True)
         return ['unshare', '-Urn', '--', *argv]
 
     def namespace_probe(self):
         if self.namespace_backend == 'bwrap':
             bwrap = shutil.which('bwrap')
+            unshare = shutil.which('unshare')
+            setpriv = shutil.which('setpriv')
             if not bwrap:
                 return None, 'bubblewrap (bwrap) is not installed'
-            return subprocess.run([bwrap, '--die-with-parent', '--unshare-user', '--unshare-net',
-                                   '--cap-add', 'CAP_NET_ADMIN', '--disable-userns', '--ro-bind', '/', '/', '--proc', '/proc', '--dev', '/dev',
-                                   '--tmpfs', '/tmp', '--', '/usr/bin/true'], capture_output=True), bwrap
+            if not unshare or not setpriv:
+                return None, 'unshare and setpriv are required for the hosted netns launcher'
+            probe = r"""set -eu
+ test "$(readlink /proc/self/ns/net)" != "$MEOWCHAN_HOST_NETNS"
+ test "$(id -u)" = "$MEOWCHAN_EXPECTED_UID"
+ test "$(id -g)" = "$MEOWCHAN_EXPECTED_GID"
+ for cap in CapInh CapPrm CapEff CapBnd CapAmb; do
+   test "$(awk -v key="$cap:" '$1 == key { print $2 }' /proc/self/status)" = 0000000000000000
+ done
+ awk -F: 'NR > 2 && $1 !~ /^[[:space:]]*lo[[:space:]]*$/ { bad=1 } END { exit bad+0 }' /proc/net/dev
+ awk 'NR > 1 && NF { bad=1 } END { exit bad+0 }' /proc/net/route
+"""
+            env = os.environ.copy()
+            env.update(MEOWCHAN_HOST_NETNS=os.readlink('/proc/self/ns/net'),
+                       MEOWCHAN_EXPECTED_UID=str(os.getuid()), MEOWCHAN_EXPECTED_GID=str(os.getgid()))
+            command = self._bwrap(['/bin/sh', '-eu', '-c', probe], bind_worktrees=False)
+            return subprocess.run(command, env=env, capture_output=True, text=True), bwrap
         return subprocess.run(['unshare', '-Urn', '--', 'true'], capture_output=True), 'unshare'
 
     def dotnet(self, verb, project, *extra, timeout=900):
@@ -159,6 +190,8 @@ class Context:
             env['MEOWCHAN_RELEASED102_NETWORK_NAMESPACE'] = self.namespace_backend
             if self.namespace_backend == 'bwrap':
                 env['MEOWCHAN_RELEASED102_BWRAP_PATH'] = shutil.which('bwrap') or 'bwrap'
+                env['MEOWCHAN_RELEASED102_UNSHARE_PATH'] = shutil.which('unshare') or 'unshare'
+                env['MEOWCHAN_RELEASED102_SETPRIV_PATH'] = shutil.which('setpriv') or 'setpriv'
         return env
 
     def consumer_command(self, result, mode):

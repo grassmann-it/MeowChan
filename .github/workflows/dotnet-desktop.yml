@@ -384,22 +384,49 @@ jobs:
           if [[ "$RUNNER_OS" == Linux ]]; then
             # Ubuntu hosted runners reject the nested unshare uid_map write used
             # by the old boolean path. Bubblewrap owns the user-namespace
-            # handshake and gives the replay a private network namespace.
-            # This is a hard capability gate: do not fall back to handler-only
-            # blocking or to unshare when the supported launcher is unavailable.
+            # handshake. Do not pass --unshare-net to bwrap: bwrap then tries to
+            # configure lo with RTM_NEWADDR, which hosted runners may forbid.
+            # Instead, a short-lived setup child creates an empty netns with
+            # CAP_SYS_ADMIN, then setpriv removes every capability before the
+            # replay. This is a hard capability gate: no handler-only fallback.
             bwrap_path="$(command -v bwrap || true)"
-            if [[ -z "$bwrap_path" ]]; then
-              echo "::error::1.0.2 replay requires bubblewrap (bwrap) for its user+network namespace; hosted runner capability is missing" >&2
+            unshare_path="$(command -v unshare || true)"
+            setpriv_path="$(command -v setpriv || true)"
+            if [[ -z "$bwrap_path" || -z "$unshare_path" || -z "$setpriv_path" ]]; then
+              echo "::error::1.0.2 replay requires bwrap, unshare and setpriv for its isolated user+network namespace" >&2
               exit 1
             fi
-            if ! "$bwrap_path" --die-with-parent --unshare-user --unshare-net \
-                --cap-add CAP_NET_ADMIN --disable-userns \
-                --ro-bind / / --proc /proc --dev /dev --tmpfs /tmp -- /usr/bin/true; then
-              echo "::error::1.0.2 replay requires a working bubblewrap user+network namespace; refusing an unisolated replay" >&2
+            host_netns="$(readlink /proc/self/ns/net)"
+            expected_uid="$(id -u)"
+            expected_gid="$(id -g)"
+            probe_script="$(cat <<'PROBE'
+          set -eu
+          test "$(readlink /proc/self/ns/net)" != "$MEOWCHAN_HOST_NETNS"
+          test "$(id -u)" = "$MEOWCHAN_EXPECTED_UID"
+          test "$(id -g)" = "$MEOWCHAN_EXPECTED_GID"
+          for cap in CapInh CapPrm CapEff CapBnd CapAmb; do
+            test "$(awk -v key="$cap:" '$1 == key { print $2 }' /proc/self/status)" = 0000000000000000
+          done
+          awk -F: 'NR > 2 && $1 !~ /^[[:space:]]*lo[[:space:]]*$/ { bad=1 } END { exit bad+0 }' /proc/net/dev
+          awk 'NR > 1 && NF { bad=1 } END { exit bad+0 }' /proc/net/route
+          PROBE
+          )"
+            if ! "$bwrap_path" --die-with-parent --unshare-user \
+                --cap-add CAP_SYS_ADMIN --cap-add CAP_SETPCAP --disable-userns \
+                --ro-bind / / --proc /proc --dev /dev --tmpfs /tmp \
+                --setenv MEOWCHAN_HOST_NETNS "$host_netns" \
+                --setenv MEOWCHAN_EXPECTED_UID "$expected_uid" \
+                --setenv MEOWCHAN_EXPECTED_GID "$expected_gid" -- \
+                "$unshare_path" --net -- "$setpriv_path" \
+                --bounding-set=-all --inh-caps=-all --ambient-caps=-all --nnp -- \
+                /bin/sh -eu -c "$probe_script"; then
+              echo "::error::1.0.2 replay requires a private host-free network namespace with uid/gid and zero-capability proof; refusing an unisolated replay" >&2
               exit 1
             fi
             export MEOWCHAN_RELEASED102_NETWORK_NAMESPACE=bwrap
             export MEOWCHAN_RELEASED102_BWRAP_PATH="$bwrap_path"
+            export MEOWCHAN_RELEASED102_UNSHARE_PATH="$unshare_path"
+            export MEOWCHAN_RELEASED102_SETPRIV_PATH="$setpriv_path"
           fi
           env -u MEOWCHAN_PROFILE -u OCHAN_PROFILE MEOWCHAN_DISABLE_UPDATE_CHECK=1 \
             MEOWCHAN_RELEASED102_PROFILE="$profile" \

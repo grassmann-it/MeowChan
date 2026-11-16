@@ -84,10 +84,12 @@ public sealed class Released102RestPackageUpgradeTests(ITestOutputHelper output)
     private async Task RunCycleAsync(string consumer, string profile, string result)
     {
         string host = Environment.GetEnvironmentVariable("DOTNET_HOST_PATH") ?? "dotnet";
-        // Opt-in OS-level network denial for the three current processes: a private user+network namespace in which
-        // only a downed loopback exists. The consumer's own injected HTTP handler (zero requests) stays in force too.
-        // Ubuntu hosted runners reject nested unshare uid_map writes; bubblewrap performs the same namespace setup
-        // through its supported user-namespace handshake. A requested backend is never silently downgraded.
+        // Opt-in OS-level network denial for the three current processes: a private network namespace with no
+        // host interfaces or routes. The consumer's own injected HTTP handler (zero requests) stays in force too.
+        // The replay never binds or connects to loopback, so its state is deliberately not part of this contract.
+        // Ubuntu hosted runners reject the old nested user-namespace uid_map write. Bubblewrap performs the user
+        // namespace handshake; unshare then creates the network namespace without asking bwrap to configure lo.
+        // A requested backend is never silently downgraded.
         string? namespaceBackend = Environment.GetEnvironmentVariable("MEOWCHAN_RELEASED102_NETWORK_NAMESPACE");
         ProcessStartInfo start;
         if (string.IsNullOrWhiteSpace(namespaceBackend))
@@ -100,10 +102,10 @@ public sealed class Released102RestPackageUpgradeTests(ITestOutputHelper output)
             start = new(bwrap);
             start.ArgumentList.Add("--die-with-parent");
             start.ArgumentList.Add("--unshare-user");
-            start.ArgumentList.Add("--unshare-net");
-            // Configure the isolated loopback device inside the fresh user/net
-            // namespaces. This does not restore access to the host network.
-            start.ArgumentList.Add("--cap-add"); start.ArgumentList.Add("CAP_NET_ADMIN");
+            // Do not pass --unshare-net to bwrap: bwrap unconditionally configures lo via RTM_NEWADDR,
+            // which hosted runners can reject. The nested unshare below creates a netns with no host links/routes.
+            start.ArgumentList.Add("--cap-add"); start.ArgumentList.Add("CAP_SYS_ADMIN");
+            start.ArgumentList.Add("--cap-add"); start.ArgumentList.Add("CAP_SETPCAP");
             start.ArgumentList.Add("--disable-userns");
             start.ArgumentList.Add("--ro-bind"); start.ArgumentList.Add("/"); start.ArgumentList.Add("/");
             start.ArgumentList.Add("--proc"); start.ArgumentList.Add("/proc");
@@ -113,7 +115,16 @@ public sealed class Released102RestPackageUpgradeTests(ITestOutputHelper output)
             start.ArgumentList.Add("--bind"); start.ArgumentList.Add(profile); start.ArgumentList.Add(profile);
             string resultsDirectory = Path.GetDirectoryName(result)!;
             start.ArgumentList.Add("--bind"); start.ArgumentList.Add(resultsDirectory); start.ArgumentList.Add(resultsDirectory);
-            start.ArgumentList.Add("--"); start.ArgumentList.Add(host);
+            string unshare = Environment.GetEnvironmentVariable("MEOWCHAN_RELEASED102_UNSHARE_PATH") ?? "unshare";
+            string setpriv = Environment.GetEnvironmentVariable("MEOWCHAN_RELEASED102_SETPRIV_PATH") ?? "setpriv";
+            start.ArgumentList.Add("--");
+            start.ArgumentList.Add(unshare); start.ArgumentList.Add("--net"); start.ArgumentList.Add("--");
+            start.ArgumentList.Add(setpriv);
+            start.ArgumentList.Add("--bounding-set=-all");
+            start.ArgumentList.Add("--inh-caps=-all");
+            start.ArgumentList.Add("--ambient-caps=-all");
+            start.ArgumentList.Add("--nnp"); start.ArgumentList.Add("--");
+            start.ArgumentList.Add(host);
         }
         else if (namespaceBackend == "unshare")
         {

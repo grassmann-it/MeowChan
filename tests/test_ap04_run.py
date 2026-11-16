@@ -73,8 +73,11 @@ class WorkflowControlTests(unittest.TestCase):
             'MEOWCHAN_RELEASED102_SOURCE_MANIFEST',
             'test ! -s "$fixture/status-after.txt"',
             'command -v bwrap',
-            '--unshare-user --unshare-net \\',
-            '--cap-add CAP_NET_ADMIN --disable-userns',
+            'command -v unshare',
+            'command -v setpriv',
+            '--cap-add CAP_SYS_ADMIN --cap-add CAP_SETPCAP --disable-userns',
+            'unshare_path=\"$(command -v unshare || true)\"',
+            'setpriv_path=\"$(command -v setpriv || true)\"',
             '--dev /dev --tmpfs /tmp',
             'MEOWCHAN_RELEASED102_NETWORK_NAMESPACE=bwrap',
             'MEOWCHAN_RELEASED102_BWRAP_PATH',
@@ -509,10 +512,15 @@ class RunnerTests(unittest.TestCase):
         self.assertIn('MEOWCHAN_RELEASED102_NETWORK_NAMESPACE', test)
         self.assertIn('namespaceBackend == "bwrap"', test)
         self.assertIn('"--unshare-user"', test)
-        self.assertIn('"--unshare-net"', test)
+        self.assertIn('"--net"', test)
         self.assertIn('"--disable-userns"', test)
-        self.assertIn('CAP_NET_ADMIN', test)
+        self.assertIn('CAP_SYS_ADMIN', test)
+        self.assertIn('CAP_SETPCAP', test)
+        self.assertNotIn('CAP_NET_ADMIN', test)
+        self.assertIn('setpriv', test)
         self.assertIn('MEOWCHAN_RELEASED102_BWRAP_PATH', test)
+        self.assertIn('MEOWCHAN_RELEASED102_UNSHARE_PATH', test)
+        self.assertIn('MEOWCHAN_RELEASED102_SETPRIV_PATH', test)
         self.assertNotIn('NETWORK_NAMESPACE") == "1"', test)
 
 
@@ -525,10 +533,14 @@ class NamespaceLauncherContractTests(unittest.TestCase):
         ctx = run.Context(Args())
         command = ctx.isolated(['dotnet', 'consumer.dll'])
         self.assertEqual('bwrap', Path(command[0]).name)
-        for marker in ('--die-with-parent', '--unshare-user', '--unshare-net', '--cap-add', 'CAP_NET_ADMIN', '--disable-userns',
-                       '--ro-bind', '/', '--proc', '/proc', '--dev', '/dev', '--tmpfs', '/tmp',
-                       '--bind', str(ctx.root), str(ctx.root), '--bind', str(ctx.out), str(ctx.out), '--'):
+        for marker in ('--die-with-parent', '--unshare-user', '--cap-add', 'CAP_SYS_ADMIN', 'CAP_SETPCAP',
+                       '--disable-userns', '--ro-bind', '/', '--proc', '/proc', '--dev', '/dev', '--tmpfs', '/tmp',
+                       '--bind', str(ctx.root), str(ctx.root), '--bind', str(ctx.out), str(ctx.out), '--',
+                       '--net', '--bounding-set=-all', '--inh-caps=-all', '--ambient-caps=-all', '--nnp'):
             self.assertIn(marker, command)
+        self.assertIn('unshare', Path(command[command.index('--') + 1]).name)
+        self.assertIn('setpriv', Path(command[command.index('--') + 4]).name)
+        self.assertNotIn('CAP_NET_ADMIN', command)
         self.assertEqual('bwrap', ctx.test_env()['MEOWCHAN_RELEASED102_NETWORK_NAMESPACE'])
         self.assertIn('MEOWCHAN_RELEASED102_BWRAP_PATH', ctx.test_env())
 
