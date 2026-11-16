@@ -486,6 +486,30 @@ public sealed class RateAndTagSurfaceTests : IDisposable
         Assert.Contains("posts.SelectedItem is { } item && posts.ContainerFromItem(item) is Control card && card.Focus()", media);
     }
 
+    [Fact]
+    public void ReaderAndSidebarRouteRatingInTheTunnelBeforeSelectingControlsCanTypeAhead()
+    {
+        string rating = Source("Desktop/Views/Archive/ArchivePage.RatingCommands.cs");
+        int tunnel = rating.IndexOf("pane.AddHandler(KeyDownEvent", StringComparison.Ordinal);
+        Assert.True(tunnel >= 0);
+        Assert.Contains("RoutingStrategies.Tunnel", rating[tunnel..]);
+        Assert.DoesNotContain("pane.KeyDown +=", rating);
+
+        string sidebar = Source("Desktop/Views/Archive/ArchivePage.MediaSidebar.cs");
+        int sidebarTunnel = sidebar.IndexOf("sidebar.AddHandler(KeyDownEvent, (_, e) => RouteSidebarRatingKey(e), RoutingStrategies.Tunnel)",
+            StringComparison.Ordinal);
+        int sidebarBubble = sidebar.IndexOf("sidebar.AddHandler(KeyDownEvent, (_, e) =>", sidebarTunnel + 1, StringComparison.Ordinal);
+        Assert.True(sidebarTunnel >= 0 && sidebarBubble > sidebarTunnel,
+            "The sidebar must give R a tunnel route before its ListBox/type-ahead bubble route.");
+
+        // The route is deliberately broad for reader controls (including a mouse-focused star/button),
+        // but the shared router still leaves actual editors and dropdowns native.
+        Assert.False(CommandRouter.IsNativeInput(new ListBoxItem(), Avalonia.Input.Key.R));
+        Assert.False(CommandRouter.IsNativeInput(new Button(), Avalonia.Input.Key.R));
+        Assert.True(CommandRouter.IsNativeInput(new TextBox(), Avalonia.Input.Key.R));
+        Assert.True(CommandRouter.IsNativeInput(new ComboBox(), Avalonia.Input.Key.R));
+    }
+
     // ---- the gallery ------------------------------------------------------------------------------------------------------
 
     private static GalleryEntry LooseImage()

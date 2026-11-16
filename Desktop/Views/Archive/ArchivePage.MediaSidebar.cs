@@ -165,6 +165,11 @@ public partial class ArchivePage
         // The sidebar's keys reach the reader's view shortcuts too (the toggle, the reader's other switches), in either host.
         // M / U / F act on the medium it shows (revision 20), like the stars of its header.
         // R, the rating keys and the media menu's keys act on it too (audit 16.11.2026: in the large reader they reached nothing from here).
+        // The strip is a ListBox: its type-ahead can consume R before a bubble
+        // handler reaches the sidebar. Route the pane-owned rating command in the
+        // tunnel, just like the reader pane, while CommandRouter preserves real
+        // editor/dropdown input and popup ownership.
+        sidebar.AddHandler(KeyDownEvent, (_, e) => RouteSidebarRatingKey(e), RoutingStrategies.Tunnel);
         sidebar.AddHandler(KeyDownEvent, (_, e) =>
         {
             if (!TryRouteSidebarVideoKey(e) && !TryRouteFavoriteKey(sidebar, e) && !RouteSidebarRatingKey(e) && !TryRouteArchiveMediaShortcut(sidebar, e))

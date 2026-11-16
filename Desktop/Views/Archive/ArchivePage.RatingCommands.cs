@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
@@ -49,7 +50,13 @@ public partial class ArchivePage
             }
         };
         pane.DetachedFromVisualTree += (_, _) => { _ratingCommands?.Dispose(); _ratingCommands = null; };
-        pane.KeyDown += (_, e) => _ratingCommands?.Route(e);
+        // Run before a ListBox/ListBoxItem can consume a letter for type-ahead. F has a
+        // dedicated reader route, while R is a command owned by this same pane; keeping
+        // the rating router on the bubble path made R disappear when keyboard focus was
+        // on a post, media tile or another selecting control. CommandRouter still owns
+        // the native-input and popup guards, so text fields and open overlays keep their
+        // keys.
+        pane.AddHandler(KeyDownEvent, (_, e) => _ratingCommands?.Route(e), RoutingStrategies.Tunnel);
     }
 
     /// <summary>The rating keys from the media sidebar, which sits beside the pane in the large reader (in the archive view its keys bubble to the pane).</summary>
