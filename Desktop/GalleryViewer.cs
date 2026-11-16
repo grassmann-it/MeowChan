@@ -1581,6 +1581,11 @@ internal sealed partial class GalleryViewer : UserControl
     }
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
+        // A native ComboBox may dismiss its popup after this tunnel handler has
+        // run. Do not route Escape as gallery.close while playback choices own it;
+        // the bubble handler lets the ComboBox finish and consumes any delayed
+        // delivery after the popup has closed.
+        if (_playbackMenuEscapeGuard.BypassGalleryRouting(e)) return;
         // Every key here is handled in the gallery's context: a default that a saved binding of another page took away (a saved archive command on F, say)
         // stays active in the gallery, where nothing else has it (EffectiveShortcutBindings.YieldedContexts).
         using var keyContext = EffectiveShortcutBindings.EnterKeyContext("gallery");
@@ -1805,6 +1810,7 @@ internal sealed partial class GalleryViewer : UserControl
             e.Handled = true;
             return;
         }
+        if (ConsumeRecentlyClosedPlaybackMenuEscape(e)) return;
         ShellKeyRequested?.Invoke(this, e);
     }
     private double DisplayScale => TopLevel.GetTopLevel(this)?.RenderScaling ?? 1;
