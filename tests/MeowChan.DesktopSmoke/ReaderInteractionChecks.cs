@@ -389,7 +389,21 @@ internal static class ReaderInteractionChecks
             pointerSeen = new(TaskCreationOptions.RunContinuationsAsynchronously);
             try
             {
-                await input.ClickAsync(body, new Point(16, 10));
+                // A stretched SelectableTextBlock is hit-testable only where it draws.
+                // Its rectangle center can be blank (ARM 43908445672 and X11), even
+                // though the intended text point is live. Keep strict center checks
+                // on the painted post container and independently prove the actual
+                // requested coordinate hits this exact body before native delivery.
+                await input.ClickAsync(() => Task.FromResult(body.GetVisualAncestors().OfType<ListBoxItem>()
+                    .Single(item => item.DataContext is ArchivePostRow { Id: "1001" })), item =>
+                {
+                    Point bodyPoint = new(16, 10);
+                    if (body.TranslatePoint(bodyPoint, item) is not { } itemPoint
+                        || window.InputHitTest(window.PointToClient(body.PointToScreen(bodyPoint))) is not Visual hit
+                        || !hit.GetSelfAndVisualAncestors().Contains(body))
+                        throw new ArgumentException("Native reader text point does not hit the requested body.", nameof(body));
+                    return Task.FromResult<Point?>(itemPoint);
+                });
                 await pointerSeen.Task.WaitAsync(TimeSpan.FromSeconds(5));
                 await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
                 Evidence("after-native-body-click");

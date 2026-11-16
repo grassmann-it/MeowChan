@@ -318,10 +318,26 @@ internal sealed class MediaNativeInput : IDisposable
     private void TraceFinalArgument(string operation, int attempts, Control? target, Point? point,
         bool requireEnabled, bool requireHitTest)
     {
-        if (_trace == null) return;
         try
         {
-            _trace("native-input-final-argument", new
+            object? Hit(Point at)
+            {
+                if (target == null || TopLevel.GetTopLevel(target) is not { } root) return null;
+                try
+                {
+                    PixelPoint pixel = target.PointToScreen(at);
+                    Visual? rootHit = root.InputHitTest(root.PointToClient(pixel)) as Visual;
+                    Visual? localHit = target.InputHitTest(at) as Visual;
+                    object? Describe(Visual? visual) => visual == null ? null : new
+                    {
+                        type = visual.GetType().Name, name = (visual as Control)?.Name,
+                        withinTarget = visual.GetSelfAndVisualAncestors().Contains(target)
+                    };
+                    return new { at = at.ToString(), pixel = pixel.ToString(), rootHit = Describe(rootHit), localHit = Describe(localHit) };
+                }
+                catch (ArgumentException) { return new { conversionFailed = true }; }
+            }
+            var evidence = new
             {
                 operation, attempts, requireEnabled, requireHitTest,
                 point = point?.ToString(),
@@ -330,11 +346,21 @@ internal sealed class MediaNativeInput : IDisposable
                     type = target.GetType().Name, name = target.Name,
                     attached = target.IsAttachedToVisualTree(), arrangeValid = target.IsArrangeValid,
                     visible = target.IsEffectivelyVisible, enabled = target.IsEffectivelyEnabled,
-                    bounds = target.Bounds.ToString(), root = TopLevel.GetTopLevel(target)?.GetType().Name
+                    target.IsHitTestVisible, bounds = target.Bounds.ToString(),
+                    root = TopLevel.GetTopLevel(target)?.GetType().Name,
+                    rootVisible = TopLevel.GetTopLevel(target)?.IsVisible,
+                    geometryReady = IsNativeGeometryReady(target, requireEnabled),
+                    centerReady = IsNativeHitTargetReady(target, requireEnabled),
+                    center = Hit(new Point(target.Bounds.Width / 2, target.Bounds.Height / 2)),
+                    requested = point is { } at ? Hit(at) : null
                 },
                 ownerActive = _owner.IsActive,
                 ownedActive = _owner.OwnedWindows.Any(window => window.IsActive && window.IsVisible)
-            });
+            };
+            // Closure checks do not all register a trace sink. Keep their terminal predicate
+            // evidence in output.log too; no text contents, media paths or profile values.
+            Console.Error.WriteLine("SMOKE native-input-final-argument " + System.Text.Json.JsonSerializer.Serialize(evidence));
+            _trace?.Invoke("native-input-final-argument", evidence);
         }
         catch
         {

@@ -179,8 +179,15 @@ internal static partial class GalleryPlaybackFeatureChecks
                 Control pointerRoot = externalRoot ? ErrorField<Grid>(viewer, "_nativeVideoOverlay") : viewer;
                 using (var native = new MediaNativeInput(overlay ?? window))
                 {
-                    await native.MoveAsync(footer);
-                    await UntilAsync(() => pointerRoot.IsPointerOver,
+                    // The forced 180px footer includes transparent, unpainted space:
+                    // its center hits the viewport, not the footer (ARM 43908445672,
+                    // also reproduced with X11). Target its real painted controls,
+                    // retaining the driver's strict center hit check in this root.
+                    Border controls = Find<Border>(viewer, "GalleryOverlayControls");
+                    Require(controls.GetVisualAncestors().Contains(footer),
+                        "Closing-root pointer target is not inside the sized footer.");
+                    await native.MoveAsync(controls);
+                    await UntilAsync(() => footer.IsPointerOver && pointerRoot.IsPointerOver,
                         "Closing-root regression did not receive real OS pointer entry.");
                 }
                 Console.WriteLine($"SMOKE gallery context root PASS: external={externalRoot}, postOverlay={postOverlay}, repeated footer sizing, own-root clearance retained; real pointer over closing root; no native playback claim");
