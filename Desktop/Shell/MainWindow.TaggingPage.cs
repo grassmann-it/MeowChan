@@ -57,6 +57,8 @@ public partial class MainWindow
                 (name, subjects, expectedRevision, token) => _session.DefineAndSetMediaSubjectTagsAsync(name, subjects, expectedRevision, token),
                 (tag, subjects, assigned, expectedRevision, token) => _session.SetMediaSubjectTagsAsync(tag, subjects, assigned, expectedRevision, token)),
             TagPopoverOptions = TagPopoverDefaults,
+            // R ("Rate and tag…"): the stars of the selected entries ride on top of the tag field, as on the media page.
+            DecisionForEntries = DecisionForMediaEntries,
             ReadBooruCatalog = _session.ReadBooruCatalog,
             ReadUserData = ReadMediaLibraryUserData,
             CompactDensity = () => _config.CompactDensity,

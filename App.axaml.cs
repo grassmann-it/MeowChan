@@ -75,6 +75,8 @@ public partial class App : Application
         {
             // D1: every window that opens follows the motion policy (class motion-off); the saved setting arrives with the main window.
             MeowChan.Desktop.Motion.MotionPolicy.Install();
+            // Esc closes every light-dismiss popup that has no Esc of its own (keyboard-only use, 16.11.2026).
+            MeowChan.Desktop.Controls.PopupEscape.Install();
             WindowChrome.LogStartup();
             desktop.Exit += (_, _) => Texts.Changed -= OnLanguageChanged;
             LinuxVideoPreflightResult? video = null;

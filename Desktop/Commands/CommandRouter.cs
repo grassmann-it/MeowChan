@@ -11,9 +11,11 @@ using Avalonia.VisualTree;
 namespace MeowChan.Desktop.Commands;
 
 /// <summary>Resolve the target at invocation time, never when the draft/menu was created.</summary>
+/// <param name="AllowInTextSelection">The command's key also runs while a read-only text (a post's body) has a selection, as long as the gesture holds
+/// no Ctrl or ⌘ (those stay the selection's: copy, select all). A text field, a list's arrows and the other native inputs keep their keys.</param>
 public sealed record CommandRegistration(string CommandId, Control Owner, Func<bool> IsActive,
     Func<bool> CanExecute, Action Execute, Func<string?>? DisabledReason = null, int Priority = 0,
-    bool AllowInTextInput = false);
+    bool AllowInTextInput = false, bool AllowInTextSelection = false);
 
 public sealed class CommandRouter : IDisposable
 {
@@ -45,7 +47,8 @@ public sealed class CommandRouter : IDisposable
         if (!IsRoutingContextActive(_root, e.Source)) return false;
         var top = TopLevel.GetTopLevel(_root);
         var matches = _registrations.Where(r => r.Owner.IsEffectivelyVisible && TopLevel.GetTopLevel(r.Owner) == top
-            && r.IsActive() && (!IsNativeInput(e.Source, e.Key) || r.AllowInTextInput)
+            && r.IsActive() && (!IsNativeInput(e.Source, e.Key) || r.AllowInTextInput
+                || r.AllowInTextSelection && OnlyTextSelectionHoldsKey(e))
             && ShortcutService.Current.Matches(e, r.CommandId)).OrderByDescending(r => r.Priority).ToArray();
         if (matches.Length == 0) return false;
         // Matching a disabled high-priority action deliberately consumes the event.
@@ -70,7 +73,17 @@ public sealed class CommandRouter : IDisposable
         .Any(control => control.ContextMenu?.IsOpen == true || control is Button { Flyout.IsOpen: true }
             || control is MenuItem { IsSubMenuOpen: true } || control is ComboBox { IsDropDownOpen: true });
 
-    public static bool IsNativeInput(object? source, Key key)
+    public static bool IsNativeInput(object? source, Key key) => IsNativeInput(source, key, textSelection: true);
+
+    /// <summary>
+    /// True when only a selection in a read-only text keeps the key from a command (the key is no native input otherwise) and the gesture has no Ctrl or ⌘:
+    /// a bare letter such as R does nothing to a selected post text, so the reader's "Rate and tag" must not be swallowed by it (audit 16.11.2026).
+    /// </summary>
+    internal static bool OnlyTextSelectionHoldsKey(KeyEventArgs e) =>
+        (e.KeyModifiers & (KeyModifiers.Control | KeyModifiers.Meta)) == 0
+        && IsNativeInput(e.Source, e.Key) && !IsNativeInput(e.Source, e.Key, textSelection: false);
+
+    private static bool IsNativeInput(object? source, Key key, bool textSelection)
     {
         if (source is not Visual visual) return false;
         foreach (var v in visual.GetSelfAndVisualAncestors())
@@ -81,7 +94,7 @@ public sealed class CommandRouter : IDisposable
             // shell fallbacks and must never reinterpret a local seek as navigation.
             if (v is Slider && (key is Key.Left or Key.Right or Key.Up or Key.Down
                 or Key.Home or Key.End or Key.PageUp or Key.PageDown or Key.Enter or Key.Escape)) return true;
-            if (v is SelectableTextBlock text && text.SelectionStart != text.SelectionEnd) return true;
+            if (textSelection && v is SelectableTextBlock text && text.SelectionStart != text.SelectionEnd) return true;
             if ((key is Key.Enter or Key.Space) && (v is Button or Ursa.Controls.ClosableTag or Ursa.Controls.Rating or Expander)) return true;
             if ((key is Key.Up or Key.Down or Key.Left or Key.Right or Key.Home or Key.End or Key.PageUp or Key.PageDown) && (v is SelectingItemsControl or DataGrid)) return true;
         }

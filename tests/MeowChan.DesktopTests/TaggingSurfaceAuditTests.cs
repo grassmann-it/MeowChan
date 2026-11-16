@@ -170,10 +170,11 @@ public sealed class TaggingSurfaceAuditTests : IDisposable
             Assert.True(again.Handled);
             Assert.Equal(calls, host.Calls.Count);
 
-            // The plain digit and any other chord are not ratings.
+            // The plain digit and any other chord are not ratings (the rating route leaves them; whatever nothing inside took then stops at the frame,
+            // so it never reaches the page behind the popover).
             KeyEventArgs plain = Key(Avalonia.Input.Key.D3, KeyModifiers.None);
+            Assert.False(popover.TryRouteDecisionKey(plain, ShortcutService.Current));
             popover.Frame.RaiseEvent(plain);
-            Assert.False(plain.Handled);
             Assert.Equal(calls, host.Calls.Count);
         });
     }
@@ -205,8 +206,8 @@ public sealed class TaggingSurfaceAuditTests : IDisposable
         {
             // The keyboard is nowhere here (no window): M must not favourite, it is just a letter of the tag field.
             KeyEventArgs add = Key(Avalonia.Input.Key.M, KeyModifiers.None);
+            Assert.False(popover.TryRouteDecisionKey(add, ShortcutService.Current));
             popover.Frame.RaiseEvent(add);
-            Assert.False(add.Handled);
             Assert.Empty(host.Calls);
         });
     }

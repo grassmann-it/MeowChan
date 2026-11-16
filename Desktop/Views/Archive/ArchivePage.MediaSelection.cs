@@ -246,6 +246,17 @@ public partial class ArchivePage
         _mediaSelectionBusy = true;
         UpdateActions();
         QuickTagPopoverCloseReason reason = QuickTagPopoverCloseReason.Stale;
+        QuickTagPopover? shown = null;
+        bool released = false;
+        // The busy flag ends with the popover (R right after Esc opens it again), not with this method's continuation.
+        void Release()
+        {
+            if (released) return;
+            released = true;
+            if (shown == null || ReferenceEquals(_mediaSelectionTagPopover, shown)) _mediaSelectionTagPopover = null;
+            _mediaSelectionBusy = false;
+            if (!_ended) UpdateActions();
+        }
         try
         {
             // Favourite and rating of every selected file ride on top (the shell's decision session over the same entries).
@@ -257,17 +268,15 @@ public partial class ArchivePage
                 IsCurrent = () => !_ended && _available && ReferenceEquals(_thread, thread) && _selectedThread == threadId,
                 Name = "ArchiveSelectionTagPopover",
                 TooltipKeyContext = "reader",
+                FocusFallback = FocusAfterRateAndTag,
                 Decision = DecisionFor?.Invoke(decided, focusRating)
             });
+            shown = popover;
             _mediaSelectionTagPopover = popover;
+            popover.WhenClosed(Release);
             reason = await popover.Result;
         }
-        finally
-        {
-            _mediaSelectionTagPopover = null;
-            _mediaSelectionBusy = false;
-            if (!_ended) UpdateActions();
-        }
+        finally { Release(); }
         if (reason == QuickTagPopoverCloseReason.Advanced && !_ended) await TagMediaSelectionDialogAsync(thread, rows, entries, origin);
     }
 
