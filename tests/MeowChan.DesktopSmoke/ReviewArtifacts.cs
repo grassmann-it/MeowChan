@@ -29,6 +29,7 @@ internal static partial class ReviewArtifacts
                 schema_version = 1, coordinate_space = "window-client-dip", render_scaling = window.RenderScaling,
                 elements = Tree(window).ToArray()
             });
+            Write(directory, "state.json", Snapshot(window));
         }
         finally { _writing = false; }
     }
