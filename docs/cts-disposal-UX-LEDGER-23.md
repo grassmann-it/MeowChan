@@ -80,4 +80,21 @@ Passed MeowChan.DesktopTests.CtsDisposalTests.CancelledNonCooperativeWorkOwnsSou
 Passed MeowChan.DesktopTests.CtsDisposalTests.FiftyCompletedSidebarStripRefreshesReturnParentRegistrationsToBaseline
 ```
 
+Group 1 validation: targeted DesktopTests filter `CtsDisposalTests|ReaderMediaSidebarImageLoadTests|MediaPanel`:
+**94 passed, 0 failed**.
+
+## Group 2: genuinely scoped sources
+
+Both Favorites sources already had manual Dispose calls on the successful path on this base.
+They now use `using` so exceptions also release the parent registrations.
+
+* Favorites overview (`loading`): window closure alone is NOT the end of the source's lifetime.
+  Track and await outstanding scope loads and Export/Remove/View async handlers before leaving
+  its using scope. Cancellation closes admission to new work; a non-cooperative resolver can finish safely.
+* Original export (`run`): the dialog's Closing handler already refuses closure while the copy is
+  running, cancels it, and only permits a subsequent Close after completion. Its source is genuinely
+  scoped to the awaited modal method; use `using` rather than a trailing success-only Dispose.
+* Other reported locals are actually task-owned and already disposed in finally (see audit above),
+  so no unsafe using was added to their synchronous launchers.
+
 Further group results and validation are recorded below as they complete.
