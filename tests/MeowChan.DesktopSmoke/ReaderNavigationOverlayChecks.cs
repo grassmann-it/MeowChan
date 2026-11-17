@@ -233,7 +233,7 @@ internal static class ReaderNavigationOverlayChecks
             // Keyboard focus keeps it shown; losing focus lets it hide.
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
-                Require(page.FindControl<Button>("ReaderNextPost")!.Focus(), "Reader navigation focus could not be assigned.");
+                Require(page.FindControl<Button>("ReaderPreviousPost")!.Focus(), "Reader navigation focus could not be assigned.");
                 Require(page.ReaderNavigationShown && bar.Opacity == 1 && bar.IsHitTestVisible,
                     "Keyboard focus did not reveal the reader navigation capsule.");
             });
