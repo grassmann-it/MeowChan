@@ -23,6 +23,7 @@ only the specific behavior covered here, not the remaining backlog or release ga
 | UX-LEDGER-08 | `d00eb27f9`, `3c946ef77` | Continue Reading is reachable over Gallery and opening a thread restores its valid saved post/anchor, with deterministic first-visible fallback; targeted Shell/Reader entry tests pass |
 | UX-LEDGER-09 | `f4378faa3` | Header network/disk statistics activation closes Gallery/large Reader before opening Statistics; contract coverage added |
 | UX-LEDGER-10 | `d00eb27f9` | Continue Reading remains enabled and usable while Gallery/large Reader covers the workspace; Gallery closes before resume is applied |
+| UX-LEDGER-11 | `740d0d565` | Media selection context targets, multi-selection shortcut feedback/rating, hand-cursor click contract, and 1099/1100 selection-line fitting; local targeted tests pass, native GUI validation pending |
 
 The gallery behavior audited by UX-LEDGER-06 is **double-click toggles window
 fullscreen**, not the older Fit/1:1 description below; **0** selects Fit and **1**
@@ -173,10 +174,9 @@ in order of appearance. Review reports, screenshots and runtime evidence stay ou
 
 ### Open
 
-- **MD-01/PT-01** Media right-click outside a multi-selection acts on the selection; **MD-03** hand
-  cursor without single-click action; **KB-06** silent keys with multi-selection; Media counter
-  wraps at 1099/1100 with the panel open; Media title offset — unfinished work on
-  `wip/media-followups-20261117` (not built).
+- **UX-LEDGER-11 native validation:** implementation is now on the release branch in
+  `740d0d565` and 83 targeted Desktop tests pass locally. The Ubuntu GUI sweep and native
+  1099/1100 evidence still have to pass before this item is fully closed.
 - **O2-04** `OpenLargeReader` detaches before wrapping; any throw leaves the page half-detached.
 - Smokes red at hand-over: `settings-category` ("accessible category selection disagrees with
   page"), `quick-tag-native-typing` (one repeat under load), `reader-ux` (auto-hide; upstream
