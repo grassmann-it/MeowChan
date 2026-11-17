@@ -64,6 +64,7 @@ internal sealed partial class GalleryViewer
         bool tagsAvailable = _entry != null && _tagNames != null && !_terminalRetirement;
         _sidePanel.SetTagsAvailable(tagsAvailable, _tagsUnavailableReason);
         _sidePanel.Localize();
+        RefreshPanelCounter(); // the host header's owner-supplied position text follows language changes too
         RefreshCloseLayerButton(_sidePanel.CloseButton, Texts.T("gallery.panel.close"));
     }
 

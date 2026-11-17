@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text.Json;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -73,9 +74,36 @@ internal static class GalleryMediaTagChecks
             // and the Tags segment brings the panel back for the same medium.
             Require(viewer.SidePanel.Segment == MeowChan.Desktop.Controls.GallerySidePanelSegment.Tags && viewer.SidePanel.TagsButton.IsChecked == true
                 && !viewer.TagSurface!.CloseButton.IsVisible, "The tag panel is not the Tags segment of the side panel.");
+            // UX-LEDGER-14: the existing live counter belongs beside Post/Tags, not beside the title in the surface below.
+            double panelWidth = viewer.PanelWidth;
+            foreach (string counterLanguage in new[] { "en", "de" })
+            {
+                Texts.SetLanguage(counterLanguage);
+                foreach (int width in new[] { 280, 320, 480 })
+                {
+                    viewer.PanelWidth = width;
+                    window.UpdateLayout(); // the existing gallery close button does not prove the new header slot has been templated
+                    Border counter = viewer.SidePanel.HeaderCounter as Border ?? throw new InvalidOperationException("Missing header counter.");
+                    Require(counter.IsEffectivelyVisible && !viewer.TagSurface!.Header.Children.Contains(counter), "Counter was duplicated or hidden.");
+                    Require(Avalonia.Automation.AutomationProperties.GetName(counter) == Texts.T("tags.quick.gallery.position", 1, 2)
+                        && Avalonia.Automation.AutomationProperties.GetLiveSetting(counter) == Avalonia.Automation.AutomationLiveSetting.Polite,
+                        "The moved counter lost localization or polite announcements.");
+                    var origin = counter.TranslatePoint(default, viewer.SidePanel)!.Value;
+                    var segment = (Control)viewer.SidePanel.PostButton.Parent!;
+                    var closeOrigin = viewer.SidePanel.CloseButton.TranslatePoint(default, viewer.SidePanel)!.Value;
+                    Require(origin.X >= segment.Bounds.Right && origin.X - segment.Bounds.Right <= 9
+                        && Math.Abs(origin.Y + counter.Bounds.Height / 2 - (segment.Bounds.Y + segment.Bounds.Height / 2)) <= 1
+                        && origin.X + counter.Bounds.Width <= closeOrigin.X - 23,
+                        "The counter is not adjacent to Post/Tags in the same row, or crowds close.");
+                    Program.CaptureWindow(window, $"smoke-gallery-counter-header-{counterLanguage}-{width}.png");
+                }
+            }
+            viewer.PanelWidth = panelWidth;
+            Texts.SetLanguage("en");
             viewer.SidePanel.PostButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await UntilAsync(() => !viewer.IsTagPanelOpen && viewer.SidePanel.Segment == MeowChan.Desktop.Controls.GallerySidePanelSegment.Post);
             Require(viewer.CaptureState().ContextOpen && viewer.SidePanel.PostButton.IsChecked == true, "The Post segment did not take the side panel over.");
+            Require(viewer.SidePanel.HeaderCounter == null, "The released tag surface left a stale counter in the header.");
             viewer.SidePanel.TagsButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await UntilAsync(() => viewer.IsTagPanelOpen && viewer.SidePanel.Segment == MeowChan.Desktop.Controls.GallerySidePanelSegment.Tags);
             await UntilAsync(() => viewer.TagSurface!.IsVisible && viewer.TagSurface.AdvancedButton.IsEffectivelyEnabled);

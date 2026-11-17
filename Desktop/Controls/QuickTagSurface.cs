@@ -452,6 +452,17 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     internal TextBlock Status => _status;
     internal TextBlock Title => _title;
     internal Grid Header { get; }
+
+    /// <summary>Moves the live counter to a containing header; this surface still owns its text, visibility and updates.</summary>
+    internal Border DetachCounter()
+    {
+        Header.Children.Remove(_counter);
+        _counter.Margin = default;
+        _counterLabel.TextWrapping = TextWrapping.Wrap;
+        _counterLabel.TextTrimming = TextTrimming.CharacterEllipsis;
+        _counterLabel.MaxLines = 2;
+        return _counter;
+    }
     /// <summary>The footer: undo, stamp and the tag editor, in a row (wide host) or stacked (narrow host).</summary>
     internal Grid Footer { get; }
     /// <summary>True while the footer buttons are stacked, one per line at full width.</summary>
@@ -879,6 +890,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         _counter.IsVisible = !string.IsNullOrEmpty(counter);
         _counterLabel.Text = counter ?? string.Empty;
         AutomationProperties.SetName(_counter, counter ?? string.Empty);
+        ToolTip.SetTip(_counter, counter);
 
         _stripEmpty.IsVisible = _shown.Count == 0;
         _strip.IsVisible = _shown.Count > 0;
