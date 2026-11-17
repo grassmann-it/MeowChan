@@ -172,7 +172,12 @@ internal sealed class UpdateSession : IAsyncDisposable
         _lifetime.Cancel();
         if (_background != null) await _background.ConfigureAwait(false);
         await _operations.WaitAsync().ConfigureAwait(false);
-        try { _client.Dispose(); lock (_gate) Changed = null; }
-        finally { _operations.Release(); }
+        try { _service.Dispose(); _client.Dispose(); lock (_gate) Changed = null; }
+        finally
+        {
+            _operations.Release();
+            _operations.Dispose();
+            _lifetime.Dispose();
+        }
     }
 }

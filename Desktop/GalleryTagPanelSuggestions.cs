@@ -70,6 +70,7 @@ internal sealed class GalleryTagPanelSuggestions : IQuickTagSuggestionSource, ID
 
     /// <summary>The managed thread that ran the last warm-up (tests and diagnostics); 0 before any.</summary>
     internal int WarmThreadId { get; private set; }
+    internal Task WarmTask { get; private set; } = Task.CompletedTask;
 
     internal bool IsWarm(PrivateTagStoreSnapshot snapshot)
     {
@@ -87,11 +88,23 @@ internal sealed class GalleryTagPanelSuggestions : IQuickTagSuggestionSource, ID
             if (_warm != null && _warm.TryGetTarget(out PrivateTagStoreSnapshot? done) && ReferenceEquals(done, snapshot)) return;
             if (_pending != null && _pending.TryGetTarget(out PrivateTagStoreSnapshot? running) && ReferenceEquals(running, snapshot)) return;
             _warming?.Cancel();
-            _warming = new CancellationTokenSource();
+            CancellationTokenSource warming = new();
+            _warming = warming;
             _pending = new WeakReference<PrivateTagStoreSnapshot>(snapshot);
-            token = _warming.Token;
+            token = warming.Token;
+            WarmTask = Task.Run(() =>
+            {
+                try { RunWarm(snapshot, token); }
+                finally
+                {
+                    lock (_gate)
+                    {
+                        if (ReferenceEquals(_warming, warming)) _warming = null;
+                        warming.Dispose();
+                    }
+                }
+            }, CancellationToken.None);
         }
-        _ = Task.Run(() => RunWarm(snapshot, token), CancellationToken.None);
     }
 
     private void RunWarm(PrivateTagStoreSnapshot snapshot, CancellationToken token)
@@ -187,17 +200,16 @@ internal sealed class GalleryTagPanelSuggestions : IQuickTagSuggestionSource, ID
     /// <summary>Stops a running warm-up (the panel closed); later calls answer from the cold path and start nothing.</summary>
     public void Dispose()
     {
-        CancellationTokenSource? warming;
         lock (_gate)
         {
             if (_disposed) return;
             _disposed = true;
-            warming = _warming;
+            // Serialize cancellation with the worker's final disposal; never dispose while _build still uses the token.
+            _warming?.Cancel();
             _warming = null;
             _pending = null;
         }
         Ready = null;
-        try { warming?.Cancel(); } catch (ObjectDisposedException) { }
     }
 }
 

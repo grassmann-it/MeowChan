@@ -1272,7 +1272,7 @@ public partial class ArchivePage : UserControl
         _mediaMenuPresenter.Invalidate();
         EndMediaSelectionLifetime();
         StopObservingReaderMediaKeys();
-        CancelArchiveMediaCounts();
+        _ = DisposeArchiveMediaCountsAsync();
         EndArchiveCleanupLifetime();
         EndTransferPreviewLifetime();
         EndTransferExportLifetime();

@@ -132,9 +132,16 @@ public partial class ArchivePage
         GalleryEntryKey? galleryStart = null;
         FavoriteOverviewState? returnState = null;
         HashSet<FavoriteAssetKey> missing = new();
-        CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+        using CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         // The newest scope wins: changing the scope cancels the load that runs, waits until it has unwound and then loads the new one.
         LatestWinsLoad scopeLoads = new(loading.Token);
+        HashSet<Task> operations = new();
+        async Task TrackAsync(Task task)
+        {
+            operations.Add(task);
+            try { await task; }
+            finally { operations.Remove(task); }
+        }
         dialog.Closed += (_, _) => loading.Cancel();
         void Render()
         {
@@ -172,6 +179,7 @@ public partial class ArchivePage
         // one loads); a reload of the same scope (after a Remove) keeps its rows until the new ones are there.
         async Task LoadScopeAsync(bool scopeChanged = true)
         {
+            if (loading.IsCancellationRequested) return;
             try
             {
                 scopeLoading = true;
@@ -204,11 +212,12 @@ public partial class ArchivePage
             catch (OperationCanceledException) when (loading.IsCancellationRequested) { }
             catch (Exception ex) { FailWith(ex); scopeLoading = false; Render(); }
         }
-        scope.SelectionChanged += async (_, _) => await LoadScopeAsync();
+        scope.SelectionChanged += async (_, _) => await TrackAsync(LoadScopeAsync());
         search.PropertyChanged += (_, args) => { if (args.Property == TextBox.TextProperty) Render(); };
-        export.Click += async (_, _) =>
+        export.Click += async (_, _) => await TrackAsync(ExportAsync());
+        async Task ExportAsync()
         {
-            if (scopeLoading || actionRunning || visible.Length == 0 || ResolveFavoriteAssets == null) return;
+            if (loading.IsCancellationRequested || scopeLoading || actionRunning || visible.Length == 0 || ResolveFavoriteAssets == null) return;
             FavoriteEntry[] frozen = visible.ToArray();
             string label = scope.SelectedItem?.ToString() ?? Texts.T("viewer.favorites.all");
             if (!string.IsNullOrWhiteSpace(search.Text)) label += " · " + Texts.T("viewer.favorites.searchApplied");
@@ -221,10 +230,11 @@ public partial class ArchivePage
             catch (OperationCanceledException) when (loading.IsCancellationRequested) { }
             catch (Exception ex) { FailWith(ex); }
             finally { actionRunning = false; RefreshActions(); }
-        };
-        remove.Click += async (_, _) =>
+        }
+        remove.Click += async (_, _) => await TrackAsync(RemoveAsync());
+        async Task RemoveAsync()
         {
-            if (scopeLoading || actionRunning || list.SelectedItem is not FavoriteOverviewRow selected || RemoveFavoriteAsync == null) return;
+            if (loading.IsCancellationRequested || scopeLoading || actionRunning || list.SelectedItem is not FavoriteOverviewRow selected || RemoveFavoriteAsync == null) return;
             int index = list.SelectedIndex;
             actionRunning = true; RefreshActions();
             Notice(string.Empty);
@@ -237,10 +247,11 @@ public partial class ArchivePage
             }
             catch (Exception failure) { FailWith(failure); }
             finally { actionRunning = false; RefreshActions(); }
-        };
-        view.Click += async (_, _) =>
+        }
+        view.Click += async (_, _) => await TrackAsync(ViewAsync());
+        async Task ViewAsync()
         {
-            if (scopeLoading || actionRunning || list.SelectedItem is not FavoriteOverviewRow selected || OpenFavoritesGallery == null) return;
+            if (loading.IsCancellationRequested || scopeLoading || actionRunning || list.SelectedItem is not FavoriteOverviewRow selected || OpenFavoritesGallery == null) return;
             FavoriteEntry[] frozen = visible.ToArray();
             returnState = new FavoriteOverviewState(scope.SelectedIndex, search.Text ?? string.Empty, selected.Entry.Key);
             actionRunning = true; RefreshActions();
@@ -265,12 +276,20 @@ public partial class ArchivePage
             catch (OperationCanceledException) when (loading.IsCancellationRequested) { }
             catch (Exception failure) { FailWith(failure); }
             finally { actionRunning = false; RefreshActions(); }
-        };
+        }
         Render();
-        Task shown = dialog.ShowDialog(owner);
-        await LoadScopeAsync();
-        await shown;
-        loading.Dispose();
+        try
+        {
+            Task shown = dialog.ShowDialog(owner);
+            await TrackAsync(LoadScopeAsync());
+            await shown;
+        }
+        finally
+        {
+            // Closing a window does not await its async event handlers. Drain every consumer before disposing the source.
+            loading.Cancel();
+            await Task.WhenAll(operations.ToArray());
+        }
         if (galleryStart != null && galleryEntries != null && OpenFavoritesGallery != null && !_ended)
             await OpenFavoritesGallery(galleryEntries, galleryStart, () => { if (!_ended) OpenActions.Start(() => OpenFavoritesOverviewAsync(returnState), "archive.favorites.open"); });
     }
@@ -350,7 +369,7 @@ public partial class ArchivePage
             statusAbove: true);
         MeowChan.Desktop.Controls.DialogWindow.Frame(dialog, MeowChan.Desktop.Controls.DialogFrame.Build(choices, content, footer,
             MeowChan.Desktop.Controls.DialogFrame.ErrorStrip(error)), modal: true);
-        CancellationTokenSource run = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+        using CancellationTokenSource run = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         bool running = false;
         dialog.Closing += (_, args) =>
         {
@@ -424,6 +443,5 @@ public partial class ArchivePage
         };
         cancel.Click += (_, _) => { if (running) run.Cancel(); else dialog.Close(); };
         await dialog.ShowDialog(owner);
-        run.Dispose();
     }
 }

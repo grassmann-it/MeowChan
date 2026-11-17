@@ -21,7 +21,7 @@ namespace MeowChan.Desktop;
 /// choices and counts, footer with the polite state line above the actions and Close right-most. The window never opens a
 /// reader, a stream or the destination itself; counting and exporting go through the host delegates off the UI thread.
 /// </summary>
-internal sealed class ArchiveTransferExportDialog : Window
+internal sealed class ArchiveTransferExportDialog : Window, IDisposable
 {
     private readonly Func<ArchiveTransferExportRequest, CancellationToken, Task<ArchiveTransferExportCount>> _count;
     private readonly Func<ArchiveTransferExportRequest, string, IProgress<ArchiveTransferExportProgress>, CancellationToken,
@@ -164,12 +164,20 @@ internal sealed class ArchiveTransferExportDialog : Window
         _ => ArchiveTransferExportMedia.MetadataOnly
     };
 
-    internal void Terminate()
+    internal void Terminate() => Dispose();
+
+    public void Dispose()
     {
         if (_closed) return;
         _closed = true;
         Texts.Changed -= OnLanguageChanged;
-        try { _operation?.Cancel(); _lifetime.Cancel(); } catch (ObjectDisposedException) { }
+        try { _operation?.Cancel(); }
+        finally
+        {
+            try { _lifetime.Cancel(); }
+            finally { _lifetime.Dispose(); }
+        }
+        // Only child tokens are handed to workers. Each operation disposes its own source after it exits.
     }
 
     private void OnChoiceChanged()
@@ -184,40 +192,47 @@ internal sealed class ArchiveTransferExportDialog : Window
         if (_closed || _running) return;
         int generation = ++_countGeneration;
         _operation?.Cancel();
-        CancellationTokenSource operation = _operation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
-        _counting = true; _counted = null; _stateKey = "transfer.export.counting";
-        Render();
-        // The host admits one count at a time; let the cancelled previous count unwind instead of being refused as busy.
-        Task previous = _completion;
-        if (!previous.IsCompleted) { try { await previous; } catch { /* Superseded. */ } }
-        if (_closed || generation != _countGeneration) return;
-        Task<ArchiveTransferExportCount> pending;
-        try { pending = _count(Request, operation.Token); }
-        catch (Exception) { pending = Task.FromException<ArchiveTransferExportCount>(new InvalidOperationException()); }
-        Task tracked = pending;
-        _completion = tracked;
+        using CancellationTokenSource operation = _operation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         try
         {
-            ArchiveTransferExportCount counted = await pending;
+            _counting = true; _counted = null; _stateKey = "transfer.export.counting";
+            Render();
+            // The host admits one count at a time; let the cancelled previous count unwind instead of being refused as busy.
+            Task previous = _completion;
+            if (!previous.IsCompleted) { try { await previous; } catch { /* Superseded. */ } }
             if (_closed || generation != _countGeneration) return;
-            _counted = counted;
-            _errorKey = counted.IsEmpty ? "transfer.export.error.empty" : null;
-            _stateKey = counted.WithinLimits ? (_target == null ? "transfer.export.idle" : "transfer.export.ready") : "transfer.export.idle";
-        }
-        catch (OperationCanceledException) when (generation != _countGeneration || _closed || operation.IsCancellationRequested)
-        {
-            if (_closed || generation != _countGeneration) return;
-            _stateKey = "transfer.export.idle";
-        }
-        catch (Exception)
-        {
-            if (_closed || generation != _countGeneration) return;
-            _errorKey = "transfer.export.error.count"; _stateKey = "transfer.export.idle";
+            Task<ArchiveTransferExportCount> pending;
+            try { pending = _count(Request, operation.Token); }
+            catch (Exception) { pending = Task.FromException<ArchiveTransferExportCount>(new InvalidOperationException()); }
+            Task tracked = pending;
+            _completion = tracked;
+            try
+            {
+                ArchiveTransferExportCount counted = await pending;
+                if (_closed || generation != _countGeneration) return;
+                _counted = counted;
+                _errorKey = counted.IsEmpty ? "transfer.export.error.empty" : null;
+                _stateKey = counted.WithinLimits ? (_target == null ? "transfer.export.idle" : "transfer.export.ready") : "transfer.export.idle";
+            }
+            catch (OperationCanceledException) when (generation != _countGeneration || _closed || operation.IsCancellationRequested)
+            {
+                if (_closed || generation != _countGeneration) return;
+                _stateKey = "transfer.export.idle";
+            }
+            catch (Exception)
+            {
+                if (_closed || generation != _countGeneration) return;
+                _errorKey = "transfer.export.error.count"; _stateKey = "transfer.export.idle";
+            }
+            finally
+            {
+                if (generation == _countGeneration) _counting = false;
+                if (!_closed && generation == _countGeneration) Render();
+            }
         }
         finally
         {
-            if (generation == _countGeneration) _counting = false;
-            if (!_closed && generation == _countGeneration) Render();
+            if (ReferenceEquals(_operation, operation)) _operation = null;
         }
     }
 
@@ -249,50 +264,57 @@ internal sealed class ArchiveTransferExportDialog : Window
     private async Task StartAsync()
     {
         if (!CanStart || _target is not { } target) return;
-        CancellationTokenSource operation = _operation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
-        _running = true; _last = null; _errorKey = null; _progress = null; _stateKey = "transfer.export.reading";
-        Render();
-        Progress<ArchiveTransferExportProgress> progress = new(report =>
+        using CancellationTokenSource operation = _operation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+        try
         {
-            if (_closed || !_running) return;
-            _progress = report;
-            _stateKey = report.Phase switch
-            {
-                ArchiveTransferExportPhase.Counting => "transfer.export.counting",
-                ArchiveTransferExportPhase.Reading => "transfer.export.reading",
-                _ => "transfer.export.writing"
-            };
+            _running = true; _last = null; _errorKey = null; _progress = null; _stateKey = "transfer.export.reading";
             Render();
-        });
-        Task<ArchiveTransferExportResult> pending;
-        try { pending = _export(Request, target, progress, operation.Token); }
-        catch (Exception) { pending = Task.FromResult(new ArchiveTransferExportResult(ArchiveTransferExportError.WriteFailure)); }
-        _completion = pending;
-        ArchiveTransferExportResult result;
-        try { result = await pending; }
-        catch (OperationCanceledException) { result = new(ArchiveTransferExportError.Canceled); }
-        catch (Exception) { result = new(ArchiveTransferExportError.WriteFailure); }
-        _running = false;
-        if (_closed) return;
-        _last = result;
-        if (result.Count is { } counted) _counted = counted;
-        switch (result.Error)
-        {
-            case ArchiveTransferExportError.None:
-                _stateKey = "transfer.export.completed"; _errorKey = null;
-                // The same name cannot be used again; the next export needs a new file name.
-                _target = null;
-                break;
-            case ArchiveTransferExportError.Canceled:
-                _stateKey = "transfer.export.canceled"; _errorKey = null;
-                break;
-            default:
-                _stateKey = "transfer.export.failed"; _errorKey = ErrorKey(result.Error);
-                if (result.Error is ArchiveTransferExportError.DestinationExists or ArchiveTransferExportError.InvalidDestination
-                    || result.Parts.Count > 0) _target = null;
-                break;
+            Progress<ArchiveTransferExportProgress> progress = new(report =>
+            {
+                if (_closed || !_running) return;
+                _progress = report;
+                _stateKey = report.Phase switch
+                {
+                    ArchiveTransferExportPhase.Counting => "transfer.export.counting",
+                    ArchiveTransferExportPhase.Reading => "transfer.export.reading",
+                    _ => "transfer.export.writing"
+                };
+                Render();
+            });
+            Task<ArchiveTransferExportResult> pending;
+            try { pending = _export(Request, target, progress, operation.Token); }
+            catch (Exception) { pending = Task.FromResult(new ArchiveTransferExportResult(ArchiveTransferExportError.WriteFailure)); }
+            _completion = pending;
+            ArchiveTransferExportResult result;
+            try { result = await pending; }
+            catch (OperationCanceledException) { result = new(ArchiveTransferExportError.Canceled); }
+            catch (Exception) { result = new(ArchiveTransferExportError.WriteFailure); }
+            _running = false;
+            if (_closed) return;
+            _last = result;
+            if (result.Count is { } counted) _counted = counted;
+            switch (result.Error)
+            {
+                case ArchiveTransferExportError.None:
+                    _stateKey = "transfer.export.completed"; _errorKey = null;
+                    // The same name cannot be used again; the next export needs a new file name.
+                    _target = null;
+                    break;
+                case ArchiveTransferExportError.Canceled:
+                    _stateKey = "transfer.export.canceled"; _errorKey = null;
+                    break;
+                default:
+                    _stateKey = "transfer.export.failed"; _errorKey = ErrorKey(result.Error);
+                    if (result.Error is ArchiveTransferExportError.DestinationExists or ArchiveTransferExportError.InvalidDestination
+                        || result.Parts.Count > 0) _target = null;
+                    break;
+            }
+            Render();
         }
-        Render();
+        finally
+        {
+            if (ReferenceEquals(_operation, operation)) _operation = null;
+        }
     }
 
     private void CancelOperation()

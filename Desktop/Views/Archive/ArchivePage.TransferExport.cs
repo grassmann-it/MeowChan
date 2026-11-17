@@ -96,7 +96,7 @@ public partial class ArchivePage
         {
             if (dialog != null)
             {
-                dialog.Terminate();
+                dialog.Dispose();
                 // Closing cancels the operation; wait until the host has let go of its reader and stage before re-enabling.
                 try { await dialog.Completion; } catch { /* Reported inside the dialog. */ }
                 try { dialog.Close(); } catch { /* Show may have failed before native creation. */ }

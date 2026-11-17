@@ -299,7 +299,7 @@ public sealed partial class MediaPage
         CancellationTokenSource? loading = _panelLoading;
         _panelLoading = null;
         try { loading?.Cancel(); } catch (ObjectDisposedException) { }
-        loading?.Dispose();
+        // LoadPanelAsync owns disposal after its decode has actually completed.
     }
 
     private bool IsCurrentPanelRequest(int request) => !_lifetime.IsCancellationRequested && _panelShown && _panel is { } panel && panel.Load.IsCurrent(request);
@@ -350,7 +350,11 @@ public sealed partial class MediaPage
         }
         CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         _panelLoading = loading;
-        PanelTask = LoadPanelAsync(panel, row, mediumKey, ticket, target, loading.Token);
+        PanelTask = CancellationWork.RunAsync(loading,
+            token => LoadPanelAsync(panel, row, mediumKey, ticket, target, token), () =>
+            {
+                if (ReferenceEquals(_panelLoading, loading)) _panelLoading = null;
+            });
     }
 
     private string PanelDetail() => _panelDimensions.Length == 0 ? _panelSizeText
