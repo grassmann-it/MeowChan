@@ -76,7 +76,7 @@ public sealed class HelpPopoverTests : IDisposable
         Assert.Equal(["One", "Two", "Three"], list.Children.Cast<Grid>().Select(row => ((TextBlock)row.Children[1]).Text));
         Assert.All(list.Children.Cast<Grid>(), row => Assert.Equal(AccessibilityView.Raw, AutomationProperties.GetAccessibilityView(row.Children[0])));
         Button link = Assert.IsType<Button>(body.Children[4]);
-        Assert.Equal("More in Help", link.Content);
+        Assert.Equal("More in Help", Assert.IsType<TextBlock>(link.Content).Text);
         link.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         Assert.Equal((1, 1), (closed, more));
     }
@@ -318,6 +318,35 @@ public sealed class HelpPopoverTests : IDisposable
         Assert.Equal(plainHeadline, CommandBindings.TooltipHeadline(plain));
         Assert.DoesNotContain('\n', CommandBindings.Tooltip(plain, "  "));
     }
+
+    [Fact]
+    public void EveryTextOfAHelpPopoverWrapsInsideTheColumnAndTheFrameNeverScrollsSideways()
+    {
+        // Both sentences and unbroken identifiers must wrap inside the reading column.
+        string longText = string.Join(" ", Enumerable.Repeat("a long help sentence that has to wrap", 12)) + new string('x', 500);
+        StackPanel body = HelpPopover.Build(new HelpContent(longText, [longText], [longText], () => { }), () => { });
+        Assert.Equal(HelpPopover.MaxContentWidth, body.MaxWidth);
+        foreach (TextBlock text in LogicalDescendants(body).OfType<TextBlock>())
+            Assert.Equal(Avalonia.Media.TextWrapping.Wrap, text.TextWrapping);
+        Assert.Equal(HelpPopover.MaxContentWidth, Assert.IsType<Button>(body.Children[^1]).MaxWidth);
+        Assert.DoesNotContain(LogicalDescendants(body), element => element is ScrollViewer);
+        // The flyout frame (its template scrolls the content) has the horizontal scroll bar switched off, in the style and for the template's own viewer.
+        XElement styles = XDocument.Load(Root("Desktop/WorkspaceStyles.axaml")).Root!;
+        Assert.Equal("Disabled", Setter(styles, "FlyoutPresenter.help-popover", "ScrollViewer.HorizontalScrollBarVisibility"));
+        Assert.Equal("Disabled", Setter(styles, "FlyoutPresenter.help-popover /template/ ScrollViewer", "HorizontalScrollBarVisibility"));
+    }
+
+    [Fact]
+    public void TooltipsWrapAtTheirMaximumWidthAndDisableHorizontalScrolling()
+    {
+        XElement styles = XDocument.Load(Root("Desktop/WorkspaceStyles.axaml")).Root!;
+        Assert.Equal("360", Setter(styles, "ToolTip", "MaxWidth"));
+        Assert.Equal("Wrap", Setter(styles, "ToolTip TextBlock", "TextWrapping"));
+        Assert.Equal("Disabled", Setter(styles, "ToolTip ScrollViewer, ToolTip /template/ ScrollViewer", "HorizontalScrollBarVisibility"));
+    }
+
+    private static IEnumerable<Avalonia.LogicalTree.ILogical> LogicalDescendants(Avalonia.LogicalTree.ILogical root) =>
+        root.LogicalChildren.SelectMany(child => new[] { child }.Concat(LogicalDescendants(child)));
 
     private static string Token(XElement styles, string key) =>
         Assert.Single(styles.Descendants(), e => (string?)e.Attribute(X + "Key") == key).Value.Trim();

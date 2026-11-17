@@ -1664,6 +1664,7 @@
     <!-- HB1 tooltips: a long text wraps inside the 360 dip tooltip (ToolTipMaxWidth above) instead of running off as one line; a text
          may carry line breaks (CommandBindings.Tooltip: "Label · shortcut" on the first line, hint or reason on the second). -->
     <Style Selector="ToolTip"><Setter Property="MaxWidth" Value="360" /></Style>
+    <Style Selector="ToolTip ScrollViewer, ToolTip /template/ ScrollViewer"><Setter Property="HorizontalScrollBarVisibility" Value="Disabled" /></Style>
     <Style Selector="ToolTip TextBlock"><Setter Property="TextWrapping" Value="Wrap" /><Setter Property="LineSpacing" Value="{StaticResource Workspace.Space.2}" /></Style>
     <!-- HB1 help-round: the one help button (controls:HelpButton), flat like the other icon buttons (UX review 15.11.: the circled "?" was ugly).
          A 32 dip square hit target with the plain drawn "?" (WorkspaceIcons.Help) centred: no outline at rest (a 1-px edge is reserved so the
@@ -1782,7 +1783,10 @@
         <Setter Property="Padding" Value="{StaticResource Workspace.Inset.Popover}" /><Setter Property="MaxWidth" Value="434" />
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" /><Setter Property="BorderThickness" Value="1" />
         <Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Group}" />
+        <!-- UX-LEDGER-02: the flyout frame scrolls its content (the theme template has a ScrollViewer). A help text only ever wraps: never a horizontal scroll bar. -->
+        <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
     </Style>
+    <Style Selector="FlyoutPresenter.help-popover /template/ ScrollViewer"><Setter Property="HorizontalScrollBarVisibility" Value="Disabled" /></Style>
     <!-- The help-text layout (HelpPopover.Build), typography pass 15.11.: 8 between title, paragraphs, list and link; 4 between bullets;
          paragraph and bullet lines at the reading line height; the dot in its own column, 8 before the text (hanging indent). -->
     <Style Selector="StackPanel.help-popover-body"><Setter Property="Spacing" Value="{StaticResource Workspace.Space.8}" /></Style>

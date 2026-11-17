@@ -123,7 +123,11 @@ internal sealed class HelpPopover : Flyout
         }
         if (content.More is { } more)
         {
-            Button link = new() { Content = Texts.T("help.popover.more"), Classes = { "subtle" }, HorizontalAlignment = HorizontalAlignment.Left };
+            Button link = new()
+            {
+                Content = new TextBlock { Text = Texts.T("help.popover.more"), TextWrapping = TextWrapping.Wrap },
+                Classes = { "subtle" }, HorizontalAlignment = HorizontalAlignment.Left, MaxWidth = MaxContentWidth
+            };
             AutomationProperties.SetName(link, Texts.T("help.popover.more"));
             link.Click += (_, _) => { close(); more(); };
             body.Children.Add(link);
