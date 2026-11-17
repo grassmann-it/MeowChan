@@ -11,7 +11,8 @@ internal sealed class GalleryDecodeQueue : IDisposable
     private sealed record Work(Func<CancellationToken, Task> Run, bool Debounce,
         TaskCompletionSource Completion);
     private Work? _desired;
-    private CancellationTokenSource? _active;
+    // Non-owning cancellation capability; the pump owns the scoped source.
+    private Action? _cancelActive;
     private bool _running, _disposed;
     internal Task Completion { get; private set; } = Task.CompletedTask;
     private readonly Func<CancellationToken, Task> _delay;
@@ -33,14 +34,14 @@ internal sealed class GalleryDecodeQueue : IDisposable
     {
         _desired?.Completion.TrySetResult();
         _desired = null;
-        _active?.Cancel();
+        _cancelActive?.Invoke();
     }
 
     public void Dispose()
     {
         if (_disposed) return;
         _disposed = true;
-        Cancel(); // The pump's using owns _active until even non-cooperative work exits.
+        Cancel(); // The pump's using owns the source until even non-cooperative work exits.
     }
 
     private async Task PumpAsync()
@@ -52,7 +53,8 @@ internal sealed class GalleryDecodeQueue : IDisposable
             {
                 _desired = null;
                 using CancellationTokenSource active = new();
-                _active = active;
+                Action cancel = active.Cancel;
+                _cancelActive = cancel;
                 try
                 {
                     if (work.Debounce) await _delay(active.Token);
@@ -63,7 +65,10 @@ internal sealed class GalleryDecodeQueue : IDisposable
                 catch (OperationCanceledException) when (active.IsCancellationRequested)
                 { work.Completion.TrySetResult(); }
                 catch (Exception error) { work.Completion.TrySetException(error); }
-                finally { _active = null; }
+                finally
+                {
+                    if (ReferenceEquals(_cancelActive, cancel)) _cancelActive = null;
+                }
             }
         }
         finally { _running = false; }

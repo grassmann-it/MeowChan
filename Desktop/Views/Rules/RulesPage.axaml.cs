@@ -18,7 +18,7 @@ namespace MeowChan;
 
 public sealed record RuleScopeChoice(MediaRuleScope Scope, string Label);
 
-public partial class RulesPage : UserControl, INotifyPropertyChanged
+public sealed partial class RulesPage : UserControl, INotifyPropertyChanged, IAsyncDisposable
 {
     // The limit is typed in MiB, like every other size of the app (1 MiB = 1024 * 1024 bytes); the rule stores whole bytes.
     private const decimal BytesPerMebibyte = 1_048_576m;
@@ -61,7 +61,7 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
         _saveRules = saveRules ?? throw new ArgumentNullException(nameof(saveRules));
         // Every key of the page runs in the "rules" context (S3 P2-4): a default that a saved binding took away only elsewhere (a partial yield) stays
         // active here (EffectiveShortcutBindings.EnterKeyContext).
-        MeowChan.Desktop.Controls.KeyContextHost.Install(this, _ => "rules");
+        _pageKeyContext = MeowChan.Desktop.Controls.KeyContextHost.Install(this, _ => "rules");
         InitializeComponent();
         InitializeWorkViewPresentation();
         InitializeRuleSuggestions();
@@ -299,12 +299,21 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
         RuleEnabledInput.BringIntoView();
     }
 
+    private readonly IDisposable _pageKeyContext;
+
+    public ValueTask DisposeAsync()
+    {
+        EndLifetime();
+        return ValueTask.CompletedTask;
+    }
+
     public void EndLifetime()
     {
         if (_ended) return;
         _discardConfirmation.Close(); _templateDeleteConfirmation?.Close(); _templateEditorConfirmation?.Close();
         foreach (Desktop.Controls.DraftDiscardConfirmation confirmation in _overviewConfirmations) confirmation.Close();
         _ended = true;
+        _pageKeyContext.Dispose();
         EndRuleSuggestions();
         IsEnabled = false;
         _available = false;

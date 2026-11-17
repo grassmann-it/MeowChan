@@ -179,7 +179,7 @@ public sealed partial class MediaPage : UserControl
         _openReader = openReader ?? throw new ArgumentNullException(nameof(openReader));
         // Every key of the page runs in the "media" context, as the gallery's keys do in theirs: a default that a saved binding took away only elsewhere
         // (a partial yield) stays active here (EffectiveShortcutBindings.EnterKeyContext).
-        KeyContextHost.Install(this, _ => "media");
+        _pageKeyContext = KeyContextHost.Install(this, _ => "media");
         _openManifest = openManifest ?? MediaAssetReader.OpenAsync;
         // Only the real manifest reader is checked by file identity; a supplied opener keeps the per-build behavior.
         _manifests = new MediaManifestCache(openManifest, _lifetime.Token);
@@ -1422,9 +1422,12 @@ public sealed partial class MediaPage : UserControl
         if (_grid.ItemsSource != null) Present(keepView: true); else UpdateStatus();
     }
 
+    private readonly IDisposable _pageKeyContext;
+
     internal void EndLifetime()
     {
         if (_lifetime.IsCancellationRequested) return;
+        _pageKeyContext.Dispose();
         InvalidateSharedMediaMenu();
         _lifetime.Cancel();
         _nameFilter.CancelPendingQuery();

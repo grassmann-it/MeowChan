@@ -18,32 +18,43 @@ internal sealed class ApphostPluginWorkflowSmoke : IDisposable
 
     internal static ApphostPluginWorkflowSmoke Parse(string path, string profile, bool sourceActivation = false)
     {
-        ApphostWorkflowSmoke descriptor = ApphostWorkflowSmoke.Parse(path, profile);
-        if (descriptor.Phase is not ("download" or "restore"))
-            throw new ArgumentException("Plugin workflow supports only download and paused restore.");
-        if (!sourceActivation) return new(descriptor);
-        using var json = System.Text.Json.JsonDocument.Parse(File.ReadAllBytes(path));
-        string? phase = json.RootElement.GetProperty("sourcePhase").GetString();
-        if (descriptor.Phase != "download" || descriptor.PreviousProfile != null || phase is not ("install" or "acquire" or "offline"))
-            throw new ArgumentException("Source activation requires its three owned phases on the same profile.");
-        bool exists = Directory.Exists(profile) || File.Exists(profile) || new DirectoryInfo(profile).LinkTarget != null;
-        if (phase == "install" && exists) throw new IOException("Source activation must start with a new profile.");
-        if (phase != "install")
+        ApphostWorkflowSmoke? descriptor = ApphostWorkflowSmoke.Parse(path, profile);
+        try
         {
-            ApphostWorkflowSmoke.ValidateProfileTree(profile);
-            if (File.ReadAllText(Path.Combine(profile, ".workflow-profile")) != descriptor.OwnerToken)
-                throw new IOException("Source activation profile ownership differs.");
-            string priorPath = Path.Combine(profile, "apphost-workflow.json");
-            FileInfo priorFile = new(priorPath);
-            if (!priorFile.Exists || priorFile.LinkTarget != null || priorFile.Length is <= 0 or > 65536)
-                throw new IOException("Source activation evidence is not a bounded regular file.");
-            using var prior = System.Text.Json.JsonDocument.Parse(File.ReadAllBytes(priorPath));
-            var evidence = prior.RootElement;
-            if (evidence.GetProperty("phase").GetString() != "source-activation" || !evidence.GetProperty("completed").GetBoolean() || evidence.GetProperty("failure").ValueKind != System.Text.Json.JsonValueKind.Null
-                || evidence.GetProperty("sourcePhase").GetString() != (phase == "acquire" ? "install" : "acquire"))
-                throw new IOException("The preceding source activation process did not complete.");
+            if (descriptor.Phase is not ("download" or "restore"))
+                throw new ArgumentException("Plugin workflow supports only download and paused restore.");
+            if (!sourceActivation)
+            {
+                var normal = new ApphostPluginWorkflowSmoke(descriptor);
+                descriptor = null;
+                return normal;
+            }
+            using var json = System.Text.Json.JsonDocument.Parse(File.ReadAllBytes(path));
+            string? phase = json.RootElement.GetProperty("sourcePhase").GetString();
+            if (descriptor.Phase != "download" || descriptor.PreviousProfile != null || phase is not ("install" or "acquire" or "offline"))
+                throw new ArgumentException("Source activation requires its three owned phases on the same profile.");
+            bool exists = Directory.Exists(profile) || File.Exists(profile) || new DirectoryInfo(profile).LinkTarget != null;
+            if (phase == "install" && exists) throw new IOException("Source activation must start with a new profile.");
+            if (phase != "install")
+            {
+                ApphostWorkflowSmoke.ValidateProfileTree(profile);
+                if (File.ReadAllText(Path.Combine(profile, ".workflow-profile")) != descriptor.OwnerToken)
+                    throw new IOException("Source activation profile ownership differs.");
+                string priorPath = Path.Combine(profile, "apphost-workflow.json");
+                FileInfo priorFile = new(priorPath);
+                if (!priorFile.Exists || priorFile.LinkTarget != null || priorFile.Length is <= 0 or > 65536)
+                    throw new IOException("Source activation evidence is not a bounded regular file.");
+                using var prior = System.Text.Json.JsonDocument.Parse(File.ReadAllBytes(priorPath));
+                var evidence = prior.RootElement;
+                if (evidence.GetProperty("phase").GetString() != "source-activation" || !evidence.GetProperty("completed").GetBoolean() || evidence.GetProperty("failure").ValueKind != System.Text.Json.JsonValueKind.Null
+                    || evidence.GetProperty("sourcePhase").GetString() != (phase == "acquire" ? "install" : "acquire"))
+                    throw new IOException("The preceding source activation process did not complete.");
+            }
+            var result = new ApphostPluginWorkflowSmoke(descriptor, phase);
+            descriptor = null; // The returned owner now holds the descriptor.
+            return result;
         }
-        return new(descriptor, phase);
+        finally { descriptor?.Dispose(); }
     }
 
     internal DesktopSessionHost CreateSession()

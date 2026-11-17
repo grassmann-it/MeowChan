@@ -14,6 +14,7 @@ public sealed class AnalyzerDebtLifetimeTests
 {
     [Theory]
     [InlineData("archive")]
+    [InlineData("sidebar")]
     [InlineData("media")]
     [InlineData("rules")]
     public void EndedPageNoLongerInstallsAKeyContext(string kind) => BooruComponentDispatcher.Run(() =>
@@ -23,10 +24,14 @@ public sealed class AnalyzerDebtLifetimeTests
         TokenApplication.Bind();
         Control page;
         Action end;
-        if (kind == "archive")
+        if (kind is "archive" or "sidebar")
         {
             ArchivePage archive = new(_ => Task.FromResult<ArchiveReader>(null!), (_, _) => Task.CompletedTask, _ => { });
-            page = archive; end = archive.EndLifetime;
+            page = kind == "sidebar"
+                ? (Control)typeof(ArchivePage).GetMethod("EnsureMediaSidebar",
+                    System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.Invoke(archive, null)!
+                : archive;
+            end = archive.EndLifetime;
         }
         else if (kind == "rules")
         {
@@ -40,7 +45,7 @@ public sealed class AnalyzerDebtLifetimeTests
         {
             KeyEventArgs before = new() { RoutedEvent = InputElement.KeyDownEvent, Key = Key.None };
             page.RaiseEvent(before);
-            Assert.Equal(kind, KeyContextHost.ContextOf(before));
+            Assert.Equal(kind == "sidebar" ? "reader" : kind, KeyContextHost.ContextOf(before));
             end(); end();
             KeyEventArgs after = new() { RoutedEvent = InputElement.KeyDownEvent, Key = Key.None };
             page.RaiseEvent(after);
@@ -61,7 +66,7 @@ public sealed class AnalyzerDebtLifetimeTests
     [Fact]
     public void CleanupWatchHasAnExplicitTerminalLifetime()
     {
-        object watch = new VideoCleanupWatch("test", schedule: false);
+        using VideoCleanupWatch watch = new("test", schedule: false);
         IDisposable owner = Assert.IsAssignableFrom<IDisposable>(watch);
         using (owner)
         {

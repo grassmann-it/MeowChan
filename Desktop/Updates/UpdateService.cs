@@ -61,12 +61,22 @@ public sealed class UpdateService : IDisposable
     }
 
     /// <summary>Creates the dedicated production transport: no redirects, cookies, credentials or default headers.</summary>
-    public static HttpClient CreateHttpClient() => new(new HttpClientHandler
+    public static HttpClient CreateHttpClient()
     {
-        AllowAutoRedirect = false,
-        UseCookies = false,
-        UseDefaultCredentials = false
-    }) { Timeout = Timeout.InfiniteTimeSpan };
+        HttpClientHandler? handler = new()
+        {
+            AllowAutoRedirect = false,
+            UseCookies = false,
+            UseDefaultCredentials = false
+        };
+        try
+        {
+            HttpClient client = new(handler, disposeHandler: true) { Timeout = Timeout.InfiniteTimeSpan };
+            handler = null; // Ownership passed to the returned client.
+            return client;
+        }
+        finally { handler?.Dispose(); }
+    }
 
     public async Task<UpdateCheckResult> CheckAfterStartupAsync(CancellationToken cancellationToken = default)
     {

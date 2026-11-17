@@ -29,33 +29,39 @@ internal sealed class ApphostIntegrityProcessSmoke : IDisposable
 
     internal static ApphostIntegrityProcessSmoke Parse(string path, string profile)
     {
-        var descriptor = ApphostWorkflowSmoke.Parse(path, profile);
-        using var json = JsonDocument.Parse(File.ReadAllBytes(path));
-        string phase = json.RootElement.GetProperty("policyPhase").GetString() ?? "";
-        if (descriptor.Phase != "download" || descriptor.PreviousProfile != null || phase is not ("acquire" or "revoke" or "deny" or "recovery"))
-            throw new ArgumentException("Policy proof requires owned acquire/revoke/deny/recovery phases on one profile.");
-        if (phase == "acquire")
+        ApphostWorkflowSmoke? descriptor = ApphostWorkflowSmoke.Parse(path, profile);
+        try
         {
-            if (Directory.Exists(profile) || File.Exists(profile) || new DirectoryInfo(profile).LinkTarget != null)
-                throw new IOException("Policy acquisition requires a new profile.");
+            using var json = JsonDocument.Parse(File.ReadAllBytes(path));
+            string phase = json.RootElement.GetProperty("policyPhase").GetString() ?? "";
+            if (descriptor.Phase != "download" || descriptor.PreviousProfile != null || phase is not ("acquire" or "revoke" or "deny" or "recovery"))
+                throw new ArgumentException("Policy proof requires owned acquire/revoke/deny/recovery phases on one profile.");
+            if (phase == "acquire")
+            {
+                if (Directory.Exists(profile) || File.Exists(profile) || new DirectoryInfo(profile).LinkTarget != null)
+                    throw new IOException("Policy acquisition requires a new profile.");
+            }
+            else
+            {
+                ApphostWorkflowSmoke.ValidateProfileTree(profile);
+                if (File.ReadAllText(Path.Combine(profile, ".workflow-profile")) != descriptor.OwnerToken)
+                    throw new IOException("Policy proof profile ownership differs.");
+                string previous = Path.Combine(profile, "apphost-policy-process.json");
+                FileInfo file = new(previous);
+                if (!file.Exists || file.LinkTarget != null || file.Length is <= 0 or > 65536)
+                    throw new IOException("Policy proof needs bounded prior process evidence.");
+                using var prior = JsonDocument.Parse(File.ReadAllBytes(previous));
+                var value = prior.RootElement;
+                if (!value.GetProperty("completed").GetBoolean() || value.GetProperty("failure").ValueKind != JsonValueKind.Null
+                    || value.GetProperty("phase").GetString() != (phase == "revoke" ? "acquire" : phase == "deny" ? "revoke" : "deny")
+                    || value.GetProperty("profile").GetString() != profile || value.GetProperty("ownerToken").GetString() != descriptor.OwnerToken)
+                    throw new IOException("Preceding production-policy process did not complete.");
+            }
+            var result = new ApphostIntegrityProcessSmoke(descriptor, phase);
+            descriptor = null; // The returned owner now holds the descriptor.
+            return result;
         }
-        else
-        {
-            ApphostWorkflowSmoke.ValidateProfileTree(profile);
-            if (File.ReadAllText(Path.Combine(profile, ".workflow-profile")) != descriptor.OwnerToken)
-                throw new IOException("Policy proof profile ownership differs.");
-            string previous = Path.Combine(profile, "apphost-policy-process.json");
-            FileInfo file = new(previous);
-            if (!file.Exists || file.LinkTarget != null || file.Length is <= 0 or > 65536)
-                throw new IOException("Policy proof needs bounded prior process evidence.");
-            using var prior = JsonDocument.Parse(File.ReadAllBytes(previous));
-            var value = prior.RootElement;
-            if (!value.GetProperty("completed").GetBoolean() || value.GetProperty("failure").ValueKind != JsonValueKind.Null
-                || value.GetProperty("phase").GetString() != (phase == "revoke" ? "acquire" : phase == "deny" ? "revoke" : "deny")
-                || value.GetProperty("profile").GetString() != profile || value.GetProperty("ownerToken").GetString() != descriptor.OwnerToken)
-                throw new IOException("Preceding production-policy process did not complete.");
-        }
-        return new(descriptor, phase);
+        finally { descriptor?.Dispose(); }
     }
 
     internal DesktopSessionHost CreateSession()

@@ -244,7 +244,8 @@ public partial class ArchivePage
         // Its keys run in the reader's context in either host: in the large reader the sidebar sits beside the pane, outside the pane's own host, and its
         // keys (M / U / F, the media keys) asked without a context, so a default yielded elsewhere went dead there. Installed after its tunnel handlers
         // (Avalonia runs one element's tunnel handlers in reverse order), like the pane's (WireReaderSurface).
-        MeowChan.Desktop.Controls.KeyContextHost.Install(sidebar, _ => "reader");
+        _sidebarKeyContext?.Dispose();
+        _sidebarKeyContext = MeowChan.Desktop.Controls.KeyContextHost.Install(sidebar, _ => "reader");
         // The sidebar can be materialized after the pane has already attached.
         // Give the reader's rating router an owner on this sibling as well; the
         // large-reader frame is not the pane's visual subtree.
