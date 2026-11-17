@@ -118,8 +118,21 @@ internal static class SelectionChecks
         Require(!window.FindControl<ContentControl>("ReaderHost")!.IsVisible
             && grid.SelectedItems.Cast<ThreadRow>().Select(row => row.WatchId).Order().SequenceEqual(selectedIds),
             "Enter opened an ambiguous multiple-watch reader or changed the selection.");
+        // Navigation back from the export dialog can leave a native row frame in
+        // flight even though the old selection is still painted.  Delete is a
+        // list command, so wait for that frame to become authoritative before
+        // injecting the key; otherwise the shell correctly ignores the command
+        // as a stale-control action and this check waits on an impossible state.
+        await Program.WaitUntilAsync(() => !window.SessionRowsApplying
+            && grid.SelectedItems.Cast<ThreadRow>().Select(row => row.WatchId).Order().SequenceEqual(selectedIds),
+            () => $"rowsApplying={window.SessionRowsApplying}, urls={window.UrlList.Count}, selected="
+                + string.Join(",", grid.SelectedItems.Cast<ThreadRow>().Select(row => row.WatchId).Order()));
+        grid.Focus();
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Input);
         PressKey(grid, Key.Delete);
-        await Program.WaitUntilAsync(() => window.UrlList.Count == 0);
+        await Program.WaitUntilAsync(() => window.UrlList.Count == 0,
+            () => $"rowsApplying={window.SessionRowsApplying}, urls={window.UrlList.Count}, selected="
+                + string.Join(",", grid.SelectedItems.Cast<ThreadRow>().Select(row => row.WatchId).Order()));
         await using (ArchiveReader reader = await window.SessionHost.OpenArchiveReaderAsync(CancellationToken.None))
             Require((await reader.SelectThreadIdsAsync(new ArchiveThreadQuery(), CancellationToken.None)).Count == 52,
                 "Removing watches deleted archived posts.");

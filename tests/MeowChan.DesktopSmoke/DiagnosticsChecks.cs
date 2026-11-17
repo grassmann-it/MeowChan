@@ -121,16 +121,30 @@ internal static class DiagnosticsChecks
                             throw;
                         }
                         ScrollViewer content = page.FindControl<ScrollViewer>("DiagnosticsContentScroll")!;
-                        grid.ScrollIntoView(grid.SelectedItem, null);
+                        // Keep the selected entry, not the row container, as the authority.  On native
+                        // Windows a compact resize can recycle the DataGrid row after the first
+                        // ScrollIntoView call; a one-shot lookup then waits forever on a stale/absent
+                        // container.  Re-issue the bounded realization request on every layout pass.
+                        DiagnosticEntry selectedDiagnostic = grid.SelectedItem as DiagnosticEntry
+                            ?? throw new InvalidOperationException("Diagnostics selection disappeared before row realization.");
                         await Program.WaitUntilAsync(() =>
                         {
+                            window.UpdateLayout();
+                            grid.ScrollIntoView(selectedDiagnostic, null);
                             DataGridRow? row = grid.GetVisualDescendants().OfType<DataGridRow>()
-                                .FirstOrDefault(candidate => ReferenceEquals(candidate.DataContext, grid.SelectedItem));
+                                .FirstOrDefault(candidate => ReferenceEquals(candidate.DataContext, selectedDiagnostic));
                             row?.BringIntoView();
                             if (row?.TranslatePoint(new Point(0, 0), grid) is Point origin)
                                 grid.BringIntoView(new Rect(origin, new Size(Math.Min(grid.Bounds.Width, content.Viewport.Width), row.Bounds.Height)));
                             window.UpdateLayout();
                             return row != null && row.IsEffectivelyVisible && VisibleHeight(content, row) >= 30;
+                        }, () =>
+                        {
+                            DataGridRow? row = grid.GetVisualDescendants().OfType<DataGridRow>()
+                                .FirstOrDefault(candidate => ReferenceEquals(candidate.DataContext, selectedDiagnostic));
+                            return $"selected={selectedDiagnostic.Key}, row={row?.Bounds.ToString() ?? "<not-realized>"}, "
+                                + $"grid={grid.Bounds}, content={content.Bounds}, viewport={content.Viewport}, offset={content.Offset}, "
+                                + $"visibleHeight={(row == null ? 0 : VisibleHeight(content, row))}";
                         });
                         // The action row belongs to the Diagnostics segment, not the whole native window. Resolve the
                         // current host after layout so a compact native resize cannot leave us measuring an old desired size.
