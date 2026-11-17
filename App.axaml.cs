@@ -42,7 +42,7 @@ public partial class App : Application
                 AvaloniaXamlLoader.Load(this);
                 return;
             }
-            catch (Avalonia.Markup.Xaml.XamlLoadException) when (!HasCompiledApplicationXaml())
+            catch (Avalonia.Markup.Xaml.XamlLoadException)
             {
                 // A source-built smoke harness can be invoked from an output graph where the
                 // referenced application's compiled-loader metadata was not copied. Fall back to
@@ -58,9 +58,6 @@ public partial class App : Application
         foreach (var resource in template.Resources)
             Resources[resource.Key] = resource.Value;
     }
-
-    private static bool HasCompiledApplicationXaml() => typeof(App).Assembly.GetManifestResourceNames()
-        .Any(name => name.Contains("AvaloniaResourceXamlInfo", StringComparison.Ordinal));
 
     private void OnLanguageChanged(object? sender, EventArgs args)
     {
