@@ -69,7 +69,9 @@ public sealed class PrefixedComboBox : ComboBox
     {
         get
         {
-            if (string.IsNullOrEmpty(Prefix)) return 0;
+            // Text is measured with the platform's text shaping, which a box outside a window (a page built before it is shown) may not have yet;
+            // the owner asks again once the box is laid out.
+            if (string.IsNullOrEmpty(Prefix) || !this.IsAttachedToVisualTree()) return 0;
             TextBlock measure = new() { Text = Prefix, FontFamily = FontFamily, FontSize = FontSize, FontStyle = FontStyle, FontStretch = FontStretch };
             measure.Measure(Size.Infinity);
             return Math.Ceiling(measure.DesiredSize.Width) + PrefixGap;
