@@ -1,3 +1,4 @@
+#if DEBUG
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -263,3 +264,5 @@ public partial class MainWindow
     }
     private static string AuthorHash(string path) => Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))).ToLowerInvariant();
 }
+
+#endif

@@ -1,3 +1,4 @@
+#if DEBUG
 using System;
 using System.Globalization;
 using System.IO;
@@ -218,3 +219,5 @@ internal sealed class ApphostStartupSmoke
         return passed ? 0 : 1;
     }
 }
+
+#endif

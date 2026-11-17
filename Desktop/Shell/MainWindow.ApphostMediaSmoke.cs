@@ -1,3 +1,4 @@
+#if DEBUG
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -344,3 +345,5 @@ public partial class MainWindow
     private static void RequireMediaSmoke(bool condition, string message)
     { if (!condition) throw new InvalidOperationException(message); }
 }
+
+#endif

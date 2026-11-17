@@ -207,7 +207,9 @@ internal static class ShutdownExit
     /// never returns).</summary>
     internal static readonly TimeSpan KillBackstop = TimeSpan.FromSeconds(5);
 
-    internal static bool ProcessExitAllowed { get; set; }
+    // Only a standalone desktop owns its process; an embedding host owns its own lifetime.
+    internal static bool ProcessExitAllowed { get; set; } =
+        System.Reflection.Assembly.GetEntryAssembly() == typeof(ShutdownExit).Assembly;
 
     internal static void Terminate(int exitCode)
     {

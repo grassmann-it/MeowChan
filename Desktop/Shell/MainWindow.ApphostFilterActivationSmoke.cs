@@ -1,3 +1,4 @@
+#if DEBUG
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -224,3 +225,5 @@ public partial class MainWindow
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
     }
 }
+
+#endif
