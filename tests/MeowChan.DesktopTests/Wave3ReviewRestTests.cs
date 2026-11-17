@@ -205,7 +205,7 @@ public sealed class Wave3ReviewRestTests : IDisposable
     public void TheWindowSaveDoesNotReplaceAnEditMadeOnTheOtherSurfaceDuringTheSave()
     {
         ShortcutDraftSession session = new(new ShortcutBindingsSection());
-        ShortcutBindingsEditor editor = new(session);
+        using ShortcutBindingsEditor editor = new(session);
         List<ShortcutBindingsSection> commits = new();
         editor.SaveHandler = draft =>
         {
@@ -228,7 +228,7 @@ public sealed class Wave3ReviewRestTests : IDisposable
     public void AFailedWindowSaveSaysTheLocalizedCauseNotTheExceptionText()
     {
         ShortcutDraftSession session = new(new ShortcutBindingsSection());
-        ShortcutBindingsEditor editor = new(session) { SaveHandler = _ => throw new IOException("Could not write '/secret/profile.json'.") };
+        using ShortcutBindingsEditor editor = new(session) { SaveHandler = _ => throw new IOException("Could not write '/secret/profile.json'.") };
         session.Clear(Archive);
         editor.SaveButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         Assert.True(session.IsDirty);

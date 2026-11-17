@@ -33,7 +33,7 @@ public sealed partial class ShortcutBindingsEditor : UserControl, IDisposable
     {
         _validationFocusRequest++;
         CancelValidationViewportReveal();
-        StopCapture();
+        Detach();
         Texts.Changed -= OnLanguageChanged;
         GC.SuppressFinalize(this);
     }

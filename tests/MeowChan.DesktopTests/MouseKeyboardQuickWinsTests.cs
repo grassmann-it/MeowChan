@@ -387,7 +387,7 @@ public sealed class MouseKeyboardQuickWinsTests : IDisposable
     [Fact]
     public void TheShortcutTableMenuOffersTheEditBarsActionsWithTheEditBarsLabels()
     {
-        var editor = new ShortcutBindingsEditor();
+        using var editor = new ShortcutBindingsEditor();
         editor.ApplyContext(ShortcutHelpContext.Settings);
         ListBoxItem row = editor.ActionList.Items.OfType<ListBoxItem>().First(item => item.Tag as string == "gallery.fit");
         ContextMenuModel model = editor.ComposeRowMenu(row)!.ToModel();
@@ -402,7 +402,7 @@ public sealed class MouseKeyboardQuickWinsTests : IDisposable
     [Fact]
     public void TheMenuRunsTheSessionsActionsAndClearAndAddFollowTheBindings()
     {
-        var editor = new ShortcutBindingsEditor();
+        using var editor = new ShortcutBindingsEditor();
         editor.ApplyContext(ShortcutHelpContext.Settings);
         ListBoxItem row = editor.ActionList.Items.OfType<ListBoxItem>().First(item => item.Tag as string == "gallery.fit");
         ContextMenuModel model = editor.ComposeRowMenu(row)!.ToModel();
@@ -431,7 +431,7 @@ public sealed class MouseKeyboardQuickWinsTests : IDisposable
     [Fact]
     public void ASectionRowAndNoRowHaveNoMenuAndTheMenuHostIsOnTheTable()
     {
-        var editor = new ShortcutBindingsEditor();
+        using var editor = new ShortcutBindingsEditor();
         editor.ApplyContext(ShortcutHelpContext.Settings);
         ListBoxItem header = editor.ActionList.Items.OfType<ListBoxItem>().First(item => item.Tag is not string);
         Assert.Null(editor.ComposeRowMenu(header));

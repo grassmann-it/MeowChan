@@ -22,7 +22,7 @@ internal static class ShortcutHelp
         // the catalogue's conflict map. Ask those very ownership policies as routing does.
         if (!ReaderVideoKeys.IsVideoCommand(id)) return false;
         var key = gesture.Resolve(bindings.Platform);
-        var press = new Avalonia.Input.KeyEventArgs { Key = key.Key, KeyModifiers = key.KeyModifiers };
+        var press = new Avalonia.Input.KeyEventArgs { Key = key.Key, KeyModifiers = key.KeyModifiers, KeySymbol = gesture.Symbol };
         bool Matches(string command) => bindings.Matches(press, command, context);
         return !(context == "reader" ? ReaderVideoKeys.ReaderClaims(Matches) : MediaPanelKeys.PageClaims(Matches));
     }
