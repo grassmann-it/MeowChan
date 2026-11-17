@@ -814,10 +814,13 @@ internal static partial class MediaPageChecks
             await UntilAsync(() => !tag.IsEnabled && !gallery.IsEnabled && !export.IsEnabled);
             // UX review 17.11.2026: the reason stands after the last action (muted, cut with its full text as tooltip), the counter alone before them.
             TextBlock reason = C<TextBlock>(page, "MediaSelectionReason");
+            page.UpdateLayout(); // the reason was just shown: lay it out before reading where it stands
             Require(ToolTip.GetTip(export) as string == Texts.T("media.selection.reason.building") && reason.IsEffectivelyVisible
                 && reason.Text == Texts.T("media.selection.reason.building") && ToolTip.GetTip(reason) as string == reason.Text
                 && reason.TranslatePoint(default, page)!.Value.X >= clear.TranslatePoint(default, page)!.Value.X + clear.Bounds.Width
-                && bar.Text == Texts.T("media.selection.count", 2) && Selected().Length == 2, "Actions must be disabled with a reason while the index is rebuilt.");
+                && bar.Text == Texts.T("media.selection.count", 2) && Selected().Length == 2, "Actions must be disabled with a reason while the index is rebuilt: tip '"
+                + ToolTip.GetTip(export) + "', reason '" + reason.Text + "' shown " + reason.IsEffectivelyVisible + " at " + reason.TranslatePoint(default, page)
+                + " (clear ends at " + (clear.TranslatePoint(default, page)!.Value.X + clear.Bounds.Width) + "), counter '" + bar.Text + "', selected " + Selected().Length);
             holding = false;
             hold.SetResult();
             await page.BuildTask.WaitAsync(Deadline);
