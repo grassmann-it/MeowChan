@@ -2965,7 +2965,7 @@
     "gallery.video.error.linuxRuntime": "Linux 需要 LibVLC 3.0.20 或更高版本，并带有 WebM/Matroska、VP8/VP9、Vorbis/Opus 以及视频/音频输出插件。请安装发行版的 VLC 运行时软件包。",
     "gallery.video.cleanupFailed": "视频清理失败；资源仍被保留，新的播放已被阻止。",
     "media.rating.error.cleanupAfterDelete": "归档已删除，但评分未被清理。重新导入相同的媒体标识可能会恢复其评分。",
-    "archive.delete.summary": "永久删除 {0} 个串和 {1} 个本地文件（{2:N0} 字节）？",
+    "archive.delete.summary": "永久删除{0}和{1}（{2}）？",
     "archive.delete.ratings": "将移除 {0} 个媒体评分。",
     "archive.delete.effects": "已归档的帖子、本地原图和收藏将被移除。关注的版块不会再次添加这些串。导出内容和无关文件仍然可用。",
     "archive.delete.retained": "保留：",
@@ -5089,6 +5089,9 @@
     "archive.foundIn.other": "其他帖子",
     "archive.columns.foundIn": "匹配位置",
     "media.count.media": "媒体: {0}",
-    "media.count.threads": "串: {0}"
+    "media.count.threads": "串: {0}",
+    "archive.delete.threads": "串: {0}",
+    "archive.delete.files": "本地文件: {0}",
+    "archive.delete.bytes": "{0:N0} B"
   }
 }

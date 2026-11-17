@@ -11,4 +11,9 @@ internal static class CountPhrases
             ? Texts.T("media.countMissing", mediaPhrase, threadPhrase, missing)
             : Texts.T("media.count", mediaPhrase, threadPhrase);
     }
+    internal static string ArchiveDeletionSummary(long threads, long files, long bytes) =>
+        Texts.T("archive.delete.summary",
+            Texts.Count("archive.delete.threads", threads),
+            Texts.Count("archive.delete.files", files),
+            Texts.Count("archive.delete.bytes", bytes));
 }

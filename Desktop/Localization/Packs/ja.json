@@ -2965,7 +2965,7 @@
     "gallery.video.error.linuxRuntime": "LinuxではWebM/Matroska、VP8/VP9、Vorbis/Opus、映像／音声出力プラグインを含むLibVLC 3.0.20以降が必要です。ディストリビューションのVLCランタイムパッケージをインストールしてください。",
     "gallery.video.cleanupFailed": "動画のクリーンアップに失敗しました。リソースは保持されたままで、新しい再生はブロックされています。",
     "media.rating.error.cleanupAfterDelete": "アーカイブは削除されましたが、評価はクリーンアップされませんでした。同じメディア識別情報を再インポートすると評価が復元される場合があります。",
-    "archive.delete.summary": "スレッド{0}件とローカルファイル{1}件（{2:N0}バイト）を完全に削除しますか？",
+    "archive.delete.summary": "{0}と{1}（{2}）を完全に削除しますか？",
     "archive.delete.ratings": "メディアの評価{0}件が削除されます。",
     "archive.delete.effects": "アーカイブ済みの投稿、ローカルのオリジナル、お気に入りが削除されます。監視中の板がこれらのスレッドを再び追加することはありません。エクスポートと無関係のファイルは引き続き利用できます。",
     "archive.delete.retained": "保持: ",
@@ -5089,6 +5089,9 @@
     "archive.foundIn.other": "その他の投稿",
     "archive.columns.foundIn": "見つかった場所",
     "media.count.media": "メディア: {0}",
-    "media.count.threads": "スレッド: {0}"
+    "media.count.threads": "スレッド: {0}",
+    "archive.delete.threads": "スレッド: {0}",
+    "archive.delete.files": "ローカルファイル: {0}",
+    "archive.delete.bytes": "{0:N0} B"
   }
 }

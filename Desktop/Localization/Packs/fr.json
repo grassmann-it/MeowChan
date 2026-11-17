@@ -3142,7 +3142,7 @@
     "gallery.video.error.linuxRuntime": "Linux nécessite LibVLC 3.0.20 ou plus récent avec les modules WebM/Matroska, VP8/VP9, Vorbis/Opus et de sortie vidéo/audio. Installez les paquets d’exécution VLC de votre distribution.",
     "gallery.video.cleanupFailed": "Le nettoyage de la vidéo a échoué ; les ressources restent retenues et toute nouvelle lecture est bloquée.",
     "media.rating.error.cleanupAfterDelete": "L’archive a été supprimée, mais les évaluations n’ont pas été nettoyées. Réimporter les mêmes identités de médias peut rétablir leurs évaluations. ",
-    "archive.delete.summary": "Supprimer définitivement {0} fils et {1} fichiers locaux ({2:N0} octets) ?",
+    "archive.delete.summary": "Supprimer définitivement {0} et {1} ({2}) ?",
     "archive.delete.ratings": "{0} évaluations de médias seront supprimées.",
     "archive.delete.effects": "Les messages archivés, les originaux locaux et les favoris seront supprimés. Les tableaux surveillés n’ajouteront plus ces fils. Les exports et les fichiers étrangers restent disponibles.",
     "archive.delete.retained": "Conservés : ",
@@ -3656,7 +3656,6 @@
     "archive.captured.one": "Dernière capture : {0} · {1} message",
     "archive.delete.deleted.one": "{0} fil supprimé.",
     "archive.delete.ratings.one": "{0} évaluation de média sera supprimée.",
-    "archive.delete.summary.one": "Supprimer définitivement {0} fil et {1} fichiers locaux ({2:N0} octets) ?",
     "downloads.searchCount.one": "{0} résultat",
     "downloads.searchActive.one": "{0} résultat · {1}",
     "search.count.one": "{0} résultat",
@@ -5184,6 +5183,12 @@
     "media.count.media": "Médias: {0}",
     "media.count.threads": "Fils: {0}",
     "media.count.media.one": "Médias: {0}",
-    "media.count.threads.one": "Fils: {0}"
+    "media.count.threads.one": "Fils: {0}",
+    "archive.delete.threads": "Fils: {0}",
+    "archive.delete.files": "Fichiers locaux: {0}",
+    "archive.delete.bytes": "{0:N0} B",
+    "archive.delete.threads.one": "Fils: {0}",
+    "archive.delete.files.one": "Fichiers locaux: {0}",
+    "archive.delete.bytes.one": "{0:N0} B"
   }
 }

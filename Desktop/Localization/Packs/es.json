@@ -3142,7 +3142,7 @@
     "gallery.video.error.linuxRuntime": "Linux necesita LibVLC 3.0.20 o posterior con complementos de WebM/Matroska, VP8/VP9, Vorbis/Opus y salida de vídeo y audio. Instale los paquetes de ejecución de VLC de su distribución.",
     "gallery.video.cleanupFailed": "Falló la limpieza del vídeo; los recursos siguen retenidos y la nueva reproducción está bloqueada.",
     "media.rating.error.cleanupAfterDelete": "El archivo se eliminó, pero las valoraciones no se limpiaron. Al reimportar las mismas identidades de medios, sus valoraciones podrían reaparecer. ",
-    "archive.delete.summary": "¿Eliminar de forma permanente {0} hilos y {1} archivos locales ({2:N0} bytes)?",
+    "archive.delete.summary": "¿Eliminar de forma permanente {0} y {1} ({2})?",
     "archive.delete.ratings": "Se eliminarán {0} valoraciones de medios.",
     "archive.delete.effects": "Se eliminarán las publicaciones archivadas, los originales locales y los favoritos. Los tablones en seguimiento no volverán a añadir estos hilos. Las exportaciones y los archivos ajenos seguirán disponibles.",
     "archive.delete.retained": "Se conservan: ",
@@ -3656,7 +3656,6 @@
     "archive.captured.one": "Última captura: {0} · {1} publicación",
     "archive.delete.deleted.one": "Se eliminó {0} hilo.",
     "archive.delete.ratings.one": "Se eliminará {0} valoración de medios.",
-    "archive.delete.summary.one": "¿Eliminar de forma permanente {0} hilo y {1} archivos locales ({2:N0} bytes)?",
     "downloads.searchCount.one": "{0} resultado",
     "downloads.searchActive.one": "{0} resultado · {1}",
     "search.count.one": "{0} resultado",
@@ -5184,6 +5183,12 @@
     "media.count.media": "Medios: {0}",
     "media.count.threads": "Hilos: {0}",
     "media.count.media.one": "Medios: {0}",
-    "media.count.threads.one": "Hilos: {0}"
+    "media.count.threads.one": "Hilos: {0}",
+    "archive.delete.threads": "Hilos: {0}",
+    "archive.delete.files": "Archivos locales: {0}",
+    "archive.delete.bytes": "{0:N0} B",
+    "archive.delete.threads.one": "Hilos: {0}",
+    "archive.delete.files.one": "Archivos locales: {0}",
+    "archive.delete.bytes.one": "{0:N0} B"
   }
 }

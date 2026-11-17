@@ -3147,7 +3147,7 @@
     "gallery.video.error.linuxRuntime": "Для Linux нужна LibVLC 3.0.20 или новее с модулями WebM/Matroska, VP8/VP9, Vorbis/Opus и вывода видео и звука. Установите пакеты среды выполнения VLC вашего дистрибутива.",
     "gallery.video.cleanupFailed": "Не удалось очистить ресурсы видео; они остаются занятыми, новое воспроизведение заблокировано.",
     "media.rating.error.cleanupAfterDelete": "Архив удалён, но оценки не очищены. При повторном импорте тех же идентификаторов медиафайлов их оценки могут снова появиться. ",
-    "archive.delete.summary": "Безвозвратно удалить тредов: {0} и локальных файлов: {1} ({2:N0} байт)?",
+    "archive.delete.summary": "Безвозвратно удалить {0} и {1} ({2})?",
     "archive.delete.ratings": "Будет удалено оценок медиафайлов: {0}.",
     "archive.delete.effects": "Архивные посты, локальные оригиналы и избранное будут удалены. Наблюдаемые доски не добавят эти треды снова. Экспорты и посторонние файлы останутся.",
     "archive.delete.retained": "Остаются: ",
@@ -3663,7 +3663,6 @@
     "archive.captured.few": "Последний захват: {0} · {1} поста",
     "archive.delete.deleted.one": "Удалено тредов: {0}.",
     "archive.delete.ratings.one": "Будет удалено оценок медиафайлов: {0}.",
-    "archive.delete.summary.one": "Безвозвратно удалить тредов: {0} и локальных файлов: {1} ({2:N0} байт)?",
     "downloads.searchCount.one": "Результатов: {0}",
     "downloads.searchActive.one": "Результатов: {0} · {1}",
     "search.count.one": "Результатов: {0}",
@@ -5210,6 +5209,12 @@
     "media.count.media": "Медиа: {0}",
     "media.count.threads": "Треды: {0}",
     "media.count.media.one": "Медиа: {0}",
-    "media.count.threads.one": "Треды: {0}"
+    "media.count.threads.one": "Треды: {0}",
+    "archive.delete.threads": "Треды: {0}",
+    "archive.delete.files": "Локальные файлы: {0}",
+    "archive.delete.bytes": "{0:N0} B",
+    "archive.delete.threads.one": "Треды: {0}",
+    "archive.delete.files.one": "Локальные файлы: {0}",
+    "archive.delete.bytes.one": "{0:N0} B"
   }
 }

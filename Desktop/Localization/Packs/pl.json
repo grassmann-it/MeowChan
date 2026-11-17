@@ -2906,8 +2906,7 @@
     "gallery.video.error.linuxRuntime": "Linux wymaga LibVLC 3.0.20 lub nowszego z wtyczkami WebM/Matroska, VP8/VP9, Vorbis/Opus oraz wyjścia wideo/audio. Zainstaluj pakiety środowiska VLC z Twojej dystrybucji.",
     "gallery.video.cleanupFailed": "Sprzątanie wideo nie powiodło się; zasoby pozostają zajęte, a nowe odtwarzanie jest zablokowane.",
     "media.rating.error.cleanupAfterDelete": "Archiwum zostało usunięte, ale oceny nie zostały uporządkowane. Ponowny import tych samych tożsamości mediów może przywrócić ich oceny. ",
-    "archive.delete.summary": "Trwale usunąć {0} wątków i lokalne pliki: {1} ({2:N0} bajtów)?",
-    "archive.delete.summary.few": "Trwale usunąć {0} wątki i lokalne pliki: {1} ({2:N0} bajtów)?",
+    "archive.delete.summary": "Trwale usunąć {0} i {1} ({2})?",
     "archive.delete.ratings": "{0} ocen mediów zostanie usuniętych.",
     "archive.delete.ratings.few": "{0} oceny mediów zostaną usunięte.",
     "archive.delete.effects": "Zarchiwizowane posty, lokalne oryginały i ulubione zostaną usunięte. Obserwowane tablice nie dodadzą ponownie tych wątków. Eksporty i niepowiązane pliki pozostają dostępne.",
@@ -3441,7 +3440,6 @@
     "archive.captured.one": "Ostatnie przechwycenie: {0} · {1} post",
     "archive.delete.deleted.one": "Usunięto {0} wątek.",
     "archive.delete.ratings.one": "{0} ocena mediów zostanie usunięta.",
-    "archive.delete.summary.one": "Trwale usunąć {0} wątek i lokalne pliki: {1} ({2:N0} bajtów)?",
     "media.filters.countName.one": "Filtry, aktywne: {0}",
     "downloads.searchCount.one": "{0} wynik",
     "downloads.searchActive.one": "{0} wynik · {1}",
@@ -5234,6 +5232,12 @@
     "media.count.media": "Media: {0}",
     "media.count.threads": "Wątki: {0}",
     "media.count.media.one": "Media: {0}",
-    "media.count.threads.one": "Wątki: {0}"
+    "media.count.threads.one": "Wątki: {0}",
+    "archive.delete.threads": "Wątki: {0}",
+    "archive.delete.files": "Pliki lokalne: {0}",
+    "archive.delete.bytes": "{0:N0} B",
+    "archive.delete.threads.one": "Wątki: {0}",
+    "archive.delete.files.one": "Pliki lokalne: {0}",
+    "archive.delete.bytes.one": "{0:N0} B"
   }
 }

@@ -2894,7 +2894,7 @@
     "gallery.video.error.linuxRuntime": "O Linux requer LibVLC 3.0.20 ou mais recente com plugins de WebM/Matroska, VP8/VP9, Vorbis/Opus e de saída de vídeo/áudio. Instale os pacotes de runtime do VLC da sua distribuição.",
     "gallery.video.cleanupFailed": "A limpeza do vídeo falhou; os recursos continuam retidos e novas reproduções estão bloqueadas.",
     "media.rating.error.cleanupAfterDelete": "O acervo foi excluído, mas as avaliações não foram limpas. Reimportar as mesmas identidades de mídia pode restaurar as avaliações delas. ",
-    "archive.delete.summary": "Excluir permanentemente {0} tópicos e {1} arquivos locais ({2:N0} bytes)?",
+    "archive.delete.summary": "Excluir permanentemente {0} e {1} ({2})?",
     "archive.delete.ratings": "{0} avaliações de mídia serão removidas.",
     "archive.delete.effects": "Postagens arquivadas, originais locais e favoritos serão removidos. Boards acompanhadas não adicionarão estes tópicos de novo. Exportações e arquivos não relacionados continuam disponíveis.",
     "archive.delete.retained": "Mantidos: ",
@@ -3419,7 +3419,6 @@
     "archive.captured.one": "Última captura: {0} · {1} postagem",
     "archive.delete.deleted.one": "{0} tópico excluído.",
     "archive.delete.ratings.one": "{0} avaliação de mídia será removida.",
-    "archive.delete.summary.one": "Excluir permanentemente {0} tópico e {1} arquivos locais ({2:N0} bytes)?",
     "media.filters.countName.one": "Filtros, {0} ativo",
     "downloads.searchCount.one": "{0} resultado",
     "downloads.searchActive.one": "{0} resultado · {1}",
@@ -5190,6 +5189,12 @@
     "media.count.media": "Mídias: {0}",
     "media.count.threads": "Tópicos: {0}",
     "media.count.media.one": "Mídias: {0}",
-    "media.count.threads.one": "Tópicos: {0}"
+    "media.count.threads.one": "Tópicos: {0}",
+    "archive.delete.threads": "Tópicos: {0}",
+    "archive.delete.files": "Arquivos locais: {0}",
+    "archive.delete.bytes": "{0:N0} B",
+    "archive.delete.threads.one": "Tópicos: {0}",
+    "archive.delete.files.one": "Arquivos locais: {0}",
+    "archive.delete.bytes.one": "{0:N0} B"
   }
 }
