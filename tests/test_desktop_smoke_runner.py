@@ -318,16 +318,18 @@ class DesktopSmokeRunnerTests(unittest.TestCase):
             result = runner.run_mode("window-geometry", self.assembly, self.output, environment, True, 1)
         self.assertTrue(result["passed"])
 
-    def test_failure_stops_sequence_and_records_unrun_scenarios(self):
+    def test_failure_continues_sequence_and_later_pass_cannot_hide_failure(self):
         failure = {"mode": "normal", "passed": False, "status": "failed", "actual_render_scaling": 1}
+        success = {**failure, "passed": True, "status": "passed"}
         with mock.patch.object(runner.sys, "platform", "linux"), \
                 mock.patch.object(runner.shutil, "which", return_value="fixture"), \
-                mock.patch.object(runner, "run_mode", return_value=failure) as run:
+                mock.patch.object(runner, "run_mode", side_effect=[failure] + [success] * 4) as run:
             self.assertEqual(1, runner.main(self.args))
-            self.assertEqual(1, run.call_count)
+            self.assertEqual(5, run.call_count)
         result = json.loads((self.output / "results.json").read_text())
         self.assertEqual(5, len(result["results"]))
-        self.assertTrue(all(item["status"] == "skipped" for item in result["results"][1:]))
+        self.assertFalse(result["passed"])
+        self.assertTrue(all(item["status"] == "passed" for item in result["results"][1:]))
         with mock.patch.object(runner.sys, "platform", "linux"), self.assertRaises(ValueError):
             runner.main(self.args)
 

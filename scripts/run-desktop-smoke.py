@@ -542,6 +542,10 @@ def run_registry(args: argparse.Namespace) -> int:
                     exit_code, log = completed.returncode, completed.stdout + completed.stderr
                 except subprocess.TimeoutExpired as expired:
                     exit_code, log = 124, str(expired)
+                except OSError as error:
+                    # A child that never launched cannot contaminate the next
+                    # scene; retain its failure and finish the registry sweep.
+                    exit_code, log = 127, f"Registry child launch failed: {error}"
                 (output / (destination.name + ".log")).write_text(log, encoding="utf-8")
                 attempts.append({"output": str(destination), "exit_code": exit_code, "seconds": round(time.monotonic() - started),
                                  **child_result(destination, entry["mode"])})
@@ -617,9 +621,10 @@ def main(argv: list[str] | None = None) -> int:
     missing = [name for name in required_tools if shutil.which(name) is None] if isolated else []
     results: list[dict[str, object]] = []
     failed = False
+    unsafe = False
     for mode in args.modes:
-        if missing or failed:
-            reason = "Isolated display tools unavailable: " + ", ".join(missing) if missing else "Stopped after previous failure"
+        if missing or unsafe:
+            reason = "Isolated display tools unavailable: " + ", ".join(missing) if missing else "Blocked after interruption or unsafe process cleanup"
             results.append({"mode": mode, "status": "unavailable" if missing else "skipped", "passed": False,
                             "exit_code": None, "reason": reason, "actual_render_scaling": None})
             print(f"Desktop harness {mode}: {reason}", flush=True)
@@ -627,7 +632,10 @@ def main(argv: list[str] | None = None) -> int:
             continue
         result = run_mode(mode, assembly, output / mode, environment, isolated, args.timeout, args.expect_scenario)
         results.append(result)
-        failed = not result["passed"]
+        # Assertion failures must not suppress independent modes or be erased by
+        # a later pass. Never continue on a desktop with unproven cleanup.
+        failed = failed or not result["passed"]
+        unsafe = bool(result.get("interrupted")) or str(result.get("error", "")).startswith("Process cleanup failed:")
     common_scale = results[0]["actual_render_scaling"]
     if any(result["actual_render_scaling"] != common_scale for result in results):
         common_scale = None
