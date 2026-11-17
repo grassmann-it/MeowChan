@@ -48,21 +48,24 @@ internal sealed record QuickTagPopoverDecision
     internal required Func<int?, Task> SetRating { get; init; }
     /// <summary>The flag the favourite button asks for; null hides the button (a host without a favourites call for its targets).</summary>
     internal Func<bool, Task>? SetFavorite { get; init; }
-    /// <summary>Explicit rating-only focus opt-in; general R / "Rate and tag" entry leaves this false so the tag field takes focus.</summary>
-    internal bool FocusRating { get; init; }
+    /// <summary>Explicit rating-only focus opt-in; general R / "Rate and tag" entry uses TagInput so the tag field takes focus.</summary>
+    internal QuickTagInitialFocus InitialFocus { get; init; } = QuickTagInitialFocus.TagInput;
     /// <summary>True once a request wrote something (read by the host after the popover closed: the page then refreshes its tiles and captions).</summary>
     internal Func<bool>? HasChanged { get; init; }
     /// <summary>Called once when the popover closed (a decision session the host created for it is disposed here).</summary>
     internal Action? Release { get; init; }
 }
 
+/// <summary>Initial keyboard destination, independent of whether a decision row is present.</summary>
+internal enum QuickTagInitialFocus { TagInput, Rating }
+
 /// <summary>How a page asked the shell for the "Rate and tag" popover of one medium.</summary>
-/// <param name="FocusRating">Explicit star-focus opt-in. R, menus, rating captions and tagging entry default to the tag field. A blocked target without a field focuses the stars regardless.</param>
+/// <param name="InitialFocus">Explicit star-focus opt-in. R, menus, rating captions and tagging entry default to the tag field. A blocked target without a field focuses the stars regardless.</param>
 /// <param name="TagsBlocked">The localized reason the medium cannot be tagged (a Danbooru medium, a file shared by several posts), or null; the popover then
 /// still offers the stars and says the reason as text.</param>
 /// <param name="FocusFallback">Where the keyboard goes after the popover closed when the control it was opened from is gone or hidden (the page's
 /// selected post, tile or list); see <see cref="QuickTagPopoverOptions.FocusFallback"/>.</param>
-internal sealed record RateAndTagRequest(bool FocusRating = false, string? TagsBlocked = null, Func<bool>? FocusFallback = null);
+internal sealed record RateAndTagRequest(QuickTagInitialFocus InitialFocus = QuickTagInitialFocus.TagInput, string? TagsBlocked = null, Func<bool>? FocusFallback = null);
 
 /// <summary>What a host passes besides the target: the suggestion source, the guard and the tag dialog hand-over.</summary>
 internal sealed record QuickTagPopoverOptions
@@ -259,7 +262,7 @@ internal sealed class QuickTagPopover
             decisionRow.ReturnFocus = () => surface.FocusField();
             surface.DecisionContent = decisionRow;
             // An explicit star-focus request suppresses the surface's automatic field focus; general rate-and-tag entry keeps it.
-            if (decision.FocusRating) surface.FocusOnAttach = false;
+            if (decision.InitialFocus == QuickTagInitialFocus.Rating) surface.FocusOnAttach = false;
         }
         QuickTagPopover popover = new(anchor, options, surface, session, surface, unsubscribe, decisionRow);
         popover.WireDecision(decisionRow);
@@ -570,7 +573,7 @@ internal sealed class QuickTagPopover
     private void FocusInside()
     {
         if (_closed) return;
-        if ((Surface == null || _options.Decision is { FocusRating: true }) && _decisionRow?.FocusRating() == true) return;
+        if ((Surface == null || _options.Decision is { InitialFocus: QuickTagInitialFocus.Rating }) && _decisionRow?.FocusRating() == true) return;
         if (Surface != null) Surface.FocusField();
         else BlockedClose?.Focus(NavigationMethod.Tab);
     }

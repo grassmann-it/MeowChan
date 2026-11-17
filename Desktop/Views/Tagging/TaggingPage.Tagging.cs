@@ -33,7 +33,7 @@ public sealed partial class TaggingPage
     /// The rating row of R's popover ("Rate and tag…") over the selected entries' media (the shell's decision session, the media page's); null: R opens the
     /// popover without the stars.
     /// </summary>
-    internal Func<IReadOnlyList<MediaLibraryEntry>, bool, QuickTagPopoverDecision?>? DecisionForEntries { get; set; }
+    internal Func<IReadOnlyList<MediaLibraryEntry>, QuickTagInitialFocus, QuickTagPopoverDecision?>? DecisionForEntries { get; set; }
 
     /// <summary>The quick tag popover while it is open (smokes).</summary>
     internal QuickTagPopover? TagPopover => _tagPopover;
@@ -97,7 +97,7 @@ public sealed partial class TaggingPage
                 FocusFallback = FocusListNow,
                 Name = "TaggingTagPopover",
                 // R: the stars of the selected entries on top; the tag field takes focus (a Danbooru medium can be rated though it takes no own tags).
-                Decision = includeRating ? DecisionForEntries?.Invoke(Selected.Select(row => row.Item.ToLibraryEntry()).ToArray(), false) : null
+                Decision = includeRating ? DecisionForEntries?.Invoke(Selected.Select(row => row.Item.ToLibraryEntry()).ToArray(), QuickTagInitialFocus.TagInput) : null
             });
             shown = popover;
             _tagPopover = popover;

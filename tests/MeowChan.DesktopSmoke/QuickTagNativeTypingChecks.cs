@@ -342,6 +342,7 @@ internal static class QuickTagNativeTypingChecks
 
         // All general entry points must already have the caret in the field, before any typing or click.
         bool fieldFocusedOnOpen = surface.Input.IsKeyboardFocusWithin;
+        bool ratingVisibleOnOpen = popover.DecisionRow?.IsEffectivelyVisible == true;
         trace.Begin();
         await TypeAsync(input, "q");
         await Settle(window);
@@ -372,6 +373,7 @@ internal static class QuickTagNativeTypingChecks
         Control? focused = (origin == null ? null : TopLevel.GetTopLevel(origin))?.FocusManager?.GetFocusedElement() as Control;
         List<string> problems = new();
         if (!fieldFocusedOnOpen) problems.Add("opening did not focus the tag input (" + focusOnOpen + ")");
+        if (entry == "R" && !ratingVisibleOnOpen) problems.Add("R hid the rating row instead of only changing initial focus");
         if (afterOpenTyping != "q") problems.Add($"'q' typed right after opening gave '{afterOpenTyping}' (focus {focusOnOpen})");
         if (typed != Word) problems.Add($"'{Word}' typed after a click gave '{typed}' (focus {focusAfterClick}; first handled at {handled}; text inputs {textInputs})");
         if (!same) problems.Add("the popover closed or was replaced while typing");
@@ -426,6 +428,7 @@ internal static class QuickTagNativeTypingChecks
             surface.Input.Text = "";
             string focusOnOpen = Describe(window.FocusManager?.GetFocusedElement());
             bool fieldFocusedOnOpen = surface.Input.IsKeyboardFocusWithin;
+            bool ratingVisibleOnOpen = surface.DecisionContent is GalleryDecisionRow { IsEffectivelyVisible: true };
             trace.Begin();
             await TypeAsync(input, "q");
             await Settle(window);
@@ -446,6 +449,7 @@ internal static class QuickTagNativeTypingChecks
             surface.Input.Text = "";
             List<string> problems = new();
             if (!fieldFocusedOnOpen) problems.Add("opening did not focus the tag input (" + focusOnOpen + ")");
+            if (entry == "R" && !ratingVisibleOnOpen) problems.Add("R hid the gallery rating row instead of only changing initial focus");
             if (typed != Word) problems.Add($"'{Word}' typed after a click gave '{typed}' (focus {focusAfterClick}; first handled at {handled}; text inputs {textInputs})");
             if (afterOpenTyping != "q") problems.Add($"'q' typed into the focused field gave '{afterOpenTyping}' (focus {focusOnOpen})");
             if (!viewer.IsTagPanelOpen || !ReferenceEquals(host.Content, viewer)) problems.Add("typing closed the tag panel or the gallery");

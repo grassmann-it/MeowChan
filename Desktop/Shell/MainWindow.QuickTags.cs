@@ -72,7 +72,7 @@ public partial class MainWindow
             GalleryMediaTagUnavailable unavailable = GalleryMediaTagUnavailable.InvalidIdentity;
             MediaTagSubject? target = request.TagsBlocked == null ? MediaTagSubjects.Of(match, out unavailable) : null;
             string label = match.Asset.OriginalFileName ?? Path.GetFileName(match.Asset.Path);
-            decision = DecisionFor(new[] { match }, request.FocusRating);
+            decision = DecisionFor(new[] { match }, request.InitialFocus);
             // The popover gives the keyboard back at once (↑/↓ and R work right after Esc); the page places it again after it rebuilt its tiles.
             QuickTagPopoverOptions options = PopoverOptions(context, hostCurrent, restoreFocus: true, "MediaTagPopover") with
             {
@@ -128,7 +128,7 @@ public partial class MainWindow
         GalleryMediaTagUnavailable unavailable = GalleryMediaTagUnavailable.InvalidIdentity;
         MediaTagSubject? target = request.TagsBlocked == null ? MediaTagSubjects.Of(entry, out unavailable) : null;
         string label = entry.Asset.OriginalFileName ?? Path.GetFileName(entry.Asset.Path);
-        QuickTagPopoverDecision? decision = DecisionFor(new[] { entry }, request.FocusRating);
+        QuickTagPopoverDecision? decision = DecisionFor(new[] { entry }, request.InitialFocus);
         if (target == null)
         {
             // Not taggable (a Danbooru medium, a file shared by several posts): the stars stay, the reason is said as text.
@@ -194,7 +194,7 @@ public partial class MainWindow
     /// writes does not rebuild the pages under it (that would drop its anchor); <see cref="QuickTagPopoverDecision.Release"/> refreshes the archive and
     /// gallery after it closed, and the media page does so through <see cref="QuickTagPopoverDecision.HasChanged"/>.
     /// </summary>
-    internal QuickTagPopoverDecision? DecisionFor(IReadOnlyList<GalleryEntry> targets, bool focusRating)
+    internal QuickTagPopoverDecision? DecisionFor(IReadOnlyList<GalleryEntry> targets, QuickTagInitialFocus initialFocus)
     {
         if (_isClosing || targets.Count == 0) return null;
         GalleryEntry[] frozen = targets.ToArray();
@@ -205,7 +205,7 @@ public partial class MainWindow
             View = () => session.View(frozen),
             SetRating = value => session.SetRatingAsync(frozen, value),
             SetFavorite = selected => session.SetFavoriteAsync(frozen, selected),
-            FocusRating = focusRating,
+            InitialFocus = initialFocus,
             HasChanged = () => owner.Changed,
             Release = () =>
             {
@@ -219,7 +219,7 @@ public partial class MainWindow
     /// The row for a media page selection: the rating of every selected medium by its identity, no favourite button (the page has no favourites call
     /// for several media). Media without a hashed identity are skipped; none readable shows the row as unavailable.
     /// </summary>
-    internal QuickTagPopoverDecision? DecisionForMediaEntries(IReadOnlyList<MediaLibraryEntry> entries, bool focusRating)
+    internal QuickTagPopoverDecision? DecisionForMediaEntries(IReadOnlyList<MediaLibraryEntry> entries, QuickTagInitialFocus initialFocus)
     {
         if (_isClosing) return null;
         FavoriteAssetKey[] keys = entries.Where(entry => entry.Sha256 != null && entry.MediaId != null)
@@ -251,7 +251,7 @@ public partial class MainWindow
                 finally { _ratingChanges.Remove(key); }
             }
         }
-        return new QuickTagPopoverDecision { View = View, SetRating = SetRating, FocusRating = focusRating, HasChanged = () => changed };
+        return new QuickTagPopoverDecision { View = View, SetRating = SetRating, InitialFocus = initialFocus, HasChanged = () => changed };
     }
 
     // What a popover's decision session reads and writes: the gallery panel's reads, the favourites call of the toolbar star, and the rating write

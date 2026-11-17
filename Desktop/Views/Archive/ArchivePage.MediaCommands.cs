@@ -41,7 +41,7 @@ public partial class ArchivePage
     /// The favourite and rating row of a "Rate and tag" popover over these files (one decision session the popover disposes); the shell supplies it. Null
     /// leaves the selection popover without the row.
     /// </summary>
-    internal Func<IReadOnlyList<GalleryEntry>, bool, QuickTagPopoverDecision?>? DecisionFor { get; set; }
+    internal Func<IReadOnlyList<GalleryEntry>, QuickTagInitialFocus, QuickTagPopoverDecision?>? DecisionFor { get; set; }
     /// <summary>Limits and suggestions of the selection's tag popover (the shell binds the saved settings); unset uses the defaults.</summary>
     internal Func<TagContext, QuickTagPopoverOptions>? TagPopoverOptions { get; set; }
     /// <summary>Copies a saved file's path to the clipboard and says so; supplied by the shell.</summary>
@@ -129,7 +129,7 @@ public partial class ArchivePage
         OpenActions.Start(OpenAsync, "archive.media.rateAndTag");
         async Task OpenAsync()
         {
-            try { await OpenRateAndTagAsync(subject, tile, selection, focusRating: false); }
+            try { await OpenRateAndTagAsync(subject, tile, selection, initialFocus: QuickTagInitialFocus.TagInput); }
             catch (Exception error) { report(error.Message); }
         }
     }
@@ -271,7 +271,7 @@ public partial class ArchivePage
             return true;
             async Task RunTagShortcutAsync()
             {
-                try { await OpenRateAndTagAsync(subject, origin, SeveralSelectedWith(asset, attachment), focusRating: false, attachment?.Label); }
+                try { await OpenRateAndTagAsync(subject, origin, SeveralSelectedWith(asset, attachment), initialFocus: QuickTagInitialFocus.TagInput, attachment?.Label); }
                 catch (Exception error) { reportTagError(error.Message); }
             }
         }
@@ -362,10 +362,10 @@ public partial class ArchivePage
     /// <summary>
     /// "Rate and tag…" (menu entry, R, the toolbar button, the tile's rating caption and Ctrl+Shift+T): the quick tag popover on <paramref name="origin"/>
     /// with the favourite and stars row on top, then the tag field. Several selected files (the file it opened on is one of them) are rated and tagged
-    /// together. R, menus and captions focus the tag field; <paramref name="focusRating"/> is an explicit star-focus opt-in.
+    /// together. R, menus and captions focus the tag field; <paramref name="initialFocus"/> is an explicit star-focus opt-in.
     /// A file that cannot be tagged gets the stars and the reason as text, with focus on its stars.
     /// </summary>
-    private async Task OpenRateAndTagAsync(ArchiveMediaSubject subject, Control origin, ArchiveAssetRow[]? selection, bool focusRating, string? label = null)
+    private async Task OpenRateAndTagAsync(ArchiveMediaSubject subject, Control origin, ArchiveAssetRow[]? selection, QuickTagInitialFocus initialFocus, string? label = null)
     {
         var thread = subject.Thread;
         ResourceId threadId = subject.ThreadId;
@@ -373,7 +373,7 @@ public partial class ArchivePage
         if (!PopoverCurrent()) return;
         if (selection is { Length: > 1 })
         {
-            await TagMediaSelectionAsync(thread, selection, subject.Entries, origin, focusRating);
+            await TagMediaSelectionAsync(thread, selection, subject.Entries, origin, initialFocus);
             return;
         }
         GalleryEntry? target = subject.Target;
@@ -385,7 +385,7 @@ public partial class ArchivePage
         }
         if (TagPopoverAsync != null)
             await TagPopoverAsync(subject.TagEntry ?? target, origin, QuickTagPopoverContext.ContextOf(subject.TagEntry ?? target, subject.GalleryEntries, thread.Summary.Title),
-                PopoverCurrent, new RateAndTagRequest(focusRating, subject.TagsBlocked, FocusAfterRateAndTag));
+                PopoverCurrent, new RateAndTagRequest(initialFocus, subject.TagsBlocked, FocusAfterRateAndTag));
         else if (subject.TagEntry != null && EditArchiveMediaTagsAsync != null) await EditArchiveMediaTagsAsync(subject.TagEntry);
         else QuickTagPopover.OpenBlocked(origin, target.Asset.OriginalFileName ?? string.Empty, subject.TagsBlocked ?? MediaMenuReasons.Unavailable,
             new QuickTagPopoverOptions { IsCurrent = PopoverCurrent, FocusFallback = FocusAfterRateAndTag });
@@ -436,14 +436,14 @@ public partial class ArchivePage
         }
         if (FocusedMediaForRateAndTag() != null || ReaderPostsInBackground && SelectedMediaRow() != null)
         {
-            await OpenRateAndTagForFocusAsync(focusRating: false, ArchiveEditRatingButton);
+            await OpenRateAndTagForFocusAsync(initialFocus: QuickTagInitialFocus.TagInput, ArchiveEditRatingButton);
             return;
         }
         if (SelectedPostRateAndTagMedium() is { } medium)
         {
             ArchiveMediaSubject subject = ResolveArchiveMediaSubject(medium.Asset, medium.Attachment, medium.PostId);
             Action<string> report = CaptureActionErrorReporter();
-            try { await OpenRateAndTagAsync(subject, medium.Origin, null, focusRating: false, medium.Attachment.Label); }
+            try { await OpenRateAndTagAsync(subject, medium.Origin, null, initialFocus: QuickTagInitialFocus.TagInput, medium.Attachment.Label); }
             catch (Exception error) { report(error.Message); }
             return;
         }
@@ -551,7 +551,7 @@ public partial class ArchivePage
     /// R, and the toolbar's "Rate and tag" button: the popover for the focused file of the reader or the media list (its origin is the focused control; the
     /// toolbar's own button, or a control the toolbar reduced under "More", gives way to <see cref="RatingMenuAnchor"/>).
     /// </summary>
-    internal async Task OpenRateAndTagForFocusAsync(bool focusRating, Control? buttonAnchor = null)
+    internal async Task OpenRateAndTagForFocusAsync(QuickTagInitialFocus initialFocus, Control? buttonAnchor = null)
     {
         if (FocusedMediaForRateAndTag() is not { } focused)
         {
@@ -559,7 +559,7 @@ public partial class ArchivePage
             if (buttonAnchor == null || _thread == null || _selectedThread == null || SelectedMediaRow() is not { } row) return;
             ArchiveMediaSubject chosen = ResolveArchiveMediaSubject(row, null, null);
             Action<string> report = CaptureActionErrorReporter();
-            try { await OpenRateAndTagAsync(chosen, RatingMenuAnchor(buttonAnchor), SeveralSelectedWith(row, null), focusRating); }
+            try { await OpenRateAndTagAsync(chosen, RatingMenuAnchor(buttonAnchor), SeveralSelectedWith(row, null), initialFocus); }
             catch (Exception error) { report(error.Message); }
             return;
         }
@@ -567,7 +567,7 @@ public partial class ArchivePage
         Control origin = focused.Origin;
         if (buttonAnchor != null && ReferenceEquals(origin, buttonAnchor)) origin = RatingMenuAnchor(buttonAnchor);
         Action<string> reportError = CaptureActionErrorReporter();
-        try { await OpenRateAndTagAsync(subject, origin, SeveralSelectedWith(focused.Asset, focused.Attachment), focusRating); }
+        try { await OpenRateAndTagAsync(subject, origin, SeveralSelectedWith(focused.Asset, focused.Attachment), initialFocus); }
         catch (Exception error) { reportError(error.Message); }
     }
 
@@ -645,7 +645,7 @@ public partial class ArchivePage
             [MediaMenuAction.Favorite] = When(MediaMenuAction.Favorite, CanFavorite, () => ToggleArchiveMediaFavoriteAsync(target!)),
             // "Rate and tag…": the popover on the tile or attachment the menu opened on (frozen with the menu), the tag field focused. A file that cannot be
             // rated or tagged gets the popover with the reason as text, so the entry has no precondition of its own.
-            [MediaMenuAction.RateAndTag] = () => OpenRateAndTagAsync(subject, origin, selection, focusRating: false, attachment?.Label),
+            [MediaMenuAction.RateAndTag] = () => OpenRateAndTagAsync(subject, origin, selection, initialFocus: QuickTagInitialFocus.TagInput, attachment?.Label),
             [MediaMenuAction.Queue] = When(MediaMenuAction.Queue, CanQueue, async () =>
             {
                 string message = await AddToTagQueue!(new[] { target! });

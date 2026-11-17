@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using Avalonia.Input;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.MediaActions;
 using MeowChan.Gallery;
@@ -65,7 +66,7 @@ public sealed partial class MediaPage
             if (row.Entry.Presence != MediaLibraryPresence.Present) { ShowSelectionNote(MediaMenuReasons.NotSaved); return Task.CompletedTask; }
             return OpenRateAndTagAsync(row.Entry, row, anchor,
                 () => !_lifetime.IsCancellationRequested && _building == null && IsEffectivelyVisible,
-                focusRating: false, useSelection: false);
+                initialFocus: QuickTagInitialFocus.TagInput, useSelection: false);
         }
         if (_lifetime.IsCancellationRequested || _building != null || _selectionBusy || ExecuteMediaMenuActionAsync == null || row.Entry.Presence != MediaLibraryPresence.Present)
             return Task.CompletedTask;
