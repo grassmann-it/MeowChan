@@ -7,6 +7,7 @@ using Avalonia.Interactivity;
 using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.WorkViews;
 using MeowChan.Gallery;
 using MeowChan.Tags;
 
@@ -58,6 +59,8 @@ internal static class TaggingPageChecks
                 () => "start enabled=" + tagging.StartButton.IsEffectivelyEnabled + ", name='"
                     + Avalonia.Automation.AutomationProperties.GetName(tagging.StartButton) + "', host=" + window.SessionHost.State);
             Program.CaptureWindow(window, "smoke-tagging-page-light-en.png");
+
+            await CheckSelectionLifecycleAsync(window, tagging);
 
             // Delete from the list removes the selected entry; Alt+Down moves the lead entry one place down.
             SelectOnly(tagging, tagging.Rows[1]);
@@ -246,6 +249,99 @@ internal static class TaggingPageChecks
             await PresentationChecks.SwitchModeAsync(window, mode);
             await FooterNavigationChecks.PersistLanguageAsync(window, language);
         }
+    }
+
+    // UX-LEDGER-08: exercise the real selection model and rendered containers. Source-text checks alone
+    // cannot catch an ItemsSource reset retaining a row and then appending its replacement to SelectedItems.
+    private static async Task CheckSelectionLifecycleAsync(MainWindow window, TaggingPage tagging)
+    {
+        foreach (TaggingViewMode view in Enum.GetValues<TaggingViewMode>())
+        {
+            tagging.SetViewMode(view, save: false);
+            foreach (int count in new[] { 1, 2 })
+            {
+                tagging.ClearSelection();
+                TagQueueKey[] expected = tagging.Rows.Skip(1).Take(count).Select(row => row.Key).ToArray();
+                foreach (TaggingQueueRow row in tagging.Rows.Skip(1).Take(count)) tagging.ShownList.SelectedItems!.Add(row);
+                for (int visit = 0; visit < 5; visit++)
+                {
+                    SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Downloads);
+                    await SettleAsync(window);
+                    await ReopenAsync(window, tagging);
+                    CheckSelection(tagging, expected, $"Revisit {visit} in {view}");
+                }
+                if (count == 2) Program.CaptureWindow(window, $"smoke-tagging-revisit-{view.ToString().ToLowerInvariant()}.png");
+                TaggingViewMode other = view == TaggingViewMode.List ? TaggingViewMode.Grid : TaggingViewMode.List;
+                tagging.SetViewMode(other, save: false);
+                await SettleAsync(window);
+                CheckSelection(tagging, expected, "Switch to " + other);
+                ListBox hidden = view == TaggingViewMode.List ? tagging.List : tagging.TileGrid;
+                Require(hidden.ItemsSource == null && hidden.SelectedItems!.Count == 0, "The hidden view retained rows or selection.");
+                tagging.SetViewMode(view, save: false);
+                foreach (WorkView workView in Enum.GetValues<WorkView>())
+                {
+                    tagging.ApplyWorkView(workView);
+                    await SettleAsync(window);
+                    CheckSelection(tagging, expected, "Work view " + workView);
+                }
+                tagging.ApplyWorkView(Enum.Parse<WorkView>(window.SessionHost.Config.WorkspaceMode));
+            }
+
+            TagQueueKey kept = tagging.Rows[1].Key;
+            tagging.Scope = item => item.Key == kept;
+            await tagging.ActivateAsync();
+            await SettleAsync(window);
+            CheckSelection(tagging, [kept], "Narrow scope");
+            tagging.Scope = null;
+            await tagging.ActivateAsync();
+            await SettleAsync(window);
+            CheckSelection(tagging, [kept], "Widen scope must not resurrect hidden selections");
+
+            TagQueueSnapshot grouped = await window.SessionHost.CreateTagQueueGroupAsync("Selection regression", [kept]);
+            string groupId = grouped.Groups.Single().Id;
+            tagging.Refresh();
+            tagging.GroupBox.SelectedItem = tagging.GroupChoices.Single(choice => choice.Id == groupId);
+            await SettleAsync(window);
+            CheckSelection(tagging, [kept], "Named group");
+            tagging.GroupBox.SelectedItem = tagging.GroupChoices.Single(choice => choice.Ungrouped);
+            await SettleAsync(window);
+            CheckSelection(tagging, [], "Ungrouped drops the hidden selected row");
+            tagging.GroupBox.SelectedItem = tagging.GroupChoices[0];
+            await SettleAsync(window);
+            CheckSelection(tagging, [], "All groups must not resurrect selection");
+            await window.SessionHost.DeleteTagQueueGroupAsync(groupId);
+            tagging.Refresh();
+
+            tagging.ShownList.SelectedItem = tagging.Rows[1];
+            tagging.Filter = TaggingQueueFilter.Skipped;
+            await SettleAsync(window);
+            CheckSelection(tagging, [], "Empty state filter");
+            tagging.Filter = TaggingQueueFilter.All;
+            await SettleAsync(window);
+            CheckSelection(tagging, [], "Reset filter must not resurrect selection");
+            tagging.ShownList.SelectedItem = tagging.Rows[1];
+            tagging.ClearSelection();
+            await SettleAsync(window);
+            CheckSelection(tagging, [], "Explicit clear");
+        }
+        tagging.SetViewMode(TaggingViewMode.List, save: false);
+        Console.WriteLine("SMOKE tagging-selection-lifecycle: 20 revisit cycles; single/multi selection, lead, native model, current row identity, containers, list/grid, work views, scope, groups, filter and clear passed.");
+    }
+
+    private static void CheckSelection(TaggingPage tagging, TagQueueKey[] expected, string stage)
+    {
+        ListBox list = tagging.ShownList;
+        TaggingQueueRow[] selected = list.SelectedItems!.Cast<TaggingQueueRow>().ToArray();
+        string label = expected.Length == 0 ? string.Empty : Texts.T("media.selection.count", expected.Length.ToString("N0", Texts.Culture));
+        Require(selected.Length == expected.Length && selected.Select(row => row.Key).ToHashSet().SetEquals(expected)
+            && selected.All(row => tagging.Rows.Any(current => ReferenceEquals(current, row)))
+            && list.Selection.SelectedIndexes.Count == expected.Length && tagging.SelectedCount == expected.Length
+            && tagging.SelectionText.Text == label && tagging.SelectionBar.IsVisible == (expected.Length > 0)
+            && (expected.Length == 0 ? list.SelectedItem == null : (list.SelectedItem as TaggingQueueRow)?.Key == expected[0]),
+            $"{stage}: native={selected.Length}, model={list.Selection.SelectedIndexes.Count}, count={tagging.SelectedCount}, label='{tagging.SelectionText.Text}', expected={expected.Length}.");
+        for (int index = 0; index < tagging.Rows.Count; index++)
+            if (list.ContainerFromIndex(index) is ListBoxItem container)
+                Require(container.IsSelected == expected.Contains(tagging.Rows[index].Key), stage + ": container selection disagrees at " + index);
     }
 
     // Saving the language goes through Settings and returns to Downloads (FooterNavigationChecks.PersistLanguageAsync); the page is
