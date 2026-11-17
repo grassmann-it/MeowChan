@@ -225,6 +225,8 @@ internal sealed class ManualImportDialog : Window
     private void OnTagKey(object? sender, KeyEventArgs e)
     {
         if (e.Handled || e.Key != Key.Enter || e.KeyModifiers != KeyModifiers.None) return;
+        // Added after the field's own handler, so it runs before it: a highlighted suggestion is the field's to accept.
+        if (TagSuggestionInput.FieldTakesEnter(_tagInput, e)) return;
         e.Handled = true;
         _tagInput.Dismiss();
         OnTagAdd(null, new RoutedEventArgs());

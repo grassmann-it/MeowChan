@@ -260,6 +260,25 @@ public sealed class TagSuggestionTests : IDisposable
         Assert.Contains("<desktop:IdentitySuggestionBox x:Name=\"ReaderTagInput\"", Source("Desktop/Views/Archive/ArchivePage.axaml"));
     }
 
+    // O1-01: tunnel handlers of one element run newest first, so an owner's Enter handler on the field itself runs before the field's
+    // own and must leave a highlighted suggestion to it. The reader bar's handler sits on an ancestor and asks Route the same way.
+    [Fact]
+    public void EveryOwnerEnterHandlerOnATagFieldLeavesAHighlightedSuggestionToTheField()
+    {
+        string[] owners =
+        {
+            "Desktop/Controls/QuickTagSurface.cs", "Desktop/Controls/GalleryThreadTagSection.cs", "Desktop/Views/Collections/MediaTagDialog.cs",
+            "Desktop/Views/Media/MediaSelectionTagDialog.cs", "Desktop/Views/Media/ManualImportDialog.cs"
+        };
+        foreach (string file in owners)
+        {
+            string source = Source(file);
+            Assert.Contains("TagSuggestionInput.Attach(", source);
+            Assert.Contains("TagSuggestionInput.FieldTakesEnter(", source);
+        }
+        Assert.Contains("TagFieldKey.CommitTyped", Source("Desktop/Views/Archive/ArchivePage.Tags.cs"));
+    }
+
     private static string Source(string relative, [System.Runtime.CompilerServices.CallerFilePath] string path = "") =>
         File.ReadAllText(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(path)!, "../..", relative)));
 }
