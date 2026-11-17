@@ -139,6 +139,35 @@ public sealed class TaggingLayoutRhythmTests
         }
     });
     [Fact]
+    public void HelpNeverChangesRoleAndGroupDeletionHasItsOwnDangerButton() => WithPage(page =>
+    {
+        TagQueueGroup group = new("empty", "Empty", 0, Array.Empty<string>());
+        TagQueueSnapshot queue = new(1, 0, Array.Empty<string>(), new[] { Item() }, TagQueueLoadState.Ready, new[] { group });
+        foreach (string language in new[] { "en", "de" })
+        {
+            Texts.SetLanguage(language);
+            typeof(TaggingPage).GetMethod("Localize", Private)!.Invoke(page, null);
+            RenderSnapshot(page, queue, group: group.Id);
+            Assert.Equal(TaggingEmptyKind.GroupEmpty, page.EmptyKind);
+            Assert.False(page.EmptyHowButton.IsVisible);
+            Assert.Equal(Texts.T("tagging.page.empty.how"), page.EmptyHowButton.Content);
+            Assert.Contains("link", page.EmptyHowButton.Classes);
+            Assert.True(page.EmptyDeleteGroupButton.IsVisible);
+            Assert.NotSame(page.EmptyHowButton, page.EmptyDeleteGroupButton);
+            Assert.Contains("danger", page.EmptyDeleteGroupButton.Classes);
+            Assert.DoesNotContain("link", page.EmptyDeleteGroupButton.Classes);
+            Assert.Equal(Texts.T("tagging.page.empty.group.delete"), page.EmptyDeleteGroupButton.Content);
+            Assert.True(DeadAffordanceGuard.Handles(page.EmptyDeleteGroupButton, Button.ClickEvent));
+            // An ungrouped scope is not a deletable group.
+            RenderSnapshot(page, new TagQueueSnapshot(1, 0, Array.Empty<string>(), new[] { Item() with { GroupId = group.Id } }, TagQueueLoadState.Ready, new[] { group }), ungrouped: true);
+            Assert.False(page.EmptyDeleteGroupButton.IsVisible);
+            RenderSnapshot(page, TagQueueSnapshot.Empty);
+            Assert.True(page.EmptyHowButton.IsVisible);
+            Assert.Equal(Texts.T("tagging.page.empty.how"), page.EmptyHowButton.Content);
+            Assert.False(page.EmptyDeleteGroupButton.IsVisible);
+        }
+    });
+    [Fact]
     public void EnabledStartYieldsToTheEmptyRecommendationAndReclaimsPrimaryWithRows() => WithPage(page =>
     {
         DesktopSessionHost host = (DesktopSessionHost)typeof(TaggingPage).GetField("_host", Private)!.GetValue(page)!;

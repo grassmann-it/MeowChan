@@ -63,10 +63,11 @@ public sealed partial class TaggingPage : UserControl
     private readonly ListBox _list = new() { Name = "TaggingList", SelectionMode = SelectionMode.Multiple };
     private readonly TextBlock _empty = new() { Name = "TaggingEmpty" };
     private readonly WorkspaceEmptyState _emptyState = new() { Name = "TaggingEmptyState", IsVisible = false };
-    // Up to three actions side by side, centred; they wrap to a second line on a narrow page instead of running off both edges (like the Media page's).
+    // Empty-state actions side by side, centred; they wrap to a second line on a narrow page instead of running off both edges (like the Media page's).
     private readonly WrapPanel _emptyActions = new() { Name = "TaggingEmptyActions", ItemSpacing = 8, LineSpacing = 8, HorizontalAlignment = HorizontalAlignment.Center };
     private readonly Button _emptyMedia = new() { Name = "TaggingEmptyMedia" };
     private readonly Button _emptyHow = new() { Name = "TaggingEmptyHow", Classes = { "link" } };
+    private readonly Button _emptyDeleteGroup = new() { Name = "TaggingEmptyDeleteGroup", Classes = { "danger" } };
     private readonly Button _emptyClearDone = new() { Name = "TaggingEmptyClearDone" };
     private readonly Button _emptyReopen = new() { Name = "TaggingEmptyReopen" };
     private readonly Button _emptyShowAll = new() { Name = "TaggingEmptyShowAll" };
@@ -197,6 +198,7 @@ public sealed partial class TaggingPage : UserControl
         _emptyActions.Children.Add(_emptyMedia);
         _emptyActions.Children.Add(_emptyClearDone);
         _emptyActions.Children.Add(_emptyReopen);
+        _emptyActions.Children.Add(_emptyDeleteGroup);
         _emptyState.Children.Add(_emptyActions);
         _emptyState.Children.Add(_emptyHow);
         _emptyHow.HorizontalAlignment = HorizontalAlignment.Center;

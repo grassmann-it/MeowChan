@@ -21,16 +21,14 @@ public sealed partial class TaggingPage
     internal Button EmptyClearDoneButton => _emptyClearDone;
     internal Button EmptyShowAllButton => _emptyShowAll;
     internal Button EmptyHowButton => _emptyHow;
+    internal Button EmptyDeleteGroupButton => _emptyDeleteGroup;
     internal TextBlock EmptyText => _empty;
 
     private void InitializeEmptyStates()
     {
         _emptyMedia.Click += (_, _) => AddRequested?.Invoke();
-        _emptyHow.Click += (_, _) =>
-        {
-            if (_emptyKind == TaggingEmptyKind.GroupEmpty) _ = DeleteGroupAsync();
-            else _help.Popover.ShowAt(_emptyHow);
-        };
+        _emptyHow.Click += (_, _) => _help.Popover.ShowAt(_emptyHow);
+        _emptyDeleteGroup.Click += (_, _) => OpenActions.Start(DeleteGroupAsync, "tagging.empty.delete-group");
         _emptyClearDone.Click += (_, _) => _ = ClearFinishedAsync();
         _emptyReopen.Click += (_, _) => _ = ReopenSkippedAsync();
         _emptyShowAll.Click += (_, _) =>
@@ -53,6 +51,8 @@ public sealed partial class TaggingPage
     {
         _emptyMedia.Content = Texts.T("tagging.page.empty.media");
         _emptyHow.Content = Texts.T("tagging.page.empty.how");
+        _emptyDeleteGroup.Content = Texts.T("tagging.page.empty.group.delete");
+        AutomationProperties.SetName(_emptyDeleteGroup, Texts.T("tagging.page.empty.group.delete"));
         _emptyClearDone.Content = CommandCatalog.Label("tagging.clear-done");
         _emptyReopen.Content = Texts.T("tagging.page.empty.reopen");
         _emptyShowAll.Content = Texts.T("tagging.page.empty.showAll");
@@ -73,8 +73,8 @@ public sealed partial class TaggingPage
             _ => null
         };
         _emptyMedia.IsVisible = _emptyKind is TaggingEmptyKind.QueueEmpty or TaggingEmptyKind.AllDone or TaggingEmptyKind.GroupEmpty;
-        _emptyHow.Content = _emptyKind == TaggingEmptyKind.GroupEmpty ? Texts.T("tagging.page.empty.group.delete") : Texts.T("tagging.page.empty.how");
-        _emptyHow.IsVisible = _emptyKind is TaggingEmptyKind.QueueEmpty or TaggingEmptyKind.GroupEmpty;
+        _emptyHow.IsVisible = _emptyKind == TaggingEmptyKind.QueueEmpty;
+        _emptyDeleteGroup.IsVisible = _emptyKind == TaggingEmptyKind.GroupEmpty && _selectedGroupId != null;
         _emptyClearDone.IsVisible = _emptyKind == TaggingEmptyKind.AllDone && selectedCounts.Done > 0;
         _emptyReopen.IsVisible = _emptyKind == TaggingEmptyKind.AllDone && selectedCounts.Skipped > 0;
         _emptyShowAll.Content = _emptyKind == TaggingEmptyKind.GroupEmpty ? Texts.T("tagging.page.empty.group.assign") : Texts.T("tagging.page.empty.showAll");
@@ -84,6 +84,12 @@ public sealed partial class TaggingPage
         _emptyMedia.Classes.Set("primary", _emptyKind is TaggingEmptyKind.QueueEmpty or TaggingEmptyKind.AllDone);
         _emptyShowAll.Classes.Set("primary", _emptyKind is TaggingEmptyKind.FilterNoHits or TaggingEmptyKind.GroupEmpty);
         bool canChange = CanChange;
+        _emptyDeleteGroup.IsEnabled = canChange && _selectedGroupId != null;
+        string deleteTip = Texts.T("tagging.page.empty.group.delete");
+        if (!_emptyDeleteGroup.IsEnabled) deleteTip += " · " + Texts.T("tagging.menu.reason.notReady");
+        ToolTip.SetTip(_emptyDeleteGroup, deleteTip);
+        ToolTip.SetShowOnDisabled(_emptyDeleteGroup, true);
+        AutomationProperties.SetHelpText(_emptyDeleteGroup, deleteTip);
         _emptyClearDone.IsEnabled = canChange;
         _emptyReopen.IsEnabled = canChange;
         _emptyMedia.IsEnabled = AddRequested != null;
