@@ -696,6 +696,9 @@ public partial class MainWindow : Window
             }))
         };
         // The read-only report is a bare TextBox: without a name a screen reader announces only "edit, read only".
+        // Register directly as well as on the results surface: TextBox key handling can stop the
+        // bubbling route before the surrounding Expander sees an already-handled Escape.
+        report.AddHandler(InputElement.KeyDownEvent, OnAdmissionResultsKeyDown, RoutingStrategies.Bubble, handledEventsToo: true);
         Avalonia.Automation.AutomationProperties.SetName(report, Texts.T("admission.results"));
         rows.Children.Add(report);
         if (repairSources != null)
