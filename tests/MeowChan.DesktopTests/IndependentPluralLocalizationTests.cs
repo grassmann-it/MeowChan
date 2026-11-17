@@ -62,4 +62,15 @@ public sealed class IndependentPluralLocalizationTests : IDisposable
         Texts.SetLanguage(language);
         Assert.Equal(expected, Texts.Count("import.done.tags", tags));
     }
+
+    [Theory]
+    [InlineData("de", 1, "1 ausgewählten Thread gemeinsam exportieren")]
+    [InlineData("de", 2, "2 ausgewählte Threads gemeinsam exportieren")]
+    [InlineData("en", 1, "Export 1 selected thread together")]
+    [InlineData("en", 2, "Export 2 selected threads together")]
+    public void CollectionSelectionNounFollowsTheMemberCount(string language, int members, string expected)
+    {
+        Texts.SetLanguage(language);
+        Assert.Equal(expected, Texts.Count("export.collectionSelection", members));
+    }
 }

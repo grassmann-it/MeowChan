@@ -5196,6 +5196,7 @@
     "archive.delete.threads.one": "Thread: {0}",
     "archive.delete.files.one": "File locali: {0}",
     "archive.delete.bytes.one": "{0:N0} B",
-    "import.done.tags.one": "Tag aggiunto: {0}."
+    "import.done.tags.one": "Tag aggiunto: {0}.",
+    "export.collectionSelection.one": "Esporta {0} thread selezionato"
   }
 }

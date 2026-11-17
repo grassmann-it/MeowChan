@@ -5190,6 +5190,7 @@
     "archive.delete.threads.one": "Fils: {0}",
     "archive.delete.files.one": "Fichiers locaux: {0}",
     "archive.delete.bytes.one": "{0:N0} B",
-    "import.done.tags.one": "Étiquette ajoutée : {0}."
+    "import.done.tags.one": "Étiquette ajoutée : {0}.",
+    "export.collectionSelection.one": "Exporter {0} fil sélectionné"
   }
 }

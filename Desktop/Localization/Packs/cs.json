@@ -5238,6 +5238,7 @@
     "archive.delete.threads.one": "Vlákna: {0}",
     "archive.delete.files.one": "Místní soubory: {0}",
     "archive.delete.bytes.one": "{0:N0} B",
-    "import.done.tags.one": "Přidané štítky: {0}."
+    "import.done.tags.one": "Přidané štítky: {0}.",
+    "export.collectionSelection.one": "Exportovat vybraná vlákna ({0}) společně"
   }
 }
