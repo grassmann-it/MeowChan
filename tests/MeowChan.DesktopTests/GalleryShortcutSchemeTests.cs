@@ -28,7 +28,7 @@ public sealed class GalleryShortcutSchemeTests : IDisposable
         ("gallery.tools-toggle", "Shift+H"), ("gallery.overlay-toggle", "Shift+O"), ("tags.queue.cards", "Shift+K"),
         ("gallery.overlay-autohide-toggle", null), ("gallery.post-overlay-toggle", null),
         // Plain letters: playback and the older actions.
-        ("video.loop", "L"), ("video.snapshot", "Shift+S"), ("video.ab-loop", "A"), ("gallery.slideshow-toggle", "D"),
+        ("video.loop", "L"), ("video.snapshot", "Shift+S"), ("video.ab-loop", "A"), ("gallery.slideshow-toggle", "Shift+D"),
         ("favorites.toggle", "F"), ("favorites.remove", "U"), ("media.details", "I"), ("media.queue.add", "Q"),
         ("media.rating.edit", "R"), ("gallery.show-in-thread", "T"),
         // Revision 20: mute is Shift+M (M adds a favourite; revision 21 removed B as a second "Add favorite" key, see TheFavoriteKeysAreMAndUAndMuteIsShiftM).
@@ -106,7 +106,7 @@ public sealed class GalleryShortcutSchemeTests : IDisposable
         {
             // Revision 14: X slower and C faster (next to [ and ], which need AltGr on DE/FR), plain letters like the other playback keys.
             // Revision 20: M adds a favourite, U removes, F toggles (revision 21: B is free again).
-            ["A"] = "video.ab-loop", ["C"] = "video.speed-up", ["D"] = "gallery.slideshow-toggle", ["F"] = "favorites.toggle", ["I"] = "media.details",
+            ["A"] = "video.ab-loop", ["C"] = "video.speed-up", ["F"] = "favorites.toggle", ["I"] = "media.details",
             ["L"] = "video.loop", ["M"] = "favorites.add", ["Q"] = "media.queue.add", ["R"] = "media.rating.edit", ["S"] = "tags.queue.skip",
             ["T"] = "gallery.show-in-thread", ["U"] = "favorites.remove", ["X"] = "video.speed-down"
         }.OrderBy(pair => pair.Key), letters.ToDictionary(pair => pair.Key, pair => pair.Value[0]).OrderBy(pair => pair.Key));
@@ -126,7 +126,7 @@ public sealed class GalleryShortcutSchemeTests : IDisposable
         {
             // GL3's layout rows are registered in wave 6, so Shift+I (info line) and Shift+N (hints) are live defaults.
             // Revision 20: Shift+M mutes (an action on the shown medium, like Shift+R: GalleryShortcutScheme.ShiftLetterActionIds).
-            ["H"] = "gallery.tools-toggle", ["I"] = "gallery.layout.info", ["K"] = "tags.queue.cards", ["L"] = "gallery.filmstrip-toggle",
+            ["D"] = "gallery.slideshow-toggle", ["H"] = "gallery.tools-toggle", ["I"] = "gallery.layout.info", ["K"] = "tags.queue.cards", ["L"] = "gallery.filmstrip-toggle",
             ["M"] = "video.mute", ["N"] = "gallery.layout.hints", ["O"] = "gallery.overlay-toggle", ["P"] = "gallery.context-toggle", ["R"] = "gallery.rotate", ["S"] = "video.snapshot", ["T"] = "gallery.mode-toggle"
         }.OrderBy(pair => pair.Key), shifted.OrderBy(pair => pair.Key));
         // Every Shift letter that is no show / hide switch is one of the scheme's listed actions.

@@ -321,7 +321,7 @@ public sealed class ViewerQuickWinsTests : IDisposable
         Assert.Equal(new[] { "M" }, bindings.For("favorites.add").Select(gesture => gesture.Key).ToArray());
         Assert.Contains(bindings.For("favorites.remove"), gesture => gesture.Key == "U" && gesture.Modifiers.Count == 0);
         Assert.Contains(bindings.For("favorites.toggle"), gesture => gesture.Key == "F" && gesture.Modifiers.Count == 0);
-        Assert.Contains(bindings.For("gallery.slideshow-toggle"), gesture => gesture.Key == "D" && gesture.Modifiers.Count == 0);
+        Assert.Contains(bindings.For("gallery.slideshow-toggle"), gesture => gesture.Key == "D" && gesture.Modifiers.SequenceEqual(new[] { "Shift" }));
         // The "<" / ">" alias of the speed keys is gone: Shift+. is the next frame and "," / "." seek by the step setting. Revision 14 adds X and C
         // next to [ and ] (the brackets need AltGr on German and French layouts).
         Assert.Equal(new[] { "OemOpenBrackets", "X" }, bindings.For("video.speed-down").Select(gesture => gesture.Key).ToArray());

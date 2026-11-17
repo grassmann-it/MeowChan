@@ -217,7 +217,7 @@ public static class CommandCatalog
         // G1: the gallery's mode switch "View | Tag" (enters and leaves the tagging mode of a walkable list).
         new("gallery.mode-toggle", "command.gallery.mode-toggle", "Gallery mode: view / tag", "Galeriemodus: Ansehen / Taggen", "edit-2", "Shift+T", CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
         new("gallery.tools-toggle", "command.gallery.tools-toggle", "Show / hide gallery tools", "Galeriewerkzeuge anzeigen / ausblenden", "sliders", "Shift+H", CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
-        new("gallery.slideshow-toggle", "command.gallery.slideshow-toggle", "Start / pause slideshow", "Diashow starten / pausieren", "play", "D", CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
+        new("gallery.slideshow-toggle", "command.gallery.slideshow-toggle", "Start / pause slideshow", "Diashow starten / pausieren", "play", "Shift+D", CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
         new("gallery.overlay-toggle", "command.gallery.overlay-toggle", "Toggle controls overlay", "Overlay-Bedienelemente umschalten", "sliders", "Shift+O", CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
         new("gallery.overlay-autohide-toggle", "command.gallery.overlay-autohide-toggle", "Toggle overlay auto-hide", "Automatisches Ausblenden umschalten", "sliders", null, CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
         new("gallery.post-overlay-toggle", "command.gallery.post-overlay-toggle", "Toggle post overlay", "Post-Overlay umschalten", "file-text", null, CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),

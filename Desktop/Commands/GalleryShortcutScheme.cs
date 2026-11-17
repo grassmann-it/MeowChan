@@ -10,12 +10,11 @@ namespace MeowChan.Desktop.Commands;
 /// <list type="bullet">
 /// <item><b>Shift + letter</b> shows or hides a panel or block: <c>Shift+H</c> tools, <c>Shift+I</c> info line, <c>Shift+K</c> cards of the tagging mode, <c>Shift+N</c> hint row,
 /// <c>Shift+L</c> filmstrip, <c>Shift+O</c> controls overlay, <c>Shift+P</c> post panel, <c>Shift+T</c> view / tag mode.</item>
-/// <item><b>Plain letters</b> act on what plays: <c>L</c> repeat, <c>A</c> the A–B loop, <c>D</c> the
-/// slideshow. The older plain letters of the gallery (<c>F</c> toggles a favourite, <c>I</c> details, <c>Q</c> queue, <c>R</c> rating,
+/// <item><b>Plain letters</b> act on what plays: <c>L</c> repeat and <c>A</c> the A–B loop. The older plain letters of the gallery (<c>F</c> toggles a favourite, <c>I</c> details, <c>Q</c> queue, <c>R</c> rating,
 /// <c>T</c> show in thread) stay.</item>
 /// <item><b>Favourites, uniformly everywhere</b> (Tom's decision of 15.11.2026, revision 20): <c>M</c> adds, <c>U</c> removes and <c>F</c> toggles, in the gallery as in
 /// the reader, its media sidebar, the archive's media and the Media page's grid and panel. <c>B</c> (revision 13's "add") is gone since revision 21 (Tom's decision #132 of 16.11.2026); a binding saved with B keeps it.</item>
-/// <item><b>Exceptions to the Shift rule</b>: <c>Shift+M</c> mutes (revision 20; <c>M</c> is "add favourite") and <c>Shift+R</c> turns the medium. Snapshot uses <c>Shift+S</c> (revision 22; S skips tagging items). These act on the
+/// <item><b>Exceptions to the Shift rule</b>: <c>Shift+M</c> mutes (revision 20; <c>M</c> is "add favourite") and <c>Shift+R</c> turns the medium. Snapshot uses <c>Shift+S</c> and slideshow <c>Shift+D</c> (revision 22; S skips and D marks tagging items done). These act on the
 /// shown medium rather than showing or hiding a block (<see cref="ShiftLetterActionIds"/>).</item>
 /// <item><b>Ctrl (⌘)</b> stays for commands of the whole application; inside the gallery ⌘ is never used for panels (macOS owns ⌘H, ⌘M, ⌘Q, ⌘W). The one panel switch with
 /// Primary+Shift is outside the gallery: <c>Primary+Shift+M</c> (⇧⌘M) turns the reader's media sidebar and the Media page's media panel on or off (revisions 9 and 18). ⇧⌘M is no system key
@@ -43,11 +42,11 @@ public static class GalleryShortcutScheme
     /// <summary>The plain-letter defaults that act on the shown medium's playback.</summary>
     public static IReadOnlyList<string> PlaybackLetterIds { get; } = Array.AsReadOnly(new[]
     {
-        "video.loop", "video.ab-loop", "gallery.slideshow-toggle"
+        "video.loop", "video.ab-loop"
     });
 
-    /// <summary>The Shift-letter defaults that act on the shown medium instead of showing or hiding a block: mute (Shift+M), rotate (Shift+R) and snapshot (Shift+S, revision 22).</summary>
-    public static IReadOnlyList<string> ShiftLetterActionIds { get; } = Array.AsReadOnly(new[] { "video.mute", "gallery.rotate", "video.snapshot" });
+    /// <summary>The Shift-letter defaults that act on the shown medium instead of showing or hiding a block: mute (Shift+M), rotate (Shift+R) snapshot (Shift+S) and slideshow (Shift+D, revision 22).</summary>
+    public static IReadOnlyList<string> ShiftLetterActionIds { get; } = Array.AsReadOnly(new[] { "video.mute", "gallery.rotate", "video.snapshot", "gallery.slideshow-toggle" });
 
     /// <summary>The Shift-letter defaults of another page that switch what that page shows (the Media page's focus mode, Shift+F next to the favourite's F). They are
     /// panel-like switches, not actions on a medium, and are no gallery commands, so they sit in neither <see cref="PanelToggleIds"/> nor <see cref="ShiftLetterActionIds"/>.

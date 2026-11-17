@@ -142,7 +142,7 @@ public sealed class EffectiveShortcutBindings
         // New in revision 2: find next / previous in the large reader.
         ["reader.find-next"] = 2, ["reader.find-previous"] = 2,
         // New single keys and chords of the gallery and the media page.
-        ["gallery.slideshow-toggle"] = 2, ["media.details"] = 2, ["media.rating.edit"] = 2,
+        ["gallery.slideshow-toggle"] = 22, ["media.details"] = 2, ["media.rating.edit"] = 2,
         ["media.export-original"] = 2, ["media.show-in-folder"] = 2,
         // One Back gesture and one page gesture for several commands that never apply at the same time.
         ["reader.history-back"] = 2, ["gallery.return"] = 2, ["pagination.previous"] = 2, ["pagination.next"] = 2,
