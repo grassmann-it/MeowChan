@@ -1,5 +1,24 @@
 <Project>
   <PropertyGroup>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisMode>Minimum</AnalysisMode>
+    <WarningsAsErrors>$(WarningsAsErrors);CA2000;CA2213;CA1001;CA2016</WarningsAsErrors>
+    <!-- CA2007: Avalonia UI continuations deliberately retain the UI context (audit: 3,798). -->
+    <NoWarn>$(NoWarn);CA2007</NoWarn>
+    <!-- CA1822: Instance-shaped UI/service APIs are intentional; static conversion is noise (1,192). -->
+    <NoWarn>$(NoWarn);CA1822</NoWarn>
+    <!-- CA1031: Deliberate UI failure boundaries; see GalleryTagPanelSuggestions.cs catch commentary (1,040). -->
+    <NoWarn>$(NoWarn);CA1031</NoWarn>
+    <!-- CA1515: Public surface visibility is a separate API review, not a correctness defect (344). -->
+    <NoWarn>$(NoWarn);CA1515</NoWarn>
+    <!-- CA1308: Identifier normalization uses the persisted lowercase convention (culture block: 568). -->
+    <NoWarn>$(NoWarn);CA1308</NoWarn>
+    <!-- CA1307: Identifier comparisons follow existing domain conventions (culture block: 568). -->
+    <NoWarn>$(NoWarn);CA1307</NoWarn>
+    <!-- CA1305: Identifier formatting is not localized display text (culture block: 568). -->
+    <NoWarn>$(NoWarn);CA1305</NoWarn>
+    <!-- CA1032: Domain exception constructors are intentionally restricted to supported creation paths (350). -->
+    <NoWarn>$(NoWarn);CA1032</NoWarn>
     <Version>1.1.0</Version>
     <MeowChanUsesReleaseLock Condition="'$(Configuration)' == 'Release' and ('$(MSBuildProjectName)' == 'MeowChan' or '$(MSBuildProjectName)' == 'libmeowchan' or '$(MSBuildProjectName)' == 'MeowChan.Tests' or '$(MSBuildProjectName)' == 'MeowChan.DesktopTests' or '$(MSBuildProjectName)' == 'MeowChan.DesktopSmoke' or '$(MSBuildProjectName)' == 'MeowChan.PluginSdk' or '$(MSBuildProjectName)' == 'MeowChan.PluginSdk.Tests')">true</MeowChanUsesReleaseLock>
   </PropertyGroup>
