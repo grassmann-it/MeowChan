@@ -22,7 +22,7 @@ public static partial class WorkViewPolicy
     // A method, not a static field: partial files have no defined field initialization order.
     private static string[] ReaderKeepVisible() =>
     [
-        "reader.toolbar.gallery", "reader.toolbar.read", "reader.toolbar.find", "reader.toolbar.tags", "reader.toolbar.export",
+        "reader.toolbar.gallery", "reader.toolbar.read", "reader.toolbar.media-sidebar", "reader.toolbar.find", "reader.toolbar.tags", "reader.toolbar.export",
         "reader.toolbar.settings", "reader.toolbar.thread", "reader.toolbar.history-back", "reader.toolbar.fullscreen"
     ];
 
@@ -47,6 +47,9 @@ public static partial class WorkViewPolicy
         // ---- Tools, in ReaderToolbarKeepVisibleOrder. ----
         ReaderTool("reader.toolbar.gallery", Direct, Direct, Direct, "gallery.open"),
         ReaderTool("reader.toolbar.read", Direct, Direct, Direct, "reader.expand"),
+        // The media sidebar toggle is a direct reader affordance in every work view; it must
+        // participate in the same overflow/work-view contract as the neighboring tools.
+        ReaderTool("reader.toolbar.media-sidebar", Direct, Direct, Direct, null),
         ReaderTool("reader.toolbar.find", Overflow, Direct, Direct, "reader.find"),
         ReaderTool("reader.toolbar.tags", Overflow, Direct, Direct, "thread.tags"),
         ReaderTool("reader.toolbar.export", Overflow, Direct, Direct, "export.open-html-dialog"),
