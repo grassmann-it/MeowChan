@@ -2722,7 +2722,7 @@
     "media.filter.resetAllHint": "Rimuovi tutti i filtri attivi",
     "media.filter.threadHint": "Mostra solo i media di questo thread ({0})",
     "media.filter.onlyThread": "Solo questo thread",
-    "media.filter.count": "{0} di {1} media corrispondono al filtro",
+    "media.filter.count": "Filtro: {0} / ({1})",
     "media.untagged.count": "{0} senza tag del media",
     "media.untagged.hint": "Mostra solo i {0} media senza tag del media: un punto da cui iniziare ad assegnare tag",
     "media.filter.noMatch": "Nessun media corrisponde a questi filtri.",
@@ -5197,6 +5197,8 @@
     "archive.delete.files.one": "File locali: {0}",
     "archive.delete.bytes.one": "{0:N0} B",
     "import.done.tags.one": "Tag aggiunto: {0}.",
-    "export.collectionSelection.one": "Esporta {0} thread selezionato"
+    "export.collectionSelection.one": "Esporta {0} thread selezionato",
+    "media.filter.count.one": "Filtro: {0} / ({1})",
+    "media.untagged.hint.one": "Mostra solo il {0} media senza tag del media: un punto da cui iniziare ad assegnare tag"
   }
 }

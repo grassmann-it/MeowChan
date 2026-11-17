@@ -2733,7 +2733,7 @@
     "media.filter.resetAllHint": "Odebrat všechny aktivní filtry",
     "media.filter.threadHint": "Zobrazit jen média tohoto vlákna ({0})",
     "media.filter.onlyThread": "Jen toto vlákno",
-    "media.filter.count": "Filtru odpovídá {0} z {1} médií",
+    "media.filter.count": "Filtr: {0} / ({1})",
     "media.untagged.count": "Bez štítků médií: {0}",
     "media.untagged.hint": "Zobrazit jen média bez štítků médií ({0}): místo, kde začít se štítkováním",
     "media.filter.noMatch": "Těmto filtrům neodpovídají žádná média.",
@@ -5239,6 +5239,8 @@
     "archive.delete.files.one": "Místní soubory: {0}",
     "archive.delete.bytes.one": "{0:N0} B",
     "import.done.tags.one": "Přidané štítky: {0}.",
-    "export.collectionSelection.one": "Exportovat vybraná vlákna ({0}) společně"
+    "export.collectionSelection.one": "Exportovat vybraná vlákna ({0}) společně",
+    "media.filter.count.one": "Filtr: {0} / ({1})",
+    "media.untagged.hint.one": "Zobrazit jen média bez štítků médií ({0}): místo, kde začít se štítkováním"
   }
 }

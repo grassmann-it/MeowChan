@@ -204,7 +204,7 @@ public sealed class MediaTileTagChipTests : IDisposable
         foreach (string key in new[] { "media.filter.withoutTags", "media.filter.withoutTagsHint" })
             Assert.False(string.IsNullOrWhiteSpace(Texts.T(key)) || Texts.T(key) == key, key);
         Assert.Contains("12", Texts.T("media.untagged.count", 12));
-        Assert.Contains("12", Texts.T("media.untagged.hint", 12));
+        Assert.Contains("12", Texts.Count("media.untagged.hint", 12));
         Assert.Contains("kitten", Texts.T("media.tile.tagHint", "kitten"));
         Assert.Contains("kitten", Texts.T("media.tile.threadTagHint", "kitten"));
         Assert.Contains("kitten", Texts.T("media.tile.moreTags", "kitten"));

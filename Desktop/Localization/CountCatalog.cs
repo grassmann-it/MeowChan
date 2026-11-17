@@ -25,6 +25,8 @@ internal static class CountCatalog
         ("archive.filters.countName.one", "Filters and sorting, {0} active", "Filter und Sortierung, {0} aktiv"),
         ("media.count.media.one", "{0} medium", "{0} Medium"),
         ("media.count.threads.one", "in {0} thread", "in {0} Thread"),
+        ("media.filter.count.one", "{0} of {1} matches the filter", "{0} von {1} passt zum Filter"),
+        ("media.untagged.hint.one", "Show only the {0} medium without media tags: a place to start tagging", "Nur das {0} Medium ohne Medien-Tags zeigen: ein Startpunkt fürs Taggen"),
         ("downloads.searchCount.one", "{0} result", "{0} Treffer"),
         ("downloads.searchActive.one", "{0} result · {1}", "{0} Treffer · {1}"),
         ("search.count.one", "{0} result", "{0} Treffer"),

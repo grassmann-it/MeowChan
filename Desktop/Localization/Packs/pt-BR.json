@@ -2722,7 +2722,7 @@
     "media.filter.resetAllHint": "Remover todos os filtros ativos",
     "media.filter.threadHint": "Mostrar só mídias deste tópico ({0})",
     "media.filter.onlyThread": "Só este tópico",
-    "media.filter.count": "{0} de {1} mídias correspondem ao filtro",
+    "media.filter.count": "Filtro: {0} / ({1})",
     "media.untagged.count": "{0} sem tags de mídia",
     "media.untagged.hint": "Mostrar só as {0} mídias sem tags de mídia: um ponto de partida para adicionar tags",
     "media.filter.noMatch": "Nenhuma mídia corresponde a estes filtros.",
@@ -5197,6 +5197,8 @@
     "archive.delete.files.one": "Arquivos locais: {0}",
     "archive.delete.bytes.one": "{0:N0} B",
     "import.done.tags.one": "Tag adicionada: {0}.",
-    "export.collectionSelection.one": "Exportar {0} tópico selecionado"
+    "export.collectionSelection.one": "Exportar {0} tópico selecionado",
+    "media.filter.count.one": "Filtro: {0} / ({1})",
+    "media.untagged.hint.one": "Mostrar só a {0} mídia sem tags de mídia: um ponto de partida para adicionar tags"
   }
 }

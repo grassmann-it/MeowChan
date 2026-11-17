@@ -708,7 +708,7 @@ public sealed partial class MediaPage : UserControl
         List<string> parts = new();
         if (_loadingCache) parts.Add(Texts.T("media.cache.loading"));
         if (_progress is { } progress && progress.ThreadsTotal > 0) parts.Add(Texts.Count("media.indexing", progress.ThreadsTotal, progress.ThreadsDone, progress.ThreadsTotal));
-        if (_snapshot != null) parts.Add(_filterActive && !_filterFailed ? Texts.T("media.filter.count", _shown.Count, _unfiltered)
+        if (_snapshot != null) parts.Add(_filterActive && !_filterFailed ? CountPhrases.MediaFilterSummary(_shown.Count, _unfiltered)
             : CountPhrases.MediaSummary(_shown.Count, threads, missing));
         if (_snapshot != null && _providerEntries is > 0 and int provider)
             parts.Add(Texts.Count("booru.media.statusCount", provider));

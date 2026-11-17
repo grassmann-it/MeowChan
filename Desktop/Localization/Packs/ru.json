@@ -2976,7 +2976,7 @@
     "media.filter.resetAllHint": "Убрать все активные фильтры",
     "media.filter.threadHint": "Показывать только медиа этого треда ({0})",
     "media.filter.onlyThread": "Только этот тред",
-    "media.filter.count": "Фильтру соответствуют {0} из {1} медиа",
+    "media.filter.count": "Фильтр: {0} / ({1})",
     "media.untagged.count": "Без тегов медиа: {0}",
     "media.untagged.hint": "Показать только медиа без тегов медиа ({0}): с них удобно начать",
     "media.filter.noMatch": "Нет медиа, подходящих под эти фильтры.",
@@ -5217,6 +5217,8 @@
     "archive.delete.files.one": "Локальные файлы: {0}",
     "archive.delete.bytes.one": "{0:N0} B",
     "import.done.tags.one": "Добавлено тегов: {0}.",
-    "export.collectionSelection.one": "Экспортировать выбранные треды вместе ({0})"
+    "export.collectionSelection.one": "Экспортировать выбранные треды вместе ({0})",
+    "media.filter.count.one": "Фильтр: {0} / ({1})",
+    "media.untagged.hint.one": "Показать только медиа без тегов медиа ({0}): с них удобно начать"
   }
 }

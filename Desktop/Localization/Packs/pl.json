@@ -2734,7 +2734,7 @@
     "media.filter.resetAllHint": "Usuń wszystkie aktywne filtry",
     "media.filter.threadHint": "Pokaż tylko media z tego wątku ({0})",
     "media.filter.onlyThread": "Tylko ten wątek",
-    "media.filter.count": "Pasujące do filtra media: {0} z {1}",
+    "media.filter.count": "Filtr: {0} / ({1})",
     "media.untagged.count": "Bez tagów mediów: {0}",
     "media.untagged.hint": "Pokaż tylko media bez tagów mediów ({0}): dobry punkt startowy do tagowania",
     "media.filter.noMatch": "Żadne media nie pasują do tych filtrów.",
@@ -5240,6 +5240,8 @@
     "archive.delete.files.one": "Pliki lokalne: {0}",
     "archive.delete.bytes.one": "{0:N0} B",
     "import.done.tags.one": "Dodane tagi: {0}.",
-    "export.collectionSelection.one": "Eksportuj razem zaznaczone wątki ({0})"
+    "export.collectionSelection.one": "Eksportuj razem zaznaczone wątki ({0})",
+    "media.filter.count.one": "Filtr: {0} / ({1})",
+    "media.untagged.hint.one": "Pokaż tylko media bez tagów mediów ({0}): dobry punkt startowy do tagowania"
   }
 }

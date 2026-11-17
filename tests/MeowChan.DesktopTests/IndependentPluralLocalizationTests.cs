@@ -53,6 +53,59 @@ public sealed class IndependentPluralLocalizationTests : IDisposable
     }
 
     [Theory]
+    [InlineData("de", 0, 0, "0 von 0 Medien passen zum Filter")]
+    [InlineData("de", 0, 1, "0 von 1 Medium passen zum Filter")]
+    [InlineData("de", 0, 2, "0 von 2 Medien passen zum Filter")]
+    [InlineData("de", 1, 1, "1 von 1 Medium passt zum Filter")]
+    [InlineData("de", 1, 2, "1 von 2 Medien passt zum Filter")]
+    [InlineData("de", 2, 1, "2 von 1 Medium passen zum Filter")]
+    [InlineData("de", 2, 2, "2 von 2 Medien passen zum Filter")]
+    [InlineData("en", 0, 0, "0 of 0 media match the filter")]
+    [InlineData("en", 0, 1, "0 of 1 medium match the filter")]
+    [InlineData("en", 0, 2, "0 of 2 media match the filter")]
+    [InlineData("en", 1, 1, "1 of 1 medium matches the filter")]
+    [InlineData("en", 1, 2, "1 of 2 media matches the filter")]
+    [InlineData("en", 2, 1, "2 of 1 medium match the filter")]
+    [InlineData("en", 2, 2, "2 of 2 media match the filter")]
+    public void FilterNounFollowsTotalAndVerbFollowsShownCount(string language, int shown, int total, string expected)
+    {
+        Texts.SetLanguage(language);
+        Assert.Equal(expected, CountPhrases.MediaFilterSummary(shown, total));
+    }
+
+    [Theory]
+    [InlineData("cs", "Filtr", "Média")]
+    [InlineData("es", "Filtro", "Medios")]
+    [InlineData("fr", "Filtre", "Médias")]
+    [InlineData("it", "Filtro", "Media")]
+    [InlineData("pl", "Filtr", "Media")]
+    [InlineData("pt-BR", "Filtro", "Mídias")]
+    [InlineData("ru", "Фильтр", "Медиа")]
+    [InlineData("ja", "フィルター", "メディア")]
+    [InlineData("ko", "필터", "미디어")]
+    [InlineData("zh-Hans", "过滤条件", "媒体")]
+    public void BundledFilterTemplatesAcceptTheClosedTotalPhrase(string language, string filterLabel, string mediaLabel)
+    {
+        Texts.SetLanguage(language);
+        foreach (int shown in new[] { 0, 1, 2 })
+        foreach (int total in new[] { 0, 1, 2 })
+            Assert.Equal($"{filterLabel}: {shown} / ({mediaLabel}: {total})", CountPhrases.MediaFilterSummary(shown, total));
+    }
+
+    [Theory]
+    [InlineData("de", 0, "Nur die 0 Medien ohne Medien-Tags zeigen: ein Startpunkt fürs Taggen")]
+    [InlineData("de", 1, "Nur das 1 Medium ohne Medien-Tags zeigen: ein Startpunkt fürs Taggen")]
+    [InlineData("de", 2, "Nur die 2 Medien ohne Medien-Tags zeigen: ein Startpunkt fürs Taggen")]
+    [InlineData("en", 0, "Show only the 0 media without media tags: a place to start tagging")]
+    [InlineData("en", 1, "Show only the 1 medium without media tags: a place to start tagging")]
+    [InlineData("en", 2, "Show only the 2 media without media tags: a place to start tagging")]
+    public void UntaggedHintFollowsTheMediaCount(string language, int count, string expected)
+    {
+        Texts.SetLanguage(language);
+        Assert.Equal(expected, Texts.Count("media.untagged.hint", count));
+    }
+
+    [Theory]
     [InlineData("de", 1, "Tag vergeben: 1.")]
     [InlineData("de", 2, "Tags vergeben: 2.")]
     [InlineData("en", 1, "Tag added: 1.")]

@@ -107,7 +107,8 @@ internal static class MediaLibraryCatalog
         ("media.filter.resetAllHint", "Remove every active filter", "Alle aktiven Filter entfernen"),
         ("media.filter.threadHint", "Show only media of this thread ({0})", "Nur Medien dieses Threads zeigen ({0})"),
         ("media.filter.onlyThread", "Only this thread", "Nur dieser Thread"),
-        ("media.filter.count", "{0} of {1} media match the filter", "{0} von {1} Medien passen zum Filter"),
+        // {1} is an independently counted total-media phrase; the verb agrees with the shown count {0}.
+        ("media.filter.count", "{0} of {1} match the filter", "{0} von {1} passen zum Filter"),
         ("media.untagged.count", "{0} without media tags", "{0} ohne Medien-Tags"),
         ("media.untagged.hint", "Show only the {0} media without media tags: a place to start tagging", "Nur die {0} Medien ohne Medien-Tags zeigen: ein Startpunkt fürs Taggen"),
         ("media.filter.noMatch", "No media match these filters.", "Keine Medien passen zu diesen Filtern."),

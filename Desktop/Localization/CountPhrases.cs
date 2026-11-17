@@ -12,6 +12,10 @@ internal static class CountPhrases
             : Texts.T("media.count", mediaPhrase, threadPhrase);
     }
 
+    // The total owns the noun, but the shown count owns the sentence's verb.
+    internal static string MediaFilterSummary(long shown, long total) =>
+        Texts.Count("media.filter.count", shown, shown, Texts.Count("media.count.media", total));
+
     internal static string ArchiveDeletionSummary(long threads, long files, long bytes) =>
         Texts.T("archive.delete.summary",
             Texts.Count("archive.delete.threads", threads),
