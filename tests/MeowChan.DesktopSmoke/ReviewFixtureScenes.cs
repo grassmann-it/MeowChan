@@ -24,7 +24,7 @@ internal static class ReviewFixtureScenes
     private static string _root = null!;
     private static int _seed, _media, _failed;
 
-    internal static int Main(bool generateOnly)
+    internal static int Run(bool generateOnly)
     {
         // A new output directory is mandatory. There is deliberately no --profile input.
         _root = Path.GetFullPath(Environment.GetEnvironmentVariable("MEOWCHAN_REVIEW_ARTIFACTS") ?? throw new ArgumentException("Missing private review output"));
@@ -32,12 +32,16 @@ internal static class ReviewFixtureScenes
         Directory.CreateDirectory(_root);
         _seed = int.Parse(Environment.GetEnvironmentVariable("MEOWCHAN_REVIEW_SEED") ?? "20261117");
         _media = int.Parse(Environment.GetEnvironmentVariable("MEOWCHAN_REVIEW_MEDIA") ?? "100");
-        string profile = Path.Combine(_root, "fixture-profile");
+        string profile = generateOnly ? Path.Combine(_root, "fixture-profile") : Path.GetFullPath(Path.Combine(Environment.CurrentDirectory, "profile"));
+        if (!generateOnly && (Environment.GetEnvironmentVariable("MEOWCHAN_DESKTOP_SMOKE_XVFB") != "1"
+            || Environment.GetEnvironmentVariable("MEOWCHAN_PROFILE") != profile))
+            throw new InvalidOperationException("Review capture must use the isolated runner's owned working-directory profile.");
         Environment.SetEnvironmentVariable("OCHAN_PROFILE", null);
         Environment.SetEnvironmentVariable("MEOWCHAN_PROFILE", profile);
         Environment.SetEnvironmentVariable("MEOWCHAN_DISABLE_UPDATE_CHECK", "1");
         Environment.SetEnvironmentVariable("MEOWCHAN_MOTION", "off");
         ReviewFixtureData.GenerateAsync(profile, _media, _seed).GetAwaiter().GetResult();
+        File.Copy(Path.Combine(profile, "fixture.json"), Path.Combine(_root, "fixture.json"));
         Write(Path.Combine(_root, "shortcuts.json"), Enum.GetValues<ShortcutPlatform>().Select(p => new { platform = p.ToString(), commands = CommandCatalog.All.Count(), issues = EffectiveShortcutBindings.Build(null, p).Issues }));
         Write(Path.Combine(_root, "source-catalogs.json"), new { en = BuiltInCatalog.English, de = BuiltInCatalog.German });
         if (generateOnly) { Console.WriteLine("SMOKE SCENARIO: review-fixture-generate\nSMOKE PASS: generated synthetic profile"); return 0; }
@@ -145,6 +149,7 @@ internal static class ReviewFixtureScenes
         if (surface.StartsWith("booru"))
         {
             await WorkViewBooruChecks.EnterAsync(w);
+            for (int i = 0; i < 2; i++) await Dispatcher.UIThread.InvokeAsync(w.UpdateLayout, DispatcherPriority.Background);
             if (_media == 0) await w.BooruPageForTests!.ActivateAsync();
             else await booru.MaterializeAsync();
             // Search workspace versus the watch/rule workbench tab, both actual retained controls.
@@ -165,6 +170,13 @@ internal static class ReviewFixtureScenes
         {
             ArchivePage a = w.ArchivePage;
             await Program.WaitUntilAsync(() => !a.IsBusy && !a.IsSearchLoading);
+            await Dispatcher.UIThread.InvokeAsync(w.UpdateLayout, DispatcherPriority.Background);
+            if (surface == "archive")
+            {
+                Button back = a.FindControl<Button>("ArchiveBackButton")!;
+                if (back.IsEffectivelyVisible) Click(back);
+                await Program.WaitUntilAsync(() => a.FindControl<ListBox>("ArchiveThreads")!.IsEffectivelyVisible);
+            }
             if (surface != "archive")
             {
                 if (_media == 0) throw new InvalidOperationException("Empty fixture: no reader/gallery subject");

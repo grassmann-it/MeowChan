@@ -30,7 +30,11 @@ watcher/workbench tab; `booru` denotes search results. The actual retained Booru
 page uses existing in-memory service fixtures, never HTTP.
 
 For a single debugging scene add `--scene media-760-dark-de`. For profiles without
-screenshots add `--generate-only`. Repeat `--media` using **0, 1, 100, 1000, 10000**
+screenshots add `--generate-only` (retains `run/review-artifacts/fixture-profile`).
+Capture runs instead generate into the runner's disposable working-directory
+profile, avoiding host usernames/project paths in Settings labels and dump text;
+only its synthetic `fixture.json` summary is retained with the captures.
+Repeat `--media` using **0, 1, 100, 1000, 10000**
 in *separate output directories*. The 260-scene matrix uses the selected size,
 not a disguised 5-size cross product. Zero media deliberately reports reader /
 large-reader / gallery as missing: it must not substitute a different surface.
@@ -53,12 +57,12 @@ not byte-identical process logs or screenshot font rendering across machines.
 Threads use sizes 1, 50, 250, then 1250 posts until the requested media count is
 exhausted. Titles/posts include long runs, CJK and German compounds. Tag assignment
 probes are 0/1/8/30/128 tags per medium, applied to the first 1000 media to stay
-within the store's assignment ceilings. The product's **1024 private-tag definition
-ceiling** is respected: the live store is not deliberately corrupted to pretend
-4096 tags are admitted. A separate `synthetic-vocabulary-probe.json` contains 4096
-synthetic words for future suggestion/limit tests. This is a disclosed limitation,
-not a successful 4096-definition product probe. Queue entries are resolved from
-the synthetic media index; downloads are passive synthetic snapshots.
+within the store's assignment ceilings. The live store contains **4096 distinct
+synthetic tag definitions** (bounded by the product's runtime definition ceiling,
+currently 20000, not the per-item tag-set limit). A separate
+`synthetic-vocabulary-probe.json` exports those words for suggestion/limit tests.
+Queue entries are resolved from the synthetic media index; downloads are passive
+synthetic snapshots.
 
 ## Evidence and fail-closed manifest
 

@@ -249,7 +249,7 @@ internal sealed class WorkViewBooruChecks : IAsyncDisposable
         await RestoreAsync(() => _window.SessionHost.SaveViewPreferencesAsync(config => config.ShowBooruTools = _showBefore));
         await RestoreAsync(async () =>
         {
-            _window.FindControl<MenuItem>(_pageBefore + "MenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            await SmokeNavigation.GoToAsync(_window, _pageBefore);
             await Program.WaitUntilAsync(() => _window.SelectedPage == _pageBefore);
             if (_pageBefore == MainWindow.WorkspacePage.Status)
                 Require(_window.ShowStatus(_segmentBefore), "The original Status segment could not be restored.");

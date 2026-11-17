@@ -29,11 +29,31 @@ class ReviewContracts(unittest.TestCase):
     def test_screenshot_without_dump_rejected(self):
         with tempfile.TemporaryDirectory(dir=os.environ['COMMANDCODE_SCRATCHPAD']) as path:
             root = Path(path)
-            scene = {'id': 'media-760-dark-de', 'status': 'captured', 'files': {'screenshot.png': {'path': 'missing.png', 'sha256': '0'}}}
+            import hashlib
+            (root / 'screenshot.png').write_bytes(b'synthetic screenshot bytes')
+            (root / 'bundle.json').write_text('{"complete": true}')
+            files = {name: {'path': name, 'sha256': hashlib.sha256((root / name).read_bytes()).hexdigest()}
+                     for name in ('bundle.json', 'screenshot.png')}
+            scene = {'id': 'media-760-dark-de', 'status': 'captured', 'files': files}
             (root / 'scenes.json').write_text(json.dumps({'scenes': [scene]}))
             cells = runner.inventory(root, scene['id'])
             self.assertEqual('missing', cells[0]['status'])
-            self.assertIn('error', cells[0])
+            self.assertIn('control-tree.json', cells[0]['error'])
+
+    def test_committed_bundle_and_tamper_detection(self):
+        import hashlib
+        with tempfile.TemporaryDirectory(dir=os.environ['COMMANDCODE_SCRATCHPAD']) as path:
+            root = Path(path)
+            control = dict(name='SyntheticControl', bounds=None, visible=False, is_enabled=True, is_focused=False, text='Synthetic')
+            data = {'bundle.json': {'complete': True}, 'control-tree.json': {'elements': [control]}, 'state.json': {}, 'timing.json': {}}
+            for name, doc in data.items(): (root / name).write_text(json.dumps(doc))
+            for name in ('screenshot.png', 'grayscale.png'): (root / name).write_bytes(b'synthetic')
+            files = {p.name: {'path': p.name, 'sha256': hashlib.sha256(p.read_bytes()).hexdigest()} for p in root.iterdir()}
+            scene = {'id': 'media-760-dark-de', 'status': 'captured', 'files': files}
+            (root / 'scenes.json').write_text(json.dumps({'scenes': [scene]}))
+            self.assertEqual('captured', runner.inventory(root, scene['id'])[0]['status'])
+            (root / 'control-tree.json').write_text('{}')
+            self.assertEqual('missing', runner.inventory(root, scene['id'])[0]['status'])
 
     def test_wcag_known_pairs(self):
         self.assertEqual(21, checks.ratio('#000000', '#ffffff'))

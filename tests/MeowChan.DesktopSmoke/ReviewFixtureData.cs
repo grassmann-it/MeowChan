@@ -18,6 +18,7 @@ internal static class ReviewFixtureData
     internal static readonly DateTimeOffset Epoch = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
     internal static readonly int[] TagCounts = [0, 1, 8, 30, 128];
     internal static readonly int[] ThreadSizes = [1, 50, 250, 1250];
+    internal static int Vocabulary => Math.Min(4096, PrivateTagStore.MaximumTags);
     internal static string Hex(byte[] bytes) => Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
     internal static Guid TagId(int seed, int n) => new(SHA256.HashData(Encoding.UTF8.GetBytes($"review:{seed}:tag:{n}")).AsSpan(0, 16));
     internal static string TagName(int n) => n switch
@@ -33,6 +34,7 @@ internal static class ReviewFixtureData
         if (Directory.Exists(profile)) throw new IOException("Refusing existing fixture profile: " + profile);
         if (count is not (0 or 1 or 100 or 1000 or 10000)) throw new ArgumentException("media must be 0, 1, 100, 1000, 10000");
         Directory.CreateDirectory(profile);
+        new Config { DownloadPath = Path.Combine(profile, "Downloads"), Theme = "Dark", Language = "en", WorkspaceMode = "Advanced", DownloadsPaused = true, SaveUrlsOnExit = false }.SaveConfig();
         Stopwatch timer = Stopwatch.StartNew();
         byte[][] images = Enumerable.Range(0, 8).Select(n => Image(seed, n)).ToArray();
         string generatedVideo = Path.Combine(profile, "synthetic-generated.webm");
@@ -65,7 +67,9 @@ internal static class ReviewFixtureData
                 {
                     bool isVideo = video != null && global % 97 == 96;
                     // Append a deterministic PNG trailer so each medium is distinct without expensive re-encoding.
-                    byte[] bytes = isVideo ? video! : [.. images[global % images.Length], .. Encoding.UTF8.GetBytes($"review:{seed}:{global}")];
+                    byte[] identity = Encoding.UTF8.GetBytes($"review:{seed}:{global}");
+                    byte[] bytes = isVideo ? [.. video!, 0xec, (byte)(0x80 | identity.Length), .. identity] // EBML Void, not copied media
+                        : [.. images[global % images.Length], .. identity];
                     string name = $"synthetic-{global:D5}" + (global % 211 == 210 ? "-" + new string('x', 180) : "") + (isVideo ? ".webm" : ".png");
                     string mediaId = $"synthetic-{global:D5}", postId = (10000000 + global).ToString();
                     string sha = Hex(bytes), md5 = Convert.ToBase64String(MD5.HashData(bytes));
@@ -83,7 +87,7 @@ internal static class ReviewFixtureData
                         Html: $"Synthetic post {global}. 合成試験。 Arbeitsplatzdarstellungsgrößenüberprüfung. " + new string('W', global % 7 == 0 ? 600 : 12),
                         Attachments: [new CapturedAttachment(0, mediaId, "original", url, name, ExpectedSize: bytes.Length, ExpectedMd5: md5) { ExpectedSha256 = sha }]));
                     for (int t = 0; global < 1000 && t < TagCounts[global % TagCounts.Length]; t++)
-                        assignments.Add(new { Tag = TagId(seed, (global * 31 + t) % PrivateTagStore.MaximumTags), Source = id.Source, Board = id.Board, Thread = id.Thread,
+                        assignments.Add(new { Tag = TagId(seed, (global * 31 + t) % Vocabulary), Source = id.Source, Board = id.Board, Thread = id.Thread,
                             Post = postId, Position = 0, RevisionKey = key, MediaId = mediaId, Variant = "original", Role = "original", Sha256 = sha });
                 }
                 await File.WriteAllTextAsync(Path.Combine(directory, ".meowchan-manifest.json"), JsonSerializer.Serialize(new { Version = 3, Entries = entries, Assets = assets, AttachmentBindings = bindings }));
@@ -93,12 +97,11 @@ internal static class ReviewFixtureData
                 thread++;
             }
         }
-        int vocabulary = count == 0 ? 0 : PrivateTagStore.MaximumTags;
+        int vocabulary = count == 0 ? 0 : Vocabulary;
         await File.WriteAllTextAsync(Path.Combine(profile, "private-tags.json"), JsonSerializer.Serialize(new { Version = 1, Revision = 1,
             Tags = Enumerable.Range(0, vocabulary).Select(n => new { Id = TagId(seed, n), Name = TagName(n) }), Threads = Array.Empty<object>(), Media = assignments }));
         // The product caps private vocabulary. Preserve the several-thousand probe without writing an invalid live store.
         await File.WriteAllTextAsync(Path.Combine(profile, "synthetic-vocabulary-probe.json"), JsonSerializer.Serialize(Enumerable.Range(0, 4096).Select(TagName)));
-        new Config { DownloadPath = Path.Combine(profile, "Downloads"), Theme = "Dark", Language = "en", WorkspaceMode = "Advanced", DownloadsPaused = true, SaveUrlsOnExit = false }.SaveConfig();
         await File.WriteAllTextAsync(Path.Combine(profile, "fixture.json"), JsonSerializer.Serialize(new { schema_version = 1, seed, media = count, tag_counts = TagCounts,
             thread_sizes = ThreadSizes, admitted_vocabulary = vocabulary, requested_vocabulary = 4096, vocabulary_limit = PrivateTagStore.MaximumTags,
             generated_ms = timer.Elapsed.TotalMilliseconds, privacy = "entirely synthetic; no source profile read", video = count > 1 }));

@@ -76,17 +76,25 @@ def main(argv=None):
     environment = {k: v for k, v in os.environ.items() if not k.startswith(('MEOWCHAN_', 'OCHAN_'))}
     environment.update(MEOWCHAN_REVIEW_ARTIFACTS='1', MEOWCHAN_REVIEW_SEED=str(args.seed), MEOWCHAN_REVIEW_MEDIA=str(args.media))
     if args.scene: environment['MEOWCHAN_REVIEW_SCENE'] = args.scene
-    result = smoke.run_mode('review-fixture-generate' if args.generate_only else 'review-fixtures', args.assembly.resolve(), output / 'run', environment, True, args.timeout)
+    try:
+        result = smoke.run_mode('review-fixture-generate' if args.generate_only else 'review-fixtures', args.assembly.resolve(), output / 'run', environment, True, args.timeout)
+    except (OSError, ValueError) as exc:
+        result = {'passed': False, 'error': str(exc), 'status': 'failed'}
     evidence = output / 'run/review-artifacts'
     prechecks = load('review_prechecks', ROOT / 'scripts/review-prechecks.py').run(ROOT, evidence)
     atomic_json(output / 'prechecks.json', prechecks)
     scenes = [] if args.generate_only else inventory(evidence, args.scene)
+    for scene in scenes:
+        scene.setdefault('seed', args.seed)
+        scene.setdefault('media', args.media)
+        if scene['status'] == 'missing' and result.get('error'):
+            scene.setdefault('runner_error', result['error'])
     clean = sum(s['status'] == 'captured' for s in scenes)
     manifest = {'schema_version': 1, 'seed': args.seed, 'media': args.media, 'expected': len(scenes), 'captured': clean,
                 'failed': len(scenes) - clean, 'reviewable': bool(scenes) and clean == len(scenes) and result['passed'], 'runner': result,
-                'assembly_sha256': hashlib.sha256(args.assembly.read_bytes()).hexdigest(), 'prechecks': 'prechecks.json', 'scenes': scenes,
+                'assembly_sha256': hashlib.sha256(args.assembly.read_bytes()).hexdigest() if args.assembly.is_file() else None, 'prechecks': 'prechecks.json', 'scenes': scenes,
                 'limitations': ['grayscale is not forced-colors', 'scene setup timings are not input-to-photon latency', 'native detached popup pixels are not composited',
-                    'full interaction, heartbeat, persistence and focus-walk protocol are not asserted by the static matrix', 'private tag vocabulary capped by product; 4096-word probe exported separately']}
+                    'full interaction, heartbeat, persistence and focus-walk protocol are not asserted by the static matrix', 'private tag vocabulary = min(4096, runtime product ceiling); actual admission recorded in fixture.json']}
     atomic_json(output / 'captures.json', manifest)
     print(json.dumps({'expected': len(scenes), 'captured': clean, 'failed': len(scenes)-clean, 'prechecks': prechecks['counts'], 'incomplete_checks': prechecks['incomplete']}))
     return 0 if result['passed'] and clean == len(scenes) else 1
