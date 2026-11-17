@@ -26,6 +26,10 @@ internal sealed partial class DesktopSessionHost
 
     private Exception? _favoriteReadError;
     private int _favoritesUnreadableNoticed;
+    // Originals the favorites resolution fully hashed in this session and found unchanged (identity incl. change time; never on Windows, see
+    // MediaAssetReader.OpenSessionVerifiedReadAsync): the overview resolves the whole scope on every open, scope change and remove, and
+    // View and Export verify the file again themselves, so this only spares the "is it still there and intact" classification.
+    private readonly VerifiedFileMemo _favoriteVerifiedFiles = new();
     private sealed record PassiveFavoriteIndex(IReadOnlyList<FavoriteEntry> Entries, FrozenSet<FavoriteAssetKey> Keys);
     private PassiveFavoriteIndex? _passiveFavorites;
     private void PublishFavoriteIndex()
@@ -149,6 +153,9 @@ internal sealed partial class DesktopSessionHost
         PassiveFavoriteIndex? index = Volatile.Read(ref _passiveFavorites);
         return index != null && index.Keys.Contains(key);
     }
+
+    /// <summary>Number of originals the favorites resolution remembers as verified (tests).</summary>
+    internal int FavoriteVerifiedFileCount => _favoriteVerifiedFiles.Count;
 
     internal Task<bool> SetFavoriteAsync(GalleryEntry entry, bool favorite,
         CancellationToken token = default)
@@ -277,7 +284,7 @@ internal sealed partial class DesktopSessionHost
                             if (asset.Length != stored.Length) continue;
                             try
                             {
-                                await using Stream verified = await manifest.OpenVerifiedReadAsync(asset.AssetId, token)
+                                await using Stream verified = await manifest.OpenSessionVerifiedReadAsync(asset.AssetId, _favoriteVerifiedFiles, token)
                                     .ConfigureAwait(false);
                                 found.Add(key, FavoriteExportAsset.From(group.Key, manifest, asset));
                             }
