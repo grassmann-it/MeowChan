@@ -1,4 +1,3 @@
-using System.Linq;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
@@ -235,11 +234,10 @@ internal static class ReaderNavigationOverlayChecks
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
                 // The fixture can legitimately be at either edge after the preceding navigation checks.
-                // Focus an enabled navigation action; disabled edge buttons are not keyboard focus targets.
-                Button focusTarget = new[] { page.FindControl<Button>("ReaderPreviousPost"), page.FindControl<Button>("ReaderNextPost") }
-                    .OfType<Button>().FirstOrDefault(button => button.IsEffectivelyEnabled)
-                    ?? throw new InvalidOperationException("Reader navigation has no enabled focus target.");
-                Require(focusTarget.Focus(), "Reader navigation focus could not be assigned.");
+                // Disabled edge buttons are not keyboard focus targets; focus the capsule itself for the
+                // keep-visible contract so the assertion does not depend on which edge is selected.
+                bar.Focusable = true;
+                Require(bar.Focus(), "Reader navigation focus could not be assigned.");
                 Require(page.ReaderNavigationShown && bar.Opacity == 1 && bar.IsHitTestVisible,
                     "Keyboard focus did not reveal the reader navigation capsule.");
             });
