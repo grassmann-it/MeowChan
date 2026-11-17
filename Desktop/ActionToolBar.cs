@@ -77,10 +77,10 @@ public sealed class ActionToolBar : ToolBar
     public static void SetGroup(Control item, int group) => item.SetValue(GroupProperty, group);
 
     /// <summary>
-    /// Opt-in for a joined segment group (the List|Table pair): when the group is the last thing standing on the bar and "More" is
-    /// shown, its segments share the width up to "More" (the item gap in front of it stays) instead of leaving it empty. Without
-    /// "More", with other items after the group, or while the group is under "More" nothing stretches; the items' measured widths
-    /// (so the overflow decision) never change, only their arranged slots.
+    /// Opt-in for a trailing joined segment group (the List|Table pair): its segments share the free arrange width up to the
+    /// presenter's right edge (left of "More" and its item gap when shown). Other items keep their natural widths and order.
+    /// With other items after the group, or while it is under "More", nothing stretches. The items' measured widths and overflow
+    /// modes never change, only their arranged slots; Stretch takes precedence over an End shift.
     /// </summary>
     public static readonly AttachedProperty<bool> StretchProperty =
         AvaloniaProperty.RegisterAttached<ActionToolBar, Control, bool>("Stretch");
@@ -447,8 +447,7 @@ public sealed class ActionToolBarPanel : StackPanel
     private readonly List<GroupSeparatorMark> _marks = new();
     private readonly HashSet<Control> _overflow = new();
     private readonly HashSet<Control> _omitted = new();
-    // The right edge of the items' budget with "More" shown (NaN: unbounded), and the shown items of one arrange pass (scratch).
-    private double _stretchRight = double.NaN;
+    // The shown items of one arrange pass (scratch).
     private readonly List<Control> _shown = new();
     private double[] _stretched = Array.Empty<double>();
     // Scratch buffers of one measure pass, reused so a pass allocates nothing.
@@ -582,8 +581,6 @@ public sealed class ActionToolBarPanel : StackPanel
         // One measure of the More content per pass: it lives in another subtree and is measured mid-pass. It holds the gap before "⋮".
         double moreWidth = owner.MoreWidth();
         double available = availableSize.Width + (owner.More?.IsVisible == true ? moreWidth : 0);
-        // Where the items end when "More" is shown: the same budget the overflow decision used (the item gap in front of "More" is part of its slot).
-        _stretchRight = double.IsFinite(available) ? available - moreWidth : double.NaN;
         double width = ActionOverflowLayout.ResolveSpaced(count, _itemWidths, _groups, _segments, _modes, _visible,
             available, moreWidth,
             prioritized ? _priorities : null, _overflowed, _gaps, _widths, _previous, _order);
@@ -625,14 +622,16 @@ public sealed class ActionToolBarPanel : StackPanel
         }
         // One horizontal row with the bar's own gaps (the measure counted the same ones): the item gap between neighbours, the group gap
         // where a new group starts (the line stands in its middle), none between two joined segments and none at either end.
-        // A trailing joined stretch group (ActionToolBar.Stretch) takes the room between the last natural item end and "More".
+        // A trailing joined stretch group (ActionToolBar.Stretch) fills the free room at the end, before "More" when shown.
         _shown.Clear();
         foreach (Control child in Children) if (child.IsVisible) _shown.Add(child);
-        int run = _overflow.Count > 0 ? StretchRunStart(_shown) : -1;
+        int run = StretchRunStart(_shown);
         double natural = 0;
         Control? last = null;
         foreach (Control child in _shown) { natural += LeadingGap(last, child) + child.DesiredSize.Width; last = child; }
-        double right = double.IsNaN(_stretchRight) ? finalSize.Width : Math.Min(_stretchRight, finalSize.Width);
+        // Ursa already excludes More and its leading margin from the presenter's arrange slot.
+        // Use the actual slot (also without overflow), not the conservative measurement budget.
+        double right = finalSize.Width;
         int stretchedCount = _shown.Count - run;
         if (run >= 0 && right > natural)
         {

@@ -101,19 +101,19 @@ public sealed class ArchiveSegmentStretchTests
     }
 
     [Fact]
-    public void TheArchiveListAndTablePairDocksAtNaturalWidthAndStaysJoinedInTheSameOrder()
+    public void TheArchiveListAndTablePairFillsTheEndSlotAndStaysJoinedAndNeverOverflows()
     {
         XElement[] items = Toolbar("ArchiveResultActions").Elements().Where(element => !element.Name.LocalName.Contains('.')).ToArray();
         string[] stretching = items.Where(Stretches).Select(item => (string)item.Attribute(X + "Name")!).ToArray();
-        Assert.Empty(stretching);
-        // UX-LEDGER-01: compact layout controls dock right rather than filling the toolbar.
+        Assert.Equal(["ArchiveLayoutList", "ArchiveLayoutTable"], stretching);
+        // UX-LEDGER-25: fill the free room, retaining UX-LEDGER-01's end order and b7549cefb's Never policy.
         XElement[] pair = items.TakeLast(2).ToArray();
         Assert.Equal(["ArchiveLayoutList", "ArchiveLayoutTable"], pair.Select(item => (string)item.Attribute(X + "Name")!));
         Assert.All(pair, item =>
         {
             Assert.Contains("segment", (string)item.Attribute("Classes")!);
             Assert.Equal("True", item.Attributes().Single(attribute => attribute.Name.LocalName == "ActionToolBar.End").Value);
-            Assert.Equal("AsNeeded", item.Attributes().Single(attribute => attribute.Name.LocalName == "ToolBar.OverflowMode").Value);
+            Assert.Equal("Never", item.Attributes().Single(attribute => attribute.Name.LocalName == "ToolBar.OverflowMode").Value);
         });
     }
 
