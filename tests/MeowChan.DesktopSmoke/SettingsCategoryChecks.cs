@@ -167,9 +167,10 @@ internal static class SettingsCategoryChecks
         Require(Pages.Count(p => Find<Control>(editor, p.Name).IsVisible) == 1, "More than one category page visible.");
         var links = Find<StackPanel>(editor, "SettingsCategoryLinks").Children.OfType<ToggleButton>().ToArray();
         string selection = string.Join(", ", links.Select(b => $"{b.Tag}:{b.IsChecked}"));
-        Require(links.Length == 8 && links.Count(b => b.IsChecked == true) == 1
-            && links.Single(b => b.IsChecked == true).Tag as string == id,
-            $"Accessible category selection disagrees with page: expected={id}; actual={selection}");
+        ToggleButton selected = links.SingleOrDefault(b => b.IsChecked == true)!;
+        string? selectedTag = selected?.Tag as string;
+        Require(links.Length == 8 && selected != null && string.Equals(selectedTag, id, StringComparison.Ordinal),
+            $"Accessible category selection disagrees with page: expected={id}; actual={selection}; selectedTag={selectedTag ?? "<null>"}");
     }
     private static bool PagesVisible(SettingsEditor editor, string suffix) => Pages.All(p => Find<Control>(editor, p.Name).IsVisible == (p.Id == suffix));
     private static void AssertBounded(Control control, Control parent, string label)
