@@ -197,6 +197,7 @@ internal static class ReaderUxChecks
         page.FindControl<ListBox>("ArchiveThreads")!.SelectedIndex = 0;
         await Program.WaitUntilAsync(() => !page.IsBusy && page.CurrentThread?.Summary.Id == Hero);
         await CheckEmbeddedArchiveFooterAsync(window, page);
+        await ReaderPointerChecks.RunAsync(window, page, large: false);
         await ArchiveFilterSurfaceChecks.RunAsync(window);
         await ArchiveListWidthChecks.RunAsync(window);
         await ArchiveSavedMediaPosterChecks.RunAsync(window);
@@ -207,6 +208,7 @@ internal static class ReaderUxChecks
         await CheckDetachedReaderIconsAsync(window, page, reader);
         await CheckReaderThreadFavoritesAsync(window, page);
         await ReaderInteractionChecks.RunAsync(window, page);
+        await ReaderPointerChecks.RunAsync(window, page, large: true);
         await ReaderIdeaChecks.RunAsync(window);
         await ReaderNavigationOverlayChecks.RunAsync(window, page);
         if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_NAVIGATION_ONLY") == "1")
