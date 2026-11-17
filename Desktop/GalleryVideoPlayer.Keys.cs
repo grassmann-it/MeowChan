@@ -31,10 +31,11 @@ internal sealed partial class GalleryVideoPlayer
         string name = Texts.T("viewer.video.position");
         string? back = CommandCatalog.ShortcutTooltipDisplay("video.step-back");
         string? forward = CommandCatalog.ShortcutTooltipDisplay("video.step-forward");
-        if (back != null && forward != null) return name + " · " + Texts.T("viewer.video.seekKeys", back, forward, _seekStepSeconds);
-        if (back != null) return name + " · " + Texts.T("viewer.video.seekKeyBack", back, _seekStepSeconds);
-        if (forward != null) return name + " · " + Texts.T("viewer.video.seekKeyForward", forward, _seekStepSeconds);
-        return name;
+        string steps = back != null && forward != null ? name + " · " + Texts.T("viewer.video.seekKeys", back, forward, _seekStepSeconds)
+            : back != null ? name + " · " + Texts.T("viewer.video.seekKeyBack", back, _seekStepSeconds)
+            : forward != null ? name + " · " + Texts.T("viewer.video.seekKeyForward", forward, _seekStepSeconds) : name;
+        return ShortcutHelp.Append(steps, ShortcutHelp.Commands("gallery",
+            "video.seek-back", "video.seek-forward", "video.seek-back-far", "video.seek-forward-far"));
     }
 
     private void RefreshSeekTooltip()
