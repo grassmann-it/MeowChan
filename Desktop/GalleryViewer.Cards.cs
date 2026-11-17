@@ -20,7 +20,6 @@ namespace MeowChan.Desktop;
 // its status line and the panel's decision log (TaggingUndo), so Backspace, Ctrl+Z and the Back card take cards back like any other
 // decision, newest first; there is no second log. The tag panel stays as it is (its decision session holds the favorite and rating
 // steps): a card that needs it opens it again, like the stamp does. Which cards there are is a setting (TaggingCardSettings).
-[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1001", Justification = "StopAsync drains all viewer-owned disposable subcomponents.")]
 internal sealed partial class GalleryViewer
 {
     private readonly Border _cardsRow = new() { Name = "GalleryTaggingCards", IsVisible = false };

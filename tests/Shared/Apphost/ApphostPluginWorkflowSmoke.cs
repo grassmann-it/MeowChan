@@ -16,27 +16,25 @@ internal sealed class ApphostPluginWorkflowSmoke : IDisposable
     private ApphostPluginWorkflowSmoke(ApphostWorkflowSmoke descriptor, string? sourcePhase = null)
     { Descriptor = descriptor; SourceActivationPhase = sourcePhase; Http = new() { RejectAll = sourcePhase == "offline" || sourcePhase == null && descriptor.Phase == "restore" }; }
 
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Reliability", "CA2000", Justification = "The parsed workflow descriptor is transferred to the returned fixture; parse failures dispose it explicitly.")]
     internal static ApphostPluginWorkflowSmoke Parse(string path, string profile, bool sourceActivation = false)
     {
-        ApphostWorkflowSmoke descriptor = ApphostWorkflowSmoke.Parse(path, profile);
+        ApphostWorkflowSmoke? descriptor = ApphostWorkflowSmoke.Parse(path, profile);
         try
         {
             if (descriptor.Phase is not ("download" or "restore"))
                 throw new ArgumentException("Plugin workflow supports only download and paused restore.");
             if (!sourceActivation)
             {
-#pragma warning disable CA2000 // Ownership transfers to the returned workflow fixture.
-                return new(descriptor);
-#pragma warning restore CA2000
+                var normal = new ApphostPluginWorkflowSmoke(descriptor);
+                descriptor = null;
+                return normal;
             }
             using var json = System.Text.Json.JsonDocument.Parse(File.ReadAllBytes(path));
             string? phase = json.RootElement.GetProperty("sourcePhase").GetString();
             if (descriptor.Phase != "download" || descriptor.PreviousProfile != null || phase is not ("install" or "acquire" or "offline"))
                 throw new ArgumentException("Source activation requires its three owned phases on the same profile.");
             bool exists = Directory.Exists(profile) || File.Exists(profile) || new DirectoryInfo(profile).LinkTarget != null;
-            if (phase == "install" && exists)
-                throw new IOException("Source activation must start with a new profile.");
+            if (phase == "install" && exists) throw new IOException("Source activation must start with a new profile.");
             if (phase != "install")
             {
                 ApphostWorkflowSmoke.ValidateProfileTree(profile);
@@ -52,15 +50,11 @@ internal sealed class ApphostPluginWorkflowSmoke : IDisposable
                     || evidence.GetProperty("sourcePhase").GetString() != (phase == "acquire" ? "install" : "acquire"))
                     throw new IOException("The preceding source activation process did not complete.");
             }
-#pragma warning disable CA2000 // Ownership transfers to the returned workflow fixture.
-            return new(descriptor, phase);
-#pragma warning restore CA2000
+            var result = new ApphostPluginWorkflowSmoke(descriptor, phase);
+            descriptor = null; // The returned owner now holds the descriptor.
+            return result;
         }
-        catch
-        {
-            descriptor.Dispose();
-            throw;
-        }
+        finally { descriptor?.Dispose(); }
     }
 
     internal DesktopSessionHost CreateSession()

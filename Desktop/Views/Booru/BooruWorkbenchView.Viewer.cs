@@ -8,8 +8,16 @@ using MeowChan.Desktop.Localization;
 
 namespace MeowChan.Desktop.Booru;
 
-internal sealed partial class BooruWorkbenchView
+internal sealed partial class BooruWorkbenchView : IAsyncDisposable
 {
+    public async System.Threading.Tasks.ValueTask DisposeAsync()
+    {
+        System.Threading.Tasks.Task cleanup = _resultViewer?.DisposeAsync().AsTask()
+            ?? System.Threading.Tasks.Task.CompletedTask;
+        Dispose();
+        await cleanup;
+    }
+
     private readonly HashSet<string> _selectedResults = new(StringComparer.Ordinal);
     private BooruResultViewerWindow? _resultViewer;
 

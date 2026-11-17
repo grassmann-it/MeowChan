@@ -31,9 +31,7 @@ namespace MeowChan.Desktop;
 /// Owns one local, verified media handle. Native calls are serialized off the UI thread;
 /// the video surface and the Avalonia transport toolbar occupy separate rows.
 /// </summary>
-#pragma warning disable CA2213 // Lifetime is drained by the owning viewer/player.
 internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
-#pragma warning restore CA2213
 {
     private readonly VideoView _video = new() { Name = "GalleryNativeVideo", MinHeight = 100 };
     private readonly Image _softwareVideo = new() { Name = "GallerySoftwareVideo", MinHeight = 100, Stretch = Avalonia.Media.Stretch.Uniform };
@@ -56,8 +54,7 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
     private bool _transportPlacementRetired;
     private Window? _transportWindow;
     private static bool UsesSoftwareVideo => OperatingSystem.IsMacOS() || OperatingSystem.IsLinux();
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Reliability", "CA2213", Justification = "The semaphore remains valid until all late native commands have observed disposal.")]
-    private readonly SemaphoreSlim _operations = new(1, 1);
+    private readonly VideoOperationGate _operations = new();
     private readonly VideoPlaybackLifetime _lifetime;
     private GCHandle _failedCleanupRoot;
     private Stream? _failedStream;
@@ -440,7 +437,7 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
         Volatile.Read(ref _playback)?.Generation, _lifetime.HasCleanupPending, _lifetime.Cleanup.Evidence);
 
     internal Task<PlaybackEvidence> InspectPlaybackAsync(string? snapshotPath = null, CancellationToken cancellationToken = default)
-        => VideoPlaybackObservation.RunAsync(_operations, _lifetime, _generation, () => _playback,
+        => VideoPlaybackObservation.RunAsync(_operations.WaitAsync, _operations.Release, _lifetime, _generation, () => _playback,
             static playback => playback.Generation, playback =>
             {
                 T Read<T>(string phase, Func<T> read)
@@ -1295,7 +1292,7 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
     private async Task CommandAsync(Action<Playback> command)
     {
         long generation = _generation;
-        await VideoPlaybackCommands.RunAsync(_operations, _lifetime, generation, () => _playback,
+        await VideoPlaybackCommands.RunAsync(_operations.WaitAsync, _operations.Release, _lifetime, generation, () => _playback,
             static playback => playback.Generation, command,
             exception => Post(generation, () => _ = FailAsync(generation))).ConfigureAwait(true);
     }
@@ -1499,9 +1496,15 @@ internal static class VideoPlaybackCommands
     internal static Task RunAsync<TPlayback>(SemaphoreSlim operations, VideoPlaybackLifetime lifetime,
         long generation, Func<TPlayback?> currentPlayback, Func<TPlayback, long> playbackGeneration,
         Action<TPlayback> command, Action<Exception>? onFailure = null) where TPlayback : class
+        => RunAsync(operations.WaitAsync, () => operations.Release(), lifetime, generation,
+            currentPlayback, playbackGeneration, command, onFailure);
+
+    internal static Task RunAsync<TPlayback>(Func<CancellationToken, Task> wait, Action release, VideoPlaybackLifetime lifetime,
+        long generation, Func<TPlayback?> currentPlayback, Func<TPlayback, long> playbackGeneration,
+        Action<TPlayback> command, Action<Exception>? onFailure = null) where TPlayback : class
         => Task.Run(async () =>
         {
-            await operations.WaitAsync().ConfigureAwait(false);
+            await wait(CancellationToken.None).ConfigureAwait(false);
             try
             {
                 TPlayback? playback = currentPlayback();
@@ -1515,7 +1518,7 @@ internal static class VideoPlaybackCommands
                 command(playback);
             }
             catch (Exception exception) when (onFailure != null) { onFailure(exception); }
-            finally { operations.Release(); }
+            finally { release(); }
         });
 }
 
@@ -1738,6 +1741,7 @@ internal sealed class VideoPlaybackLifetime
                 Cleanup.Begin(Generation);
                 await _releaseEngine().ConfigureAwait(false);
                 Cleanup.Complete();
+                Cleanup.Dispose();
                 completion.TrySetResult();
             }
             catch (Exception exception) { FailCleanup(exception); completion.TrySetException(exception); }
@@ -1754,9 +1758,7 @@ internal sealed record VideoCleanupEvidence(long Request, long Generation, strin
 /// the ThreadPool; pool-starvation detection belongs to the external PF00 watchdog.
 /// It observes pending work and never releases or cancels resources.
 /// </summary>
-#pragma warning disable CA1001 // Lifetime is drained by the owning viewer/player.
-internal sealed class VideoCleanupWatch
-#pragma warning restore CA1001
+internal sealed class VideoCleanupWatch : IDisposable
 {
     private readonly object _state = new();
     private readonly string _prefix;
@@ -1766,7 +1768,7 @@ internal sealed class VideoCleanupWatch
     private Timer? _timer;
     private long _request, _generation, _since;
     private string _phase = "idle", _completed = "none", _resources = "accepted show/native operation";
-    private bool _pending, _overdue, _retained;
+    private bool _pending, _overdue, _retained, _disposed;
     internal event Action<VideoCleanupEvidence>? Pending;
     internal VideoCleanupWatch(string prefix, Func<long>? clock = null, long? deadline = null, bool schedule = true)
     {
@@ -1783,7 +1785,7 @@ internal sealed class VideoCleanupWatch
     {
         lock (_state)
         {
-            if (_pending) return false;
+            if (_pending || _disposed) return false;
             _request = PerformanceDiagnostics.NextId(); _generation = generation;
             _pending = _retained = true; _overdue = false;
             _phase = "accepted"; _completed = "none"; _since = _clock();
@@ -1828,6 +1830,17 @@ internal sealed class VideoCleanupWatch
             PerformanceDiagnostics.Record(_prefix, "released", _request, revision: _generation);
         }
     }
+    public void Dispose()
+    {
+        lock (_state)
+        {
+            if (_disposed) return;
+            _disposed = true;
+            _pending = false;
+            _timer?.Dispose(); _timer = null;
+        }
+    }
+
     internal void Fail()
     {
         lock (_state)

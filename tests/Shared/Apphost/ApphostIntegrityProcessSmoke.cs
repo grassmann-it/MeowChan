@@ -27,10 +27,9 @@ internal sealed class ApphostIntegrityProcessSmoke : IDisposable
     private ApphostIntegrityProcessSmoke(ApphostWorkflowSmoke descriptor, string phase)
     { Descriptor = descriptor; Phase = phase; Http = new() { Offline = phase != "acquire" }; }
 
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Reliability", "CA2000", Justification = "The parsed workflow descriptor is transferred to the returned process fixture; parse failures dispose it explicitly.")]
     internal static ApphostIntegrityProcessSmoke Parse(string path, string profile)
     {
-        ApphostWorkflowSmoke descriptor = ApphostWorkflowSmoke.Parse(path, profile);
+        ApphostWorkflowSmoke? descriptor = ApphostWorkflowSmoke.Parse(path, profile);
         try
         {
             using var json = JsonDocument.Parse(File.ReadAllBytes(path));
@@ -58,15 +57,11 @@ internal sealed class ApphostIntegrityProcessSmoke : IDisposable
                     || value.GetProperty("profile").GetString() != profile || value.GetProperty("ownerToken").GetString() != descriptor.OwnerToken)
                     throw new IOException("Preceding production-policy process did not complete.");
             }
-#pragma warning disable CA2000 // Ownership transfers to the returned process smoke fixture.
-            return new(descriptor, phase);
-#pragma warning restore CA2000
+            var result = new ApphostIntegrityProcessSmoke(descriptor, phase);
+            descriptor = null; // The returned owner now holds the descriptor.
+            return result;
         }
-        catch
-        {
-            descriptor.Dispose();
-            throw;
-        }
+        finally { descriptor?.Dispose(); }
     }
 
     internal DesktopSessionHost CreateSession()

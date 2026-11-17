@@ -38,7 +38,6 @@ public partial class ArchivePage
     private double _mediaSidebarAppliedWidth = double.NaN;
     private int _paneSplitColumn = 2;
     private IDisposable? _frameTabScope;
-    private IDisposable? _sidebarKeyContext;
     private bool _tabScopeOnFrame;
     private readonly ReaderMediaFollowThrottle _sidebarThrottle = new();
     private readonly Stopwatch _sidebarClock = Stopwatch.StartNew();

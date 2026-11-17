@@ -134,12 +134,9 @@ internal static partial class PrivateTagBarChecks
     private static string[] TableOrder(Fixture f) => f.C<DataGrid>("ArchiveThreadTable").CollectionView!
         .Cast<ArchiveThreadRow>().Select(row => row.Summary.Id.Thread!).ToArray();
 
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Reliability", "CA2000", Justification = "The fixture owns the session host and disposes it during async teardown.")]
     private static async Task<Fixture> OpenAsync(MainWindow owner, string profile, ResourceId thread)
     {
-#pragma warning disable CA2000 // Fixture owns the host and disposes it during teardown.
         DesktopSessionHost host = new(profile, Array.Empty<IImageBoard>());
-#pragma warning restore CA2000
         await host.StartAsync().WaitAsync(Deadline);
         ArchivePage page = new(host.OpenArchiveReaderAsync,
             (_, _) => throw new InvalidOperationException("No capture mutation permitted."),

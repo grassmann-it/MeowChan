@@ -35,7 +35,6 @@ public partial class ArchivePage : UserControl
     private readonly Action<string>? _openFolder;
     private readonly Func<string, CancellationToken, Task<MediaAssetSnapshot>> _openMedia = MediaAssetReader.OpenAsync;
     private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
-    private IDisposable? _pageKeyContext;
     private readonly ThumbnailDecodeGate _thumbnailGate = new ThumbnailDecodeGate(ThumbnailDecodeGate.ArchiveSlots);
     private TaskCompletionSource<IReadOnlyList<ArchiveAssetRow>> _mediaReady = NewMediaReady();
     private static TaskCompletionSource<IReadOnlyList<ArchiveAssetRow>> NewMediaReady() => new TaskCompletionSource<IReadOnlyList<ArchiveAssetRow>>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -943,8 +942,8 @@ public partial class ArchivePage : UserControl
         PerformanceDiagnostics.Record("gallery.thumbnail.verified-bytes", request: request, asset: row.Asset.AssetId, value: row.Asset.Length);
         await using Stream stream = verified;
         using var decode = PerformanceDiagnostics.Measure("gallery.thumbnail.decode", request, asset: row.Asset.AssetId);
-        using SKManagedStream managedStream = new SKManagedStream(stream, disposeManagedStream: false);
-        using SKCodec? codec = SKCodec.Create(managedStream);
+        using SKManagedStream managed = new(stream, disposeManagedStream: false);
+        using SKCodec? codec = SKCodec.Create(managed);
         if (codec == null) throw new InvalidDataException(Texts.T("archive.invalidImage"));
         PixelSize shown = ImageOrientation.DisplaySize(codec); // as displayed: a rotated photo has its width and height exchanged
         if (shown.Width <= 0 || shown.Height <= 0 || (long)shown.Width * shown.Height > 40_000_000
@@ -1220,6 +1219,9 @@ public partial class ArchivePage : UserControl
     }
     private void Message(string text, bool error = false) => OperationMessage("action", text, error);
     private T Control<T>(string name) where T : Control => this.FindControl<T>(name)!;
+    private readonly IDisposable _pageKeyContext;
+    private IDisposable? _sidebarKeyContext;
+
     internal void EndLifetime()
     {
         if (_ended) return;
@@ -1228,6 +1230,9 @@ public partial class ArchivePage : UserControl
         CloseQuotePreview();
         CloseQuickSettings();
         _ended = true;
+        _pageKeyContext.Dispose();
+        _sidebarKeyContext?.Dispose();
+        _sidebarKeyContext = null;
         _ = ReleaseInlineVideos();
         _mediaMenuPresenter.Invalidate();
         EndMediaSelectionLifetime();
@@ -1252,8 +1257,6 @@ public partial class ArchivePage : UserControl
         CancelReferences();
         _exportCancellation?.Cancel();
         _lifetime.Cancel();
-        _pageKeyContext?.Dispose(); _pageKeyContext = null;
-        _sidebarKeyContext?.Dispose(); _sidebarKeyContext = null;
         Texts.Changed -= OnLanguageChanged;
         ClosePreview();
     }
