@@ -628,7 +628,13 @@ public sealed class ArchiveAttachmentView : UserControl
     {
         if (_slot.Large == large && _slot.Aspect == aspect) return;
         _slot.Large = large; _slot.Aspect = aspect;
+        // MediaFramePanel is nested in AttachmentColumn. Invalidation of the child
+        // alone does not make every Avalonia panel remeasure its parent on all
+        // backends, so a late header aspect must invalidate the block itself too.
         _slot.InvalidateMeasure();
+        _column.InvalidateMeasure();
+        _column.InvalidateArrange();
+        InvalidateMeasure();
     }
 
     private void RefreshViewport()

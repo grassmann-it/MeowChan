@@ -181,10 +181,11 @@ internal static class ReaderPreviewChecks
         ArchiveAttachmentRow unknown = new(new CapturedAttachment(0, "local-2", OriginalFileName: "image.png")) { LoadThumbnail = _ => later.Task };
         view.DataContext = unknown;
         await SmokeDispatcher.SettleAsync();
-        double wide = view.Bounds.Height;
+        MediaFramePanel frame = view.GetVisualDescendants().OfType<MediaFramePanel>().Single();
+        double wide = frame.Bounds.Height;
         unknown.KnownAspect = 0.5;
         await SmokeDispatcher.SettleAsync();
-        Require(view.Bounds.Height > wide + 10 && view.Thumbnail.Source == null, "A size learned while the row was shown did not reserve the frame.");
+        Require(frame.Bounds.Height > wide + 10 && view.Thumbnail.Source == null, "A size learned while the row was shown did not reserve the frame.");
         later.SetResult(null);
         window.Content = null; await SmokeDispatcher.SettleAsync();
     }

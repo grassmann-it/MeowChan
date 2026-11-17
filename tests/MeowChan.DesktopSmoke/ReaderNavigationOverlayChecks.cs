@@ -179,6 +179,10 @@ internal static class ReaderNavigationOverlayChecks
             page.ReaderNavigationIdleDelayMs = int.MaxValue;
             Require(page.ReaderNavigationIdleDelayMs == ReaderNavigationLayout.IdleHideDelayMsMaximum, "The idle delay was not clamped to its maximum.");
             page.ReaderNavigationIdleDelayMs = 600;
+            // Re-arm after changing the delay. The fixture may have shown the bar during startup,
+            // so an already-running timer would otherwise retain the old interval.
+            page.ReaderNavigationMode = Config.ReaderNavigationModeOff;
+            page.ReaderNavigationMode = Config.ReaderNavigationModeAuto;
             Point far = new(60, 60);
             Point onBar = Bounds(bar, window) is Rect box ? new Point(box.Center.X, box.Center.Y) : default;
             Point barInSurface = bar.Bounds.Center;
@@ -519,8 +523,21 @@ internal static class ReaderNavigationOverlayChecks
         // NAVBAR-05: the whole capsule takes the pointer. A point on a counter (full form) or in the gap beside the separator (every form)
         // hits the bar, not the content below it; a click in a gap would otherwise reach a post.
         page.ShowReaderNavigation();
+        // Showing the auto-hidden bar invalidates the overlay layout. Re-measure before deriving
+        // the probe point; otherwise the first InputHitTest can settle the bar and the second
+        // query tests the stale pre-layout coordinate.
+        window.UpdateLayout();
+        pad = Bounds(navigation, window);
         Rect separator = Bounds(page.FindControl<Border>("ReaderNavigationSeparator")!, window);
         Point gap = new(separator.Center.X, pad.Top + 5);
+        Visual? gapHit = window.InputHitTest(gap) as Visual;
+        Console.WriteLine("SMOKE NAVBAR-05 hit state: " + System.Text.Json.JsonSerializer.Serialize(new
+        {
+            navigation.IsHitTestVisible, navigation.Opacity, navigation.IsVisible,
+            surface = Bounds(page.FindControl<Border>("ReaderNavigationHitSurface")!, window).ToString(),
+            gapHit = gapHit?.GetType().Name, gapHitName = (gapHit as Control)?.Name,
+            ancestors = gapHit?.GetSelfAndVisualAncestors().OfType<Control>().Select(control => control.Name ?? control.GetType().Name).ToArray()
+        }));
         // The window hit-tests the renderer's scene, which takes the bar's shown state (opacity, hit-test visibility) only with its next frame:
         // the point is asked again until a frame has passed (as the export-dialog hit check above does), and fails with what it hit.
         await RequireHitAsync(window, gap, navigation, () => "NAVBAR-05: a click beside the separator inside the capsule passed through to the content: " + gap + " in " + pad);

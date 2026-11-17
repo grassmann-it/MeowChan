@@ -16,6 +16,10 @@ namespace MeowChan;
 
 public partial class App : Application
 {
+    // Test-only injection point used by the source-built offline session fixture. Keeping the
+    // actual Application type as App preserves the compiled App.axaml loader.
+    internal static Func<MainWindow>? SmokeMainWindowFactory { get; set; }
+
     public override void Initialize()
     {
         LinuxVideoPreflight.Begin();
@@ -62,12 +66,16 @@ public partial class App : Application
     internal static string VendorLocale(string language, (string Language, string Locale)[] locales) =>
         locales.FirstOrDefault(entry => entry.Language == language).Locale ?? "en-US";
 
-    protected virtual MainWindow CreateMainWindow() => Program.StartupSmoke?.IntegrityProcess is ApphostIntegrityProcessSmoke policy
+    protected virtual MainWindow CreateMainWindow()
+    {
+        if (SmokeMainWindowFactory is { } factory) return factory();
+        return Program.StartupSmoke?.IntegrityProcess is ApphostIntegrityProcessSmoke policy
         ? new MainWindow(policy.CreateSession())
         : Program.StartupSmoke?.Workflow is ApphostWorkflowSmoke workflow
         ? new MainWindow(workflow.CreateSession())
         : Program.StartupSmoke?.PluginWorkflow is ApphostPluginWorkflowSmoke plugins
         ? new MainWindow(plugins.CreateSession()) : new MainWindow();
+    }
 
     public override void OnFrameworkInitializationCompleted()
     {

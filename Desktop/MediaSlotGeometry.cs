@@ -88,7 +88,17 @@ internal sealed class MediaFramePanel : Panel
 {
     internal bool Large { get; set; }
     /// <summary>The loaded picture's width over height; null while none is known (the reserved wide-screen box).</summary>
-    internal double? Aspect { get; set; }
+    internal double? Aspect
+    {
+        get => _aspect;
+        set
+        {
+            if (Nullable.Equals(_aspect, value)) return;
+            _aspect = value;
+            InvalidateMeasure();
+        }
+    }
+    private double? _aspect;
     /// <summary>Optional reader preference override; tiles keep the standard large/normal limits.</summary>
     internal double MaximumWidthOverride { get; set; } = double.NaN;
     /// <summary>Optional override of the height cap, for previews drawn wider than the reader default (textless or enlarged ones keep the cap's proportion).</summary>
