@@ -304,7 +304,7 @@ internal static class BooruBusyFallbackChecks
 
     private sealed class PauseFixtureSource : IImageBoard, IDisposable
     {
-        private readonly HttpClient _client;
+        private readonly HttpClient _client = new(new RejectNetworkHandler());
         private readonly PauseFixtureBoard _board;
         internal PauseFixtureThread Thread { get; }
         private IThread HostedThread { get; }
@@ -313,7 +313,6 @@ internal static class BooruBusyFallbackChecks
 
         internal PauseFixtureSource(bool failStopOnce)
         {
-            _client = new HttpClient(new RejectNetworkHandler());
             _board = new PauseFixtureBoard(this);
             Thread = new PauseFixtureThread(_board);
             HostedThread = failStopOnce ? new FailingStopThread(Thread) : Thread;
