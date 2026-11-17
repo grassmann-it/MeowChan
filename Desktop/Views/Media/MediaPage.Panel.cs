@@ -486,11 +486,16 @@ public sealed partial class MediaPage
     /// <summary>Every panel player is given back (the panel hides, the page ends).</summary>
     internal Task ReleasePanelVideos() => _panelVideoController.ReleaseAllAsync();
 
-    // A click on the panel's picture: plays or pauses a video here; an image opens the gallery only when explicitly configured to do so.
+    // A sidebar click stays in the preview, regardless of the reader's activation
+    // preference. Only double-click/the explicit Open action may leave this panel.
     private void OnPanelPictureActivated()
     {
-        if (_panelVideo is { IsOffered: true } slot) { _ = slot.ToggleAsync(); return; }
-        if (ReaderMediaSidebarRules.OpensGalleryOnPictureClick(_panelVideoController.Options)) StartOpenPanelMedia();
+        if (_panel is { } panel)
+        {
+            panel.Frame.Focusable = true;
+            panel.Frame.Focus();
+        }
+        if (_panelVideo is { IsOffered: true } slot) _ = slot.ToggleAsync();
     }
 
     // ---- opening, closing ------------------------------------------------------------------------------------------------------
@@ -546,6 +551,9 @@ public sealed partial class MediaPage
         _panelPointerContext.BeginPress(); // each press starts its own gesture
         if (e.Handled || _lifetime.IsCancellationRequested || IsNativeContextSource(e.Source) || _panel is not { } panel
             || !e.GetCurrentPoint(panel).Properties.IsRightButtonPressed || _panelRow == null) return;
+        if (!_grid.Selection.SelectedItems.Contains(_panelRow)) _grid.SelectedItem = _panelRow;
+        panel.Frame.Focusable = true;
+        panel.Frame.Focus();
         OpenSharedMediaMenu(_panelRow, panel.Frame, _panelVideo);
         _panelPointerContext.MenuOpenedByPress();
         e.Handled = true;
@@ -562,6 +570,12 @@ public sealed partial class MediaPage
         if (e.Handled || IsNativeContextSource(e.Source) || _panel is not { } panel) return;
         if (_panelPointerContext.TryConsume()) { e.Handled = true; return; }
         if (_panelRow == null) return;
+        if (e.TryGetPosition(panel, out _))
+        {
+            if (!_grid.Selection.SelectedItems.Contains(_panelRow)) _grid.SelectedItem = _panelRow;
+            panel.Frame.Focusable = true;
+            panel.Frame.Focus();
+        }
         OpenSharedMediaMenu(_panelRow, panel.Frame, _panelVideo);
         e.Handled = true;
     }

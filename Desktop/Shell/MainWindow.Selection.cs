@@ -213,7 +213,9 @@ public partial class MainWindow
         else
         {
             if (!grid.SelectedItems.Contains(item)) grid.SelectedItem = item;
-            grid.Focus();
+            // The handled right press bypasses native row focus. Capture the
+            // clicked row before the menu takes focus, not the table/old row.
+            if (hit?.Focus() != true) grid.Focus();
             // The handler is registered in the tunnel phase. Avalonia's DataGrid applies the
             // selection in its later class/bubble handling, so composing the menu here reads
             // the previous selection and can disable the single-thread Read command. Open it

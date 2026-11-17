@@ -213,6 +213,16 @@ public partial class ArchivePage
         if (asset == null && attachment == null) return;
         if (_selectedThread == null || _thread == null || origin == null) return;
         e.Handled = true;
+        // Pointer menus in the Media tab own their target before menu facts are
+        // frozen. Inline reader activation and keyboard selection stay untouched.
+        if (!keyboard && attachment == null && asset != null
+            && ancestors.Any(control => ReferenceEquals(control, VisibleMediaList)))
+        {
+            if (!SelectedMediaRows().Contains(asset)) SetMediaSelection(new[] { asset });
+            _mediaLead = asset;
+            ancestors.FirstOrDefault(control => control is ListBoxItem or DataGridRow)?.Focus();
+            UpdateActions();
+        }
         (ContextMenu menu, MediaMenuSession session) = BuildArchiveMediaMenu(asset, attachment, origin, postId, ArchiveMenuSurface(ancestors, attachment),
             SeveralSelectedWith(asset, attachment), playback);
         _mediaMenuPresenter.Show(menu, session, origin);
