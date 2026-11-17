@@ -108,13 +108,13 @@ public partial class ArchivePage
         UpdateReaderSettingsButton();
         _readerQuickSettings?.Surface.RefreshSession();
         // The short word "Find" on the bar; the tip and the accessible name say what it finds (the command's own label and key).
-        ToolTip.SetTip(ReaderFindOpen, CommandBindings.Tooltip("reader.find"));
         Avalonia.Automation.AutomationProperties.SetName(ReaderFindOpen, CommandCatalog.Label("reader.find"));
         string threadLabel = Texts.T("reader.thread.menu");
         Button thread = ReaderThreadOpen;
         thread.Content = threadLabel;
-        ToolTip.SetTip(thread, threadLabel);
         Avalonia.Automation.AutomationProperties.SetName(thread, threadLabel);
+        // The tips (with the reason while no thread is open) and the enabled state of both are one place's.
+        UpdateReaderThreadActions();
     }
 
     internal void RegisterPostClassifier(IReaderPostClassifier classifier)

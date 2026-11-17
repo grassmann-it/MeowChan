@@ -197,8 +197,13 @@ internal static class BundledChangeDialogChecks
                         "Saved outcome is not pending-only with the reviewed settings.");
                     Require(modal.IsVisible && page.IsBusy && !modal.GetVisualDescendants().OfType<CheckBox>().Any(c => c.IsChecked == true),
                         "Save closed the receipt modal or retained consumed consent.");
-                    Require(modal.GetVisualDescendants().OfType<TextBlock>().Any(t => t.Text == Texts.T("plugins.approval.receipt", "fixture",
-                        store.ValidRow.NewExecutionRevision, Texts.T("plugins.approval.state.Saved"))), "Saved receipt is absent.");
+                    // Since the per-plugin receipt cards (16.11.) the exact receipt line sits in the card's collapsed technical
+                    // details and the visible status says "Confirmed … next start".
+                    Expander receiptDetails = modal.GetVisualDescendants().OfType<Expander>()
+                        .Single(e => AutomationProperties.GetAutomationId(e) == "BundledApprovalReceiptTechnical:fixture");
+                    Require(receiptDetails.Content is StackPanel receiptLines && receiptLines.Children.OfType<TextBlock>().Any(t => t.Text == Texts.T("plugins.approval.receipt", "fixture",
+                        store.ValidRow.NewExecutionRevision, Texts.T("plugins.approval.state.Saved")))
+                        && ById<TextBlock>(modal, "BundledApprovalReceiptStatus:fixture").Text == Texts.T("plugins.repair.status.confirmed"), "Saved receipt is absent.");
                     Program.CaptureWindow(modal, "smoke-bundled-change-saved-" + current + ".png");
                     await ClickAsync(modal, input, Close(modal));
                 }
@@ -248,8 +253,8 @@ internal static class BundledChangeDialogChecks
         owner.Activate();
         await Program.WaitUntilAsync(() => owner.IsActive && !page.IsBusy);
         using (MediaNativeInput input = new(owner)) await ClickAsync(owner, input, page.FindControl<Button>("PluginsReviewRepairs")!);
-        await Program.WaitUntilAsync(() => owner.OwnedWindows.Any(w => w.IsVisible && w.Title == Texts.T("plugins.reselection.reviewTitle")));
-        Window modal = owner.OwnedWindows.Single(w => w.IsVisible && w.Title == Texts.T("plugins.reselection.reviewTitle"));
+        await Program.WaitUntilAsync(() => owner.OwnedWindows.Any(w => w.IsVisible && w.Title == Texts.T("plugins.repair.review")));
+        Window modal = owner.OwnedWindows.Single(w => w.IsVisible && w.Title == Texts.T("plugins.repair.review"));
         modal.Activate();
         await Program.WaitUntilAsync(() => modal.IsActive && modal.GetVisualDescendants().OfType<Button>().Any(b => AutomationProperties.GetAutomationId(b) == "BundledApprovalClose"));
         Require(ReferenceEquals(modal.Owner, owner) && page.IsBusy, "Review is not the attached page's owned modal.");

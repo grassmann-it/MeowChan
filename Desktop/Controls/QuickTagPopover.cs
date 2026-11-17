@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -354,6 +355,7 @@ internal sealed class QuickTagPopover
         Current?.Close(QuickTagPopoverCloseReason.Replaced);
         _shown = true;
         Current = this;
+        LatchOpeningKeys();
         _origin = OriginOf(TopLevel.GetTopLevel(_anchor), TopLevel.GetTopLevel(_anchor)?.FocusManager?.GetFocusedElement() as Control);
         _flyout.Opened += OnOpened;
         _flyout.ShowAt(_anchor);
@@ -433,6 +435,7 @@ internal sealed class QuickTagPopover
     {
         if (Reason != null) return;
         Reason = reason;
+        if (ReferenceEquals(s_latchOwner, this)) { s_latchOwner = null; s_swallowText = false; }
         _guard?.Stop();
         _guard = null;
         _flyout.Opened -= OnOpened;
@@ -534,28 +537,35 @@ internal sealed class QuickTagPopover
     {
         if (_closed || !_shown || _keyGuardRoot == null) return;
         TopLevel root = _keyGuardRoot;
-        if (GuardedRootKey(e, visual => ReferenceEquals(TopLevel.GetTopLevel(visual), root), _frame) is not { } action) return;
+        if (GuardedRootKey(e, visual => ReferenceEquals(TopLevel.GetTopLevel(visual), root), _frame, Surface != null) is not { } action) return;
         e.Handled = true;
         if (action == GuardedKeyAction.Close) Close(QuickTagPopoverCloseReason.Closed);
         else if (action == GuardedKeyAction.FocusInside) FocusInside();
+        else if (action == GuardedKeyAction.TypeIntoField) Surface?.TypeIntoField(TextEntryKeys.TextOf(e)!);
     }
 
     /// <summary>What the window's tunnel does with a key while the popover is open.</summary>
-    internal enum GuardedKeyAction { Consume, Close, FocusInside }
+    internal enum GuardedKeyAction { Consume, Close, FocusInside, TypeIntoField }
 
     /// <summary>
     /// The key guard as a pure decision: null leaves the key alone (it was already handled, it is the popover's own key on a route that reaches the
-    /// window, it comes from another popup or window, or it is a lone modifier); otherwise Esc closes, Tab moves the focus into the popover and every
-    /// other key is consumed.
+    /// window, it comes from another popup or window, it is a lone modifier, or it types into a text box of the window); otherwise Esc closes, Tab moves
+    /// the focus into the popover, printable text goes into the popover's field (when it has one) and every other key is consumed.
     /// </summary>
     /// <param name="fromGuardedWindow">True for a source in the window the guard sits on (its own top level).</param>
-    internal static GuardedKeyAction? GuardedRootKey(KeyEventArgs e, Func<Visual, bool> fromGuardedWindow, Control frame)
+    internal static GuardedKeyAction? GuardedRootKey(KeyEventArgs e, Func<Visual, bool> fromGuardedWindow, Control frame, bool hasField = false)
     {
         if (e.Handled || IsModifierKey(e.Key)) return null;
         if (e.Source is Visual source)
         {
             if (source.GetSelfAndVisualAncestors().Any(visual => ReferenceEquals(visual, frame))) return null;
             if (!fromGuardedWindow(source)) return null;
+        }
+        if (TextEntryKeys.TypesText(e))
+        {
+            // A text box keeps what is typed into it (consuming the KeyDown would swallow the character); other text goes into the popover's field.
+            if (TextEntryKeys.IsTextEditor(e.Source)) return null;
+            if (hasField && TextEntryKeys.TextOf(e) != null) return GuardedKeyAction.TypeIntoField;
         }
         if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None) return GuardedKeyAction.Close;
         if (e.Key == Key.Tab) return GuardedKeyAction.FocusInside;
@@ -575,16 +585,134 @@ internal sealed class QuickTagPopover
     }
 
     // The last stop of a key inside the popover: a plain Esc that nothing inside took (a control outside the surface's own routing) still closes it, so
-    // Esc closes from every element; any other key nothing took is consumed here.
+    // Esc closes from every element; text typed into the field passes (the platform makes text only of an unhandled KeyDown), text typed on the stars or
+    // another part goes into the field; any other key nothing took is consumed here.
     private void OnFrameKeyUnhandled(object? sender, KeyEventArgs e)
     {
-        if (!ConsumesUnhandledKey(e)) return;
-        e.Handled = true;
-        if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None) Close(QuickTagPopoverCloseReason.Closed);
+        switch (UnhandledKey(e, Surface != null))
+        {
+            case UnhandledKeyAction.Pass:
+                return;
+            case UnhandledKeyAction.TypeIntoField:
+                e.Handled = true;
+                Surface!.TypeIntoField(TextEntryKeys.TextOf(e)!);
+                return;
+            case UnhandledKeyAction.Close:
+                e.Handled = true;
+                Close(QuickTagPopoverCloseReason.Closed);
+                return;
+            default:
+                e.Handled = true;
+                return;
+        }
     }
 
-    /// <summary>True for a key that bubbled out of the popover's content unhandled and must stop at its frame (everything but Tab and a lone modifier).</summary>
-    internal static bool ConsumesUnhandledKey(KeyEventArgs e) => !e.Handled && e.Key != Key.Tab && !IsModifierKey(e.Key);
+    /// <summary>What the frame does with a key that bubbled out of the popover's content.</summary>
+    internal enum UnhandledKeyAction { Pass, Consume, Close, TypeIntoField }
+
+    /// <summary>
+    /// The frame's decision for a key that bubbled out of the content: an already handled key, Tab (the cycle) and a lone modifier pass; a key that types
+    /// text into the text box it came from passes UNHANDLED (marking it handled would swallow the character: the platform raises TextInput only for an
+    /// unhandled KeyDown, Tom 17.11.2026); printable text from any other part (the stars after R, a chip, a button) goes into the field when there is one
+    /// (TG-02); a plain Esc closes; everything else is consumed, so it never reaches the page behind the popover.
+    /// </summary>
+    internal static UnhandledKeyAction UnhandledKey(KeyEventArgs e, bool hasField)
+    {
+        if (e.Handled || e.Key == Key.Tab || IsModifierKey(e.Key)) return UnhandledKeyAction.Pass;
+        if (TextEntryKeys.TypesText(e))
+        {
+            if (TextEntryKeys.IsTextEditor(e.Source)) return UnhandledKeyAction.Pass;
+            if (hasField && TextEntryKeys.TextOf(e) != null) return UnhandledKeyAction.TypeIntoField;
+        }
+        if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None) return UnhandledKeyAction.Close;
+        return UnhandledKeyAction.Consume;
+    }
+
+    /// <summary>True for a key that bubbled out of the popover's content unhandled and must stop at its frame (everything but Tab, a lone modifier and text typed into a text box).</summary>
+    internal static bool ConsumesUnhandledKey(KeyEventArgs e) => UnhandledKey(e, hasField: false) != UnhandledKeyAction.Pass;
+
+    // ---- the key that opened the popover --------------------------------------------------------------------------------
+    // R (or Ctrl+Shift+T, or Enter on the menu entry) is still down when the popover opens. A press held past the repeat delay sends further KeyDowns
+    // without a KeyUp (X11 detectable autorepeat, Win32, macOS); with the stars focused they are printable text and would land in the field as "rrr"
+    // (TG-02 types text from the stars into the field). The keys that were down when the popover opened are latched like HeldKeyLatch does for the
+    // favourite keys: their repeats (and a TextInput a platform might still raise for one) are swallowed until the key's KeyUp; a new press after
+    // the release types as usual. A key "down" without a KeyDown or repeat for RepeatWindow (its KeyUp was missed, the window lost the activation)
+    // does not count as held.
+
+    /// <summary>The longest gap between a key's KeyDown and its next repeat that still counts as held (OS repeat delays are 0.2 to about 1 s).</summary>
+    internal static readonly TimeSpan RepeatWindow = TimeSpan.FromMilliseconds(1500);
+    private static readonly Dictionary<Key, long> s_down = new();
+    private static bool s_tracking;
+    private static RoutedEventArgs? s_lastKey;
+    private static QuickTagPopover? s_latchOwner;
+    private static bool s_swallowText;
+    private readonly HashSet<Key> _openingKeys = new();
+
+    /// <summary>
+    /// Starts following which keys are down, application-wide (idempotent). The shell calls it when its window is built, so the key that opens the
+    /// first popover is already known; <see cref="Show"/> calls it too for other hosts.
+    /// </summary>
+    internal static void TrackHeldKeys()
+    {
+        if (s_tracking) return;
+        s_tracking = true;
+        // At the first element of every route (the window, or the root of a test tree): before any handler of the window can act on a repeat.
+        InputElement.KeyDownEvent.AddClassHandler(typeof(Interactive), (_, e) => OnAnyKeyDown((KeyEventArgs)e), RoutingStrategies.Tunnel, handledEventsToo: true);
+        InputElement.KeyUpEvent.AddClassHandler(typeof(Interactive), (_, e) => OnAnyKeyUp((KeyEventArgs)e), RoutingStrategies.Tunnel, handledEventsToo: true);
+        InputElement.TextInputEvent.AddClassHandler(typeof(Interactive), (_, e) => OnAnyTextInput((TextInputEventArgs)e), RoutingStrategies.Tunnel, handledEventsToo: true);
+    }
+
+    private static void OnAnyKeyDown(KeyEventArgs e)
+    {
+        if (ReferenceEquals(s_lastKey, e)) return; // once per event, at the first element of its route
+        s_lastKey = e;
+        long now = Environment.TickCount64;
+        bool held = s_down.TryGetValue(e.Key, out long last) && now - last <= (long)RepeatWindow.TotalMilliseconds;
+        s_down[e.Key] = now;
+        if (s_latchOwner is { } owner && owner.SwallowsOpeningKey(e.Key, held)) { e.Handled = true; s_swallowText = true; }
+        else s_swallowText = false;
+    }
+
+    private static void OnAnyKeyUp(KeyEventArgs e)
+    {
+        if (ReferenceEquals(s_lastKey, e)) return;
+        s_lastKey = e;
+        s_down.Remove(e.Key);
+        s_latchOwner?._openingKeys.Remove(e.Key);
+        s_swallowText = false;
+    }
+
+    private static void OnAnyTextInput(TextInputEventArgs e)
+    {
+        if (!s_swallowText) return;
+        s_swallowText = false;
+        e.Handled = true;
+    }
+
+    /// <summary>Latches the keys that are down now (recent KeyDown or repeat, no KeyUp yet): their repeats stay out of the popover until they are released.</summary>
+    internal void LatchOpeningKeys()
+    {
+        TrackHeldKeys();
+        long now = Environment.TickCount64;
+        _openingKeys.Clear();
+        foreach ((Key key, long last) in s_down)
+            if (now - last <= (long)RepeatWindow.TotalMilliseconds && !IsModifierKey(key)) _openingKeys.Add(key);
+        s_latchOwner = this;
+        s_swallowText = false;
+    }
+
+    /// <summary>The keys latched as held when the popover opened (tests).</summary>
+    internal IReadOnlyCollection<Key> OpeningKeys => _openingKeys;
+
+    // A latched key's KeyDown while it is still held is a repeat: swallowed. A KeyDown after a gap longer than the repeat window is a new press (the
+    // release was missed): the latch lets go.
+    private bool SwallowsOpeningKey(Key key, bool held)
+    {
+        if (_closed || !_openingKeys.Contains(key)) return false;
+        if (held) return true;
+        _openingKeys.Remove(key);
+        return false;
+    }
 
     // ---- keys ---------------------------------------------------------------------------------------------------------
 

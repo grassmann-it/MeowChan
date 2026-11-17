@@ -55,7 +55,7 @@ public sealed class ThemePaletteTests
     [Theory]
     [InlineData("Dark", "#4C535B", "ButtonDefaultDisabledBorderBrush", "ButtonSolidDisabledBorderBrush", "CheckBoxCheckedDisabledBackground",
         "CheckBoxCheckedDisabledBorderBrush", "CheckBoxCardCheckedDisabledBorderBrush", "RadioButtonCheckIconDisabledBackground",
-        "RadioButtonCheckIconDisabledBorderBrush", "SliderThumbDisabledBorderBrush")]
+        "RadioButtonCheckIconDisabledBorderBrush", "SliderThumbDisabledBorderBrush", "ToggleSwitchContainerCheckedDisabledBackground")]
     [InlineData("Light", "#5B5346", "ScrollBarThumbPointeroverForeground")]
     public void OnlyTheDocumentedVariationsArePinnedExceptions(string themeName, string ruleValue, params string[] keys)
     {

@@ -88,12 +88,18 @@ The footer groups destinations as **Work** (Downloads, Archive, Media, Tagging, 
 **More** (German: **Mehr**) and **Settings**. The current work view and available
 width decide which destinations stay directly in the footer. **More** contains
 only destinations moved out of the footer; it does not duplicate Downloads or
-Settings. Advanced shows all main destinations directly when there is enough room;
-a narrow window moves the extra destinations into More. The app menu uses the same
-page order and groups. Booru is offered only while the source is composed and
-**Show Booru** is on; it is under More in Barebones and directly available from
-Simple when there is room. **Tagging** (German: **Taggen**) is a numbered footer page right
-after Media; its Ctrl/Cmd+digit follows the current footer order and it is under More in Barebones. In German the destination order is
+Settings. Advanced shows all main destinations directly when there is enough room,
+except Booru, which the default footer leaves out (see below); a narrow window moves
+the extra destinations into More. The ⋯ app menu does not list the pages: it holds
+tools such as Import files…, Reader groups, Pause, Settings, Keyboard shortcuts and
+About, and **Danbooru search and watchers…** while Booru is available. **Booru** is
+not in the footer by default. You reach it through **More**, through that app-menu
+entry, through **Media → More → Open Booru** or with its shortcut, and you can give it
+a footer button under Settings → **Interface → Footer** (German: **Oberfläche →
+Fußleiste**). **Tagging** (German: **Taggen**) is a numbered footer page right
+after Media; it is under More in Barebones. How the Ctrl/Cmd+digit keys number these
+pages is described once under [Page shortcuts and footer numbering](#page-shortcuts-and-footer-numbering).
+In German the destination order is
 **Downloads, Archiv, Medien, Taggen, Booru | Regeln, Plugins | Status**, followed by
 **Mehr** and **Einstellungen**. The display switch is described under
 [Booru page and display switch](#booru-page-and-display-switch).
@@ -207,6 +213,18 @@ already-present entries are mixed with rejected ones, **Problems only (n)**
 neither the watches nor the download queue. If every row is a problem, there is
 nothing to filter and this checkbox is not shown.
 
+After a successful Add the first new watch is selected and scrolled into view in its
+list; the keyboard focus stays in the Add field, so the next address can be pasted at
+once. A URL that was already watched gets a **Show in list** button right below the
+result line (German: **In Liste zeigen**), also while the report is collapsed. The red
+rejection banner and the result line each have a close button, and **Esc** closes them
+while the focus is inside; the next Add clears them as before.
+
+Removing watches (Delete, the menu or **Remove** in the details) always offers one
+**Undo** button for everything removed at once, even when information notifications are
+off in Settings. The files stay; the restored watches are new watches, so their position
+and priority are not restored.
+
 Whenever any URLs were rejected, **Put rejected back into the field** (German:
 **Abgelehnte zurück ins Feld**) returns those URLs to the Add input, once each, so you can
 correct them and choose Add again. Invalid, unsupported, failed and skipped
@@ -300,8 +318,9 @@ persist independently of Save URLs on exit.
 ### Danbooru search and watchers
 
 Danbooru is a public, read-only post-search source, not a board source. Open
-the **Booru** main page from the footer (or **More**), or use **Danbooru search
-and watchers…** in the app menu to reach the same page. Its plugin must be enabled
+the **Booru** main page from **More** (or from the footer, once you have added it
+there), with Ctrl+Shift+B (Command+Shift+B on macOS) or its digit, or use **Danbooru
+search and watchers…** in the ⋯ app menu to reach the same page. Its plugin must be enabled
 and available under **Plugins → All plugins**. Merely opening the page sends no new search;
 previously saved active watchers still follow their schedule.
 
@@ -309,50 +328,63 @@ previously saved active watchers still follow their schedule.
 
 **English:** Booru is a main page after Media in the Work group, not a separate
 window or a Status segment, and has no page-specific Back/Close button. The
-footer, app menu and context-sensitive F1 help follow that main-page order;
-width overflow and the current work view determine the visible footer buttons.
-When all main pages are available, the default is Ctrl+5 (Command+5 on macOS) for Booru,
-Ctrl+6 for Rules, Ctrl+7 for Sources & Plugins and Ctrl+8 for Status. The digits follow
-the current footer order, so hiding Booru or changing the footer layout renumbers the pages. A saved Plugins binding
-to Primary+6 takes precedence over the new Booru default and opens **All plugins**
-on the shared Plugins page instead; F1 and tooltips show effective
-bindings, not an extra default that overrides your saved choice. F1 can still list
-a hidden or unavailable page binding; it does not make that destination available.
+footer, F1 help and the More menu follow that main-page order. **The default
+footer does not show a Booru button.** Booru stays reachable from **More**, from
+**Danbooru search and watchers…** in the ⋯ app menu, from **Media → More → Open
+Booru** and from its shortcuts: Ctrl+Shift+B (Command+Shift+B on macOS), which never
+changes, and a Ctrl/Cmd+digit. Because the default footer hides Booru, its digit is
+the last one, **Ctrl+8**; if you show it in the footer, it takes **Ctrl+5** and the
+pages behind it move up by one. The numbers for every page are in the table under
+[Page shortcuts and footer numbering](#page-shortcuts-and-footer-numbering). A
+saved binding of another command, for example a saved Plugins binding on Ctrl+6 or
+Ctrl+8, takes precedence over the Booru default and keeps its meaning; F1 and tooltips
+show effective bindings, not an extra default that overrides your saved choice. F1 can
+still list a hidden or unavailable page binding; it does not make that destination available.
 
-**Show Booru** in the footer and app menu is a saved, profile-wide display switch,
-on by default. The switch is offered when Booru services are composed; without
-that composition the switch and Booru destination are absent. Turning it off
-hides the Booru destinations in the footer, More and app menu, as well as
-Media → More → **Open Booru**; its page shortcut does not open the hidden page.
-If Booru is selected, the shell returns to Downloads. Turning it back on makes the page
-reachable again and keeps the unsent draft while the same source composition
-remains. This is display only, not source authorization, plugin activation or a
-watcher pause. Sources, watchers and downloads keep running under their existing
-pause, cooldown and availability rules. Showing Booru does not automatically
-resume a paused watcher, submit a search or bypass those rules.
+**Show Booru actions** (Settings → **Interface → Footer**, on by default) is a saved,
+profile-wide display switch for the Booru page and the Danbooru tools. It is offered
+when Booru services are composed; without that composition the Booru destinations are
+absent. The switch has no footer check box and no app-menu twin any more. Turning it off
+hides the Booru entries in the footer, More and app menu, as well as Media → More →
+**Open Booru**; its page shortcut does not open the hidden page. If Booru is selected,
+the shell returns to Downloads. Turning it back on makes the page reachable again and
+keeps the unsent draft while the same source composition remains. To put a Booru button
+into the footer, show it in the footer list above the switch; the button only appears while the switch is on. This is
+display only, not source authorization, plugin activation or a watcher pause. Sources,
+watchers and downloads keep running under their existing pause, cooldown and
+availability rules. Showing Booru does not automatically resume a paused watcher,
+submit a search or bypass those rules.
 
 **Deutsch:** **Booru** ist eine Hauptseite hinter Medien in der Gruppe Arbeit,
 kein separates Fenster und kein Status-Bereich; sie hat keinen eigenen
-Zurück-/Schließen-Knopf. Fußleiste, Appmenü und kontextbezogene F1-Hilfe folgen
-dieser Seitenreihenfolge. Unter Minimal liegt Booru in **Mehr**, ab Einfach bei
-hinreichender Breite direkt in der Fußleiste. Standard ist Strg+6 (⌘+6 auf macOS);
-Plugins bleibt auf Strg+5 und Status auf Strg+7. Nur Strg/⌘+8 ist
-standardmäßig frei. Eine gespeicherte Plugins-Belegung auf Primary+6 hat Vorrang
-vor dem neuen Booru-Standard und öffnet **Alle Plugins** auf der Seite Plugins.
-F1 und Tooltips zeigen die wirksamen Belegungen. F1 kann auch ein ausgeblendetes
-oder nicht verfügbares Seitenkürzel weiter auflisten; das schaltet die Seite nicht frei.
+Zurück-/Schließen-Knopf. Fußleiste, F1-Hilfe und das Menü **Mehr** folgen
+dieser Seitenreihenfolge. **Die Standard-Fußleiste zeigt keinen Booru-Knopf.** Booru
+bleibt erreichbar über **Mehr**, über **Danbooru-Suche und Suchbeobachtungen…** im
+⋯-Appmenü, über **Medien → Mehr → Booru öffnen** und über die Tastenkürzel:
+Strg+Umschalt+B (⌘⇧B auf macOS), das sich nie ändert, und eine Strg/⌘+Ziffer.
+Weil die Standard-Fußleiste Booru ausblendet, hat Booru die letzte Ziffer,
+**Strg+8**; zeigst du Booru in der Fußleiste, belegt es **Strg+5** und die Seiten
+dahinter rücken um eins nach oben. Die Zuordnung aller Seiten steht in der Tabelle unter
+[Seitentasten und Fußleistenzählung](#page-shortcuts-and-footer-numbering). Eine gespeicherte
+Belegung eines anderen Befehls, etwa Plugins auf Strg+6 oder Strg+8, hat Vorrang vor dem
+Booru-Standard und behält ihre Bedeutung. F1 und Tooltips zeigen die wirksamen Belegungen.
+F1 kann auch ein ausgeblendetes oder nicht verfügbares Seitenkürzel weiter auflisten;
+das schaltet die Seite nicht frei.
 
-**Booru anzeigen** in Fußleiste und Appmenü ist ein gespeicherter, profilweiter
-Anzeigeschalter, standardmäßig an. Ohne eingebundene Booru-Dienste fehlen Schalter
-und Seitenziel. Ausschalten blendet die Booru-Ziele in Fußleiste, Mehr und Appmenü
-sowie Medien → Mehr → **Booru öffnen** aus; das Seitenkürzel öffnet keine ausgeblendete
-Seite. Von der gewählten Booru-Seite geht es zu Downloads zurück. Wiederanzeigen
-macht sie erneut erreichbar und bewahrt den ungesendeten Entwurf, solange dieselbe
-Quelleneinbindung besteht. Das ist nur Anzeige, keine Quellenautorisierung,
-Plugin-Aktivierung oder Suchbeobachtungspause. Quellen, Suchbeobachtungen und
-Downloads laufen nach ihren bisherigen Pausen-, Cooldown- und Verfügbarkeitsregeln
-weiter. Anzeigen setzt keine pausierte Suchbeobachtung automatisch fort, sendet
-keine Suche und umgeht diese Regeln nicht.
+**Booru-Aktionen anzeigen** (Einstellungen → **Oberfläche → Fußleiste**, standardmäßig
+an) ist ein gespeicherter, profilweiter Anzeigeschalter für die Booru-Seite und die
+Danbooru-Werkzeuge. Ohne eingebundene Booru-Dienste fehlen die Booru-Ziele. Den
+Fußleisten-Haken und die Appmenü-Entsprechung gibt es nicht mehr. Ausschalten
+blendet die Booru-Einträge in Fußleiste, Mehr und Appmenü sowie Medien → Mehr →
+**Booru öffnen** aus; das Seitenkürzel öffnet keine ausgeblendete Seite. Von der
+gewählten Booru-Seite geht es zu Downloads zurück. Wiederanzeigen macht sie erneut
+erreichbar und bewahrt den ungesendeten Entwurf, solange dieselbe Quelleneinbindung
+besteht. Einen Booru-Knopf in der Fußleiste schaltest du in der Fußleistenliste über
+dem Schalter ein; der Knopf erscheint nur bei eingeschaltetem Schalter. Das ist nur Anzeige, keine
+Quellenautorisierung, Plugin-Aktivierung oder Suchbeobachtungspause. Quellen,
+Suchbeobachtungen und Downloads laufen nach ihren bisherigen Pausen-, Cooldown- und
+Verfügbarkeitsregeln weiter. Anzeigen setzt keine pausierte Suchbeobachtung automatisch
+fort, sendet keine Suche und umgeht diese Regeln nicht.
 
 #### Search and one-shot originals
 
@@ -439,7 +471,7 @@ Danbooru source and post-ID filters and focuses the matching local media tile.
 This does not fetch the post or download its original. A stale saved link or a
 missing/filtered-out local tile is reported rather than replaced with another
 post. In Media → **More**, **Open Booru** is available when Danbooru is ready and
-composed and **Show Booru** is on; it opens the Booru page without starting a search.
+composed and **Show Booru actions** is on; it opens the Booru page without starting a search.
 It uses the same main-page route as the footer and app menu, not a second window.
 
 **Deutsch:** Ein gespeichertes Ergebnis kann **In Medien zeigen** anbieten; beim
@@ -449,7 +481,7 @@ Post-ID-Filter und fokussiert die passende lokale Medienkachel. Dabei wird weder
 der Post abgerufen noch sein Original heruntergeladen. Ein veralteter Speicherlink
 oder eine fehlende/ausgefilterte lokale Kachel wird gemeldet, nicht durch einen
 anderen Post ersetzt. Unter Medien → **Mehr** öffnet **Booru öffnen** die Booru-Seite,
-wenn Danbooru bereit und eingebunden sowie **Booru anzeigen** eingeschaltet ist,
+wenn Danbooru bereit und eingebunden sowie **Booru-Aktionen anzeigen** eingeschaltet ist,
 ohne eine Suche zu starten. Das ist dieselbe Hauptseite wie über Fußleiste und
 Appmenü, kein zweites Fenster.
 
@@ -513,7 +545,7 @@ In narrow windows, the list and details appear one after the other. Registration
 or a plugin's session status does not prove website availability.
 
 There is no second plugins page: the former Sources & Plugins page is now simply
-called Plugins, and Ctrl+5 and the command IDs are unchanged. The compatibility
+called Plugins, and the command IDs are unchanged (its digit follows the footer, see [Page shortcuts and footer numbering](#page-shortcuts-and-footer-numbering); its letter is Ctrl+Shift+X). The compatibility
 command **Show all plugins** and previously saved plugin-navigation shortcuts open
 **All plugins** on the same page. Read-only media folders are not on this page;
 manage them under Settings › **Storage and limits** › **Media folders** (see
@@ -534,7 +566,7 @@ Fenstern folgen Liste und Details aufeinander. Registrierung und Sitzungsstatus
 belegen nicht, dass die Website erreichbar ist.
 
 Eine zweite Pluginseite gibt es nicht: Die frühere Seite Quellen & Plugins heißt
-jetzt einfach Plugins; Strg+5 und die Befehls-IDs bleiben unverändert. Der
+jetzt einfach Plugins; die Befehls-IDs bleiben unverändert (die Ziffer folgt der Fußleiste, siehe [Seitentasten und Fußleistenzählung](#page-shortcuts-and-footer-numbering); der Buchstabe ist Strg+Umschalt+X). Der
 Kompatibilitätsbefehl **Alle Plugins anzeigen** und früher gespeicherte
 Plugin-Navigationskürzel öffnen **Alle Plugins** auf derselben Seite.
 Schreibgeschützte Medienordner verwaltest du unter Einstellungen › **Speicher und
@@ -599,55 +631,98 @@ Alt+Left (Command+Left on macOS) return to the same Media view with its filters,
 order, selection and scroll position. A tile that is no longer shown there is named
 in a note, not replaced by another one. A file without a post offers no jump.
 
-In the gallery, **D** starts or pauses the slideshow and **B** adds the current
-medium to favorites. In the gallery and on the Media page, **I** opens the media
+Favorites use the same keys everywhere (gallery, large reader and its media sidebar, the
+Archive's media and the Media page's grid and panel): **M** adds the medium to the favorites,
+**U** removes it and **F** toggles it. In the gallery **D** starts or pauses the slideshow.
+In the gallery and on the Media page, **I** opens the media
 details, **R** the rating, **Ctrl+E** the export of the original and **Ctrl+O** the
 file in its folder. In the large reader, **F3** and
 **Ctrl+G** find the next hit, **Shift+F3** and **Ctrl+Shift+G** the previous one.
 
+More defaults that are easy to miss (F1 lists every key of the current area):
+
+| Key | Action |
+| --- | --- |
+| Ctrl+Shift+I | **Import files…** |
+| Ctrl+Shift+R | **Continue reading** |
+| Ctrl+Shift+N / Ctrl+Shift+L | Reader: **Show new posts** / **Show new posts automatically** |
+| Ctrl+Shift+M | Show or hide the media sidebar (Reader and Media page) |
+| Ctrl+Plus / Ctrl+Minus / Ctrl+0 | Larger / smaller / medium tiles on the Media page, the Tagging grid and the Archive's media tiles; in the reader the same keys change the reading font size |
+| Alt+M | **Show in Media** (thread or Tagging entry) |
+| Q | Add the shown or selected medium to the tagging queue |
+| Alt+Home / Alt+End | Tagging page: move the entry to the start / the end of the queue |
+| Ctrl+Shift+C | Copy the file path of a medium, or the link of the selected reader post |
+| H | Reader: hide the selected post |
+| Ctrl+Left / Ctrl+Right | Video: back / forward 5 seconds (add Shift for 30 seconds) |
+| , / . | Video: back / forward by the seek step (default 5 seconds) |
+| Shift+. | Video: next frame |
+| [ / ] or X / C | Video: slower / faster; Backspace sets the normal speed |
+| L / A / S | Video: repeat / A–B loop / save the frame as an image |
+| Shift+M | Mute or unmute a video |
+| Shift+H, Shift+I, Shift+N, Shift+L, Shift+O, Shift+P, Shift+K, Shift+T | Gallery: show or hide tools, info line, hints, filmstrip, controls overlay, post context, cards (Tagging mode), switch View / Tag |
+
+The video keys belong to the gallery; play/pause, mute, repeat, the step keys, speed and the next frame also act on the video of the reader and of the Media page's sidebar.
+
 Text fields and embedded controls retain their own keys. Across the workspace,
 Ctrl+L focuses the URL input, Ctrl+, opens Settings and Ctrl+F focuses the active
-page's local search field. The default page shortcuts are:
+page's local search field. With the keyboard focus inside a thread reader (embedded or
+large: its posts, toolbar or media sidebar), Ctrl+F (Command+F on macOS) finds text in
+that thread instead.
 
-| Shortcut | Page |
-| --- | --- |
-| Ctrl+1 | Downloads |
-| Ctrl+2 | Archive |
-| Ctrl+3 | Media |
-| Ctrl+4 | Tagging |
-| Ctrl+5 | Rules |
-| Ctrl+6 | Sources & Plugins |
-| Ctrl+7 | Status |
-| Ctrl+8 | Booru |
+#### Page shortcuts and footer numbering
 
-The footer uses these same digit slots and order. Booru is numbered after the other
-pages while it is unavailable; when it is available and shown, it is inserted after
-Tagging and the following pages move one slot. The digits follow the visible footer
-buttons from left to right; pages moved into More are numbered after the visible pages,
-and an unavailable Booru page is omitted. In German the default labels are
-**Strg+1 Downloads**, **Strg+2 Archiv**, **Strg+3 Medien**, **Strg+4 Taggen**,
-**Strg+5 Regeln**, **Strg+6 Quellen & Plugins**, **Strg+7 Status** and **Strg+8 Booru**;
-when Booru is available and shown, it is **Strg+5** and the following pages move one slot.
-Use Command instead of Ctrl on macOS. Changing the footer order or hiding a page changes
-its digit; every main page keeps a digit. The
-removed Plugins page does not shift the digits: a saved `navigation.plugins`
-binding to Primary+6 keeps priority over the new Booru default and opens All plugins
-on Sources & Plugins. Diagnostics and Statistics have no default digit shortcuts;
-previously saved bindings still open their respective Status segment. The table
-follows the main-page order, not numeric sorting. The footer, the menus and the
-F1 help use the same order. Footer and menu destinations follow availability; F1
-can still list an effective binding for a hidden page, which remains unavailable.
-Every footer button names its effective shortcut in its tooltip. Hiding Booru
-does not give its default key back to Plugins or reassign the other pages.
+Every main page has two default keys. The **digit** is Ctrl+digit (Command+digit on
+macOS). It counts the footer buttons your work view shows, from left to right; the pages
+under **More** follow in footer order, and Booru, which the default footer hides, comes
+last. A page's digit therefore moves when you reorder or hide footer pages or switch the
+work view. The **letter** never moves: Ctrl+Shift+letter (⇧⌘letter on macOS) opens the
+same page whatever the footer looks like. Footer tooltips, the F1 window and
+Settings → **Interface → Footer** show both keys, and both can be rebound.
+
+| Page | Letter | Digit in Simple (the start view of a new profile) | Digit in Barebones and Advanced |
+| --- | --- | --- | --- |
+| Downloads | Ctrl+Shift+D | Ctrl+1 | Ctrl+1 |
+| Archive | Ctrl+Shift+A | Ctrl+2 | Ctrl+2 |
+| Media | Ctrl+Shift+E | Ctrl+3 | Ctrl+3 |
+| Tagging | Ctrl+Shift+K | Ctrl+4 | Ctrl+4 |
+| Status | Ctrl+Shift+S | Ctrl+5 | Ctrl+7 |
+| Rules | Ctrl+Shift+U | Ctrl+6 | Ctrl+5 |
+| Plugins | Ctrl+Shift+X | Ctrl+7 | Ctrl+6 |
+| Booru | Ctrl+Shift+B | Ctrl+8 | Ctrl+8 |
+
+The table lists the pages in the order of the digits in Simple. These are the numbers
+with the default footer, which has no Booru button; Simple also moves Rules and Plugins
+under More, so Status comes before them. If you add Booru to the footer, it takes digit 5
+in every work view (in Barebones the button stays under More, the digit does not change)
+and the pages behind it move up by one. Ctrl+, opens **Settings** on
+every platform. Diagnostics and Statistics are segments of Status, not pages: they have no
+default key, and the Status digit opens the last-used segment. Ctrl+9 is unassigned by
+default. Use Command instead of Ctrl on macOS. In German, tooltips and the F1 window write
+**Strg** and **Umschalt** (for example **Strg+3** and **Strg+Umschalt+E**).
+
+A binding you saved for another command always wins over a default; the page's default
+then steps aside (the digit and the letter separately). A saved `navigation.plugins`
+binding, for example on Primary+6, still opens **All plugins** on the Plugins page. F1 can
+still list an effective binding for a hidden or unavailable page, which does not make that
+destination reachable. Every footer button names its effective shortcut in its tooltip.
 Ctrl+Shift+P pauses and resumes like the header button; it remains
 unavailable while a pause transition is in progress. These direct page and pause
 shortcuts leave native inputs, dialogs and open overlays in control and retain
 unsaved drafts. F1 shows the commands for the current context, including selection
 scope and availability. Ctrl+V imports URLs only in Downloads outside native
-controls; inside the URL field it pastes text normally. F11 toggles real window
-fullscreen in Downloads, Archive, reader and gallery. Escape dismisses the active
+controls; inside the URL field it pastes text normally. F11, or the fullscreen button
+or menu action, toggles real window fullscreen (Control+Command+F on macOS). Escape dismisses the active
 menu, help or dialog first, then leaves fullscreen, and only then closes a gallery or
 reader. Modal dialogs retain their own input.
+
+**Pointer.** Three double-click rules apply everywhere: (1) a double-click on an item
+opens it. On a thread in Downloads or Archive it opens the large reader (a board row opens
+its details); on a saved-media row or tile in Archive, on a tile on the Media page and on the
+picture of a media sidebar it opens the **gallery** at that item, like Enter does; on an
+entry of the Tagging page it continues the walk there. (2) A double-click on the picture or
+video **inside the gallery** switches between Fit and 1:1; it never changes the
+fullscreen state. (3) Window fullscreen is only F11 or the explicit fullscreen button or menu
+action.
 
 If letter keys trigger actions by mistake, for example with speech input, turn off
 **Standard single-key shortcuts (letters, digits, + and −)** under **Keyboard
@@ -736,7 +811,9 @@ reader's header (**Back to thread list**, **Back to gallery**, **Back to media**
 **Close reader**; German: **Zurück zur Threadliste**, **Zurück zur Galerie**,
 **Zurück zu Medien**, **Reader schließen**). Inline rows keep their × close action
 at the far right, after the row's own actions: the Downloads search bar
-(**Close**), details panel (**Hide details**, German: **Details ausblenden**),
+(**Close**, a labelled button with a chevron instead of a second ×, so it cannot be
+mistaken for the × that clears the search text; **Esc** clears the text first and then
+closes the bar), details panel (**Hide details**, German: **Details ausblenden**),
 reader find bar (**Close find**, **Suche schließen**), tag row (**Close tags**,
 **Tags schließen**) and Archive preview (**Close preview**, **Vorschau schließen**).
 The gallery keeps **Back to {target}** at the far left with the favorite star
@@ -1108,34 +1185,39 @@ The shared status line counts active transfers, waiting transfers and current
 problems; while sampling is active it also shows download and disk-write rates.
 Without fresh sampling it omits the rates, rather than presenting stale numbers.
 The Diagnostics tab names the current problem count. The footer button and
-Ctrl+8 (Command+8 on macOS) open the last-used segment; the header graph and tray
+the Status shortcut (Ctrl+Shift+S, and a digit that follows the footer: Ctrl+7 in Barebones and Advanced,
+Ctrl+5 in Simple; Command instead of Ctrl on macOS) open the last-used segment; the header graph and tray
 open Statistics. A source's Diagnostics action opens Status → Diagnostics with
 that source selected. Recovery failure opens Diagnostics; Statistics becomes
 available after session recovery. You can assign each segment a shortcut, and
 previously saved segment shortcuts keep working. Booru is a separate main page,
-not a Status segment: while unavailable it is numbered in slot 8, Plugins keeps slot 6 and Status
-keeps slot 7. When Booru is available and shown, it moves to slot 5 and the following pages move one slot. For Booru visibility and the saved
-Plugins shortcut override, see [Booru page and display switch](#booru-page-and-display-switch).
+not a Status segment. For the digits of Status, Plugins and Booru, and for what changes when
+Booru is shown in the footer, see [Page shortcuts and footer numbering](#page-shortcuts-and-footer-numbering);
+for Booru visibility and the saved Plugins shortcut override, see
+[Booru page and display switch](#booru-page-and-display-switch).
 
 **Deutsch:** **Status** vereint **Statistik** und **Diagnose** auf einer Seite.
 Die gemeinsame Statuszeile zählt aktive und wartende Übertragungen und aktuelle
 Probleme. Solange gemessen wird, zeigt sie auch Download- und Schreibrate; ohne
 frische Messung lässt sie die Raten weg. Der Diagnose-Reiter nennt die Zahl der
-aktuellen Probleme. Der Fußleistenknopf und Strg+7 (⌘+7 auf macOS) öffnen den zuletzt
+aktuellen Probleme. Der Fußleistenknopf und das Status-Kürzel (Strg+Umschalt+S sowie eine Ziffer, die der
+Fußleiste folgt: in Minimal und Erweitert Strg+7, in Einfach Strg+5; ⌘ statt Strg auf macOS) öffnen den zuletzt
 benutzten Bereich; Kopfleisten-Graph und Tray öffnen Statistik. Die Diagnose-Aktion
 einer Quelle öffnet Status → Diagnose mit dieser Quelle als Filter. Nach einer
 fehlgeschlagenen Wiederherstellung öffnet sich Diagnose; Statistik ist nach der
 Sitzungswiederherstellung verfügbar. Du kannst jedem Bereich ein Kürzel zuweisen;
 früher gespeicherte Bereichskürzel funktionieren weiter. Booru ist eine eigene
-Hauptseite, kein Status-Bereich: Booru belegt im Standardlayout ohne verfügbare Booru-Dienste Strg/⌘+8, Plugins bleibt
-auf Strg/⌘+6 und Status auf Strg/⌘+7. Wenn Booru verfügbar und eingeblendet ist, belegt es Strg/⌘+5; die folgenden Seiten rücken weiter. Der
+Hauptseite, kein Status-Bereich. Die Ziffern von Status, Plugins und Booru und was sich
+ändert, wenn Booru in der Fußleiste steht, stehen in der Tabelle unter
+[Seitentasten und Fußleistenzählung](#page-shortcuts-and-footer-numbering). Der
 [Booru-Anzeigeschalter und der gespeicherte Plugins-Kürzelvorrang](#booru-page-and-display-switch)
 sind davon getrennt; der Schalter pausiert keine Suchbeobachtungen.
 
 ### Statistics and disk traffic
 
-Open **Status → Statistics** from **More** or the app
-menu, or by clicking the header graph. Ctrl+8 (Command+8 on macOS) opens Status
+Open **Status → Statistics** from the **Status** button (in **More** when the footer has no
+room), the tray or the header graph, or from the Statistics segment on Status. The Status
+shortcut (see [Page shortcuts and footer numbering](#page-shortcuts-and-footer-numbering)) opens Status
 on its last-used segment; Ctrl+9 is unassigned by default. It shows measured Network I/O and Disk I/O,
 history and rows per source. These are MeowChan's own application-payload and
 media-I/O counters, not operating-system totals. **Network I/O** keeps
@@ -1300,10 +1382,17 @@ movement over the reader or briefly after a navigation shortcut. It stays visibl
 while the pointer is over or near it, or it has keyboard focus. Pagination and
 the scrollbar remain usable; hiding the cross does not change the content layout.
 
-In selected post content, **Enter or Space** opens the first available image or video
-in attachment order. Text selections, editors, buttons, links and dialogs keep their
-native keys. Explicit Reader or application shortcut bindings take precedence.
-The configurable **Open in gallery** command remains separate.
+In selected post content, **Enter** (the command **Open medium of the post**) does what a
+click on the medium does under Settings → **Reading & media → Clicking a medium**:
+show it in the media sidebar (the default; a second Enter on an image the sidebar
+already shows opens the gallery), open it in the post (a video plays there, an image
+expands) or open the gallery. **Space** plays or pauses the video that already has a player
+and otherwise does the same as Enter. A double-click on a medium, or the sidebar's Open
+button, always opens the gallery. The medium is chosen in this order: a video that is
+playing, the sidebar's medium, the medium with focus, the first available one. Text
+selections, editors, buttons, links and dialogs keep their native keys. Explicit Reader or
+application shortcut bindings take precedence. The configurable **Open in gallery**
+command remains separate.
 
 Newly captured posts leave the open reader unchanged. A **Show new posts** notice
 lets you load them and jump to the first newly appended post. **View → Show new
@@ -1369,8 +1458,12 @@ controls when you want to use the gallery tools or read the saved-post context.
 This changes the gallery layout independently of F11 window fullscreen. Close the
 gallery with Esc or **Back to {target}** (German: **Zurück zu {Ziel}**) alone at the
 far left of the header, before the title, with the favorite star directly to its
-right; the button names the return destination. The toolbar keeps Previous, position, Next, Fit, 1:1, the post
-panel and Tools available. Rating, media tags and slideshow controls move from
+right; the button names the return destination. While the tools are shown, the toolbar
+keeps Previous, position, Next, Fit, 1:1, the post panel and the tools switch available.
+**Shift+H** (or the tools switch) hides the tools: Previous, position, Next, **More** and the way back
+to the tools stay on the bar, but Fit, 1:1, the post panel and the toolbar's favorite
+button leave it; the favorite badge beside **Back to …**, the keys (**0**, **1**,
+**Shift+P**, **F**) and the double-click on the picture keep working. Rating, media tags and slideshow controls move from
 **⋯ (More gallery actions)** to the toolbar in Simple; Advanced also brings
 shortcut help onto the bar. The slideshow's seconds per image and its playback
 mode stay under More in every view; the slideshow button stays on the bar. Zoom
@@ -1423,13 +1516,17 @@ keyboard help. Gallery panel and playback keys follow one scheme: **Shift** plus
 letter shows or hides a panel or block; a plain letter acts on playback or the
 shown medium. Thus **Shift+K** toggles **Card mode on / off** (German:
 **Kartenmodus ein / aus**) in tagging mode, **D** starts or pauses **Start / pause
-slideshow** (German: **Diashow starten / pausieren**), and **B** performs **Add
-favorite** (German: **Favorit hinzufügen**). **Shift+P** performs **Show post
-context** (German: **Post-Kontext anzeigen**); **Shift+L** is the filmstrip key.
-**M** mutes, **S** saves a video frame, **L** repeats a video, and **A** controls
-the A–B loop. **F** still toggles the favorite and **U** removes it. The explicit
-add/remove actions set the mark rather than toggling it. The upper-right **★ / ☆**
-indicator shows favorite / not favorite; **…** indicates a pending save. These are
+slideshow** (German: **Diashow starten / pausieren**), **Shift+P** performs **Show post
+context** (German: **Post-Kontext anzeigen**) and **Shift+L** is the filmstrip key.
+**S** saves a video frame as an image, **L** repeats a video, and **A** controls
+the A–B loop. Favorites use one scheme everywhere: **M** adds the favorite
+(German: **Favorit hinzufügen**), **U** removes it and **F** toggles it; there is no
+**B** key any more. The explicit add/remove actions set the mark rather than
+toggling it, and **F** on a saved favorite in the gallery asks before it removes
+the mark. **Shift+M** mutes and unmutes a video, one of two exceptions to the Shift rule
+besides **Shift+R** (rotate), because **M** is taken by the favorite. A favorite badge
+with a **★ / ☆** sits beside **Back to …** at the upper left; it shows favorite /
+not favorite, a click toggles it, and **…** indicates a pending save. These are
 default bindings; customized shortcuts still apply. Space plays or pauses an active local video. **Up/Down** raises/lowers
 available video volume without changing Playing/Paused; in the reader those keys
 still navigate posts. Manual mute/unmute survives media changes within the same
@@ -1469,7 +1566,7 @@ saved-media rows/tiles. Its chosen thread layout and draggable list/reader split
 are saved. Wide windows show list and reader beside each other; narrower windows
 switch between them, with a back action to return to the list. Table needs more
 horizontal room before showing both panes. Double-click or
-Enter on a focused media row/tile opens that exact item, using the current media
+Enter on a focused media row/tile opens that exact item in the gallery, using the current media
 sort and version filter. Text fields and action buttons retain their own keyboard
 actions. Historical versions are labelled; they need not match the latest post.
 
@@ -1494,12 +1591,16 @@ Search and Filters sit on the left of the Media toolbar, Order on the right.
 Refresh and Shuffle again are icon buttons beside the order, named in tooltips.
 
 The Media page's **Media sidebar** is on by default and shows the selected medium large to
-the right of the grid. A selection change, the sidebar's Previous/Next buttons or its video
- keys changes the shown medium; **Open in gallery** starts at the sidebar's medium. Use
- **Layout** or Ctrl/Cmd+Shift+M to switch the sidebar. Its saved width defaults to 360 dip
- (240–900), and **Hide the media sidebar below this page width** defaults to 1000 dip
- (600–3000). On a narrower page it hides automatically and returns when the page is wide
- enough; the saved choice remains. Drag the sidebar edge to change its width, or choose its
+the right of the grid. It has no Previous/Next arrows and no counter: it follows the grid.
+Click a tile, or move the selection with the arrow keys (Up and Down in the grid
+move the shown medium by one row), to change the medium. The video keys (Space, **Shift+M**,
+L, the step and speed keys) act on the sidebar's video. A single click on a
+tile only selects it; a double-click or Enter opens the **gallery** at that tile, and the sidebar's
+**Open in gallery** button (or a double-click on its picture) opens it at the shown medium. Use
+**Layout** or Ctrl/Cmd+Shift+M to switch the sidebar. Its saved width defaults to 360 dip
+(240–900), and **Hide the media sidebar below this page width** defaults to 1000 dip
+(600–3000). On a narrower page it hides automatically and returns when the page is wide
+enough; the saved choice remains. Drag the sidebar edge to change its width, or choose its
 left/right side in Layout.
 **Export all matches** (German: **Alle Treffer exportieren**) and **Manage saved
 ratings…** (**Gespeicherte Bewertungen verwalten…**) stay under **More** (**Mehr**).
@@ -1691,11 +1792,18 @@ sidebar and inline-video controls. The full Settings page still uses Save/Discar
 their widths, scale and hover delay are under Settings → **Reading & media**.
 
 **Media sidebar in the large reader** is on by default. When enabled in View or
-Settings, it shows the selected post’s media beside the posts, following Up/Down
-navigation. Choose left or right, step through multiple attachments with its
-buttons, or open the shown item in the gallery. Drag the divider to change its
+Settings, it shows the selected post’s medium beside the posts, following Up/Down
+navigation. Choose left or right. A post with several media gets a thumbnail strip
+under the picture (**Thumbnails in the media sidebar strip** sets how many show at once,
+12 by default, 2–40; a larger post slides a window along); click a thumbnail or use
+**Alt+Shift+Left** and **Alt+Shift+Right** to step through the post's media. The sidebar header holds the
+post number, the favorite star, **Open in gallery** and a close cross. Drag the divider to change its
 saved width. The sidebar hides when the reader is too narrow and returns when
-there is room; it does not replace the embedded reader with a second gallery.
+there is room; it does not replace the embedded reader with a second gallery. Videos in
+the sidebar autoplay and repeat by default, with the sound following your remembered volume;
+**Autoplay videos in the media sidebar**, **Repeat videos in the media sidebar** and
+**Start videos in the media sidebar muted** are separate settings that also cover the
+Archive view and the Media page's sidebar.
 
 | Setting | Default | Allowed |
 | --- | --- | --- |
@@ -1704,21 +1812,55 @@ there is room; it does not replace the embedded reader with a second gallery.
 | Video players kept in the reader | 2 | 1 to 4 |
 | Largest video played in the reader (MiB) | 256 | 1 to 4096 |
 
-**Play videos in the reader** is a separate opt-in, off by default. A click or
-Enter on a saved video attachment or sidebar video then plays it in place rather
-than opening the gallery; Space on the video pauses or resumes it. It uses the
-same transport controls as the gallery. Only one inline video plays at a time.
-It pauses out of view, when the gallery covers the reader or the window is
-minimized; closing the reader, changing threads or disabling the option releases
-the players. On Windows, a video not wholly inside the post viewport is released
-rather than drawn over the reader controls. Players kept ready are bounded as
-above; the least recently used is released first. A file above the inline size
-limit shows a reason and can still be opened in the gallery, subject to its normal
-playback checks.
+**Clicking a medium** (Settings → **Reading & media**, also in the reader's quick settings)
+decides what a click on a picture or video in a post does:
 
-**Autoplay videos muted** is another opt-in, also off by default. It needs inline
-video enabled and starts the selected post/sidebar video without sound after the
-selection rests briefly. Neither option fetches video from a source.
+- **Show in the sidebar** (the default) shows it in the media sidebar and plays a video
+  there; while the sidebar is closed or too narrow, the gallery opens instead.
+- **Open in the post** (formerly the separate opt-in **Play videos in the reader**, which
+  an old profile with that switch on keeps as this choice) plays a video in its post and
+  expands an image to the width of the post; click again to put it back, and Space
+  pauses or resumes the video. It uses the same transport controls as the gallery. Only
+  one inline video plays at a time. It pauses out of view, when the gallery covers the
+  reader or the window is minimized; closing the reader, changing threads or choosing
+  another click action releases the players. On Windows, a video not wholly inside the post
+  viewport is released rather than drawn over the reader controls. Players kept ready
+  are bounded as above; the least recently used is released first. A file above the
+  inline size limit shows a reason and can still be opened in the gallery, subject to its
+  normal playback checks.
+- **Open in the gallery** opens the gallery at that medium.
+
+A double-click on a medium and the sidebar's **Open in gallery** button always open the
+gallery, whatever the choice is.
+
+**Autoplay videos muted** is another opt-in, also off by default. It works with
+**Open in the post** and starts the selected post's video without sound after
+the selection rests briefly. Neither option fetches video from a source.
+
+#### Post or medium: which keys act where
+
+Keys act on what has the focus: a focused medium (the sidebar picture or video, a
+thumbnail, a picture or video inside a post) gets the medium's commands, a focused post
+the post's commands. There is no extra modifier key for this.
+
+- **Media actions work from both.** Favorite (**F**, **M**, **U**), rating and tags
+  (**R**, **Shift+1** to **Shift+5**, **Shift+0**, **Ctrl+Shift+T**) act on the focused
+  medium or, from a post, on the post's medium. In the large reader the video keys do the
+  same: **Space**, **Shift+M** (mute), **L** (repeat), **,** and **.** (seek step),
+  **X** and **C** (speed), **Backspace** (normal speed) and **Shift+.** (next frame).
+  They need a medium and, apart from Space, a player that is already running.
+- **Movement belongs to the reader.** **Up/Down**, **PageUp/PageDown** and **Home/End**
+  move through posts whatever is focused, even on a video. **Left/Right** seek only on a
+  playing video and step through the media only in the thumbnail strip; otherwise they keep
+  their reader meaning. **Alt+Shift+Left** and **Alt+Shift+Right** step the sidebar's
+  medium from anywhere in the post.
+- **Some keys follow the focus.** **Ctrl+E**, **Ctrl+O**, **Ctrl+Shift+C**, **T** and **I**
+  mean the medium when a medium has the focus (export the file, show it in its folder, copy
+  its path, show in the thread, details) and the post or thread when a post has it.
+- **View keys stay in the gallery:** zoom, rotate, the **Shift+letter** panels, the
+  slideshow (**D**), **S** (save frame), **A** (A–B loop), volume and the **Ctrl+Left** /
+  **Ctrl+Right** seek. The queue key **Q** and the video keys in the embedded reader are
+  not available from the reader yet; use the context menu for the queue.
 
 ### Gallery Fit enlargement
 
@@ -2017,7 +2159,7 @@ Settings → **Reading & media → Tagging** contains:
 | Tagging queue: decisions to take back | 20 | 1 to 100 |
 | Cards in the card mode | 5 | 2 to 5 |
 
-**Start walks in the card mode** is off by default; K also saves that preference.
+**Start walks in the card mode** is off by default; Shift+K also saves that preference.
 **Decision cards** assigns the five slots: Back, Skip, Done, Favorite, Stamp or a
 rating of 1–5. Choosing an action already in another slot swaps the two; the count
 shows only the first configured slots. Card count and choices apply from the next
@@ -2134,7 +2276,7 @@ Reader arrows keep their own roles.
 
 In the video transport, **A** sets the start of an A–B loop, a second press sets
 its end and a third clears it. The endpoints must be at least 0.2 seconds apart.
-**.** advances one frame. Hover over the speaker for the volume slider; the wheel
+**Shift+.** advances one frame, and **,** and **.** jump back and forward by the seek step (default 5 seconds, 1–60). Hover over the speaker for the volume slider; the wheel
 changes volume by five percentage points. Right-click the speed for choices from
 0.25× to 4×. The transport’s More menu includes speed, audio tracks when there are
 several, saving a frame, repeat and rotation. These controls affect playback/view,

@@ -60,9 +60,11 @@ internal static class ArchiveCommandChecks
                 Equals(Find("watch.check").Header, Texts.Count("archive.command.batchCount", 1, CommandCatalog.Label("watch.check"), 1)) &&
                 Equals(Find("watch.remove").Header, Texts.Count("archive.command.batchCount", 0, CommandCatalog.Label("watch.remove"), 0)),
                 "Archive actions do not show their distinct eligible target counts.");
-            Require(Find("gallery.open").Header!.ToString()!.Contains(rows[0].Summary.Id.Thread!) &&
+            // AR-02: a lead action does not repeat its target in the label (the right-clicked row is already highlighted); the label is the plain
+            // command name and the automation name stays equal to it. Only the batch entries above carry the count suffix.
+            Require(Equals(Find("gallery.open").Header, CommandCatalog.Label("gallery.open")) &&
                 AutomationProperties.GetName(Find("gallery.open")) == Find("gallery.open").Header!.ToString(),
-                "Lead action does not expose its actual target visibly and through automation.");
+                "Lead action label repeats its target or differs from its automation name.");
             Find("watch.check").Command!.Execute(null);
             Require(checkedIds.SequenceEqual(new[] { rows[0].Summary.Id }), "Archive check did not filter mixed watch eligibility.");
             Find("watch.retry-media").Command!.Execute(null);

@@ -134,11 +134,12 @@ internal sealed class GalleryThreadTagSection : StackPanel, IDisposable
         if (!_disposed && _model.MessageKey == null) _input.Text = string.Empty;
     }
 
-    // Enter adds the draft (a highlighted suggestion is already taken by the field itself); Escape closes an open list first.
+    // Enter adds the draft, unless the field takes it (TagSuggestionInput.FieldTakesEnter).
     private async void OnInputKey(object? sender, KeyEventArgs e)
     {
         if (e.Handled || e.KeyModifiers != KeyModifiers.None) return;
-        if (e.Key == Key.Enter)
+        // Added after the field's own handler, so it runs before it: a highlighted suggestion is the field's to accept.
+        if (e.Key == Key.Enter && !TagSuggestionInput.FieldTakesEnter(_input, e))
         {
             e.Handled = true;
             _input.Dismiss();

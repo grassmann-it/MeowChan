@@ -63,6 +63,14 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
     internal const string MenuRemove = BooruWorkbenchView.MenuRemove;
     internal const string MenuTagAdd = BooruWorkbenchView.MenuTagAdd;
     internal const string MenuTagExclude = BooruWorkbenchView.MenuTagExclude;
+    internal const string ReviewBuildName = BooruWorkbenchView.ReviewBuildName;
+    internal const string OpenPluginName = BooruWorkbenchView.OpenPluginName;
+    internal const string RepairNoteName = BooruWorkbenchView.RepairNoteName;
+    internal const string WatcherRepairName = BooruWorkbenchView.WatcherRepairName;
+    internal const string WatcherRepairTextName = BooruWorkbenchView.WatcherRepairTextName;
+    internal const string WatcherReviewBuildName = BooruWorkbenchView.WatcherReviewBuildName;
+    internal const string WatcherOpenPluginName = BooruWorkbenchView.WatcherOpenPluginName;
+    internal const string WatcherRepairNoteName = BooruWorkbenchView.WatcherRepairNoteName;
 
     private readonly BooruWorkbenchView _view;
     private readonly Button _close = new();

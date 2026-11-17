@@ -50,6 +50,15 @@ internal sealed class BooruProviderBinding
     /// <summary>The session's logger for this provider (never null).</summary>
     internal ILogger Logger => _logger;
 
+    /// <summary>The plugin that declares this source, when the plugin session composed it; null in fixtures.</summary>
+    internal string? PluginId { get; init; }
+
+    /// <summary>
+    /// Presentation hook: a worker call of this provider failed with <c>sdk-mismatch</c>. The session records the exact
+    /// running build for the Danbooru and Plugins pages; nothing is selected, repaired or retried here.
+    /// </summary>
+    internal Action? SdkMismatchObserved { get; init; }
+
     /// <summary>Raised (on any thread) when the plugin was enabled or disabled at runtime.</summary>
     internal event Action? AvailabilityChanged;
 
@@ -115,7 +124,10 @@ internal sealed class BooruSessionComposition : IAsyncDisposable
         Search = new BooruSearchService(binding.Services)
         {
             WorkerFailureObserved = (sourceId, failure) =>
-                log.Warning("The {Source} plugin worker call failed ({Code}): {Reason}", sourceId, failure.Code, failure.Message)
+            {
+                log.Warning("The {Source} plugin worker call failed ({Code}): {Reason}", sourceId, failure.Code, failure.Message);
+                if (failure.Code == BooruText.SdkMismatchCode) binding.SdkMismatchObserved?.Invoke();
+            }
         };
         _mediaClient = binding.CreateOriginalMediaClient();
         try

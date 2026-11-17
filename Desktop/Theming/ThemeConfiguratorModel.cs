@@ -142,9 +142,14 @@ internal sealed class ThemeConfiguratorModel
             {
                 ThemePreview preview = Preview(theme);
                 if (preview.Accepted) continue;
-                string? owner = ThemeUserColors.All
-                    .FirstOrDefault(role => ThemeCustomization.ForRole(preview.Contrast, theme, role.Id)
-                        .Any(issue => issue.Severity == ThemeContrastSeverity.Error) && role.Seeds.Any(_draft.For(theme).ContainsKey))?.Id;
+                // The sentence says the colour "is too weak for text": a changed role whose colour is the text of a failing pair is named before
+                // a changed role that is only its background (a custom accent under text made as light as the panel is not the culprit).
+                ThemeContrastIssue[] Errors(ThemeUserColor role) => ThemeCustomization.ForRole(preview.Contrast, theme, role.Id)
+                    .Where(issue => issue.Severity == ThemeContrastSeverity.Error).ToArray();
+                bool Changed(ThemeUserColor role) => role.Seeds.Any(_draft.For(theme).ContainsKey);
+                bool IsText(ThemeUserColor role, ThemeContrastIssue issue) => ThemeCustomization.SeedsOf(theme, issue.Foreground).Any(role.Seeds.Contains);
+                string? owner = (ThemeUserColors.All.FirstOrDefault(role => Changed(role) && Errors(role).Any(issue => IsText(role, issue)))
+                    ?? ThemeUserColors.All.FirstOrDefault(role => Changed(role) && Errors(role).Length > 0))?.Id;
                 return new ThemeApplyBlock(theme, owner, preview.Contrast.Errors.Count);
             }
             return null;

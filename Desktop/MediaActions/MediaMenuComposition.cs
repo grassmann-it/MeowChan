@@ -101,6 +101,11 @@ internal sealed record MediaMenuFacts(MediaMenuSurface Surface, MediaMenuTarget?
     internal bool TagsBlockedExplained { get; init; }
     /// <summary>The surface can add the target (or its selection) to the tagging queue.</summary>
     internal bool QueueWired { get; init; } = true;
+    /// <summary>
+    /// False on a surface where Q cannot reach this target: the entry shows no "Q" hint then (KB-04 of the final review: a hint is only for a key that acts
+    /// there). An archive menu opened on an attachment without a saved file has no medium for the key to resolve.
+    /// </summary>
+    internal bool QueueKeyReachesTarget { get; init; } = true;
     /// <summary>Null when the target can be queued; otherwise the localized reason it cannot (see <see cref="TagQueueActions.BlockedReason"/>).</summary>
     internal string? QueueBlocked { get; init; }
     internal bool ExportWired { get; init; } = true;
@@ -119,6 +124,8 @@ internal sealed record MediaMenuFacts(MediaMenuSurface Surface, MediaMenuTarget?
 internal sealed record MediaMenuItemModel(MediaMenuAction Action, string? CommandId, string? TextKey, string Label,
     bool Available, string? Reason, bool? Checked)
 {
+    /// <summary>False for an entry whose command shortcut does not act on this menu's target: the menu shows no gesture for it.</summary>
+    internal bool ShowShortcut { get; init; } = true;
     /// <summary>The identity used as the menu item's tag and by the keyboard router.</summary>
     internal string Id => CommandId ?? TextKey ?? Action.ToString();
     /// <summary>The icon of an entry without a catalog command (a command brings its own): the provider post entries take the icons of
@@ -185,7 +192,8 @@ internal static class MediaMenuComposition
         bool inGallery = facts.Surface is MediaMenuSurface.Gallery or MediaMenuSurface.NativeVideoOverlay;
         string? NeedsFile() => facts.Present ? null : MediaMenuReasons.NotSaved;
         void Add(MediaMenuAction action, string? commandId, string label, bool available, string? reason, bool? isChecked = null,
-            string? textKey = null) => items.Add(new(action, commandId, textKey, label, available, available ? null : reason, isChecked));
+            string? textKey = null, bool showShortcut = true) =>
+            items.Add(new(action, commandId, textKey, label, available, available ? null : reason, isChecked) { ShowShortcut = showShortcut });
 
         // "Open in gallery" is meaningless inside the gallery, so the gallery and its overlay do not list it.
         if (!inGallery)
@@ -214,7 +222,7 @@ internal static class MediaMenuComposition
             NeedsFile() ?? facts.RatingBlocked ?? facts.TagsBlocked ?? MediaMenuReasons.Unavailable);
         Add(MediaMenuAction.Queue, "media.queue.add", CommandCatalog.Label("media.queue.add"),
             facts.Present && facts.QueueWired && facts.QueueBlocked == null,
-            NeedsFile() ?? facts.QueueBlocked ?? MediaMenuReasons.Unavailable);
+            NeedsFile() ?? facts.QueueBlocked ?? MediaMenuReasons.Unavailable, showShortcut: facts.QueueKeyReachesTarget);
         Add(MediaMenuAction.Export, "media.export-original", CommandCatalog.Label("media.export-original"),
             facts.Present && facts.ExportWired, NeedsFile() ?? MediaMenuReasons.Unavailable);
         Add(MediaMenuAction.ShowInFolder, "media.show-in-folder", CommandCatalog.Label("media.show-in-folder"),

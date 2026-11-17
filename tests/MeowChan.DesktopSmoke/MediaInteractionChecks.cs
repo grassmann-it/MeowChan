@@ -739,21 +739,18 @@ internal static class MediaInteractionChecks
                 await native!.ClickAsync(
                     () => Task.FromResult(Volume()),
                     current => Task.FromResult((Point?)VolumeTrackPoint(current, .60)));
-                Require(Volume().IsKeyboardFocusWithin, "Native volume click did not focus the actual slider.");
-                await native.KeyAsync(MediaNativeInput.Home);
-                Require(Volume().Value == Volume().Minimum && viewer!.CaptureState().PostId == "2000",
-                    "Native volume Home did not stay local to the slider.");
-                await native.KeyAsync(MediaNativeInput.End);
-                await WaitPlaybackAsync(p => p.Volume == 100 && p.State == expected);
-                Require(Volume().Value == Volume().Maximum && viewer!.CaptureState().PostId == "2000",
-                    "Native volume End escaped or failed to adjust volume.");
-                await MediaInteractionSmokeHelpers.HoldStateAsync(Player(), expected, "Volume click/Home/End");
+                // The released slider hands the keys back to the gallery (one rule for chrome over a keyed surface): arrows are the
+                // gallery's volume keys, never slider-local steps, and the popup's mute button does not get them either.
+                await Program.WaitUntilAsync(() => !Volume().IsKeyboardFocusWithin);
+                Require(!Volume().IsKeyboardFocusWithin, "Native volume click left the keys on the slider instead of the gallery.");
+                var afterClick = await SampleAsync("volume-after-click");
                 await native.KeyAsync(MediaNativeInput.Down);
-                await WaitPlaybackAsync(p => p.Volume == 99 && p.State == expected);
+                await WaitPlaybackAsync(p => p.Volume == Math.Max(0, afterClick.Volume - 1) && p.State == expected);
+                Require(viewer!.CaptureState().PostId == "2000", "Volume Down navigated media.");
                 await native.KeyAsync(MediaNativeInput.Up);
-                await WaitPlaybackAsync(p => p.Volume == 100 && p.State == expected);
-                Require(viewer!.CaptureState().PostId == "2000", "Volume Up/Down navigated media.");
-                await MediaInteractionSmokeHelpers.HoldStateAsync(Player(), expected, "Volume Up/Down");
+                await WaitPlaybackAsync(p => p.Volume == afterClick.Volume && p.State == expected);
+                Require(viewer!.CaptureState().PostId == "2000", "Volume Up navigated media.");
+                await MediaInteractionSmokeHelpers.HoldStateAsync(Player(), expected, "Volume click then gallery Down/Up");
                 Console.WriteLine("SMOKE functional-audio-positive media volume: " + JsonSerializer.Serialize(new
                 { expected, before = volumeEvidence, after = await SampleAsync("functional-audio-positive-volume") }));
             }

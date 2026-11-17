@@ -438,7 +438,7 @@ public partial class ArchivePage
             }));
     }
 
-    /// <summary>× and Escape inside the sidebar: turn it off for this view, the focus goes back to the selected post.</summary>
+    /// <summary>The × of the sidebar: turns it off for this view (and stores the choice), the focus goes back to the selected post. Escape only moves the focus (RD-01).</summary>
     internal void CloseMediaSidebar()
     {
         if (!ReaderMediaSidebarRules.IsOn(ReaderMedia, _largeReader)) return;
@@ -593,20 +593,30 @@ public partial class ArchivePage
         string? key = post == null ? null : _thread?.Summary.Id + "\n" + post.Id;
         bool samePost = string.Equals(key, _sidebarPostKey, StringComparison.Ordinal);
         if (!samePost) { _sidebarIndex = _sidebarPendingIndex ?? 0; _sidebarPendingIndex = null; _sidebarPostKey = key; }
-        if (post == null || post.IsStub)
+        if (post == null)
         {
             CancelSidebarStripLoad();
             OfferSidebarVideo(null, null);
-            sidebar.ShowEmpty();
-            ScheduleSidebarAnnouncement(Texts.T("reader.sidebar.regionEmpty"));
+            // Say what is true (RD-03, RD-04): a thread being read, a view being prepared or a view without posts is no "select a post".
+            bool threadLoading = (_thread == null && _selectedThread != null && _busy) || (_thread != null && Projection == null);
+            bool noPosts = _thread != null && Projection is { Count: 0 };
+            string text = Texts.T(ReaderMediaSidebarRules.EmptyTextKey(threadLoading, noPosts));
+            if (threadLoading) sidebar.ShowThreadLoading(text); // the previous picture stays until the new post is known
+            else
+            {
+                sidebar.ShowEmpty(text);
+                ScheduleSidebarAnnouncement(noPosts ? text : Texts.T("reader.sidebar.regionEmpty"));
+            }
             return;
         }
-        if (!post.ShowsMedia)
+        if (post.IsStub || !post.ShowsMedia)
         {
             CancelSidebarStripLoad();
             sidebar.ClearStrip();
             OfferSidebarVideo(null, null);
-            string reason = Texts.T(post.HasMediaHiddenLine ? "reader.sidebar.hidden" : "reader.sidebar.noMedia", post.Id);
+            // A post the view shows as a stub or whose media the view hides names that; a thread in which no post has media says so once.
+            string reason = post.IsStub || post.HasMediaHiddenLine ? Texts.T("reader.sidebar.hidden", post.Id)
+                : ThreadHasPostMedia() ? Texts.T("reader.sidebar.noMedia", post.Id) : Texts.T("reader.sidebar.threadNoMedia");
             sidebar.Describe(post.NumberLabel, string.Empty, string.Empty, false, post.CopyNumberLabel);
             sidebar.ConfigureFavorite(null);
             // A final text: the frame is empty with the reason, never the previous post's picture dimmed under it.
@@ -645,6 +655,21 @@ public partial class ArchivePage
             return;
         }
         MediaSidebarTask = LoadMediaSidebarAsync(sidebar, post, row, size, mediumKey, ticket, target, loading.Token);
+    }
+
+    // Whether any post of the open thread has an attachment (the sidebar's "This thread has no media" is about the whole thread); one scan per thread read.
+    private object? _sidebarMediaScanned;
+    private bool _sidebarThreadHasMedia;
+
+    private bool ThreadHasPostMedia()
+    {
+        if (_thread is not { } thread) return false;
+        if (!ReferenceEquals(thread, _sidebarMediaScanned))
+        {
+            _sidebarThreadHasMedia = thread.Posts.Any(candidate => candidate.Attachments is { Count: > 0 });
+            _sidebarMediaScanned = thread;
+        }
+        return _sidebarThreadHasMedia;
     }
 
     // The identity of a medium in the sidebar: the thread, the post and the attachment (as the inline video's slot keys it), stable across rebuilt rows.

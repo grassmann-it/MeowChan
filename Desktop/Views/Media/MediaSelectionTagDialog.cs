@@ -167,10 +167,12 @@ internal sealed class MediaSelectionTagDialog : Window
         return coverage.Carriers.Where(item => coverage.Total > 0 && item.Value >= coverage.Total).Select(item => item.Key).ToHashSet();
     }
 
-    // Runs after the field's own handler: an Enter that took a highlighted suggestion is already handled there.
+    // Enter adds the typed text, unless the field takes it (TagSuggestionInput.FieldTakesEnter).
     private async void OnInputKey(object? sender, KeyEventArgs e)
     {
         if (e.Handled || e.Key != Key.Enter || e.KeyModifiers != KeyModifiers.None) return;
+        // Added after the field's own handler, so it runs before it: a highlighted suggestion is the field's to accept.
+        if (TagSuggestionInput.FieldTakesEnter(_input, e)) return;
         e.Handled = true;
         _input.Dismiss();
         try { await AddTypedAsync(); }

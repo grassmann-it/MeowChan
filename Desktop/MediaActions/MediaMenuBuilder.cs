@@ -87,7 +87,7 @@ internal static class MediaMenuBuilder
         MenuItem item;
         if (entry.CommandId is { } id)
             item = CommandBindings.CreateMenuItem(id, Execute, CanExecute, () => executable ? null : entry.Reason ?? MediaMenuReasons.Unavailable,
-                () => entry.Label);
+                () => entry.Label, entry.ShowShortcut);
         else
         {
             item = new MenuItem { Header = entry.Label, Command = new DelegateCommand(Execute, CanExecute), IsEnabled = CanExecute() };

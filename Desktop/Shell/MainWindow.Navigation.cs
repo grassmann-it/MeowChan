@@ -167,6 +167,7 @@ public partial class MainWindow
         _archivePage.CopyFilePathAsync = CopyFilePathAsync;
         _archivePage.ManageMediaRatingsAsync = ManageMediaRatingsAsync;
         _archivePage.IsArchiveFavorite = _session.IsFavorite;
+        _archivePage.ArchiveFavoritesUnreadable = () => _session.FavoritesUnreadable;
         _archivePage.EffectiveArchiveFavorite = EffectiveArchiveFavorite;
         // The toggle is relative to the effective value (a pending write's target), the favourite keys write an explicit target.
         _archivePage.ToggleArchiveFavoriteAsync = entry => SetArchiveFavoriteAsync(entry, !EffectiveArchiveFavorite(entry));
@@ -414,7 +415,7 @@ public partial class MainWindow
         if (page == WorkspacePage.Rules) { _rulesPage?.RefreshConfirmedRules(); _ = _rulesPage?.RefreshPluginFiltersAsync(); }
         if (page == WorkspacePage.Archive && activateArchive) _ = _archivePage?.ActivateAsync();
         if (page == WorkspacePage.Media) _ = _mediaPage?.ActivateAsync();
-        if (page == WorkspacePage.Booru) _ = _booruPage?.ActivateAsync();
+        if (page == WorkspacePage.Booru) { _ = _booruPage?.ActivateAsync(); RequestBooruRepairRefresh(); }
         if (page == WorkspacePage.Tagging) ActivateTaggingPage();
         return true;
     }

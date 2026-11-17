@@ -137,6 +137,12 @@ internal sealed partial class MediaLibraryTileView : UserControl
     /// <summary>Set by the page: takes back a bitmap that came from the page's cache instead of disposing it (other tiles may show it).</summary>
     internal Action<Bitmap>? ThumbnailRelease { get; set; }
     /// <summary>
+    /// Set by the page: the preview a tile of the same bytes showed right before the page swapped its rows (<see cref="TakeShownThumbnail"/>), handed
+    /// to this tile with its lease, or null. It was verified when it was loaded and stood on screen a moment ago, so a re-present that the data asked
+    /// for (the index, own state) keeps the picture instead of flashing "Loading image…" over it, for videos too.
+    /// </summary>
+    internal Func<MediaLibraryTile, Bitmap?>? ThumbnailHandover { get; set; }
+    /// <summary>
     /// True when the preview now shown came from the page's cache (it appeared in the same turn the tile was bound), false when it was
     /// loaded asynchronously. A fade-in belongs only to the loaded ones.
     /// </summary>
@@ -456,7 +462,7 @@ internal sealed partial class MediaLibraryTileView : UserControl
         if (DataContext is not MediaLibraryTileRow { Entry.Presence: MediaLibraryPresence.Present } row
             || ThumbnailLoader is not { } loader || _loading != null || _bitmap != null) return;
         int request = _request;
-        if (ThumbnailCached?.Invoke(row.Tile) is { } cached)
+        if ((ThumbnailHandover?.Invoke(row.Tile) ?? ThumbnailCached?.Invoke(row.Tile)) is { } cached)
         {
             _bitmap = cached;
             _image.Source = cached; _preview.Aspect = MediaSlotGeometry.AspectOf(cached);
@@ -493,6 +499,18 @@ internal sealed partial class MediaLibraryTileView : UserControl
     {
         if (bitmap == null) return;
         if (ThumbnailRelease is { } release) release(bitmap); else bitmap.Dispose();
+    }
+
+    /// <summary>
+    /// Gives up the preview this tile shows, with its lease, for the page to hand to whichever tile shows the same bytes after a row swap
+    /// (<see cref="ThumbnailHandover"/>); the tile is empty afterwards. Null while it shows none.
+    /// </summary>
+    internal (MediaLibraryTile Tile, Bitmap Bitmap)? TakeShownThumbnail()
+    {
+        if (_bitmap is not { } bitmap || DataContext is not MediaLibraryTileRow row || _image.Source == null) return null;
+        _bitmap = null; // not discarded: the lease moves to the caller
+        Reset();
+        return (row.Tile, bitmap);
     }
 
     private void Reset()

@@ -123,7 +123,9 @@ internal sealed partial class GalleryViewer
             RevealOverlayControls();
             if (!_overflowHadFocus || _terminalRetirement || !_overflowButton.IsEffectivelyVisible) return;
             _overflowHadFocus = false;
-            _overflowButton.Focus(_keyboardInteraction ? NavigationMethod.Tab : NavigationMethod.Pointer);
+            // A keyboard user returns to "More"; a menu opened with the pointer hands the keys to the picture (never to the button, whose Space would reopen it).
+            if (_keyboardInteraction) _overflowButton.Focus(NavigationMethod.Tab);
+            else ReclaimGallerySurface();
         };
         _overflowPanel.GotFocus += (_, _) => _overflowHadFocus = true;
         ApplyOverflowButtonText();

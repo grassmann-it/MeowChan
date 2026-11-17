@@ -4,7 +4,7 @@ internal static class PluginCatalog
 {
     internal static readonly (string Key, string English, string German)[] Entries =
     {
-        ("plugins.repair.review", "Review bundled repairs", "Gebündelte Kandidaten prüfen"),
+        ("plugins.repair.review", "Review bundled repairs", "Gebündelte Reparaturen prüfen"),
         ("plugins.repair.title", "Review bundled candidate repairs", "Reparatur gebündelter Kandidaten prüfen"),
         ("plugins.repair.policy", "Nothing changes until you confirm a row. Confirmation saves an exact build for next app start; it does not activate code now. Original selection, settings, owners, pins, grants and rollback artifacts are retained. Missing provenance blocks repair. Inherited permissions require a separate explicit review where offered; otherwise repair remains blocked.", "Ohne Bestätigung einer Zeile wird nichts geändert. Die Bestätigung merkt einen exakten Build für den nächsten Appstart vor; jetzt wird kein Code aktiviert. Ursprüngliche Auswahl, Einstellungen, Eigentümer, Pins, Freigaben und Rückfallartefakte bleiben erhalten. Fehlende Herkunft blockiert die Reparatur. Geerbte Rechte erfordern eine gesonderte ausdrückliche Prüfung, sofern angeboten; andernfalls bleibt die Reparatur blockiert."),
         ("plugins.repair.empty", "No unconfirmed bundled repairs to review.", "Keine unbestätigten Reparaturen gebündelter Kandidaten vorhanden."),
@@ -130,6 +130,8 @@ internal static class PluginCatalog
         ("plugins.changedBuild", "Changed build", "Geänderter Build"),
         ("plugins.rollbackPinned", "Last good saved build pinned", "Letzte gute gespeicherte Fassung angeheftet"),
         ("plugins.rollbackPinnedHint", "The saved rollback stays pinned until a candidate is explicitly selected.", "Der gespeicherte Rückfall bleibt angeheftet, bis ein Kandidat ausdrücklich gewählt wird."),
+        // #130: shown once, on the first start after a pinned bundled release followed its in-place rebuild of the same version.
+        ("plugins.pinnedReleaseUpdatedHint", "This start updated the pinned release {0} in place to the current bundled build of the same version. It stays pinned; the previous build is kept for rollback.", "Dieser Start hat die angeheftete Version {0} an Ort und Stelle auf den aktuellen mitgelieferten Build derselben Version aktualisiert. Sie bleibt angeheftet; der vorherige Build bleibt für einen Rückfall erhalten."),
         ("plugins.capability.threadRead", "Read threads", "Threads lesen"),
         ("plugins.capability.boardCatalog", "Board catalogs", "Boardkataloge"),
         ("plugins.capability.postCapture", "Capture posts", "Posts erfassen"),
@@ -166,7 +168,13 @@ internal static class PluginCatalog
         ("plugins.step.next.fix", "Next: fix the problem described here, then restart MeowChan.", "Als Nächstes: das hier beschriebene Problem beheben und MeowChan dann neu starten."),
         ("plugins.step.next.restart", "Next: restart MeowChan. A new or changed file is built and registered only at startup.", "Als Nächstes: MeowChan neu starten. Eine neue oder geänderte Datei wird nur beim Start gebaut und registriert."),
         ("plugins.step.next.review", "Next: this bundled plugin waits for your OK, usually because it now comes from another folder; a restart alone does not start it. Choose “{0}”.", "Als Nächstes: Dieses gebündelte Plugin wartet auf deine Bestätigung, meist weil es jetzt aus einem anderen Ordner kommt; ein Neustart allein startet es nicht. „{0}“ wählen."),
-        ("plugins.repair.reviewNow", "Review this repair", "Diese Reparatur prüfen"),
+        // A running build that fails with sdk-mismatch, a build confirmed for the next start, and the pin a confirmed reselection releases.
+        ("plugins.reselection.releasesPin", "This plugin is pinned. Confirming releases the pin: from the next start MeowChan uses this current bundled build instead of the pinned one. The previous state, including the pin, stays in the backup (state.pre-reselection.json).", "Dieses Plugin ist angeheftet. Die Bestätigung hebt die Anheftung auf: Ab dem nächsten Start verwendet MeowChan diesen aktuellen mitgelieferten Build statt des angehefteten. Der vorherige Zustand bleibt samt Anheftung in der Sicherung (state.pre-reselection.json)."),
+        ("plugins.state.sdkMismatch", "Incompatible build (sdk-mismatch)", "Inkompatibler Build (sdk-mismatch)"),
+        ("plugins.state.confirmedNextStart", "Confirmed for next start — restart to apply", "Für den nächsten Start bestätigt – zum Übernehmen neu starten"),
+        ("plugins.sdkMismatchHint", "The running build was made for another MeowChan version and cannot work (sdk-mismatch). Choose “{0}”, confirm the current bundled build, then restart MeowChan.", "Der laufende Build wurde für eine andere MeowChan-Version erstellt und kann nicht arbeiten (sdk-mismatch). „{0}“ wählen, den aktuellen mitgelieferten Build bestätigen und MeowChan dann neu starten."),
+        ("plugins.confirmedNextStartHint", "A build is confirmed for the next start. Quit MeowChan completely and start it again to use it; until then the running build stays as it is.", "Ein Build ist für den nächsten Start bestätigt. Beende MeowChan vollständig und starte es neu, um ihn zu verwenden; bis dahin bleibt der laufende Build, wie er ist."),
+        ("plugins.step.next.sdkMismatch", "Next: choose “{0}”, confirm the current bundled build, then restart MeowChan. The running build cannot work with this MeowChan version (sdk-mismatch).", "Als Nächstes: „{0}“ wählen, den aktuellen mitgelieferten Build bestätigen und MeowChan dann neu starten. Der laufende Build kann mit dieser MeowChan-Version nicht arbeiten (sdk-mismatch)."),
         ("plugins.step.next.restartSaved", "Next: restart MeowChan to use the build that is saved for the next start.", "Als Nächstes: MeowChan neu starten, um die für den nächsten Start gespeicherte Fassung zu verwenden."),
         ("plugins.step.next.enable", "Next: choose “{0}”. It takes effect now.", "Als Nächstes: „{0}“ wählen. Es wirkt sofort."),
         ("plugins.step.next.select", "Next: choose “{0}”, then restart MeowChan.", "Als Nächstes: „{0}“ wählen und MeowChan dann neu starten."),

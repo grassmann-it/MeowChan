@@ -24,6 +24,11 @@ public partial class ArchivePage
     internal ContextMenu? ArchiveMediaMenu => _mediaMenuPresenter.Menu;
     internal MediaMenuSession? ArchiveMediaMenuSession => _mediaMenuPresenter.Session;
     internal Func<GalleryEntry, bool>? IsArchiveFavorite { get; set; }
+    /// <summary>
+    /// True when the favorites file could not be read: every star of the page is then off (disabled, its tooltip says why) and the favorite keys refuse.
+    /// Null (nothing wired) counts as readable. Never throws.
+    /// </summary>
+    internal Func<bool>? ArchiveFavoritesUnreadable { get; set; }
     internal Func<GalleryEntry, Task>? ToggleArchiveFavoriteAsync { get; set; }
     internal Func<GalleryEntry, Task>? EditArchiveMediaTagsAsync { get; set; }
     /// <summary>
@@ -57,7 +62,8 @@ public partial class ArchivePage
         foreach (ArchiveAssetRow row in _assets)
         {
             GalleryEntry entry = Entry(row);
-            row.FavoriteAvailable = () => _available && !_ended && ToggleArchiveFavoriteAsync != null;
+            row.FavoriteAvailable = () => _available && !_ended && ToggleArchiveFavoriteAsync != null && ArchiveFavoritesUnreadable?.Invoke() != true;
+            row.FavoriteHold = () => ArchiveFavoritesUnreadable?.Invoke() == true ? FavoriteStarHold.Unreadable : FavoriteStarHold.None;
             row.IsFavorite = () => IsArchiveFavorite?.Invoke(entry) == true;
             row.ToggleFavoriteAsync = () => ToggleArchiveMediaFavoriteAsync(entry);
             row.FavoriteError = () => _favoriteErrors.GetValueOrDefault(FavoriteAssetKey.From(entry.Key.Thread, entry.Asset));
@@ -68,7 +74,10 @@ public partial class ArchivePage
                 {
                     ArchiveAssetRow? match = FindMatchingAsset(threadId, post.Id, row.Attachment, _assets);
                     GalleryEntry? entry = match == null ? null : Entry(match);
-                    row.FavoriteAvailable = () => _available && !_ended && entry != null && ToggleArchiveFavoriteAsync != null;
+                    row.FavoriteAvailable = () => _available && !_ended && entry != null && ToggleArchiveFavoriteAsync != null && ArchiveFavoritesUnreadable?.Invoke() != true;
+                    // No saved file known for it yet while the thread's media scan runs: "checking", not a permanent-looking "no saved version" (AR-04).
+                    row.FavoriteHold = () => ArchiveFavoritesUnreadable?.Invoke() == true ? FavoriteStarHold.Unreadable
+                        : entry == null && _mediaLoading ? FavoriteStarHold.Loading : FavoriteStarHold.None;
                     row.IsFavorite = () => entry != null && IsArchiveFavorite?.Invoke(entry) == true;
                     row.ToggleFavoriteAsync = () => entry == null ? Task.CompletedTask : ToggleArchiveMediaFavoriteAsync(entry);
                     row.FavoriteError = () => entry == null ? null : _favoriteErrors.GetValueOrDefault(FavoriteAssetKey.From(entry.Key.Thread, entry.Asset));
@@ -227,13 +236,14 @@ public partial class ArchivePage
     private bool TryRouteArchiveMediaShortcut(Control owner, KeyEventArgs e)
     {
         if (e.Handled || CommandRouter.IsNativeInput(e.Source, e.Key) || IsReaderDialogOpen) return false;
-        string[] ids = { "favorites.toggle", "media.tags.edit", "media.export-original", "media.show-in-folder", "media.copy-path", "media.details", "gallery.show-in-thread" };
+        string[] ids = { "favorites.toggle", "media.tags.edit", "media.queue.add", "media.export-original", "media.show-in-folder", "media.copy-path", "media.details", "gallery.show-in-thread" };
         if (!ids.Any(id => CommandBindings.Matches(e, id))) return false;
         Control[] ancestors = (e.Source as Avalonia.Visual)?.GetSelfAndVisualAncestors().OfType<Control>().ToArray() ?? Array.Empty<Control>();
-        // The same medium R and M / U / F act on (ReaderMediumAt). With the post card focused, only the tag key reaches the post's medium: the other gestures
-        // are the post's own there (copy link, export, folder, T, I).
+        // The same medium R and M / U / F act on (ReaderMediumAt). With the post card focused, only the tag key and Q reach the post's medium: the other
+        // gestures are the post's own there (copy link, export, folder, T, I).
+        bool queue = CommandBindings.Matches(e, "media.queue.add");
         if (e.Source is not Control source
-            || ReaderMediumAt(ancestors, source, selectedPost: CommandBindings.Matches(e, "media.tags.edit")) is not { } medium) return false;
+            || ReaderMediumAt(ancestors, source, selectedPost: queue || CommandBindings.Matches(e, "media.tags.edit")) is not { } medium) return false;
         // A medium is there but the page is loading: the key is the medium's and waits for nothing (a key without a medium is left to the post).
         if (_busy) { e.Handled = true; return true; }
         (ArchiveAssetRow? asset, ArchiveAttachmentRow? attachment, string? postId, Control origin) = medium;
@@ -251,9 +261,23 @@ public partial class ArchivePage
                 catch (Exception error) { reportTagError(error.Message); }
             }
         }
+        // Q (KB-04): the Media page's and the gallery's key, on the medium the focus stands for. Several selected files of the Media tab go together
+        // (the selection bar's "Add to tagging queue"), as on the Media page; otherwise the menu's own entry runs under its gates.
+        ArchiveAssetRow[]? several = SeveralSelectedWith(asset, attachment);
+        if (queue && several != null)
+        {
+            e.Handled = true;
+            QueueSelectionByKey();
+            return true;
+        }
         MediaMenuSurface surface = attachment != null ? MediaMenuSurface.ArchiveInline
             : ancestors.Any(control => control.Name == "ArchiveMediaTiles") ? MediaMenuSurface.ArchiveTiles : MediaMenuSurface.ArchiveTable;
-        return CommandBindings.RouteMenuAction(BuildArchiveMediaMenu(asset, attachment, origin, postId, surface, SeveralSelectedWith(asset, attachment)).Menu, e);
+        ContextMenu menu = BuildArchiveMediaMenu(asset, attachment, origin, postId, surface, several).Menu;
+        bool routed = CommandBindings.RouteMenuAction(menu, e);
+        // A key that found its medium but not the queue's way (a Danbooru medium, no wiring) says why, as the tagging keys do: never silence.
+        if (routed && queue && menu.Items.OfType<MenuItem>().FirstOrDefault(item => Equals(item.Tag, "media.queue.add")) is { IsEnabled: false })
+            Message(TagQueueActions.BlockedReason(saved: true, BooruMediaIdentity.IsBooruThread(_selectedThread!)) ?? MediaMenuReasons.Unavailable);
+        return routed;
     }
 
     // The sidebar stands for the medium it shows: its attachment, post and menu origin. A pointer right click anywhere in the sidebar counts (picture, video row,
@@ -582,6 +606,8 @@ public partial class ArchivePage
             TagsBlockedExplained = true,
             QueueWired = CanQueue(),
             QueueBlocked = TagQueueActions.BlockedReason(target != null, BooruMediaIdentity.IsBooruThread(threadId)),
+            // Q resolves the medium of the focused control (ReaderMediumAt); an attachment without a saved file has none, so the entry shows no hint.
+            QueueKeyReachesTarget = target != null,
             FolderWired = CanShowInFolder(),
             CopyPathWired = CanCopyPath(),
             Posts = severalPosts ? MediaMenuPostScope.Several : postIds.Length == 1 ? MediaMenuPostScope.Single : MediaMenuPostScope.None,

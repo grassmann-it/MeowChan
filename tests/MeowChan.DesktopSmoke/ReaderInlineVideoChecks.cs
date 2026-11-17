@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text.Json;
+using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
@@ -129,6 +130,25 @@ internal static class ReaderInlineVideoChecks
             Require(Math.Abs(firstPlayer.TransportControl.Bounds.Width - firstView.PreviewButton.Bounds.Width) <= 2.5,
                 "The video's control is not as wide as its picture: " + firstPlayer.TransportControl.Bounds.Width + " vs " + firstView.PreviewButton.Bounds.Width);
             Require(first.Activator.Classes.Contains("video-activator"), "The play control over the poster lost its transparent style (hover would hide the poster).");
+
+            // KB-03: a mouse click on the bar's mute gives the keys back to the post, so Space never presses mute again; keyboard activation keeps the bar's focus.
+            Button muteButton = (Button)firstPlayer.MinimalBar!.Mute;
+            bool mutedAtStart = firstPlayer.Muted;
+            await GalleryPointerFocusChecks.ClickAsync(host, muteButton);
+            await Program.WaitUntilAsync(() => firstPlayer.Muted != mutedAtStart);
+            Require(GalleryPointerFocusChecks.Focused(host) is Visual afterMute && !afterMute.GetSelfAndVisualAncestors().OfType<Button>().Any(),
+                "A mouse click on the video bar's mute left the keys on a button: " + GalleryPointerFocusChecks.Focused(host));
+            bool mutedAfterClick = firstPlayer.Muted;
+            await GalleryPointerFocusChecks.SpaceAsync(host);
+            Require(firstPlayer.Muted == mutedAfterClick, "Space after a mouse click on mute pressed mute again.");
+            await GalleryPointerFocusChecks.ClickAsync(host, muteButton);
+            await Program.WaitUntilAsync(() => firstPlayer.Muted == mutedAtStart);
+            Require(muteButton.Focus(Avalonia.Input.NavigationMethod.Tab), "The bar's mute could not be focused by keyboard.");
+            await GalleryPointerFocusChecks.SpaceAsync(host);
+            await Program.WaitUntilAsync(() => firstPlayer.Muted != mutedAtStart);
+            Require(ReferenceEquals(GalleryPointerFocusChecks.Focused(host), muteButton), "Keyboard activation of mute moved the focus off the bar.");
+            await GalleryPointerFocusChecks.SpaceAsync(host); // and back to where the run started
+            await Program.WaitUntilAsync(() => firstPlayer.Muted == mutedAtStart);
 
             // One at a time: the second pauses the first, whose transport gives way (one set of video controls in the reader).
             Click(secondView.PreviewButton);

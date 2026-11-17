@@ -71,7 +71,7 @@ internal static class CountCatalog
         ("media.exportAll.confirm.one", "{0} original ({1}) is about to be copied. This can take a while. Export it?", "{0} Original ({1}) soll kopiert werden. Das kann dauern. Exportieren?"),
         ("plugins.catalogResult.one", "Normalized catalog: {0} thread.", "Normalisierter Katalog: {0} Thread."),
         ("archive.command.selectionCount.one", "{0} selected thread · each action shows its eligible targets", "{0} ausgewählter Thread · jede Aktion zeigt ihre geeigneten Ziele"),
-        ("archive.command.batchCount.one", "{0} · {1} thread", "{0} · {1} Thread"),
+        ("archive.command.batchCount.one", "{0} ({1} thread)", "{0} ({1} Thread)"),
         ("viewer.favorites.unavailable.one", "{0} original is currently unavailable.", "{0} Original ist derzeit nicht verfügbar."),
         ("viewer.export.scope.one", "{0} · {1} original", "{0} · {1} Original"),
         ("readerFind.count.one", "Selected {0} · {1} hit", "Ausgewählt {0} · {1} Treffer"),

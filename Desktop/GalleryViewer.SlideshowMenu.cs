@@ -103,9 +103,10 @@ internal sealed partial class GalleryViewer
             RevealOverlayControls();
             if (!_slideshowMenuHadFocus || _terminalRetirement) return;
             _slideshowMenuHadFocus = false;
-            // The focus returns to where the flyout came from: the menu button, else (it left the bar) "⋯".
+            // A keyboard user returns to where the flyout came from: the menu button, else (it left the bar) "⋯". A menu opened with the pointer hands the keys to the picture.
+            if (!_keyboardInteraction) { ReclaimGallerySurface(); return; }
             Control target = _slideshowMenuButton.IsEffectivelyVisible ? _slideshowMenuButton : _overflowButton;
-            if (target.IsEffectivelyVisible) target.Focus(_keyboardInteraction ? NavigationMethod.Tab : NavigationMethod.Pointer);
+            if (target.IsEffectivelyVisible) target.Focus(NavigationMethod.Tab);
         };
         PresentSlideshowMenu();
     }

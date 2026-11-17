@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using MeowChan.Archive;
+using MeowChan.Desktop.Localization;
 using MeowChan.Favorites;
 using MeowChan.Gallery;
 using MeowChan.Storage;
@@ -24,6 +25,11 @@ internal sealed partial class DesktopSessionHost
     private HashSet<FavoriteAssetKey>? _favoriteKeys;
 
     private Exception? _favoriteReadError;
+    private int _favoritesUnreadableNoticed;
+    // Originals the favorites resolution fully hashed in this session and found unchanged (identity incl. change time; never on Windows, see
+    // MediaAssetReader.OpenSessionVerifiedReadAsync): the overview resolves the whole scope on every open, scope change and remove, and
+    // View and Export verify the file again themselves, so this only spares the "is it still there and intact" classification.
+    private readonly VerifiedFileMemo _favoriteVerifiedFiles = new();
     private sealed record PassiveFavoriteIndex(IReadOnlyList<FavoriteEntry> Entries, FrozenSet<FavoriteAssetKey> Keys);
     private PassiveFavoriteIndex? _passiveFavorites;
     private void PublishFavoriteIndex()
@@ -118,15 +124,38 @@ internal sealed partial class DesktopSessionHost
         return entries ?? throw new InvalidDataException("Favorites are unavailable: " + _favoriteReadError?.Message, _favoriteReadError);
     }
 
+    /// <summary>
+    /// True when the favorites index could not be read at startup (damaged, a link, too large, unreadable). The stars then show the
+    /// "unavailable" state instead of an unmarked one; the file is never rewritten or repaired from here.
+    /// </summary>
+    internal bool FavoritesUnreadable => Volatile.Read(ref _passiveFavorites) == null && Volatile.Read(ref _favoriteReadError) != null;
+
+    /// <summary>
+    /// The sentence for the one notice of an unreadable favorites index, handed out exactly once per session (null when the index is
+    /// readable or the notice was already taken): the shell shows it once, never once per star or tile.
+    /// </summary>
+    internal string? TakeFavoritesUnreadableNotice()
+    {
+        if (!FavoritesUnreadable || Interlocked.Exchange(ref _favoritesUnreadableNoticed, 1) != 0) return null;
+        return Texts.T("favorites.unreadable.notice", Volatile.Read(ref _favoriteReadError)?.Message ?? string.Empty);
+    }
+
+    /// <summary>
+    /// Whether a medium is a favorite in the passive index. An index that is still loading or could not be read has no marks to report, so
+    /// this is false then and never throws for it (<see cref="FavoritesUnreadable"/> tells the unreadable case apart); only a disposed
+    /// session throws. <see cref="GetFavorites"/> keeps throwing for every consumer that must refuse instead (destructive commands, the overview).
+    /// </summary>
     internal bool IsFavorite(GalleryEntry entry)
     {
         ArgumentNullException.ThrowIfNull(entry);
         FavoriteAssetKey key = FavoriteAssetKey.From(entry.Key.Thread, entry.Asset);
         ObjectDisposedException.ThrowIf(_disposed, this);
         PassiveFavoriteIndex? index = Volatile.Read(ref _passiveFavorites);
-        if (index == null) { GetFavorites(); return false; }
-        return index.Keys.Contains(key);
+        return index != null && index.Keys.Contains(key);
     }
+
+    /// <summary>Number of originals the favorites resolution remembers as verified (tests).</summary>
+    internal int FavoriteVerifiedFileCount => _favoriteVerifiedFiles.Count;
 
     internal Task<bool> SetFavoriteAsync(GalleryEntry entry, bool favorite,
         CancellationToken token = default)
@@ -255,7 +284,7 @@ internal sealed partial class DesktopSessionHost
                             if (asset.Length != stored.Length) continue;
                             try
                             {
-                                await using Stream verified = await manifest.OpenVerifiedReadAsync(asset.AssetId, token)
+                                await using Stream verified = await manifest.OpenSessionVerifiedReadAsync(asset.AssetId, _favoriteVerifiedFiles, token)
                                     .ConfigureAwait(false);
                                 found.Add(key, FavoriteExportAsset.From(group.Key, manifest, asset));
                             }

@@ -41,7 +41,8 @@ public sealed partial class MediaPage : UserControl
     private readonly MediaManifestCache _manifests;
     private readonly TextBlock _title = new() { Classes = { "page-title" } };
     private readonly TextBlock _subtitle = new() { TextWrapping = Avalonia.Media.TextWrapping.Wrap, Classes = { "muted" } };
-    private readonly ComboBox _sort = new() { Name = "MediaSort", MinWidth = 160 };
+    // The criterion with its "Sort" prefix inside the box (MediaPage.Sorting.cs); its minimum width follows the toolbar stage (MediaPage.Toolbar.cs).
+    private readonly PrefixedComboBox _sort = new() { Name = "MediaSort", MinWidth = MediaToolbarLayout.SortMinWidth };
     private readonly Button _shuffle = new() { Name = "MediaShuffle", IsVisible = false };
     private readonly CheckBox _missing = new() { Name = "MediaShowMissing" };
     private readonly Button _refresh = new() { Name = "MediaRefresh" };
@@ -199,7 +200,7 @@ public sealed partial class MediaPage : UserControl
         _headerBody.Children.Add(BuildExportAllAsk()); _headerBody.Children.Add(BuildSelectionBar());
         _grid.ItemsPanel = new FuncTemplate<Panel?>(() => new MediaTilePanel { ItemHeight = _tileAppearance.CellHeight, ColumnWidth = _tileAppearance.CellWidth });
         _grid.ItemTemplate = new FuncDataTemplate<MediaLibraryTileRow>((_, _) => new MediaLibraryTileView { ThumbnailLoader = LoadThumbnailAsync, ThumbnailCached = MediaTileThumbnails.TryGetCached,
-            ThumbnailRelease = MediaTileThumbnails.Release, ThreadFilter = FilterToThread,
+            ThumbnailRelease = MediaTileThumbnails.Release, ThumbnailHandover = TakeHandedOverThumbnail, ThreadFilter = FilterToThread,
             TagFilter = FilterToTag, TagExclude = ExcludeTag, ShowOccurrences = ShowOccurrences, FavoriteToggle = ToggleTileFavoriteAsync,
             CanToggleFavorite = () => ExecuteMediaMenuActionAsync != null, InTagQueue = IsInTagQueue, Appearance = _tileAppearance,
             EditTags = EditTagsOfTile, OpenTagging = () => OpenTaggingPage?.Invoke(), CanOpenTagging = () => OpenTaggingPage != null });
@@ -308,7 +309,7 @@ public sealed partial class MediaPage : UserControl
                 if (cached != null && _snapshot == null)
                 {
                     SetSnapshot(cached);
-                    Present();
+                    Present(keepView: true);
                 }
                 else UpdateStatus();
             }
@@ -323,7 +324,7 @@ public sealed partial class MediaPage : UserControl
             if (!ReferenceEquals(_building, building)) return;
             SetSnapshot(built);
             _progress = null;
-            Present();
+            Present(keepView: true); // the rebuilt index replaces the rows under the user's eyes: the view stays where it is
             if (_cacheFile is { } file)
             {
                 long limit = CacheLimitBytes?.Invoke() ?? MediaLibraryIndexCache.DefaultLimitBytes;
@@ -368,6 +369,7 @@ public sealed partial class MediaPage : UserControl
     internal int PresentRunCount { get; private set; }
     private CancellationTokenSource? _presenting;
     private bool _presentPending;
+    private bool _presentPendingKeepsView;
     // Counts the user's own selection changes: a presentation computed in the background keeps the selection it was started with
     // only when nothing was selected or unselected meanwhile.
     private long _selectionStamp;
@@ -395,17 +397,28 @@ public sealed partial class MediaPage : UserControl
         internal Func<MediaSourceTagIndex?>? SourceTags { get; init; }
         /// <summary>The search text this presentation was made for; the row where it was found names it.</summary>
         internal string? SearchText { get; init; }
+        /// <summary>
+        /// The data asked for this presentation (the index, own state, the tagging queue, sound results, the language), not the user's query: it
+        /// keeps the view where it is (MediaPage.ViewKeep.cs).
+        /// </summary>
+        internal bool KeepView { get; init; }
     }
 
     private sealed record PresentResult(IReadOnlyList<MediaLibraryTile> Tiles, MediaLibraryEntry[] Shown, int[] PresentPositions,
         MediaLibraryTileRow[] Rows, int ShownMissing, int Unfiltered, bool FilterActive, string? ErrorKey, int AudioUnknown,
         int? UntaggedTiles, MediaLibraryUntagged? Untagged, IReadOnlyList<int> Restored, MediaLibraryUserOrder? UserOrder, MediaTextCounts? Breakdown = null);
 
-    private void Present()
+    /// <param name="keepView">
+    /// True when the data changed and not the query (a rebuilt index, own state, the queue, sound results, the language): the grid keeps its scroll
+    /// anchor, the selected tile's place on screen and the previews it shows (MediaPage.ViewKeep.cs). A changed filter, order or search starts fresh.
+    /// </param>
+    private void Present(bool keepView = false)
     {
         _presenting?.Cancel();
         _presenting = null;
-        PresentInputs inputs = CapturePresentInputs();
+        // A query presentation that is still being computed is not turned into a data one by a refresh that replaces it.
+        keepView = keepView && !(_presentPending && !_presentPendingKeepsView);
+        PresentInputs inputs = CapturePresentInputs() with { KeepView = keepView };
         // Source tags read the Booru catalog: its first read (tens of MiB) never happens on the UI thread (see WarmBooruCatalog).
         if (inputs.All.Count < BackgroundPresentEntries && !(inputs.PageTerms?.NeedsSourceTags == true && ReadBooruCatalog != null && !_booruCatalogWarm))
         {
@@ -417,6 +430,7 @@ public sealed partial class MediaPage : UserControl
         CancellationTokenSource presenting = new();
         _presenting = presenting;
         _presentPending = true;
+        _presentPendingKeepsView = keepView;
         PresentTask = PresentInBackgroundAsync(inputs, presenting, ++PresentRunCount);
     }
 
@@ -599,6 +613,9 @@ public sealed partial class MediaPage : UserControl
 
     private void ApplyPresent(PresentInputs input, PresentResult result)
     {
+        // A presentation the data asked for keeps the view: where the grid stands is taken before anything of the old rows changes
+        // (MediaPage.ViewKeep.cs); the previews they show are taken right before the swap.
+        ViewKeep? keep = input.KeepView ? CaptureView() : null;
         PresentCount++;
         InvalidateSharedMediaMenu();
         DismissExportAllAsk(); // A pending "export all" question was about tiles that may no longer be shown.
@@ -631,11 +648,13 @@ public sealed partial class MediaPage : UserControl
         _unfiltered = result.Unfiltered;
         _breakdownCounts = result.Breakdown;
         _breakdownText = input.SearchText ?? string.Empty;
+        if (keep != null) HandOverThumbnails();
         _restoring = true;
         try
         {
             _grid.ItemsSource = result.Rows;
             SelectIndexes(restored);
+            if (keep != null) { HoldListScroll(); RestoreView(keep); }
         }
         finally { _restoring = false; }
         RefreshWorkView(); // the shuffle button follows the random order (state) and the view (placement)
@@ -1334,7 +1353,7 @@ public sealed partial class MediaPage : UserControl
         LocalizeFilters();
         LocalizeFilterSurface();
         LocalizeSelection();
-        if (_grid.ItemsSource != null) Present(); else UpdateStatus();
+        if (_grid.ItemsSource != null) Present(keepView: true); else UpdateStatus();
     }
 
     internal void EndLifetime()

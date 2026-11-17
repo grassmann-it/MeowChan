@@ -31,7 +31,9 @@ public partial class PluginsPage
             PluginNextAction.SelectBuild => Texts.T("plugins.step.next.select", CommandCatalog.Label("plugins.select-candidate")),
             PluginNextAction.RestartToUse => Texts.T("plugins.step.next.restartSaved"),
             PluginNextAction.ApproveSdkTransition => Texts.T("plugins.step.next.sdk", Texts.T("plugins.sdkTransition.action")),
-            PluginNextAction.ReviewRepair => Texts.T("plugins.step.next.review", Texts.T("plugins.repair.reviewNow")),
+            // A running build that fails with sdk-mismatch does not wait "because it comes from another folder": name the whole route.
+            PluginNextAction.ReviewRepair when presentation.HasSdkMismatch => Texts.T("plugins.step.next.sdkMismatch", Texts.T("plugins.repair.review")),
+            PluginNextAction.ReviewRepair => Texts.T("plugins.step.next.review", Texts.T("plugins.repair.review")),
             PluginNextAction.SavedChangesApplyAtRestart => Texts.T("plugins.step.next.saved"),
             _ => null
         };

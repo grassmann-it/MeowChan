@@ -125,7 +125,7 @@ public partial class PluginsPage
         BindAction("PluginRollback", "plugins.rollback");
         BindAction("PluginWatches", "plugins.watches");
         if (this.FindControl<Button>("PluginSettingsAction") != null) BindAction("PluginSettingsAction", "plugins.show-settings");
-        PluginEntryPresentation view = PluginEntryPresentation.Create(entry);
+        PluginEntryPresentation view = PluginEntryPresentation.Create(entry, sdkMismatch: _services?.HasSdkMismatch);
         C<Button>("PluginSelectCandidate").IsVisible = view.CandidateChoiceRequired;
         Button sdkTransition = C<Button>("PluginApproveSdkTransition");
         sdkTransition.Content = Texts.T("plugins.sdkTransition.action");
@@ -137,12 +137,14 @@ public partial class PluginsPage
             ? Texts.T("plugins.sdkTransition.automaticHint", transition.FromSdkVersion, transition.ToSdkVersion, transition.ExecutionRevision)
             : string.Empty);
         Button reviewRepair = C<Button>("PluginReviewRepair");
-        reviewRepair.Content = Texts.T("plugins.repair.reviewNow");
+        // One name for every entry point of the review dialog (Plugins header, this card, the Danbooru page, the dialog title).
+        reviewRepair.Content = Texts.T("plugins.repair.review");
         CommandBindings.EnsureIconBeforeText(reviewRepair, "check");
         reviewRepair.IsVisible = view.NeedsRepairReview;
         reviewRepair.IsEnabled = view.NeedsRepairReview && !_busy && !IsDiscardConfirmationOpen;
-        AutomationProperties.SetName(reviewRepair, Texts.T("plugins.repair.reviewNow"));
-        AutomationProperties.SetHelpText(reviewRepair, view.NeedsRepairReview ? view.ActivationProblem ?? string.Empty : string.Empty);
+        AutomationProperties.SetName(reviewRepair, Texts.T("plugins.repair.review"));
+        AutomationProperties.SetHelpText(reviewRepair, !view.NeedsRepairReview ? string.Empty
+            : view.HasSdkMismatch ? PluginContentPresentation.SdkMismatchHint() : view.ActivationProblem ?? string.Empty);
         // Watches: under the plugin's More actions in Barebones (the menu lists them in every view).
         WorkViewGate.Apply(C<Button>("PluginWatches"), _workView, view.Sources.Count > 0);
         if (view.CandidateChoiceRequired) ShowReasons("PluginActivationReasons", "PluginEnabled", "PluginSelectCandidate");

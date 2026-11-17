@@ -56,7 +56,10 @@ internal static class GalleryViewerChecks
             var reports = new List<GalleryDiagnosticNotice>();
             viewer.DiagnosticNotice += reports.Add;
             await viewer.ShowAsync(selected, CancellationToken.None);
-            Require(GalleryControl<Button>(viewer, "GalleryClose").Focus(), "Could not focus gallery before warning.");
+            // The warning must leave the focus where it is. Since the auto-hide rule of 15.11. (29c270672) the way back is hidden and not
+            // focusable while the controls are auto-hidden, which they may already be here, so the focus rests on the gallery surface: the
+            // owner of the keys in every chrome state.
+            Require(viewer.Focus() && ReferenceEquals(window.FocusManager?.GetFocusedElement(), viewer), "Could not focus gallery before warning.");
             object? warningFocus = window.FocusManager?.GetFocusedElement();
             GalleryViewerState warningSelection = viewer.CaptureState();
             long warningRevision = viewer.AssociationRevision;

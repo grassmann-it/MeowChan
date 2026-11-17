@@ -49,6 +49,13 @@ internal static class ReaderMediaSidebarRules
     /// </summary>
     internal static bool IsOn(ReaderMediaPreferences media, bool largeReader) => media.Sidebar && (largeReader || media.SidebarAlways);
 
+    /// <summary>
+    /// The text key of the frame while no post is shown in it (RD-03, RD-04): a thread or a view still being read says so, a thread whose
+    /// view has no post says that, and only a reader that has posts but none selected asks for a selection.
+    /// </summary>
+    internal static string EmptyTextKey(bool loading, bool noPosts) =>
+        loading ? "reader.sidebar.loading" : noPosts ? "reader.sidebar.noPosts" : "reader.sidebar.empty";
+
     /// <summary>Whether a single click on an image in the sidebar is explicitly configured to open the gallery.</summary>
     internal static bool OpensGalleryOnPictureClick(ReaderInlineVideoOptions options) =>
         options.Mode == ReaderMediaClickMode.Gallery;
@@ -61,7 +68,7 @@ internal static class ReaderMediaSidebarRules
         IsOn(media, largeReader) && !IsCollapsedByWidth(media, readerWidth);
 
     /// <summary>
-    /// The sidebar switch (View option, Primary+Shift+M, × and Escape in the sidebar) acts on the view it is used in: in the large reader it
+    /// The sidebar switch (View option, Primary+Shift+M and × in the sidebar) acts on the view it is used in: in the large reader it
     /// turns the sidebar on or off (the archive-view choice is kept for the next time it is on); in the archive view it chooses between
     /// Always (on, also here) and Large reader only, so hiding it beside the posts never takes it from the large reader.
     /// </summary>
@@ -675,12 +682,28 @@ internal sealed class ReaderMediaSidebar : Border
     }
 
     /// <summary>No post is selected (or the reader closed): nothing kept.</summary>
-    internal void ShowEmpty()
+    internal void ShowEmpty() => ShowEmpty(Texts.T(EmptyKey));
+
+    /// <summary>The empty frame with a final text of the host's choosing (a thread without posts to show, RD-03): nothing kept.</summary>
+    internal void ShowEmpty(string text)
     {
-        ShowPlaceholder(Texts.T(EmptyKey));
+        ShowPlaceholder(text);
         ClearStrip();
         Describe(string.Empty, string.Empty, string.Empty, false);
         ConfigureFavorite(null);
+    }
+
+    /// <summary>
+    /// The thread (or its view) is still being read, so no post is known yet (RD-04): the header and the strip of the previous post go, the
+    /// previous picture stays, dimmed, under the text, so a thread switch does not flash the empty frame; without a picture the placeholder carries the text.
+    /// </summary>
+    internal void ShowThreadLoading(string text)
+    {
+        ClearStrip();
+        Describe(string.Empty, string.Empty, string.Empty, false);
+        ConfigureFavorite(null);
+        if (_bitmap != null) Dim(text);
+        else ShowPlaceholder(text);
     }
 
     // ---- the thumbnail strip (R11) ---------------------------------------------------------------------------------------------

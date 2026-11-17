@@ -53,6 +53,7 @@ internal static class ContextMenuLayoutChecks
                     await FlyoutAsync(window, anchor, prefix + "flyout-catalog", CatalogFlyout(), mustCap: false, failures);
                     if (anchor is Button { Flyout: MenuFlyout more })
                         await FlyoutAsync(window, anchor, prefix + "footer-more", more, mustCap: false, failures);
+                    await AppMenuAsync(window, prefix + "app-menu", failures);
                 }
             }
         }
@@ -153,6 +154,61 @@ internal static class ContextMenuLayoutChecks
             flyout.Hide();
             await UiCatalogChecks.Settle(window, 100);
         }
+    }
+
+    // The header's "⋯" menu is a submenu popup of the menu bar, not a ContextMenu: MenuLayout.IsSubmenuManaged gives its rows the same rule
+    // (ST-06). German labels such as "Danbooru-Suche und Suchbeobachtung" and "Downloads und Prüfungen pausieren / fortsetzen" are longer than the menu.
+    private static async Task AppMenuAsync(MainWindow window, string scene, List<string> failures)
+    {
+        MenuItem owner = window.FindControl<MenuItem>("WorkspaceMenuItem") ?? throw new InvalidOperationException(scene + ": the window has no app menu.");
+        Console.WriteLine("SMOKE context menu layout opening " + scene);
+        owner.IsSubMenuOpen = true;
+        try
+        {
+            await UiCatalogChecks.UntilAsync(() => owner.IsSubMenuOpen && AppMenuRows(owner).Any(row => Part(row, "PART_HeaderPresenter") is { Bounds.Width: > 0 }),
+                scene + ": the app menu did not open", 8);
+            // MenuLayout looks at the rows once they are laid out: every text label is set to trim, then.
+            await UiCatalogChecks.UntilAsync(() => AppMenuRows(owner).All(row => (Part(row, "PART_HeaderPresenter") as ContentPresenter)?.Child is not TextBlock { TextWrapping: TextWrapping.NoWrap } label
+                || label.TextTrimming == TextTrimming.CharacterEllipsis), scene + ": the labels of the app menu were not set to trim", 8);
+            await UiCatalogChecks.Settle(window, 150);
+            ExamineAppMenu(owner, scene, failures);
+        }
+        finally
+        {
+            owner.IsSubMenuOpen = false;
+            await UiCatalogChecks.Settle(window, 100);
+        }
+    }
+
+    private static MenuItem[] AppMenuRows(MenuItem owner) => owner.Items.OfType<MenuItem>().Where(row => row.IsEffectivelyVisible).ToArray();
+
+    private static void ExamineAppMenu(MenuItem owner, string scene, List<string> failures)
+    {
+        List<string> problems = [];
+        MenuItem[] rows = AppMenuRows(owner);
+        if (rows.Length == 0) problems.Add("no rows");
+        // The submenu popup holds the menu's frame inside a margin for its shadow (8 dip each side in Semi), so the popup is 16 dip wider than
+        // the menu people see. The shared rule caps the frame, as Examine measures a context menu by its own bounds, not by its popup.
+        double popupWidth = rows.Length == 0 || TopLevel.GetTopLevel(rows[0]) is not { } popup ? 0 : popup.ClientSize.Width;
+        double menuWidth = rows.Length == 0 ? 0 : rows[0].GetVisualAncestors().OfType<Border>().LastOrDefault()?.Bounds.Width ?? 0;
+        if (menuWidth + Tolerance < 224) problems.Add($"the app menu {menuWidth:0.#} is narrower than 224");
+        if (menuWidth - Tolerance > 416) problems.Add($"the app menu {menuWidth:0.#} is wider than 416");
+        if (popupWidth + Tolerance < menuWidth) problems.Add($"the app menu popup {popupWidth:0.#} is narrower than the menu {menuWidth:0.#}");
+        int trimmedRows = 0;
+        foreach (MenuItem row in rows)
+        {
+            if ((Part(row, "PART_HeaderPresenter") as ContentPresenter)?.Child is not TextBlock { TextWrapping: TextWrapping.NoWrap, Text: { Length: > 0 } text } label) continue;
+            double natural = MenuLayout.TextWidth(label, text);
+            bool trimmed = label.Bounds.Width + Tolerance < natural;
+            if (trimmed) trimmedRows++;
+            if (trimmed && label.TextTrimming == TextTrimming.None) problems.Add($"label \"{text}\" is cut without an ellipsis");
+            if (trimmed && ToolTip.GetTip(row) == null) problems.Add($"trimmed label \"{text}\" has no tooltip");
+        }
+        // ST-07: the "View" entry wears the eye icon of the work view command, like the other entries of its group.
+        MenuItem view = owner.Items.OfType<MenuItem>().FirstOrDefault(row => row.Name == "WorkViewMenuItem") ?? throw new InvalidOperationException(scene + ": the app menu has no View entry.");
+        if (view.Icon == null) problems.Add("the View entry has no icon");
+        Console.WriteLine($"SMOKE context menu layout {(problems.Count == 0 ? "PASS" : "FAIL")} {scene}: menu {menuWidth:0.#}, popup {popupWidth:0.#}, rows {rows.Length}, trimmed {trimmedRows}");
+        foreach (string problem in problems) failures.Add(scene + ": " + problem);
     }
 
     // The menu is laid out several times while it settles (MenuLayout sets its width after the first pass): wait until its width stays.

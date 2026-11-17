@@ -102,4 +102,32 @@ public sealed class MediaLibraryReturnTests
         MediaLibraryReturnMatch match = MediaLibraryReturn.Locate(MediaLibraryReturn.Capture(missing, [], null, 0), tiles);
         Assert.Equal(missing, tiles[match.Target].Entry);
     }
+
+    // UX review 17.11.2026: a re-present the data asked for keeps the tile the user was looking at in its place (MediaPage.ViewKeep.cs).
+    [Fact]
+    public void AKeptTileIsFoundByIdentityAfterNewTilesCameInFront()
+    {
+        MediaLibraryEntry a = Entry("a", "1", 'a', 3), b = Entry("b", "1", 'b', 2), c = Entry("c", "1", 'c', 1), d = Entry("d", "1", 'd', 0);
+        IReadOnlyList<MediaLibraryTile> before = Tiles([a, b, c, d]);
+        Assert.Equal(2, MediaLibraryReturn.LocateKept(before, 2, before)); // nothing moved: the same position
+        IReadOnlyList<MediaLibraryTile> after = Tiles([Entry("0", "1", '0', 9), Entry("1", "1", '1', 8), a, b, c, d]);
+        Assert.Equal(c, after[MediaLibraryReturn.LocateKept(before, 2, after)].Entry);
+    }
+
+    [Fact]
+    public void ALostKeptTileGivesWayToItsNearestSurvivingNeighbourAfterItFirst()
+    {
+        MediaLibraryEntry a = Entry("a", "1", 'a', 4), b = Entry("b", "1", 'b', 3), c = Entry("c", "1", 'c', 2), d = Entry("d", "1", 'd', 1), e = Entry("e", "1", 'e', 0);
+        IReadOnlyList<MediaLibraryTile> before = Tiles([a, b, c, d, e]);
+        // c is gone: d (after it) is the nearest, before b.
+        IReadOnlyList<MediaLibraryTile> withoutC = Tiles([a, b, d, e]);
+        Assert.Equal(d, withoutC[MediaLibraryReturn.LocateKept(before, 2, withoutC)].Entry);
+        // c and d are gone: b (one before) is nearer than e (two after).
+        IReadOnlyList<MediaLibraryTile> withoutCd = Tiles([a, b, e]);
+        Assert.Equal(b, withoutCd[MediaLibraryReturn.LocateKept(before, 2, withoutCd)].Entry);
+        // Nothing near survives within the reach, or there is nothing to find: the view stays.
+        Assert.Equal(-1, MediaLibraryReturn.LocateKept(before, 2, Tiles([a, e]), reach: 1));
+        Assert.Equal(-1, MediaLibraryReturn.LocateKept(before, 9, withoutC));
+        Assert.Equal(-1, MediaLibraryReturn.LocateKept(before, 2, Array.Empty<MediaLibraryTile>()));
+    }
 }

@@ -83,13 +83,17 @@ public sealed class TagMergeEntryTests : IDisposable
             TagEntryParser.Describe(TagEntryParser.Parse("pee cute anal", snapshot).Items)));
     }
 
+    // The text before the token at the end of the draft, and the token as typed.
+    internal static (string Prefix, string Typed) AtEnd(string text) =>
+        TagEntryParser.TokenAt(text, text.Length, text.Length) is { } token ? (text[..token.Start], token.Typed) : throw new InvalidOperationException(text);
+
     [Fact]
     public void CompletionReplacesOnlyTheLastWordAndQuotesWhenNeeded()
     {
-        Assert.Equal(("piss ", "pe"), TagEntryParser.SplitLast("piss pe"));
-        Assert.Equal(("", "pe"), TagEntryParser.SplitLast("pe"));
-        Assert.Equal(("a, ", "b"), TagEntryParser.SplitLast("a, b"));
-        Assert.Equal(("x ", "big t"), TagEntryParser.SplitLast("x \"big t"));
+        Assert.Equal(("piss ", "pe"), AtEnd("piss pe"));
+        Assert.Equal(("", "pe"), AtEnd("pe"));
+        Assert.Equal(("a, ", "b"), AtEnd("a, b"));
+        Assert.Equal(("x ", "big t"), AtEnd("x \"big t"));
         Assert.Equal("x \"big tits\"", TagEntryParser.Complete("x ", "big tits"));
         Assert.Equal("x cute", TagEntryParser.Complete("x ", "cute"));
     }

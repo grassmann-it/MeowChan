@@ -322,6 +322,11 @@ internal sealed partial class GalleryViewer : UserControl
             GalleryControlTransfer.Track(control, () => !_terminalRetirement);
         foreach (Control indicator in new Control[] { _controlsEdgeIndicator, _postEdgeIndicator })
             GalleryControlTransfer.Track(indicator, () => !_terminalRetirement && !_viewerInteractionStopped);
+        // Where the keys of a surface of their own (the filmstrip, the tagging strip, the info line's rating, the post and help panels, the
+        // question) or the edge handles take the click, the focus is theirs: the pointer reclaim below leaves these subtrees alone.
+        foreach (Control region in new Control[] { _filmstrip, _taggingStrip, _infoOverlay, _contextPanel, _helpPanel, _favoriteConfirmPanel,
+            _controlsEdgeIndicator, _postEdgeIndicator })
+            PointerFocusReclaim.SetExempt(region, true);
         AttachedToVisualTree += (_, _) =>
         {
             _ratingRouter?.Dispose(); _nativeRatingRouter?.Dispose();
@@ -374,6 +379,7 @@ internal sealed partial class GalleryViewer : UserControl
         _close.Margin = new Thickness(12);
         _close.ZIndex = 17; // Above the picture, the edge hints and the favorite badge; below the post panel and the help.
         _close.Classes.Add("gallery-back");
+        PointerFocusReclaim.SetExempt(_close, true); // the way back leaves the viewer: nothing to give the keys back to
         _close.PointerEntered += (_, _) => UpdateCornerChrome();
         _close.PointerExited += (_, _) => UpdateCornerChrome();
         _close.GotFocus += (_, _) => UpdateCornerChrome();
@@ -1259,7 +1265,10 @@ internal sealed partial class GalleryViewer : UserControl
                         DiagnosticNotice?.Invoke(new("video-cleanup", _videoDiagnosticEntry, _videoDiagnosticRevision, message, true));
                 };
                 _video.VolumeChanged += volume => { _videoVolume = volume; VideoVolumeChanged?.Invoke(volume); };
-                _video.MouseTransportActionCompleted += FocusGallerySurface;
+                // The transport hands the keys back after a pointer action of its own (the player attaches PointerFocusReclaim to it); the
+                // viewer's own scope leaves it out so one click never reclaims twice.
+                PointerFocusReclaim.SetExempt(_video.TransportControl, true);
+                _video.ShortcutFocusRequested += ReclaimGallerySurface;
                 _video.DurationChanged += OnVideoDurationChanged;
                 _video.LoopChanged += OnVideoLoopChanged;
                 _video.TransportControl.SizeChanged += (_, _) => { if (_contextOpen) LayoutContextPlacement(); };

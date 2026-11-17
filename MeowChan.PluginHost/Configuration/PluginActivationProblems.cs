@@ -14,6 +14,10 @@ public static class PluginActivationProblems
     public const string ExecutableChanged = "Bundled executable changed; explicit repair review is required.";
     public const string InheritedGrantsBlocked = "Bundled replacement is blocked: existing grants cannot be inherited.";
 
+    /// <summary>Not a problem and never a repair-review state: the one-start note after a pinned bundled release was
+    /// updated in place to the current build of the same version (#130). The plugin runs; the next start clears it.</summary>
+    public const string PinnedReleaseUpdatedInPlace = "Pinned release updated in place to the current bundled build of the same version; the previous build is kept for rollback.";
+
     private static readonly string[] RepairReview =
         [ConfirmedTargetChanged, NoDeliveredProvenance, NoTrustedBasis, ExecutableChanged, InheritedGrantsBlocked];
 

@@ -403,6 +403,46 @@ internal sealed class MediaNativeInput : IDisposable
         await Task.Delay(100);
     }
 
+    internal const ulong AltLeft = 0xffe9, BackSpace = 0xff08;
+
+    /// <summary>
+    /// Turns the private X server's key autorepeat off or on. Under host load a 40 ms XTest press can outlast the server's repeat delay and a typed
+    /// letter arrives many times; a typing check opts out of that (Linux XTest only; the server is the harness's own Xvfb).
+    /// </summary>
+    internal void SetAutoRepeat(bool on)
+    {
+        if (_display == 0) return;
+        if (on) XAutoRepeatOn(_display); else XAutoRepeatOff(_display);
+        Flush();
+    }
+
+    /// <summary>Holds one key down for <paramref name="duration"/> (X11 keysym; Linux XTest only): with autorepeat on, the server repeats it.</summary>
+    internal async Task HoldAsync(ulong key, TimeSpan duration)
+    {
+        if (_display == 0) throw new PlatformNotSupportedException("Held keys are only implemented for the private X11 server.");
+        try { Key(key, true); Flush(); await Task.Delay(duration); }
+        finally { Key(key, false); Flush(); }
+        await Task.Delay(100);
+    }
+
+    /// <summary>One key with the given modifier keys held (X11 keysyms; Linux XTest only).</summary>
+    internal async Task ChordAsync(ulong key, params ulong[] modifiers)
+    {
+        if (_display == 0) throw new PlatformNotSupportedException("Chords are only implemented for the private X11 server.");
+        try
+        {
+            foreach (ulong modifier in modifiers) Key(modifier, true);
+            Key(key, true); Flush(); await Task.Delay(40);
+        }
+        finally
+        {
+            Key(key, false);
+            foreach (ulong modifier in modifiers.Reverse()) Key(modifier, false);
+            Flush();
+        }
+        await Task.Delay(100);
+    }
+
     private void Key(ulong symbol, bool down)
     {
         if (down) EnsureOwnActiveWindow();
@@ -494,6 +534,8 @@ internal sealed class MediaNativeInput : IDisposable
     [DllImport("libX11.so.6")] private static extern byte XKeysymToKeycode(nint display, nuint keysym);
     [DllImport("libX11.so.6")] private static extern int XSync(nint display, int discard);
     [DllImport("libX11.so.6")] private static extern int XRaiseWindow(nint display, nint window);
+    [DllImport("libX11.so.6")] private static extern int XAutoRepeatOff(nint display);
+    [DllImport("libX11.so.6")] private static extern int XAutoRepeatOn(nint display);
     [DllImport("libX11.so.6")] private static extern int XSetInputFocus(nint display, nint window, int revertTo, nuint time);
     [DllImport("libXtst.so.6")] private static extern int XTestQueryExtension(nint display, out int eventBase, out int errorBase, out int major, out int minor);
     [DllImport("libXtst.so.6")] private static extern int XTestFakeMotionEvent(nint display, int screen, int x, int y, nuint delay);

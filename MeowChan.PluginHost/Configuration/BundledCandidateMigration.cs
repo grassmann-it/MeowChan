@@ -285,9 +285,70 @@ internal static class BundledCandidateMigration
     // the structural comparer does not understand still require the explicit repair review.
     internal static bool CanAutomaticallyUpdateKnownBundle(BundledProfileDocument document,
         PluginActivationSnapshot plugin, PluginCandidateSnapshot? candidate, PreReplacementBasis previous,
+        IReadOnlyList<DeliveredCandidateProvenance>? currentDelivery, int presentCount) =>
+        plugin.Pinned is null && CanCarryKnownBundleInPlace(document, plugin, candidate, previous, currentDelivery, presentCount, pinnedRelease: false);
+
+    // Decision #130 (17.11.2026, option C with the guardrails of option B): a pin on a bundled plugin
+    // means "stay on this release", not "stay on this exact binary". A rebuild of the pinned release is
+    // carried over only when ALL of these hold; anything else keeps the stale pin and the explicit review:
+    //  1. same plugin, same delivered slot and the exact same shipped manifest path as the pinned build,
+    //     which already ran (Active or LastGood is the pinned build) and nothing else is pending or bound;
+    //  2. the same pluginVersion (the pinned release);
+    //  3. a declaration identical to the pinned one apart from the operational post order;
+    //  4./5. exactly the unpinned in-place path's rights, owner, settings and current-delivery checks
+    //     (CanCarryKnownBundleInPlace below; the startup writer re-verifies bytes and rights after IO).
+    // The pin is never cleared: it moves to the new build, and the pinned build stays the LastGood rollback.
+    internal static bool CanAutomaticallyUpdatePinnedRelease(BundledProfileDocument document,
+        PluginActivationSnapshot plugin, PluginCandidateSnapshot? candidate, PreReplacementBasis previous,
         IReadOnlyList<DeliveredCandidateProvenance>? currentDelivery, int presentCount)
     {
-        if (currentDelivery is null || presentCount != 1 || plugin.Pinned is not null
+        if (plugin.Pinned is not { } pin || PinnedRelease(plugin) is not { } pinnedRelease
+            || candidate is not { IsPresent: true, Problem: null, Artifact: not null, Description: not null }
+            || previous.Missing || previous.Release is null || previous.Provenance is null) return false;
+        PluginReleaseSnapshot? established = plugin.Active ?? plugin.LastGood;
+        // 1. The pinned build itself is the trusted, established basis, and the candidate is that same file rebuilt.
+        if (established is null || plugin.SelectedCandidateId != pin.CandidateId || candidate.CandidateId != pin.CandidateId
+            || established.CandidateId != pin.CandidateId || established.ExecutionRevision != pin.ExecutionRevision
+            || previous.CandidateId != pin.CandidateId || previous.ExecutionRevision != pin.ExecutionRevision
+            || candidate.Artifact.ExecutionRevision == pin.ExecutionRevision
+            || !string.Equals(previous.Provenance.CandidatePath, candidate.CandidatePath, StringComparison.Ordinal)
+            || plugin.Pending is { } pending && (pending.CandidateId != pin.CandidateId || pending.ExecutionRevision != pin.ExecutionRevision)
+            || document.Bindings.Any(binding => binding.PluginId == plugin.PluginId)) return false;
+        // The settings carried over are exactly the ones the pinned start would activate today.
+        if (!SameJson(pinnedRelease.Configuration, plugin.Pending?.Configuration ?? previous.Release.Configuration)) return false;
+        // 2. Same release. 3. Same declaration apart from operational metadata (checked against the pin and the basis).
+        if (!string.Equals(pin.Description.PluginVersion, candidate.Description.PluginVersion, StringComparison.Ordinal)
+            || !SamePinnedBundleDescription(pin.Description, candidate.Description)
+            || !SamePinnedBundleDescription(previous.Release.Description, candidate.Description)) return false;
+        return CanCarryKnownBundleInPlace(document, plugin, candidate, previous, currentDelivery, presentCount, pinnedRelease: true);
+    }
+
+    /// <summary>The release a pinned plugin starts today: its saved settings for the pinned build, else the pin itself.</summary>
+    internal static PluginReleaseSnapshot? PinnedRelease(PluginActivationSnapshot plugin) => plugin.Pinned is not { } pin ? null
+        : plugin.Pending is { } pending && pending.CandidateId == pin.CandidateId && pending.ExecutionRevision == pin.ExecutionRevision ? pending : pin;
+
+    // A pinned bundle may be rebuilt in place without re-reviewing permissions when only the
+    // source's post ordering changed. This is operational source metadata, not a new host,
+    // route, capability, filter, or source identity. Keep the comparison fail-closed: every
+    // other declaration field, including any future SDK field, must remain byte-identical.
+    internal static bool SamePinnedBundleDescription(PluginDescription previous, PluginDescription candidate)
+    {
+        if (previous.Sources.Count != candidate.Sources.Count ||
+            !previous.Sources.Select(source => source.SourceId).SequenceEqual(
+                candidate.Sources.Select(source => source.SourceId), StringComparer.Ordinal)) return false;
+        PluginDescription normalized = candidate with
+        {
+            Sources = candidate.Sources.Select((source, index) =>
+                source with { PostOrder = previous.Sources[index].PostOrder }).ToArray()
+        };
+        return SdkJson.Serialize(previous).AsSpan().SequenceEqual(SdkJson.Serialize(normalized));
+    }
+
+    private static bool CanCarryKnownBundleInPlace(BundledProfileDocument document,
+        PluginActivationSnapshot plugin, PluginCandidateSnapshot? candidate, PreReplacementBasis previous,
+        IReadOnlyList<DeliveredCandidateProvenance>? currentDelivery, int presentCount, bool pinnedRelease)
+    {
+        if (currentDelivery is null || presentCount != 1
             || candidate is not { IsPresent: true, Problem: null, Artifact: not null, Description: not null }
             || previous.Missing || previous.Release is null || previous.Provenance is null
             || previous.CandidateId != candidate.CandidateId) return false;
@@ -329,12 +390,16 @@ internal static class BundledCandidateMigration
                 && binding.TargetCandidateId == candidate.CandidateId && binding.SlotId == previous.Provenance.SlotId);
         bool sameDescription = SdkJson.Serialize(previous.Release.Description).AsSpan().SequenceEqual(SdkJson.Serialize(candidate.Description));
         bool carriesRights = HasInheritedRights(document, plugin, candidate, changed: true);
+        // A pinned release accepts only an operational (post order) declaration difference, never a narrowing.
+        bool declarationAccepted = pinnedRelease
+            ? SamePinnedBundleDescription(previous.Release.Description, candidate.Description)
+            : sameDescription || IsNonWideningDescriptionChange(previous.Release.Description, candidate.Description);
         if (!selectedIdentity || HasOwnerConflict(document.Profile, plugin.PluginId, candidate.Description)
-            || !sameDescription && !IsNonWideningDescriptionChange(previous.Release.Description, candidate.Description)
+            || !declarationAccepted
             || SdkValidation.ValidateConfiguration(candidate.Description, plugin.Pending?.Configuration ?? previous.Release.Configuration).Count != 0) return false;
-        // The #130 extensions (carried rights, narrowed declarations) apply only to the exact same
+        // The #130 extensions (carried rights, narrowed declarations, a pinned release) apply only to the exact same
         // shipped manifest file whose release already ran; never to a first activation or a moved file.
-        if ((carriesRights || !sameDescription) && (established is null
+        if ((carriesRights || !sameDescription || pinnedRelease) && (established is null
             || !string.Equals(previous.Provenance.CandidatePath, candidate.CandidatePath, StringComparison.Ordinal))) return false;
         DeliveredCandidateProvenance[] currentSlot = currentDelivery
             .Where(proof => proof.SlotId == previous.Provenance.SlotId).ToArray();
@@ -344,7 +409,7 @@ internal static class BundledCandidateMigration
 
     /// <summary>What an automatic in-place bundled update carried over without review, or null when nothing trust-relevant was carried.</summary>
     internal static string? DescribeInPlaceCarryOver(BundledProfileDocument document, PluginActivationSnapshot plugin,
-        PluginCandidateSnapshot candidate, PreReplacementBasis previous)
+        PluginCandidateSnapshot candidate, PreReplacementBasis previous, bool pinnedRelease = false)
     {
         List<string> carried = new();
         int grants = document.Profile.Grants.Count(g => g.PluginId == plugin.PluginId && g.Access != FilterDataAccess.None);
@@ -358,7 +423,7 @@ internal static class BundledCandidateMigration
         if (document.Bindings.Any(b => b.PluginId == plugin.PluginId)) carried.Add("its confirmed repair binding");
         if (previous.Release is { } release && candidate.Description is { } description &&
             !SdkJson.Serialize(release.Description).AsSpan().SequenceEqual(SdkJson.Serialize(description)))
-            carried.Add("a narrowing-only description change");
+            carried.Add(pinnedRelease ? "a post-order-only declaration change" : "a narrowing-only description change");
         return carried.Count == 0 ? null : string.Join("; ", carried);
     }
 

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using MeowChan.Interfaces;
 using Avalonia.Controls;
 using Avalonia.Media;
+using Avalonia.Threading;
 using MeowChan.Desktop;
 
 namespace MeowChan;
@@ -39,6 +40,24 @@ public partial class MainWindow
         else _ = ArchivePage.FreezeReaderScopeAsync();
     }
 
+    // O2-01: the origin of an Enter or a double-click (the list, a tapped row) takes no focus after the reader closed; the list's selected row does.
+    // The page is shown again in this turn and may not have its layout yet: a focus that did not take, or was lost again, is repeated once after it.
+    private void RestoreReaderOriginFocus(Control? origin, WorkspacePage page)
+    {
+        Control? Target() => ReaderOriginFocus.Resolve(origin, page switch
+        {
+            WorkspacePage.Downloads => ThreadsDataGrid,
+            WorkspacePage.Archive => ArchivePage.ThreadListFocusTarget,
+            _ => null
+        });
+        bool focused = Target()?.Focus() == true;
+        if (focused && FocusManager?.GetFocusedElement() != null) return;
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (!_largeReaderOpen && !_isClosing && FocusManager?.GetFocusedElement() == null) Target()?.Focus();
+        }, DispatcherPriority.Loaded);
+    }
+
     private void CloseLargeReader(bool restoreOrigin = true)
     {
         if (!_largeReaderOpen || (restoreOrigin && _archivePage?.IsFilenameSearchOpen == true)) return;
@@ -55,7 +74,7 @@ public partial class MainWindow
         {
             _readerRestoreOrigin?.Invoke();
             if (_selectedPage != _readerOriginPage) NavigateWorkspace(_readerOriginPage, activateArchive: false);
-            _readerOriginFocus?.Focus();
+            RestoreReaderOriginFocus(_readerOriginFocus, _readerOriginPage);
         }
         _readerRestoreOrigin = null;
         _readerOriginFocus = null;

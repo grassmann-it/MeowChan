@@ -14,6 +14,7 @@ using Avalonia.Media;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 
@@ -122,7 +123,7 @@ internal sealed partial class GalleryViewer
     private readonly Button _postEdgeIndicator = CreateEdgeIndicator(post: true);
 
     // Overlaid in the media cell, never in an Auto footer row. A small visible
-    // chevron retains a full 44px keyboard/touch target; focus uses the glyph only.
+    // chevron retains a full 44px keyboard/touch target; keyboard focus adds a disc and ring (GalleryEdgeHandleVisual), not the glyph alone.
     internal static Button CreateEdgeIndicator(bool post)
     {
         var indicator = new Button
@@ -142,13 +143,10 @@ internal sealed partial class GalleryViewer
             {
                 Avalonia.Controls.Shapes.Path chevron = MeowChan.Desktop.Controls.WorkspaceIcons.Create(
                     post ? MeowChan.Desktop.Controls.WorkspaceIcons.ChevronLeft : MeowChan.Desktop.Controls.WorkspaceIcons.ChevronUp, inheritForeground: false);
-                chevron.Stroke = new SolidColorBrush(Color.FromArgb(100, 150, 150, 150));
                 chevron.Opacity = 0;
-                // Keep the complete transparent handle in the native hit-test map.
-                // A bare Path only owns its stroked pixels, so the button's center can
-                // fall through to the gallery surface even while its 44-DIP bounds are
-                // visible and arranged.
-                return new Border { Background = Brushes.Transparent, Child = chevron };
+                // The composed root keeps the complete transparent handle in the native hit-test map (a bare Path only owns its
+                // stroked pixels, so the centre could fall through to the gallery surface) and draws the keyboard focus disc and ring (AX-03).
+                return GalleryEdgeHandleVisual.Compose(button, chevron);
             })
         };
         SetEdgeIndicatorLabel(indicator, EdgeIndicatorLabel(post));
@@ -322,6 +320,8 @@ internal sealed partial class GalleryViewer
             surface.AddHandler(PointerPressedEvent, OnOverlayPointerPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
             surface.AddHandler(PointerReleasedEvent, OnOverlayPointerReleased, RoutingStrategies.Tunnel, handledEventsToo: true);
             surface.AddHandler(PointerCaptureLostEvent, OnOverlayPointerCaptureLost, RoutingStrategies.Bubble, handledEventsToo: true);
+            // A click on any chrome control (toolbar, badges, fit and zoom, layout and "More") gives the keys back to the picture, never to the button.
+            PointerFocusReclaim.Attach(surface, ReclaimGallerySurface);
             surface.AddHandler(PointerWheelChangedEvent, OnOverlayPointerWheel, RoutingStrategies.Tunnel, handledEventsToo: true);
             surface.AddHandler(TappedEvent, OnOverlayTap, RoutingStrategies.Tunnel, handledEventsToo: true);
             surface.AddHandler(DoubleTappedEvent, OnOverlayTap, RoutingStrategies.Tunnel, handledEventsToo: true);
@@ -501,6 +501,19 @@ internal sealed partial class GalleryViewer
         Control target = _nativeOverlayActive ? _nativeVideoOverlay : this;
         if (TopLevel.GetTopLevel(target) is Window { IsActive: true, IsEnabled: true })
             target.Focus(NavigationMethod.Tab);
+    }
+
+    /// <summary>
+    /// The keys go back to the picture after a pointer action on the chrome (<see cref="PointerFocusReclaim"/>): the next Space, Enter, arrow or letter
+    /// reaches playback and the gallery's shortcuts instead of pressing the control that was clicked. The pointer's focus (no keyboard cue), and nothing
+    /// for a viewer that is stopping, hidden or in an inactive window.
+    /// </summary>
+    internal void ReclaimGallerySurface()
+    {
+        if (_terminalRetirement || _viewerInteractionStopped) return;
+        Control target = _nativeOverlayActive ? _nativeVideoOverlay : this;
+        if (target.IsEffectivelyVisible && TopLevel.GetTopLevel(target) is Window { IsActive: true, IsEnabled: true })
+            target.Focus(NavigationMethod.Pointer);
     }
 
     private void RevealOverlayControls()

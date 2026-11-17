@@ -220,64 +220,111 @@ internal sealed class TagSuggestionIndex
     }
 
     /// <summary>
-    /// The list of a tag field that takes several tags at once (<see cref="TagEntryParser"/>). While the first word is typed it is
-    /// <see cref="Combine"/>, plus the aliases that match (<c>pee → piss</c>, choosing it writes the target's name). Once other tags
-    /// stand before it, the last word is completed: existing names that continue the whole draft first (a name with spaces), then
-    /// own tags, aliases and source tags matching the last word, each written in place of that word (quoted when needed). No "New
-    /// tag" row then: Enter adds every name of the draft.
+    /// The list of a tag field that takes several tags at once (<see cref="TagEntryParser"/>), for the token under the caret
+    /// (<paramref name="selectionStart"/>/<paramref name="selectionEnd"/>; default: the end of the draft). While that token is the
+    /// whole draft it is <see cref="Combine"/>, plus the aliases that match (<c>pee → piss</c>, choosing it writes the target's
+    /// name). Otherwise the token is completed in place: own tags with spaces that the words typed before it already start
+    /// (<c>hot big ti</c> → <c>hot "big tits"</c>, replacing those words), then own tags, aliases and source tags matching the
+    /// token, each written in place of it (<see cref="TagEntryParser.Replace"/>); the text around it stays as it is. No "New tag"
+    /// row then: Enter adds every name of the draft. One tag is listed once, whichever way it matched. When exactly one real row
+    /// (not the "New tag" row) matches and it is not just the typed name, it is preselected, so Enter takes it.
+    /// A selection over more than one token, or a caret right after a separator, lists nothing.
     /// </summary>
     internal static IdentitySuggestion[] CombineEntry(PrivateTagStoreSnapshot snapshot, TagSuggestionIndex? sources, string? text,
-        IReadOnlySet<TagId>? assigned, bool browse = false)
+        IReadOnlySet<TagId>? assigned, bool browse = false, int? selectionStart = null, int? selectionEnd = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         TagSuggestionIndex own = For(snapshot);
-        (string prefix, string last) = TagEntryParser.SplitLast(text);
-        if (prefix.Trim().Length == 0)
+        text ??= string.Empty;
+        int start = selectionStart ?? text.Length, end = selectionEnd ?? start;
+        if (TagEntryParser.TokenAt(text, start, end) is not { } token) return Array.Empty<IdentitySuggestion>();
+        if (QueryKey(token.Typed) == null)
+            return browse && string.IsNullOrWhiteSpace(text) ? Combine(own, sources, text, assigned, browse) : Array.Empty<IdentitySuggestion>();
+        string after = text[token.End..];
+        // Each row with the name key of the tag it gives and the typed text it replaces.
+        List<(IdentitySuggestion Row, string? Key, string Typed)> rows = new();
+        HashSet<string> keys = new(StringComparer.Ordinal);
+        void Add(IdentitySuggestion row, string? key, string typed)
         {
-            IdentitySuggestion[] plain = Combine(own, sources, text, assigned, browse);
-            IdentitySuggestion[] aliasRows = AliasRows(snapshot, string.Empty, text, assigned);
-            if (aliasRows.Length == 0) return plain;
-            // A typed alias gives its tag: no "New tag" row for it.
-            bool mapped = snapshot.Resolve(text, out PrivateTagAlias? alias) != null && alias != null;
-            IdentitySuggestion[] kept = plain.Where(item => !(mapped && item.Source == CreateGroup)).ToArray();
-            int create = Array.FindIndex(kept, item => item.Source is SourceGroup or CreateGroup);
-            return create < 0 ? kept.Concat(aliasRows).ToArray() : kept[..create].Concat(aliasRows).Concat(kept[create..]).ToArray();
+            // A token in the middle that already is the name changes nothing: no row (Enter then adds the draft at once).
+            if (row.InPlace && row.Value == text) return;
+            if (key == null || keys.Add(key)) rows.Add((row, key, typed));
         }
-        if (QueryKey(last) == null) return Array.Empty<IdentitySuggestion>();
-        List<IdentitySuggestion> rows = new();
-        HashSet<string> values = new(StringComparer.Ordinal);
-        void Add(IdentitySuggestion item) { if (values.Add(item.Value)) rows.Add(item); }
-        // A name with spaces that the whole draft starts: "big ti" offers "big tits".
-        foreach (TagSuggestion item in own.Match(text, assigned, OwnLimit).Where(item => item.Kind is TagMatchKind.Exact or TagMatchKind.Prefix))
-            Add(Present(item));
-        foreach (TagSuggestion item in own.Match(last, assigned, OwnLimit))
-            Add(Present(item) with { Value = TagEntryParser.Complete(prefix, item.Name.Display) });
-        foreach (IdentitySuggestion item in AliasRows(snapshot, prefix, last, assigned)) Add(item);
-        TagSuggestion[] sourceMatches = sources?.Match(last, null, SourceLimit, own.Keys).ToArray() ?? Array.Empty<TagSuggestion>();
-        IdentitySuggestion[] provided = sourceMatches.Select(item => PresentSource(item) with { Value = TagEntryParser.Complete(prefix, item.Name.Display) }).ToArray();
-        if (provided.Length > 0) provided[0] = provided[0] with { GroupHeader = Texts.T("tags.suggest.sourceGroup") };
-        foreach (IdentitySuggestion item in provided) Add(item);
-        return rows.Take(VisibleLimit).ToArray();
+        if (text[..token.Start].Trim().Length == 0 && after.Trim().Length == 0)
+        {
+            // The token is the whole draft: its rows write the bare name.
+            IdentitySuggestion[] plain = Combine(own, sources, token.Typed, assigned, browse);
+            // A typed alias gives its tag: no "New tag" row for it.
+            bool mapped = snapshot.Resolve(token.Typed, out PrivateTagAlias? typedAlias) != null && typedAlias != null;
+            int create = Array.FindIndex(plain, item => item.Source is SourceGroup or CreateGroup);
+            foreach (IdentitySuggestion item in create < 0 ? plain : plain[..create]) Add(item, QueryKey(item.Value), token.Typed);
+            foreach ((PrivateTagAlias alias, PrivateTagDefinition tag) in AliasMatches(snapshot, token.Typed, assigned))
+                Add(AliasRow(alias, tag), tag.Name.Key, token.Typed);
+            if (create >= 0)
+                foreach (IdentitySuggestion item in plain[create..])
+                {
+                    if (item.Source == CreateGroup) { if (!mapped) Add(item, null, token.Typed); }
+                    else Add(item, QueryKey(item.Value), token.Typed);
+                }
+        }
+        else
+        {
+            IdentitySuggestion Write(IdentitySuggestion row, PrivateTagName name, int from)
+            {
+                (string value, int caret) = TagEntryParser.Replace(text, from, token.End, name.Display, token.Hard);
+                return row with { Value = value, Caret = caret, InPlace = TagEntryParser.NamesMore(after) };
+            }
+            // A name with spaces that the words before the token already start, longest first: "hot big ti" offers "big tits"
+            // in place of "big ti", never "big" followed by "big tits".
+            IReadOnlyList<TagEntryToken> words = TagEntryParser.WordsBefore(text, token, TagEntryParser.MaximumWords(snapshot) - 1);
+            for (int count = words.Count; count >= 1; count--)
+            {
+                string run = string.Join(" ", words.Skip(words.Count - count).Select(word => word.Typed).Append(token.Typed));
+                foreach (TagSuggestion item in own.Match(run, assigned, OwnLimit).Where(item => item.Kind is TagMatchKind.Exact or TagMatchKind.Prefix))
+                    Add(Write(Present(item), item.Name, words[^count].Start), item.Name.Key, run);
+            }
+            foreach (TagSuggestion item in own.Match(token.Typed, assigned, OwnLimit))
+                Add(Write(Present(item), item.Name, token.Start), item.Name.Key, token.Typed);
+            foreach ((PrivateTagAlias alias, PrivateTagDefinition tag) in AliasMatches(snapshot, token.Typed, assigned))
+                Add(Write(AliasRow(alias, tag), tag.Name, token.Start), tag.Name.Key, token.Typed);
+            bool header = true;
+            foreach (TagSuggestion item in sources?.Match(token.Typed, null, SourceLimit, own.Keys) ?? Array.Empty<TagSuggestion>())
+            {
+                if (keys.Contains(item.Name.Key)) continue;
+                IdentitySuggestion row = Write(PresentSource(item), item.Name, token.Start);
+                Add(header ? row with { GroupHeader = Texts.T("tags.suggest.sourceGroup") } : row, item.Name.Key, token.Typed);
+                header = false;
+            }
+        }
+        IdentitySuggestion[] shown = rows.Take(VisibleLimit).Select(item => item.Row).ToArray();
+        // Exactly one real row (the "New tag" row does not count) that is more than the typed name: Enter takes it.
+        var real = rows.Where(item => item.Row.Source != CreateGroup).ToArray();
+        if (real is [var only] && only.Key != QueryKey(only.Typed) && Array.IndexOf(shown, only.Row) is var at and >= 0)
+            shown[at] = only.Row with { Preselect = true };
+        return shown;
     }
 
-    // Aliases whose name starts with the typed word, each offering its tag (never one the target carries already).
-    private static IdentitySuggestion[] AliasRows(PrivateTagStoreSnapshot snapshot, string prefix, string? word, IReadOnlySet<TagId>? assigned)
+    // Aliases whose name starts with the typed word, each with its tag (never one the target carries already).
+    private static IEnumerable<(PrivateTagAlias Alias, PrivateTagDefinition Tag)> AliasMatches(PrivateTagStoreSnapshot snapshot, string? word,
+        IReadOnlySet<TagId>? assigned)
     {
-        if (snapshot.Aliases.Count == 0 || QueryKey(word) is not { } key) return Array.Empty<IdentitySuggestion>();
+        if (snapshot.Aliases.Count == 0 || QueryKey(word) is not { } key) yield break;
         string folded = TagNameFold.Fold(key);
-        List<IdentitySuggestion> rows = new();
+        int count = 0;
         foreach (PrivateTagAlias alias in snapshot.Aliases)
         {
             if (!alias.Name.Key.StartsWith(key, StringComparison.Ordinal)
                 && !TagNameFold.Fold(alias.Name).StartsWith(folded, StringComparison.Ordinal)) continue;
             if (assigned?.Contains(alias.Tag) == true || snapshot.Find(alias.Tag) is not { } tag) continue;
-            rows.Add(new IdentitySuggestion(TagEntryParser.Complete(prefix, tag.Name.Display), AliasGroup,
-                Texts.T("tags.suggest.alias", alias.Name.Display, tag.Name.Display),
-                Texts.T("tags.suggest.aliasName", alias.Name.Display, tag.Name.Display)));
-            if (rows.Count >= SourceLimit) break;
+            yield return (alias, tag);
+            if (++count >= SourceLimit) yield break;
         }
-        return rows.ToArray();
     }
+
+    // An alias row ("pee → piss"): choosing it writes the target's name.
+    private static IdentitySuggestion AliasRow(PrivateTagAlias alias, PrivateTagDefinition tag) => new(tag.Name.Display, AliasGroup,
+        Texts.T("tags.suggest.alias", alias.Name.Display, tag.Name.Display),
+        Texts.T("tags.suggest.aliasName", alias.Name.Display, tag.Name.Display));
 
     internal static IdentitySuggestion Present(TagSuggestion item)
     {
@@ -363,6 +410,14 @@ internal static class TagSuggestionInput
     internal static TagFieldKey Route(IdentitySuggestionBox box, KeyEventArgs e) =>
         Route(e.Key, e.KeyModifiers, box.IsDropDownOpen, box.HighlightedCandidate != null);
 
+    /// <summary>
+    /// True when the field itself takes this Enter: it accepts the highlighted suggestion, or an input method is composing. An owner
+    /// whose Enter handler sits on the field itself returns then. Avalonia runs the tunnel handlers of one element newest first, so
+    /// such an owner handler runs before the field's own and would otherwise add the typed text in place of the suggestion.
+    /// </summary>
+    internal static bool FieldTakesEnter(IdentitySuggestionBox box, KeyEventArgs e) =>
+        e.Key == Key.Enter && (box.IsComposing || Route(box, e) == TagFieldKey.AcceptSuggestion);
+
     /// <param name="snapshot">The tags the owner shows now; null while they are unavailable.</param>
     /// <param name="assigned">Tags the target already carries; they are not suggested.</param>
     /// <param name="commit">Adds the field's current text as a tag, exactly like the owner's Add button.</param>
@@ -378,15 +433,18 @@ internal static class TagSuggestionInput
         {
             PrivateTagStoreSnapshot? current = snapshot();
             if (current == null || !box.IsEffectivelyEnabled) return Task.FromResult(Array.Empty<IdentitySuggestion>());
+            (int start, int end) = box.EditorSelection;
             return Task.FromResult(TagSuggestionIndex.CombineEntry(current, sources?.Current, text, assigned(),
-                browse: box.IsExplicitRequest));
+                browse: box.IsExplicitRequest, selectionStart: start, selectionEnd: end));
         };
+        // The list follows the caret: moving it into another token asks again (TagEntryParser.TokenAt).
+        box.CaretToken = (text, start, end) => TagEntryParser.TokenAt(text, start, end);
         if (sources != null) sources.Loaded += box.RefreshSuggestions;
         // Like the archive identity editors: add once the box has finished its selection update, and only while
-        // that exact accepted value is still in the field.
+        // that exact accepted value is still in the field. A completion of a token that other tags follow only edits the draft.
         box.CandidateAccepted += item => Dispatcher.UIThread.Post(() =>
         {
-            if (ReferenceEquals(IdentitySuggestions.CurrentSelection(box.Text, box.AcceptedCandidate), item)) commit();
+            if (!item.InPlace && ReferenceEquals(IdentitySuggestions.CurrentSelection(box.Text, box.AcceptedCandidate), item)) commit();
         }, DispatcherPriority.Send);
         box.AddHandler(InputElement.TextInputEvent, (_, e) =>
         {
@@ -396,8 +454,9 @@ internal static class TagSuggestionInput
             bool atEnd = editor == null || (editor.CaretIndex >= text.Length && editor.SelectionStart == editor.SelectionEnd);
             PrivateTagStoreSnapshot? current = snapshot();
             if (!atEnd || current == null) return;
-            // Like Enter: a highlighted row is taken; otherwise the draft, unless an own name continues it with a comma.
-            if (box.HighlightedCandidate is { } highlighted) box.Text = highlighted.Value;
+            // Like Enter: a row the user highlighted is taken; otherwise the draft, unless an own name continues it with a comma. A
+            // preselected row is not taken: a comma after "in" adds "in" even while "innocent" is the one match.
+            if (box.HighlightedCandidate is { } highlighted && !box.IsPreselected) box.Text = highlighted.Value;
             else if (!TagSuggestionIndex.For(current).CommitsOnComma(text)) return;
             e.Handled = true;
             box.Dismiss();

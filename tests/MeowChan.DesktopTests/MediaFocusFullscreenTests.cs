@@ -116,18 +116,23 @@ public sealed class MediaFocusFullscreenTests : IDisposable
 
     // ---- the label of the order box ----
 
+    // UX review 17.11.2026: the "Sort" label is a muted prefix inside the closed box (PrefixedComboBox), not a separate text in front of it.
     [Fact]
-    public void TheOrderBoxHasAVisibleMutedLabelBeforeItWithTheSameAccessibleName()
+    public void TheOrderBoxShowsAMutedSortPrefixInsideItWithTheSameAccessibleName()
     {
-        string toolbar = Source("Desktop/Views/Media/MediaPage.Toolbar.cs"), sorting = Source("Desktop/Views/Media/MediaPage.Sorting.cs"), page = Source("Desktop/Views/Media/MediaPage.cs");
-        Assert.Contains("{ _filters, _shuffle, _sortLabel, _sort, _sortDirection,", toolbar);
-        Assert.Contains("Name = \"MediaSortLabel\", Classes = { \"muted\" }", sorting);
-        Assert.Contains("_sortLabel.Text = Texts.T(\"media.sort\");", sorting);
-        Assert.Contains("AutomationProperties.SetName(_sort, _sortLabel.Text);", sorting);
-        // The label follows the box's visibility (and goes with the Compact stage, N6) and is not read twice by a screen reader.
-        Assert.Contains("_sortLabel.IsVisible = _sort.IsVisible && MediaToolbarLayout.ShowsSortLabel(_toolbarLevel);", toolbar);
-        Assert.Contains("e.Property == Visual.IsVisibleProperty) SyncSortLabel();", toolbar);
-        Assert.Contains("AutomationProperties.SetAccessibilityView(_sortLabel, AccessibilityView.Raw);", toolbar);
+        string toolbar = Source("Desktop/Views/Media/MediaPage.Toolbar.cs"), sorting = Source("Desktop/Views/Media/MediaPage.Sorting.cs"),
+            page = Source("Desktop/Views/Media/MediaPage.cs"), box = Source("Desktop/Controls/PrefixedComboBox.cs");
+        Assert.Contains("{ _filters, _shuffle, _sort, _sortDirection,", toolbar);
+        Assert.Contains("private readonly PrefixedComboBox _sort = new() { Name = \"MediaSort\"", page);
+        Assert.Contains("_sort.Prefix = Texts.T(\"media.sort\");", sorting);
+        Assert.Contains("AutomationProperties.SetName(_sort, _sort.Prefix);", sorting);
+        Assert.DoesNotContain("MediaSortLabel", sorting + toolbar + page);
+        // The prefix goes with the Compact stage (N6) and whenever the row has no room for it; it is muted and not read twice by a screen reader.
+        Assert.Contains("MediaToolbarLayout.ShowsSortPrefix(_toolbarLevel,", toolbar);
+        Assert.Contains(": MediaToolbarLayout.ShowsSortLabel(_toolbarLevel);", toolbar);
+        Assert.Contains("new DynamicResourceExtension(\"Workspace.Muted\")", box);
+        Assert.Contains("AutomationProperties.SetAccessibilityView(_prefix, AccessibilityView.Raw);", box);
+        Assert.Contains("SelectionBoxItemTemplate = new FuncDataTemplate<object?>", box); // the closed box only; the list shows the values
         // The name is set in one place (on every language change), not twice.
         Assert.DoesNotContain("AutomationProperties.SetName(_sort, Texts.T(\"media.sort\"));", page);
     }

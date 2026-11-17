@@ -36,6 +36,8 @@ namespace MeowChan.Desktop.Booru
         internal const string PageRejected = "page_rejected";
         internal const string ProviderDeferred = "provider_deferred";
         internal const string SourceUnavailable = "source_unavailable";
+        // The running plugin build does not bind to this SDK (worker code sdk-mismatch): unusable until a repair is confirmed and MeowChan restarted.
+        internal const string PluginSdkMismatch = "plugin_sdk_mismatch";
         internal const string ProviderError = "provider_error";
         internal const string SearchResultUnknown = "search_result_unknown";
         internal const string AdmissionFailed = "admission_failed";
@@ -91,6 +93,7 @@ namespace MeowChan.Desktop.Booru
             WatcherNotResumable, CooldownNotActive, MissingReason, MissingError, InvalidReason, InvalidError, WorkerUnavailable, MalformedPost, NotAdmitted, BooruSource,
             BooruCooldown, ProviderThrottled, ProviderUnavailable,
             Busy, Canceled, Closed, Exception, Error, NoWorker, UnknownResult, PageBinding, WrongPost, CancelNotPending, CancelFailed,
+            PluginSdkMismatch,
             // Domain codes whose texts already exist on goal (BooruStatusCatalog).
             "check_not_running", "watcher_paused", "watcher_already_paused", "watcher_already_active", "page_binding_mismatch",
             "page_limit_exceeded", "invalid_post_id", "page_not_descending", "cursor_did_not_advance", "empty_page_did_not_advance",
@@ -180,7 +183,9 @@ namespace MeowChan.Desktop.Localization
             (P + "page_binding", "The provider's answer did not match the search that was sent.", "Die Antwort des Anbieters passte nicht zur gesendeten Suche."),
             (P + "wrong_post", "The provider returned a different post than the one requested.", "Der Anbieter hat einen anderen Post als den angefragten geliefert."),
             (P + "cancel_not_pending", "This original is no longer pending, so it could not be cancelled.", "Dieses Original wartet nicht mehr, daher konnte es nicht abgebrochen werden."),
-            (P + "cancel_failed", "The original download could not be cancelled. Try again.", "Der Download des Originals konnte nicht abgebrochen werden. Versuche es erneut.")
+            (P + "cancel_failed", "The original download could not be cancelled. Try again.", "Der Download des Originals konnte nicht abgebrochen werden. Versuche es erneut."),
+            (P + "plugin_sdk_mismatch", "The active Danbooru plugin build does not fit this MeowChan version (sdk-mismatch). Nothing was requested; the watcher is unchanged. The notice at the top of this tab names the repair.",
+                "Der aktive Build des Danbooru-Plugins passt nicht zu dieser MeowChan-Version (sdk-mismatch). Es wurde nichts angefragt; die Suchbeobachtung ist unverändert. Der Hinweis oben in diesem Reiter nennt die Reparatur.")
         };
     }
 }

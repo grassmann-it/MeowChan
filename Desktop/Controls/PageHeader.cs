@@ -37,6 +37,14 @@ public enum PageHeaderRole
 /// </remarks>
 public sealed class PageHeader : Grid
 {
+    /// <summary>
+    /// The one distance from the top of the page area to the top of every page title, in dip (review of 17.11.2026, LY-03: the titles started
+    /// at 60, 64, 65 and 77 dip). It is the top of the page margin <c>Workspace.Inset.Page</c> (a test reads both, so they cannot drift apart):
+    /// a page whose head sits in the page margin needs nothing of its own; a page that builds its own head (a code page, a centred column)
+    /// puts exactly this above the title and nothing else.
+    /// </summary>
+    public const double PageTopOffset = 12;
+
     /// <summary>The least room the title block keeps beside the actions before the header stacks, in dip.</summary>
     public const double DefaultTitleMinWidth = 280;
 

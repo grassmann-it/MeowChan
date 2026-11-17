@@ -10,7 +10,6 @@ internal static class BuiltInCatalog
     // Keeping both built-ins on each line makes missing translations visible during review.
     private static readonly (string Key, string English, string German)[] Entries =
     {
-        ("plugins.reselection.reviewTitle", "Review bundled repairs and new selections", "Gebündelte Reparaturen und Neuauswahl prüfen"),
         ("plugins.reselection.repairSection", "Proven previous delivery: repair an existing selection", "Belegte frühere Auslieferung: bestehende Auswahl reparieren"),
         ("plugins.reselection.section", "NEW user selection — not a proven move of the old build", "NEUE Nutzerauswahl — kein belegter Umzug des alten Builds"),
         ("plugins.reselection.policy", "This is a new choice of a currently delivered bundled build, not proof that the old candidate was shipped. Review the exact old/new identities and the complete configuration below. Confirmation saves this choice for next app start; no code is activated now. The enabled/disabled choice is preserved. No pins, permission grants or source ownership are transferred.", "Dies ist eine neue Auswahl eines aktuell mitgelieferten gebündelten Builds, kein Nachweis einer früheren Auslieferung des alten Kandidaten. Prüfe die genauen alten/neuen Identitäten und die vollständige Konfiguration unten. Die Bestätigung speichert diese Auswahl für den nächsten Appstart; jetzt wird kein Code aktiviert. Die Aktiviert-/Deaktiviert-Auswahl bleibt erhalten. Pins, Rechtefreigaben und Quelleneigentümerschaft werden nicht übertragen."),
@@ -40,6 +39,7 @@ internal static class BuiltInCatalog
         ("menu.unavailable.busy", "Another operation is running. Try again when it has finished.", "Ein anderer Vorgang läuft. Nach dessen Ende erneut versuchen."),
         ("menu.unavailable.restoring", "The list is still being restored. Try again in a moment.", "Die Liste wird noch wiederhergestellt. In einem Moment erneut versuchen."),
         ("menu.unavailable.singleThread", "Select exactly one thread to use this action.", "Für diese Aktion genau einen Thread auswählen."),
+        ("menu.unavailable.nothingCaptured", "Nothing captured yet", "Noch nichts erfasst"),
         ("menu.unavailable.nothingToCheck", "None of the selected entries can be checked right now.", "Keiner der ausgewählten Einträge kann gerade geprüft werden."),
         ("menu.unavailable.nothingToRetry", "None of the selected threads has media to retry.", "Keiner der ausgewählten Threads hat Medien zum Wiederholen."),
         ("progress.mediaOf", "{0} / {1} media", "{0} / {1} Medien"),
@@ -145,6 +145,7 @@ internal static class BuiltInCatalog
         ("downloads.searchActive", "{0} results · {1}", "{0} Treffer · {1}"),
         ("downloads.searchClear", "Clear", "Leeren"),
         ("downloads.searchClose", "Close", "Schließen"),
+        ("downloads.searchCloseTip", "Close the search bar. Esc clears the text first, then closes the bar.", "Suchleiste schließen. Esc leert zuerst den Text und schließt dann die Leiste."),
         ("downloads.searchEmpty", "No downloads match this filter. Clear the search to show all downloads.", "Keine Downloads passen zum Filter. Suche leeren, um alle Downloads anzuzeigen."),
         ("downloads.copySessionUrls", "Copy session URLs ({0})", "Sitzungs-URLs kopieren ({0})"),
         ("downloads.copySessionUrlsHint", "Copies all thread and board URLs in this session, including entries hidden by the filter.", "Kopiert alle Thread- und Board-URLs dieser Sitzung, einschließlich ausgefilterter Einträge."),

@@ -51,7 +51,7 @@ public partial class MainWindow
               : !_restoreCompleted ? "menu.unavailable.restoring" : "menu.unavailable.selection"
             : id switch
             {
-                "thread.read" => "menu.unavailable.singleThread",
+                "thread.read" => frozen.Threads.Length == 1 ? "menu.unavailable.nothingCaptured" : "menu.unavailable.singleThread",
                 "watch.check" => "menu.unavailable.nothingToCheck",
                 "watch.retry-media" => "menu.unavailable.nothingToRetry",
                 _ => "menu.unavailable.selection"
@@ -73,7 +73,7 @@ public partial class MainWindow
         if (!frozen.Boards)
         {
             Add("thread.read", () => OpenActions.Start(() => OpenFrozenReaderAsync(frozen, grid), "downloads.menu.read"),
-                frozen.Threads.Length == 1);
+                frozen.Threads.Length == 1 && !NothingCaptured(LeadRowOf(frozen)));
             Add("gallery.open", () => OpenActions.Start(() => OpenGalleryAsync(frozen.Lead, origin: grid), "downloads.menu.gallery"));
             // A selection of several threads shows them all, as one thread set (QW-A #7 follow-up); one thread keeps its thread: chip.
             Add("thread.show-in-media", () => ShowSelectedThreadsInMedia(frozen.Threads, frozen.Lead,
@@ -118,8 +118,8 @@ public partial class MainWindow
 
     private async Task OpenFrozenReaderAsync(DownloadMenuTarget frozen, Control origin)
     {
-        OpenLargeReader(origin, frozen.Scope);
-        await ArchivePage.LoadThreadAsync(frozen.Lead);
+        if (ReportNothingCaptured(LeadRowOf(frozen))) return;
+        await ArchivePage.OpenReaderOnThreadAsync(frozen.Lead, () => OpenLargeReader(origin, frozen.Scope));
     }
 
     private void OpenFrozenDetails(DownloadMenuTarget frozen)

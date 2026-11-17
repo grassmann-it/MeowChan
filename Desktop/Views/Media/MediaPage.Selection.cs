@@ -24,8 +24,14 @@ namespace MeowChan;
 // selected (identified by their bytes) and the others drop out, so nothing hidden is ever acted on.
 public sealed partial class MediaPage
 {
-    private readonly TextBlock _selectionText = new() { Name = "MediaSelectionStatus", TextWrapping = Avalonia.Media.TextWrapping.Wrap, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
-    private readonly WrapPanel _selectionRow = new() { Name = "MediaSelectionRow", ItemSpacing = 8, LineSpacing = 4 };
+    // UX review 17.11.2026: the line reads "N selected", the actions, then (only while the index is being built) the muted reason after the last
+    // action. The counter keeps room for four digits (tabular figures), so the actions keep their x whether the reason shows or the count grows.
+    private readonly ReservedTextBlock _selectionText = new() { Name = "MediaSelectionStatus", Classes = { "tnum" }, TextWrapping = Avalonia.Media.TextWrapping.NoWrap, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+    private readonly TextBlock _selectionReason = new() { Name = "MediaSelectionReason", Classes = { "muted" }, IsVisible = false, TextWrapping = Avalonia.Media.TextWrapping.NoWrap,
+        TextTrimming = Avalonia.Media.TextTrimming.CharacterEllipsis, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) };
+    // The counter and the actions wrap as one group; the reason takes what the last line leaves (DockPanel's fill) and ends in an ellipsis.
+    private readonly WrapPanel _selectionActions = new() { Name = "MediaSelectionActions", ItemSpacing = 8, LineSpacing = 4 };
+    private readonly DockPanel _selectionRow = new() { Name = "MediaSelectionRow", LastChildFill = true };
     private readonly Button _selTag = new() { Name = "MediaSelectionTag" };
     private readonly Button _selGallery = new() { Name = "MediaSelectionGallery" };
     private readonly Button _selExport = new() { Name = "MediaSelectionExport" };
@@ -53,6 +59,7 @@ public sealed partial class MediaPage
     private Control BuildSelectionBar()
     {
         AutomationProperties.SetLiveSetting(_selectionText, AutomationLiveSetting.Polite);
+        AutomationProperties.SetLiveSetting(_selectionReason, AutomationLiveSetting.Polite);
         AutomationProperties.SetLiveSetting(_selectionNote, AutomationLiveSetting.Polite);
         // The action row exists only while something is selected: the counter and the actions share one line (the how-to is the tag action's tooltip).
         // It is as high as the summary line it replaces (Workspace.Size.Control, 32), so the grid does not move when the selection starts or ends.
@@ -62,7 +69,10 @@ public sealed partial class MediaPage
         _selClear.Classes.Add("subtle"); // the way out weighs less than the actions (last in the row, as before)
         // MP2: "Add to tagging queue" comes before "Tag together": choosing and queueing is the way into the Tagging page.
         foreach (Control control in new Control[] { _selectionText, _selQueue, _selTag, _selGallery, _selExport, _selMore, _selClear })
-        { control.VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center; _selectionRow.Children.Add(control); }
+        { control.VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center; _selectionActions.Children.Add(control); }
+        DockPanel.SetDock(_selectionActions, Dock.Left);
+        _selectionRow.Children.Add(_selectionActions);
+        _selectionRow.Children.Add(_selectionReason);
         _selTag.Click += async (_, _) => await TagSelectionAsync();
         _selGallery.Click += (_, _) => OpenActions.Start(OpenSelectionGalleryAsync, "media.selection.gallery");
         _selExport.Click += async (_, _) => await ExportSelectionAsync();
@@ -74,6 +84,7 @@ public sealed partial class MediaPage
 
     private void LocalizeSelection()
     {
+        _selectionText.ReserveText = Texts.T("media.selection.count", 8888); // four digits, tabular figures
         _selTag.Content = Texts.T("media.selection.tag");
         _selGallery.Content = Texts.T("media.selection.gallery");
         _selExport.Content = Texts.T("media.selection.export");
@@ -154,10 +165,14 @@ public sealed partial class MediaPage
             _selectionShown = hasSelection;
             ApplyLayoutPlan();
         }
-        ScheduleSelectionRowMeasure(); // the counter's text and the line's buttons decide where the search above ends (MediaPage.ToolbarAlignment.cs)
         _selectionText.Text = count == 0 ? string.Empty
-            : (notSaved > 0 ? Texts.T("media.selection.countNotSaved", count, notSaved) : Texts.T("media.selection.count", count))
-              + (building ? " · " + Texts.T("media.selection.reason.building") : string.Empty);
+            : notSaved > 0 ? Texts.T("media.selection.countNotSaved", count, notSaved) : Texts.T("media.selection.count", count);
+        // After the last action, never before the actions: they keep their place whether the index is being built or not. The full sentence is the
+        // tooltip of the (possibly cut) reason and the accessible description of the disabled actions (SetAction).
+        string? buildingReason = count > 0 && building ? Texts.T("media.selection.reason.building") : null;
+        _selectionReason.Text = buildingReason;
+        _selectionReason.IsVisible = buildingReason != null;
+        ToolTip.SetTip(_selectionReason, buildingReason);
         bool ready = reason == null && !_selectionBusy && !_lifetime.IsCancellationRequested;
         SetAction(_selTag, ready && TagServices != null, reason, TagServices != null, "media.selection.tag.hint", Texts.T("media.selection.howTo"));
         UpdateQueueActions(ready, reason);

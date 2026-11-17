@@ -152,14 +152,23 @@ internal static class ReaderMediaSidebarChecks
             page.ApplyReaderMediaPreferences(page.ReaderMedia with { SidebarMinimumReaderWidth = ReaderDisplayPreferences.MediaSidebarReaderWidthDefault });
             await Program.WaitUntilAsync(() => page.IsMediaSidebarShown);
 
-            // Escape inside the sidebar closes only the sidebar, the reader stays and the focus is back in the posts.
+            // Escape inside the sidebar only takes the focus back to the posts: the sidebar stays on (its choice is stored, only the × and the
+            // switch change it) and the reader stays open.
             sidebar.Open.Focus();
             await Flush();
             KeyEventArgs escape = new() { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape, Source = sidebar.Open };
             sidebar.Open.RaiseEvent(escape);
+            await Flush();
+            Require(escape.Handled && host.IsVisible && page.ReaderMedia.Sidebar && page.IsMediaSidebarShown,
+                "Escape in the sidebar closed the reader or switched the sidebar off.");
+            Require(!sidebar.IsKeyboardFocusWithin && pane.IsKeyboardFocusWithin, "Escape in the sidebar did not take the focus back to the posts.");
+            // RD-01: the sidebar stays shown, so pane and sidebar keep their one shared Tab cycle (the frame cycles, the pane continues into it).
+            Require(KeyboardNavigation.GetTabNavigation(frame) == KeyboardNavigationMode.Cycle
+                && KeyboardNavigation.GetTabNavigation(pane) == KeyboardNavigationMode.Continue, "After Escape in the sidebar Tab no longer reaches the sidebar.");
+            // Only switching the sidebar off gives the pane its own Tab cycle back.
+            page.ToggleMediaSidebar();
             await Program.WaitUntilAsync(() => !page.IsMediaSidebarShown);
-            Require(host.IsVisible && !page.ReaderMedia.Sidebar, "Escape in the sidebar closed the reader or kept the sidebar on.");
-            Require(KeyboardNavigation.GetTabNavigation(pane) == KeyboardNavigationMode.Cycle, "The pane did not get its Tab cycle back.");
+            Require(KeyboardNavigation.GetTabNavigation(pane) == KeyboardNavigationMode.Cycle, "The pane did not get its Tab cycle back when the sidebar was switched off.");
         }
         finally
         {

@@ -135,6 +135,8 @@ internal static class VideoGalleryChecks
             await capture.WaitForExitAsync();
             Require(capture.ExitCode == 0, "Private Xvfb video capture failed.");
         }
+        // GA-01/GA-02: a mouse click on the transport, a toolbar toggle and the volume slider gives the keys back to the picture.
+        await GalleryPointerFocusChecks.CheckVideoControlsAsync(window, viewer);
         Click(Control<Button>(viewer, "GalleryNext"));
         await Program.WaitUntilAsync(() => viewer.CaptureState().PostId == "2001" && Control<Button>(viewer, "GalleryActual").IsEnabled);
         Click(Control<Button>(viewer, "GalleryPrevious"));

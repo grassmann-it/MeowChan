@@ -12,6 +12,7 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 
@@ -37,6 +38,8 @@ internal sealed class GalleryInlineVideoPlayer : IReaderInlineVideoPlayer
     internal event Action<bool>? UserPlayback;
     internal event Action? Clicked;
     internal event Action<bool>? MuteChosen;
+    /// <summary>A pointer action on the bar (play, mute, the timeline's neighbours) is through: the owner puts the keys back where the reader's video keys work.</summary>
+    internal event Action? ShortcutFocusRequested;
 
     internal GalleryInlineVideoPlayer(Panel area, Control below, Panel transportHost, GalleryEntry entry, ReaderInlineVideoOptions options, bool startMuted,
         string name, Action? openGallery = null, bool viewer = false, VideoScrubPreviewCache? scrubCache = null)
@@ -57,6 +60,7 @@ internal sealed class GalleryInlineVideoPlayer : IReaderInlineVideoPlayer
         Player.DiagnosticNotice += message => { if (!string.IsNullOrWhiteSpace(message)) Failed?.Invoke(Texts.T("reader.video.failed", message)); };
         Player.CleanupDiagnostic += message => Failed?.Invoke(message);
         Player.UserPlaybackRequested += playing => UserPlayback?.Invoke(playing);
+        Player.ShortcutFocusRequested += () => ShortcutFocusRequested?.Invoke();
         // A click on the picture plays or pauses it (and never reaches the frame below, which would open the gallery).
         Player.AddHandler(InputElement.PointerReleasedEvent, (_, e) =>
         {
@@ -73,6 +77,7 @@ internal sealed class GalleryInlineVideoPlayer : IReaderInlineVideoPlayer
             open = new Button { Name = "ReaderInlineVideoOpen", Classes = { "media-control" } };
             CommandBindings.Apply(open, "gallery.open", iconOnly: true, iconSize: 18);
             open.Click += (_, e) => { e.Handled = true; openGallery(); };
+            PointerFocusReclaim.SetExempt(open, true); // it hands the keys to the gallery that opens, not back to the reader
         }
         Player.UseMinimalTransport(open);
         Player.SetExternalTransportHost(transportHost);
@@ -264,6 +269,17 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
     private bool _pointerPlay;
 
     /// <summary>
+    /// After a click on the bar's own buttons (mute, play or pause) the keys go back to the owner, as after a click on the activator: the owner's hook
+    /// (<see cref="PointerPlayFocus"/>: the sidebar's posts, the Media page's grid), else the post row the video sits in, so Space plays or pauses
+    /// the video and the reader's keys keep working instead of pressing the clicked button again. Keyboard activation keeps the focus on the bar.
+    /// </summary>
+    private void ReturnFocusToOwner()
+    {
+        if (PointerPlayFocus is { } owner) { owner(); return; }
+        _area.FindAncestorOfType<ListBoxItem>()?.Focus(NavigationMethod.Pointer);
+    }
+
+    /// <summary>
     /// Where the focus goes after a pointer click started or resumed the video here (the owner's posts or grid), so Up and Down keep moving the reader
     /// and the video keys keep acting on the video; a keyboard start puts it on the bar's play button instead. Unset leaves the focus alone.
     /// </summary>
@@ -296,6 +312,7 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
                 player.MuteChosen += muted => controller.SessionMuted = muted;
                 player.Failed += message => Dispatcher.UIThread.Post(() => { if (ReferenceEquals(_player, player)) ShowError(message); });
                 player.UserPlayback += playing => { if (ReferenceEquals(_player, player)) controller.OnUserPlayback(this, playing); };
+                player.ShortcutFocusRequested += () => { if (ReferenceEquals(_player, player)) ReturnFocusToOwner(); };
                 player.Clicked += () => { if (ReferenceEquals(_player, player)) OpenActions.Start(() => controller.ToggleAsync(this), "reader.video.toggle"); };
                 _player = player;
                 UpdatePresentation();

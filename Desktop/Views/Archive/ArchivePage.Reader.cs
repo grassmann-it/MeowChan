@@ -32,8 +32,9 @@ public partial class ArchivePage
         if (IsExternalLinkDialogOpen) { CloseExternalLinkDialog(); return true; }
         if (IsFilenameSearchOpen) { InvalidateFilenameSearch(); return true; }
         if (_urlTextExportBusy) return true; // Never route URLtext dismissal into HTML state.
-        // Escape inside the media sidebar closes only the sidebar (R8), before any reader-wide dismissal.
-        if (!_ended && !IsReaderDialogOpen && IsMediaSidebarSource(source)) { CloseMediaSidebar(); return true; }
+        // Escape inside the media sidebar only leaves it (R8): the focus goes back to the selected post, before any reader-wide dismissal. Whether the
+        // sidebar is on is a stored layout choice that the × button, the View menu and Primary+Shift+M change; Escape never switches it off (RD-01).
+        if (!_ended && !IsReaderDialogOpen && IsMediaSidebarSource(source)) { FocusSelectedPostOrList(); return true; }
         if (_cleanupDialog != null) { _cleanupDialog.RequestClose(); return true; }
         if (IsReaderDialogOpen)
         {
@@ -421,8 +422,10 @@ public partial class ArchivePage
         await RevealPostAsync(postId);
         await FocusPostAsync(postId, null);
     }
+    // passiveOpen: the first-post focus of a reader that was only opened. Opening is no reading: it never writes a reading position
+    // (the saved place stays the one "Continue reading" offers); only the user's own jumps and input do.
     private async Task FocusPostAsync(string postId, int? interactionRevision, bool restoreFocus = true,
-        ReaderFocusIntent? focusIntent = null)
+        ReaderFocusIntent? focusIntent = null, bool passiveOpen = false)
     {
         // A live continuation can already be stale before its first dispatcher
         // yield. Validate before ShowPost changes the page or selection.
@@ -497,7 +500,7 @@ public partial class ArchivePage
             _alignedCardItem = FocusedMediaEnlarged && container != null ? posts.SelectedItem : null;
             if (_alignedCardItem != null)
                 _readerScrollOwner.OpenFitWindow(Environment.TickCount64, _readerInteractionRevision, FocusFitWindowMilliseconds);
-            ReaderPositionChanged(deliberate: !interactionRevision.HasValue);
+            ReaderPositionChanged(deliberate: !interactionRevision.HasValue && !passiveOpen);
         }
         int syncPasses = 0;
         for (int pass = 0; pass < 8; pass++)

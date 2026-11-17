@@ -541,7 +541,7 @@ public sealed class HelpDocumentationTests
             "Kartenmodus ein / aus",
             "D starts or pauses Start / pause slideshow",
             "Diashow starten / pausieren",
-            "B performs Add favorite",
+            "M adds the favorite (German: Favorit hinzufügen), U removes it and F toggles it",
             "Favorit hinzufügen",
             "Shift+P performs Show post context",
             "Post-Kontext anzeigen",
@@ -1200,32 +1200,41 @@ public sealed class HelpDocumentationTests
     [Fact]
     public void NumberedFooterNavigationMatchesTheCommandOrderLabelsAndDefaultShortcuts()
     {
-        string rawSection = Section(Read(Help), "Selection and shortcuts");
+        string rawSection = Section(Read(Help), "Page shortcuts and footer numbering");
         string section = Plain(rawSection);
-        // The same section also has Ctrl+C, Ctrl+A, etc. in a different action table.
-        // Select the page table, then validate every row; do not silently filter malformed page keys.
+        // One canonical table: page, fixed letter, digit in Simple, digit in Barebones and in Advanced. Validate every row; do not silently filter malformed ones.
         Match pageTable = Capture(rawSection,
-            @"(?m)^\| Shortcut \| Page \|\r?\n\|[^\r\n]*\|\r?\n(?<rows>(?:\|[^\r\n]*\|\r?\n)+)");
+            @"(?m)^\| Page \| Letter \| Digit in Simple[^\r\n]*\|\r?\n\|[^\r\n]*\|\r?\n(?<rows>(?:\|[^\r\n]*\|\r?\n)+)");
         string[] rows = pageTable.Groups["rows"].Value.Split('\n', StringSplitOptions.RemoveEmptyEntries)
             .Select(line => line.TrimEnd('\r')).ToArray();
-        // Help.md documents the current default numbering, including Tagging and the hidden-by-default Booru slot.
-        string[] ids = MainPageOrder.DefaultNumbering.ToArray();
+        // The table follows the digits a new profile (Simple, default footer) sees; Booru is hidden by default and comes last.
+        string[] ids = FooterLayout.Default.NumberingFor(WorkView.Simple).ToArray();
+        Assert.Equal(MainPageOrder.DefaultNumbering.Count, rows.Length);
         Assert.Equal(ids.Length, rows.Length);
+        IReadOnlyList<string> barebones = FooterLayout.Default.NumberingFor(WorkView.Barebones);
+        IReadOnlyList<string> advanced = FooterLayout.Default.NumberingFor(WorkView.Advanced);
+        Assert.Equal(barebones, advanced);
         for (int i = 0; i < ids.Length; i++)
         {
-            Match row = Capture(rows[i], @"^\| Ctrl\+(?<digit>\d+) \| (?<label>[^|]+) \|$");
-            int digit = Number(row.Groups["digit"].Value);
-            string expectedLabel = ids[i] == "navigation.sources" ? "Sources & Plugins" : CommandCatalog.Get(ids[i]).LabelEn;
-            Assert.Equal(expectedLabel, row.Groups["label"].Value.Trim());
-            Assert.Equal(i + 1, digit);
+            Match row = Capture(rows[i],
+                @"^\| (?<label>[^|]+) \| Ctrl\+Shift\+(?<letter>[A-Z]) \| Ctrl\+(?<simple>\d) \| Ctrl\+(?<other>\d) \|$");
+            string id = ids[i];
+            Assert.Equal(CommandCatalog.Get(id).LabelEn, row.Groups["label"].Value.Trim());
+            Assert.Equal(PageKeyScheme.Letter(id), row.Groups["letter"].Value);
+            Assert.Equal(i + 1, Number(row.Groups["simple"].Value));
+            Assert.Equal(barebones.ToList().IndexOf(id) + 1, Number(row.Groups["other"].Value));
         }
-        Assert.Equal(Enumerable.Range(1, ids.Length), ids.Select((_, index) => index + 1));
-        foreach (string germanSlot in new[] { "Strg+1 Downloads", "Strg+2 Archiv", "Strg+3 Medien", "Strg+4 Taggen",
-            "Strg+5 Regeln", "Strg+6 Quellen & Plugins", "Strg+7 Status", "Strg+8 Booru" })
-            Assert.Contains(germanSlot, section, StringComparison.Ordinal);
-        Assert.Contains("table follows the main-page order, not numeric sorting", section, StringComparison.Ordinal);
-        Assert.Contains("Hiding Booru does not give its default key back to Plugins or reassign the other pages", section, StringComparison.Ordinal);
-        Assert.Contains("previously saved bindings still open their respective Status segment", section, StringComparison.Ordinal);
+        // The default footer hides Booru, so its digit is the last one in every work view.
+        Assert.Equal("navigation.booru", ids[^1]);
+        Assert.Equal("navigation.booru", barebones[^1]);
+        Assert.Equal(MainPageOrder.CommandIds.Count, new HashSet<string>(ids).Count);
+        // Shown in the footer, Booru takes the fifth digit in every work view (a button under More in Barebones counts as well).
+        foreach (WorkView view in WorkViewSetting.All)
+            Assert.Equal(5, FooterLayout.Default.WithVisible("navigation.booru", true).NumberingFor(view).ToList().IndexOf("navigation.booru") + 1);
+        Assert.Contains("The table lists the pages in the order of the digits in Simple", section, StringComparison.Ordinal);
+        Assert.Contains("which the default footer hides, comes last", section, StringComparison.Ordinal);
+        Assert.Contains("it takes digit 5 in every work view", section, StringComparison.Ordinal);
+        Assert.Contains("A binding you saved for another command always wins over a default", section, StringComparison.Ordinal);
         foreach (string compatibility in MainPageOrder.StatusSegmentCommandIds.Append("navigation.plugins"))
         {
             Assert.False(MainPageOrder.Contains(compatibility));
@@ -1241,9 +1250,10 @@ public sealed class HelpDocumentationTests
     public void DocumentedSavedPluginsOverrideWinsWithoutChangingStatusOrOtherPageSlots(ShortcutPlatform platform)
     {
         string help = Plain(Section(Read(Help), "Selection and shortcuts"));
-        Assert.Contains("saved navigation.plugins binding to Primary+6 keeps priority over the new Booru default", help, StringComparison.Ordinal);
+        Assert.Contains("A saved navigation.plugins binding, for example on Primary+6, still opens All plugins on the Plugins page", help, StringComparison.Ordinal);
+        Assert.Contains("a saved Plugins binding on Ctrl+6 or Ctrl+8, takes precedence over the Booru default and keeps its meaning", Plain(Read(Help)), StringComparison.Ordinal);
         foreach (string file in new[] { Help, DanbooruGuide })
-            Assert.Contains("Plugins-Belegung auf Primary+6 hat Vorrang vor dem neuen Booru-Standard", Plain(Read(file)), StringComparison.Ordinal);
+            Assert.Contains("hat Vorrang vor dem Booru-Standard", Plain(Read(file)), StringComparison.Ordinal);
 
         // The Help sentence names the compatibility slot; the default layout assigns Booru from the footer order, so the mechanics are checked independently.
         ShortcutGesture six = ShortcutGesture.Parse("Primary+" + MainPageOrder.Digit("navigation.booru"));
@@ -1280,10 +1290,12 @@ public sealed class HelpDocumentationTests
     public void BooruDisplayHelpMatchesTheSavedPresentationSwitchAndItsHideScopes()
     {
         string text = Plain(Section(Read(Help), "Booru page and display switch"));
-        var label = Assert.Single(BooruPageCatalog.Entries, entry => entry.Key == "workview.booru.show");
+        // The switch is "Show Booru actions" in Settings (Interface > Footer), no longer the "Show Booru" check box of the footer or the app menu.
+        var label = Assert.Single(FooterSettingsCatalog.Entries, entry => entry.Key == "settings.footer.booruActions");
         Assert.Contains(label.English, text, StringComparison.Ordinal);
         Assert.Contains(label.German, text, StringComparison.Ordinal);
-        Assert.Contains("saved, profile-wide display switch, on by default", text, StringComparison.Ordinal);
+        Assert.Contains("saved, profile-wide display switch for the Booru page and the Danbooru tools", text, StringComparison.Ordinal);
+        Assert.Contains("The switch has no footer check box and no app-menu twin any more", text, StringComparison.Ordinal);
         Assert.Contains("not source authorization, plugin activation or a watcher pause", text, StringComparison.Ordinal);
         Assert.Contains("Sources, watchers and downloads keep running under their existing pause, cooldown and availability rules", text, StringComparison.Ordinal);
         Assert.Contains("does not automatically resume a paused watcher, submit a search or bypass those rules", text, StringComparison.Ordinal);
@@ -1292,9 +1304,9 @@ public sealed class HelpDocumentationTests
         {
             string german = Plain(Read(file));
             foreach (string phrase in new[] { label.German,
-                "gespeicherter, profilweiter Anzeigeschalter, standardmäßig an",
-                "Ohne eingebundene Booru-Dienste fehlen Schalter und Seitenziel",
-                "Booru-Ziele in Fußleiste, Mehr und Appmenü sowie Medien → Mehr → Booru öffnen aus",
+                "gespeicherter, profilweiter Anzeigeschalter",
+                "Ohne eingebundene Booru-Dienste fehlen",
+                "Booru-Einträge in Fußleiste, Mehr und Appmenü sowie Medien → Mehr → Booru öffnen aus",
                 "das Seitenkürzel öffnet keine ausgeblendete Seite",
                 "Von der gewählten Booru-Seite geht es zu Downloads zurück",
                 "bewahrt den ungesendeten Entwurf, solange dieselbe Quelleneinbindung besteht",
@@ -1578,8 +1590,8 @@ public sealed class HelpDocumentationTests
             Assert.Contains(entry.German, text, StringComparison.Ordinal);
         }
         foreach (string phrase in new[] { "does not fetch the post or download its original", "missing/filtered-out local tile",
-            "opens the Booru page without starting a search", "Show Booru is on",
-            "weder der Post abgerufen noch sein Original heruntergeladen", "Booru anzeigen eingeschaltet ist",
+            "opens the Booru page without starting a search", "Show Booru actions is on",
+            "weder der Post abgerufen noch sein Original heruntergeladen", "Booru-Aktionen anzeigen eingeschaltet ist",
             "dieselbe Hauptseite wie über Fußleiste und Appmenü, kein zweites Fenster" })
             Assert.Contains(phrase, text, StringComparison.Ordinal);
         string media = Read("Desktop/Booru/MainWindow.BooruMedia.cs");
@@ -1631,17 +1643,43 @@ public sealed class HelpDocumentationTests
         Assert.Contains("not permission to activate it", sources, StringComparison.Ordinal);
         string status = Plain(Section(Read(Help), "Status page"));
         Assert.Equal(new[] { "Statistics", "Diagnostics" }, Enum.GetNames<StatusSegment>());
+        // The Status digit follows the footer of the work view: 7 in Barebones and Advanced, 5 in Simple, the start view of a new profile.
         Assert.Equal(7, Array.IndexOf(MainPageOrder.DefaultNumbering.ToArray(), "navigation.status") + 1);
+        Assert.Equal(5, FooterLayout.Default.NumberingFor(WorkView.Simple).ToList().IndexOf("navigation.status") + 1);
+        Assert.Equal(7, FooterLayout.Default.NumberingFor(WorkView.Advanced).ToList().IndexOf("navigation.status") + 1);
         foreach (string phrase in new[] { "last-used segment", "header graph and tray open Statistics",
             "source selected", "Statistics becomes available after session recovery", "Booru is a separate main page",
-            "while unavailable it is numbered in slot 8, Plugins keeps slot 6 and Status keeps slot 7",
+            "Ctrl+7 in Barebones and Advanced, Ctrl+5 in Simple",
             "zuletzt benutzten Bereich", "dieser Quelle als Filter", "Booru ist eine eigene Hauptseite, kein Status-Bereich",
-            "Booru belegt im Standardlayout ohne verfügbare Booru-Dienste Strg/⌘+8, Plugins bleibt auf Strg/⌘+6 und Status auf Strg/⌘+7" })
+            "in Minimal und Erweitert Strg+7, in Einfach Strg+5" })
             Assert.Contains(phrase, status, StringComparison.Ordinal);
         Assert.Contains("navigation.booru", MainPageOrder.CommandIds);
         Assert.Equal(8, Array.IndexOf(MainPageOrder.DefaultNumbering.ToArray(), "navigation.booru") + 1);
         Assert.Equal(6, Array.IndexOf(MainPageOrder.DefaultNumbering.ToArray(), "navigation.sources") + 1);
         Assert.DoesNotContain("Open **Statistics** with Ctrl+8", Read(Help), StringComparison.Ordinal);
+    }
+
+    // Docs guard (UX review KB-01, GA-06, RN-01/02/05, MD-02): defaults that were removed or moved must not be described as current again.
+    [Theory]
+    [InlineData("docs/Help.md")]
+    [InlineData("docs/user-guide/danbooru.md")]
+    [InlineData("README.md")]
+    [InlineData("CHANGELOG.md")]
+    [InlineData("docs/releases/v1.1.0.md")]
+    public void UserFacingDocsDoNotDescribeRemovedOrMovedDefaultsAsCurrent(string file)
+    {
+        string text = Plain(Read(file));
+        foreach (string stale in new[]
+        {
+            "B adds the current medium to favorites", "B performs Add favorite", "Add favourite moved from M to B",
+            "previous/next arrows for the current selection", "Sidebar's Previous/Next buttons", "Ctrl+Shift+R opens Thread filters",
+            "Ctrl/Cmd+Shift+R opens Thread filters", "Show Booru in the footer and app menu", "Strg+6 öffnet standardmäßig Booru",
+            "Ctrl+6 Booru", "Ctrl+5 Booru", "S slideshow"
+        })
+            Assert.DoesNotContain(stale, text, StringComparison.Ordinal);
+        Assert.DoesNotMatch(@"(?<![+\w])M (mutes|mute,)", text); // Shift+M mutes; a bare M is the favorite key
+        if (file != "docs/releases/v1.1.0.md" && file != "CHANGELOG.md")
+            Assert.DoesNotContain("upper-right indicator", text, StringComparison.Ordinal);
     }
 
     [Fact]

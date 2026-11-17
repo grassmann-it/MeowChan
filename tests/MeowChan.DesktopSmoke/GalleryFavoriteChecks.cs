@@ -102,7 +102,15 @@ internal static class GalleryFavoriteChecks
             Require(writes == baseline + 1 && savedIntents[^1] == false && !window.SessionHost.IsFavorite(entry)
                 && !viewer.IsFavoriteConfirmOpen, "U in the confirmation did not remove exactly once.");
             RequireBadge(false);
-            Press(Key.B); await latest; RequireBadge(true); // B, the second key of "Add favorite" (revision 20: M first)
+            // Decision #132 (defaults revision 21, eaafca362): B is no key of "Add favorite" any more, M alone adds; B writes nothing.
+            int writesBeforeB = writes;
+            var b = new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.B, Source = viewer };
+            viewer.RaiseEvent(b);
+            Release(Key.B);
+            await latest;
+            Require(writes == writesBeforeB && !window.SessionHost.IsFavorite(entry), "B still adds a favourite in the gallery.");
+            RequireBadge(false);
+            Press(Key.M); await latest; RequireBadge(true);
 
             failNext = true;
             Press(Key.U);
@@ -113,6 +121,13 @@ internal static class GalleryFavoriteChecks
             RequireBadge(true);
             Require(errors.Count == 1 && errors[0].Operation == "favorite", "Failure did not produce exactly one diagnostic.");
             Press(Key.U); await latest; viewer.SetFavoriteError(null); RequireBadge(false);
+
+            // GA-01: a mouse click on the star or the badge gives the keys back to the picture; Space then never un-favourites by pressing it again.
+            await GalleryPointerFocusChecks.CheckFavoriteControlsAsync(window, viewer, () => window.SessionHost.IsFavorite(entry), () => latest);
+            Refresh();
+            viewer.FocusGallerySurface();
+            if (window.SessionHost.IsFavorite(entry)) { Press(Key.U); await latest; }
+            HideControls(); RequireBadge(false);
 
             await window.SessionHost.SetFavoriteAsync(entry, true);
             Refresh();
@@ -125,7 +140,10 @@ internal static class GalleryFavoriteChecks
             await viewer.ShowAsync(entry, CancellationToken.None);
             Refresh(); HideControls(); RequireBadge(true);
             Texts.SetLanguage("de");
-            await Program.WaitUntilAsync(() => AutomationProperties.GetName(Badge()) == Texts.T("viewer.favorite.saved"));
+            // Since the badge became a toggle (9eddfaccc, review 15.11.) its name is the thing, "Favorit", and the checked state says saved;
+            // the old saved-state name ("Favorisiert") is gone. The German name follows the language with the state kept.
+            await Program.WaitUntilAsync(() => AutomationProperties.GetName(Badge()) == Texts.T("gallery.decision.favorite") && Badge().IsChecked == true,
+                () => $"badge name '{AutomationProperties.GetName(Badge())}', checked {Badge().IsChecked}");
             RequireBadge(true);
             Program.CaptureWindow(window, "smoke-favorite-marked-hidden-de.png");
             await CheckShellFailureOwnershipAsync(window, entry);

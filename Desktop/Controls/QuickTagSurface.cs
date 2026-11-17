@@ -12,6 +12,7 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Tags;
@@ -603,6 +604,20 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
 
     /// <summary>Puts the focus into the tag field (opening the surface, after a medium switch).</summary>
     internal void FocusField() => _input.Focus();
+
+    /// <summary>
+    /// Text typed while another part of the host holds the keyboard (the stars after R, a chip, a footer button): the field takes the focus and the text,
+    /// at its caret, as if it had been typed there (TG-02: the letters went nowhere). The host marks the key handled, so the platform raises no TextInput
+    /// of its own. False when the field cannot take it (disabled, disposed, not realized).
+    /// </summary>
+    internal bool TypeIntoField(string text)
+    {
+        if (_disposed || string.IsNullOrEmpty(text) || !_input.IsEffectivelyEnabled || !_input.IsEffectivelyVisible) return false;
+        _input.Focus(NavigationMethod.Unspecified);
+        if (_input.GetVisualDescendants().OfType<TextBox>().FirstOrDefault(box => box.IsFocused) is not { IsReadOnly: false } box) return false;
+        box.RaiseEvent(new TextInputEventArgs { RoutedEvent = TextInputEvent, Text = text });
+        return true;
+    }
 
     /// <summary>Switches to another target (the next medium, a marked set) and its label; the undo stack stays.</summary>
     internal void Retarget(IQuickTagTarget target, string label)
@@ -1298,10 +1313,12 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     private SuggestionChip? FocusedSuggestion() => _suggestionChips.FirstOrDefault(chip => chip.Button.IsKeyboardFocusWithin);
     private AssignedChip? FocusedAssigned() => _assignedChips.FirstOrDefault(chip => chip.Button.IsKeyboardFocusWithin || chip.Remove.IsKeyboardFocusWithin);
 
-    // Runs after the field's own handler: an Enter that took a highlighted suggestion is already handled there.
+    // Enter adds the typed text, unless the field takes it (TagSuggestionInput.FieldTakesEnter).
     private async void OnInputKey(object? sender, KeyEventArgs e)
     {
         if (e.Handled || e.Key != Key.Enter || e.KeyModifiers != KeyModifiers.None) return;
+        // Added after the field's own handler, so it runs before it: a highlighted suggestion is the field's to accept.
+        if (TagSuggestionInput.FieldTakesEnter(_input, e)) return;
         e.Handled = true;
         _input.Dismiss();
         await OpenActions.RunAsync(() => AddTypedAsync(), "tags.quick.add.key");

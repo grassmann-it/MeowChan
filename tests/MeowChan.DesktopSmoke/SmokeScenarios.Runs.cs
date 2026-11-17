@@ -81,6 +81,11 @@ internal static partial class SmokeScenarios
             Seed = ReaderPostStarChecks.SeedAsync,
             Configure = config => { config.DownloadsPaused = true; config.SaveUrlsOnExit = false; }
         },
+        ["quick-tag-native-typing"] = new(SmokeStage.Ready, mainWindow => QuickTagNativeTypingChecks.RunAsync(mainWindow))
+        {
+            Seed = QuickTagNativeTypingChecks.SeedAsync,
+            Configure = config => { config.DownloadsPaused = true; config.SaveUrlsOnExit = false; }
+        },
         ["filename-search-large-reader"] = new(SmokeStage.Ready, mainWindow => FilenameSearchLargeReaderChecks.RunAsync(mainWindow)),
         ["local-search-language"] = new(SmokeStage.Ready, mainWindow => LocalSearchLanguageRefreshChecks.RunAsync(mainWindow)),
         ["media-page"] = new(SmokeStage.Ready, async mainWindow =>
@@ -243,6 +248,7 @@ internal static partial class SmokeScenarios
         {
             await FooterNavigationChecks.RunAsync(mainWindow);
             await BrandNavigationChecks.RunAsync(mainWindow);
+            await PageTitleOffsetChecks.RunAsync(mainWindow);
         }),
         ["statistics"] = new(SmokeStage.AfterCommandRefresh, mainWindow => StatisticsChecks.RunAsync(mainWindow))
         {

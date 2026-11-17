@@ -165,7 +165,8 @@ public partial class SettingsEditor
         flyout.ShowAt(origin);
     }
 
-    private void ResetDraft(SettingsResetScope scope)
+    // Internal for the tests (SettingsResetCoverageTests): they run every scope against the real controls.
+    internal void ResetDraft(SettingsResetScope scope)
     {
         if (_isClosed || IsBusy || !IsAvailable) return;
         switch (scope)
@@ -209,6 +210,10 @@ public partial class SettingsEditor
         CompactDensity = defaults.CompactDensity;
         ShrinkWindowForBarebones = defaults.ShrinkWindowForBarebones;
         ResetFooterDraft();
+        // The header tagline (mode and fixed quip) and the header monitor switch are shown in this section. The monitor switch and the
+        // "Header graph" choice of the Behavior section are one stored setting, so the graph choice is reset here too.
+        RefreshHeaderTaglineChoices(defaults.HeaderTagline, defaults.HeaderTaglineFixedId);
+        RefreshStatsHeaderGraphChoices(defaults.StatsHeaderGraph);
     }
 
     private void ResetReadingMediaDraft()
@@ -233,6 +238,8 @@ public partial class SettingsEditor
         GalleryOverlayPostContext = playback.OverlayPostContext;
         LoadGalleryVideoDraft(playback);
         LoadViewerDraft(defaults, layoutReset: true);
+        // The tagging group is shown here (after the gallery). Draft only: "start in the card mode" keeps its loaded baseline.
+        LoadTaggingDraft(defaults, captureBaseline: false);
     }
 
     private void ResetDownloadsDraft()
@@ -254,97 +261,17 @@ public partial class SettingsEditor
     private void ResetWorkerBudgetsDraft()
     {
         Config defaults = ResetDefaults.Values;
-        MinimumFreeSpaceGiB = defaults.MinimumFreeSpaceGiB;
-        ProductionWorkers = defaults.PluginMaximumProductionWorkers;
-        WorkerIdleMinutes = defaults.PluginWorkerIdleMinutes;
-        SourceHeapMiB = defaults.PluginSourceHeapMiB;
-        FilterHeapMiB = defaults.PluginFilterHeapMiB;
-        BooruCatalogMiB = defaults.BooruCatalogLimitMiB;
-        BooruRetryAfterCooldownHours = defaults.BooruRetryAfterCooldownHours;
-        PrivateTagLimit = defaults.PrivateTagLimit;
-        PrivateTagFileMiB = defaults.PrivateTagFileLimitMiB;
-        MediaIndexCacheMiB = defaults.MediaIndexCacheLimitMiB;
-        FavoriteEntryLimit = defaults.FavoriteEntryLimit;
-        FavoriteFileLimitMiB = defaults.FavoriteFileLimitMiB;
-        PostBookmarkLimit = defaults.PostBookmarkLimit;
-        SavedSearchLimit = defaults.SavedSearchLimit;
-        ReaderGroupLimit = defaults.ReaderGroupLimit;
-        ProfileRegistryLimit = defaults.ProfileRegistryLimit;
-        SourcesWatchPreviewRows = defaults.SourcesWatchPreviewRows;
-        ExportConfirmFiles = defaults.ExportConfirmFiles;
-        ExportConfirmGiB = defaults.ExportConfirmGiB;
-        PosterCacheLimitMiB = defaults.PosterCacheLimitMiB;
-        PosterCacheFileLimit = defaults.PosterCacheFileLimit;
-        AudioProbeCacheLimitMiB = defaults.AudioProbeCacheLimitMiB;
-        AudioProbeCacheEntries = defaults.AudioProbeCacheEntries;
-        ThumbnailCacheTiles = defaults.ThumbnailCacheTiles;
-        ClipboardUrlLimit = defaults.ClipboardUrlLimit;
-        ClipboardTextLimitKiB = defaults.ClipboardTextLimitKiB;
-        GalleryImageCacheMiB = defaults.GalleryImageCacheMiB;
-        GalleryPreloadAhead = defaults.GalleryPreloadAhead;
-        GalleryPreloadBehind = defaults.GalleryPreloadBehind;
-        ImportMaxFilesPerBatch = defaults.ImportMaxFilesPerBatch;
-        ImportMaxBatchGiB = defaults.ImportMaxBatchGiB;
-        ImportMaxFileMiB = defaults.ImportMaxFileMiB;
-        ImportMaxTotalFiles = defaults.ImportMaxTotalFiles;
-        ImportMaxTagsPerBatch = defaults.ImportMaxTagsPerBatch;
-        ImportMaxBatches = defaults.ImportMaxBatches;
-        MediaIndexMaxEntries = defaults.MediaIndexMaxEntries;
-        MediaIndexMaxThreads = defaults.MediaIndexMaxThreads;
-        ImportCatalogLimitMiB = defaults.ImportCatalogLimitMiB;
+        // The budgets, caches, imports and folder-source limits come from the loader that the start, the discard and the save use too.
+        LoadBudgetsDraft(defaults);
+        // Shown in this section although the reader loader owns them.
         PostFilterRuleLimit = defaults.PostFilterRuleLimit;
         HiddenPostLimit = defaults.HiddenPostLimit;
-        LoadQuickTagDraft(defaults);
-        LoadLimitNumbersDraft(defaults);
-
-        ResetNumber(ReserveInput, defaults.MinimumFreeSpaceGiB);
-        ResetNumber(ProductionWorkersInput, defaults.PluginMaximumProductionWorkers);
-        ResetNumber(WorkerIdleMinutesInput, defaults.PluginWorkerIdleMinutes);
-        ResetNumber(SourceHeapMiBInput, defaults.PluginSourceHeapMiB);
-        ResetNumber(FilterHeapMiBInput, defaults.PluginFilterHeapMiB);
-        ResetNumber(BooruCatalogMiBInput, defaults.BooruCatalogLimitMiB);
-        ResetNumber(BooruRetryAfterCooldownHoursInput, defaults.BooruRetryAfterCooldownHours);
-        ResetNumber(PrivateTagLimitInput, defaults.PrivateTagLimit);
-        ResetNumber(PrivateTagFileMiBInput, defaults.PrivateTagFileLimitMiB);
-        ResetNumber(MediaIndexCacheMiBInput, defaults.MediaIndexCacheLimitMiB);
-        ResetNumber(FavoriteEntryLimitInput, defaults.FavoriteEntryLimit);
-        ResetNumber(FavoriteFileLimitMiBInput, defaults.FavoriteFileLimitMiB);
-        ResetNumber(PostBookmarkLimitInput, defaults.PostBookmarkLimit);
-        ResetNumber(SavedSearchLimitInput, defaults.SavedSearchLimit);
-        ResetNumber(ReaderGroupLimitInput, defaults.ReaderGroupLimit);
-        ResetNumber(ProfileRegistryLimitInput, defaults.ProfileRegistryLimit);
-        ResetNumber(SourcesWatchPreviewRowsInput, defaults.SourcesWatchPreviewRows);
-        ResetNumber(ExportConfirmFilesInput, defaults.ExportConfirmFiles);
-        ResetNumber(ExportConfirmGiBInput, defaults.ExportConfirmGiB);
-        ResetNumber(PosterCacheLimitMiBInput, defaults.PosterCacheLimitMiB);
-        ResetNumber(PosterCacheFileLimitInput, defaults.PosterCacheFileLimit);
-        ResetNumber(AudioProbeCacheLimitMiBInput, defaults.AudioProbeCacheLimitMiB);
-        ResetNumber(AudioProbeCacheEntriesInput, defaults.AudioProbeCacheEntries);
-        ResetNumber(ThumbnailCacheTilesInput, defaults.ThumbnailCacheTiles);
-        ResetNumber(ClipboardUrlLimitInput, defaults.ClipboardUrlLimit);
-        ResetNumber(ClipboardTextLimitKiBInput, defaults.ClipboardTextLimitKiB);
-        ResetNumber(GalleryImageCacheMiBInput, defaults.GalleryImageCacheMiB);
-        ResetNumber(GalleryPreloadAheadInput, defaults.GalleryPreloadAhead);
-        ResetNumber(GalleryPreloadBehindInput, defaults.GalleryPreloadBehind);
-        ResetNumber(ImportMaxFilesPerBatchInput, defaults.ImportMaxFilesPerBatch);
-        ResetNumber(ImportMaxBatchGiBInput, defaults.ImportMaxBatchGiB);
-        ResetNumber(ImportMaxFileMiBInput, defaults.ImportMaxFileMiB);
-        ResetNumber(ImportMaxTotalFilesInput, defaults.ImportMaxTotalFiles);
-        ResetNumber(ImportMaxTagsPerBatchInput, defaults.ImportMaxTagsPerBatch);
-        ResetNumber(ImportMaxBatchesInput, defaults.ImportMaxBatches);
-        ResetNumber(MediaIndexMaxEntriesInput, defaults.MediaIndexMaxEntries);
-        ResetNumber(MediaIndexMaxThreadsInput, defaults.MediaIndexMaxThreads);
-        ResetNumber(ImportCatalogLimitMiBInput, defaults.ImportCatalogLimitMiB);
         ResetNumber(PostFilterRuleLimitInput, defaults.PostFilterRuleLimit);
         ResetNumber(HiddenPostLimitInput, defaults.HiddenPostLimit);
-        ResetNumber(QuickTagSuggestionCountInput, defaults.QuickTagSuggestionCount);
-        ResetNumber(QuickTagPanelSuggestionLimitInput, defaults.QuickTagPanelSuggestionLimit);
-        ResetNumber(QuickTagRecentCountInput, defaults.QuickTagRecentCount);
-        ResetNumber(QuickTagUndoDepthInput, defaults.QuickTagUndoDepth);
-        ResetNumber(QuickTagNeighbourScanInput, defaults.QuickTagNeighbourScan);
-        ResetNumber(QuickTagFilenameTokensInput, defaults.QuickTagFilenameTokens);
-        ResetNumber(QuickTagSourceTagsPerMediumInput, defaults.QuickTagSourceTagsPerMedium);
-        ResetNumber(QuickTagMarkedMediaLimitInput, defaults.QuickTagMarkedMediaLimit);
+        LoadQuickTagDraft(defaults);
+        LoadLimitNumbersDraft(defaults);
+        // The tagging queue limits and the media-page widths; the widths keep their loaded baseline (the merge on save compares with it).
+        LoadTagQueueDraft(defaults, captureBaseline: false);
     }
 
     private void ResetUpdatesDraft()

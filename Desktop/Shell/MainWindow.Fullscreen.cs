@@ -905,6 +905,9 @@ public partial class MainWindow
             if (_largeReaderOpen) CloseLargeReader(restoreOrigin: false);
             NavigateWorkspace(WorkspacePage.Settings);
         }
+        // RD-02: with the focus inside the reader (embedded, or its sidebar) the same key finds in the thread; the list and the search fields keep the archive search.
+        else if ((_selectedPage == WorkspacePage.Archive || _largeReaderOpen) && (_gallery == null || _gallerySuspended) && _archivePage?.TryOpenReaderFindByKey(e) == true)
+        { e.Handled = true; }
         else if (CommandBindings.Matches(e, "input.focus-search") && _selectedPage == WorkspacePage.Archive && !_largeReaderOpen && (_gallery == null || _gallerySuspended))
         { e.Handled = true; _archivePage?.FocusArchiveTextSearch(); }
         else if (CommandBindings.Matches(e, "input.focus-media-search") && _selectedPage == WorkspacePage.Media && _mediaPage != null && !_largeReaderOpen && (_gallery == null || _gallerySuspended))

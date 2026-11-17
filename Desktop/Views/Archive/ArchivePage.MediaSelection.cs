@@ -12,6 +12,7 @@ using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.MediaActions;
 using MeowChan.Favorites;
 using MeowChan.Gallery;
 
@@ -297,6 +298,21 @@ public partial class ArchivePage
             _mediaSelectionTagDialog = null;
             _mediaSelectionBusy = false;
             if (!_ended) UpdateActions();
+        }
+    }
+
+    /// <summary>Q with several files selected: the same action and gates as the selection bar's "Add to tagging queue" button.</summary>
+    private void QueueSelectionByKey()
+    {
+        if (AddToTagQueue == null) { Message(MediaMenuReasons.Unavailable); return; }
+        if (_mediaSelectionBusy || FreezeMediaSelection() is not { } frozen) return;
+        Action<string> reportError = CaptureActionErrorReporter();
+        _ = QueueAsync();
+        async Task QueueAsync()
+        {
+            try { await AddMediaSelectionToQueueAsync(frozen.Thread, frozen.Rows, frozen.Entries); }
+            catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
+            catch (Exception error) { reportError(error.Message); }
         }
     }
 

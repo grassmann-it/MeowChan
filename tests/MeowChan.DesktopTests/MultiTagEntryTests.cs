@@ -115,9 +115,9 @@ public sealed class MultiTagEntryTests : IDisposable
         Assert.Equal(" a b ", TagEntryParser.ForField(" a b "));
         Assert.Equal(new[] { "a", "b", "c" }, Names(TagEntryParser.Parse(TagEntryParser.ForField("a\nb\r\nc"), null)));
 
-        Assert.Equal(("a; ", "b"), TagEntryParser.SplitLast("a; b"));
-        Assert.Equal(("a\n", "b"), TagEntryParser.SplitLast("a\nb"));
-        Assert.Equal(("x\u3000", "y"), TagEntryParser.SplitLast("x\u3000y"));
+        Assert.Equal(("a; ", "b"), TagMergeEntryTests.AtEnd("a; b"));
+        Assert.Equal(("a\n", "b"), TagMergeEntryTests.AtEnd("a\nb"));
+        Assert.Equal(("x\u3000", "y"), TagMergeEntryTests.AtEnd("x\u3000y"));
         Assert.Equal("\"a;b\"", TagEntryParser.Quote("a;b"));
         Assert.Equal("plain", TagEntryParser.Quote("plain"));
 

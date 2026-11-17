@@ -34,7 +34,7 @@ internal static partial class MediaPageChecks
         {
             object? rows = page.Grid.ItemsSource;
             MediaLibraryEntry[] shown = page.ShownEntries.ToArray();
-            present.Invoke(page, null);
+            present.Invoke(page, [false]); // a query presentation (keepView: false), as before
             Require(!ReferenceEquals(rows, page.Grid.ItemsSource) && shown.SequenceEqual(page.ShownEntries),
                 "CX-06 must replace the rows without changing the frozen logical presentation.");
         }

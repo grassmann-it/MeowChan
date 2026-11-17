@@ -357,7 +357,9 @@ public sealed class HeaderBarContractTests
         Assert.Contains("HeaderBar.MakeClose(ReaderFindClose", find);
         Assert.DoesNotContain("ReaderTagClose.Content", tags);
         Assert.Contains("HeaderBar.MakeClose(ReaderTagClose", tags);
-        Assert.Contains("HeaderBar.MakeClose(DownloadSearchClose", presentation);
+        // DL-07: the close of the Downloads search bar is a labelled "Close" with the chevron, never a second cross beside the field's clear button.
+        Assert.DoesNotContain("HeaderBar.MakeClose(DownloadSearchClose", presentation);
+        Assert.Contains("LocalizeDownloadSearchClose();", presentation);
         Assert.Contains("CommandBindings.Apply(ShellHelpClose, \"window.close\", iconOnly: true)", fullscreen);
         Assert.Contains("HeaderBar.MakeClose(ClosePreviewButton", File.ReadAllText(Root("Desktop/Views/Archive/ArchivePage.axaml.cs")));
     }

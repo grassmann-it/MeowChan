@@ -197,6 +197,7 @@ internal static class ReaderUxChecks
         page.FindControl<ListBox>("ArchiveThreads")!.SelectedIndex = 0;
         await Program.WaitUntilAsync(() => !page.IsBusy && page.CurrentThread?.Summary.Id == Hero);
         await CheckEmbeddedArchiveFooterAsync(window, page);
+        await ReaderPointerChecks.RunAsync(window, page, large: false);
         await ArchiveFilterSurfaceChecks.RunAsync(window);
         await ArchiveListWidthChecks.RunAsync(window);
         await ArchiveSavedMediaPosterChecks.RunAsync(window);
@@ -207,6 +208,7 @@ internal static class ReaderUxChecks
         await CheckDetachedReaderIconsAsync(window, page, reader);
         await CheckReaderThreadFavoritesAsync(window, page);
         await ReaderInteractionChecks.RunAsync(window, page);
+        await ReaderPointerChecks.RunAsync(window, page, large: true);
         await ReaderIdeaChecks.RunAsync(window);
         await ReaderNavigationOverlayChecks.RunAsync(window, page);
         if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_NAVIGATION_ONLY") == "1")
@@ -215,7 +217,7 @@ internal static class ReaderUxChecks
             return;
         }
         await CheckOwnedNavigationAsync(window, page, reader);
-        await CheckGalleryRoundtripAsync(window, page, reader);
+        await RunFreshGalleryRoundtripAsync(window, page, reader);
         await CheckListGalleryReturnAsync(window, page, reader);
         await ReaderReturnChecks.RunAsync(window);
         await ReaderStabilityChecks.RunAsync(window);
@@ -675,8 +677,9 @@ internal static class ReaderUxChecks
                 string frozenLabel = star.Header!.ToString()!;
                 Select(rows[1]);
                 await Program.WaitUntilAsync(() => !page.IsBusy);
-                Require(Equals(star.Header, frozenLabel) && frozenLabel.Contains(rows[0].Summary.Id.Thread!, StringComparison.Ordinal),
-                    layout + " thread-favorite menu lost its frozen lead label.");
+                // The label names no thread (AR-02: the right-clicked row is the target); the frozen lead shows in what the command then does.
+                Require(Equals(star.Header, frozenLabel) && !frozenLabel.Contains(rows[0].Summary.Id.Thread!, StringComparison.Ordinal),
+                    layout + " thread-favorite menu lost its frozen lead label or repeats the target.");
                 Require(star.Command?.CanExecute(null) == true, layout + " thread-favorite menu is unexpectedly disabled.");
                 star.Command!.Execute(null);
                 await Program.WaitUntilAsync(() => window.SessionHost.GetThreadFavorites().Contains(rows[0].Summary.Id));

@@ -231,6 +231,7 @@ internal sealed class ThemeColorsDialog : Window
         _cancel.Content = Texts.T("action.cancel");
         AutomationProperties.SetName(_cancel, _cancel.Content.ToString());
         _try.Content = Texts.T("theme.colors.try");
+        AutomationProperties.SetName(_try, _try.Content.ToString());
         ToolTip.SetTip(_try, Texts.T("theme.colors.tryHint"));
         AutomationProperties.SetHelpText(_try, Texts.T("theme.colors.tryHint"));
         _resetAll.Content = Texts.T("theme.colors.resetAll");
@@ -306,8 +307,10 @@ internal sealed class ThemeColorsDialog : Window
             // The owner closing or the app quitting never waits for this question; the draft is simply dropped.
             return;
         }
+        // Apply closes the dialog itself once its commit has finished, while it still counts as busy: that close is confirmed and goes through.
+        if (_closeConfirmed) return;
         if (_busy) { e.Cancel = true; return; }
-        if (_closeConfirmed || !_model.IsDirty) return;
+        if (!_model.IsDirty) return;
         e.Cancel = true;
         if (!_asking) _ = AskBeforeDiscardingAsync();
     }

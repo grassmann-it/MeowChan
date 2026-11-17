@@ -51,7 +51,8 @@ public sealed class FocusSelectionStyleTests
             element.Elements(A + "Setter").Any(setter => (string?)setter.Attribute("Property") == "FocusAdorner")
             && ((string?)element.Attribute("Selector"))!.Contains("ListBoxItem", StringComparison.Ordinal)));
         string[] selectors = ((string)style.Attribute("Selector")!).Split(", ");
-        foreach (string expected in new[] { "Button", "ToggleButton", "TextBox", "ComboBox", "NumericUpDown", "CheckBox", "RadioButton", "Slider", "ListBoxItem", "SelectableTextBlock" })
+        // ToggleSwitch and TabItem (AX-05) are separate entries: a type selector does not match derived types, so "ToggleButton" never reached the switch.
+        foreach (string expected in new[] { "Button", "ToggleButton", "ToggleSwitch", "TabItem", "TextBox", "ComboBox", "NumericUpDown", "CheckBox", "RadioButton", "Slider", "ListBoxItem", "SelectableTextBlock" })
             Assert.Contains(expected, selectors);
         Assert.Equal("{StaticResource Workspace.FocusAdorner}", (string?)style.Elements(A + "Setter").Single(setter => (string?)setter.Attribute("Property") == "FocusAdorner").Attribute("Value"));
     }

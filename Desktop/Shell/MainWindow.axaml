@@ -205,14 +205,19 @@
                     </Grid>
                     <TextBlock x:Name="UrlInputHint" wv:WorkViewElement.Id="downloads.intake.url-hint" Tag="downloads.inputHint" Classes="localized workspace-help" TextWrapping="Wrap" />
                     <controls:WorkspaceBanner x:Name="AdmissionRepairPanel" wv:WorkViewElement.Id="downloads.results.repair" IsVisible="False" Type="Error">
-                        <ScrollViewer x:Name="AdmissionRepairScroll" MaxHeight="84" HorizontalScrollBarVisibility="Disabled"><SelectableTextBlock x:Name="AdmissionRepairText" TextWrapping="Wrap" FontSize="{StaticResource Workspace.Text.Meta}" /></ScrollViewer>
+                        <!-- DL-04: the banner has a way out of its own (close button and Esc while focus is in it); the next submission clears it as before. -->
+                        <Grid ColumnDefinitions="*,Auto">
+                            <ScrollViewer x:Name="AdmissionRepairScroll" MaxHeight="84" HorizontalScrollBarVisibility="Disabled"><SelectableTextBlock x:Name="AdmissionRepairText" TextWrapping="Wrap" FontSize="{StaticResource Workspace.Text.Meta}" /></ScrollViewer>
+                            <Button x:Name="AdmissionRepairDismiss" Grid.Column="1" Classes="subtle icon-square" Margin="8,0,0,0" VerticalAlignment="Top" Click="OnAdmissionRepairDismiss" />
+                        </Grid>
                     </controls:WorkspaceBanner>
                     <Border x:Name="AdmissionResultsPanel" IsVisible="False">
                         <Expander x:Name="AdmissionResultsExpander" wv:WorkViewElement.Id="downloads.results.panel" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" IsExpanded="False">
                             <Expander.Header>
-                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource Workspace.Space.8}">
+                                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.8}">
                                     <TextBlock x:Name="AdmissionResultsTitle" Text="URL results" VerticalAlignment="Center" />
                                     <controls:HelpButton x:Name="AdmissionResultsHelpButton" Grid.Column="1" HelpKey="help.admissionResults" />
+                                    <Button x:Name="AdmissionResultsDismiss" Grid.Column="2" Classes="subtle icon-square" VerticalAlignment="Center" Click="OnAdmissionResultsDismiss" />
                                 </Grid>
                             </Expander.Header>
                             <ScrollViewer x:Name="AdmissionResultsScroll" MaxHeight="140" HorizontalScrollBarVisibility="Disabled">
@@ -395,14 +400,14 @@
                             <Button x:Name="CopyAllUrlsButton" wv:WorkViewElement.Id="downloads.toolbar.copy-urls" Tag="action.copyAllUrls" Classes="localized" Content="Copy URLs" ursa:ToolBar.OverflowMode="AsNeeded" FontSize="{StaticResource Workspace.Text.Meta}" />
                             <Button x:Name="DetailsToggleButton" wv:WorkViewElement.Id="downloads.toolbar.details" Content="Details" Click="OnDetailsToggleClick" ursa:ToolBar.OverflowMode="Never" FontSize="{StaticResource Workspace.Text.Meta}" />
                         </desktop:ActionToolBar>
-                        <!-- The inline search row keeps its × at the right edge (HeaderBar end slot, Tom's item 35 of 14.11.): no back gap, no separator; only pages and overlays put their way back at the left. -->
+                        <!-- The inline search row keeps its close at the right edge (HeaderBar end slot, Tom's item 35 of 14.11.): no back gap, no separator; only pages and overlays put their way back at the left. DL-07: it is a labelled "Close" with the collapse chevron, not a second ×: the field's own clear button is the only cross in the row. -->
                         <controls:HeaderBar x:Name="DownloadSearchBar" Grid.Row="1" Grid.ColumnSpan="2" Margin="8,2,8,8" IsVisible="False">
                             <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.8}">
                                 <controls:SearchBox x:Name="DownloadSearchInput" MinWidth="100" TextChanged="OnDownloadSearchChanged" />
                                 <TextBlock x:Name="DownloadSearchSummary" Grid.Column="1" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="220" />
                                 <Button x:Name="DownloadSearchClear" Grid.Column="2" Classes="localized subtle" Tag="downloads.searchClear" Click="OnDownloadSearchClear" />
                             </Grid>
-                            <Button x:Name="DownloadSearchClose" controls:HeaderBar.IsEnd="True" Click="OnDownloadSearchClose" />
+                            <Button x:Name="DownloadSearchClose" controls:HeaderBar.IsEnd="True" Classes="subtle" Click="OnDownloadSearchClose" />
                         </controls:HeaderBar>
                     </Grid>
                 </Border>

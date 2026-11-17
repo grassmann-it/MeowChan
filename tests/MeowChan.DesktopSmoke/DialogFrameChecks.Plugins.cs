@@ -82,7 +82,7 @@ internal static partial class DialogFrameChecks
         owner.Activate();
         await Program.WaitUntilAsync(() => owner.IsActive && !page.IsBusy);
         page.FindControl<Button>("PluginsReviewRepairs")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-        string title = Texts.T("plugins.reselection.reviewTitle");
+        string title = Texts.T("plugins.repair.review");
         await Program.WaitUntilAsync(() => owner.OwnedWindows.Any(w => w.IsVisible && w.Title == title));
         Window modal = owner.OwnedWindows.Single(w => w.IsVisible && w.Title == title);
         await Program.WaitUntilAsync(() => modal.GetLogicalDescendants().OfType<CheckBox>().Any());

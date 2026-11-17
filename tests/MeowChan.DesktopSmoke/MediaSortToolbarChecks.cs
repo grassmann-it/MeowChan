@@ -62,7 +62,9 @@ internal static partial class MediaPageChecks
                 "The toolbar must read search, filters, order, direction, then the view tools: refresh, more.");
             Require(new[] { search, filters, sort, direction, refresh, more }.Select(Y).Max() - new[] { search, filters, sort, direction, refresh, more }.Select(Y).Min() <= 8,
                 "The toolbar must be one row at 1100 wide.");
-            Require(X(sort) >= X(filters) + filters.Bounds.Width && X(sort) - (X(filters) + filters.Bounds.Width) <= 120, "The criterion follows the filter toggle directly (one group on the left).");
+            // UX review 17.11.2026: the filter toggle keeps at least the group gap from the order (the order stands on the right since 16.11.).
+            Require(X(sort) - (X(filters) + filters.Bounds.Width) >= MediaToolbarLayout.GroupGap - 0.5,
+                "The filter toggle must keep the group gap from the order: " + (X(sort) - (X(filters) + filters.Bounds.Width)));
             Require(new Control[] { sort, direction, refresh, more }.All(control => Math.Abs(control.Bounds.Height - 32) < 0.6),
                 "The tools of the row are 32 dip high.");
             Require(!C<Button>(page, "MediaExportAll").IsVisible && !C<Button>(page, "MediaManageRatings").IsVisible
@@ -131,7 +133,8 @@ internal static partial class MediaPageChecks
                 "At 640 the order must stay and Refresh and the Booru mode switch must be under More: " + string.Join(",", page.HeaderMoreIds));
             Require(sort.MinWidth == MediaToolbarLayout.NarrowSortMinWidth && search is { MinWidth: MediaToolbarLayout.SearchMinWidth }
                 && X(sort) + sort.Bounds.Width <= page.ToolbarRow.Bounds.Width + 0.5, "The compact row must fit and keep the search at its minimum and shrink the order to its narrow minimum.");
-            Require(!C<TextBlock>(page, "MediaSortLabel").IsVisible && !C<ToggleButton>(page, "MediaBooruMode").IsVisible, "The compact row must drop the Sort label and the Booru mode switch.");
+            Require(!((PrefixedComboBox)sort).ShowsPrefix && !((PrefixedComboBox)sort).PrefixDrawn && !C<ToggleButton>(page, "MediaBooruMode").IsVisible,
+                "The compact row must drop the Sort prefix and the Booru mode switch.");
             RequireToolbarFits("compact (640)");
             sort.SelectedIndex = (int)MediaLibrarySort.Random;
             // The page presents in the background here (BackgroundPresentEntries = 0); the view re-applies the tools after that.
@@ -140,8 +143,10 @@ internal static partial class MediaPageChecks
             sort.SelectedIndex = 0;
             window.Width = MediaToolbarLayout.CompactWidth + 80; // inside the Reduced stage whatever the page padding is
             await UntilAsync(() => page.ToolbarLevel == MediaToolbarLayout.Level.Reduced);
-            Require(!refresh.IsVisible && sort.MinWidth == MediaToolbarLayout.SortMinWidth, "In the Reduced stage Refresh must stay under More and the order keeps its width.");
-            Require(C<ToggleButton>(page, "MediaBooruMode").IsVisible && C<TextBlock>(page, "MediaSortLabel").IsVisible, "The Reduced stage keeps the Sort label and the Booru mode switch.");
+            PrefixedComboBox prefixed = (PrefixedComboBox)sort;
+            Require(!refresh.IsVisible && Math.Abs(sort.MinWidth - PrefixedComboBox.MinWidthFor(MediaToolbarLayout.SortMinWidth, prefixed.ShowsPrefix, prefixed.PrefixRoom)) < 0.5,
+                "In the Reduced stage Refresh must stay under More and the order keeps its width (its value area, plus the prefix while it shows): " + sort.MinWidth);
+            Require(C<ToggleButton>(page, "MediaBooruMode").IsVisible && prefixed.ShowsPrefix && prefixed.PrefixDrawn, "The Reduced stage keeps the Sort prefix and the Booru mode switch.");
             RequireToolbarFits("reduced (" + window.Width + ")");
             window.Width = MediaToolbarLayout.ReducedWidth + 160;
             await UntilAsync(() => page.ToolbarLevel == MediaToolbarLayout.Level.Wide);
