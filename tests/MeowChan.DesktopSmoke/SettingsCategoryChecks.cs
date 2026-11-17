@@ -163,20 +163,13 @@ internal static class SettingsCategoryChecks
         Require(editor.CanGoToSection(id), "Section command unavailable: " + id);
         editor.GoToSection(id);
         string pageName = Pages.Single(p => p.Id == suffix).Name;
-        // Section navigation updates the visible page and the accessible ToggleButton selection
-        // through separate deferred UI paths. Wait for the complete observable contract instead
-        // of asserting the page half a dispatcher turn before its selection state catches up.
-        await Wait(() =>
-        {
-            var links = Find<StackPanel>(editor, "SettingsCategoryLinks").Children.OfType<ToggleButton>().ToArray();
-            return PagesVisible(editor, suffix) && Find<Control>(editor, pageName).IsKeyboardFocusWithin
-                && links.Length == 8 && links.Count(b => b.IsChecked == true) == 1
-                && links.Single(b => b.IsChecked == true).Tag as string == id;
-        });
+        await Wait(() => PagesVisible(editor, suffix) && Find<Control>(editor, pageName).IsKeyboardFocusWithin);
         Require(Pages.Count(p => Find<Control>(editor, p.Name).IsVisible) == 1, "More than one category page visible.");
         var links = Find<StackPanel>(editor, "SettingsCategoryLinks").Children.OfType<ToggleButton>().ToArray();
+        string selection = string.Join(", ", links.Select(b => $"{b.Tag}:{b.IsChecked}"));
         Require(links.Length == 8 && links.Count(b => b.IsChecked == true) == 1
-            && links.Single(b => b.IsChecked == true).Tag as string == id, "Accessible category selection disagrees with page.");
+            && links.Single(b => b.IsChecked == true).Tag as string == id,
+            $"Accessible category selection disagrees with page: expected={id}; actual={selection}");
     }
     private static bool PagesVisible(SettingsEditor editor, string suffix) => Pages.All(p => Find<Control>(editor, p.Name).IsVisible == (p.Id == suffix));
     private static void AssertBounded(Control control, Control parent, string label)
