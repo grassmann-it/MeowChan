@@ -1,3 +1,4 @@
+using MeowChan.Desktop.Commands;
 using System.Runtime.CompilerServices;
 using System.Xml.Linq;
 using Avalonia;
