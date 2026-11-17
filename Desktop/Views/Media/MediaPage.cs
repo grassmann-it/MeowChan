@@ -1140,8 +1140,14 @@ public sealed partial class MediaPage : UserControl
             || IsNativeContextSource(e.Source) || IsTileTagChip(e.Source)
             || !e.GetCurrentPoint(_grid).Properties.IsRightButtonPressed) return;
         MediaLibraryTileRow? row = TargetForMenu(RowAt(e.Source));
+        Control origin = ResolveMenuOrigin(e.Source, row);
+        if (row is not null)
+        {
+            if (!_grid.Selection.SelectedItems.Contains(row)) _grid.SelectedItem = row;
+            (_grid.ContainerFromItem(row) as Control ?? origin).Focus();
+        }
         // MP5: a right click on empty grid space (no tile under the pointer) opens the layout menu, also while a tile is selected.
-        OpenSharedMediaMenu(row, ResolveMenuOrigin(e.Source, row));
+        OpenSharedMediaMenu(row, origin);
         _sharedPointerContext.MenuOpenedByPress();
         e.Handled = true;
     }
@@ -1154,7 +1160,13 @@ public sealed partial class MediaPage : UserControl
         _sharedPointerContext.Reset(); // a key ends a pointer gesture whose release never came (a menu popup took it)
         if (!IsContextKey(e) || IsTileTagChip(e.Source)) return; // a tag chip has its own menu (the chip's host opens it)
         MediaLibraryTileRow? row = TargetForMenu(RowAt(e.Source)) ?? SelectedRow;
-        OpenSharedMediaMenu(row, ResolveMenuOrigin(e.Source, row));
+        Control origin = ResolveMenuOrigin(e.Source, row);
+        if (row is not null)
+        {
+            if (!_grid.Selection.SelectedItems.Contains(row)) _grid.SelectedItem = row;
+            (_grid.ContainerFromItem(row) as Control ?? origin).Focus();
+        }
+        OpenSharedMediaMenu(row, origin);
         e.Handled = true;
     }
 
@@ -1167,7 +1179,13 @@ public sealed partial class MediaPage : UserControl
             return;
         }
         MediaLibraryTileRow? row = TargetForMenu(RowAt(e.Source)) ?? SelectedRow;
-        OpenSharedMediaMenu(row, ResolveMenuOrigin(e.Source, row));
+        Control origin = ResolveMenuOrigin(e.Source, row);
+        if (row is not null)
+        {
+            if (!_grid.Selection.SelectedItems.Contains(row)) _grid.SelectedItem = row;
+            (_grid.ContainerFromItem(row) as Control ?? origin).Focus();
+        }
+        OpenSharedMediaMenu(row, origin);
         e.Handled = true;
     }
 
