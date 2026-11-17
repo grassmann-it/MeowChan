@@ -2794,7 +2794,7 @@
     "media.filter.resetAllHint": "有効なフィルターをすべて削除",
     "media.filter.threadHint": "このスレッド（{0}）のメディアのみ表示",
     "media.filter.onlyThread": "このスレッドのみ",
-    "media.filter.count": "{1}件中{0}件のメディアがフィルターに一致",
+    "media.filter.count": "フィルター: {0} / ({1})",
     "media.untagged.count": "メディアタグなし {0}件",
     "media.untagged.hint": "メディアタグのない{0}件のメディアのみ表示: タグ付けを始める出発点",
     "media.filter.noMatch": "これらのフィルターに一致するメディアはありません。",

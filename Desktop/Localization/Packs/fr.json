@@ -2971,7 +2971,7 @@
     "media.filter.resetAllHint": "Retirer tous les filtres actifs",
     "media.filter.threadHint": "N’afficher que les médias de ce fil ({0})",
     "media.filter.onlyThread": "Seulement ce fil",
-    "media.filter.count": "{0} médias sur {1} correspondent au filtre",
+    "media.filter.count": "Filtre: {0} / ({1})",
     "media.untagged.count": "{0} sans étiquettes de média",
     "media.untagged.hint": "N’afficher que les {0} médias sans étiquettes de média : un point de départ pour étiqueter",
     "media.filter.noMatch": "Aucun média ne correspond à ces filtres.",
@@ -5191,6 +5191,8 @@
     "archive.delete.files.one": "Fichiers locaux: {0}",
     "archive.delete.bytes.one": "{0:N0} B",
     "import.done.tags.one": "Étiquette ajoutée : {0}.",
-    "export.collectionSelection.one": "Exporter {0} fil sélectionné"
+    "export.collectionSelection.one": "Exporter {0} fil sélectionné",
+    "media.filter.count.one": "Filtre: {0} / ({1})",
+    "media.untagged.hint.one": "N’afficher que le {0} média sans étiquettes de média : un point de départ pour étiqueter"
   }
 }

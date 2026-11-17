@@ -2971,7 +2971,7 @@
     "media.filter.resetAllHint": "Quitar todos los filtros activos",
     "media.filter.threadHint": "Mostrar solo medios de este hilo ({0})",
     "media.filter.onlyThread": "Solo este hilo",
-    "media.filter.count": "{0} de {1} medios coinciden con el filtro",
+    "media.filter.count": "Filtro: {0} / ({1})",
     "media.untagged.count": "{0} sin etiquetas de medio",
     "media.untagged.hint": "Mostrar solo los {0} medios sin etiquetas de medio: un punto de partida para etiquetar",
     "media.filter.noMatch": "Ningún medio coincide con estos filtros.",
@@ -5191,6 +5191,8 @@
     "archive.delete.files.one": "Archivos locales: {0}",
     "archive.delete.bytes.one": "{0:N0} B",
     "import.done.tags.one": "Etiqueta añadida: {0}.",
-    "export.collectionSelection.one": "Exportar el {0} hilo seleccionado"
+    "export.collectionSelection.one": "Exportar el {0} hilo seleccionado",
+    "media.filter.count.one": "Filtro: {0} / ({1})",
+    "media.untagged.hint.one": "Mostrar solo el {0} medio sin etiquetas de medio: un punto de partida para etiquetar"
   }
 }

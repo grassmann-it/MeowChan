@@ -2794,7 +2794,7 @@
     "media.filter.resetAllHint": "移除所有已启用的过滤条件",
     "media.filter.threadHint": "只显示此串的媒体（{0}）",
     "media.filter.onlyThread": "仅此串",
-    "media.filter.count": "{1} 个媒体中有 {0} 个符合过滤条件",
+    "media.filter.count": "过滤条件: {0} / ({1})",
     "media.untagged.count": "{0} 个无媒体标签",
     "media.untagged.hint": "只显示 {0} 个无媒体标签的媒体：从这里开始添加标签",
     "media.filter.noMatch": "没有符合这些过滤条件的媒体。",
