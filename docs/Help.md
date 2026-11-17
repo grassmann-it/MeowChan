@@ -665,7 +665,9 @@ The video keys belong to the gallery; play/pause, mute, repeat, the step keys, s
 
 Text fields and embedded controls retain their own keys. Across the workspace,
 Ctrl+L focuses the URL input, Ctrl+, opens Settings and Ctrl+F focuses the active
-page's local search field.
+page's local search field. With the keyboard focus inside a thread reader (embedded or
+large: its posts, toolbar or media sidebar), Ctrl+F (Command+F on macOS) finds text in
+that thread instead.
 
 #### Page shortcuts and footer numbering
 
