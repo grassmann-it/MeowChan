@@ -169,6 +169,11 @@ in order of appearance. Review reports, screenshots and runtime evidence stay ou
   activation and screen-reader name from Gallery, large Reader, every workspace page, and
   Barebones/Simple/Advanced work-view layouts; preserve the originating reader/gallery state for
   the normal back/close path.
+- **UX-LEDGER-10 Continue Reading reachability in covered views:** the shell Continue reading
+  button, history arrow, app-menu entry and configured shortcut must remain enabled and usable while
+  Gallery or the large Reader is visible. Selecting a place closes only the covering Gallery before
+  applying the saved position; it must not silently no-op or strand focus. Test mouse, Enter/Space,
+  Menu/Shift+F10, app menu and shortcut activation from Gallery, large Reader and normal Archive.
 - **Ledger audit rule:** every newly reported click/focus/routing failure gets a stable ledger ID
   before implementation, with its reproduction surface, expected behavior, fallback behavior and
   a native smoke or contract test. Before release, compare the conversation handover against this

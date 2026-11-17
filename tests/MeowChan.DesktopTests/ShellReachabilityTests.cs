@@ -61,7 +61,7 @@ public sealed class ShellReachabilityTests : IDisposable
     public void ThePlacesOpenUnlessTheGalleryOrAnotherActionHasTheReader()
     {
         Assert.True(ReadingResumeRouting.PlacesOpenable(galleryOpen: false, otherActionBusy: false));
-        Assert.False(ReadingResumeRouting.PlacesOpenable(galleryOpen: true, otherActionBusy: false));
+        Assert.True(ReadingResumeRouting.PlacesOpenable(galleryOpen: true, otherActionBusy: false));
         Assert.False(ReadingResumeRouting.PlacesOpenable(galleryOpen: false, otherActionBusy: true));
     }
 
@@ -84,8 +84,9 @@ public sealed class ShellReachabilityTests : IDisposable
         Assert.Contains("x:Name=\"ContinueReadingHistoryButton\"", markup);
         Assert.True(markup.IndexOf("ContinueReadingHistoryButton", StringComparison.Ordinal) > markup.IndexOf("x:Name=\"ContinueReadingButton\"", StringComparison.Ordinal));
         Assert.True(markup.IndexOf("ContinueReadingHistoryButton", StringComparison.Ordinal) < markup.IndexOf("x:Name=\"PauseButton\"", StringComparison.Ordinal));
-        // The history opens places while a thread is open (the place replaces it): only the gallery overlay and busy states block.
+        // The history opens places while a thread or gallery is open; the selected place replaces it and the gallery is closed first.
         Assert.Contains("PlacesOpenable(GalleryOverlayVisible", resume);
+        Assert.Contains("if (GalleryOverlayVisible) CloseGallery(restoreOrigin: false);", resume);
     }
 
     // ---- #10: the size of the history list ----

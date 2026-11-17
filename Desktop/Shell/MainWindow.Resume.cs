@@ -44,7 +44,7 @@ public partial class MainWindow
 
     private bool GalleryOverlayVisible => this.FindControl<ContentControl>("GalleryHost")?.IsEffectivelyVisible == true;
 
-    // An open thread does not block it (the place replaces the thread); the gallery over it does (ReadingResumeRouting.PlacesOpenable).
+    // An open thread or gallery does not block it: selecting a place replaces that context.
     private bool CanResumeReading => _restoreCompleted && !_isClosing && !_applyingPreferences
         && _session.State == DesktopSessionState.Ready
         && ReadingResumeRouting.PlacesOpenable(GalleryOverlayVisible, WorkspaceCommandBusy || _readingResumePending || _readingPositionForgetPending)
@@ -364,7 +364,11 @@ public partial class MainWindow
     private async Task ResumeReadingCoreAsync(Func<Func<bool>, Task<LocalReadingPosition?>> load)
     {
         // With a thread open the place replaces it where it is; the page behind the reader stays as it is.
-        if (!CanResumeReading || (!_largeReaderOpen && !NavigateWorkspace(WorkspacePage.Archive, activateArchive: false))) return;
+        // Gallery used to disable this shell action, making Continue reading unreachable from one of its main surfaces.
+        // Close only the covering viewer; the retained archive/reader state remains available underneath.
+        if (!CanResumeReading) return;
+        if (GalleryOverlayVisible) CloseGallery(restoreOrigin: false);
+        if (!_largeReaderOpen && !NavigateWorkspace(WorkspacePage.Archive, activateArchive: false)) return;
         bool ownedFocus = ContinueReadingButton.IsKeyboardFocusWithin;
         _readingResumePending = true;
         RefreshReadingResumePresentation();

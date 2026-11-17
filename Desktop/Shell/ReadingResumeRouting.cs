@@ -37,8 +37,8 @@ internal static class ReadingResumeRouting
     internal static string TipKey(bool threadOpen) => Click(threadOpen) == ClickAction.OpenHistory ? "resume.tip.history" : "resume.tip.jump";
 
     /// <summary>
-    /// True when the places can be opened now. A thread that is open does not block it (the place replaces the thread); the gallery
-    /// overlay does, like every other action that needs the reader to itself.
+    /// True when the places can be opened now. A thread or gallery may be open: the selected place replaces the current
+    /// reader context, and the shell closes the covering gallery before applying it. Only another action in progress blocks it.
     /// </summary>
-    internal static bool PlacesOpenable(bool galleryOpen, bool otherActionBusy) => !galleryOpen && !otherActionBusy;
+    internal static bool PlacesOpenable(bool galleryOpen, bool otherActionBusy) => !otherActionBusy;
 }

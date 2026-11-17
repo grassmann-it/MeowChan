@@ -207,9 +207,9 @@ internal static class ReadingPositionChecks
         Click(window.ArchivePage.FindControl<Button>("ArchiveOpenGallery")!);
         ContentControl host = window.FindControl<ContentControl>("GalleryHost")!;
         await Program.WaitUntilAsync(() => host.IsEffectivelyVisible && host.Content is Control);
-        // QW-A: shown, but disabled while the gallery overlay owns the reader (ReadingResumeRouting.PlacesOpenable).
-        Require(book.IsVisible && !book.IsEnabled, "Continue reading is hidden or still usable over the active gallery.");
-        Program.CaptureWindow(window, "smoke-reading-topbar-gallery-hidden.png");
+        // UX-LEDGER-10: the shell action remains usable over Gallery; selecting a history place closes only the covering viewer.
+        Require(book.IsVisible && book.IsEnabled, "Continue reading is hidden or disabled over the active gallery.");
+        Program.CaptureWindow(window, "smoke-reading-topbar-gallery-available.png");
         Click(((Control)host.Content!).GetVisualDescendants().OfType<Button>().Single(button => button.Name == "GalleryClose"));
         await Program.WaitUntilAsync(() => !host.IsVisible && book.IsEffectivelyVisible);
         await FooterNavigationChecks.WaitForResumeHitAsync(window);
