@@ -220,8 +220,12 @@ internal static class ReaderNavigationOverlayChecks
             await RequireHitAsync(window, Bounds(nextPost, window).Center, nextPost, () => "The shown bar is not clickable");
             await WaitHiddenAsync();
             // A pointer resting near the bar keeps it shown.
-            page.NotifyReaderPointerMoved(barInSurface);
-            await WaitShownAsync();
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                page.NotifyReaderPointerMoved(barInSurface);
+                Require(page.ReaderNavigationShown && bar.Opacity == 1 && bar.IsHitTestVisible,
+                    "Pointer activity near the capsule did not keep it shown.");
+            });
             await Task.Delay(1400);
             Require(page.ReaderNavigationShown && bar.Opacity == 1, "The bar hid while the pointer rested on it.");
             await Dispatcher.UIThread.InvokeAsync(() => page.NotifyReaderPointerMoved(far));
