@@ -719,7 +719,7 @@
                                 </StackPanel>
                             </Border>
                         </Popup>
-                        <WrapPanel x:Name="ReaderNavigation" Classes="reader-cross" IsVisible="False" HorizontalAlignment="Right"
+                        <WrapPanel x:Name="ReaderNavigation" Classes="reader-cross" Background="Transparent" IsVisible="False" HorizontalAlignment="Right"
                                    VerticalAlignment="Bottom" Margin="0,0,24,32" ZIndex="1">
                             <!-- The navigation bar is an overlay above the content, one capsule of 40 dip: [thread arrow, counter, thread arrow | post arrow,
                                  counter, post arrow]. The whole capsule takes the pointer (a click in a gap never reaches the post below); below
