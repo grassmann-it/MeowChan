@@ -40,14 +40,17 @@ internal static class SettingsSearchChecks
             Require(!advanced.IsExpanded, "The advanced limits start collapsed.");
             decimal? timer = editor.RecheckTimer;
 
-            // SP1 / UX-LEDGER-02: the search sits in the page header over the content column (not the navigation column): the field's left edge and the
-            // "More" button's right edge are the edges of the settings content, and Ctrl+F and "/" focus it.
+            // UX-LEDGER-09: the search/actions share the right content container, separate from the sidebar.
+            // Check half/normal/full widths and both sides of the category breakpoint with the results open.
             Control title = editor.FindControl<Control>("SettingsTitleBlock")!;
             Control searchHost = editor.FindControl<Control>("SettingsSearchHost")!;
             Control moreButton = editor.FindControl<Control>("SettingsMoreButton")!;
             Control settingsContent = editor.FindControl<Control>("SettingsContent")!;
-            // Exercise both category-navigation modes and switching back to the wide layout.
-            foreach (double width in new[] { 1100d, 800d, 1100d })
+            Control categories = editor.FindControl<Control>("SettingsCategories")!;
+            box.Focus();
+            box.Text = "cache";
+            await Wait(() => panel.IsVisible && list.ItemCount > 0);
+            foreach (double width in new[] { 640d, 1100d, 1600d, 819d, 820d, 1100d })
             {
                 window.Width = width;
                 await Task.Delay(200);
@@ -61,7 +64,21 @@ internal static class SettingsSearchChecks
                     && Math.Abs(searchLeft.X - contentLeft.X) <= 1.5 && Math.Abs(moreRight.X - contentRight.X) <= 1.5
                     && searchLeft.Y >= titleBottom.Y,
                     $"At width {width}, search/menu edges are not flush over the content column: search {searchLeft.X} / content {contentLeft.X}, menu {moreRight.X} / content {contentRight.X}");
+                Point fieldBottom = box.TranslatePoint(new Point(0, box.Bounds.Height), editor)!.Value;
+                Point panelOrigin = panel.TranslatePoint(default, editor)!.Value;
+                Require(panel.IsVisible && Math.Abs(panelOrigin.X - fieldBottom.X) <= 1.5
+                    && Math.Abs(panel.Bounds.Width - box.Bounds.Width) <= 1.5
+                    && Math.Abs(panelOrigin.Y - fieldBottom.Y - 4) <= 1.5,
+                    $"At width {width}, results no longer follow the search field.");
+                if (categories.IsVisible)
+                {
+                    Point sidebarRight = categories.TranslatePoint(new Point(categories.Bounds.Width, 0), editor)!.Value;
+                    Require(searchLeft.X > sidebarRight.X, $"At width {width}, search overlaps the category sidebar.");
+                }
+                Program.CaptureWindow(window, $"smoke-settings-header-content-{width}.png");
             }
+            box.ClearAndFocus();
+            await Wait(() => !panel.IsVisible && list.ItemCount == 0);
             editor.FindControl<Button>("SettingsMoreButton")?.Focus();
             editor.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.OemQuestion, KeySymbol = "/", Source = editor });
             Require(box.IsKeyboardFocusWithin, "'/' did not focus the search.");
@@ -72,7 +89,8 @@ internal static class SettingsSearchChecks
             bool downloadsVisibleBefore = downloadsPage.IsVisible;
             box.Focus();
             box.Text = "bandwith";
-            await Wait(() => panel.IsVisible && list.ItemCount > 0);
+            await Wait(() => panel.IsVisible && list.ItemCount > 0
+                && HitLabel(list, 0).StartsWith("Bandwidth", StringComparison.Ordinal));
             Require(HitLabel(list, 0).StartsWith("Bandwidth", StringComparison.Ordinal), "A typo ('bandwith') did not find Bandwidth first: " + HitLabel(list, 0));
             await Task.Delay(300);
             Require(downloadsPage.IsVisible == downloadsVisibleBefore && !Marked(editor, "BandwidthInput"), "Typing jumped to the hit.");

@@ -854,8 +854,8 @@ namespace MeowChan
             SettingsSections.IsVisible = !categories;
             SettingsFormLayout.ColumnDefinitions[0].Width = new GridLength(categories ? 176 : 0);
             SettingsFormLayout.ColumnSpacing = categories ? 16 : 0;
-            Grid.SetColumn(SettingsScrollViewer, categories ? 1 : 0);
-            Grid.SetColumnSpan(SettingsScrollViewer, categories ? 1 : 2);
+            Grid.SetColumn(SettingsContentColumn, categories ? 1 : 0);
+            Grid.SetColumnSpan(SettingsContentColumn, categories ? 1 : 2);
             double sharedWidth = Math.Min(1088, Math.Max(0, e.NewSize.Width - 40));
             SettingsFormLayout.Width = sharedWidth;
             SettingsHeader.Width = sharedWidth;
@@ -864,7 +864,7 @@ namespace MeowChan
             SettingsContent.Width = width;
             if (presentationChanged && navigationFocus && focusOwner != null)
                 QueueSectionNavigationFocus(focusOwner, focusOrigin, categories, selectedSection);
-            ApplyHeaderLayout(categories);
+            PositionSearchPanelLater();
             bool narrow = width < 700;
             foreach (Grid row in SettingsContent.GetLogicalDescendants().OfType<Grid>().Where(row => row.Classes.Contains("settings-row")))
             {
