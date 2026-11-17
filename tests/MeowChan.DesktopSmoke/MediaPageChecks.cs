@@ -1289,14 +1289,24 @@ internal static partial class MediaPageChecks
         ?? root.GetLogicalDescendants().OfType<T>().FirstOrDefault(control => control.Name == name)
         ?? throw new InvalidOperationException("Missing control " + name);
 
-    private static async Task UntilAsync(Func<bool> condition)
+    private static async Task UntilAsync(Func<bool> condition,
+        [System.Runtime.CompilerServices.CallerMemberName] string caller = "",
+        [System.Runtime.CompilerServices.CallerLineNumber] int line = 0,
+        [System.Runtime.CompilerServices.CallerArgumentExpression(nameof(condition))] string expression = "")
     {
-        DateTime deadline = DateTime.UtcNow + Deadline;
+        System.Diagnostics.Stopwatch elapsed = System.Diagnostics.Stopwatch.StartNew();
+        long probes = 0;
+        Console.WriteLine($"SMOKE media wait START {caller}:{line}: {expression}");
         while (!condition())
         {
-            if (DateTime.UtcNow >= deadline) throw new TimeoutException("Media page UI event deadline.");
+            probes++;
+            if (elapsed.Elapsed >= Deadline) throw new TimeoutException($"Media page UI event deadline: {caller}:{line} after {elapsed.Elapsed.TotalMilliseconds:F0} ms, {probes} probes: {expression}");
+            // Avoid millions of dispatcher probes when a condition never becomes true;
+            // leave time for native input, layout and timers between probes.
+            await Task.Delay(20);
             await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
         }
+        Console.WriteLine($"SMOKE media wait PASS {caller}:{line}: {elapsed.Elapsed.TotalMilliseconds:F0} ms, {probes} probes");
     }
 
     private static void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
