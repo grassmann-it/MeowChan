@@ -338,6 +338,11 @@ public partial class ArchivePage : UserControl
         if (resetPage || _unreadMark?.Thread != id) _unreadMark = null;
         ReaderAnchor? retainedAnchor = !resetPage && _thread?.Summary.Id == id
             ? entryAnchor is { } entered && entered.Thread == id ? entered : CaptureReaderAnchor() : null;
+        // A new reader entry normally starts at the first post. If this thread has a saved reading
+        // place, defer its exact target until the projection exists; hidden/stale posts then use the
+        // same deterministic first-visible fallback as every other initial reader entry.
+        LocalReadingPosition? initialReadingPosition = resetPage && _selectedThread != id && _largeReader
+            ? ReadingPlaceFor?.Invoke(id) : null;
         CancelReferences();
         CancelInlineReplies();
         int request = ++_contentRequest;
@@ -415,8 +420,25 @@ public partial class ArchivePage : UserControl
                     await AwaitProjectionAsync();
                     if (_ended || request != _contentRequest) return;
                     if (Projection is { Count: > 0 } shown)
-                        await FocusPostAsync(shown[Math.Min(_postOffset, shown.Count - 1)].Post.PostId,
-                            resetPage ? null : _readerInteractionRevision, focusIntent: focusIntent, passiveOpen: true);
+                    {
+                        string? initialPost = initialReadingPosition is { } saved
+                            && thread.FindPostIndex(saved.PostId) >= 0
+                            && shown.PositionOf(saved.PostId) >= 0
+                            ? saved.PostId : null;
+                        if (initialPost != null)
+                        {
+                            // Restore the saved scroll/selection anchor without treating this passive
+                            // entry as a new conscious reading-position write.
+                            await RestoreReaderAnchorAsync(new ReaderAnchor(id, initialPost,
+                                initialReadingPosition!.Top, initialReadingPosition.SelectedPostId),
+                                focusIntent: focusIntent);
+                        }
+                        else
+                        {
+                            await FocusPostAsync(shown[Math.Min(_postOffset, shown.Count - 1)].Post.PostId,
+                                resetPage ? null : _readerInteractionRevision, focusIntent: focusIntent, passiveOpen: true);
+                        }
+                    }
                     else if (focusIntent != null) focusIntent.Restore(ArchiveCloseReader);
                     else ArchiveCloseReader.Focus();
                 }

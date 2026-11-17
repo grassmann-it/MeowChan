@@ -56,6 +56,30 @@ public sealed class ReaderEntryTests
     }
 
     [Fact]
+    public async Task OpeningAnotherThreadUsesItsSavedReadingPlaceWithoutPublishingANewPosition()
+    {
+        ArchivedThreadView shown = await SeedAsync("1000"), other = await SeedAsync("2000");
+        WithPage(page =>
+        {
+            page.ReadingPlaceFor = id => id == other.Summary.Id
+                ? new LocalReadingPosition(id.Source, id.Board, id.Thread!, "p077", 12, null)
+                : null;
+            Assert.True(page.LoadThreadAsync(shown.Summary.Id, true, shown).IsCompletedSuccessfully);
+            Show(page, shown, 50, "p055");
+            List<LocalReadingPosition> written = [];
+            page.ConsciousReadingPositionChanged += written.Add;
+
+            Task open = page.OpenReaderOnThreadAsync(other.Summary.Id, () => page.DetachReader(), other);
+            Pump(open);
+
+            Assert.Equal(other.Summary.Id, page.CurrentThread?.Summary.Id);
+            Assert.Equal("p077", page.CurrentReaderPostId);
+            Assert.Equal("p077", Assert.IsType<ArchivePostRow>(page.FindControl<ListBox>("ArchivePosts")!.SelectedItem).Id);
+            Assert.Empty(written);
+        });
+    }
+
+    [Fact]
     public async Task OpeningAnotherThreadInTheLargeReaderStartsAtItsFirstPostWithoutReadingPositionOrBackHistory()
     {
         ArchivedThreadView shown = await SeedAsync("1000"), other = await SeedAsync("2000");
