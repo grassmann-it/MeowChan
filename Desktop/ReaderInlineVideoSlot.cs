@@ -42,8 +42,9 @@ internal sealed class GalleryInlineVideoPlayer : IReaderInlineVideoPlayer
     internal event Action? ShortcutFocusRequested;
 
     internal GalleryInlineVideoPlayer(Panel area, Control below, Panel transportHost, GalleryEntry entry, ReaderInlineVideoOptions options, bool startMuted,
-        string name, Action? openGallery = null, bool viewer = false, VideoScrubPreviewCache? scrubCache = null)
+        string name, Action? openGallery = null, bool viewer = false, VideoScrubPreviewCache? scrubCache = null, string shortcutContext = "reader")
     {
+        Player.ShortcutContext = shortcutContext;
         _area = area;
         _entry = entry;
         AutomationProperties.SetName(Player, name);
@@ -169,6 +170,7 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
     /// Whether one of the owner's own commands has a key (the argument says whether the key is a command's gesture): the video key then gives way to it.
     /// The reader's by default; the Media page's panel sets its page's.
     /// </summary>
+    internal string ShortcutContext { get; set; } = "reader";
     internal Func<Func<string, bool>, bool> OwnerClaims { get; set; } = ReaderVideoKeys.ReaderClaims;
 
     /// <summary>The identity of an attachment for the slot: the same file at the same place of a rebuilt row keeps its player.</summary>
@@ -308,7 +310,7 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
                 GalleryInlineVideoPlayer player = new(_area, Activator, _transportHost, entry, options,
                     _activatorWhenIdle ? ReaderInlineVideoRules.StartMutedViewer(options, controller.SessionMuted)
                         : ReaderInlineVideoRules.StartMuted(options, controller.SessionMuted, autoplay: muted),
-                    _name.Length > 0 ? _name : Texts.T("reader.video.unnamed"), _openGallery, viewer: _activatorWhenIdle, scrubCache: controller.ScrubCache);
+                    _name.Length > 0 ? _name : Texts.T("reader.video.unnamed"), _openGallery, viewer: _activatorWhenIdle, scrubCache: controller.ScrubCache, shortcutContext: ShortcutContext);
                 player.MuteChosen += muted => controller.SessionMuted = muted;
                 player.Failed += message => Dispatcher.UIThread.Post(() => { if (ReferenceEquals(_player, player)) ShowError(message); });
                 player.UserPlayback += playing => { if (ReferenceEquals(_player, player)) controller.OnUserPlayback(this, playing); };

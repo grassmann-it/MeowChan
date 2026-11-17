@@ -263,7 +263,7 @@ public sealed class ArchiveMediaTileView : UserControl
         _rating.Text = DataContext is ArchiveAssetRow row ? MediaRatingText.AccessibleValue(row.RatingLabel) : string.Empty;
         AutomationProperties.SetName(_rating, _rating.Text);
         string label = MeowChan.Desktop.Commands.CommandCatalog.Label("media.rating.edit");
-        ToolTip.SetTip(_rating, MeowChan.Desktop.Commands.CommandCatalog.ShortcutTooltipDisplay("media.rating.edit") is { } gesture ? label + " · " + gesture : label);
+        ToolTip.SetTip(_rating, MeowChan.Desktop.Commands.CommandCatalog.ShortcutTooltipDisplay("media.rating.edit", "reader") is { } gesture ? label + " · " + gesture : label);
         UpdateDescription();
     }
 

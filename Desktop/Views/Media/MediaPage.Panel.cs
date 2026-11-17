@@ -117,7 +117,7 @@ public sealed partial class MediaPage
         // In the panel the slot's activator covers the poster also while idle: the focusable "Play video here" (Enter plays).
         ReaderInlineVideoSlot slot = _panelVideo = new ReaderInlineVideoSlot(panel.FrameArea, activatorWhenIdle: true)
         {
-            OwnerClaims = MediaPanelKeys.PageClaims, PointerPlayFocus = FocusGridAfterPointerPlay
+            ShortcutContext = "media", OwnerClaims = MediaPanelKeys.PageClaims, PointerPlayFocus = FocusGridAfterPointerPlay
         };
         _panelVideoController.NavigationKeys = TryNavigateGridFromPanel;
         panel.VideoRow.Children.Add(slot.Below);

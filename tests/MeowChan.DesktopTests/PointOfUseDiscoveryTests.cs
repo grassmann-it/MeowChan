@@ -49,6 +49,29 @@ public sealed class PointOfUseDiscoveryTests
         finally { player.DisposeAsync().AsTask().GetAwaiter().GetResult(); }
     });
 
+    [Theory]
+    [InlineData("reader", "reader.next-post")]
+    [InlineData("media", "media.rating.edit")]
+    public void VideoHelpOmitsGesturesClaimedByItsHost(string context, string owner) => WithControls(() =>
+    {
+        // A page binding shadows video without removing its gesture in the gallery.
+        Assert.True(CommandCatalog.TryGet(owner, out _));
+        var gesture = ShortcutService.Current.For("video.loop").First();
+        ShortcutService.Publish(new ShortcutBindingsSection().Set(owner, [gesture]));
+        GalleryVideoPlayer player = new();
+        try
+        {
+            player.ShortcutContext = context;
+            string key = gesture.Display(OperatingSystem.IsMacOS() ? ShortcutPlatform.MacOS : ShortcutPlatform.Windows);
+            var loop = Field<Control>(player, "_loop");
+            Assert.DoesNotContain(key, Assert.IsType<string>(ToolTip.GetTip(loop)));
+            Assert.DoesNotContain(key, AutomationProperties.GetHelpText(loop));
+            player.ShortcutContext = "gallery";
+            Assert.Contains(key, Assert.IsType<string>(ToolTip.GetTip(loop)));
+        }
+        finally { player.DisposeAsync().AsTask().GetAwaiter().GetResult(); }
+    });
+
     private static void AssertHelp(Control control, string context, params string[] commands)
     {
         string tip = Assert.IsType<string>(ToolTip.GetTip(control));

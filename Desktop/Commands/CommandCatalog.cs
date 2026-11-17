@@ -499,7 +499,7 @@ public static class CommandCatalog
         EffectiveShortcutBindings snapshot = bindings ?? ShortcutService.Current;
         var platform = macOS ? ShortcutPlatform.MacOS : ShortcutPlatform.Windows;
         return snapshot.For(id)
-            .Where(g => context == null || !snapshot.YieldedContexts(id, g).Contains(context, StringComparer.Ordinal))
+            .Where(g => context == null || ShortcutHelp.ActsHere(id, g, context, snapshot))
             .Select(g => g.Display(platform)).Distinct(StringComparer.Ordinal).Take(TooltipGestureLimit).ToArray();
     }
 
