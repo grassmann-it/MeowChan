@@ -160,8 +160,19 @@ internal static class R08dPresentationChecks
                 }));
                 window.UpdateLayout();
                 TraceActions("before favorites reveal");
-                await Program.WaitUntilAsync(() => FitsWindow(window, list) && FitsWindow(window, table)
-                    && ReferenceEquals(TopLevel.GetTopLevel(list), window) && ReferenceEquals(TopLevel.GetTopLevel(table), window));
+                await Program.WaitUntilAsync(() =>
+                {
+                    // End-docked toolbar items can require a second native arrange pass after
+                    // the hosted archive fixture is activated. Drive that pass while polling;
+                    // otherwise a slow CI compositor can observe the old detached presentation
+                    // for the whole wait even though no product state is wrong.
+                    window.UpdateLayout();
+                    return FitsWindow(window, list) && FitsWindow(window, table)
+                        && ReferenceEquals(TopLevel.GetTopLevel(list), window)
+                        && ReferenceEquals(TopLevel.GetTopLevel(table), window);
+                }, () => $"list={list.Bounds}/{list.IsEffectivelyVisible}/{TopLevel.GetTopLevel(list)?.GetType().Name}; "
+                    + $"table={table.Bounds}/{table.IsEffectivelyVisible}/{TopLevel.GetTopLevel(table)?.GetType().Name}; "
+                    + $"overflow={actions.OverflowHost?.Children.Count}");
                 Require(actions.OverflowHost?.Children.Contains(list) != true && actions.OverflowHost?.Children.Contains(table) != true,
                     "The archive layout choices were not direct toolbar actions.");
                 bool favoritesOverflow = actions.OverflowHost?.Children.Contains(favorites) == true;
