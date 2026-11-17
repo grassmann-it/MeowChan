@@ -44,7 +44,11 @@ def inventory(evidence, selected=None):
                         raise ValueError('Missing or checksum-mismatched ' + name)
                 tree = json.loads((evidence / files['control-tree.json']['path']).read_text())
                 if not tree['elements']: raise ValueError('Empty control dump')
-                for control in tree['elements']:
+                controls = list(tree['elements'])
+                for detached in tree.get('detached_roots', []): controls.extend(detached['elements'])
+                for control in controls:
+                    if not isinstance(control.get('name'), str) or not control['name'].strip():
+                        raise ValueError('Control dump contains an unnamed control')
                     for key in ('name', 'bounds', 'visible', 'is_enabled', 'is_focused', 'text'):
                         if key not in control: raise ValueError('Incomplete control dump: ' + key)
                 marker = json.loads((evidence / files['bundle.json']['path']).read_text())

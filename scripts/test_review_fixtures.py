@@ -56,6 +56,13 @@ class ReviewContracts(unittest.TestCase):
             self.assertEqual(hashlib.sha256(json.dumps(captured['files'], sort_keys=True).encode()).hexdigest(), captured['checksum'])
             (root / 'control-tree.json').write_text('{}')
             self.assertEqual('missing', runner.inventory(root, scene['id'])[0]['status'])
+            control['name'] = ''
+            (root / 'control-tree.json').write_text(json.dumps({'elements': [control]}))
+            files['control-tree.json']['sha256'] = hashlib.sha256((root / 'control-tree.json').read_bytes()).hexdigest()
+            (root / 'scenes.json').write_text(json.dumps({'scenes': [scene]}))
+            invalid = runner.inventory(root, scene['id'])[0]
+            self.assertEqual('missing', invalid['status'])
+            self.assertIn('unnamed control', invalid['error'])
 
     def test_wcag_known_pairs(self):
         self.assertEqual(21, checks.ratio('#000000', '#ffffff'))
