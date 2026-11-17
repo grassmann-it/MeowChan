@@ -19,7 +19,7 @@ internal static class SettingsCategoryChecks
         ("interface", "SettingsInterfacePage"), ("reading-media", "SettingsReadingMediaPage"),
         ("downloads", "SettingsDownloadsPage"), ("worker-budgets", "SettingsWorkerBudgetsPage"),
         ("updates", "SettingsUpdatesPage"), ("notifications", "SettingsNotificationsSection"),
-        ("behavior", "SettingsBehaviorPage"), ("shortcuts", "ShortcutsEditor") };
+        ("behavior", "SettingsBehaviorPage"), ("workviews", "SettingsWorkViewsPage"), ("shortcuts", "ShortcutsEditor") };
 
     internal static async Task RunAsync(MainWindow owner)
     {
@@ -169,7 +169,7 @@ internal static class SettingsCategoryChecks
         string selection = string.Join(", ", links.Select(b => $"{b.Tag}:{b.IsChecked}"));
         ToggleButton selected = links.SingleOrDefault(b => b.IsChecked == true)!;
         string? selectedTag = selected?.Tag as string;
-        Require(links.Length == 8 && selected != null && string.Equals(selectedTag, id, StringComparison.Ordinal),
+        Require(links.Length == Pages.Length && selected != null && string.Equals(selectedTag, id, StringComparison.Ordinal),
             $"Accessible category selection disagrees with page: expected={id}; actual={selection}; selectedTag={selectedTag ?? "<null>"}");
     }
     private static bool PagesVisible(SettingsEditor editor, string suffix) => Pages.All(p => Find<Control>(editor, p.Name).IsVisible == (p.Id == suffix));
