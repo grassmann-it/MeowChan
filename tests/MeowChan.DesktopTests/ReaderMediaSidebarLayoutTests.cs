@@ -47,7 +47,13 @@ public sealed class ReaderMediaSidebarLayoutTests
             Assert.False(button.IsChecked);
             Assert.Equal("Media sidebar: Off", button.Content);
             Assert.Equal(button.Content, AutomationProperties.GetName(button));
-            Assert.Equal(Ursa.Controls.OverflowMode.Never, Ursa.Controls.ToolBar.GetOverflowMode(button));
+            // 071e43347 deliberately registered this tool as Direct in every work
+            // view. Direct tools stay discoverable but overflow when they do not fit.
+            var policy = MeowChan.Desktop.WorkViews.WorkViewPolicy.Find("reader.toolbar.media-sidebar")!;
+            Assert.Equal(MeowChan.Desktop.WorkViews.Presence.Direct, policy.Barebones);
+            Assert.Equal(policy.Barebones, policy.Simple);
+            Assert.Equal(policy.Simple, policy.Advanced);
+            Assert.Equal(Ursa.Controls.OverflowMode.AsNeeded, Ursa.Controls.ToolBar.GetOverflowMode(button));
             Assert.Equal(ReaderMediaPreferences.From(new Config()), page.ReaderMedia);
             Assert.True(ReaderMediaSidebarRules.IsOn(page.ReaderMedia, largeReader: true));
             Assert.False(ReaderMediaSidebarRules.IsOn(page.ReaderMedia, largeReader: false));
