@@ -79,7 +79,7 @@ internal static partial class ReviewArtifacts
                 }
                 yield return new
                 {
-                    id = path, parent_id = parent, name = c.Name, type = c.GetType().FullName,
+                    id = path, parent_id = parent, name = c.Name ?? AutomationProperties.GetName(c) ?? (c.GetType().Name + "@" + path), declared_name = c.Name, type = c.GetType().FullName,
                     bounds = bounds is { } b ? new { x = b.X, y = b.Y, width = b.Width, height = b.Height } : null,
                     visible = c.IsVisible, effectively_visible = c.IsEffectivelyVisible, opacity = c.Opacity,
                     is_enabled = c.IsEnabled, effectively_enabled = c.IsEffectivelyEnabled,
