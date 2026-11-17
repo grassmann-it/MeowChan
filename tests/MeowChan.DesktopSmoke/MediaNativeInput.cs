@@ -403,6 +403,26 @@ internal sealed class MediaNativeInput : IDisposable
         await Task.Delay(100);
     }
 
+    internal const ulong AltLeft = 0xffe9, BackSpace = 0xff08;
+
+    /// <summary>One key with the given modifier keys held (X11 keysyms; Linux XTest only).</summary>
+    internal async Task ChordAsync(ulong key, params ulong[] modifiers)
+    {
+        if (_display == 0) throw new PlatformNotSupportedException("Chords are only implemented for the private X11 server.");
+        try
+        {
+            foreach (ulong modifier in modifiers) Key(modifier, true);
+            Key(key, true); Flush(); await Task.Delay(40);
+        }
+        finally
+        {
+            Key(key, false);
+            foreach (ulong modifier in modifiers.Reverse()) Key(modifier, false);
+            Flush();
+        }
+        await Task.Delay(100);
+    }
+
     private void Key(ulong symbol, bool down)
     {
         if (down) EnsureOwnActiveWindow();
