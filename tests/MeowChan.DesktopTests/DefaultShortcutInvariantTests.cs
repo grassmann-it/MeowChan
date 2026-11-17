@@ -1,3 +1,4 @@
+using Avalonia.Input;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 
@@ -39,7 +40,7 @@ public sealed class DefaultShortcutInvariantTests
         "gallery.layout.info", "gallery.layout.hints",
         // Revision 19 (decision #125): D and S mark the selected tagging entries done or skipped (the tagging page's queue list only), H hides the
         // selected post in the reader (its post list; a text field keeps the letter, CommandBindings.Matches).
-        "tagging.mark-done", "tagging.mark-skipped", "post.hide"
+        "tagging.mark-done", "tagging.mark-skipped", "tags.queue.skip", "post.hide"
     };
 
     [Theory, MemberData(nameof(Platforms))]
@@ -58,12 +59,16 @@ public sealed class DefaultShortcutInvariantTests
     [Theory]
     [InlineData(ShortcutPlatform.Windows)]
     [InlineData(ShortcutPlatform.Linux)]
-    public void NoDefaultUsesCtrlWithAltBecauseThatIsAltGrOnManyKeyboardLayouts(ShortcutPlatform platform)
+    public void OnlyReaderExpandUsesTheExactNonTextCtrlAltEnterChord(ShortcutPlatform platform)
     {
         foreach (var command in CommandCatalog.All)
             foreach (var gesture in EffectiveShortcutBindings.Defaults(command, platform))
-                Assert.False(gesture.Modifiers.Contains("Alt") && gesture.Modifiers.Any(m => m is "Primary" or "Control" or "Ctrl"),
-                    command.Id + " " + gesture.Display(platform));
+                if (gesture.Modifiers.Contains("Alt") && gesture.Modifiers.Any(m => m is "Primary" or "Control" or "Ctrl"))
+                {
+                    Assert.Equal("reader.expand", command.Id);
+                    Assert.Equal(Key.Enter, gesture.Resolve(platform).Key);
+                    Assert.Equal(KeyModifiers.Control | KeyModifiers.Alt, gesture.Resolve(platform).KeyModifiers);
+                }
     }
 
     [Theory, MemberData(nameof(Platforms))]
@@ -108,6 +113,103 @@ public sealed class DefaultShortcutInvariantTests
             "video.play-pause", "video.loop", "video.step-back", "video.step-forward",
             "gallery.context-toggle", "gallery.tools-toggle", "gallery.overlay-toggle", "gallery.layout.info", "gallery.layout.hints" })
             Assert.Contains(id, EffectiveShortcutBindings.YieldingDefaultCommandIds);
+    }
+
+    [Theory]
+    [InlineData("tags.queue.skip", "Space", "S", "gallery-tagging")]
+    [InlineData("video.speed-reset", "Back", "Shift+Back", "gallery")]
+    [InlineData("video.speed-reset", "Back", "Shift+Back", "reader")]
+    [InlineData("video.speed-reset", "Back", "Shift+Back", "media")]
+    [InlineData("video.snapshot", "S", "Shift+S", "gallery")]
+    [InlineData("gallery.slideshow-toggle", "D", "Shift+D", "gallery")]
+    [InlineData("tags.queue.done-next", "Enter", "Primary+Enter", "gallery-tagging")]
+    [InlineData("reader.expand", "Primary+Enter", "Primary+Alt+Enter", "reader")]
+    [InlineData("video.volume-up", "Up", "Shift+Up", "gallery")]
+    [InlineData("video.volume-down", "Down", "Shift+Down", "gallery")]
+    [InlineData("video.seek-back", "Primary+Left", "Alt+Left", "gallery")]
+    [InlineData("video.seek-forward", "Primary+Right", "Alt+Right", "gallery")]
+    public void Ledger17MovedGesturesResolveAndTheirOldGesturesDoNot(string id, string oldKey, string newKey, string context)
+    {
+        foreach (ShortcutPlatform platform in Enum.GetValues<ShortcutPlatform>())
+        {
+            var bindings = EffectiveShortcutBindings.Build(platform: platform);
+            var expected = ShortcutGesture.Parse(newKey).Resolve(platform);
+            var old = ShortcutGesture.Parse(oldKey).Resolve(platform);
+            Assert.True(bindings.Matches(new KeyEventArgs { Key = expected.Key, KeyModifiers = expected.KeyModifiers }, id, context), id);
+            Assert.False(bindings.Matches(new KeyEventArgs { Key = old.Key, KeyModifiers = old.KeyModifiers }, id, context), id);
+            Assert.True(EffectiveShortcutBindings.YieldsOn(id, platform), id);
+        }
+    }
+
+    [Theory, MemberData(nameof(Platforms))]
+    public void Ledger17SMeansSkipInBothTaggingSurfaces(ShortcutPlatform platform)
+    {
+        var bindings = EffectiveShortcutBindings.Build(platform: platform);
+        Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.S }, "tagging.mark-skipped", "tagging"));
+        Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.S }, "tags.queue.skip", "gallery-tagging"));
+        Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.Space }, "video.play-pause", "gallery"));
+        Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.Back }, "tags.queue.back", "gallery-tagging"));
+        Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.D }, "tagging.mark-done", "tagging"));
+    }
+
+    [Theory, MemberData(nameof(Platforms))]
+    public void Ledger17PrimaryEnterMeansCommitAndAdvanceInBothTaggingContexts(ShortcutPlatform platform)
+    {
+        var bindings = EffectiveShortcutBindings.Build(platform: platform);
+        var key = ShortcutGesture.Parse("Primary+Enter").Resolve(platform);
+        var press = new KeyEventArgs { Key = key.Key, KeyModifiers = key.KeyModifiers };
+        Assert.True(bindings.Matches(press, "tags.queue.done-next", "gallery-tagging"));
+        Assert.True(bindings.Matches(press, "tags.quick.commit-next", "gallery"));
+        // UX-LEDGER-16 owns open/activate behavior. Pin only their existing Enter defaults here.
+        foreach (string id in new[] { "tagging.continue-here", "thread.read", "media.open", "reader.media.activate" })
+            Assert.Equal("Enter", CommandCatalog.Get(id).Shortcut);
+    }
+
+    [Theory, MemberData(nameof(Platforms))]
+    public void Ledger17UnmodifiedArrowsRemainReaderPostNavigation(ShortcutPlatform platform)
+    {
+        var bindings = EffectiveShortcutBindings.Build(platform: platform);
+        Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.Up }, "reader.previous-post", "reader"));
+        Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.Down }, "reader.next-post", "reader"));
+    }
+
+    [Theory, MemberData(nameof(Platforms))]
+    public void Ledger17FarSeekingAndSidebarArrowsStayDistinct(ShortcutPlatform platform)
+    {
+        var bindings = EffectiveShortcutBindings.Build(platform: platform);
+        foreach ((string id, string gesture, string context) in new[]
+        {
+            ("video.seek-back-far", "Primary+Shift+Left", "gallery"),
+            ("video.seek-forward-far", "Primary+Shift+Right", "gallery"),
+            ("reader.sidebar.previous-media", "Alt+Shift+Left", "reader"),
+            ("reader.sidebar.next-media", "Alt+Shift+Right", "reader")
+        })
+        {
+            var key = ShortcutGesture.Parse(gesture).Resolve(platform);
+            Assert.True(bindings.Matches(new KeyEventArgs { Key = key.Key, KeyModifiers = key.KeyModifiers }, id, context));
+            Assert.Single(bindings.For(id));
+        }
+        if (platform == ShortcutPlatform.MacOS)
+            foreach (string id in new[] { "media.return", "reader.history-back", "gallery.return" })
+                Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.Left, KeyModifiers = KeyModifiers.Meta }, id, "reader"));
+    }
+
+    [Theory, MemberData(nameof(Platforms))]
+    public void Ledger17SharedBindingsHaveExactlyTheirIntendedOwners(ShortcutPlatform platform)
+    {
+        var bindings = EffectiveShortcutBindings.Build(platform: platform);
+        foreach ((string gesture, string[] owners) in new[]
+        {
+            ("S", new[] { "tagging.mark-skipped", "tags.queue.skip" }),
+            ("Primary+Enter", new[] { "tags.queue.done-next", "tags.quick.commit-next" }),
+            ("Enter", new[] { "media.open", "reader.media.activate", "tagging.continue-here", "thread.read" })
+        })
+        {
+            var key = ShortcutGesture.Parse(gesture).Resolve(platform);
+            Assert.Equal(owners, CommandCatalog.All.Where(command => bindings.Matches(
+                new KeyEventArgs { Key = key.Key, KeyModifiers = key.KeyModifiers }, command.Id))
+                .Select(command => command.Id).Order(StringComparer.Ordinal));
+        }
     }
 
     /// <summary>The nine video commands the gallery shares with the reader and the Media page's panel (revision 18).</summary>

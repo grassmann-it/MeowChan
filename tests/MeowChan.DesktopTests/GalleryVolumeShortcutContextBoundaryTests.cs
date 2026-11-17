@@ -24,7 +24,7 @@ public sealed class GalleryVolumeShortcutContextBoundaryTests
         var seek = new SeekHost(editorInVolume ? new Border() : editor);
         var volume = new VolumeHost(editorInVolume ? editor : new Border());
         Control source = sourceIsEditorChild ? leaf : editor;
-        var press = new KeyEventArgs { Source = source, Key = key };
+        var press = new KeyEventArgs { Source = source, Key = key, KeyModifiers = KeyModifiers.Shift };
 
         Assert.True(EffectiveShortcutBindings.Build().Matches(press, command));
         Assert.True(CommandRouter.IsNativeInput(source, key));
@@ -45,7 +45,7 @@ public sealed class GalleryVolumeShortcutContextBoundaryTests
         var editor = new EditorHost(new Border());
         var seek = new SeekHost(editor);
         var volume = new VolumeHost(new Border());
-        var press = new KeyEventArgs { Source = editor, Key = key, Handled = true };
+        var press = new KeyEventArgs { Source = editor, Key = key, KeyModifiers = KeyModifiers.Shift, Handled = true };
         Assert.False(CommandBindings.MatchesGalleryTransport(press, command, seek, volume));
         press.Handled = false;
         using (ShortcutService.BeginCapture())
@@ -64,7 +64,7 @@ public sealed class GalleryVolumeShortcutContextBoundaryTests
         var volume = new VolumeHost(volumeLeaf);
         foreach (Control source in new Control[] { seek, seekLeaf, volume, volumeLeaf })
         {
-            var press = new KeyEventArgs { Source = source, Key = key };
+            var press = new KeyEventArgs { Source = source, Key = key, KeyModifiers = KeyModifiers.Shift };
             Assert.False(CommandBindings.Matches(press, command));
             Assert.True(CommandBindings.MatchesGalleryTransport(press, command, seek, volume));
             Assert.False(press.Handled);
@@ -75,7 +75,7 @@ public sealed class GalleryVolumeShortcutContextBoundaryTests
         var outerSeek = new SeekHost(generic);
         foreach (Control source in new Control[] { generic, nestedLeaf, new Slider() })
         {
-            var press = new KeyEventArgs { Source = source, Key = key };
+            var press = new KeyEventArgs { Source = source, Key = key, KeyModifiers = KeyModifiers.Shift };
             Assert.True(CommandRouter.IsNativeInput(source, key));
             Assert.False(CommandBindings.MatchesGalleryTransport(press, command, outerSeek, volume));
             Assert.False(press.Handled);

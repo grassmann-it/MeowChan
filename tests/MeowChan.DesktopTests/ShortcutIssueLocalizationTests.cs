@@ -61,7 +61,7 @@ public sealed class ShortcutIssueLocalizationTests : IDisposable
         var entries = Enumerable.Range(0, 512).ToDictionary(i => "future." + i, _ => (object)new { });
         entries.Add(ActionId, new { Mode = "Unbound", Gestures = Array.Empty<object>() });
         reasons.Add(ReasonFor(Read(JsonSerializer.Serialize(new { SchemaVersion = 1, Overrides = entries })), "limitsExceeded"));
-        reasons.Add(ReasonFor(new ShortcutBindingsSection().Set("gallery.previous", [ShortcutGesture.Parse("Up")]), "defaultYields"));
+        reasons.Add(ReasonFor(new ShortcutBindingsSection().Set("gallery.previous", [ShortcutGesture.Parse("Shift+Up")]), "defaultYields"));
         reasons.Add(ReasonFor(new ShortcutBindingsSection().Set("post.open-source", [ShortcutGesture.Parse("Shift+F10")]), "notImplemented"));
         reasons.Add(ReasonFor(ConflictDraft(), "conflictingActions"));
 
@@ -282,7 +282,7 @@ public sealed class ShortcutIssueLocalizationTests : IDisposable
         var warningDraft = code switch
         {
             "unknownAction" => Read("""{"SchemaVersion":1,"Overrides":{"future.command":{"future":[1,2]}}}"""),
-            "defaultYields" => new ShortcutBindingsSection().Set("gallery.previous", [ShortcutGesture.Parse("Up")]),
+            "defaultYields" => new ShortcutBindingsSection().Set("gallery.previous", [ShortcutGesture.Parse("Shift+Up")]),
             "notImplemented" => new ShortcutBindingsSection().Set("post.open-source", [ShortcutGesture.Parse("Shift+F10")]),
             _ => throw new ArgumentOutOfRangeException(nameof(code))
         };

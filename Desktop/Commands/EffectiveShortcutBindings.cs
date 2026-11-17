@@ -115,7 +115,7 @@ public sealed class EffectiveShortcutBindings
     private static long _nextVersion;
     /// <summary>Revision of the default table. Raise it, and list the command in
     /// <see cref="DefaultChangedInRevision"/>, whenever a default gesture is added to or changed on a command.</summary>
-    public const int DefaultsRevision = 21;
+    public const int DefaultsRevision = 22;
     /// <summary>Command ids that existed in an earlier build and were removed on purpose (the previous/next media-panel keys).
     /// A saved binding for one is dead data, not a typo: <see cref="Build"/> skips it without an issue and the next save drops it
     /// (<see cref="ShortcutBindingsSection.WithoutRetired"/>). A truly unknown id is still reported and kept. The defaults revision does not change.</summary>
@@ -129,7 +129,7 @@ public sealed class EffectiveShortcutBindings
     /// saved binding can date from any earlier revision (including frozen "add another shortcut" lists).</summary>
     private static readonly IReadOnlyDictionary<string, int> DefaultChangedInRevision = new Dictionary<string, int>(StringComparer.Ordinal)
     {
-        ["video.volume-up"] = 1, ["video.volume-down"] = 1,
+        ["video.volume-up"] = 22, ["video.volume-down"] = 22,
         // (favorites.add and favorites.remove: revision 1, now listed with revision 20 below.)
         // (navigation.media, rules and sources: revision 2, now listed with revision 15 below.)
         ["navigation.statistics"] = 2, ["input.focus-media-search"] = 2, ["input.focus-settings-search"] = 2, ["input.focus-diagnostics-search"] = 2,
@@ -142,7 +142,7 @@ public sealed class EffectiveShortcutBindings
         // New in revision 2: find next / previous in the large reader.
         ["reader.find-next"] = 2, ["reader.find-previous"] = 2,
         // New single keys and chords of the gallery and the media page.
-        ["gallery.slideshow-toggle"] = 2, ["media.details"] = 2, ["media.rating.edit"] = 2,
+        ["gallery.slideshow-toggle"] = 22, ["media.details"] = 2, ["media.rating.edit"] = 2,
         ["media.export-original"] = 2, ["media.show-in-folder"] = 2,
         // One Back gesture and one page gesture for several commands that never apply at the same time.
         ["reader.history-back"] = 2, ["gallery.return"] = 2, ["pagination.previous"] = 2, ["pagination.next"] = 2,
@@ -155,9 +155,9 @@ public sealed class EffectiveShortcutBindings
         ["navigation.plugins"] = 4, ["navigation.diagnostics"] = 4, ["media.tags.edit"] = 4,
         // New in revision 5: viewer quick wins (seek, mute, speed, frame snapshot).
         // (video.mute: revision 5, now listed with revision 20 below.)
-        ["video.seek-back"] = 5, ["video.seek-forward"] = 5, ["video.seek-back-far"] = 5,
-        ["video.seek-forward-far"] = 5, ["video.speed-reset"] = 5,
-        ["video.snapshot"] = 5,
+        ["video.seek-back"] = 22, ["video.seek-forward"] = 22, ["video.seek-back-far"] = 5,
+        ["video.seek-forward-far"] = 5, ["video.speed-reset"] = 22,
+        ["video.snapshot"] = 22,
         // New in revision 6: quick tagging in the gallery tag panel and the tag popover (QuickTagCommands). Not yet wired
         // commands are inactive (CommandDefinition.IsAwaitingHandler), their defaults already yield like any new default.
         ["tags.quick.next"] = 6, ["tags.quick.previous"] = 6, ["tags.quick.commit-next"] = 6, ["tags.quick.mark-next"] = 6,
@@ -186,7 +186,7 @@ public sealed class EffectiveShortcutBindings
         ["media.focus-mode"] = 9,
         // New in revision 9 (PT3): the keys of the tagging mode in the gallery. They live in their own context ("gallery-tagging"), so they
         // never compete with Space, Enter and Backspace of the plain gallery, and yield to a saved binding like every new default.
-        ["tags.queue.done-next"] = 9, ["tags.queue.skip"] = 9, ["tags.queue.back"] = 9, ["tags.queue.play-pause"] = 9,
+        ["tags.queue.done-next"] = 22, ["tags.queue.skip"] = 22, ["tags.queue.back"] = 9, ["tags.queue.play-pause"] = 9,
         // New in revision 9 (PT2): the list keys of the tagging page. They act only in its queue list (context "tagging") and
         // yield to a saved binding of another command like every new default.
         ["tagging.continue-here"] = 9, ["tagging.move-up"] = 9, ["tagging.move-down"] = 9,
@@ -248,7 +248,7 @@ public sealed class EffectiveShortcutBindings
         // reader; Primary+Shift+O opens the gallery's medium with the default program (next to Primary+O, the folder). All of them yield to a saved binding of
         // another command, like every new default.
         ["tagging.mark-done"] = 19, ["tagging.mark-skipped"] = 19, ["post.hide"] = 19, ["post.copy-link"] = 19, ["media.copy-path"] = 19,
-        ["thread.show-in-media"] = 19, ["tagging.show-in-media"] = 19, ["reader.expand"] = 19, ["media.open-external"] = 19,
+        ["thread.show-in-media"] = 19, ["tagging.show-in-media"] = 19, ["reader.expand"] = 22, ["media.open-external"] = 19,
         // Revision 20 (one revision for the quick-win packages of 15.11.2026; each entry yields to a saved binding of another command like every new default):
         // - "menus, delete, Esc": Delete (and Primary+Back on macOS) also acts on the media page, where it removes the selected media that are in the
         //   tagging queue from it (the same command as the tagging list's, now also in the context "media"; introduced in revision 9). It never deletes a file.
@@ -276,6 +276,8 @@ public sealed class EffectiveShortcutBindings
         // new can collide with a saved binding. What a saved profile holds stays exactly as it is: a binding saved for "Add favorite" that lists B
         // (the editor freezes the whole list when a person adds a key) keeps B, and a saved binding of another command on B no longer has a default to
         // silence it (B is free in the gallery, the reader, the Media page and the archive).
+        // Revision 22 (UX-LEDGER-17): one gesture, one meaning across tagging, reader and video transport.
+        // Changed entries above carry 22; explicit saved bindings remain untouched and new defaults yield to them.
     };
     public static IReadOnlyCollection<string> YieldingDefaultCommandIds => DefaultChangedInRevision.Keys.ToArray();
     // Commands whose default changed only in the macOS table: on Windows and Linux their gesture is the old stable one
@@ -482,7 +484,10 @@ public sealed class EffectiveShortcutBindings
             var g = gesture.Resolve(platform);
             if (gesture.Modifiers.Contains("Primary") && gesture.Modifiers.Contains(platform == ShortcutPlatform.MacOS ? "Meta" : "Control")) return new("repeatedPlatformModifier", "Repeated platform modifier / Doppelte Plattformtaste");
             if (g.Key is Key.Tab or Key.Escape) return new("fixedNavigation", "Tab and Escape are fixed navigation / Tab und Escape bleiben feste Navigation");
-            if ((g.KeyModifiers & (KeyModifiers.Control | KeyModifiers.Alt)) == (KeyModifiers.Control | KeyModifiers.Alt)) return new("altGrText", "Ctrl+Alt can produce AltGr text / Strg+Alt kann AltGr-Text erzeugen");
+            // UX-LEDGER-17: Ctrl+Alt+Enter expands the reader. Enter cannot type AltGr text;
+            // this exact non-text chord is the only exception (not Ctrl+Alt+letters or shifted variants).
+            bool readerExpandChord = g.Key == Key.Enter && g.KeyModifiers == (KeyModifiers.Control | KeyModifiers.Alt);
+            if (!readerExpandChord && (g.KeyModifiers & (KeyModifiers.Control | KeyModifiers.Alt)) == (KeyModifiers.Control | KeyModifiers.Alt)) return new("altGrText", "Ctrl+Alt can produce AltGr text / Strg+Alt kann AltGr-Text erzeugen");
             if (platform != ShortcutPlatform.MacOS && g.KeyModifiers.HasFlag(KeyModifiers.Meta) ||
                 platform == ShortcutPlatform.MacOS && g.KeyModifiers.HasFlag(KeyModifiers.Meta) && g.Key == Key.Space ||
                 g.KeyModifiers.HasFlag(KeyModifiers.Alt) && g.Key == Key.F4)

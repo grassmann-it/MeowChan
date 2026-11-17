@@ -9,7 +9,7 @@ public sealed class MediaInteractionExtraRegressionTests
     [InlineData(ShortcutPlatform.Linux)]
     [InlineData(ShortcutPlatform.Windows)]
     [InlineData(ShortcutPlatform.MacOS)]
-    public void VolumeArrowDefaultsRequireExactUnmodifiedPresses(ShortcutPlatform platform)
+    public void VolumeArrowDefaultsRequireExactShiftedPresses(ShortcutPlatform platform)
     {
         var bindings = EffectiveShortcutBindings.Build(platform: platform);
         var actions = new[]
@@ -21,7 +21,7 @@ public sealed class MediaInteractionExtraRegressionTests
         [
             KeyModifiers.Alt,
             KeyModifiers.Control,
-            KeyModifiers.Shift,
+            KeyModifiers.None,
             KeyModifiers.Meta,
             KeyModifiers.Control | KeyModifiers.Alt,
             KeyModifiers.Control | KeyModifiers.Shift,
@@ -30,7 +30,7 @@ public sealed class MediaInteractionExtraRegressionTests
 
         foreach (var (key, command) in actions)
         {
-            Assert.True(bindings.Matches(new KeyEventArgs { Key = key }, command));
+            Assert.True(bindings.Matches(new KeyEventArgs { Key = key, KeyModifiers = KeyModifiers.Shift }, command));
             foreach (KeyModifiers modifiers in modifiedPresses)
                 Assert.False(bindings.Matches(new KeyEventArgs
                 {
