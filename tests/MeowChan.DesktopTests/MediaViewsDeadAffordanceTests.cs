@@ -48,16 +48,23 @@ public sealed class MediaViewsDeadAffordanceTests : IDisposable
 
     // ---- the reader sidebar -----------------------------------------------------------------------------------------------------
 
+    // MD-03 (17.11.2026): the contract is single click selects, double click opens the gallery (8896e40a7). The hand shows only where a single click
+    // acts: the host says so (an explicit "open the gallery on click" setting, or a video it plays here) and there is a medium to act on.
     [Fact]
-    public void TheSidebarsHandCursorShowsOnlyWhileAClickOpensAMedium() => OnOwnDispatcher(() =>
+    public void TheSidebarsHandCursorShowsOnlyWhileASingleClickActs() => OnOwnDispatcher(() =>
     {
         ReaderMediaSidebar sidebar = new();
         // Nothing selected: the placeholder says so, a click opens nothing, so no hand.
+        Assert.False(sidebar.SingleClickActs);
         Assert.False(sidebar.FrameClickable);
         Assert.Null(sidebar.Frame.Cursor);
-        // A medium that is loading (its text shows) can be opened: the hand.
+        // A medium in the default click mode: a single click does nothing (a double click opens the gallery), so the normal arrow.
         sidebar.Describe("No. 7", "cat.png", "1 KiB", canOpen: true);
         sidebar.ShowPlaceholder("Loading");
+        Assert.False(sidebar.FrameClickable);
+        Assert.Null(sidebar.Frame.Cursor);
+        // The host says a single click acts (gallery on click, or a video played here): the hand.
+        sidebar.SingleClickActs = true;
         Assert.True(sidebar.FrameClickable);
         Assert.Same(PointerCursors.Hand, sidebar.Frame.Cursor);
         // A post without media: the reason is shown, but nothing opens.
@@ -75,7 +82,21 @@ public sealed class MediaViewsDeadAffordanceTests : IDisposable
         sidebar.Open.IsEnabled = true;
         Assert.True(sidebar.FrameClickable);
         Assert.Same(PointerCursors.Hand, sidebar.Frame.Cursor);
+        // And the host taking it back (the click mode changed, the video went): the arrow again.
+        sidebar.SingleClickActs = false;
+        Assert.False(sidebar.FrameClickable);
+        Assert.Null(sidebar.Frame.Cursor);
     });
+
+    [Fact]
+    public void BothHostsSayWhetherASingleClickOnThePictureActs()
+    {
+        string panel = Source("Desktop/Views/Media/MediaPage.Panel.cs"), reader = Source("Desktop/Views/Archive/ArchivePage.InlineVideo.cs");
+        Assert.Contains("panel.SingleClickActs = slot.IsOffered || ReaderMediaSidebarRules.OpensGalleryOnPictureClick(_panelVideoController.Options);", panel);
+        Assert.Contains("sidebar.SingleClickActs = slot.IsOffered || ReaderMediaSidebarRules.OpensGalleryOnPictureClick(_inlineVideo.Options);", reader);
+        // The double click keeps opening the gallery in every click mode.
+        Assert.Contains("panel.GalleryRequested += (_, _) => StartOpenPanelMedia();", panel);
+    }
 
     [Fact]
     public void TheSidebarsCrossIsNoClickTargetWhileItIsInvisible() => OnOwnDispatcher(() =>

@@ -97,7 +97,8 @@ internal static class MediaMenuSurfacesChecks
         ContextMenu menu = page.MediaMenu ?? throw new InvalidOperationException("A right-click on a media tile did not open the shared menu.");
         Require(menu.IsOpen && page.MediaMenuSession!.Target == MediaMenuTarget.Of(bound.Entry),
             "Right-clicking the bound tile while another tile is selected did not freeze the clicked occurrence.");
-        Require(ReferenceEquals(page.Grid.SelectedItem, other), "A right-click moved the selection.");
+        // MD-01/PT-01: the clicked tile outside the selection becomes the selection, so every entry acts on it (as Archive and Downloads do).
+        Require(ReferenceEquals(page.Grid.SelectedItem, bound) && page.Grid.Selection.Count == 1, "A right-click outside the selection must select the clicked tile alone.");
         string[] boundSnapshot = Snapshot(menu);
         Console.WriteLine("SMOKE media menu media page (bound): " + string.Join(" | ", boundSnapshot));
         RequireOrder(menu);
@@ -106,6 +107,36 @@ internal static class MediaMenuSurfacesChecks
             "The media page lost its own context-specific section.");
         Capture(menu, "media-page");
         menu.Close();
+
+        // MD-01: a right-click outside a multi-selection selects the clicked tile alone and the menu has no "several" note or refusals; a right-click
+        // inside it keeps the selection and every entry agrees: favourite, rate and tag, queue and export act on the selection, gallery, thread,
+        // folder, path and details say that they need a single item, and the note says so.
+        page.Grid.Selection.Clear();
+        page.Grid.Selection.Select(other.Index); page.Grid.Selection.Select(loose.Index);
+        await RightClickAsync(boundControl, shell);
+        ContextMenu outside = page.MediaMenu!;
+        Require(page.Grid.Selection.Count == 1 && ReferenceEquals(page.Grid.SelectedItem, bound) && page.MediaMenuSession!.Target == MediaMenuTarget.Of(bound.Entry)
+            && outside.Items.OfType<MenuItem>().Single(item => item.Tag as string == "media.details").Command?.CanExecute(null) == true
+            && !outside.Items.OfType<MenuItem>().Any(item => item.Tag as string == "media.menu.note"),
+            "A right-click outside a two-tile selection must target the clicked tile alone: selected " + page.Grid.Selection.Count);
+        outside.Close();
+        page.Grid.Selection.Clear();
+        page.Grid.Selection.Select(bound.Index); page.Grid.Selection.Select(other.Index);
+        await RightClickAsync(boundControl, shell);
+        ContextMenu inside = page.MediaMenu!;
+        MenuItem Entry(string id) => inside.Items.OfType<MenuItem>().Single(item => item.Tag as string == id);
+        string several = Texts.T("media.menu.reason.severalSelected");
+        Require(page.Grid.Selection.Count == 2 && inside.Items.OfType<MenuItem>().Any(item => item.Tag as string == "media.menu.note"),
+            "A right-click inside the selection must keep it and say that the actions apply to it: selected " + page.Grid.Selection.Count);
+        foreach (string single in new[] { "media.open", "gallery.show-in-thread", "media.show-in-folder", "media.copy-path", "media.details" })
+            Require(Entry(single).Command?.CanExecute(null) != true && (AutomationProperties.GetHelpText(Entry(single)) ?? string.Empty).Contains(several),
+                "Inside a multi-selection the one-file entry " + single + " must say that it needs a single item: " + AutomationProperties.GetHelpText(Entry(single)));
+        foreach (string whole in new[] { "favorites.toggle", "media.rating.edit", "media.queue.add", "media.export-original" })
+            Require(!(AutomationProperties.GetHelpText(Entry(whole)) ?? string.Empty).Contains(several),
+                "Inside a multi-selection " + whole + " must act on the selection, not refuse it: " + AutomationProperties.GetHelpText(Entry(whole)));
+        inside.Close();
+        page.Grid.Selection.Clear();
+        page.Grid.SelectedItem = other;
 
         // Rebuild: sorting replaces the rows, so the frozen menu must refuse instead of acting on a different tile.
         await RightClickAsync(boundControl, shell);

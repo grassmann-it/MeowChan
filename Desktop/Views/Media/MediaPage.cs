@@ -189,7 +189,8 @@ public sealed partial class MediaPage : UserControl
         Grid tools = BuildToolbar(); // search and filters left, the order right (MediaPage.Toolbar.cs)
         // The page grid (M1): the head follows the other pages (workspace-page-header owns the 4 dip between title and the first line,
         // margin 12/8/12/8); the lines under it (search row, chips, status, filter section) are 8 apart.
-        StackPanel header = new() { Margin = new Thickness(12, 8, 12, 8), Classes = { "workspace-page-header" } };
+        // LY-03: the title starts where every page title starts (PageHeader.PageTopOffset); the page has no margin of its own.
+        StackPanel header = new() { Margin = new Thickness(12, PageHeader.PageTopOffset, 12, 8), Classes = { "workspace-page-header" } };
         header.Children.Add(_title); header.Children.Add(_headerBody);
         _headerBody.Children.Add(_subtitle); _headerBody.Children.Add(tools); _headerBody.Children.Add(_searchCarryOffer);
         // The filter fields open as an inline section under the status line that pushes the grid down (S1, MediaPage.FilterSurface.cs);
@@ -981,17 +982,40 @@ public sealed partial class MediaPage : UserControl
         "media.details", "media.export-original", "media.show-in-folder", "media.copy-path"
     };
 
-    /// <summary>The shortcut for a menu command of one medium. Export with several selected tiles exports the selection;
-    /// the others need exactly one saved tile, like the menu entries they stand for.</summary>
+    /// <summary>The shortcut for a menu command of one medium. With several selected tiles (KB-06, never silent): export exports the selection, a
+    /// rating key rates every selected saved tile whose rating is known, and details, folder and file path say that they need a single item (the
+    /// menu's reason, in the selection note line); otherwise they need exactly one saved tile, like the menu entries they stand for.</summary>
     internal async Task RunMediaCommandByShortcutAsync(string id)
     {
         if (id == "media.rating.edit") { await RateAndTagByKeyAsync(null); return; }
         if (_lifetime.IsCancellationRequested || _building != null || _selectionBusy || ExecuteMediaMenuActionAsync == null) return;
         if (id == "media.export-original" && _grid.Selection.Count > 1) { await ExportSelectionAsync(); return; }
+        if (_grid.Selection.Count > 1)
+        {
+            if (!id.StartsWith("media.rating.", StringComparison.Ordinal)) { ShowSelectionNote(MediaMenuReasons.SeveralSelected); return; }
+            await RateSelectionByShortcutAsync(id);
+            return;
+        }
         if (_grid.Selection.Count != 1 || SelectedRow is not { } row || row.Entry.Presence != MediaLibraryPresence.Present) return;
         if (id.StartsWith("media.rating.", StringComparison.Ordinal) && row.State?.RatingKnown != true) return;
         bool Current() => !_lifetime.IsCancellationRequested && _building == null && IsEffectivelyVisible;
         await ExecuteMediaActionAsync(id, row.Entry, Current);
+    }
+
+    // A rating key with several selected tiles: the same rating action for each selected saved tile whose rating is known, one after the other,
+    // against the rows of the moment (a re-present ends the run). Tiles that cannot be rated are left alone.
+    private async Task RateSelectionByShortcutAsync(string id)
+    {
+        object? rows = _grid.ItemsSource;
+        bool Current() => !_lifetime.IsCancellationRequested && _building == null && IsEffectivelyVisible && ReferenceEquals(rows, _grid.ItemsSource);
+        MediaLibraryTileRow[] targets = _grid.Selection.SelectedItems.OfType<MediaLibraryTileRow>()
+            .Where(row => row.Entry.Presence == MediaLibraryPresence.Present && row.State?.RatingKnown == true).ToArray();
+        if (targets.Length == 0) { ShowSelectionNote(MediaMenuReasons.Unavailable); return; } // nothing to rate: say so, never silent
+        foreach (MediaLibraryTileRow row in targets)
+        {
+            if (!Current()) return;
+            await ExecuteMediaActionAsync(id, row.Entry, Current);
+        }
     }
 
     /// <summary>
@@ -1115,7 +1139,7 @@ public sealed partial class MediaPage : UserControl
         if (e.Handled || _lifetime.IsCancellationRequested || !IsEffectivelyVisible
             || IsNativeContextSource(e.Source) || IsTileTagChip(e.Source)
             || !e.GetCurrentPoint(_grid).Properties.IsRightButtonPressed) return;
-        MediaLibraryTileRow? row = RowAt(e.Source);
+        MediaLibraryTileRow? row = TargetForMenu(RowAt(e.Source));
         // MP5: a right click on empty grid space (no tile under the pointer) opens the layout menu, also while a tile is selected.
         OpenSharedMediaMenu(row, ResolveMenuOrigin(e.Source, row));
         _sharedPointerContext.MenuOpenedByPress();
@@ -1129,7 +1153,7 @@ public sealed partial class MediaPage : UserControl
     {
         _sharedPointerContext.Reset(); // a key ends a pointer gesture whose release never came (a menu popup took it)
         if (!IsContextKey(e) || IsTileTagChip(e.Source)) return; // a tag chip has its own menu (the chip's host opens it)
-        MediaLibraryTileRow? row = RowAt(e.Source) ?? SelectedRow;
+        MediaLibraryTileRow? row = TargetForMenu(RowAt(e.Source)) ?? SelectedRow;
         OpenSharedMediaMenu(row, ResolveMenuOrigin(e.Source, row));
         e.Handled = true;
     }
@@ -1142,9 +1166,19 @@ public sealed partial class MediaPage : UserControl
             e.Handled = true;
             return;
         }
-        MediaLibraryTileRow? row = RowAt(e.Source) ?? SelectedRow;
+        MediaLibraryTileRow? row = TargetForMenu(RowAt(e.Source)) ?? SelectedRow;
         OpenSharedMediaMenu(row, ResolveMenuOrigin(e.Source, row));
         e.Handled = true;
+    }
+
+    // MD-01/PT-01 (17.11.2026), as Archive and Downloads do: a tile outside the selection becomes the selection before its menu opens, so every entry
+    // acts on the clicked tile; a tile inside a multi-selection keeps the selection and the menu acts on all of it.
+    private MediaLibraryTileRow? TargetForMenu(MediaLibraryTileRow? row)
+    {
+        if (row == null || row.Index < 0 || row.Index >= _tiles.Count || _grid.Selection.IsSelected(row.Index)) return row;
+        _grid.Selection.Clear();
+        _grid.Selection.Select(row.Index);
+        return row;
     }
 
     private void OpenSharedMediaMenu(MediaLibraryTileRow? row, Control origin, ReaderInlineVideoSlot? playback = null)
@@ -1187,20 +1221,28 @@ public sealed partial class MediaPage : UserControl
         (IReadOnlyList<MediaLibraryEntry> galleryWindow, int galleryStart) = MediaLibraryView.GalleryWindow(_shown, PresentPositions, row.Index);
         MediaLibraryEntryState? state = row.State;
         int selectedCount = _grid.Selection.Count;
-        bool several = selectedCount > 1;
+        // Several: the clicked tile is one of several selected (a tile outside the selection was made the selection, TargetForMenu); every entry then
+        // acts on the selection frozen now, and the one-file entries (details, folder, path, gallery, thread) say why they are off.
+        bool several = selectedCount > 1 && _grid.Selection.IsSelected(row.Index);
         bool hostActions = ExecuteMediaMenuActionAsync != null;
         IReadOnlyList<MediaLibraryTile>? queueTiles = several ? SelectedTiles : null;
+        MediaLibraryTileRow[] favoriteRows = several ? _grid.Selection.SelectedItems.OfType<MediaLibraryTileRow>().ToArray() : [row];
+        bool?[] favoriteStates = favoriteRows.Select(selected => FavoriteKeyState(selected, PendingFavorite)).ToArray();
         MediaMenuFacts facts = new(MediaMenuSurface.MediaPage, MediaMenuTarget.Of(entry))
         {
             Present = entry.Presence == MediaLibraryPresence.Present,
             GalleryWired = galleryStart >= 0 && (OpenGallery != null || hostActions),
             SeveralSelected = several,
-            Favorite = state?.Favorite switch
-            {
-                MediaLibraryFlag.Yes => MediaMenuFavorite.On,
-                MediaLibraryFlag.No => MediaMenuFavorite.Off,
-                _ => MediaMenuFavorite.Unknown
-            },
+            // Several: "Remove from favorites" when every writable selected tile is a favourite, else "Add" (the F key's rule, FavoriteKeys).
+            Favorite = several
+                ? !favoriteStates.Any(known => known != null) ? MediaMenuFavorite.Unknown
+                    : favoriteStates.All(known => known != false) ? MediaMenuFavorite.On : MediaMenuFavorite.Off
+                : state?.Favorite switch
+                {
+                    MediaLibraryFlag.Yes => MediaMenuFavorite.On,
+                    MediaLibraryFlag.No => MediaMenuFavorite.Off,
+                    _ => MediaMenuFavorite.Unknown
+                },
             FavoriteWired = hostActions,
             RatingWired = hostActions,
             RatingKnown = state?.RatingKnown == true,
@@ -1224,11 +1266,14 @@ public sealed partial class MediaPage : UserControl
         Dictionary<MediaMenuAction, Func<Task>> handlers = new()
         {
             [MediaMenuAction.Open] = () => OpenMediaMenuAsync(entry, galleryWindow, galleryStart, Current),
-            [MediaMenuAction.Favorite] = () => ExecuteMediaActionAsync("favorites.toggle", entry, Current),
+            [MediaMenuAction.Favorite] = several
+                ? () => Current() ? FavoriteKeyTask = WriteFavoriteKeyAsync(FavoriteKeyAction.Toggle, favoriteRows) : Task.CompletedTask
+                : () => ExecuteMediaActionAsync("favorites.toggle", entry, Current),
             [MediaMenuAction.RateAndTag] = () => OpenRateAndTagAsync(entry, row, origin, Current, focusRating: true),
             // One tile: that tile. Several selected: the selection frozen now, like the selection actions below.
             [MediaMenuAction.Queue] = queueTiles is { Count: > 1 } ? () => AddTilesToQueueAsync(queueTiles) : () => AddEntryToQueueAsync(entry),
-            [MediaMenuAction.Export] = () => ExecuteMediaActionAsync("media.export-original", entry, Current),
+            [MediaMenuAction.Export] = several ? () => Current() ? ExportSelectionAsync() : Task.CompletedTask
+                : () => ExecuteMediaActionAsync("media.export-original", entry, Current),
             [MediaMenuAction.ShowInFolder] = () => ExecuteMediaActionAsync("media.show-in-folder", entry, Current),
             [MediaMenuAction.CopyPath] = () => ExecuteMediaActionAsync("media.copy-path", entry, Current),
             [MediaMenuAction.Details] = () => ExecuteMediaActionAsync("media.details", entry, Current),
@@ -1238,8 +1283,7 @@ public sealed partial class MediaPage : UserControl
         };
         // Everything below the common section belongs to this page: it works on the grid, not on one medium.
         List<Control> context = new();
-        if (selectedCount > 0 && !(selectedCount == 1 && ReferenceEquals(SelectedRow, row)))
-            context.Add(MediaMenuBuilder.Note(Texts.T("media.menu.note.selection", selectedCount)));
+        if (several) context.Add(MediaMenuBuilder.Note(Texts.T("media.menu.note.selection", selectedCount)));
         context.Add(MediaMenuBuilder.ContextItem(session, "media.filter.onlyThread", () => { FilterToThread(entry); return Task.CompletedTask; },
             () => !several, Run, MediaMenuReasons.SeveralSelected, MenuIcon("tags.filter-only")));
         context.Add(MediaMenuBuilder.ContextItem(session, "media.occurrences", () => { ShowOccurrences(tile); return Task.CompletedTask; },

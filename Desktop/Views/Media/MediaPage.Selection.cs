@@ -25,7 +25,10 @@ namespace MeowChan;
 public sealed partial class MediaPage
 {
     // UX review 17.11.2026: the line reads "N selected", the actions, then (only while the index is being built) the muted reason after the last
-    // action. The counter keeps room for four digits (tabular figures), so the actions keep their x whether the reason shows or the count grows.
+    // action. The counter keeps room for as many digits as the shown tile count has (at most four, tabular figures), so the actions keep their x
+    // whether the reason shows or the count grows. The line never wraps (a second line at the first selection moved the grid): where the actions do
+    // not fit with "Clear selection", that button says "Clear" (full text as tooltip and accessible name), then actions move under its More
+    // (FitSelectionLine).
     private readonly ReservedTextBlock _selectionText = new() { Name = "MediaSelectionStatus", Classes = { "tnum" }, TextWrapping = Avalonia.Media.TextWrapping.NoWrap, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
     private readonly TextBlock _selectionReason = new() { Name = "MediaSelectionReason", Classes = { "muted" }, IsVisible = false, TextWrapping = Avalonia.Media.TextWrapping.NoWrap,
         TextTrimming = Avalonia.Media.TextTrimming.CharacterEllipsis, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) };
@@ -73,6 +76,8 @@ public sealed partial class MediaPage
         DockPanel.SetDock(_selectionActions, Dock.Left);
         _selectionRow.Children.Add(_selectionActions);
         _selectionRow.Children.Add(_selectionReason);
+        _selectionRow.SizeChanged += (_, e) => { if (e.WidthChanged) FitSelectionLine(); };
+        _selectionActions.SizeChanged += (_, _) => FitSelectionLine();
         _selTag.Click += async (_, _) => await TagSelectionAsync();
         _selGallery.Click += (_, _) => OpenActions.Start(OpenSelectionGalleryAsync, "media.selection.gallery");
         _selExport.Click += async (_, _) => await ExportSelectionAsync();
@@ -84,11 +89,11 @@ public sealed partial class MediaPage
 
     private void LocalizeSelection()
     {
-        _selectionText.ReserveText = Texts.T("media.selection.count", 8888); // four digits, tabular figures
         _selTag.Content = Texts.T("media.selection.tag");
         _selGallery.Content = Texts.T("media.selection.gallery");
         _selExport.Content = Texts.T("media.selection.export");
-        _selClear.Content = Texts.T("media.selection.clear");
+        ApplyClearLabel();
+        ResetSelectionFit();
         LocalizeQueue();
         LocalizeExportAll();
         UpdateSelectionBar();
@@ -165,6 +170,7 @@ public sealed partial class MediaPage
             _selectionShown = hasSelection;
             ApplyLayoutPlan();
         }
+        _selectionText.ReserveText = Texts.T("media.selection.count", CounterReserveSample(_tiles.Count));
         _selectionText.Text = count == 0 ? string.Empty
             : notSaved > 0 ? Texts.T("media.selection.countNotSaved", count, notSaved) : Texts.T("media.selection.count", count);
         // After the last action, never before the actions: they keep their place whether the index is being built or not. The full sentence is the
@@ -183,6 +189,99 @@ public sealed partial class MediaPage
         RefreshWorkView();
         if (count == 0 && !_selectionBusy) { _folderNoteShown = false; ShowSelectionNote(null); }
         UpdateFolderVersionNote(count);
+    }
+
+    /// <summary>The widest count the counter keeps room for: as many 8s as the shown tile count has digits (a selection cannot be larger), 1 to 4.</summary>
+    internal static int CounterReserveSample(int shownTiles)
+    {
+        int digits = Math.Clamp(Math.Max(0, shownTiles).ToString(System.Globalization.CultureInfo.InvariantCulture).Length, 1, 4);
+        return digits switch { 1 => 8, 2 => 88, 3 => 888, _ => 8888 };
+    }
+
+    // How far the line gave way to its width (FitSelectionLine): 0 all actions with "Clear selection", 1 "Clear", 2 Export under More, 3 Tag together
+    // too, 4 Add to tagging queue too. Never more than the line needs, decided from the full widths, not from what shows now.
+    private int _selectionLevel;
+    private readonly Dictionary<Control, double> _selectionWidths = new();
+
+    /// <summary>Whether "Clear selection" says "Clear" now because the line has no room for the full label (tests and smokes).</summary>
+    internal bool ClearLabelShortened => _selectionLevel >= 1;
+
+    /// <summary>The actions the line's width moved under its More (⋯), in the order they leave (tests and smokes).</summary>
+    internal IReadOnlyList<Control> SelectionActionsMovedByWidth => SelectionMovedByWidth(_selectionLevel);
+
+    private List<Control> SelectionMovedByWidth(int level)
+    {
+        List<Control> moved = new();
+        if (level >= 2) moved.Add(_selExport);
+        if (level >= 3) moved.Add(_selTag);
+        if (level >= 4) moved.Add(_selQueue);
+        return moved;
+    }
+
+    private void ApplyClearLabel()
+    {
+        string full = Texts.T("media.selection.clear");
+        _selClear.Content = _selectionLevel >= 1 ? Texts.T("media.selection.clear.short") : full;
+        AutomationProperties.SetName(_selClear, full);
+        ToolTip.SetTip(_selClear, full);
+    }
+
+    // After the work view decided (RefreshWorkView): what the line's width moves under More is hidden like what the view moves; More lists both.
+    private void ApplySelectionLevel()
+    {
+        foreach (Control moved in SelectionMovedByWidth(_selectionLevel)) moved.IsVisible = false;
+    }
+
+    // A new language: every label has another width; measure the line again from the full layout.
+    private void ResetSelectionFit()
+    {
+        _selectionWidths.Clear();
+        if (_selectionLevel == 0) return;
+        _selectionLevel = 0;
+        ApplyClearLabel();
+        RefreshWorkView();
+    }
+
+    // The selection line stays one line (a second line at the first selection moved the grid): the counter and the actions must fit the line's width.
+    // Where they do not, the line gives way in steps: "Clear selection" says "Clear" (full text as tooltip and accessible name), then Export, Tag
+    // together and Add to tagging queue move under the line's More (⋯). Every step is computed from the full widths (remembered while each part showed),
+    // whichever step shows now, so it cannot switch back and forth.
+    private void FitSelectionLine()
+    {
+        if (_lifetime.IsCancellationRequested || !_selectionRow.IsVisible || TopLevel.GetTopLevel(_selectionRow) == null) return;
+        double available = _selectionRow.Bounds.Width;
+        if (available <= 0) return;
+        foreach (Control child in _selectionActions.Children)
+            if (child.IsVisible && child.IsMeasureValid && child.DesiredSize.Width > 0 && !(ReferenceEquals(child, _selClear) && _selectionLevel >= 1))
+                _selectionWidths[child] = child.DesiredSize.Width;
+        if (!_selectionWidths.TryGetValue(_selClear, out double clearFull)) return; // not laid out with its full label yet
+        double clearShort = clearFull - Math.Max(0, LabelWidth(Texts.T("media.selection.clear")) - LabelWidth(Texts.T("media.selection.clear.short")));
+        bool viewOverflow = _selectionViewOverflow.Count > 0;
+        double Width(Control control) => _selectionWidths.TryGetValue(control, out double width) ? width : control.DesiredSize.Width;
+        double Needed(int level)
+        {
+            List<Control> moved = SelectionMovedByWidth(level);
+            List<double> parts = new() { Width(_selectionText) };
+            foreach (Control action in new Control[] { _selQueue, _selTag, _selGallery, _selExport })
+                if (!_selectionViewOverflow.Contains(action) && !moved.Contains(action)) parts.Add(Width(action));
+            if (viewOverflow || moved.Count > 0) parts.Add(_selectionWidths.TryGetValue(_selMore, out double more) ? more : 32);
+            parts.Add(level >= 1 ? clearShort : clearFull);
+            return parts.Sum() + _selectionActions.ItemSpacing * (parts.Count - 1);
+        }
+        int level = 0;
+        while (level < 4 && Needed(level) > available + 0.5) level++;
+        if (level == _selectionLevel) return;
+        _selectionLevel = level;
+        ApplyClearLabel();
+        RefreshWorkView();
+    }
+
+    // The width of a label in the clear button's font (the button is in a window: text shaping is there).
+    private double LabelWidth(string text)
+    {
+        TextBlock measure = new() { Text = text, FontFamily = _selClear.FontFamily, FontSize = _selClear.FontSize, FontWeight = _selClear.FontWeight, FontStyle = _selClear.FontStyle };
+        measure.Measure(Size.Infinity);
+        return measure.DesiredSize.Width;
     }
 
     private int NotSavedSelected()

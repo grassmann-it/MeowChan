@@ -208,6 +208,8 @@ public partial class ArchivePage
         string? key = offered ? _thread?.Summary.Id + "\n" + post!.Id + "\n" + ReaderInlineVideoSlot.KeyOf(row!.Attachment) : null;
         slot.Offer(offered ? _inlineVideo : null, key, row?.ResolveEntry, row?.Attachment.OriginalFileName ?? row?.Attachment.MediaId ?? string.Empty,
             row?.OpenPreview);
+        // MD-03: the hand over the picture only where a single click acts (OnMediaSidebarPictureActivated); a double click opens the gallery anyway.
+        if (_mediaSidebar is { } sidebar) sidebar.SingleClickActs = slot.IsOffered || ReaderMediaSidebarRules.OpensGalleryOnPictureClick(_inlineVideo.Options);
         if (!offered) { _sidebarVideoAutoplay?.Stop(); _sidebarVideoAutoplayKey = null; }
         // A click on a video tile of the post asked for it to play here (the sidebar presents it now).
         if (_sidebarPlayRequested) { _sidebarPlayRequested = false; if (offered) _ = slot.PlayAsync(); }

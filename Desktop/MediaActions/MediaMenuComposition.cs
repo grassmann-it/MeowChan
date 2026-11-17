@@ -217,12 +217,14 @@ internal static class MediaMenuComposition
             NeedsFile() ?? facts.QueueBlocked ?? MediaMenuReasons.Unavailable);
         Add(MediaMenuAction.Export, "media.export-original", CommandCatalog.Label("media.export-original"),
             facts.Present && facts.ExportWired, NeedsFile() ?? MediaMenuReasons.Unavailable);
+        // One file each (MD-01/KB-06): with several selected they say so instead of acting on one of them; the other entries act on the selection.
+        string? OneFile() => NeedsFile() ?? (facts.SeveralSelected ? MediaMenuReasons.SeveralSelected : null);
         Add(MediaMenuAction.ShowInFolder, "media.show-in-folder", CommandCatalog.Label("media.show-in-folder"),
-            facts.Present && facts.FolderWired, NeedsFile() ?? MediaMenuReasons.Unavailable);
+            facts.Present && facts.FolderWired && !facts.SeveralSelected, OneFile() ?? MediaMenuReasons.Unavailable);
         Add(MediaMenuAction.CopyPath, "media.copy-path", CommandCatalog.Label("media.copy-path"),
-            facts.Present && facts.CopyPathWired, NeedsFile() ?? MediaMenuReasons.Unavailable);
+            facts.Present && facts.CopyPathWired && !facts.SeveralSelected, OneFile() ?? MediaMenuReasons.Unavailable);
         Add(MediaMenuAction.Details, "media.details", CommandCatalog.Label("media.details"),
-            facts.Present && facts.DetailsWired, NeedsFile() ?? MediaMenuReasons.Unavailable);
+            facts.Present && facts.DetailsWired && !facts.SeveralSelected, OneFile() ?? MediaMenuReasons.Unavailable);
         // A post-dependent action never picks one of several posts and never acts without one.
         Add(MediaMenuAction.ShowInThread, "gallery.show-in-thread", CommandCatalog.Label("gallery.show-in-thread"),
             facts.ShowInThreadWired && facts.Posts == MediaMenuPostScope.Single && !facts.SeveralSelected,

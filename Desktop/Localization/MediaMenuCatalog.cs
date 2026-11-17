@@ -14,7 +14,7 @@ internal static class MediaMenuCatalog
         ("media.menu.reason.severalSelected", "Several items are selected. Select a single item to use this action.", "Mehrere Einträge sind ausgewählt. Für diese Aktion einen einzelnen Eintrag auswählen."),
         ("media.menu.reason.severalPosts", "This saved file belongs to several posts. Use this action from the post you mean.", "Diese gespeicherte Datei gehört zu mehreren Posts. Die Aktion beim gemeinten Post verwenden."),
         ("media.menu.reason.providerPost", "The provider's post address is not available.", "Die Post-Adresse des Anbieters ist nicht verfügbar."),
-        ("media.menu.note.selection", "These actions apply to the item you clicked. The selection actions below apply to all selected items ({0}).", "Diese Aktionen gelten für den angeklickten Eintrag. Die Auswahlaktionen darunter gelten für alle ausgewählten Einträge ({0})."),
+        ("media.menu.note.selection", "These actions apply to all selected items ({0}). Details, folder and file path need a single item.", "Diese Aktionen gelten für alle ausgewählten Einträge ({0}). Details, Ordner und Dateipfad brauchen einen einzelnen Eintrag."),
         ("media.menu.details.posts", "Posts: {0}", "Anzahl Posts: {0}")
     };
 }

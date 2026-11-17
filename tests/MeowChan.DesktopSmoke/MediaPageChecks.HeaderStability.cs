@@ -133,6 +133,23 @@ internal static partial class MediaPageChecks
                     buttons.Select(button => button.IsEffectivelyVisible ? Math.Round(X(button, page), 1) : double.NaN).ToArray(), page.ToolbarLevel.ToString());
             }
 
+            // (e) The selection line is one line (counter and actions share one y) and the grid does not move when the selection starts: its card's top
+            // is where it was with nothing selected (coordinator 17.11.: a wrap at the first selection is exactly the jump being removed).
+            Panel actions = C<Panel>(page, "MediaSelectionActions");
+            Control gridCard = C<Control>(page, "MediaGridSurface");
+            double GridTop() { page.UpdateLayout(); return gridCard.TranslatePoint(default, page)!.Value.Y; }
+            void RequireOneLine(string cell, string state, double gridTopNone)
+            {
+                page.UpdateLayout();
+                double[] ys = actions.Children.Where(child => child.IsVisible).Select(child => Math.Round(child.TranslatePoint(new Point(0, child.Bounds.Height / 2), page)!.Value.Y)).Distinct().ToArray();
+                if (ys.Length != 1)
+                    failures.Add("(e) " + cell + " " + state + ": the selection line wrapped onto " + ys.Length + " lines (Clear short: " + page.ClearLabelShortened + ", under More: "
+                        + string.Join(",", page.SelectionActionsMovedByWidth.Select(control => control.Name)) + ")");
+                double top = GridTop();
+                if (Math.Abs(top - gridTopNone) > 0.5)
+                    failures.Add("(e) " + cell + " " + state + ": the grid moved from " + F(gridTopNone) + " to " + F(top) + " when the selection line showed.");
+            }
+
             void Capture(string name)
             {
                 if (captures == null) return;
@@ -160,17 +177,17 @@ internal static partial class MediaPageChecks
                 await UntilAsync(() => AutomationName(C<Control>(page, "MediaSort")) == Texts.T("media.sort"));
                 string cell = code + "-" + theme + "-" + width.ToString(CultureInfo.InvariantCulture);
                 await SelectAsync(0);
-                HeaderBounds none = Measure(); Record(cell, "none", none); Capture("header-" + cell + "-none");
+                HeaderBounds none = Measure(); Record(cell, "none", none); double gridTopNone = GridTop(); Capture("header-" + cell + "-none");
                 await SelectAsync(1);
-                HeaderBounds one = Measure(); Record(cell, "one", one); Capture("header-" + cell + "-one");
+                HeaderBounds one = Measure(); Record(cell, "one", one); RequireOneLine(cell, "one", gridTopNone); Capture("header-" + cell + "-one");
                 await SelectAsync(12);
-                HeaderBounds twelve = Measure(); Record(cell, "twelve", twelve); Capture("header-" + cell + "-twelve");
+                HeaderBounds twelve = Measure(); Record(cell, "twelve", twelve); RequireOneLine(cell, "twelve", gridTopNone); Capture("header-" + cell + "-twelve");
                 await SelectAsync(1);
                 holding = true;
                 ClickRaise(C<Button>(page, "MediaRefresh"));
                 await UntilAsync(() => !buttons[1].IsEnabled && !buttons[3].IsEnabled);
                 await SettleAsync();
-                HeaderBounds building = Measure(); Record(cell, "building", building); Capture("header-" + cell + "-building");
+                HeaderBounds building = Measure(); Record(cell, "building", building); RequireOneLine(cell, "building", gridTopNone); Capture("header-" + cell + "-building");
                 holding = false;
                 hold.SetResult();
                 await page.BuildTask.WaitAsync(Deadline);
