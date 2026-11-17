@@ -197,19 +197,25 @@ internal static class ReaderNavigationOverlayChecks
                 ?? throw new InvalidOperationException("The reader navigation capsule is detached from the reader surface.");
             async Task WaitHiddenAsync() => await Program.WaitUntilAsync(() => !page.ReaderNavigationShown && bar.Opacity == 0 && !bar.IsHitTestVisible,
                 () => $"The bar did not hide after the idle delay: shown={page.ReaderNavigationShown} opacity={bar.Opacity} hit={bar.IsHitTestVisible} focus={bar.IsKeyboardFocusWithin} bounds={bar.Bounds}");
-            async Task WaitShownAsync() => await Program.WaitUntilAsync(() => page.ReaderNavigationShown && bar.Opacity == 1 && bar.IsHitTestVisible,
-                () => $"The bar did not show: shown={page.ReaderNavigationShown} opacity={bar.Opacity} hit={bar.IsHitTestVisible}; {page.ReaderNavigationDebugState}");
             if (MotionPolicy.IsOff)
                 Require(bar.Transitions is not { Count: > 0 }, "The bar fades although motion is off.");
             // Idle: hidden, and clicks go to the content below it.
-            await Dispatcher.UIThread.InvokeAsync(() => page.NotifyReaderPointerMoved(far));
-            await WaitShownAsync();
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                page.NotifyReaderPointerMoved(far);
+                Require(page.ReaderNavigationShown && bar.Opacity == 1 && bar.IsHitTestVisible,
+                    "Pointer activity did not reveal the reader navigation capsule.");
+            });
             await WaitHiddenAsync();
             Visual? idleHit = window.InputHitTest(onBar) as Visual;
             Require(idleHit == null || !idleHit.GetSelfAndVisualAncestors().Contains(bar), "The hidden bar still takes clicks.");
             // Any pointer movement over the reader shows it again.
-            await Dispatcher.UIThread.InvokeAsync(() => page.NotifyReaderPointerMoved(far));
-            await WaitShownAsync();
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                page.NotifyReaderPointerMoved(far);
+                Require(page.ReaderNavigationShown && bar.Opacity == 1 && bar.IsHitTestVisible,
+                    "A second pointer activity did not reveal the reader navigation capsule.");
+            });
             Button nextPost = page.FindControl<Button>("ReaderNextPost")!;
             await RequireHitAsync(window, Bounds(nextPost, window).Center, nextPost, () => "The shown bar is not clickable");
             await WaitHiddenAsync();
@@ -218,11 +224,15 @@ internal static class ReaderNavigationOverlayChecks
             await WaitShownAsync();
             await Task.Delay(1400);
             Require(page.ReaderNavigationShown && bar.Opacity == 1, "The bar hid while the pointer rested on it.");
-            page.NotifyReaderPointerMoved(far);
+            await Dispatcher.UIThread.InvokeAsync(() => page.NotifyReaderPointerMoved(far));
             await WaitHiddenAsync();
             // Keyboard focus keeps it shown; losing focus lets it hide.
-            page.FindControl<Button>("ReaderNextPost")!.Focus();
-            await WaitShownAsync();
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                Require(page.FindControl<Button>("ReaderNextPost")!.Focus(), "Reader navigation focus could not be assigned.");
+                Require(page.ReaderNavigationShown && bar.Opacity == 1 && bar.IsHitTestVisible,
+                    "Keyboard focus did not reveal the reader navigation capsule.");
+            });
             await Task.Delay(1400);
             Require(page.ReaderNavigationShown && bar.Opacity == 1, "The bar hid while it had keyboard focus.");
             Require(page.FindControl<Button>("ArchiveCloseReader")!.Focus() && !bar.IsKeyboardFocusWithin, "Focus did not leave the bar.");

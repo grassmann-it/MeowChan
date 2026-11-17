@@ -811,9 +811,12 @@ public partial class ArchivePage
         if (!ReaderNavigation.IsVisible) ReaderNavigation.IsVisible = true;
         // Keep a changed delay effective even when the existing timer is already running.
         // This matters for settings/smoke transitions that re-arm Auto without recreating it.
+        // Restart rather than only changing the interval. A queued tick from an earlier,
+        // shorter delay can otherwise fire immediately after a new pointer/keyboard reveal
+        // and hide the capsule before the UI has observed the reveal.
+        _readerNavigationIdleTimer.Stop();
         _readerNavigationIdleTimer.Interval = TimeSpan.FromMilliseconds(_readerNavigationIdleDelayMs);
-        if (!_readerNavigationIdleTimer.IsEnabled)
-            _readerNavigationIdleTimer.Start();
+        _readerNavigationIdleTimer.Start();
         // Refresh the hit-test state even when the timer was already armed. Layout/theme/tab
         // changes can hide the bar while the activity flag remains true; a fresh pointer move
         // or keyboard command must restore the whole capsule, including its gap surface.
