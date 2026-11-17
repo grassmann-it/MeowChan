@@ -243,6 +243,7 @@ internal static partial class SmokeScenarios
         {
             await FooterNavigationChecks.RunAsync(mainWindow);
             await BrandNavigationChecks.RunAsync(mainWindow);
+            await PageTitleOffsetChecks.RunAsync(mainWindow);
         }),
         ["statistics"] = new(SmokeStage.AfterCommandRefresh, mainWindow => StatisticsChecks.RunAsync(mainWindow))
         {

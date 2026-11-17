@@ -7,6 +7,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Primitives;
 using Avalonia.Media;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 
 namespace MeowChan.Desktop.Controls;
@@ -87,6 +88,19 @@ internal sealed class MenuLayout : AvaloniaObject
     public static bool GetIsManaged(Control control) => control.GetValue(IsManagedProperty);
     public static void SetIsManaged(Control control, bool value) => control.SetValue(IsManagedProperty, value);
 
+    /// <summary>
+    /// Opt-in for the submenu popup of a menu bar item (the header's "⋯" menu, <c>Menu &gt; MenuItem</c>): it is no <see cref="MenuBase"/>, so
+    /// <see cref="IsManagedProperty"/> cannot reach it, and a label that is longer than the menu was cut off at the edge of its column
+    /// mid-letter (ST-06). Every time the submenu opens, its rows get the same treatment as in a context menu: a label that does not fit ends
+    /// in an ellipsis and says its full text as a tooltip (<see cref="TrimSubmenuRows"/>). A row that opens a submenu of its own takes part
+    /// as well. The width of the popup stays the theme's (the menu tokens already cap it); only the labels give way to it.
+    /// </summary>
+    public static readonly AttachedProperty<bool> IsSubmenuManagedProperty =
+        AvaloniaProperty.RegisterAttached<MenuLayout, MenuItem, bool>("IsSubmenuManaged");
+
+    public static bool GetIsSubmenuManaged(MenuItem item) => item.GetValue(IsSubmenuManagedProperty);
+    public static void SetIsSubmenuManaged(MenuItem item, bool value) => item.SetValue(IsSubmenuManagedProperty, value);
+
     private sealed class State
     {
         internal int Passes;
@@ -100,6 +114,83 @@ internal sealed class MenuLayout : AvaloniaObject
     static MenuLayout()
     {
         IsManagedProperty.Changed.AddClassHandler<MenuBase>(OnManagedChanged);
+        IsSubmenuManagedProperty.Changed.AddClassHandler<MenuItem>(OnSubmenuManagedChanged);
+    }
+
+    // The submenus that already listen for their opening (the property may be switched off and on again; one listener is enough).
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<MenuItem, object> ManagedSubmenus = new();
+    private static readonly object Marker = new();
+
+    // The tip a row got from the layout (not one of its own): kept to replace it when the label changes with the language, or drop it when
+    // the label fits again.
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<MenuItem, string> OwnTips = new();
+
+    // Looking at the rows is retried a few times: they get their template with the first layout of the popup, after the opening.
+    private const int MaxSubmenuPasses = 8;
+
+    private static void OnSubmenuManagedChanged(MenuItem owner, Avalonia.AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.NewValue is not true || !ManagedSubmenus.TryAdd(owner, Marker)) return;
+        owner.PropertyChanged += (_, args) =>
+        {
+            if (args.Property == MenuItem.IsSubMenuOpenProperty && args.NewValue is true) OnSubmenuOpened(owner);
+        };
+        if (owner.IsSubMenuOpen) OnSubmenuOpened(owner);
+    }
+
+    private static void OnSubmenuOpened(MenuItem owner)
+    {
+        // A row with a submenu of its own is managed too, whatever was added to the menu since the last opening.
+        foreach (MenuItem row in owner.Items.OfType<MenuItem>().Where(row => row.Items.Count > 0)) SetIsSubmenuManaged(row, true);
+        int pass = 0;
+        void Look()
+        {
+            if (!owner.IsSubMenuOpen) return;
+            if (TrimSubmenuRows(owner) || ++pass >= MaxSubmenuPasses) return;
+            Dispatcher.UIThread.Post(Look, DispatcherPriority.Loaded);
+        }
+        // After the first layout and render of the popup, when its rows have their template and size.
+        Dispatcher.UIThread.Post(Look, DispatcherPriority.Loaded);
+    }
+
+    /// <summary>
+    /// One look at the open submenu of <paramref name="owner"/>: every text label is set to trim with an ellipsis, and a label that is wider
+    /// than the room its row gives it carries its full text as a tooltip (a row with a tip of its own keeps it). False while no row has been
+    /// laid out yet (a later pass looks again).
+    /// </summary>
+    internal static bool TrimSubmenuRows(MenuItem owner)
+    {
+        bool laidOut = false;
+        foreach (MenuItem row in owner.Items.OfType<MenuItem>().Where(row => row.IsVisible))
+        {
+            if (Part(row, "PART_HeaderPresenter") is not ContentPresenter { Child: TextBlock { TextWrapping: TextWrapping.NoWrap } block } header
+                || header.Bounds.Width <= 0) continue;
+            laidOut = true;
+            if (block.TextTrimming != TextTrimming.CharacterEllipsis) block.TextTrimming = TextTrimming.CharacterEllipsis;
+            bool trimmed = block.Text is { Length: > 0 } && NaturalLabelWidth(header) > header.Bounds.Width + 0.5;
+            TipSubmenuRow(row, trimmed ? block.Text : null);
+        }
+        return laidOut;
+    }
+
+    /// <summary>Gives <paramref name="row"/> the tip <paramref name="text"/> (null: the label fits, no tip is needed); see <see cref="TrimSubmenuRows"/>.</summary>
+    internal static void TipSubmenuRow(MenuItem row, string? text)
+    {
+        object? current = ToolTip.GetTip(row);
+        bool ours = OwnTips.TryGetValue(row, out string? previous) && Equals(current, previous);
+        // A row that brings a tip of its own (every command row: label and shortcut) is left alone.
+        if (current != null && !ours) return;
+        if (text != null)
+        {
+            if (ours && previous == text) return;
+            ToolTip.SetTip(row, text);
+            OwnTips.AddOrUpdate(row, text);
+        }
+        else if (ours)
+        {
+            ToolTip.SetTip(row, null);
+            OwnTips.Remove(row);
+        }
     }
 
     private static void OnManagedChanged(MenuBase menu, Avalonia.AvaloniaPropertyChangedEventArgs e)
