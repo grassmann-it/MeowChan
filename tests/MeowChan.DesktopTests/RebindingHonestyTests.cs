@@ -6,7 +6,7 @@ public sealed class RebindingHonestyTests
 {
     [Theory]
     [InlineData("video.loop", "post.hide", "H")]
-    [InlineData("video.loop", "media.details", "I")]
+    [InlineData("video.loop", "media.select-all", "Primary+A")]
     [InlineData("plugins.refresh", "gallery.rotate", "Shift+R")]
     public void ShadowingAndDisjointUnrelatedMeaningsBlockSaveAndAppearOnBothRows(string target, string other, string key)
     {
