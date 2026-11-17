@@ -16,7 +16,7 @@ namespace MeowChan.Desktop.Controls;
 internal static class ThemeColorsMetrics
 {
     /// <summary>The square swatch button of a row and of a preset (the input height).</summary>
-    internal const double Swatch = 32;
+    internal const double Swatch = 40;
     /// <summary>Height of the two-tone swatch of an accent preset (the width is <see cref="Swatch"/>).</summary>
     internal const double PresetSwatchHeight = 24;
     /// <summary>The hex field of a row.</summary>
