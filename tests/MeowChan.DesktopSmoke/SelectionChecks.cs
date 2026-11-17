@@ -310,6 +310,12 @@ internal static class SelectionChecks
             throw;
         }
         PressAt(window, point, modifiers, right);
+        // ContextRequested is intentionally opened on the next input turn so the
+        // DataGrid has committed the pointer selection first. Wait for that
+        // native popup instead of sampling immediately after the synthetic
+        // release; this keeps the contract about the real menu, not a timing race.
+        if (right && row.GetSelfAndVisualAncestors().OfType<DataGrid>().FirstOrDefault() is { } owner)
+            await Program.WaitUntilAsync(() => owner.ContextMenu?.IsOpen == true);
         // Complete queued native context-menu processing before the fixture closes
         // a menu or injects the next pointer action.
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
