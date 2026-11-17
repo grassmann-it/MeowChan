@@ -43,10 +43,10 @@
       <!-- The page area carries the shared page inset; the footer below it runs to the window edges. -->
       <Grid Margin="{StaticResource Workspace.Inset.Page}" RowDefinitions="Auto,*">
         <!-- Header like Sources: title and the one-line precedence subtitle; the overview's primary action sits on the right edge.
-             A centred reading column without a toolbar row (like Settings): 12 above the header on top of the page inset (24 to the
-             shell header) and 16 to the content, the gap between the overview's sections, so the first section title does not read as
-             part of the header. -->
-        <StackPanel x:Name="RulesHeader" Margin="0,12,0,16" MaxWidth="880" HorizontalAlignment="Center">
+             A centred reading column without a toolbar row (like Settings): nothing above the header but the page inset (the title
+             starts where every page title starts, PageHeader.PageTopOffset; LY-03) and 16 to the content, the gap between the overview's
+             sections, so the first section title does not read as part of the header. -->
+        <StackPanel x:Name="RulesHeader" Margin="0,0,0,16" MaxWidth="880" HorizontalAlignment="Center">
             <!-- The shared page head (PageHeader): Create rule and the help top right while they leave the title its room, else under it. -->
             <controls:PageHeader x:Name="RulesHeaderRow">
                 <StackPanel Classes="workspace-page-header">

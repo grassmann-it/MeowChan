@@ -156,7 +156,8 @@ public sealed partial class TaggingPage : UserControl
         _filterPanel.Children.Add(_filterLabel);
         _filterPanel.Children.Add(_filter);
 
-        StackPanel header = new() { Spacing = 8, Margin = new Thickness(12, 8, 12, 8) };
+        // The title starts where every page title starts (PageHeader.PageTopOffset, LY-03); the page has no margin of its own.
+        StackPanel header = new() { Spacing = 8, Margin = new Thickness(12, PageHeader.PageTopOffset, 12, 8) };
         header.Children.Add(heading);
         header.Children.Add(_error);
         header.Children.Add(BuildClearConfirmation());

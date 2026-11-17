@@ -24,6 +24,8 @@ public partial class MainWindow
     {
         if (_workViewGroupMenu != null) return;
         InitializeWorkViewSwitchNotices();
+        // The labels of the app menu end in an ellipsis when they do not fit the menu, with the full text as the tooltip (ST-06).
+        MeowChan.Desktop.Controls.MenuLayout.SetIsSubmenuManaged(WorkspaceMenuItem, true);
         _themeMenu = new MenuItem { Name = "ThemeMenuItem" };
         // The button's own handler owns the busy/restore guards and saves the choice; the menu entry only presses it.
         _themeMenu.Click += (_, _) => ThemeToggleButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -109,6 +111,9 @@ public partial class MainWindow
         CommandBindings.Apply(_fullscreenMenu, "window.fullscreen");
         CommandBindings.Apply(_viewCycleMenu, "workspace.view-cycle");
         _workViewGroupMenu.Header = Texts.T("shell.mode");
+        // The submenu parent has no command of its own: it wears the icon of the view switch ("eye"), so the row is not the one entry of
+        // the group without an icon (ST-07).
+        _workViewGroupMenu.Icon ??= CommandBindings.Icon("workspace.view-cycle");
         AutomationProperties.SetName(_workViewGroupMenu, Texts.T("shell.mode"));
         foreach ((WorkView view, MenuItem radio) in _workViewRadios)
         {
