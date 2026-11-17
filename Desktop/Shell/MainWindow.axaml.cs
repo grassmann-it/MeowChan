@@ -143,6 +143,7 @@ public partial class MainWindow : Window
             InitializeStatusColumnRedundancy();
             InitializeArchiveBridgeHint();
             InitializeAdmissionProblemTools();
+            InitializeAdmissionFollowUp();
             Texts.Changed += OnLanguageChanged;
             RecordStartupTiming(StartupTimingPoint.TrayBegin);
             try { using (MeowChan.Diagnostics.PerformanceDiagnostics.Measure("startup.ctor.tray")) SetupTrayIcon(); }
@@ -457,6 +458,7 @@ public partial class MainWindow : Window
         _sessionRowsApplied?.TrySetResult();
         _sessionRowsApplied = null;
         RefreshWorkspace();
+        TryRevealAdmittedWatch(); // DL-02: a watch that was added a moment ago may only now have its row
         _archivePage?.NotifyArchiveMediaCountsChanged();
         RefreshDiagnosticPage(complete.View); RefreshSourcesPage(complete.View);
         // Keep only the newest pending frame. Yield at a completed frame before beginning it, so inputs can
@@ -568,6 +570,8 @@ public partial class MainWindow : Window
         _experimentalAdmissionFocusReturn = focusReturn;
         string enteredText = urlInput.Text ?? string.Empty;
         bool accepted = false;
+        // DL-02: the user is adding in a row; after a successful Add the field stays the place to type the next address.
+        bool typingInField = urlInput.IsKeyboardFocusWithin || AddUrlButton.IsKeyboardFocusWithin;
         _importing = true;
         try
         {
@@ -585,6 +589,7 @@ public partial class MainWindow : Window
             try
             {
                 if (!accepted) focusReturn.Restore();
+                else if (typingInField) KeepFocusInUrlField(urlInput);
             }
             finally
             {
@@ -594,12 +599,23 @@ public partial class MainWindow : Window
         }
     }
 
+    // The busy state disables the Add button, which drops the focus when it was clicked: give it back to the field, unless the user
+    // has moved on to another control meanwhile.
+    private void KeepFocusInUrlField(TextBox urlInput)
+    {
+        if (_isClosing || !urlInput.IsEffectivelyVisible || !urlInput.IsEffectivelyEnabled || !IsActive) return;
+        object? focused = FocusManager?.GetFocusedElement();
+        if (focused == null || ReferenceEquals(focused, AddUrlButton)) urlInput.Focus();
+    }
+
     private async Task<bool> SubmitInputAsync(string? input)
     {
         if (!_restoreCompleted || _isClosing) return false;
         NoteAdmissionStart();
         _admissionResults.Clear();
         _admissionProblemsOnly = false;
+        _admissionRepairDismissed = false;
+        _admissionReveal.Cancel();
         _admissionSubmittedInput = input;
         bool allAccepted = true;
         try
@@ -632,7 +648,11 @@ public partial class MainWindow : Window
         }
         finally
         {
-            if (!_isClosing) RefreshAdmissionResults();
+            if (!_isClosing)
+            {
+                RefreshAdmissionResults();
+                RequestAdmissionReveal();
+            }
         }
     }
 
@@ -650,6 +670,9 @@ public partial class MainWindow : Window
         RefreshAdmissionProblemTools(rejected, _admissionResults.Count);
         bool problemsOnly = _admissionProblemsOnly && rejected > 0 && rejected < _admissionResults.Count;
         OfferArchiveBridgeHint(added);
+        // A URL that is already watched says where: one link per duplicate (the first few) selects its row. The links sit below the
+        // result line, so they work with the report collapsed.
+        RefreshAdmissionDuplicateLinks(problemsOnly);
         if (_admissionResults.Count == 0) return;
         // One selectable, scrollable report keeps large imports from creating a control per URL.
         TextBox report = new TextBox
@@ -672,10 +695,6 @@ public partial class MainWindow : Window
         // The read-only report is a bare TextBox: without a name a screen reader announces only "edit, read only".
         Avalonia.Automation.AutomationProperties.SetName(report, Texts.T("admission.results"));
         rows.Children.Add(report);
-        // A URL that is already watched says where: one link per duplicate (the first few) selects its row.
-        foreach (AdmissionFeedback known in _admissionResults
-                     .Where(item => !problemsOnly && item.Status == AdmissionStatus.AlreadyPresent && item.WatchId != null).Take(MaxDuplicateLinks))
-            rows.Children.Add(CreateShowInListLink(known));
         if (repairSources != null)
         {
             rows.Children.Add(new SelectableTextBlock

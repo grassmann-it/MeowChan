@@ -282,6 +282,7 @@
     "downloads.searchActive.few": "{0} výsledky · {1}",
     "downloads.searchClear": "Vymazat",
     "downloads.searchClose": "Zavřít",
+    "downloads.searchCloseTip": "Zavřít panel hledání. Esc nejprve smaže text a potom panel zavře.",
     "downloads.searchEmpty": "Tomuto filtru neodpovídá žádné stahování. Vymazáním hledání zobrazíte všechna stahování.",
     "downloads.copySessionUrls": "Kopírovat adresy URL relace ({0})",
     "downloads.copySessionUrlsHint": "Zkopíruje všechny adresy URL vláken a boardů této relace včetně položek skrytých filtrem.",

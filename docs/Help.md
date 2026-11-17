@@ -207,6 +207,18 @@ already-present entries are mixed with rejected ones, **Problems only (n)**
 neither the watches nor the download queue. If every row is a problem, there is
 nothing to filter and this checkbox is not shown.
 
+After a successful Add the first new watch is selected and scrolled into view in its
+list; the keyboard focus stays in the Add field, so the next address can be pasted at
+once. A URL that was already watched gets a **Show in list** button right below the
+result line (German: **In Liste zeigen**), also while the report is collapsed. The red
+rejection banner and the result line each have a close button, and **Esc** closes them
+while the focus is inside; the next Add clears them as before.
+
+Removing watches (Delete, the menu or **Remove** in the details) always offers one
+**Undo** button for everything removed at once, even when information notifications are
+off in Settings. The files stay; the restored watches are new watches, so their position
+and priority are not restored.
+
 Whenever any URLs were rejected, **Put rejected back into the field** (German:
 **Abgelehnte zurück ins Feld**) returns those URLs to the Add input, once each, so you can
 correct them and choose Add again. Invalid, unsupported, failed and skipped
@@ -736,7 +748,9 @@ reader's header (**Back to thread list**, **Back to gallery**, **Back to media**
 **Close reader**; German: **Zurück zur Threadliste**, **Zurück zur Galerie**,
 **Zurück zu Medien**, **Reader schließen**). Inline rows keep their × close action
 at the far right, after the row's own actions: the Downloads search bar
-(**Close**), details panel (**Hide details**, German: **Details ausblenden**),
+(**Close**, a labelled button with a chevron instead of a second ×, so it cannot be
+mistaken for the × that clears the search text; **Esc** clears the text first and then
+closes the bar), details panel (**Hide details**, German: **Details ausblenden**),
 reader find bar (**Close find**, **Suche schließen**), tag row (**Close tags**,
 **Tags schließen**) and Archive preview (**Close preview**, **Vorschau schließen**).
 The gallery keeps **Back to {target}** at the far left with the favorite star

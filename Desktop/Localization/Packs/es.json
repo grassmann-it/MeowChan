@@ -491,6 +491,7 @@
     "command.input.focus-diagnostics-search": "Buscar en el diagnóstico",
     "command.scope.input.focus-diagnostics-search": "Diagnóstico · filtro de mensajes",
     "downloads.searchClose": "Cerrar",
+    "downloads.searchCloseTip": "Cerrar la barra de búsqueda. Esc borra primero el texto y después cierra la barra.",
     "downloads.searchEmpty": "Ninguna descarga coincide con este filtro. Borre la búsqueda para mostrar todas las descargas.",
     "downloads.copySessionUrls": "Copiar URL de la sesión ({0})",
     "downloads.copySessionUrlsHint": "Copia todas las URL de hilos y tablones de esta sesión, incluidas las entradas ocultas por el filtro.",

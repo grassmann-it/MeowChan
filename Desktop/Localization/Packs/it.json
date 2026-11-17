@@ -278,6 +278,7 @@
     "downloads.searchActive": "{0} risultati · {1}",
     "downloads.searchClear": "Cancella",
     "downloads.searchClose": "Chiudi",
+    "downloads.searchCloseTip": "Chiudi la barra di ricerca. Esc cancella prima il testo, poi chiude la barra.",
     "downloads.searchEmpty": "Nessun download corrisponde a questo filtro. Cancella la ricerca per mostrare tutti i download.",
     "downloads.copySessionUrls": "Copia URL della sessione ({0})",
     "downloads.copySessionUrlsHint": "Copia tutti gli URL di thread e board di questa sessione, incluse le voci nascoste dal filtro.",

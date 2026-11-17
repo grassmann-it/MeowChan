@@ -65,6 +65,11 @@ public partial class MainWindow
     }
 
     private void OnDownloadSearchClick(object? sender, RoutedEventArgs e) => FocusDownloadSearch();
+
+    // DL-07: the close of the open bar is a labelled "Close" with the collapse chevron, not a second ×
+    // (DownloadSearchCloseButton). Esc clears the text first (SearchBox) and closes the bar from an empty field (ExitRequested, InitializeWorkspace).
+    private void LocalizeDownloadSearchClose() => DownloadSearchCloseButton.Apply(DownloadSearchClose);
+
     private void OnDownloadSearchClose(object? sender, RoutedEventArgs e)
     {
         _downloadSearchOpen = false;

@@ -282,6 +282,7 @@
     "downloads.searchActive.few": "{0} wyniki · {1}",
     "downloads.searchClear": "Wyczyść",
     "downloads.searchClose": "Zamknij",
+    "downloads.searchCloseTip": "Zamknij pasek wyszukiwania. Esc najpierw czyści tekst, a potem zamyka pasek.",
     "downloads.searchEmpty": "Żadne pobranie nie pasuje do tego filtra. Wyczyść wyszukiwanie, aby pokazać wszystkie.",
     "downloads.copySessionUrls": "Kopiuj adresy URL sesji ({0})",
     "downloads.copySessionUrlsHint": "Kopiuje wszystkie adresy URL wątków i tablic w tej sesji, łącznie z wpisami ukrytymi przez filtr.",

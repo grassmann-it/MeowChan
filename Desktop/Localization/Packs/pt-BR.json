@@ -278,6 +278,7 @@
     "downloads.searchActive": "{0} resultados · {1}",
     "downloads.searchClear": "Limpar",
     "downloads.searchClose": "Fechar",
+    "downloads.searchCloseTip": "Fechar a barra de pesquisa. Esc limpa primeiro o texto e depois fecha a barra.",
     "downloads.searchEmpty": "Nenhum download corresponde a este filtro. Limpe a pesquisa para mostrar todos os downloads.",
     "downloads.copySessionUrls": "Copiar URLs da sessão ({0})",
     "downloads.copySessionUrlsHint": "Copia todas as URLs de tópicos e boards desta sessão, incluindo entradas ocultas pelo filtro.",

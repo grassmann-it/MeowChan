@@ -489,6 +489,7 @@
     "command.input.focus-diagnostics-search": "진단 검색",
     "command.scope.input.focus-diagnostics-search": "진단 · 메시지 필터",
     "downloads.searchClose": "닫기",
+    "downloads.searchCloseTip": "검색 막대를 닫습니다. Esc는 먼저 텍스트를 지우고, 그다음 막대를 닫습니다.",
     "downloads.searchEmpty": "이 필터와 일치하는 다운로드가 없습니다. 모든 다운로드를 보려면 검색을 지우세요.",
     "downloads.copySessionUrls": "세션 URL 복사({0})",
     "downloads.copySessionUrlsHint": "필터로 숨겨진 항목을 포함해 이 세션의 모든 스레드 및 게시판 URL을 복사합니다.",
