@@ -31,24 +31,13 @@ public partial class ArchivePage
         pane.AttachedToVisualTree += (_, _) =>
         {
             _ratingCommands?.Dispose(); _ratingCommands = new(pane);
-            bool Ready() => !_ended && _available && _mediaRatingError == null && FocusedRatingEntry() is { } entry
-                && CanChangeMediaRating?.Invoke(FavoriteAssetKey.From(entry.Key.Thread, entry.Asset)) == true;
-            // R "Rate and tag" opens the popover (stars focused) on the focused file; the keys below rate it directly (Shift+1 to 5, Shift+0).
-            // Executable whenever the reader is: RateAndTagByKeyAsync (which opens through OpenRateAndTagForFocusAsync, as the toolbar button does) finds
-            // the medium (the focused one, else the selected post's or the Media tab's selection, waiting for a running media scan) and says why when
-            // there is none. Before, a key without a focused medium was consumed in silence (the router consumes a matched key whose action cannot run).
-            // A text selection in a post does not keep R: the selection has no use for a bare letter (Ctrl+C stays the selection's).
-            _ratingCommands.Register(new("media.rating.edit", pane, () => pane.IsEffectivelyVisible,
-                () => !_ended && _available,
-                () => OpenActions.Start(RateAndTagByKeyAsync, "media.rating.edit"), Priority: 100, AllowInTextSelection: true));
-            _ratingCommands.Register(new("media.rating.clear", pane, () => pane.IsEffectivelyVisible, Ready,
-                () => _ = ExecuteRatingCommandAsync(null), Priority: 100));
-            for (int value = 1; value <= 5; value++)
-            {
-                int frozen = value;
-                _ratingCommands.Register(new("media.rating.set-" + value, pane, () => pane.IsEffectivelyVisible, Ready,
-                    () => _ = ExecuteRatingCommandAsync(frozen), Priority: 100));
-            }
+            RegisterRatingCommands(pane);
+            // In the large reader the sidebar is a sibling of the pane, not its
+            // descendant.  The pane-owned router still sees the same top level,
+            // but registering the sibling explicitly makes the ownership and its
+            // visibility gate unambiguous and keeps R working when focus is on a
+            // sidebar button, frame or thumbnail.
+            if (_mediaSidebar is { } sidebar) RegisterRatingCommands(sidebar);
         };
         pane.DetachedFromVisualTree += (_, _) => { _ratingCommands?.Dispose(); _ratingCommands = null; };
         // Run before a ListBox/ListBoxItem can consume a letter for type-ahead. F has a
@@ -62,6 +51,29 @@ public partial class ArchivePage
         {
             if (!ReaderSelectionOwnsActivationKey(e)) _ratingCommands?.Route(e);
         }, RoutingStrategies.Tunnel);
+    }
+
+    private void RegisterRatingCommands(Control owner)
+    {
+        if (_ratingCommands == null) return;
+        bool Ready() => !_ended && _available && _mediaRatingError == null && FocusedRatingEntry() is { } entry
+            && CanChangeMediaRating?.Invoke(FavoriteAssetKey.From(entry.Key.Thread, entry.Asset)) == true;
+        // R "Rate and tag" opens the popover (stars focused) on the focused file; the keys below rate it directly (Shift+1 to 5, Shift+0).
+        // Executable whenever the reader is: RateAndTagByKeyAsync (which opens through OpenRateAndTagForFocusAsync, as the toolbar button does) finds
+        // the medium (the focused one, else the selected post's or the Media tab's selection, waiting for a running media scan) and says why when
+        // there is none. Before, a key without a focused medium was consumed in silence (the router consumes a matched key whose action cannot run).
+        // A text selection in a post does not keep R: the selection has no use for a bare letter (Ctrl+C stays the selection's).
+        _ratingCommands.Register(new("media.rating.edit", owner, () => owner.IsEffectivelyVisible,
+            () => !_ended && _available,
+            () => OpenActions.Start(RateAndTagByKeyAsync, "media.rating.edit"), Priority: 100, AllowInTextSelection: true));
+        _ratingCommands.Register(new("media.rating.clear", owner, () => owner.IsEffectivelyVisible, Ready,
+            () => _ = ExecuteRatingCommandAsync(null), Priority: 100));
+        for (int value = 1; value <= 5; value++)
+        {
+            int frozen = value;
+            _ratingCommands.Register(new("media.rating.set-" + value, owner, () => owner.IsEffectivelyVisible, Ready,
+                () => _ = ExecuteRatingCommandAsync(frozen), Priority: 100));
+        }
     }
 
     /// <summary>True when a selecting row owns Enter/Space activation instead of a page shortcut.</summary>

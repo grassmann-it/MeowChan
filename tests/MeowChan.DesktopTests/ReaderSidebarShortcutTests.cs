@@ -212,6 +212,21 @@ public sealed class ReaderSidebarShortcutTests
             > sidebar.IndexOf("sidebar.AddHandler(KeyDownEvent, OnMediaSidebarStepKey", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void RatingCommandsAlsoOwnTheSidebarSiblingInTheLargeReader()
+    {
+        string rating = Source("Desktop/Views/Archive/ArchivePage.RatingCommands.cs");
+        string sidebar = Source("Desktop/Views/Archive/ArchivePage.MediaSidebar.cs");
+
+        // The large-reader sidebar is beside (not below) ArchiveReaderPane. A
+        // pane-only registration can therefore disappear when focus is on the
+        // sidebar's selected thumbnail or its header controls.
+        Assert.Contains("RegisterRatingCommands(pane);", rating);
+        Assert.Contains("if (_mediaSidebar is { } sidebar) RegisterRatingCommands(sidebar);", rating);
+        Assert.Contains("if (_ratingCommands != null) RegisterRatingCommands(sidebar);", sidebar);
+        Assert.Contains("_ratingCommands.Register(new(\"media.rating.edit\", owner", rating);
+    }
+
     private static string Source(string relative, [CallerFilePath] string file = "") =>
         File.ReadAllText(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(file)!, "../..", relative)));
 }

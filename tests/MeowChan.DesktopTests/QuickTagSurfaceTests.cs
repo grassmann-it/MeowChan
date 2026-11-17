@@ -421,6 +421,28 @@ public sealed class QuickTagSurfaceTests : IDisposable
         Assert.Null(QuickTagBadges.Number(9));
     }
 
+    [Theory]
+    [InlineData(QuickTagFocus.Field, true)]
+    [InlineData(QuickTagFocus.Field, false)]
+    [InlineData(QuickTagFocus.Assigned, true)]
+    [InlineData(QuickTagFocus.Other, true)]
+    public void InitialLettersOnlyActWhenTheSuggestionStripHasFocus(object focus, bool fieldEmpty)
+    {
+        QuickTagKeyRoute route = QuickTagKeys.Route(Key.S, KeyModifiers.None, (QuickTagFocus)focus,
+            listOpen: false, fieldEmpty: fieldEmpty, navigation: false, ShortcutPlatform.Linux);
+
+        Assert.Equal(QuickTagKeyAction.None, route.Action);
+    }
+
+    [Fact]
+    public void MouseFocusRepairIsWiredForTheRatingPopoverField()
+    {
+        string source = File.ReadAllText(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(ThisFile())!, "../../Desktop/Controls/QuickTagSurface.cs")));
+        Assert.Contains("_input.AddHandler(PointerPressedEvent, OnInputPointerPressed, RoutingStrategies.Tunnel);", source);
+        Assert.Contains("e.Pointer.Type != PointerType.Mouse", source);
+        Assert.Contains("if (!_disposed && _input.IsEffectivelyEnabled) _input.Focus();", source);
+    }
+
     // ---- the control (built without an application: names, layout, chips) --------------------------------------
 
     private static (QuickTagSurface Surface, QuickTagSession Session) Surface(PrivateTagStore store, IQuickTagTarget target, IQuickTagSuggestionSource? source = null)
