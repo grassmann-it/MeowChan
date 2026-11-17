@@ -30,6 +30,11 @@ rather than only one screen.
   typing, caret movement, or IME/text-box input.
 - **Entry-point state:** opening a thread or reader from Archive/Downloads should select and show
   the first post/media immediately; an explicit enlarge action should enlarge that selected item.
+- **Bookmark affordance gap:** the Archive thread-selection menu now exposes the shared Post bookmarks
+  manager, while post-level actions remain available from reader/media context menus. Verify that
+  Archive, Thread Reader, and Media/sidebar keep one consistent bookmark action (mouse, context menu,
+  keyboard, and accessible name); add a direct post action where the focused post is known, or scope
+  any persistence/semantics gap explicitly for 1.2.
 - **Media loading:** changing posts with the sidebar open must retain the previous image until the
   replacement is ready, or show a low-resolution placeholder; never flash a stale image and then
   leave a permanent grey loading surface.

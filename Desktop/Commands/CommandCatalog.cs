@@ -62,7 +62,7 @@ public static class CommandCatalog
         new("media.rating.set-3", "command.media.rating.set-3", "Rating: 3 of 5", "Bewertung: 3 von 5", "star-half", "Shift+3", CommandScope.Media | CommandScope.Gallery | CommandScope.Dialog, new[] { "media-rating" }),
         new("media.rating.set-4", "command.media.rating.set-4", "Rating: 4 of 5", "Bewertung: 4 von 5", "star-half", "Shift+4", CommandScope.Media | CommandScope.Gallery | CommandScope.Dialog, new[] { "media-rating" }),
         new("media.rating.set-5", "command.media.rating.set-5", "Rating: 5 of 5", "Bewertung: 5 von 5", "star-half", "Shift+5", CommandScope.Media | CommandScope.Gallery | CommandScope.Dialog, new[] { "media-rating" }),
-        new("post-bookmarks.open-manager", "bookmarks.title", "Post bookmarks", "Post-Lesezeichen", "message-square", null, CommandScope.Application, new[] { "app-menu", "archive-results-toolbar", "reader-thread-menu" }),
+        new("post-bookmarks.open-manager", "bookmarks.title", "Post bookmarks", "Post-Lesezeichen", "message-square", null, CommandScope.Application, new[] { "app-menu", "archive-results-toolbar", "archive-card-menu", "archive-table-menu", "reader-thread-menu" }),
         new("post-bookmarks.edit-post", "bookmarks.edit", "Add / edit post bookmark…", "Post-Lesezeichen hinzufügen / bearbeiten…", "edit-2", null, CommandScope.Reader, new[] { "reader-post-menu" }),
         new("post-bookmarks.open-target", "bookmarks.open", "Open exact local post", "Exakten lokalen Post öffnen", "corner-up-right", null, CommandScope.Dialog, new[] { "post-bookmarks" }),
         new("post-bookmarks.save", "bookmarks.save", "Save bookmark", "Lesezeichen speichern", "save", null, CommandScope.Dialog, new[] { "post-bookmarks" }),
