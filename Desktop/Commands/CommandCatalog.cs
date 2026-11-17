@@ -390,7 +390,7 @@ public static class CommandCatalog
         new("video.speed-down", "command.video.speed-down", "Slower", "Langsamer", "minus", "OemOpenBrackets", CommandScope.Gallery | CommandScope.Reader | CommandScope.Media, new[] { "gallery-video-controls", "gallery-keyboard", "reader-video-keys", "media-video-keys" }),
         new("video.speed-up", "command.video.speed-up", "Faster", "Schneller", "plus", "OemCloseBrackets", CommandScope.Gallery | CommandScope.Reader | CommandScope.Media, new[] { "gallery-video-controls", "gallery-keyboard", "reader-video-keys", "media-video-keys" }),
         new("video.speed-reset", "command.video.speed-reset", "Normal speed", "Normale Geschwindigkeit", "activity", "Shift+Back", CommandScope.Gallery | CommandScope.Reader | CommandScope.Media, new[] { "gallery-video-controls", "gallery-keyboard", "reader-video-keys", "media-video-keys" }),
-        new("video.snapshot", "command.video.snapshot", "Save frame as image", "Einzelbild speichern", "image", "S", CommandScope.Gallery, new[] { "gallery-menu", "gallery-keyboard" }),
+        new("video.snapshot", "command.video.snapshot", "Save frame as image", "Einzelbild speichern", "image", "Shift+S", CommandScope.Gallery, new[] { "gallery-menu", "gallery-keyboard" }),
         // Transport row (plan V1): A sets A, then B, then turns the loop off; Shift+. shows the next frame (LibVLC 3 has no step back,
         // so Shift+, stays free: there is no "previous frame" command). Audio track and the speed choices have no default key: the player menu and rebinding reach them.
         new("video.ab-loop", "command.video.ab-loop", "A–B loop", "A–B-Schleife", "repeat", "A", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),

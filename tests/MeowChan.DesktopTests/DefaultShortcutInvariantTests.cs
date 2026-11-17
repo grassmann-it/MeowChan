@@ -116,6 +116,7 @@ public sealed class DefaultShortcutInvariantTests
     [InlineData("video.speed-reset", "Back", "Shift+Back", "gallery")]
     [InlineData("video.speed-reset", "Back", "Shift+Back", "reader")]
     [InlineData("video.speed-reset", "Back", "Shift+Back", "media")]
+    [InlineData("video.snapshot", "S", "Shift+S", "gallery")]
     public void Ledger17MovedGesturesResolveAndTheirOldGesturesDoNot(string id, string oldKey, string newKey, string context)
     {
         foreach (ShortcutPlatform platform in Enum.GetValues<ShortcutPlatform>())

@@ -623,7 +623,7 @@ public sealed class HelpDocumentationTests
     public void FrameFolderAndReadFirstHeaderGuidanceKeepTheirCurrentBoundaries()
     {
         string frames = Plain(Section(Read(Help), "Saving a video frame"));
-        Assert.Equal("S", CommandCatalog.Get("video.snapshot").Shortcut); // gallery key scheme, revision 13 (was Shift+S)
+        Assert.Equal("Shift+S", CommandCatalog.Get("video.snapshot").Shortcut); // UX-LEDGER-17: S skips tagging items
         Assert.Contains("On first use you choose a folder", frames);
         Assert.Contains("Cancel saves nothing", frames);
         Assert.Contains("Existing files are never overwritten", frames);
