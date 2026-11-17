@@ -98,13 +98,18 @@ internal sealed class BooruViewerModel(BooruWorkbenchServices services) : IDispo
         Changed?.Invoke();
     }
 
-    internal async Task DownloadAsync(string shownPostId)
+    internal Task DownloadAsync(string shownPostId) => DownloadAsync(shownPostId, retry: false);
+
+    internal Task RetryDownloadAsync(string shownPostId) => DownloadAsync(shownPostId, retry: true);
+
+    private async Task DownloadAsync(string shownPostId, bool retry)
     {
         BooruViewerView view;
         long selection;
         lock (_gate)
         {
-            if (_disposed || _view is not { } current || current.Row.Post.PostId != shownPostId || !current.Row.CanLoad) return;
+            if (_disposed || _view is not { } current || current.Row.Post.PostId != shownPostId
+                || (retry ? !current.Row.CanRetry : !current.Row.CanLoad)) return;
             view = current;
             selection = _selectionRevision;
             _view = current with { Row = current.Row with { Load = BooruRowLoad.Handing, LoadCode = null } };
@@ -113,7 +118,10 @@ internal sealed class BooruViewerModel(BooruWorkbenchServices services) : IDispo
         BooruLoadResult result;
         try
         {
-            result = await services.Queue.LoadOriginalAsync(view.Row.Post, view.Origin, view.Query, _lifetime.Token).ConfigureAwait(false);
+            // Offline admission may not have stored a claim yet; retry that exact shown claim in that case.
+            result = retry && view.Row.Load == BooruRowLoad.Failed
+                ? await services.Queue.RetryOriginalAsync(shownPostId, _lifetime.Token).ConfigureAwait(false)
+                : await services.Queue.LoadOriginalAsync(view.Row.Post, view.Origin, view.Query, _lifetime.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException) { result = new(BooruLoadStatus.Failed, BooruCodes.Canceled); }
         catch (Exception exception) when (exception is not OutOfMemoryException) { result = new(BooruLoadStatus.Failed, BooruCodes.Exception); }

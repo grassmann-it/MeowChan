@@ -54,7 +54,16 @@ internal sealed partial class BooruWorkbenchView
                 HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8)
             };
             AutomationProperties.SetAccessibilityView(placeholder, AccessibilityView.Raw);
-            frame.Child = placeholder;
+            if (row.Preview == BooruPreviewState.Unavailable)
+            {
+                Button retry = new() { Name = "BooruRetryPreview:" + row.Post.PostId, Content = Texts.T("action.retry"),
+                    HorizontalAlignment = HorizontalAlignment.Center };
+                AutomationProperties.SetName(retry, Texts.T("action.retry") + ": " + Texts.T("booru.ui.post.title", row.Post.PostId));
+                retry.Click += async (_, _) => await _model.Search.RetryPreviewAsync(row.Post.PostId);
+                StackPanel recovery = new() { VerticalAlignment = VerticalAlignment.Center, Children = { placeholder, retry } };
+                frame.Child = recovery;
+            }
+            else frame.Child = placeholder;
         }
         return frame;
     }

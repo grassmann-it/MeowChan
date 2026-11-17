@@ -178,7 +178,7 @@ internal sealed partial class BooruWorkbenchView
         ApplyTone(_statusHost, tone);
         _retry.Content = Texts.T("booru.ui.status.retry");
         // Searching again before the restart fails the same way, so the route replaces "Search again".
-        _retry.IsVisible = view.CanRetry && !repairShown;
+        _retry.IsVisible = model.CanRetry && !repairShown;
         _retry.IsEnabled = !paused;
         RenderRepairControls(_searchRepair, repairShown);
 

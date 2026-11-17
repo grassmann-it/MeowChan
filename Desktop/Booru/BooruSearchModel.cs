@@ -41,6 +41,7 @@ internal sealed record BooruSearchView(
         && ExecutedQuery is not null && !IsPostResult && Page > 1;
     /// <summary>Explicit repeat of the shown search or lookup after an offline, failed or cancelled request; never for the initial Idle.</summary>
     internal bool CanRetry => Status is BooruSearchStatus.Offline or BooruSearchStatus.Failed or BooruSearchStatus.Idle
+        or BooruSearchStatus.Denied or BooruSearchStatus.NotFound or BooruSearchStatus.Unavailable
         && (ExecutedQuery is not null || ExecutedPostId is not null);
     /// <summary>True when the five-page bound, not the provider, is what stops the paging.</summary>
     internal bool PageLimitReached => Status == BooruSearchStatus.Results && ExecutedQuery is not null && !IsPostResult
@@ -104,6 +105,17 @@ internal sealed class BooruSearchModel : IDisposable
         {
             BooruSearchView view = View;
             return !_disposed && view.Parsed.IsValid && !view.IsBusy && PauseEnd(view) is null;
+        }
+    }
+
+    internal bool CanRetry
+    {
+        get
+        {
+            BooruSearchView view = View;
+            return !_disposed && PauseEnd(view) is null && (view.CanRetry
+                || view.Status is BooruSearchStatus.RateLimited or BooruSearchStatus.Cooldown
+                && (view.ExecutedQuery is not null || view.ExecutedPostId is not null));
         }
     }
 
@@ -209,7 +221,7 @@ internal sealed class BooruSearchModel : IDisposable
         int page;
         lock (_gate)
         {
-            if (_disposed || _view.IsBusy || PauseEnd(_view) is not null || !_view.CanRetry)
+            if (_disposed || _view.IsBusy || !CanRetry)
                 return Task.CompletedTask;
             (query, postId, page) = (_view.ExecutedQuery, _view.ExecutedPostId, _view.Page);
         }
@@ -224,7 +236,7 @@ internal sealed class BooruSearchModel : IDisposable
             if (!_view.IsBusy) return;
             _request?.Cancel();
             _requestId++;
-            _view = _view with { Status = BooruSearchStatus.Idle };
+            _view = _view with { Status = BooruSearchStatus.Idle, Code = BooruCodes.Canceled };
         }
         RaiseChanged();
     }
@@ -239,7 +251,7 @@ internal sealed class BooruSearchModel : IDisposable
         {
             result = await _search.SearchAsync(query, page, token).ConfigureAwait(false);
         }
-        catch (OperationCanceledException) { return; }
+        catch (OperationCanceledException) { CompleteCancelledRequest(id); return; }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
             result = BooruCallResult<BooruResultPage>.Of(BooruCallStatus.Failed, "exception");
@@ -287,7 +299,7 @@ internal sealed class BooruSearchModel : IDisposable
         {
             result = await _search.ReadPostAsync(postId, token).ConfigureAwait(false);
         }
-        catch (OperationCanceledException) { return; }
+        catch (OperationCanceledException) { CompleteCancelledRequest(id); return; }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
             result = BooruCallResult<BooruPostView>.Of(BooruCallStatus.Failed, "exception");
@@ -314,6 +326,16 @@ internal sealed class BooruSearchModel : IDisposable
         }
         RaiseChanged();
         if (follow) StartFollowUps(id, token);
+    }
+
+    private void CompleteCancelledRequest(long id)
+    {
+        lock (_gate)
+        {
+            if (_disposed || id != _requestId) return;
+            _view = _view with { Status = BooruSearchStatus.Idle, Code = BooruCodes.Canceled };
+        }
+        RaiseChanged();
     }
 
     private (long Id, CancellationToken Token) Begin(BooruSearchStatus status, string? query, string? postId, int page)
@@ -365,6 +387,27 @@ internal sealed class BooruSearchModel : IDisposable
         _ = Task.Run(() => RefreshLocalStatesAsync(id, token), CancellationToken.None);
     }
 
+    /// <summary>Retries one failed thumbnail only; never repeats metadata or admits an original.</summary>
+    internal Task RetryPreviewAsync(string postId)
+    {
+        BooruPostView post;
+        long id;
+        CancellationToken token;
+        lock (_gate)
+        {
+            if (_disposed || _request is null) return Task.CompletedTask;
+            int index = _view.Rows.IndexWhere(row => row.Post.PostId == postId);
+            if (index < 0 || _view.Rows[index].Preview != BooruPreviewState.Unavailable) return Task.CompletedTask;
+            BooruResultRowView row = _view.Rows[index];
+            post = row.Post;
+            id = _requestId;
+            token = _request.Token;
+            SetRow(index, row with { Preview = BooruPreviewState.Loading });
+        }
+        RaiseChanged();
+        return LoadPreviewAsync(id, post, token);
+    }
+
     private async Task LoadPreviewAsync(long id, BooruPostView post, CancellationToken token)
     {
         bool entered = false;
@@ -375,7 +418,7 @@ internal sealed class BooruSearchModel : IDisposable
             entered = true;
             bytes = await _previews.LoadPreviewAsync(post, token).ConfigureAwait(false);
         }
-        catch (OperationCanceledException) { return; }
+        catch (OperationCanceledException) { bytes = null; }
         catch (Exception exception) when (exception is not OutOfMemoryException) { bytes = null; }
         finally
         {

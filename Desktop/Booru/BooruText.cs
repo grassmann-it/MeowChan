@@ -85,6 +85,7 @@ internal static class BooruText
         string query = view.ExecutedQuery ?? string.Empty;
         return view.Status switch
         {
+            BooruSearchStatus.Idle when view.Code == BooruCodes.Canceled => Texts.T(BooruCodes.Key(BooruCodes.Canceled)),
             BooruSearchStatus.Idle => Texts.T(view.Mode == BooruInputMode.Post ? "booru.ui.status.idlePost" : "booru.ui.status.idle"),
             BooruSearchStatus.Searching => view.IsPostResult
                 ? Texts.T("booru.ui.status.lookingUp", view.ExecutedPostId)
