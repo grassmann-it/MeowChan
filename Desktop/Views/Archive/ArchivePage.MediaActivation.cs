@@ -36,6 +36,10 @@ public partial class ArchivePage
         bool previewGalleryKey = IsMediumGalleryKey(e)
             && (ReferenceEquals(source, view) || source.GetSelfAndVisualAncestors().Contains(view.PreviewButton));
         if (!previewGalleryKey && !CommandBindings.Matches(e, "gallery.open")) return false;
+        // Unmodified Enter belongs to Avalonia's Button; MediumButton changes the
+        // action during its native Click rather than manufacturing a second one.
+        if (previewGalleryKey && e.Key == Key.Enter && e.KeyModifiers == KeyModifiers.None
+            && source.GetSelfAndVisualAncestors().Contains(view.PreviewButton)) return false;
         e.Handled = true;
         if (previewGalleryKey) view.ActivateGalleryByKey();
         else row.OpenPreview(); // Same exact association and guarded manifest wait.

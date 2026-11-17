@@ -23,7 +23,9 @@ public sealed class EnterGalleryFocusTests
         using IDisposable platform = AvaloniaLocator.EnterScope();
         typeof(AvaloniaHeadlessPlatform).GetMethod("Initialize", BindingFlags.Static | BindingFlags.NonPublic)!
             .Invoke(null, [new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false }]);
-        TokenApplication.Bind();
+        TokenApplication app = TokenApplication.Bind();
+        app.Styles.Insert(0, new Semi.Avalonia.SemiTheme());
+        app.Styles.Insert(1, new Ursa.Themes.Semi.UrsaSemiTheme());
         test();
     });
 
@@ -180,6 +182,7 @@ public sealed class EnterGalleryFocusTests
             DataContext = new ArchiveAttachmentRow(new CapturedAttachment(2, "third", OriginalFileName: "third.jpg"))
                 { OpenPreview = () => opens++ }
         };
+        Assert.Equal(typeof(Button), view.PreviewButton.StyleKey);
         view.SetValue(ArchiveAttachmentView.TileActivationProperty, _ => { previews++; return true; });
         ReaderInlineVideoController controller = new();
         controller.ConfigureAsync(ReaderInlineVideoOptions.From(new Config())).GetAwaiter().GetResult();
