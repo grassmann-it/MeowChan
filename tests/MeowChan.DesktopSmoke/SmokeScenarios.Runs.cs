@@ -105,6 +105,7 @@ internal static partial class SmokeScenarios
         },
         ["media-slot"] = new(SmokeStage.Ready, mainWindow => MediaSlotChecks.RunAsync(mainWindow)),
         ["media-menu-surfaces"] = new(SmokeStage.Ready, mainWindow => MediaMenuSurfacesChecks.RunAsync(mainWindow)),
+        ["focus-click-contracts"] = new(SmokeStage.Ready, mainWindow => MediaPageChecks.RunClickContractsAsync(mainWindow)),
         ["motion"] = new(SmokeStage.Ready, mainWindow => MotionChecks.RunAsync(mainWindow)),
         ["gallery-toolbar"] = new(SmokeStage.Ready, mainWindow => GalleryToolbarLayoutChecks.RunAsync(mainWindow)),
         ["gallery-narrow"] = new(SmokeStage.Ready, mainWindow => GalleryNarrowChromeChecks.RunAsync(mainWindow))

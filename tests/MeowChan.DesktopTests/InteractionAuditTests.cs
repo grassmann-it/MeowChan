@@ -236,18 +236,19 @@ public sealed class InteractionAuditTests
     }
 
     [Fact]
-    public void SidebarSingleClickDoesNotOpenGalleryUnlessConfiguredAndDoubleClickStillDoes()
+    public void MediaSidebarSingleClickStaysInPreviewAndDoubleClickStillOpensGallery()
     {
         string sidebar = Read("Desktop/Views/Archive/ReaderMediaSidebar.cs");
         Assert.Contains("_frame.PointerReleased", sidebar);
         Assert.Contains("_frame.DoubleTapped", sidebar);
         Assert.Contains("GalleryRequested?.Invoke(this, EventArgs.Empty);", sidebar);
 
-        string archive = Read("Desktop/Views/Archive/ArchivePage.InlineVideo.cs");
-        Assert.Contains("if (ReaderMediaSidebarRules.OpensGalleryOnPictureClick(_inlineVideo.Options)) OpenMediaSidebarMedia();", archive);
-
+        // UX-LEDGER-06 supersedes the old preference-dependent sidebar contract.
+        // Reader activation is protected; its remaining gap is an explicit skipped
+        // FocusClickContractTests test rather than an assertion blessing the old behavior.
         string media = Read("Desktop/Views/Media/MediaPage.Panel.cs");
-        Assert.Contains("if (ReaderMediaSidebarRules.OpensGalleryOnPictureClick(_panelVideoController.Options)) StartOpenPanelMedia();", media);
+        Assert.DoesNotContain("OpensGalleryOnPictureClick(_panelVideoController.Options)", media);
+        Assert.Contains("panel.GalleryRequested += (_, _) => StartOpenPanelMedia();", media);
     }
 
     [Fact]

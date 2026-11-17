@@ -1116,8 +1116,16 @@ public sealed partial class MediaPage : UserControl
             || IsNativeContextSource(e.Source) || IsTileTagChip(e.Source)
             || !e.GetCurrentPoint(_grid).Properties.IsRightButtonPressed) return;
         MediaLibraryTileRow? row = RowAt(e.Source);
-        // MP5: a right click on empty grid space (no tile under the pointer) opens the layout menu, also while a tile is selected.
-        OpenSharedMediaMenu(row, ResolveMenuOrigin(e.Source, row));
+        // Resolve selection and focus before composing selection-dependent actions.
+        // A click inside a multi-selection preserves it; a click outside means this tile.
+        Control origin = ResolveMenuOrigin(e.Source, row);
+        if (row != null)
+        {
+            if (!_grid.Selection.SelectedItems.Contains(row)) _grid.SelectedItem = row;
+            (_grid.ContainerFromItem(row) as Control ?? origin).Focus();
+        }
+        // MP5: empty grid space still opens the layout menu without changing selection.
+        OpenSharedMediaMenu(row, origin);
         _sharedPointerContext.MenuOpenedByPress();
         e.Handled = true;
     }
@@ -1143,7 +1151,13 @@ public sealed partial class MediaPage : UserControl
             return;
         }
         MediaLibraryTileRow? row = RowAt(e.Source) ?? SelectedRow;
-        OpenSharedMediaMenu(row, ResolveMenuOrigin(e.Source, row));
+        Control origin = ResolveMenuOrigin(e.Source, row);
+        if (row != null && e.TryGetPosition(_grid, out _) && RowAt(e.Source) != null)
+        {
+            if (!_grid.Selection.SelectedItems.Contains(row)) _grid.SelectedItem = row;
+            (_grid.ContainerFromItem(row) as Control ?? origin).Focus();
+        }
+        OpenSharedMediaMenu(row, origin);
         e.Handled = true;
     }
 
