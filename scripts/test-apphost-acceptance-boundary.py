@@ -112,12 +112,17 @@ class BoundaryTests(unittest.TestCase):
         runner = load('linux-distribution-gates.py')
         args = mock.Mock(package_dir=Path('/packages'), manifest=Path('/packages/linux-x64-package-manifest.json'),
                          source_commit='a' * 40, runtime='linux-x64', scenario='bundled-vlc', layout_only=True)
-        cmd = runner.docker_command(args, 'sha256:' + 'b' * 64, 'owned', 'c' * 32,
-                                    Path('/work'), Path('/evidence'), Path('/scripts'), Path('/fixtures'))
-        self.assertIn('--layout-only', cmd)
-        args.layout_only = False
-        self.assertNotIn('--layout-only', runner.docker_command(args, 'image', 'owned', 'c' * 32,
-                         Path('/work'), Path('/evidence'), Path('/scripts'), Path('/fixtures')))
+        # This command-construction contract also runs in the Windows packaging
+        # job, where POSIX identity APIs do not exist. No Docker is executed.
+        with mock.patch.object(runner.os, 'getuid', return_value=1000, create=True), \
+             mock.patch.object(runner.os, 'getgid', return_value=1000, create=True):
+            cmd = runner.docker_command(args, 'sha256:' + 'b' * 64, 'owned', 'c' * 32,
+                                        Path('/work'), Path('/evidence'), Path('/scripts'), Path('/fixtures'))
+            self.assertIn('--layout-only', cmd)
+            self.assertEqual('1000:1000', cmd[cmd.index('--user') + 1])
+            args.layout_only = False
+            self.assertNotIn('--layout-only', runner.docker_command(args, 'image', 'owned', 'c' * 32,
+                             Path('/work'), Path('/evidence'), Path('/scripts'), Path('/fixtures')))
 
     def test_release_macos_binding_is_independent_of_debug_acceptance(self):
         with tempfile.TemporaryDirectory() as temporary:

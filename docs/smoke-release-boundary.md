@@ -122,7 +122,10 @@ Locally reverified using .NET SDK 10.0.111 on Linux (no solution build, no GUI s
   and the hook. Both configuration markers were checked by the boundary preflight.
 - All seven runners' `--dry-run` entry points accepted the actual Debug output and rejected the
   actual Release output. No UI, playback, scene or shipping-binary execution claim is made.
-- `python3 scripts/test-apphost-acceptance-boundary.py -v`: **8 passed**.
+- `python3 scripts/test-apphost-acceptance-boundary.py -v`: **8 passed**. Its Linux Docker
+  command-construction test supplies synthetic UID/GID values so this shared suite also runs on
+  Windows. The contract was additionally rerun with POSIX identity APIs removed: **1 passed**;
+  this checks portability of the test, not actual Windows packaging.
 - `python3 -m unittest discover -s tests -p 'test_apphost_*_runner.py' -v`: **58 passed**.
 - `python3 -m unittest discover -s tests -p test_prerelease.py -v`: **57 passed**.
 - Supplemental packaging contracts: macOS **95 passed, 1 skipped** (native Apple signing tools),
