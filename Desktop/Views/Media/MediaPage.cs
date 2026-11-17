@@ -1064,6 +1064,9 @@ public sealed partial class MediaPage : UserControl
         Visual[] ancestors = source.GetSelfAndVisualAncestors().ToArray();
         if (!ancestors.Contains(this) || ancestors.Any(visual => ReferenceEquals(visual, _grid)
             || _panel != null && ReferenceEquals(visual, _panel))) return;
+        // The tag list owns Delete/Back (remove the selected filter term). Do not
+        // consume them as the page's tagging.remove shortcut on the tunnel down.
+        if (e.Key is Key.Delete or Key.Back && ancestors.Contains(_tagSidebar.List)) return;
         OnGridKeyDown(sender, e);
     }
 
