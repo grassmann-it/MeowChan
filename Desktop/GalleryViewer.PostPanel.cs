@@ -20,7 +20,7 @@ namespace MeowChan.Desktop;
 // Top to bottom, 12 dip between the sections, 8 inside a section, 4 from a caption to its content (the values the tag panel and the decision
 // row use): where the post is, favourite and stars (a second GalleryDecisionRow, created once and put back on every rebuild), the medium's tags
 // as chips (each a button that opens the Tags segment, like the link) with that link, a rule, then the post itself and the file. R (media.rating.edit,
-// "Rate and tag") opens the Tags segment with its stars focused (RequestRateAndTag); a medium that cannot be tagged gets this segment's stars instead.
+// "Rate and tag") opens the Tags segment with its tag field focused (RequestRateAndTag); a medium that cannot be tagged gets this segment's stars instead.
 internal sealed partial class GalleryViewer
 {
     internal const string PostDecisionName = "GalleryPostDecision";
@@ -150,7 +150,7 @@ internal sealed partial class GalleryViewer
     private static Control PostRule() => new Border { Name = "GalleryPostRule", Height = 1, [!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.Border"),
         Focusable = false, IsHitTestVisible = false };
 
-    // ---- R and "Rate and tag…": the Tags segment with the stars focused -------------------------------------------------------
+    // ---- R and "Rate and tag…": the Tags segment with the tag field focused -------------------------------------------------------
 
     /// <summary>The medium shown can be rated or tagged now (the "Rate and tag" command and its menu entry are available).</summary>
     internal bool CanRateAndTag => _entry != null && !_terminalRetirement && (_ratingAvailable || CanOpenTagPanel);
@@ -159,7 +159,7 @@ internal sealed partial class GalleryViewer
 
     /// <summary>
     /// R and the menu entry "Rate and tag…" (review 15.11.): the combined surface of the gallery is the Tags segment, favourite and stars on top
-    /// and the tag field under them. It opens when it is closed (the Post segment gives way to it), and its stars take the focus. A medium
+    /// and the tag field under them. It opens when it is closed (the Post segment gives way to it), and its tag field takes the focus. A medium
     /// that cannot be tagged has no Tags segment: its Post segment's stars take the focus instead (<see cref="FocusRatingStars"/>).
     /// </summary>
     internal void RequestRateAndTag()
@@ -168,15 +168,16 @@ internal sealed partial class GalleryViewer
         // Neither the stars nor the tags can open (ratings unreadable or a write pending, no tags): the reason the menu entry shows, never silence.
         if (!CanRateAndTag) { ExplainBlocked(_tagsUnavailableReason ?? MeowChan.Desktop.MediaActions.MediaMenuReasons.Unavailable); return; }
         if (!_tagPanelOpen && CanOpenTagPanel) RequestTags(); // the owner opens the tag panel into the Tags slot (ShowTagPanel), synchronously
-        if (FocusRatingStars()) return;
         if (_tagPanelOpen && _tagSurface != null) { _tagSurface.FocusField(); return; }
+        if (FocusRatingStars()) return;
         // Neither the stars nor the field took the keyboard: once more after the panel that just opened was laid out, then say why instead of a key that
         // did nothing (audit 16.11.2026).
         GalleryEntry? asked = _entry;
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
-            if (_terminalRetirement || _entry == null || !ReferenceEquals(_entry, asked) || FocusRatingStars()) return;
+            if (_terminalRetirement || _entry == null || !ReferenceEquals(_entry, asked)) return;
             if (_tagPanelOpen && _tagSurface != null) { _tagSurface.FocusField(); return; }
+            if (FocusRatingStars()) return;
             ExplainBlocked(_tagsUnavailableReason ?? MeowChan.Desktop.MediaActions.MediaMenuReasons.Unavailable);
         }, Avalonia.Threading.DispatcherPriority.Loaded);
     }

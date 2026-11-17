@@ -265,11 +265,10 @@ public sealed class ReaderMediaSidebarTests : IDisposable
     }
 
     [Fact]
-    public void TheMediaPanelHeaderStandsOnThePageHeadersLastLine()
+    public void TheMediaPanelAndReaderShareAStableTitleLineHeight()
     {
-        // The panel's header line is lifted by the line height and the header's bottom margin: it then covers exactly the 32 dip line above the
-        // grid, and the card below it starts at the grid card's top edge.
-        // The card (medium, strip, video controls inside one edge) is laid out in the media-tile-panel smoke (a control needs the platform here).
+        // UX-LEDGER-27 keeps the same stable title line, now inside the full-height sidebar.
+        // Host geometry and independence from neighbouring chrome are measured in MediaPagePanelLayoutTests.
         Assert.Equal(32, MediaPage.PanelHeaderLineHeight);
         Assert.Equal(8, ReaderMediaSidebar.HeaderGap);
     }

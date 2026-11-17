@@ -735,6 +735,8 @@ namespace MeowChan
         {
             if (_isClosed) return;
             _isClosed = true;
+            EndSearchVisit();
+            _conditionalReveal.Release(keepEdited: false);
             _rowMenu?.Dispose();
             _destinationWait?.Cancel();
             DownloadDestinationValidator.Shared.CleanupFailed -= OnDestinationCleanupFailed;

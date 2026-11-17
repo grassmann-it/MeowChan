@@ -20,6 +20,7 @@ using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 
 namespace MeowChan;
 
@@ -226,7 +227,22 @@ public partial class ArchivePage
             CommandBindings.BindExisting(media, "media.open");
             media.AddHandler(KeyDownEvent, OnMediaKeyDown, RoutingStrategies.Tunnel);
         }
-        ReaderContentSurface.LayoutUpdated += (_, _) => UpdateReaderNavigationLayout();
+        bool subscribed = false;
+        void OnReaderNavigationLayoutUpdated(object? sender, EventArgs e) => UpdateReaderNavigationLayout();
+        void SubscribeLayout(object? sender, Avalonia.VisualTreeAttachmentEventArgs e)
+        {
+            if (subscribed) return;
+            ReaderContentSurface.LayoutUpdated += OnReaderNavigationLayoutUpdated;
+            subscribed = true;
+        }
+        void UnsubscribeLayout(object? sender, Avalonia.VisualTreeAttachmentEventArgs e)
+        {
+            if (!subscribed) return;
+            ReaderContentSurface.LayoutUpdated -= OnReaderNavigationLayoutUpdated;
+            subscribed = false;
+        }
+        ReaderContentSurface.AttachedToVisualTree += SubscribeLayout;
+        ReaderContentSurface.DetachedFromVisualTree += UnsubscribeLayout;
         // The navigation bar floats over the content and (mode "Auto") hides while the pointer is idle (see ReaderNavigationLayout).
         ReaderContentSurface.AddHandler(PointerMovedEvent, OnReaderSurfacePointerMoved, RoutingStrategies.Tunnel | RoutingStrategies.Bubble, handledEventsToo: true);
         _ = new TransientHover(ReaderNavigation, over => { _readerNavigationPointerOver = over; UpdateReaderNavigationShown(); });
@@ -267,7 +283,13 @@ public partial class ArchivePage
         // Each resolver keeps native editors, text selection, popups and foreign top-levels out of the route.
         posts.AddHandler(KeyDownEvent, (_, e) =>
         {
-            if (!CommandRouter.IsRoutingContextActive(posts, e.Source) || ReaderSelectionOwnsActivationKey(e)) return;
+            if (!CommandRouter.IsRoutingContextActive(posts, e.Source)) return;
+            if (TryOpenFocusedReaderMedium(e)) return;
+            // The embedded reader has no OnReaderKeyDown route. Playback must
+            // precede the post list's typeahead there as it does in the large reader.
+            // Its own native-control guard keeps buttons and media activators local.
+            if (TryRouteReaderVideoKey(e)) return;
+            if (ReaderSelectionOwnsActivationKey(e)) return;
             if (!TryRouteFavoriteKey(posts, e)) TryRouteArchiveMediaShortcut(posts, e);
         }, RoutingStrategies.Tunnel);
         posts.AddHandler(PointerWheelChangedEvent, (_, _) => ++_readerInteractionRevision, RoutingStrategies.Tunnel, handledEventsToo: true);
@@ -346,14 +368,20 @@ public partial class ArchivePage
     private void WireReaderSurface(Control pane)
     {
         pane.AddHandler(KeyDownEvent, OnReaderKeyDown, RoutingStrategies.Tunnel, handledEventsToo: true);
+        ReaderHostingStep("wire.01");
         pane.AddHandler(ContextRequestedEvent, OnArchiveMediaContextRequested, RoutingStrategies.Tunnel);
+        ReaderHostingStep("wire.02");
         pane.AddHandler(KeyDownEvent, OnArchiveMediaContextKey, RoutingStrategies.Tunnel);
+        ReaderHostingStep("wire.03");
         pane.AddHandler(ArchiveMediaTileView.RateAndTagRequestedEvent, OnTileRateAndTagRequested);
+        ReaderHostingStep("wire.04");
         // Keys inside the pane run in the "reader" context: the page's own host only sees them while the pane is inside the page, and the large reader's
         // pane is not. Installed after the handlers above on purpose: Avalonia runs the Tunnel handlers of one element in reverse registration order,
         // so the context is entered before OnReaderKeyDown and the media context key run (KeyContextHostTests pins both facts).
         _readerKeyContext?.Dispose();
+        ReaderHostingStep("wire.05");
         _readerKeyContext = MeowChan.Desktop.Controls.KeyContextHost.Install(pane, _ => "reader");
+        ReaderHostingStep("wire.06");
     }
 
     private IDisposable? _readerKeyContext;
@@ -370,29 +398,60 @@ public partial class ArchivePage
 
     internal Control DetachReader()
     {
-        _ = ReleaseInlineVideos(); // R10: a player never moves between hosts
-        InvalidateFilenameSearch();
-        ++_readerFocusRequest;
-        Grid pane = ArchiveReaderPane;
-        ArchiveSplit.Children.Remove(pane);
-        Border export = ArchiveExportDialog;
-        ArchiveRoot.Children.Remove(export);
-        pane.Children.Add(export);
-        _largeReader = true;
-        // A disposable override preserves the original value source (including
-        // styles, bindings and an unset local value) when the pane is reattached.
-        _readerTabScope?.Dispose();
-        _readerTabScope = pane.SetValue(KeyboardNavigation.TabNavigationProperty, KeyboardNavigationMode.Cycle, BindingPriority.Animation);
-        pane.SetValue(ReaderPostLayout.LargeReaderProperty, true);
-        WireReaderSurface(pane);
-        pane.Margin = new Thickness(16);
-        ArchiveCloseReader.IsVisible = true;
-        ArchiveReadPosts.IsVisible = false;
-        UpdateReaderNavigation();
-        UpdateLayoutMode();
-        if (_thread != null) RenderThread();
-        // R8: the large reader's content is the pane in a frame that can hold the media sidebar beside it.
-        return WrapLargeReader(pane);
+        Action rollback = CaptureReaderHostingRollback();
+        try
+        {
+            _ = ReleaseInlineVideos(); // R10: a player never moves between hosts
+            ReaderHostingStep("detach.01");
+            InvalidateFilenameSearch();
+            ReaderHostingStep("detach.02");
+            ++_readerFocusRequest;
+            ReaderHostingStep("detach.03");
+            Grid pane = ArchiveReaderPane;
+            ReaderHostingStep("detach.04");
+            ArchiveSplit.Children.Remove(pane);
+            ReaderHostingStep("detach.05");
+            Border export = ArchiveExportDialog;
+            ReaderHostingStep("detach.06");
+            ArchiveRoot.Children.Remove(export);
+            ReaderHostingStep("detach.07");
+            pane.Children.Add(export);
+            ReaderHostingStep("detach.08");
+            _largeReader = true;
+            ReaderHostingStep("detach.09");
+            // A disposable override preserves the original value source (including
+            // styles, bindings and an unset local value) when the pane is reattached.
+            _readerTabScope?.Dispose();
+            ReaderHostingStep("detach.10");
+            _readerTabScope = pane.SetValue(KeyboardNavigation.TabNavigationProperty, KeyboardNavigationMode.Cycle, BindingPriority.Animation);
+            ReaderHostingStep("detach.11");
+            pane.SetValue(ReaderPostLayout.LargeReaderProperty, true);
+            ReaderHostingStep("detach.12");
+            WireReaderSurface(pane);
+            ReaderHostingStep("detach.13");
+            pane.Margin = new Thickness(16);
+            ReaderHostingStep("detach.14");
+            ArchiveCloseReader.IsVisible = true;
+            ReaderHostingStep("detach.15");
+            ArchiveReadPosts.IsVisible = false;
+            ReaderHostingStep("detach.16");
+            UpdateReaderNavigation();
+            ReaderHostingStep("detach.17");
+            UpdateLayoutMode();
+            ReaderHostingStep("detach.18");
+            if (_thread != null) RenderThread();
+            ReaderHostingStep("detach.19");
+            // R8: the large reader's content is the pane in a frame that can hold the media sidebar beside it.
+            Control content = WrapLargeReader(pane);
+            ReaderHostingStep("detach.wrapped");
+            return content;
+        }
+        catch (Exception error)
+        {
+            Exception failure = RollBackReaderHosting(error, rollback);
+            if (ReferenceEquals(failure, error)) throw;
+            throw failure;
+        }
     }
 
     internal void AttachReader(Control content)
@@ -908,6 +967,7 @@ public partial class ArchivePage
             if (CanEditThreadRules) EditThreadRulesFromReader(); else Message(Texts.T("archive.command.noWatch"));
             return;
         }
+        if (TryOpenFocusedReaderMedium(e)) return;
         if (CommandBindings.Matches(e, "gallery.open") && _thread != null && OpenGallery != null)
         {
             if (!_available || _busy || _ended || _lifetime.IsCancellationRequested) return;
@@ -1001,15 +1061,15 @@ public partial class ArchivePage
         }, RoutingStrategies.Tunnel);
 
     // Native editors and menus keep their keys in every reader: a key from a text box, a combo box, a number field, a menu item, a slider or a scroll bar.
-    private static bool KeyBelongsToNativeEditor(KeyEventArgs e) =>
-        e.Source is Visual source && source.GetSelfAndVisualAncestors().Any(control => control is TextBox or ComboBox or NumericUpDown or MenuItem or Slider or ScrollBar);
+    internal static bool KeyBelongsToNativeEditor(KeyEventArgs e) =>
+        e.Source is Visual source && source.GetSelfAndVisualAncestors().Any(control => PointerFocusReclaim.IsTextInput(control) || control is MenuItem or Slider or ScrollBar);
 
     private void CancelReaderMediaActivation() => _readerMediaActivationCancellation?.Cancel();
 
     private void ObserveReaderMediaKeys(Control pane)
     {
         StopObservingReaderMediaKeys();
-        if (!_largeReader || TopLevel.GetTopLevel(pane) is not Window owner) return;
+        if (TopLevel.GetTopLevel(pane) is not Window owner) return;
         _readerMediaKeyOwner = owner;
         // KeyUp may belong to the gallery that just covered the reader. Observe
         // release on this window, not globally, so a held key opens at most once.
@@ -1057,19 +1117,19 @@ public partial class ArchivePage
             if (ReferenceEquals(node, posts)) return false;
             if (node is SelectableTextBlock text
                 && (text is not ReaderBodyTextBlock || text.SelectionStart != text.SelectionEnd)) return true;
-            if (node is Button or TextBox or ComboBox or NumericUpDown or MenuItem or Menu
+            if (PointerFocusReclaim.IsTextInput(node) || node is Button or MenuItem or Menu
                 or Slider or ScrollBar or TabItem or TabStrip or DataGrid or Expander
-                or Ursa.Controls.AutoCompleteBox or Ursa.Controls.ClosableTag or Ursa.Controls.Rating
+                or Ursa.Controls.ClosableTag or Ursa.Controls.Rating
                 || node is SelectingItemsControl and not TabControl) return true;
         }
         return true; // Neither another tab nor the reader toolbar is post content.
     }
 
-    private bool ReaderMediaContextIsCurrent(Control source, ArchivePostRow post, bool needsGallery = true)
+    private bool ReaderMediaContextIsCurrent(Control source, ArchivePostRow post, bool needsGallery = true, bool largeReaderOnly = true)
     {
         ListBox posts = ArchivePosts;
         Control pane = ArchiveReaderPane;
-        return !_ended && !_lifetime.IsCancellationRequested && !_busy && _available && _largeReader
+        return !_ended && !_lifetime.IsCancellationRequested && !_busy && _available && (!largeReaderOnly || _largeReader)
             && ReaderShowsPosts && !_obscuredByGallery && !ArchiveAttachmentView.GetLoadingSuspended(this)
             && !IsReaderDialogOpen && !ShortcutService.IsCapturing && (!needsGallery || OpenGallery != null)
             && pane.IsEffectivelyVisible && pane.IsEffectivelyEnabled
@@ -1112,8 +1172,17 @@ public partial class ArchivePage
 
     // only: the one medium of the post a key chose (null: the first available medium of the post, in position order).
     private async Task ActivateReaderMediaAsync(Control origin, ArchivePostRow post, ResourceId resource,
-        Task<IReadOnlyList<ArchiveAssetRow>> ready, CancellationTokenSource cancellation, ArchiveAttachmentRow? only = null)
+        Task<IReadOnlyList<ArchiveAssetRow>> ready, CancellationTokenSource cancellation, ArchiveAttachmentRow? only = null, bool largeReaderOnly = true)
     {
+        bool handedOff = false, refusalReported = false;
+        void Refused(string reason = "reader.media.activation.contextChanged")
+        {
+            if (refusalReported) return;
+            refusalReported = true;
+            // The reader header's existing live status remains visible when the
+            // large reader is detached; the archive-only overlay does not.
+            if (!_ended) ShowReadingPositionMessage(Texts.T(reason));
+        }
         int content = _contentRequest, media = _mediaRequest, focus = _readerFocusRequest;
         long coverage = _readerCoverageRevision, shortcuts = ShortcutService.Revision;
         var open = OpenGallery;
@@ -1121,7 +1190,13 @@ public partial class ArchivePage
             && media == _mediaRequest && focus == _readerFocusRequest && coverage == _readerCoverageRevision
             && shortcuts == ShortcutService.Revision && ReferenceEquals(ready, _mediaReady.Task)
             && _thread?.Summary.Id == resource && ReferenceEquals(open, OpenGallery)
-            && ReaderMediaContextIsCurrent(origin, post);
+            && ReaderMediaContextIsCurrent(origin, post, largeReaderOnly: largeReaderOnly);
+        bool GuardHandoff()
+        {
+            if (Current()) return true;
+            Refused(); // The shell also rechecks the guard after its own awaits.
+            return false;
+        }
         try
         {
             // Await only the existing local manifest scan, never initiate a download.
@@ -1135,24 +1210,33 @@ public partial class ArchivePage
             ReaderMediaTarget? target = await Task.Run(() => only == null
                 ? FindReaderMediaTarget(resource, post, assets, row => File.Exists(row.Asset.Path))
                 : FindReaderMediumTarget(resource, post, only, assets, row => File.Exists(row.Asset.Path)), cancellation.Token);
-            if (target == null || !Current()) return;
+            if (!Current()) return;
+            if (target == null) { Refused("reader.media.activation.missing"); return; }
             // The routed Space event can originate at the posts ListBox itself. Resolve the
             // current realized selected row only now, after all awaits; never use a container
             // captured from another row. Keep the original source in Current() so selection,
             // cancellation, and stale-origin checks remain tied to the event that started this.
             Control? galleryOrigin = ResolveReaderMediaGalleryOrigin(origin, post);
             if (galleryOrigin == null || !Current()) return;
-            ReaderMediaActivationGuard = Current;
-            try { await open!(resource, target.Key, galleryOrigin); }
+            ReaderMediaActivationGuard = GuardHandoff;
+            try
+            {
+                await open!(resource, target.Key, galleryOrigin);
+                handedOff = true;
+            }
             finally { ReaderMediaActivationGuard = null; }
         }
         catch (OperationCanceledException) { }
         catch (Exception exception)
         {
-            if (Current()) Message(exception.Message, true);
+            refusalReported = true;
+            if (!_ended) ShowReadingPositionMessage(exception.Message, true);
         }
         finally
         {
+            // Admission already consumed the key. A stale context, cancellation or
+            // missing realized origin must not turn that into a silent no-op.
+            if (!handedOff) Refused();
             if (ReferenceEquals(_readerMediaActivationCancellation, cancellation)) _readerMediaActivationCancellation = null;
             cancellation.Dispose();
         }
@@ -1196,16 +1280,19 @@ public partial class ArchivePage
         return null;
     }
 
-    internal bool ReaderArrowBelongsToNativeControl(object? source, Key key = Key.Down)
+    internal bool ReaderArrowBelongsToNativeControl(object? source, Key key = Key.Down) =>
+        ReaderArrowBelongsToNativeControl(source, key, ArchivePosts);
+
+    internal static bool ReaderArrowBelongsToNativeControl(object? source, Key key, ListBox posts)
     {
         if (source is not Visual visual) return false;
         foreach (Visual node in visual.GetSelfAndVisualAncestors())
         {
-            if (ReferenceEquals(node, ArchivePosts))
+            if (ReferenceEquals(node, posts))
                 return key is Key.Home or Key.End or Key.PageUp or Key.PageDown;
             if (node is TabControl && ReferenceEquals(node, visual)) return true;
-            if (node is TabItem or TabStrip or DataGrid or DataGridColumnHeader or Slider or ScrollBar
-                or TextBox or ComboBox or NumericUpDown or MenuItem or Ursa.Controls.AutoCompleteBox
+            if (PointerFocusReclaim.IsTextInput(node) || node is TabItem or TabStrip or DataGrid or DataGridColumnHeader or Slider or ScrollBar
+                or MenuItem
                 || node is SelectingItemsControl and not TabControl) return true;
         }
         return false;

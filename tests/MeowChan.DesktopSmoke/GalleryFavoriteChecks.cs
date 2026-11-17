@@ -76,7 +76,8 @@ internal static class GalleryFavoriteChecks
             Require(savedIntents.SequenceEqual(new[] { true, false }) && !window.SessionHost.IsFavorite(entry),
                 "Unmark during a pending mark was lost or inverted.");
             HideControls(); RequireBadge(false);
-            Press(Key.M); await latest;
+            await ReviewArtifacts.GestureAsync(window, "gallery-mark-favorite", () => Press(Key.M),
+                () => Badge().IsChecked == true, async () => await latest);
             HideControls(); RequireBadge(true);
             Program.CaptureWindow(window, "smoke-favorite-marked-hidden.png");
             Press(Key.M); await latest; RequireBadge(true); // idempotent repeat
@@ -86,13 +87,15 @@ internal static class GalleryFavoriteChecks
             // FAV-01: F on a saved favorite only asks; Enter/F keep without a write, U removes exactly once.
             FavoriteAssetKey favoriteKey = FavoriteAssetKey.From(entry.Key.Thread, entry.Asset);
             int baseline = writes;
-            Press(Key.F, release: false); // key stays down: the following KeyDowns are repeats
+            await ReviewArtifacts.GestureAsync(window, "gallery-open-favorite-confirm", () => Press(Key.F, release: false),
+                () => viewer.IsFavoriteConfirmOpen, () => Task.CompletedTask); // following KeyDowns remain repeats
             Require(viewer.IsFavoriteConfirmOpen && writes == baseline && !queue.IsPending(favoriteKey),
                 "F on a saved favorite did not just open the confirmation.");
             Press(Key.F, release: false); Press(Key.F, release: false);
             Require(viewer.IsFavoriteConfirmOpen && writes == baseline, "A held F key closed or acted on the confirmation.");
             Release(Key.F);
-            Press(Key.Enter);
+            await ReviewArtifacts.GestureAsync(window, "gallery-confirm-keep-enter", () => Press(Key.Enter),
+                () => !viewer.IsFavoriteConfirmOpen, () => Task.CompletedTask);
             Require(!viewer.IsFavoriteConfirmOpen && writes == baseline && window.SessionHost.IsFavorite(entry),
                 "Enter did not keep the favorite without a write.");
             Press(Key.F); Press(Key.F);

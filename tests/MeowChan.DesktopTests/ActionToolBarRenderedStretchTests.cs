@@ -196,5 +196,128 @@ public sealed class ActionToolBarRenderedStretchTests
         });
     }
 
+    [Theory]
+    [InlineData(180, false)]
+    [InlineData(330, false)]
+    [InlineData(600, false)]
+    [InlineData(1000, false)]
+    [InlineData(180, true)]
+    [InlineData(330, true)]
+    [InlineData(600, true)]
+    [InlineData(1000, true)]
+    public void ArchiveResultRowsFillTheSameContentEdgeAndNeverOverflowTheLayoutPair(double width, bool initiallyTable)
+    {
+        BooruComponentDispatcher.Run(() =>
+        {
+            using IDisposable scope = AvaloniaLocator.EnterScope();
+            AvaloniaLocator.CurrentMutable.Bind<ICursorFactory>().ToConstant(new DeadAffordanceGuard.RecordingCursorFactory());
+            Application app = new() { RequestedThemeVariant = ThemeVariant.Dark };
+            AvaloniaLocator.CurrentMutable.Bind<Application>().ToConstant(app);
+            app.Styles.Add(new SemiTheme());
+            app.Styles.Add(new UrsaSemiTheme());
+            // Read the production item's layout metadata, not a hard-coded corrected pair.
+            // Fixed natural action widths make overflow breakpoints independent of fonts/locales.
+            string source = Path.Combine(Path.GetDirectoryName(SourcePath())!, "../../Desktop/Views/Archive/ArchivePage.axaml");
+            System.Xml.Linq.XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+            var markup = System.Xml.Linq.XDocument.Load(source);
+            var toolbar = markup.Descendants().Single(e => (string?)e.Attribute(x + "Name") == "ArchiveResultActions");
+            ActionToolBar bar = new() { Margin = Thickness.Parse((string)toolbar.Attribute("Margin")!) };
+            foreach (var element in toolbar.Elements())
+            {
+                string? Attribute(string name) => element.Attributes().SingleOrDefault(a => a.Name.LocalName == name)?.Value;
+                Control item = element.Name.LocalName == "ToggleButton"
+                    ? new ToggleButton { MinWidth = 64, HorizontalAlignment = Enum.Parse<HorizontalAlignment>(Attribute("HorizontalAlignment")!) }
+                    : new Button { Width = 70 };
+                item.Name = (string?)element.Attribute(x + "Name");
+                item.Height = 32;
+                foreach (string cls in (Attribute("Classes") ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries)) item.Classes.Add(cls);
+                ActionToolBar.SetGroup(item, int.Parse(Attribute("ActionToolBar.Group")!));
+                ActionToolBar.SetEnd(item, Attribute("ActionToolBar.End") == "True");
+                ActionToolBar.SetStretch(item, Attribute("ActionToolBar.Stretch") == "True");
+                ToolBar.SetOverflowMode(item, Enum.Parse<OverflowMode>(Attribute("ToolBar.OverflowMode") ?? "AsNeeded"));
+                item.IsVisible = Attribute("IsVisible") != "False";
+                bar.Items.Add(item);
+            }
+            Control[] items = bar.Items.Cast<Control>().ToArray();
+            Control columns = items.Single(i => i.Name == "ArchiveThreadColumnsButton");
+            Control first = items[^2], last = items[^1];
+            // Same shared Grid/ScrollViewer and row margins as the archive search area.
+            // Search/filter stand-ins isolate geometry from services and page startup.
+            Grid rows = new() { RowDefinitions = RowDefinitions.Parse("Auto,Auto,Auto,Auto,Auto") };
+            Border search = new() { Height = 32 };
+            Border filter = new() { Height = 32, Margin = new Thickness(0, 8, 0, 0) };
+            Grid.SetRow(filter, 1); Grid.SetRow(bar, 4);
+            rows.Children.Add(search); rows.Children.Add(filter); rows.Children.Add(bar);
+            ScrollViewer scroll = new() { Content = rows, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, MaxHeight = 260 };
+            Root root = new() { Child = scroll };
+            bar.Theme = (ControlTheme)app.FindResource(typeof(ToolBar))!;
+            bar.ApplyStyling(); bar.ApplyTemplate();
+            for (int pass = 0; pass < 5; pass++)
+                foreach (Control control in bar.GetVisualDescendants().OfType<Control>().ToArray())
+                {
+                    control.ApplyStyling();
+                    if (control is TemplatedControl templated) templated.ApplyTemplate();
+                    if (control is ItemsPresenter presenter) presenter.ApplyTemplate();
+                }
+            void Layout()
+            {
+                for (int pass = 0; pass < 6; pass++)
+                {
+                    root.InvalidateMeasure(); scroll.InvalidateMeasure(); rows.InvalidateMeasure(); bar.InvalidateMeasure();
+                    foreach (Control control in root.GetVisualDescendants().OfType<Control>()) control.InvalidateMeasure();
+                    root.Measure(new Size(width, 200));
+                    bar.More?.ApplyStyling();
+                    root.Arrange(new Rect(0, 0, width, 200));
+                }
+            }
+            try
+            {
+                foreach (bool table in new[] { initiallyTable, !initiallyTable, initiallyTable })
+                {
+                    columns.IsVisible = table;
+                    Layout();
+                    Assert.DoesNotContain(first, bar.OverflowHost!.Children);
+                    Assert.DoesNotContain(last, bar.OverflowHost.Children);
+                    Assert.Contains(first, bar.DirectHost!.Children);
+                    Assert.Contains(last, bar.DirectHost.Children);
+                    Control[] shown = bar.DirectHost.Children.Where(c => c.IsVisible).ToArray();
+                    double unused = shown[0].Bounds.X;
+                    for (int i = 1; i < shown.Length; i++)
+                        unused += Math.Max(0, shown[i].Bounds.X - shown[i - 1].Bounds.Right - ActionToolBarPanel.LeadingGap(shown[i - 1], shown[i]));
+                    double trailing = bar.DirectHost.Bounds.Width - last.Bounds.Right;
+                    Console.WriteLine($"UX-LEDGER-25 width={width} columns={table} occupied={width - unused - trailing:F2} unused={unused:F2} trailing={trailing:F2} pair={first.Bounds.Width:F2}/{last.Bounds.Width:F2} overflow={bar.OverflowHost.Children.Count} panel={bar.DirectHost.Bounds} more={bar.More!.Bounds} margin={bar.More.Margin}");
+                    Assert.InRange(Math.Abs(trailing), 0, 1);
+                    Assert.InRange(unused, 0, 1);
+                    Assert.True(first.Bounds.Width >= first.DesiredSize.Width);
+                    Assert.True(last.Bounds.Width >= last.DesiredSize.Width);
+                    Assert.Equal(first.Bounds.Right, last.Bounds.X, 6);
+                    if (shown.Contains(columns))
+                    {
+                        Assert.Equal(70, columns.Bounds.Width);
+                        Assert.Equal(ActionToolBarPanel.ItemGap, first.Bounds.X - columns.Bounds.Right, 6);
+                    }
+                    Assert.Equal(0, shown[0].Bounds.X, 6);
+                    Assert.All(shown.Where(i => ActionToolBar.GetGroup(i) < 3), i => Assert.False(ActionToolBar.GetEnd(i)));
+                    double Right(Control control) => control.TranslatePoint(new Point(control.Bounds.Width, 0), rows)!.Value.X;
+                    Assert.Equal(width, Right(search), 6);
+                    Assert.Equal(Right(search), Right(filter), 6);
+                    Assert.Equal(Right(search), Right(bar), 6);
+                    if (bar.More!.IsVisible)
+                    {
+                        Assert.InRange(Math.Abs(Right(bar.More) - Right(search)), 0, 1);
+                        Assert.InRange(Math.Abs(Right(bar.More) - bar.More.Bounds.Width - Right(last) - bar.More.Margin.Left), 0, 1);
+                    }
+                    else Assert.InRange(Math.Abs(Right(last) - Right(search)), 0, 1);
+                    Rect[] before = shown.Select(i => i.Bounds).ToArray();
+                    Layout();
+                    Assert.Equal(before, shown.Select(i => i.Bounds).ToArray());
+                }
+            }
+            finally { root.Child = null; }
+        });
+    }
+
+    private static string SourcePath([System.Runtime.CompilerServices.CallerFilePath] string source = "") => source;
+
     private sealed class Root : Decorator, Avalonia.LogicalTree.ILogicalRoot;
 }

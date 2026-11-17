@@ -24,16 +24,14 @@ namespace MeowChan;
 // selected (identified by their bytes) and the others drop out, so nothing hidden is ever acted on.
 public sealed partial class MediaPage
 {
-    // UX review 17.11.2026: the line reads "N selected", the actions, then (only while the index is being built) the muted reason after the last
-    // action. The counter keeps room for as many digits as the shown tile count has (at most four, tabular figures), so the actions keep their x
-    // whether the reason shows or the count grows. The line never wraps (a second line at the first selection moved the grid): where the actions do
-    // not fit with "Clear selection", that button says "Clear" (full text as tooltip and accessible name), then actions move under its More
-    // (FitSelectionLine).
+    // Selection commands lead; the way out and the reserved live counter form the trailing state group.
+    // FitSelectionLine keeps both groups on one 32 dip line, moving commands under More when needed.
     private readonly ReservedTextBlock _selectionText = new() { Name = "MediaSelectionStatus", Classes = { "tnum" }, TextWrapping = Avalonia.Media.TextWrapping.NoWrap, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
     private readonly TextBlock _selectionReason = new() { Name = "MediaSelectionReason", Classes = { "muted" }, IsVisible = false, TextWrapping = Avalonia.Media.TextWrapping.NoWrap,
         TextTrimming = Avalonia.Media.TextTrimming.CharacterEllipsis, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) };
-    // The counter and the actions wrap as one group; the reason takes what the last line leaves (DockPanel's fill) and ends in an ellipsis.
-    private readonly WrapPanel _selectionActions = new() { Name = "MediaSelectionActions", ItemSpacing = 8, LineSpacing = 4 };
+    // The reason stays after the actions in the fill area, before the trailing state group.
+    private readonly StackPanel _selectionActions = new() { Name = "MediaSelectionActions", Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 8 };
+    private readonly StackPanel _selectionState = new() { Name = "MediaSelectionState", Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 8, Margin = new Thickness(8, 0, 0, 0) };
     private readonly DockPanel _selectionRow = new() { Name = "MediaSelectionRow", LastChildFill = true };
     private readonly Button _selTag = new() { Name = "MediaSelectionTag" };
     private readonly Button _selGallery = new() { Name = "MediaSelectionGallery" };
@@ -69,15 +67,21 @@ public sealed partial class MediaPage
         _selectionRow.IsVisible = false;
         _selectionRow[!Avalonia.Layout.Layoutable.MinHeightProperty] = new Avalonia.Markup.Xaml.MarkupExtensions.DynamicResourceExtension("Workspace.Size.Control");
         _selectionText.FontWeight = Avalonia.Media.FontWeight.SemiBold; // the anchor of the line
-        _selClear.Classes.Add("subtle"); // the way out weighs less than the actions (last in the row, as before)
+        _selClear.Classes.Add("subtle"); // the way out weighs less than the actions
+        _selClear.VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center;
         // MP2: "Add to tagging queue" comes before "Tag together": choosing and queueing is the way into the Tagging page.
-        foreach (Control control in new Control[] { _selectionText, _selQueue, _selTag, _selGallery, _selExport, _selMore, _selClear })
+        foreach (Control control in new Control[] { _selQueue, _selTag, _selGallery, _selExport, _selMore })
         { control.VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center; _selectionActions.Children.Add(control); }
+        _selectionState.Children.Add(_selClear);
+        _selectionState.Children.Add(_selectionText);
+        DockPanel.SetDock(_selectionState, Dock.Right);
+        _selectionRow.Children.Add(_selectionState);
         DockPanel.SetDock(_selectionActions, Dock.Left);
         _selectionRow.Children.Add(_selectionActions);
         _selectionRow.Children.Add(_selectionReason);
         _selectionRow.SizeChanged += (_, e) => { if (e.WidthChanged) FitSelectionLine(); };
         _selectionActions.SizeChanged += (_, _) => FitSelectionLine();
+        _selectionState.SizeChanged += (_, _) => FitSelectionLine();
         _selTag.Click += async (_, _) => await TagSelectionAsync();
         _selGallery.Click += (_, _) => OpenActions.Start(OpenSelectionGalleryAsync, "media.selection.gallery");
         _selExport.Click += async (_, _) => await ExportSelectionAsync();
@@ -251,7 +255,7 @@ public sealed partial class MediaPage
         if (_lifetime.IsCancellationRequested || !_selectionRow.IsVisible || TopLevel.GetTopLevel(_selectionRow) == null) return;
         double available = _selectionRow.Bounds.Width;
         if (available <= 0) return;
-        foreach (Control child in _selectionActions.Children)
+        foreach (Control child in _selectionActions.Children.Concat(_selectionState.Children))
             if (child.IsVisible && child.IsMeasureValid && child.DesiredSize.Width > 0 && !(ReferenceEquals(child, _selClear) && _selectionLevel >= 1))
                 _selectionWidths[child] = child.DesiredSize.Width;
         if (!_selectionWidths.TryGetValue(_selClear, out double clearFull)) return; // not laid out with its full label yet
@@ -266,7 +270,7 @@ public sealed partial class MediaPage
                 if (!_selectionViewOverflow.Contains(action) && !moved.Contains(action)) parts.Add(Width(action));
             if (viewOverflow || moved.Count > 0) parts.Add(_selectionWidths.TryGetValue(_selMore, out double more) ? more : 32);
             parts.Add(level >= 1 ? clearShort : clearFull);
-            return parts.Sum() + _selectionActions.ItemSpacing * (parts.Count - 1);
+            return parts.Sum() + _selectionActions.Spacing * (parts.Count - 1);
         }
         int level = 0;
         while (level < 4 && Needed(level) > available + 0.5) level++;
@@ -372,7 +376,7 @@ public sealed partial class MediaPage
     /// It opens on <paramref name="anchor"/> (the tile of the menu), by default on the selection bar's button. "Advanced…" opens the
     /// full dialog (<see cref="TagSelectionDialogAsync"/>) to pick occurrences.
     /// </summary>
-    internal async Task TagSelectionAsync(Control? anchor = null, bool focusRating = false)
+    internal async Task TagSelectionAsync(Control? anchor = null, QuickTagInitialFocus initialFocus = QuickTagInitialFocus.TagInput)
     {
         if (!_selTag.IsEnabled || TagServices is not { } services) return;
         IReadOnlyList<MediaLibraryTile> tiles = SelectedTiles;
@@ -411,7 +415,7 @@ public sealed partial class MediaPage
                 FocusFallback = () => FocusGridNow(),
                 TooltipKeyContext = "media",
                 // The rating (and favourite where the shell offers it) of every selected tile rides on top of the tag field.
-                Decision = DecisionForEntries?.Invoke(tiles.Select(tile => tile.Entry).ToArray(), focusRating)
+                Decision = DecisionForEntries?.Invoke(tiles.Select(tile => tile.Entry).ToArray(), initialFocus)
             });
             origin = popover.Origin;
             shown = popover;

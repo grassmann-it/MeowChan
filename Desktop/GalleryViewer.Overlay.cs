@@ -44,6 +44,7 @@ internal sealed partial class GalleryViewer
     private readonly StackPanel _overlayFooter = new() { Name = "GalleryOverlayFooter", VerticalAlignment = VerticalAlignment.Bottom,
         HorizontalAlignment = HorizontalAlignment.Stretch, IsVisible = false };
     private readonly StackPanel _overlayTransportHost = new() { Name = "GalleryOverlayTransportHost", Margin = new Thickness(8, 4, 8, 4) };
+    private readonly List<PointerFocusReclaim> _pointerFocusReclaims = new();
     private readonly HashSet<IPointer> _pressedPointers = new();
     private IPointer? _lastPointer;
     private long _lastOverlayActivity = Stopwatch.GetTimestamp();
@@ -303,8 +304,8 @@ internal sealed partial class GalleryViewer
         foreach (Control surface in new Control[] { this, _nativeVideoOverlay })
         {
             surface.AddHandler(PointerMovedEvent, OnOverlayPointerMoved, RoutingStrategies.Tunnel, handledEventsToo: true);
-            surface.PointerEntered += OnOverlayPointerExited;
-            surface.PointerExited += OnOverlayPointerExited;
+            surface.PointerEntered += OnOverlayPointerMovedOrExited;
+            surface.PointerExited += OnOverlayPointerMovedOrExited;
             surface.AddHandler(GotFocusEvent, (_, e) =>
             {
                 if (e.NavigationMethod == NavigationMethod.Pointer) _keyboardInteraction = false;
@@ -314,7 +315,7 @@ internal sealed partial class GalleryViewer
             surface.AddHandler(PointerReleasedEvent, OnOverlayPointerReleased, RoutingStrategies.Tunnel, handledEventsToo: true);
             surface.AddHandler(PointerCaptureLostEvent, OnOverlayPointerCaptureLost, RoutingStrategies.Bubble, handledEventsToo: true);
             // A click on any chrome control (toolbar, badges, fit and zoom, layout and "More") gives the keys back to the picture, never to the button.
-            PointerFocusReclaim.Attach(surface, ReclaimGallerySurface);
+            _pointerFocusReclaims.Add(PointerFocusReclaim.Attach(surface, ReclaimGallerySurface));
             surface.AddHandler(PointerWheelChangedEvent, OnOverlayPointerWheel, RoutingStrategies.Tunnel, handledEventsToo: true);
             surface.AddHandler(TappedEvent, OnOverlayTap, RoutingStrategies.Tunnel, handledEventsToo: true);
             surface.AddHandler(DoubleTappedEvent, OnOverlayTap, RoutingStrategies.Tunnel, handledEventsToo: true);
@@ -711,7 +712,7 @@ internal sealed partial class GalleryViewer
         UpdateEdgeIndicatorArtwork();
     }
 
-    private void OnOverlayPointerExited(object? sender, PointerEventArgs e)
+    private void OnOverlayPointerMovedOrExited(object? sender, PointerEventArgs e)
     {
         if (_terminalRetirement || _viewerInteractionStopped) return;
         // Exit can also mean that a newly shown child replaced the hit-test target.

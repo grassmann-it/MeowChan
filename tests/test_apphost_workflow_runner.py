@@ -558,6 +558,14 @@ class ArchiveClosureTests(unittest.TestCase):
 
 @unittest.skipIf(os.name == 'nt', 'POSIX executable fixtures; no actual GUI or packaged apphost')
 class WorkflowProcessTests(unittest.TestCase):
+    def setUp(self):
+        # These tests deliberately execute Python apphost doubles, not managed products.
+        # Exercise the new guard with synthetic Debug metadata; boundary tests cover rejection.
+        guard = mock.patch.object(runner.playback.boundary, 'managed_payload', return_value=
+            b'RunDevelopmentHost\x01\x00\x05Debug\x00\x00' + '--smoke-workflow'.encode('utf-16-le'))
+        guard.start()
+        self.addCleanup(guard.stop)
+
     def test_closure_bound_workflow_verifies_loaded_assemblies_in_every_process(self):
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary)

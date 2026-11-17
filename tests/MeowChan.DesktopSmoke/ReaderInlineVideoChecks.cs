@@ -4,6 +4,7 @@ using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Input;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Archive;
@@ -23,6 +24,46 @@ namespace MeowChan.DesktopSmoke;
 internal static class ReaderInlineVideoChecks
 {
     private static void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
+    private static async Task CheckEmbeddedShortcutFocusAsync(Window host, ArchivePage page, ReaderInlineVideoSlot slot, GalleryVideoPlayer player)
+    {
+        List<string> failures = new();
+        await page.FocusPostAsync("1");
+        ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
+        Control post = (Control)posts.ContainerFromItem(posts.SelectedItem!)!;
+        foreach ((string name, Control source) in new[] { ("post", post), ("inline-video", player.SurfaceControl) })
+        foreach ((Key key, KeyModifiers mods) in new[] { (Key.Space, KeyModifiers.None), (Key.M, KeyModifiers.Shift), (Key.L, KeyModifiers.None) })
+        {
+            string scene = name + "-" + key;
+            try
+            {
+                bool focusable = source.Focusable;
+                source.Focusable = true;
+                try
+                {
+                    host.Activate();
+                    await Program.WaitUntilAsync(() => host.IsActive);
+                    Require(source.Focus() && ReferenceEquals(host.FocusManager?.GetFocusedElement(), source), scene + ": focus unavailable");
+                    ReaderGalleryShortcutParityChecks.LogRoutingState(host, page, source, scene);
+                    if (key == Key.M)
+                        await Program.WaitUntilAsync(() => player.MinimalBar?.Mute.IsEffectivelyEnabled == true);
+                    bool before = key == Key.Space ? slot.IsPlaying : key == Key.M ? player.Muted : player.LoopEnabled;
+                    var e = new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = key, KeyModifiers = mods };
+                    source.RaiseEvent(e);
+                    source.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyUpEvent, Key = key, KeyModifiers = mods });
+                    await Program.WaitUntilAsync(() => before != (key == Key.Space ? slot.IsPlaying : key == Key.M ? player.Muted : player.LoopEnabled));
+                    Require(e.Handled && ReferenceEquals(host.FocusManager?.GetFocusedElement(), source), scene + ": shortcut stole focus");
+                    // Restore through the same shortcut (not by assigning expected player state).
+                    source.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = key, KeyModifiers = mods });
+                    source.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyUpEvent, Key = key, KeyModifiers = mods });
+                    await Program.WaitUntilAsync(() => before == (key == Key.Space ? slot.IsPlaying : key == Key.M ? player.Muted : player.LoopEnabled));
+                    Console.WriteLine("SMOKE embedded-video-shortcut PASS " + scene);
+                }
+                finally { source.Focusable = focusable; }
+            }
+            catch (Exception error) { failures.Add(scene + ": " + error.Message); Console.WriteLine("SMOKE embedded-video-shortcut FAIL " + scene + ": " + error); }
+        }
+        if (failures.Count > 0) throw new InvalidOperationException("Embedded video shortcuts (all scenes ran): " + string.Join("; ", failures));
+    }
     private static async Task Flush() => await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
     private static void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
@@ -130,6 +171,8 @@ internal static class ReaderInlineVideoChecks
             Require(Math.Abs(firstPlayer.TransportControl.Bounds.Width - firstView.PreviewButton.Bounds.Width) <= 2.5,
                 "The video's control is not as wide as its picture: " + firstPlayer.TransportControl.Bounds.Width + " vs " + firstView.PreviewButton.Bounds.Width);
             Require(first.Activator.Classes.Contains("video-activator"), "The play control over the poster lost its transparent style (hover would hide the poster).");
+
+            await CheckEmbeddedShortcutFocusAsync(host, page, first, firstPlayer);
 
             // KB-03: a mouse click on the bar's mute gives the keys back to the post, so Space never presses mute again; keyboard activation keeps the bar's focus.
             Button muteButton = (Button)firstPlayer.MinimalBar!.Mute;

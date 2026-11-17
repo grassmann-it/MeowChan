@@ -37,7 +37,22 @@ public partial class ArchivePage
         });
         // A click on the message dismisses it, so it never has to be waited out to reach what it covers.
         overlay.PointerPressed += (_, e) => { e.Handled = true; ExpireStatusMessage(); };
-        ArchiveSplit.LayoutUpdated += (_, _) => { if (ArchiveStatusOverlay.IsVisible) PlaceStatusOverlay(); };
+        bool subscribed = false;
+        void OnStatusOverlayLayoutUpdated(object? sender, EventArgs e) { if (ArchiveStatusOverlay.IsVisible) PlaceStatusOverlay(); }
+        void SubscribeLayout(object? sender, Avalonia.VisualTreeAttachmentEventArgs e)
+        {
+            if (subscribed) return;
+            ArchiveSplit.LayoutUpdated += OnStatusOverlayLayoutUpdated;
+            subscribed = true;
+        }
+        void UnsubscribeLayout(object? sender, Avalonia.VisualTreeAttachmentEventArgs e)
+        {
+            if (!subscribed) return;
+            ArchiveSplit.LayoutUpdated -= OnStatusOverlayLayoutUpdated;
+            subscribed = false;
+        }
+        ArchiveSplit.AttachedToVisualTree += SubscribeLayout;
+        ArchiveSplit.DetachedFromVisualTree += UnsubscribeLayout;
     }
 
     private void BeginContentFeedback()

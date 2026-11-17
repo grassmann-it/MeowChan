@@ -131,12 +131,14 @@ class PrereleaseFixtures(unittest.TestCase):
         for rid in ('linux-x64', 'linux-arm64'):
             self.make_linux(rid)
         self.make_nuget()
+        self.split_acceptance()
 
     def git(self, *args):
         return subprocess.check_output(['git', '-C', str(self.repo), *args], text=True)
 
     def workflow(self, rid):
-        return {'passed': True, 'completed': True, 'declaredSourceCommit': self.source,
+        return {'acceptanceConfiguration': 'Debug', 'shippingArtifactExecuted': False,
+                'passed': True, 'completed': True, 'declaredSourceCommit': self.source,
                 'declaredRuntime': rid, 'scales': [{'passed': True, 'phases': [
                     {'phase': phase, 'passed': True, 'assemblyInformationalVersion': self.version + '+' + self.source}
                     for phase in A.PHASES]}]}
@@ -231,6 +233,69 @@ class PrereleaseFixtures(unittest.TestCase):
             'passed': True, 'completed': True, 'sourceCommit': self.source, 'runtime': rid,
             'manifestSha256': A.digest(manifest), 'scenarios': rows})
 
+    def split_acceptance(self):
+        # Synthetic split artifacts are deliberately byte-distinct. Existing failure
+        # tests keep all their assertions but now mutate the executed Debug evidence.
+        windows = self.root / 'native-media-candidate-win-x64'
+        shutil.copytree(windows / 'media-evidence', windows / 'acceptance-media-evidence')
+        shutil.copytree(windows / 'media-packages', windows / 'acceptance-media-packages')
+        archive = windows / 'acceptance-media-packages/MeowChan-win-x64.zip'
+        with zipfile.ZipFile(archive, 'a') as package:
+            package.writestr('non-shipping-debug-fixture', b'Debug')
+        path = windows / 'acceptance-media-evidence/workflow/workflow.json'
+        workflow = json.loads(path.read_text())
+        workflow['archiveBinding']['sha256'] = A.digest(archive)
+        record(path, workflow)
+        record(windows / 'acceptance-media-evidence/playback/playback.json',
+               {'passed': True, 'acceptanceConfiguration': 'Debug', 'shippingArtifactExecuted': False})
+        mac = self.root / ('macos-paired-candidate-' + self.source)
+        for rid in ('osx-arm64', 'osx-x64'):
+            archive = mac / 'evidence' / rid / f'MeowChan-{self.version}-{rid}.zip'
+            debug = archive.parent / 'debug-acceptance' / archive.name
+            debug.parent.mkdir()
+            shutil.copyfile(archive, debug)
+            with zipfile.ZipFile(debug, 'a') as package:
+                package.writestr('non-shipping-debug-fixture', b'Debug')
+            path = mac / f'{rid}-native-validation.json'
+            value = json.loads(path.read_text())
+            value['acceptanceConfiguration'] = 'Debug'
+            value['debugAcceptance'] = {'inventory_zip_sha256': A.digest(debug)}
+            value['workflow']['archiveBinding']['sha256'] = A.digest(debug)
+            record(path, value)
+        self.mac_checksums()
+        for rid in ('linux-x64', 'linux-arm64'):
+            root = self.root / ('linux-distribution-candidate-' + rid)
+            shutil.copytree(root / 'linux-packages', root / 'acceptance-linux-packages')
+            path = root / 'acceptance-linux-packages' / (rid + '-package-manifest.json')
+            manifest = json.loads(path.read_text())
+            for artifact in manifest['artifacts']:
+                package = path.parent / artifact['file']
+                package.write_bytes(package.read_bytes() + b'Debug')
+                artifact.update(sha256=A.digest(package), bytes=package.stat().st_size)
+            record(path, manifest)
+            evidence = root / 'linux-evidence/distributions'
+            shutil.copytree(evidence, root / 'linux-evidence/release-layouts')
+            layout_path = root / 'linux-evidence/release-layouts/linux-distribution-gates.json'
+            layouts = json.loads(layout_path.read_text())
+            layouts.update(configuration='Release', layoutOnly=True)
+            for row in layouts['scenarios']:
+                scenario_path = layout_path.parent / row['scenario'] / 'scenario.json'
+                proof = json.loads(scenario_path.read_text())
+                proof.update(configuration='Release', layoutOnly=True)
+                record(scenario_path, proof)
+                row['reportSha256'] = A.digest(scenario_path)
+            record(layout_path, layouts)
+            gate_path = evidence / 'linux-distribution-gates.json'
+            gates = json.loads(gate_path.read_text())
+            gates.update(configuration='Debug', layoutOnly=False, manifestSha256=A.digest(path))
+            for row in gates['scenarios']:
+                scenario_path = evidence / row['scenario'] / 'scenario.json'
+                proof = json.loads(scenario_path.read_text())
+                proof['manifestSha256'] = A.digest(path)
+                record(scenario_path, proof)
+                row['reportSha256'] = A.digest(scenario_path)
+            record(gate_path, gates)
+
     def make_nuget(self):
         for package_id in A.PACKAGE_IDS:
             path = self.root / 'library-package-candidate' / f'{package_id}.{self.version}.nupkg'
@@ -262,8 +327,41 @@ class PrereleaseFixtures(unittest.TestCase):
             self.assertEqual(A.digest(self.output / row['file']), row['sha256'])
             self.assertEqual(None if row['file'] == A.retained.BASE_NAME else self.source, row['source_commit'])
 
+    def test_inventory_explicitly_disclaims_release_execution(self):
+        self.assemble()
+        inventory = json.loads((self.output / 'candidate-inventory.json').read_text())
+        self.assertEqual('Debug', inventory['acceptance_configuration'])
+        self.assertIs(False, inventory['shipping_binary_execution_claim'])
+
+    def test_windows_release_zip_cannot_replace_debug_execution_binding(self):
+        root = self.root / 'native-media-candidate-win-x64'
+        path = root / 'acceptance-media-evidence/workflow/workflow.json'
+        value = json.loads(path.read_text())
+        value['archiveBinding']['sha256'] = A.digest(root / 'media-packages/MeowChan-win-x64.zip')
+        record(path, value)
+        self.reject('SHA-256 mismatch')
+
+    def test_linux_debug_archive_bytes_are_verified_independently(self):
+        path = next((self.root / 'linux-distribution-candidate-linux-x64/acceptance-linux-packages').glob('*.AppImage'))
+        write(path, b'changed acceptance artifact')
+        self.reject('Linux Debug acceptance asset length mismatch')
+
+    def test_linux_release_layout_evidence_cannot_be_tampered(self):
+        path = self.root / 'linux-distribution-candidate-linux-x64/linux-evidence/release-layouts/system-vlc/scenario.json'
+        write(path, '{}')
+        self.reject('SHA-256 mismatch')
+
+    def test_mac_release_zip_cannot_replace_debug_execution_binding(self):
+        root = self.root / ('macos-paired-candidate-' + self.source)
+        path = root / 'osx-arm64-native-validation.json'
+        value = json.loads(path.read_text())
+        value['workflow']['archiveBinding']['sha256'] = value['inventory_zip_sha256']
+        record(path, value)
+        self.mac_checksums()
+        self.reject('Mac native workflow differs')
+
     def test_old_binary_cannot_be_renamed_with_current_declarations(self):
-        path = self.root / 'native-media-candidate-win-x64/media-evidence/workflow/workflow.json'
+        path = self.root / 'native-media-candidate-win-x64/acceptance-media-evidence/workflow/workflow.json'
         value = json.loads(path.read_text())
         value['scales'][0]['phases'][0]['assemblyInformationalVersion'] = '0.9.0+' + self.source
         record(path, value)
@@ -753,7 +851,10 @@ class CandidateWorkflowFixtures(unittest.TestCase):
                 for job in self.jobs:
                     if job != 'validate':
                         with self.subTest(scenario=scenario, platform=platform, job=job):
-                            self.assertFalse(self.condition(job, 'validate', scenario, platform))
+                            # The workflow-wide outcome gate intentionally also runs on
+                            # focused retests; only unrelated workload jobs must skip.
+                            self.assertEqual(job == 'full-sweep-aggregate',
+                                             self.condition(job, 'validate', scenario, platform))
             for mode in ('prerelease-candidate', 'stable-candidate'):
                 self.assertFalse(self.condition('library-package', mode, scenario=scenario))
 

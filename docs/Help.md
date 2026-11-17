@@ -688,7 +688,7 @@ in a note, not replaced by another one. A file without a post offers no jump.
 
 Favorites use the same keys everywhere (gallery, large reader and its media sidebar, the
 Archive's media and the Media page's grid and panel): **M** adds the medium to the favorites,
-**U** removes it and **F** toggles it. In the gallery **D** starts or pauses the slideshow.
+**U** removes it and **F** toggles it. In the gallery **Shift+D** starts or pauses the slideshow.
 In the gallery and on the Media page, **I** opens the media
 details, **R** the rating, **Ctrl+E** the export of the original and **Ctrl+O** the
 file in its folder. In the large reader, **F3** and
@@ -708,11 +708,13 @@ More defaults that are easy to miss (F1 lists every key of the current area):
 | Alt+Home / Alt+End | Tagging page: move the entry to the start / the end of the queue |
 | Ctrl+Shift+C | Copy the file path of a medium, or the link of the selected reader post |
 | H | Reader: hide the selected post |
-| Ctrl+Left / Ctrl+Right | Video: back / forward 5 seconds (add Shift for 30 seconds) |
+| Alt+Left / Alt+Right | Video: back / forward 5 seconds; Ctrl+Shift+Left / Ctrl+Shift+Right seek 30 seconds |
+| Shift+Up / Shift+Down | Video: increase / decrease volume |
+| Ctrl+Alt+Enter | Open the embedded reader in the large reader |
 | , / . | Video: back / forward by the seek step (default 5 seconds) |
 | Shift+. | Video: next frame |
-| [ / ] or X / C | Video: slower / faster; Backspace sets the normal speed |
-| L / A / S | Video: repeat / A–B loop / save the frame as an image |
+| [ / ] or X / C | Video: slower / faster; Shift+Backspace sets the normal speed |
+| L / A / Shift+S | Video: repeat / A–B loop / save the frame as an image |
 | Shift+M | Mute or unmute a video |
 | Shift+H, Shift+I, Shift+N, Shift+L, Shift+O, Shift+P, Shift+K, Shift+T | Gallery: show or hide tools, info line, hints, filmstrip, controls overlay, post context, cards (Tagging mode), switch View / Tag |
 
@@ -782,11 +784,12 @@ space keep their own behavior. Unsaved Booru cards instead open the
 On Downloads rows, Archive thread/media items and Media tiles, right-clicking an
 item outside the current selection selects that item before opening its menu;
 right-clicking inside a multi-selection preserves the group. Keyboard focus is
-placed on the clicked item or table cell before the menu opens. On the Media
-page, a single click on the sidebar picture stays in the preview (play/pause for
-video); use a double-click or **Open in gallery** to open the gallery. This
-preview-only single-click rule does not change the reader's configurable
-[media click action](#reader-media-sidebar-and-inline-video).
+placed on the clicked item or table cell before the menu opens. The gallery
+viewport also takes focus before its context menu opens. On both the Reader and
+Media page, a single click on the sidebar picture stays in the preview (play/pause
+for an offered inline video); use a double-click or **Open in gallery** to open
+the gallery. The reader's configurable [media click action](#reader-media-sidebar-and-inline-video)
+applies to media in posts, not to single-clicks on the sidebar picture.
 
 A double-click on the picture or video **inside the local-media gallery** toggles
 window fullscreen, as do F11 and the explicit fullscreen action. Use **0** for
@@ -1103,8 +1106,9 @@ Switching categories keeps all drafts, including invalid text. **Save** applies
 changes across every category; **Discard draft** reverts all unapplied edits.
 Saving with an invalid field opens its category so you can correct it.
 
-The search is above the settings content column, with **More** beside it; their
-combined row aligns with the form below, not with the category navigation. When
+The search and the three-dot **More** menu sit above the actual settings content
+column, outside the scrolling form. Their combined row aligns with the form below,
+not with the title or category navigation. When
 the category sidebar collapses in a narrow window, the row follows the content.
 Ctrl+F (Command+F on macOS) focuses the search. It finds settings by name, hint or
 key, including English terms in other languages. Results update as you type.
@@ -1588,21 +1592,22 @@ A media-only item can have no captured post. In the gallery, **Shift+P** toggles
 keyboard help. Gallery panel and playback keys follow one scheme: **Shift** plus a
 letter shows or hides a panel or block; a plain letter acts on playback or the
 shown medium. Thus **Shift+K** toggles **Card mode on / off** (German:
-**Kartenmodus ein / aus**) in tagging mode, **D** starts or pauses **Start / pause
+**Kartenmodus ein / aus**) in tagging mode, **Shift+D** starts or pauses **Start / pause
 slideshow** (German: **Diashow starten / pausieren**), **Shift+P** performs **Show post
 context** (German: **Post-Kontext anzeigen**) and **Shift+L** is the filmstrip key.
-**S** saves a video frame as an image, **L** repeats a video, and **A** controls
+**Shift+S** saves a video frame as an image, **L** repeats a video, and **A** controls
 the A–B loop. Favorites use one scheme everywhere: **M** adds the favorite
 (German: **Favorit hinzufügen**), **U** removes it and **F** toggles it; there is no
 **B** key any more. The explicit add/remove actions set the mark rather than
 toggling it, and **F** on a saved favorite in the gallery asks before it removes
-the mark. **Shift+M** mutes and unmutes a video, one of two exceptions to the Shift rule
-besides **Shift+R** (rotate), because **M** is taken by the favorite. A favorite badge
+the mark. **Shift+M** mutes and unmutes a video because **M** is taken by the favorite.
+It joins **Shift+R** (rotate), **Shift+S** (snapshot) and **Shift+D** (slideshow)
+as shifted actions rather than panel switches. A favorite badge
 with a **★ / ☆** sits beside **Back to …** at the upper left; it shows favorite /
 not favorite, a click toggles it, and **…** indicates a pending save. These are
-default bindings; customized shortcuts still apply. Space plays or pauses an active local video. **Up/Down** raises/lowers
-available video volume without changing Playing/Paused; in the reader those keys
-still navigate posts. Manual mute/unmute survives media changes within the same
+default bindings; customized shortcuts still apply. Space plays or pauses an active local video. **Shift+Up/Shift+Down** raises/lowers
+available video volume without changing Playing/Paused; unmodified **Up/Down**
+still navigate posts in the reader. Manual mute/unmute survives media changes within the same
 open gallery. A user volume change to a positive value unmutes; reopening the
 gallery uses the saved **Start videos muted** preference, not the last manual mute choice.
 
@@ -1911,8 +1916,10 @@ decides what a click on a picture or video in a post does:
   normal playback checks.
 - **Open in the gallery** opens the gallery at that medium.
 
-A double-click on a medium and the sidebar's **Open in gallery** button always open the
-gallery, whatever the choice is.
+A single click on the sidebar picture never opens the gallery, whatever this
+preference is; it only plays or pauses an offered inline video. A double-click on
+a medium (including the sidebar picture) and the sidebar's **Open in gallery**
+button always open the gallery, whatever the choice is.
 
 **Autoplay videos muted** is another opt-in, also off by default. It works with
 **Open in the post** and starts the selected post's video without sound after
@@ -1928,7 +1935,7 @@ the post's commands. There is no extra modifier key for this.
   (**R**, **Shift+1** to **Shift+5**, **Shift+0**, **Ctrl+Shift+T**) act on the focused
   medium or, from a post, on the post's medium. In the large reader the video keys do the
   same: **Space**, **Shift+M** (mute), **L** (repeat), **,** and **.** (seek step),
-  **X** and **C** (speed), **Backspace** (normal speed) and **Shift+.** (next frame).
+  **X** and **C** (speed), **Shift+Backspace** (normal speed) and **Shift+.** (next frame).
   They need a medium and, apart from Space, a player that is already running.
 - **Movement belongs to the reader.** **Up/Down**, **PageUp/PageDown** and **Home/End**
   move through posts whatever is focused, even on a video. **Left/Right** seek only on a
@@ -1939,9 +1946,9 @@ the post's commands. There is no extra modifier key for this.
   mean the medium when a medium has the focus (export the file, show it in its folder, copy
   its path, show in the thread, details) and the post or thread when a post has it.
 - **View keys stay in the gallery:** zoom, rotate, the **Shift+letter** panels, the
-  slideshow (**D**), **S** (save frame), **A** (A–B loop), volume and the **Ctrl+Left** /
-  **Ctrl+Right** seek. The queue key **Q** and the video keys in the embedded reader are
-  not available from the reader yet; use the context menu for the queue.
+  slideshow (**Shift+D**), **Shift+S** (save frame), **A** (A–B loop), volume
+  (**Shift+Up** / **Shift+Down**) and the **Alt+Left** / **Alt+Right** seek. The queue
+  key **Q** and the video keys in the embedded reader are not available from the reader yet; use the context menu for the queue.
 
 ### Gallery Fit enlargement
 
@@ -2127,8 +2134,10 @@ in the gallery's context menu and Ctrl+Shift+T (Command+Shift+T on macOS) open t
 tag panel for the shown medium; a running slideshow pauses. The panel takes the
 slot of the post panel and stays open while you page through the gallery. The same
 command, **Esc** or its close button closes it; **Shift+P** switches to the post panel.
-The side panel has **Post | Tags** at the top left and × alone at the right. When
-the switch has focus, Left/Right selects the segment. Closing returns focus to
+The side panel has **Post | Tags** at the top left, the live medium counter
+immediately beside it, and × alone at the right. The counter updates as you navigate,
+with localized position text and polite accessibility announcements. When the
+switch has focus, Left/Right selects the segment. Closing returns focus to
 the picture. Drag its left edge to resize it (280–480 DIP); the width is kept per
 layout profile. Below 900 DIP it overlays the picture.
 
@@ -2140,6 +2149,13 @@ media, same file elsewhere, from the file name, from the thread title or source 
 Choosing a chip, or the number on it, gives or takes off that tag at once. Each
 change is written to the tag store immediately, for the shown medium or the
 explicitly marked media described below.
+
+**Autocomplete.** Clicking a dropdown suggestion accepts the chosen suggestion,
+not just the typed prefix or another “New tag” row. Enter accepts a highlighted
+suggestion too. Completion follows the token under the caret and preserves earlier
+tags and quoted names with spaces; a middle-token completion edits that token in
+place. Tab completes without writing, then Enter commits the completed draft.
+
 **On this media file** lists what a single target carries; select a tag and press Delete
 to remove it. A medium that cannot be tagged, for example without a bound version
 or while the tag index is unavailable, shows the reason with a disabled field
@@ -2165,7 +2181,9 @@ and drops older steps. The stack stays while you page, so an undo can reach a ch
 made on an earlier medium; it reverses exactly the media changed by that step
 and the status line names it. A tag created by a step stays in your own tag list after its
 undo. Closing the panel ends the stack. The favorite/rating row above the field
-acts on the shown medium or all marked media. **Shift+1** through **Shift+5** set
+acts on the shown medium or all marked media. In both this panel and **Rate and tag**,
+the larger **Favorite** control spans the width of the five rating stars (not the
+remove-rating gutter), with the rating caption on its own line below. **Shift+1** through **Shift+5** set
 a rating, **Shift+0** removes it; **R** still opens the rating dialog. The shifted
 digits also work in an empty tag field with its suggestion list closed; with text
 present they type normally.
@@ -2214,14 +2232,14 @@ moves it, and the context menu changes its state. **Remove finished** and
 files stay in the queue and are reported rather than silently marked finished.
 
 In a walk, the gallery opens in **tagging mode** with progress and decision
-buttons. Outside the tag panel, **Enter** marks the medium finished and advances
-to the next open one, **Space** skips it and **Backspace** undoes the newest step;
+buttons. Outside the tag panel, **Ctrl+Enter** (Command+Enter) marks the medium finished
+and advances to the next open one, **S** skips it and **Backspace** undoes the newest step;
 undoing a queue decision returns to that medium. If there is no step, Backspace
 only goes back. Inside the tag panel, typing and chip keys keep their normal
-roles: Enter adds a typed tag, and only an empty field’s Enter finishes the medium.
+roles: Enter adds a typed tag without finishing the medium.
 Ctrl+Enter adds the typed tag and finishes. Ctrl+Shift+Enter applies the stamp and
-advances; an empty stamp or refused write leaves the medium open. **Shift+Space**
-plays/pauses video or animation outside the tag panel; Page Down/Page Up browse
+advances; an empty stamp or refused write leaves the medium open. **Space** plays/pauses
+video outside the tag panel; **Shift+Space** also plays/pauses video or animation; Page Down/Page Up browse
 without deciding. The next walk resumes at the last shown still-open entry.
 
 **Shift+K** toggles **card mode** during a walk. Keys **1–5** choose the displayed cards
@@ -2311,7 +2329,7 @@ rating, including one whose original is no longer available.
 ### Saving a video frame
 
 In the gallery, **Save frame as image** (German: **Einzelbild speichern**,
-S) saves the displayed video frame as a PNG. On first use you choose a
+Shift+S) saves the displayed video frame as a PNG. On first use you choose a
 folder for saved video frames. MeowChan remembers this dedicated folder, not the
 archive export folder; if it no longer exists, or matches the remembered export
 folder, you are asked again. You may explicitly select the export folder for

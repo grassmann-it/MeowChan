@@ -213,7 +213,7 @@ public sealed class ReaderMediaActivationTests
         string source = File.ReadAllText(path);
         Assert.DoesNotContain("OpenMediumInGalleryAsync", source);
         Assert.Contains("_readerMediaActivationCancellation = cancellation;", source);   // a repeat or a second key does nothing while it runs
-        Assert.Contains("ActivateReaderMediaAsync(origin, post, _thread.Summary.Id, _mediaReady.Task, cancellation, row)", source); // the same Current() recheck after every await
+        Assert.Contains("ActivateReaderMediaAsync(origin, post, _thread.Summary.Id, _mediaReady.Task, cancellation, row, largeReaderOnly)", source); // the same Current() recheck after every await
         Assert.DoesNotContain("ReaderMediaActivationTask = Open", source);
     }
 

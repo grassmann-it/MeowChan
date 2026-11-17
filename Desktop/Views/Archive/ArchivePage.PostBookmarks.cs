@@ -138,9 +138,6 @@ public partial class ArchivePage
     /// <summary>Test seam: receives the copied text instead of the clipboard.</summary>
     internal Func<string, Task>? CopyTextForTests { get; set; }
 
-    private MenuItem CreatePostCopyItem(string commandId, string text, string doneKey)
-        => CommandBindings.CreateMenuItem(commandId, () => _ = CopyPostTextAsync(text, doneKey), () => !_ended);
-
     private async Task CopyPostTextAsync(string text, string doneKey)
     {
         try

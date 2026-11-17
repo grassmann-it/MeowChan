@@ -395,7 +395,7 @@ internal sealed class ManualImportDialog : Window
         if (batch.Count(ManualImportItemState.Failed) is > 0 and int failed) parts.Add(Texts.Count("import.done.failed", failed));
         if (batch.Cancelled) parts.Add(Texts.T("import.done.cancelled"));
         if (outcome.TagsRequested && batch.Count(ManualImportItemState.Committed) > 0)
-            parts.Add(Texts.T(outcome.TagsApplied ? "import.done.tags" : "import.done.tagsFailed", batch.Tags.Count));
+            parts.Add(outcome.TagsApplied ? Texts.Count("import.done.tags", batch.Tags.Count) : Texts.T("import.done.tagsFailed"));
         return string.Join(" ", parts);
     }
 

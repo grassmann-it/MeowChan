@@ -120,10 +120,6 @@ public partial class ArchivePage : UserControl
 
     public ArchivePage()
     {
-        // Every key of the page runs in its execution context, as the gallery's keys do: the reader pane is "reader", the rest of the page "archive".
-        // A default that a saved binding took away only elsewhere (a partial yield) stays active here (EffectiveShortcutBindings.EnterKeyContext).
-        MeowChan.Desktop.Controls.KeyContextHost.Install(this, e => e.Source is Visual source && ArchiveReaderPane is { } pane
-            && (ReferenceEquals(source, pane) || pane.IsVisualAncestorOf(source)) ? "reader" : "archive");
         InitializeComponent(); InitializeThreadFind(); InitializeUnifiedSearch(); InitializePostPageKeys(); InitializeTransferPreview(); InitializeArchiveResultActions(); InitializeSuggestions(); InitializeSearchEditors(); InitializeArchiveSelection(); InitializeArchiveMediaCommands(); InitializeRatingCommands(); InitializeMediaPositionInput(); InitializeMediaSelection(); InitializeThreadFavoriteCommands(); InitializePrivateTags(); InitializeArchiveColumnMenus(); InitializeStatusOverlay(); InitializeReaderToolbarIcons();
         // Navigation scrolls explicitly; selection must not re-anchor while media is loading.
         ArchivePosts.AutoScrollToSelectedItem = false;
@@ -139,6 +135,11 @@ public partial class ArchivePage : UserControl
         InitializeReaderView(); AttachPostFilter(); AttachConversationView();
         AttachReaderFontZoom();
         AttachMouseKeyboardQuickWins();
+        // Tunnel handlers on one element run in reverse registration order.
+        // Enter the focus-decided context BEFORE any page-level shortcut route,
+        // including when the reader is embedded (the detached pane has its own host).
+        MeowChan.Desktop.Controls.KeyContextHost.Install(this, e => e.Source is Visual source && ArchiveReaderPane is { } pane
+            && (ReferenceEquals(source, pane) || pane.IsVisualAncestorOf(source)) ? "reader" : "archive");
     }
     internal ArchivePage(Func<CancellationToken, Task<ArchiveReader>> openReader,
         Func<ResourceId, bool, Task> setCapture, Action<string> openFolder,
@@ -961,48 +962,6 @@ public partial class ArchivePage : UserControl
         await OpenAssetGalleryAsync(row, sender as Control);
     }
 
-    private async Task ShowPreviewAsync(ArchiveAssetRow row)
-    {
-        ClosePreview();
-        int request = _previewRequest;
-        using CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
-        _previewCancellation = loading;
-        CancellationToken cancellationToken = loading.Token;
-        _previewPath = row.Asset.Path;
-        ArchivePreview.IsVisible = true;
-        PreviewTitle.Text = row.Name;
-        ArchivePreviewPath.Text = row.Asset.Path;
-        ArchivePreviewMessage.Text = Texts.T("archive.loading");
-        try
-        {
-            Bitmap? bitmap = await Task.Run(async () =>
-            {
-                string extension = System.IO.Path.GetExtension(row.Asset.Path).ToLowerInvariant();
-                if (extension is not (".png" or ".jpg" or ".jpeg" or ".gif" or ".webp" or ".bmp")) return null;
-                if (row.Asset.Length > 64L * 1024 * 1024) throw new InvalidDataException(Texts.T("archive.tooLarge"));
-                await using Stream stream = await row.Manifest.OpenVerifiedReadAsync(row.Asset.AssetId, cancellationToken).ConfigureAwait(false);
-                using (SKCodec? codec = SKCodec.Create(new SKManagedStream(stream, disposeManagedStream: false)))
-                {
-                    if (codec == null) throw new InvalidDataException(Texts.T("archive.invalidImage"));
-                    PixelSize shown = ImageOrientation.DisplaySize(codec);
-                    if (shown.Width <= 0 || shown.Height <= 0 || (long)shown.Width * shown.Height > 80_000_000)
-                        throw new InvalidDataException(Texts.T("archive.tooLarge"));
-                    int width = Math.Min(shown.Width, Math.Min(1200, Math.Max(1, (int)(1200L * shown.Width / shown.Height))));
-                    stream.Position = 0;
-                    return ImageOrientation.DecodeToWidth(stream, width);
-                }
-            }, cancellationToken);
-            if (_ended || request != _previewRequest || !ArchivePreview.IsVisible) { bitmap?.Dispose(); return; }
-            _preview = bitmap;
-            // D1: the preview is one asynchronous load, so it fades in (not under motion-off).
-            MeowChan.Desktop.Motion.ImageFade.Show(ArchivePreviewImage, bitmap, arrivedAsync: true);
-            ArchivePreviewMessage.Text = bitmap == null ? Texts.T("archive.previewUnavailable") : string.Empty;
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
-        catch (Exception exception) { if (!_ended && request == _previewRequest) ArchivePreviewMessage.Text = exception.Message; }
-        finally { if (ReferenceEquals(_previewCancellation, loading)) _previewCancellation = null; }
-    }
-
     private void ClosePreview()
     {
         ++_previewRequest;
@@ -1271,7 +1230,7 @@ public partial class ArchivePage : UserControl
         _mediaMenuPresenter.Invalidate();
         EndMediaSelectionLifetime();
         StopObservingReaderMediaKeys();
-        CancelArchiveMediaCounts();
+        _ = DisposeArchiveMediaCountsAsync();
         EndArchiveCleanupLifetime();
         EndTransferPreviewLifetime();
         EndTransferExportLifetime();

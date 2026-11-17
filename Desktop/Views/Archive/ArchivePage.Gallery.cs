@@ -280,22 +280,6 @@ public partial class ArchivePage
             await OpenActions.RunAsync(() => OpenThreadGalleryAsync(row.Summary.Id, null, ThreadOrigin(row)), "archive.menu.gallery");
     }
 
-    private async void OnThreadReadMenu(object? sender, RoutedEventArgs e)
-    {
-        if (IsFilenameSearchOpen) return;
-        if (EventThread(sender, e.Source) is ArchiveThreadRow row)
-        {
-            Control origin = ThreadOrigin(row);
-            await OpenActions.RunAsync(() => OpenReaderOnThreadAsync(row.Summary.Id, () => OpenReaderRequested?.Invoke(origin)), "archive.menu.read");
-        }
-    }
-
-    private async void OnThreadExportMenu(object? sender, RoutedEventArgs e)
-    {
-        ResourceId[] ids = FrozenArchiveSelection();
-        if (ids.Length > 0) await OpenExportForThreadsAsync(ids, ArchiveSelectionList, offerResults: true);
-    }
-
     private Control ThreadOrigin(ArchiveThreadRow row) =>
         this.GetVisualDescendants().OfType<Control>().FirstOrDefault(control => (control is DataGridRow or ListBoxItem)
             && control.DataContext is ArchiveThreadRow found && found.Summary.Id == row.Summary.Id)

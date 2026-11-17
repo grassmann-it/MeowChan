@@ -246,6 +246,35 @@ public sealed class SettingsSearchSessionTests : IDisposable
     }
 
     [Fact]
+    public void AGroupTheUserClosesAndReopensAfterAJumpStaysOpen()
+    {
+        Expander group = new();
+        SettingsSearchGroups groups = new();
+        groups.Open([group]);
+        group.IsExpanded = false;
+        group.IsExpanded = true;
+        groups.Open([group]);
+        Assert.Equal(0, groups.OpenedCount);
+        Assert.Equal(0, groups.Release());
+        Assert.True(group.IsExpanded);
+    }
+
+    [Fact]
+    public void RepeatedJumpsKeepOneLedgerEntryAndReleaseDetachesOwnership()
+    {
+        Expander group = new();
+        SettingsSearchGroups groups = new();
+        for (int visit = 0; visit < 3; visit++)
+        {
+            for (int jump = 0; jump < 5; jump++) groups.Open([group]);
+            Assert.Equal(1, groups.OpenedCount);
+            Assert.Equal(1, groups.Release());
+            Assert.Equal(0, groups.OpenedCount);
+            Assert.False(group.IsExpanded);
+        }
+    }
+
+    [Fact]
     public void EditingWithoutAnySearchOpenedGroupIsANoOp()
     {
         Expander group = new() { IsExpanded = true };

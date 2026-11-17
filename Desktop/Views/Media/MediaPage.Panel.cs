@@ -100,7 +100,7 @@ public sealed partial class MediaPage
         };
         // The sidebar's border faces the grid (set once; the side comes with the layout).
         panel[!Border.BorderBrushProperty] = new Avalonia.Markup.Xaml.MarkupExtensions.DynamicResourceExtension("Workspace.CardEdge");
-        // Flush with the grid card (MediaPage.PanelAlignment.cs): no inset above or below the card; the header line has the page header's line height.
+        // Only the identifying title/actions line above, transport below; media receives the remaining host height (1.9e).
         panel.Padding = new Thickness(16, 0, 16, 0);
         panel.HeaderHeight = PanelHeaderLineHeight;
         panel.Localize();
@@ -299,7 +299,7 @@ public sealed partial class MediaPage
         CancellationTokenSource? loading = _panelLoading;
         _panelLoading = null;
         try { loading?.Cancel(); } catch (ObjectDisposedException) { }
-        loading?.Dispose();
+        // LoadPanelAsync owns disposal after its decode has actually completed.
     }
 
     private bool IsCurrentPanelRequest(int request) => !_lifetime.IsCancellationRequested && _panelShown && _panel is { } panel && panel.Load.IsCurrent(request);
@@ -350,7 +350,11 @@ public sealed partial class MediaPage
         }
         CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         _panelLoading = loading;
-        PanelTask = LoadPanelAsync(panel, row, mediumKey, ticket, target, loading.Token);
+        PanelTask = CancellationWork.RunAsync(loading,
+            token => LoadPanelAsync(panel, row, mediumKey, ticket, target, token), () =>
+            {
+                if (ReferenceEquals(_panelLoading, loading)) _panelLoading = null;
+            });
     }
 
     private string PanelDetail() => _panelDimensions.Length == 0 ? _panelSizeText
@@ -449,7 +453,7 @@ public sealed partial class MediaPage
         slot.Offer(offered ? _panelVideoController : null, offered ? PanelVideoKey(entry!) : null,
             offered ? token => ResolvePanelEntryAsync(entry!, token) : null, row?.Name ?? string.Empty, offered ? StartOpenPanelMedia : null);
         // MD-03: the hand over the picture only where a single click acts (OnPanelPictureActivated); a double click opens the gallery anyway.
-        if (_panel is { } panel) panel.SingleClickActs = slot.IsOffered || ReaderMediaSidebarRules.OpensGalleryOnPictureClick(_panelVideoController.Options);
+        if (_panel is { } panel) panel.SingleClickActs = slot.IsOffered;
         SchedulePanelVideoAutoplay(offered ? PanelVideoKey(entry!) : null);
     }
 

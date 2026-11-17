@@ -11,6 +11,7 @@ using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.Controls;
 
 namespace MeowChan;
 
@@ -88,7 +89,7 @@ public partial class ArchivePage
         foreach (object? node in selfAndAncestors)
         {
             if (ReferenceEquals(node, list)) return button && row;
-            if (node is TextBox or SelectableTextBlock or Ursa.Controls.AutoCompleteBox or ComboBox or Slider or MenuItem or TabItem
+            if (node is Visual input && PointerFocusReclaim.IsTextInput(input) || node is SelectableTextBlock or Slider or MenuItem or TabItem
                 or DataGridColumnHeader or Avalonia.Controls.Primitives.ScrollBar) return false;
             if (node is Button) button = true;
             if (node is DataGridRow or ListBoxItem) row = true;
@@ -390,14 +391,4 @@ public partial class ArchivePage
         Message(Texts.T("archive.command.noWatch"));
         return Task.CompletedTask;
     }
-    private async void OnArchiveRemoveSelection(object? sender, RoutedEventArgs e) => await RemoveArchiveSelectionAsync();
-    private async void OnArchiveCopySelection(object? sender, RoutedEventArgs e) => await CopyArchiveSelectionAsync();
-    private async void OnArchiveCheckSelection(object? sender, RoutedEventArgs e)
-    { if (CheckSelectedWatches != null) await CheckArchiveSelectionAsync(false); }
-    private async void OnArchiveRetrySelection(object? sender, RoutedEventArgs e)
-    { if (CheckSelectedWatches != null) await CheckArchiveSelectionAsync(true); }
-    private async void OnArchiveSelectionDetails(object? sender, RoutedEventArgs e)
-    { if (ArchiveLead is ArchiveThreadRow row) await ShowArchiveDetailsAsync(row); }
-    private void OnArchiveLeadAction(object? sender, RoutedEventArgs e)
-    { if (ArchiveLead is ArchiveThreadRow row && sender is MenuItem { CommandParameter: string action }) RunArchiveLeadAction(row, action); }
 }

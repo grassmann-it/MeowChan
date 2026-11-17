@@ -9,6 +9,7 @@ using Avalonia.Input;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 
 namespace MeowChan;
@@ -17,6 +18,29 @@ namespace MeowChan;
 public partial class ArchivePage
 {
     internal const string ActivateMediumCommandId = "reader.media.activate";
+
+    // An explicit gallery request on a medium is not the thread toolbar's
+    // whole-thread request. In particular its preview is a Button: Shift+Enter
+    // must reach this route while unmodified Enter remains native activation.
+    private bool TryOpenFocusedReaderMedium(KeyEventArgs e)
+    {
+        if (e.Handled || ShortcutService.IsCapturing || _ended || _busy || !_available || _obscuredByGallery
+            || IsReaderDialogOpen || OpenGallery == null || e.Source is not Control source
+            || !CommandRouter.IsRoutingContextActive(ArchivePosts, source)) return false;
+        ArchiveAttachmentView? view = source.GetSelfAndVisualAncestors().OfType<ArchiveAttachmentView>().FirstOrDefault();
+        if (view?.DataContext is not ArchiveAttachmentRow row || row.OpenPreview == null
+            || !source.GetVisualAncestors().Contains(ArchivePosts)) return false;
+        // Generic command matching deliberately reserves Enter on every Button.
+        // Only the medium's preview opts into explicit Shift+Enter, not a tag
+        // editor, transport button, or unmodified native activation.
+        bool previewGalleryKey = e.Key == Key.Enter && e.KeyModifiers == KeyModifiers.Shift
+            && source.GetSelfAndVisualAncestors().Contains(view.PreviewButton)
+            && ShortcutService.Current.Matches(e, "gallery.open");
+        if (!previewGalleryKey && !CommandBindings.Matches(e, "gallery.open")) return false;
+        e.Handled = true;
+        row.OpenPreview(); // The same exact association and guarded manifest wait as native activation.
+        return true;
+    }
 
     /// <summary>The facts of the selected post's media for the keys (rows in position order, with their realized views).</summary>
     private sealed record PostMediaSnapshot(List<ArchiveAttachmentRow> Rows, List<ReaderPostMedium> Media, ArchiveAttachmentView?[] Views,
@@ -69,7 +93,7 @@ public partial class ArchivePage
             && EffectiveShortcutBindings.ExecutionContexts(id).Any(context => context is "reader" or "shell"));
     }
 
-    private bool TryActivatePostMedium(KeyEventArgs e, ArchivePostRow post, Control source)
+    private bool TryActivatePostMedium(KeyEventArgs e, ArchivePostRow post, Control source, bool largeReaderOnly)
     {
         // A held key repeats: nothing happens until it is released (or while the gallery opens), so Space never flickers play and pause.
         if (ReaderMediaActivation.IsRepeat(_readerMediaHeldKeys, e.Key, _readerMediaActivationCancellation != null))
@@ -107,10 +131,10 @@ public partial class ArchivePage
             case ReaderMediumOutcome.ShowInSidebar:
                 // The focus stays on the posts: a key never moves it into the sidebar's bar.
                 if (snapshot.SidebarIndex == choice.Index && _sidebarVideo is { IsOffered: true } shown) _ = shown.PlayAsync();
-                else if (!ShowTileInMediaSidebar(row)) ReaderMediaActivationTask = StartReaderMediumGalleryOpen(source, post, row);
+                else if (!ShowTileInMediaSidebar(row)) ReaderMediaActivationTask = StartReaderMediumGalleryOpen(source, post, row, largeReaderOnly);
                 break;
             default:
-                ReaderMediaActivationTask = StartReaderMediumGalleryOpen(source, post, row);
+                ReaderMediaActivationTask = StartReaderMediumGalleryOpen(source, post, row, largeReaderOnly);
                 break;
         }
         return true;
@@ -118,14 +142,18 @@ public partial class ArchivePage
 
     // The gallery at exactly this medium, with the post's own control as the origin (closing the gallery returns the focus there), once the local manifest is known.
     // It runs under the same guard as the fixed Space path (ActivateReaderMediaAsync): its own cancellation (focus change, window deactivation, leaving the
-    // reader cancel it; while it runs a repeat or another key does nothing) and a recheck of the whole reader state after every await. A missing file or a
-    // changed thread opens nothing and says nothing.
-    private Task StartReaderMediumGalleryOpen(Control origin, ArchivePostRow post, ArchiveAttachmentRow row)
+    // reader cancel it; while it runs a repeat or another key does nothing) and a recheck of the whole reader state after every await. Carry the admission
+    // policy through those checks; an already consumed request that cannot act reports its refusal through the archive's status feedback.
+    private Task StartReaderMediumGalleryOpen(Control origin, ArchivePostRow post, ArchiveAttachmentRow row, bool largeReaderOnly)
     {
-        if (_thread == null || _readerMediaActivationCancellation != null) return Task.CompletedTask;
+        if (_thread == null || _readerMediaActivationCancellation != null)
+        {
+            if (!_ended) ShowReadingPositionMessage(Texts.T("reader.media.activation.contextChanged"));
+            return Task.CompletedTask;
+        }
         CancellationTokenSource cancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         _readerMediaActivationCancellation = cancellation;
-        return ActivateReaderMediaAsync(origin, post, _thread.Summary.Id, _mediaReady.Task, cancellation, row);
+        return ActivateReaderMediaAsync(origin, post, _thread.Summary.Id, _mediaReady.Task, cancellation, row, largeReaderOnly);
     }
 
     /// <summary>The gallery entry of exactly this attachment of the post (not another medium of it); null when its saved file is not there.</summary>

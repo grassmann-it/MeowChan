@@ -40,7 +40,9 @@ public sealed class PluralCountTextTests : IDisposable
         "readerGroups.matchesNarrow", "reader.newPostsCount", "rules.changedScopes", "selection.failed", "sources.count",
         "tags.manage.orphansUnchecked", "tags.dialog.usesName", "tags.dialog.row.all", "tags.dialog.removedMany",
         "tags.suggest.count", "work.missingAndErrors", "work.interventionCount", "booru.ui.status.results",
-        "booru.ui.post.favorites", "queue.ask"
+        "booru.ui.post.favorites", "queue.ask",
+        "media.count.media", "media.count.threads", "archive.delete.threads", "archive.delete.files",
+        "archive.delete.bytes", "import.done.tags", "export.collectionSelection", "media.filter.count", "media.untagged.hint"
     };
 
     // Catalog texts of the shape "{n} noun" with no singular form. Every one is either count-neutral for the number in the
@@ -56,7 +58,6 @@ public sealed class PluralCountTextTests : IDisposable
         ["booru.ui.page.limit"] = "both numbers are fixed Danbooru browse constants, never 1",
         ["booru.ui.result.showInMediaFor"] = "the number is a post id (\"#{0}\") and \"Media\" is the name of a page",
         ["booru.ui.tags.searchFull"] = "the Danbooru tag-search limit is a fixed provider constant above 1",
-        ["export.collectionSelection"] = "a collection export always has at least two members",
         ["feedback.repeated"] = "shown only when the same notice repeated (Count > 1)",
         ["limit.favoriteEntries"] = "reached through Texts.Count (StoreLimitText); a store limit has a minimum far above 1",
         ["limit.hiddenPosts"] = "reached through Texts.Count (StoreLimitText); a store limit has a minimum far above 1",
@@ -64,11 +65,9 @@ public sealed class PluralCountTextTests : IDisposable
         ["limit.postFilterRules"] = "reached through Texts.Count (StoreLimitText); a store limit has a minimum far above 1",
         ["limit.readerGroups"] = "reached through Texts.Count (StoreLimitText); a store limit has a minimum far above 1",
         ["limit.warn.favoriteEntries"] = "reached through Texts.Count with the store limit as the count (minimum far above 1)",
-        ["media.filter.count"] = "\"media\" is the same in the singular and the plural",
         ["media.tile.duplicatesHint"] = "shown only for a file found in two or more places",
         ["media.tile.inThreads"] = "shown only for two or more threads (guarded by ThreadCount > 1)",
         ["media.untagged.count"] = "\"media tags\" is not the counted noun of the number",
-        ["media.untagged.hint"] = "\"media\" is the same in the singular and the plural",
         ["progress.mediaOf"] = "\"media\" is the same in the singular and the plural",
         ["settings.galleryPlayback.videoRepeatsHint"] = "range text of a bounded setting (\"Default {0}, from {1} to {2} passes\")",
         ["reader.sidebar.noMedia"] = "the number is a post number (\"No. {0}\") and \"media\" is the same in the singular and the plural",
@@ -169,7 +168,7 @@ public sealed class PluralCountTextTests : IDisposable
     // Values whose number is a range or constant, a measured unit abbreviation, a "{0} of {1}" form or not followed by a noun at all.
     private static readonly HashSet<string> SlavicNumberBeforeNounAllowed = new(StringComparer.Ordinal)
     {
-        "booru.media.tags.search.tooMany", "booru.ui.page.limit", "feedback.repeated", "limit.warn.favoriteEntries", "media.filter.count",
+        "booru.media.tags.search.tooMany", "booru.ui.page.limit", "feedback.repeated", "limit.warn.favoriteEntries",
         "media.tile.duplicatesHint", "progress.mediaOf", "reader.date.unit.d", "stats.settings.maxSourcesHint",
         "stats.settings.persistIntervalHint", "stats.settings.retentionDaysHint", "store.backupBlocked.newer", "tags.filter.error.tooMany",
         "transfer.import.resultSet"

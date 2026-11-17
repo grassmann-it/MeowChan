@@ -107,12 +107,13 @@ public partial class MainWindow
     private async Task<bool> OpenBookmarkedPostAsync(PostBookmarkKey key, CancellationToken token)
     {
         if (_archivePage?.IsFilenameSearchOpen == true || _isClosing || _largeReaderOpen || _gallery != null) return false;
-        return await ArchivePage.OpenPostBookmarkAsync(key, () =>
+        bool opened = await ArchivePage.OpenPostBookmarkAsync(key, () =>
         {
             OpenLargeReader();
             // No bookmark-specific thread scope. Existing reader/quote/gallery navigation remains authoritative.
-            _postBookmarkReaderReturn = () => _postBookmarksDialog?.ReturnFromReader();
+            if (_largeReaderOpen) _postBookmarkReaderReturn = () => _postBookmarksDialog?.ReturnFromReader();
         }, token);
+        return opened && _largeReaderOpen;
     }
 
     private void RefreshPostBookmarkLabels()

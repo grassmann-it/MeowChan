@@ -82,7 +82,22 @@ public partial class ArchivePage
         ReaderMediaSidebarToggle.Click += (_, e) => { e.Handled = true; ToggleMediaSidebar(); RefreshMediaSidebarToggle(); };
         // The toolbar travels with the reader. Refresh on layout as well as preference changes:
         // host, dialog, language and shortcut changes must not leave a stale On/Off action.
-        ReaderMediaSidebarToggle.LayoutUpdated += (_, _) => RefreshMediaSidebarToggle();
+        bool subscribed = false;
+        void OnSidebarToggleLayoutUpdated(object? sender, EventArgs e) => RefreshMediaSidebarToggle();
+        void SubscribeLayout(object? sender, Avalonia.VisualTreeAttachmentEventArgs e)
+        {
+            if (subscribed) return;
+            ReaderMediaSidebarToggle.LayoutUpdated += OnSidebarToggleLayoutUpdated;
+            subscribed = true;
+        }
+        void UnsubscribeLayout(object? sender, Avalonia.VisualTreeAttachmentEventArgs e)
+        {
+            if (!subscribed) return;
+            ReaderMediaSidebarToggle.LayoutUpdated -= OnSidebarToggleLayoutUpdated;
+            subscribed = false;
+        }
+        ReaderMediaSidebarToggle.AttachedToVisualTree += SubscribeLayout;
+        ReaderMediaSidebarToggle.DetachedFromVisualTree += UnsubscribeLayout;
         RefreshMediaSidebarToggle();
         ArchivePosts.SelectionChanged += (_, _) => OnMediaSidebarSelectionChanged();
         // The archive view: the reader pane gets the sidebar's columns (posts card, splitter, sidebar). Its header rows (title, toolbar, status)
@@ -103,14 +118,21 @@ public partial class ArchivePage
     private Control WrapLargeReader(Grid pane)
     {
         Grid frame = _largeReaderFrame ??= CreateLargeReaderFrame();
+        if (_largeReader) ReaderHostingStep("wrap.01");
         // From the archive view's pane (hidden first); the pane's columns give the posts card its whole width back.
         MoveMediaSidebarTo(frame);
+        if (_largeReader) ReaderHostingStep("wrap.02");
         _paneSplitColumn = Grid.GetColumn(pane); // the embedded reader's column in ArchiveSplit, restored on the way back
+        if (_largeReader) ReaderHostingStep("wrap.03");
         frame.Children.Add(pane);
+        if (_largeReader) ReaderHostingStep("wrap.04");
         _mediaSidebarAppliedWidth = double.NaN;
+        if (_largeReader) ReaderHostingStep("wrap.05");
         LayoutMediaSidebar(force: true);
+        if (_largeReader) ReaderHostingStep("wrap.06");
         // The move kept the picture for this host; a large reader that does not show the sidebar gives it back.
         if (!_mediaSidebarShown) ReleaseKeptMediaSidebarPicture();
+        if (_largeReader) ReaderHostingStep("wrap.07");
         return frame;
     }
 
@@ -146,8 +168,11 @@ public partial class ArchivePage
     private ReaderMediaSidebar EnsureMediaSidebar()
     {
         if (_mediaSidebar is { } existing) return existing;
-        ReaderMediaSidebar sidebar = _mediaSidebar = new ReaderMediaSidebar { IsVisible = false };
-        GridSplitter splitter = _mediaSidebarSplitter = new GridSplitter
+        // Publish only a fully configured sidebar: a failed reader move must
+        // not leave an incomplete cached sidebar poisoning the next attempt.
+        ReaderMediaSidebar sidebar = new ReaderMediaSidebar { IsVisible = false };
+        if (_largeReader) ReaderHostingStep("sidebar.created");
+        GridSplitter splitter = new GridSplitter
         {
             Name = "ReaderMediaSidebarSplitter", Width = ReaderMediaSidebarRules.SplitterWidth,
             ResizeDirection = GridResizeDirection.Columns, IsVisible = false
@@ -158,7 +183,22 @@ public partial class ArchivePage
         sidebar.Frame.SizeChanged += (_, _) => OnMediaSidebarFrameResized();
         // The header line has a fixed height, so the frame's top and bottom follow from the posts box by arithmetic (ArchivePage.MediaSidebarAlignment.cs).
         sidebar.HeaderHeight = ReaderMediaSidebar.HeaderLineHeight;
-        sidebar.LayoutUpdated += (_, _) => AlignMediaSidebarFrame();
+        bool subscribed = false;
+        void OnSidebarFrameLayoutUpdated(object? sender, EventArgs e) => AlignMediaSidebarFrame();
+        void SubscribeLayout(object? sender, Avalonia.VisualTreeAttachmentEventArgs e)
+        {
+            if (subscribed) return;
+            sidebar.LayoutUpdated += OnSidebarFrameLayoutUpdated;
+            subscribed = true;
+        }
+        void UnsubscribeLayout(object? sender, Avalonia.VisualTreeAttachmentEventArgs e)
+        {
+            if (!subscribed) return;
+            sidebar.LayoutUpdated -= OnSidebarFrameLayoutUpdated;
+            subscribed = false;
+        }
+        sidebar.AttachedToVisualTree += SubscribeLayout;
+        sidebar.DetachedFromVisualTree += UnsubscribeLayout;
         sidebar.Open.Click += (_, e) => { e.Handled = true; OpenMediaSidebarMedia(); };
         sidebar.StripSelected += (_, index) => SelectMediaSidebarIndex(index);
         sidebar.StripActivated += (_, index) => { SelectMediaSidebarIndex(index); OpenMediaSidebarMedia(); };
@@ -209,6 +249,9 @@ public partial class ArchivePage
         // Give the reader's rating router an owner on this sibling as well; the
         // large-reader frame is not the pane's visual subtree.
         if (_ratingCommands != null) RegisterRatingCommands(sidebar);
+        if (_largeReader) ReaderHostingStep("sidebar.configured");
+        _mediaSidebarSplitter = splitter;
+        _mediaSidebar = sidebar;
         return sidebar;
     }
 
@@ -217,6 +260,7 @@ public partial class ArchivePage
     // slot handler. The sidebar can be a sibling of the pane, so it must route configured reader view options too.
     private bool TryRouteSidebarSelectionShortcut(ReaderMediaSidebar sidebar, KeyEventArgs e)
     {
+        if (e.Handled || ShortcutService.IsCapturing || _ended || _obscuredByGallery || IsReaderDialogOpen) return false;
         // Shift+Enter is the explicit "open in gallery" gesture. A focused strip item is
         // otherwise a native ListBox selection, so it consumes the routed key before the
         // reader can see it. Route the gallery command at the sidebar boundary while
@@ -224,11 +268,18 @@ public partial class ArchivePage
         if (CommandBindings.Matches(e, "gallery.open") && e.Source is Visual gallerySource
             && gallerySource.GetSelfAndVisualAncestors().Any(node => ReferenceEquals(node, sidebar)))
         {
+            // Focus identifies the file even before a pending strip selection
+            // notification has updated the sidebar's displayed index.
+            ListBoxItem? item = gallerySource.GetSelfAndVisualAncestors().OfType<ListBoxItem>()
+                .FirstOrDefault(node => node.GetVisualAncestors().Contains(sidebar.Strip));
+            if (item?.Tag is int index) SelectMediaSidebarIndex(index);
             e.Handled = true;
             OpenMediaSidebarMedia();
             return true;
         }
         if (ReaderSelectionOwnsActivationKey(e)) return false;
+        OnPostFilterKeyDown(sidebar, e);
+        if (e.Handled) return true;
         bool inStrip = e.Source is Visual source
             && source.GetSelfAndVisualAncestors().Any(node => ReferenceEquals(node, sidebar.Strip));
         if (inStrip && TryRouteSidebarVideoKey(e)) return true;
@@ -242,34 +293,52 @@ public partial class ArchivePage
     private void MoveMediaSidebarTo(Grid host)
     {
         ReaderMediaSidebar sidebar = EnsureMediaSidebar();
+        if (_largeReader) ReaderHostingStep("sidebar.01");
         GridSplitter splitter = _mediaSidebarSplitter!;
+        if (_largeReader) ReaderHostingStep("sidebar.02");
         if (ReferenceEquals(_mediaSidebarHost, host)) return;
         _movingMediaSidebar = true;
+        if (_largeReader) ReaderHostingStep("sidebar.03");
         try
         {
             // Hidden for the move, the picture stays: the new host shows the same medium without flashing it away (WrapLargeReader gives it back
             // when that host does not show the sidebar).
             if (_mediaSidebarShown) SetMediaSidebarShown(false, keepPicture: true);
+            if (_largeReader) ReaderHostingStep("sidebar.04");
             Grid pane = ArchiveReaderPane;
+            if (_largeReader) ReaderHostingStep("sidebar.05");
             if (_mediaSidebarHost is { } previous)
             {
                 previous.Children.Remove(splitter);
+                if (_largeReader) ReaderHostingStep("sidebar.06");
                 previous.Children.Remove(sidebar);
+                if (_largeReader) ReaderHostingStep("sidebar.07");
                 if (ReferenceEquals(previous, pane)) CollapseArchiveViewColumns();
+                if (_largeReader) ReaderHostingStep("sidebar.08");
             }
             bool archiveView = ReferenceEquals(host, pane);
+            if (_largeReader) ReaderHostingStep("sidebar.09");
             sidebar.IsVisible = splitter.IsVisible = false;
+            if (_largeReader) ReaderHostingStep("sidebar.10");
             Grid.SetRow(sidebar, archiveView ? 1 : 0);
+            if (_largeReader) ReaderHostingStep("sidebar.11");
             Grid.SetRow(splitter, archiveView ? 1 : 0);
+            if (_largeReader) ReaderHostingStep("sidebar.12");
             // Tom (16.11.2026): the sidebar's media frame has the posts box's top and bottom. The archive view therefore has no section card around
             // the sidebar any more (its frame has its own edge); the header line is lifted into the strip above the box (MediaPage's panel does the same).
             ApplyMediaSidebarInsets(sidebar, archiveView);
+            if (_largeReader) ReaderHostingStep("sidebar.13");
             if (archiveView) sidebar.BorderThickness = new Thickness(0);
             else sidebar[!Border.BorderBrushProperty] = new Avalonia.Markup.Xaml.MarkupExtensions.DynamicResourceExtension("Workspace.CardEdge");
+            if (_largeReader) ReaderHostingStep("sidebar.15");
             host.Children.Add(sidebar);
+            if (_largeReader) ReaderHostingStep("sidebar.16");
             host.Children.Add(splitter);
+            if (_largeReader) ReaderHostingStep("sidebar.17");
             _mediaSidebarHost = host;
+            if (_largeReader) ReaderHostingStep("sidebar.18");
             _mediaSidebarAppliedWidth = double.NaN;
+            if (_largeReader) ReaderHostingStep("sidebar.19");
         }
         finally { _movingMediaSidebar = false; }
     }
@@ -616,7 +685,7 @@ public partial class ArchivePage
         CancellationTokenSource? loading = _sidebarLoading;
         _sidebarLoading = null;
         try { loading?.Cancel(); } catch (ObjectDisposedException) { }
-        loading?.Dispose();
+        // The running task owns disposal, including non-cooperative decodes after cancellation.
     }
 
     private void RefreshMediaSidebar()
@@ -688,11 +757,18 @@ public partial class ArchivePage
             if (sidebar.Load.ShownSource is { } source)
                 sidebar.LimitPicture(ReaderMediaSidebarRules.MaximumDisplay(source.Width, _sidebarFit), ReaderMediaSidebarRules.MaximumDisplay(source.Height, _sidebarFit));
             ScheduleSidebarVideoAutoplay();
-            MediaSidebarTask = RewarmMediaSidebarNeighboursAsync(post, target, loading.Token);
+            MediaSidebarTask = RunMediaSidebarLoadAsync(loading, token => RewarmMediaSidebarNeighboursAsync(post, target, token));
             return;
         }
-        MediaSidebarTask = LoadMediaSidebarAsync(sidebar, post, row, size, mediumKey, ticket, target, loading.Token);
+        MediaSidebarTask = RunMediaSidebarLoadAsync(loading,
+            token => LoadMediaSidebarAsync(sidebar, post, row, size, mediumKey, ticket, target, token));
     }
+
+    private Task RunMediaSidebarLoadAsync(CancellationTokenSource loading, Func<CancellationToken, Task> work) =>
+        CancellationWork.RunAsync(loading, work, () =>
+        {
+            if (ReferenceEquals(_sidebarLoading, loading)) _sidebarLoading = null;
+        });
 
     // Whether any post of the open thread has an attachment (the sidebar's "This thread has no media" is about the whole thread); one scan per thread read.
     private object? _sidebarMediaScanned;
@@ -720,7 +796,7 @@ public partial class ArchivePage
         CancellationTokenSource? loading = _sidebarStripLoading;
         _sidebarStripLoading = null;
         try { loading?.Cancel(); } catch (ObjectDisposedException) { }
-        loading?.Dispose();
+        // The running task owns disposal, including non-cooperative decodes after cancellation.
     }
 
     // The strip shows the files of the focused post (at most the configured number at once); only a new layout (another post, another
@@ -738,7 +814,11 @@ public partial class ArchivePage
         if (missing.Count == 0) return;
         CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         _sidebarStripLoading = loading;
-        MediaSidebarStripTask = LoadSidebarStripAsync(sidebar, post, missing, loading.Token);
+        MediaSidebarStripTask = CancellationWork.RunAsync(loading,
+            token => LoadSidebarStripAsync(sidebar, post, missing, token), () =>
+            {
+                if (ReferenceEquals(_sidebarStripLoading, loading)) _sidebarStripLoading = null;
+            });
     }
 
     private async Task LoadSidebarStripAsync(ReaderMediaSidebar sidebar, ArchivePostRow post, IReadOnlyList<int> indexes, CancellationToken token)

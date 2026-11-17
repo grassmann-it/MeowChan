@@ -19,6 +19,7 @@ using Avalonia.Styling;
 using Avalonia.VisualTree;
 using Avalonia.Interactivity;
 using SkiaSharp;
+using MeowChan.Desktop.Controls;
 
 namespace MeowChan.Desktop.Commands;
 
@@ -382,22 +383,6 @@ public static class CommandBindings
         }
     }
 
-    internal static void BindShortcutHelp(Control control, IReadOnlyList<string> ids, Func<string> fixedHelp)
-    {
-        void RefreshHint()
-        {
-            string help = fixedHelp();
-            var bound = ids.Where(id => CommandCatalog.ShortcutDisplay(id) != null).Select(TooltipFor);
-            string dynamicHelp = string.Join(Environment.NewLine, bound);
-            if (dynamicHelp.Length > 0) help += Environment.NewLine + dynamicHelp;
-            ToolTip.SetTip(control, help);
-            AutomationProperties.SetHelpText(control, help);
-            Observe(control, RefreshHint);
-        }
-        static string TooltipFor(string id) => Tooltip(id);
-        RefreshHint();
-    }
-
     internal static void BindExisting(Control control, string id, bool preserveHelp = false)
     {
         if (Actions.TryGetValue(control, out var current) && current.Id == id)
@@ -515,7 +500,7 @@ public static class CommandBindings
                     return ShortcutService.Current.Matches(e, id);
                 // Check each nearer node, not IsNativeInput(source): that predicate also
                 // sees the owned slider above decorative template children.
-                if (parent is TextBox or ComboBox or NumericUpDown or ScrollBar or MenuItem or Ursa.Controls.AutoCompleteBox)
+                if (PointerFocusReclaim.IsTextInput(parent) || parent is ScrollBar or MenuItem)
                     return false;
                 if (parent is Slider && (e.Key is Key.Left or Key.Right or Key.Up or Key.Down
                     or Key.Home or Key.End or Key.PageUp or Key.PageDown or Key.Enter or Key.Escape))

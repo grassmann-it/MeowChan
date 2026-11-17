@@ -145,6 +145,29 @@ public sealed class SettingsConditionalRowTests
     }
 
     [Fact]
+    public void RepeatedJumpsToAnEditedRowDoNotAccumulateAndPageCloseReleasesIt()
+    {
+        OwnedUiDispatcher.Run(() =>
+        {
+            (_, Border row, TextBox input) = Page(when: false);
+            var reveal = new SettingsConditionalReveal();
+            reveal.Reveal(input);
+            reveal.NoteEdited(input);
+            for (int jump = 0; jump < 5; jump++)
+            {
+                reveal.Reveal(input);
+                Assert.Equal(1, reveal.Count);
+            }
+            reveal.Release();
+            Assert.True(row.IsVisible);
+            reveal.Release(keepEdited: false);
+            Assert.False(row.IsVisible);
+            Assert.False(SettingsConditional.GetRevealed(row));
+            Assert.Equal(0, reveal.Count);
+        });
+    }
+
+    [Fact]
     public void NestedConditionalRowsAreAllRevealedForATargetInTheInnerOne()
     {
         OwnedUiDispatcher.Run(() =>

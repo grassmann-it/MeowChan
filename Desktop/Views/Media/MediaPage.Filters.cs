@@ -307,7 +307,7 @@ public sealed partial class MediaPage
         WorkViewGate.Apply(_untaggedLink, _workView, shown); // the view may leave the count out (Barebones); state is `shown`
         if (!shown) return;
         _untaggedText.Text = Texts.T("media.untagged.count", count);
-        string hint = Texts.T("media.untagged.hint", count);
+        string hint = Texts.Count("media.untagged.hint", count);
         ToolTip.SetTip(_untaggedLink, hint);
         AutomationProperties.SetName(_untaggedLink, hint);
     }

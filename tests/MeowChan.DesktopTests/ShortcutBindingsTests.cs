@@ -78,6 +78,21 @@ public sealed class ShortcutBindingsTests
     public void UnsafeCaptureIsRejected(string gesture, ShortcutPlatform platform)
     { Assert.NotNull(EffectiveShortcutBindings.InvalidReason(ShortcutGesture.Parse(gesture), platform)); }
 
+    [Theory]
+    [InlineData(ShortcutPlatform.Windows)]
+    [InlineData(ShortcutPlatform.Linux)]
+    public void ReaderExpandNonTextChordIsValidAndRoundTripsWithoutAllowingAltGrText(ShortcutPlatform platform)
+    {
+        var chord = ShortcutGesture.Parse("Primary+Alt+Enter");
+        Assert.Null(EffectiveShortcutBindings.InvalidReason(chord, platform));
+        var bindings = EffectiveShortcutBindings.Build(new ShortcutBindingsSection().Set("reader.expand", [chord]), platform);
+        Assert.Empty(bindings.Issues);
+        Assert.True(bindings.Matches(Key(Avalonia.Input.Key.Enter, KeyModifiers.Control | KeyModifiers.Alt), "reader.expand", "reader"));
+        foreach (Avalonia.Input.Key key in Enum.GetValues<Avalonia.Input.Key>().Distinct().Where(key => key != Avalonia.Input.Key.Enter))
+            Assert.NotNull(EffectiveShortcutBindings.InvalidReason(new ShortcutGesture(key.ToString(), new[] { "Control", "Alt" }), platform));
+        Assert.NotNull(EffectiveShortcutBindings.InvalidReason(ShortcutGesture.Parse("Primary+Alt+Shift+Enter"), platform));
+    }
+
     [Fact]
     public void NativeTextCommandsRemainAvailableInTheirListContext()
     { Assert.Null(EffectiveShortcutBindings.InvalidReason(ShortcutGesture.Parse("Primary+C"), ShortcutPlatform.Linux)); }

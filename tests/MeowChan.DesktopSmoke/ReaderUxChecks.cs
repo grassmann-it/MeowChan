@@ -142,8 +142,16 @@ internal static class ReaderUxChecks
         }
         if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_MEDIA_SIDEBAR_ONLY") == "1")
         {
-            await ReaderSidebarShortcutChecks.RunAsync(window);
-            await ReaderMediaSidebarChecks.RunAsync(window);
+            List<Exception> failures = new();
+            foreach (Func<Task> scene in new Func<Task>[] {
+                () => ReaderGalleryShortcutParityChecks.RunAsync(window),
+                () => ReaderSidebarShortcutChecks.RunAsync(window),
+                () => ReaderMediaSidebarChecks.RunAsync(window) })
+            {
+                try { await scene(); }
+                catch (Exception error) { failures.Add(error); Console.WriteLine("SMOKE reader sidebar independent scene failed: " + error); }
+            }
+            if (failures.Count > 0) throw new AggregateException("Reader sidebar scenes completed with failures", failures);
             return;
         }
         if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_INLINE_VIDEO_ONLY") == "1")

@@ -21,7 +21,7 @@ public sealed class AdditiveGalleryShortcutTests
         };
         foreach (var (key, command) in actions)
         {
-            var press = new KeyEventArgs { Key = key };
+            var press = new KeyEventArgs { Key = key, KeyModifiers = command.StartsWith("video.", StringComparison.Ordinal) ? KeyModifiers.Shift : KeyModifiers.None };
             Assert.True(bindings.Matches(press, command));
             foreach (var (_, otherCommand) in actions)
                 Assert.Equal(command == otherCommand, bindings.Matches(press, otherCommand));
@@ -36,12 +36,12 @@ public sealed class AdditiveGalleryShortcutTests
     public void NewVolumeDefaultsNeverDisableExistingExplicitGalleryNavigation(ShortcutPlatform platform)
     {
         var section = new ShortcutBindingsSection()
-            .Set("gallery.previous", [ShortcutGesture.Parse("Up")])
-            .Set("gallery.next", [ShortcutGesture.Parse("Down")]);
+            .Set("gallery.previous", [ShortcutGesture.Parse("Shift+Up")])
+            .Set("gallery.next", [ShortcutGesture.Parse("Shift+Down")]);
         string before = section.Raw.GetRawText();
         var bindings = EffectiveShortcutBindings.Build(section, platform);
-        Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.Up }, "gallery.previous"));
-        Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.Down }, "gallery.next"));
+        Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.Up, KeyModifiers = KeyModifiers.Shift }, "gallery.previous"));
+        Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.Down, KeyModifiers = KeyModifiers.Shift }, "gallery.next"));
         Assert.Empty(bindings.For("video.volume-up"));
         Assert.Empty(bindings.For("video.volume-down"));
         Assert.DoesNotContain(bindings.Issues, issue => issue.BlocksSave);
@@ -71,7 +71,7 @@ public sealed class AdditiveGalleryShortcutTests
             .Set("reader.previous-post", [ShortcutGesture.Parse("Up")])
             .Set("video.volume-down", []));
         Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.Up }, "reader.previous-post"));
-        Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.Up }, "video.volume-up"));
+        Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.Up, KeyModifiers = KeyModifiers.Shift }, "video.volume-up"));
         Assert.Empty(bindings.For("video.volume-down"));
         Assert.DoesNotContain(bindings.Issues, issue => issue.BlocksSave);
     }

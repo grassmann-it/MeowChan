@@ -128,11 +128,11 @@ internal static partial class MediaPageChecks
             Require(page.ShownEntries.Select(entry => entry.Thread.Thread + ":" + (entry.PostId ?? "-")).SequenceEqual(new[] { "200:200", "100:100", "100:-" }),
                 "By-thread order is wrong: " + string.Join(",", page.ShownEntries.Select(entry => entry.Thread.Thread + ":" + entry.PostId)));
             TextBlock status = C<TextBlock>(page, "MediaStatus");
-            Require(status.Text == Texts.T("media.count", 3, 2), "Status is wrong: " + status.Text);
+            Require(status.Text == CountPhrases.MediaSummary(3, 2), "Status is wrong: " + status.Text);
 
             CheckBox missing = C<CheckBox>(page, "MediaShowMissing");
             missing.IsChecked = true;
-            Require(page.ShownEntries.Count == 4 && status.Text == Texts.T("media.countMissing", 4, 2, 1), "Missing toggle failed: " + status.Text);
+            Require(page.ShownEntries.Count == 4 && status.Text == CountPhrases.MediaSummary(4, 2, 1), "Missing toggle failed: " + status.Text);
             missing.IsChecked = false;
 
             ComboBox sort = C<ComboBox>(page, "MediaSort");
@@ -209,7 +209,7 @@ internal static partial class MediaPageChecks
             CheckBox withoutTags = C<CheckBox>(page, "MediaWithoutMediaTags");
             Require(untagged.IsVisible && (untagged.Content as TextBlock)?.Text == Texts.T("media.untagged.count", 3)
                 && Equals(ToolTip.GetTip(untagged), Texts.T("media.untagged.hint", 3))
-                && C<TextBlock>(page, "MediaStatus").Text == Texts.T("media.count", 3, 2), "The status line must offer the three untagged files.");
+                && C<TextBlock>(page, "MediaStatus").Text == CountPhrases.MediaSummary(3, 2), "The status line must offer the three untagged files.");
             Program.CaptureWindow(window, "smoke-media-untagged-link.png");
             Require(untagged.Focus(), "The untagged count link must take keyboard focus.");
             untagged.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -523,7 +523,7 @@ internal static partial class MediaPageChecks
             MediaLibraryTile group = page.Tiles.Single(tile => tile.IsGroup);
             Require(group.Occurrences.Count == 3 && group.ThreadCount == 3 && group.Occurrences.Select(entry => entry.Thread.Thread).Order().SequenceEqual(new[] { "300", "400", "500" }),
                 "The group must know its three occurrences in three threads.");
-            Require(C<TextBlock>(page, "MediaStatus").Text == Texts.T("media.count", 2, 3), "Status counts tiles: " + C<TextBlock>(page, "MediaStatus").Text);
+            Require(C<TextBlock>(page, "MediaStatus").Text == CountPhrases.MediaSummary(2, 3), "Status counts tiles: " + C<TextBlock>(page, "MediaStatus").Text);
 
             // Tags per occurrence: a media tag on the file in 400, a thread tag on 500, nothing in 300.
             MediaLibraryEntry in300 = group.Occurrences.Single(entry => entry.Thread.Thread == "300");
@@ -1289,14 +1289,24 @@ internal static partial class MediaPageChecks
         ?? root.GetLogicalDescendants().OfType<T>().FirstOrDefault(control => control.Name == name)
         ?? throw new InvalidOperationException("Missing control " + name);
 
-    private static async Task UntilAsync(Func<bool> condition)
+    private static async Task UntilAsync(Func<bool> condition,
+        [System.Runtime.CompilerServices.CallerMemberName] string caller = "",
+        [System.Runtime.CompilerServices.CallerLineNumber] int line = 0,
+        [System.Runtime.CompilerServices.CallerArgumentExpression(nameof(condition))] string expression = "")
     {
-        DateTime deadline = DateTime.UtcNow + Deadline;
+        System.Diagnostics.Stopwatch elapsed = System.Diagnostics.Stopwatch.StartNew();
+        long probes = 0;
+        Console.WriteLine($"SMOKE media wait START {caller}:{line}: {expression}");
         while (!condition())
         {
-            if (DateTime.UtcNow >= deadline) throw new TimeoutException("Media page UI event deadline.");
+            probes++;
+            if (elapsed.Elapsed >= Deadline) throw new TimeoutException($"Media page UI event deadline: {caller}:{line} after {elapsed.Elapsed.TotalMilliseconds:F0} ms, {probes} probes: {expression}");
+            // Avoid millions of dispatcher probes when a condition never becomes true;
+            // leave time for native input, layout and timers between probes.
+            await Task.Delay(20);
             await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
         }
+        Console.WriteLine($"SMOKE media wait PASS {caller}:{line}: {elapsed.Elapsed.TotalMilliseconds:F0} ms, {probes} probes");
     }
 
     private static void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }

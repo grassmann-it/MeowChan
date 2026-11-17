@@ -306,10 +306,18 @@ internal static partial class PrivateTagBarChecks
         async Task ChooseTagsAsync(ContextMenu menu, ResourceId thread)
         {
             MenuItem item = TagsItem(menu) ?? throw new InvalidOperationException("The thread menu offers no Tags… entry.");
-            Require(item.Command?.CanExecute(null) == true && item.Header?.ToString()?.StartsWith(Texts.T("command.thread.tags"), StringComparison.Ordinal) == true
+            object?[] expectedBeforeTags = { "thread.favorite-toggle", "thread.read", "gallery.open", "thread.details" };
+            // Continue Reading is an optional action inserted after Read when this thread has a saved
+            // reading position. It is part of the current menu contract and must not make the older
+            // Tags smoke reject an otherwise valid menu.
+            if (menu.Items.OfType<MenuItem>().Any(entry => Equals(entry.Tag, "navigation.continue-reading")))
+                expectedBeforeTags = new object?[] { "thread.favorite-toggle", "thread.read", "navigation.continue-reading", "gallery.open", "thread.details" };
+            bool menuContract = item.Command?.CanExecute(null) == true && item.Header?.ToString()?.StartsWith(Texts.T("command.thread.tags"), StringComparison.Ordinal) == true
                 && menu.Items.OfType<MenuItem>().Select(entry => entry.Tag).TakeWhile(tag => !Equals(tag, "thread.tags"))
-                    .SequenceEqual(new object?[] { "thread.favorite-toggle", "thread.read", "gallery.open", "thread.details" }),
-                "The Tags… entry is disabled, mislabeled or misplaced: " + item.Header);
+                    .Where(tag => !Equals(tag, "thread.show-in-media"))
+                    .SequenceEqual(expectedBeforeTags);
+            string actualMenu = string.Join(", ", menu.Items.OfType<MenuItem>().Select(entry => $"{entry.Tag}:{entry.Header}:enabled={entry.Command?.CanExecute(null)}"));
+            Require(menuContract, "The Tags… entry is disabled, mislabeled or misplaced: " + item.Header + "; menu=" + actualMenu);
             item.Command!.Execute(null);
             menu.Close();
             await UntilAsync(() => f.Page.CurrentThread?.Summary.Id == thread && bar.IsVisible && input.IsKeyboardFocusWithin);
@@ -426,9 +434,10 @@ internal static partial class PrivateTagBarChecks
             Require(Equals(open.Content, Texts.T("tags.openCount", 2)), "Tags did not survive a restart: " + open.Content);
             f.Click("ReaderTagsOpen");
             Require(f.Chips().SequenceEqual(new[] { "my_tag", "/sdg/" }), "Restart lost or reordered tags.");
+            await Program.WaitUntilAsync(() => Equals(f.C<Button>("ReaderTagAdd").Content, Texts.T("tags.add"))
+                && f.C<IdentitySuggestionBox>("ReaderTagInput").PlaceholderText == Texts.T("tags.input.several"),
+                () => $"German labels missing: add={f.C<Button>("ReaderTagAdd").Content}, placeholder={f.C<IdentitySuggestionBox>("ReaderTagInput").PlaceholderText}");
             Capture(f.Page, "bar-de");
-            Require(Equals(f.C<Button>("ReaderTagAdd").Content, "Tag hinzufügen") && f.C<IdentitySuggestionBox>("ReaderTagInput").PlaceholderText == "Tagname",
-                "German labels missing.");
             Require(f.Suggestions().Select(Fixture.Label).SequenceEqual(new[] { "+ /rpt/" }), "Restart suggestions wrong.");
         }
         string file = Path.Combine(profile, PrivateTagStore.FileName);

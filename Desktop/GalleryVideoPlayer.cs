@@ -48,6 +48,7 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
     private readonly GalleryTransportSlider _seek = new() { Name = "GalleryVideoSeek", Classes = { "media-slider" }, Minimum = 0, Maximum = 1000, MinWidth = 80, Height = 32, VerticalAlignment = VerticalAlignment.Center };
     private readonly GalleryVolumeSlider _volume = new() { Name = "GalleryVideoVolume", Classes = { "media-slider" }, Minimum = 0, Maximum = 100, Value = 70, Width = 80, Height = 32, VerticalAlignment = VerticalAlignment.Center };
     private readonly Grid _root = new() { RowDefinitions = new RowDefinitions("*,Auto") };
+    private readonly PointerFocusReclaim _pointerFocusReclaim;
     private readonly Border _transportPanel = new() { Name = "GalleryVideoTransport", Classes = { "workspace-media-transport" } };
     private Panel? _externalTransportHost;
     private bool _transportPlacementRetired;
@@ -579,7 +580,7 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
         // once released, the speed and player menus once closed): the owner gets the keyboard back so the next Enter/Space reaches playback.
         // The timeline keeps its focus (its arrows seek); Tab and keyboard activation keep the control's native focus for accessibility.
         PointerFocusReclaim.SetReclaims(_volume, true);
-        PointerFocusReclaim.Attach(_transportPanel, () => ShortcutFocusRequested?.Invoke());
+        _pointerFocusReclaim = PointerFocusReclaim.Attach(_transportPanel, () => ShortcutFocusRequested?.Invoke());
         _volume.PropertyChanged += (_, args) =>
         {
             if (args.Property != Slider.ValueProperty || _settingVolume) return;
@@ -1444,8 +1445,13 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
         Task cleanup = _lifetime.DisposeAsync();
         Task scrubCleanup = DisposeScrubPreviewAsync();
         cleanup = Task.WhenAll(cleanup, scrubCleanup);
-        if (Dispatcher.UIThread.CheckAccess()) RetireTransportPlacement();
-        else Dispatcher.UIThread.Post(RetireTransportPlacement);
+        void RetireInput()
+        {
+            _pointerFocusReclaim.Dispose();
+            RetireTransportPlacement();
+        }
+        if (Dispatcher.UIThread.CheckAccess()) RetireInput();
+        else Dispatcher.UIThread.Post(RetireInput);
         return new(DetachTransportAfterCleanupAsync(cleanup));
     }
     private async Task DetachTransportAfterCleanupAsync(Task cleanup)

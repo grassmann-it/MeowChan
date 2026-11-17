@@ -1,0 +1,34 @@
+{
+  "kind": "source-built Avalonia harness registry run; not published apphost",
+  "platform": "linux",
+  "window_manager": "openbox",
+  "complete": true,
+  "interrupted": false,
+  "counts": {
+    "passed": 1,
+    "failed": 0,
+    "skipped": 0
+  },
+  "failed": [],
+  "results": [
+    {
+      "id": "reader-navigation",
+      "kind": "Nested",
+      "mode": "reader-ux",
+      "scenario": "reader-ux+MEOWCHAN_READER_NAVIGATION_ONLY",
+      "status": "passed",
+      "passed": true,
+      "attempts": [
+        {
+          "output": "/tmp/commandcode-1000/-home-tomka-Desktop-oChan/5c761842-173e-465a-a2e7-aabd8ea57e21/scratchpad/c1-final/reader-navigation",
+          "exit_code": 0,
+          "seconds": 144,
+          "child_passed": true,
+          "timed_out": false,
+          "observed_scenario": "reader-ux+MEOWCHAN_READER_NAVIGATION_ONLY",
+          "error": null
+        }
+      ]
+    }
+  ]
+}

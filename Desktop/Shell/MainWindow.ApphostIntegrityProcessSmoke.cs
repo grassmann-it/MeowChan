@@ -1,3 +1,5 @@
+#if DEBUG
+using static MeowChan.Desktop.ApphostAcceptanceAssertions;
 using System;
 using System.IO;
 using System.Linq;
@@ -271,3 +273,5 @@ public partial class MainWindow
     }
     private static string PolicyHash(byte[] bytes) => Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
 }
+
+#endif

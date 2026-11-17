@@ -24,8 +24,8 @@ public static class CommandCatalog
         new("reader-groups.move-down", "command.reader-groups.move-down", "Move thread down", "Thread nach unten", "arrow-down", null, CommandScope.Dialog, new[] { "reader-groups-dialog" }),
         new("reader-groups.save", "command.reader-groups.save", "Save group", "Gruppe speichern", "save", null, CommandScope.Dialog, new[] { "reader-groups-dialog" }),
         new("reader-groups.read", "command.reader-groups.read", "Read group", "Gruppe lesen", "book-open", null, CommandScope.Dialog, new[] { "reader-groups-dialog" }),
-        new("media.tags.edit", "media.tags.edit", "Edit tags…", "Tags bearbeiten…", "edit-2", "Primary+Shift+T", CommandScope.Media | CommandScope.Reader | CommandScope.Gallery, new[] { "media-context-menu", "reader-attachment-menu" }, new[] { "media", "gallery" }),
-        new("media.queue.add", "command.media.queue.add", "Add to tagging queue", "Zur Tagging-Warteschlange hinzufügen", "plus", "Q", CommandScope.Media | CommandScope.Reader | CommandScope.Gallery | CommandScope.Archive, new[] { "media-context-menu", "reader-attachment-menu", "gallery-menu" }, new[] { "media", "gallery" }),
+        new("media.tags.edit", "media.tags.edit", "Edit tags…", "Tags bearbeiten…", "edit-2", "Primary+Shift+T", CommandScope.Media | CommandScope.Reader | CommandScope.Gallery, new[] { "media-context-menu", "reader-attachment-menu" }, new[] { "media", "reader", "gallery" }),
+        new("media.queue.add", "command.media.queue.add", "Add to tagging queue", "Zur Tagging-Warteschlange hinzufügen", "plus", "Q", CommandScope.Media | CommandScope.Reader | CommandScope.Gallery | CommandScope.Archive, new[] { "media-context-menu", "reader-attachment-menu", "gallery-menu" }, new[] { "media", "reader", "gallery" }),
         new("media.queue.open", "command.media.queue.open", "Walk through tagging queue", "Tagging-Warteschlange durchgehen", "list", null, CommandScope.Application, new[] { "media-page" }),
         // PT2: the tagging page and the commands of its queue list (execution context "tagging"). The page has a footer button behind
         // Media, a More entry and a ⋯ entry like every main page. The main pages carry no fixed digit here: Ctrl/Cmd+1, 2, 3 ... follow the
@@ -191,7 +191,7 @@ public static class CommandCatalog
         new("archive.back-to-list", "command.archive.back-to-list", "Back to thread list", "Zurück zur Threadliste", "arrow-left", null, CommandScope.Reader, new[] { "embedded-reader" }),
         new("archive.capture-toggle", "command.archive.capture-toggle", "Start / stop post capture", "Post-Erfassung starten / stoppen", "circle", null, CommandScope.Reader | CommandScope.Application, new[] { "reader-thread-menu" }),
         new("reader.close", "command.reader.close", "Close reader", "Reader schließen", "arrow-left", "Escape", CommandScope.Reader, new[] { "large-reader-toolbar" }),
-        new("reader.expand", "command.reader.expand", "Large reader", "Großer Reader", "external-link", "Primary+Enter", CommandScope.Reader, new[] { "embedded-reader-toolbar" }),
+        new("reader.expand", "command.reader.expand", "Large reader", "Großer Reader", "external-link", "Primary+Alt+Enter", CommandScope.Reader, new[] { "embedded-reader-toolbar" }),
         new("reader.history-back", "command.reader.history-back", "Back to last read", "Zurück zum Lesestand", "arrow-left", "Alt+Left", CommandScope.Reader, new[] { "reader-toolbar" }, new[] { "reader-history" }),
         new("reader.previous-thread", "command.reader.previous-thread", "Previous thread", "Voriger Thread", "arrow-left", "Left", CommandScope.Reader, new[] { "large-reader-navigation" }),
         new("reader.next-thread", "command.reader.next-thread", "Next thread", "Nächster Thread", "arrow-right", "Right", CommandScope.Reader, new[] { "large-reader-navigation" }),
@@ -217,7 +217,7 @@ public static class CommandCatalog
         // G1: the gallery's mode switch "View | Tag" (enters and leaves the tagging mode of a walkable list).
         new("gallery.mode-toggle", "command.gallery.mode-toggle", "Gallery mode: view / tag", "Galeriemodus: Ansehen / Taggen", "edit-2", "Shift+T", CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
         new("gallery.tools-toggle", "command.gallery.tools-toggle", "Show / hide gallery tools", "Galeriewerkzeuge anzeigen / ausblenden", "sliders", "Shift+H", CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
-        new("gallery.slideshow-toggle", "command.gallery.slideshow-toggle", "Start / pause slideshow", "Diashow starten / pausieren", "play", "D", CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
+        new("gallery.slideshow-toggle", "command.gallery.slideshow-toggle", "Start / pause slideshow", "Diashow starten / pausieren", "play", "Shift+D", CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
         new("gallery.overlay-toggle", "command.gallery.overlay-toggle", "Toggle controls overlay", "Overlay-Bedienelemente umschalten", "sliders", "Shift+O", CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
         new("gallery.overlay-autohide-toggle", "command.gallery.overlay-autohide-toggle", "Toggle overlay auto-hide", "Automatisches Ausblenden umschalten", "sliders", null, CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
         new("gallery.post-overlay-toggle", "command.gallery.post-overlay-toggle", "Toggle post overlay", "Post-Overlay umschalten", "file-text", null, CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
@@ -337,11 +337,11 @@ public static class CommandCatalog
         new("tags.quick.suggestion-7", "command.tags.quick.suggestion-7", "Toggle tag suggestion 7", "Tagvorschlag 7 umschalten", "check", "Alt+7", CommandScope.Gallery | CommandScope.Media | CommandScope.Reader | CommandScope.Archive, new[] { "gallery-tag-panel", "quick-tag-popover" }, new[] { "gallery", "media", "reader", "archive" }),
         new("tags.quick.suggestion-8", "command.tags.quick.suggestion-8", "Toggle tag suggestion 8", "Tagvorschlag 8 umschalten", "check", "Alt+8", CommandScope.Gallery | CommandScope.Media | CommandScope.Reader | CommandScope.Archive, new[] { "gallery-tag-panel", "quick-tag-popover" }, new[] { "gallery", "media", "reader", "archive" }),
         new("tags.quick.suggestion-9", "command.tags.quick.suggestion-9", "Toggle tag suggestion 9", "Tagvorschlag 9 umschalten", "check", "Alt+9", CommandScope.Gallery | CommandScope.Media | CommandScope.Reader | CommandScope.Archive, new[] { "gallery-tag-panel", "quick-tag-popover" }, new[] { "gallery", "media", "reader", "archive" }),
-        // Tagging mode (PT3): the gallery walking the tagging queue. Own execution context "gallery-tagging": the keys mean something
-        // else there than in the plain gallery (Space skips instead of playing, Backspace goes back instead of resetting the speed),
+        // Tagging mode (PT3): the gallery walking the tagging queue. Own execution context "gallery-tagging":
+        // playback gestures remain available on the same focused medium. S skips (as on the tagging page),
         // and only the tagging mode routes them, ahead of the gallery's own keys.
-        new("tags.queue.done-next", "command.tags.queue.done-next", "Done and next", "Erledigt und weiter", "check", "Enter", CommandScope.Gallery, new[] { "gallery-tagging" }, new[] { "gallery-tagging" }),
-        new("tags.queue.skip", "command.tags.queue.skip", "Skip and next", "Überspringen und weiter", "arrow-right", "Space", CommandScope.Gallery, new[] { "gallery-tagging" }, new[] { "gallery-tagging" }),
+        new("tags.queue.done-next", "command.tags.queue.done-next", "Done and next", "Erledigt und weiter", "check", "Primary+Enter", CommandScope.Gallery, new[] { "gallery-tagging" }, new[] { "gallery-tagging" }),
+        new("tags.queue.skip", "command.tags.queue.skip", "Skip and next", "Überspringen und weiter", "arrow-right", "S", CommandScope.Gallery, new[] { "gallery-tagging" }, new[] { "gallery-tagging" }),
         new("tags.queue.back", "command.tags.queue.back", "Back: undo the last decision", "Zurück: letzte Entscheidung zurücknehmen", "corner-up-left", "Back", CommandScope.Gallery, new[] { "gallery-tagging" }, new[] { "gallery-tagging" }),
         new("tags.queue.play-pause", "command.tags.queue.play-pause", "Play / pause in tagging mode", "Wiedergabe / Pause im Tagging-Modus", "play", "Shift+Space", CommandScope.Gallery, new[] { "gallery-tagging" }, new[] { "gallery-tagging" }),
         // Card mode (PT4): Shift+K switches it on and off inside the tagging mode (the cards are a block, so Shift plus a letter since revision 13); the five card keys (1 to 5) act only while the cards are shown.
@@ -372,15 +372,16 @@ public static class CommandCatalog
         new("post.copy-text", "command.post.copy-text", "Copy post text", "Post-Text kopieren", "copy", null, CommandScope.Reader, new[] { "reader-post-menu" }),
         new("post.copy-number", "command.post.copy-number", "Copy post number", "Post-Nummer kopieren", "copy", null, CommandScope.Reader, new[] { "reader-post-menu" }),
         new("video.play-pause", "command.video.play-pause", "Play / pause", "Wiedergabe / Pause", "play", "Space", CommandScope.Gallery | CommandScope.Reader | CommandScope.Media, new[] { "gallery-video-surface", "gallery-video-controls", "reader-video-keys", "media-video-keys" }),
-        new("video.volume-up", "command.video.volume-up", "Increase video volume", "Videolautstärke erhöhen", "volume-2", "Up", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
-        new("video.volume-down", "command.video.volume-down", "Decrease video volume", "Videolautstärke verringern", "volume-2", "Down", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
+        new("video.volume-up", "command.video.volume-up", "Increase video volume", "Videolautstärke erhöhen", "volume-2", "Shift+Up", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
+        new("video.volume-down", "command.video.volume-down", "Decrease video volume", "Videolautstärke verringern", "volume-2", "Shift+Down", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
         // Mute is Shift+M (revision 20, Tom's decision of 15.11.2026): M adds a favourite everywhere. (Revision 13 had moved it from Shift+M to M.)
         new("video.mute", "command.video.mute", "Mute / unmute", "Ton aus / an", "volume-2", "Shift+M", CommandScope.Gallery | CommandScope.Reader | CommandScope.Media, new[] { "gallery-video-controls", "reader-video-keys", "media-video-keys" }),
         // L repeats the shown video (the filmstrip toggle moved to Shift+L for it; both are gallery commands, so they may not share a key).
         new("video.loop", "command.video.loop", "Repeat video", "Video wiederholen", "repeat", "L", CommandScope.Gallery | CommandScope.Reader | CommandScope.Media, new[] { "gallery-video-controls", "gallery-keyboard", "reader-video-keys", "media-video-keys" }),
-        // Left/Right stay previous/next medium; seeking takes Ctrl (⌘) with the arrows, far seeking adds Shift.
-        new("video.seek-back", "command.video.seek-back", "Back 5 seconds", "5 Sekunden zurück", "rotate-ccw", "Primary+Left", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
-        new("video.seek-forward", "command.video.seek-forward", "Forward 5 seconds", "5 Sekunden vor", "rotate-cw", "Primary+Right", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
+        // Left/Right stay previous/next medium; 5-second seeking takes Alt. Far seeking stays Primary+Shift
+        // (Alt+Shift+arrows belongs to the reader sidebar; macOS Primary+Left stays back navigation).
+        new("video.seek-back", "command.video.seek-back", "Back 5 seconds", "5 Sekunden zurück", "rotate-ccw", "Alt+Left", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
+        new("video.seek-forward", "command.video.seek-forward", "Forward 5 seconds", "5 Sekunden vor", "rotate-cw", "Alt+Right", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
         new("video.seek-back-far", "command.video.seek-back-far", "Back 30 seconds", "30 Sekunden zurück", "chevron-left", "Primary+Shift+Left", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
         new("video.seek-forward-far", "command.video.seek-forward-far", "Forward 30 seconds", "30 Sekunden vor", "chevron-right", "Primary+Shift+Right", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
         // "," and "." jump back and forward by the seek step setting (5 seconds by default, 1 to 60); they act only while a video is shown.
@@ -389,8 +390,8 @@ public static class CommandCatalog
         // Speed: the catalog key [ / ] plus the extra defaults X (slower) and C (faster) of EffectiveShortcutBindings.Defaults (revision 14; [ ] need AltGr on DE/FR layouts).
         new("video.speed-down", "command.video.speed-down", "Slower", "Langsamer", "minus", "OemOpenBrackets", CommandScope.Gallery | CommandScope.Reader | CommandScope.Media, new[] { "gallery-video-controls", "gallery-keyboard", "reader-video-keys", "media-video-keys" }),
         new("video.speed-up", "command.video.speed-up", "Faster", "Schneller", "plus", "OemCloseBrackets", CommandScope.Gallery | CommandScope.Reader | CommandScope.Media, new[] { "gallery-video-controls", "gallery-keyboard", "reader-video-keys", "media-video-keys" }),
-        new("video.speed-reset", "command.video.speed-reset", "Normal speed", "Normale Geschwindigkeit", "activity", "Back", CommandScope.Gallery | CommandScope.Reader | CommandScope.Media, new[] { "gallery-video-controls", "gallery-keyboard", "reader-video-keys", "media-video-keys" }),
-        new("video.snapshot", "command.video.snapshot", "Save frame as image", "Einzelbild speichern", "image", "S", CommandScope.Gallery, new[] { "gallery-menu", "gallery-keyboard" }),
+        new("video.speed-reset", "command.video.speed-reset", "Normal speed", "Normale Geschwindigkeit", "activity", "Shift+Back", CommandScope.Gallery | CommandScope.Reader | CommandScope.Media, new[] { "gallery-video-controls", "gallery-keyboard", "reader-video-keys", "media-video-keys" }),
+        new("video.snapshot", "command.video.snapshot", "Save frame as image", "Einzelbild speichern", "image", "Shift+S", CommandScope.Gallery, new[] { "gallery-menu", "gallery-keyboard" }),
         // Transport row (plan V1): A sets A, then B, then turns the loop off; Shift+. shows the next frame (LibVLC 3 has no step back,
         // so Shift+, stays free: there is no "previous frame" command). Audio track and the speed choices have no default key: the player menu and rebinding reach them.
         new("video.ab-loop", "command.video.ab-loop", "A–B loop", "A–B-Schleife", "repeat", "A", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),

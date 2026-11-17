@@ -152,10 +152,22 @@ public partial class SettingsEditor
         _searchBox.SizeChanged += (_, _) => PositionSearchPanel();
         SettingsRoot.SizeChanged += (_, _) => PositionSearchPanel();
         // A wrapped title/navigation or a breakpoint can move the field without resizing it.
-        SettingsContentColumn.LayoutUpdated += (_, _) =>
+        bool subscribed = false;
+        void OnSearchPanelLayoutUpdated(object? sender, EventArgs e) { if (_searchPanel.IsVisible) PositionSearchPanel(); }
+        void SubscribeLayout(object? sender, Avalonia.VisualTreeAttachmentEventArgs e)
         {
-            if (_searchPanel.IsVisible) PositionSearchPanel();
-        };
+            if (subscribed) return;
+            SettingsContentColumn.LayoutUpdated += OnSearchPanelLayoutUpdated;
+            subscribed = true;
+        }
+        void UnsubscribeLayout(object? sender, Avalonia.VisualTreeAttachmentEventArgs e)
+        {
+            if (!subscribed) return;
+            SettingsContentColumn.LayoutUpdated -= OnSearchPanelLayoutUpdated;
+            subscribed = false;
+        }
+        SettingsContentColumn.AttachedToVisualTree += SubscribeLayout;
+        SettingsContentColumn.DetachedFromVisualTree += UnsubscribeLayout;
 
         WorkViewElement.SetId(_searchBox, "settings.search");
         SettingsSearchHost.Content = _searchBox;
@@ -181,11 +193,16 @@ public partial class SettingsEditor
     private void OnSlashFocusesSearch(object? sender, KeyEventArgs e)
     {
         if (e.Handled || _isClosed || _searchBox == null) return;
-        bool typing = e.Source is TextBox or NumericUpDown || e.Source is Visual visual && visual.GetSelfAndVisualAncestors().Any(node => node is TextBox or NumericUpDown or ComboBox { IsDropDownOpen: true });
+        bool typing = SlashBelongsToEditor(e.Source);
         if (!SettingsSearchShortcut.IsSlash(e.KeySymbol, e.KeyModifiers, typing)) return;
         e.Handled = true;
         FocusSearch();
     }
+
+    // Closed selectors historically yield slash to search; open selectors and all other editors keep it.
+    internal static bool SlashBelongsToEditor(object? source) => source is Visual visual
+        && visual.GetSelfAndVisualAncestors().Any(node => PointerFocusReclaim.IsTextInput(node)
+            && node is not ComboBox { IsDropDownOpen: false });
 
     // The row that appeared under its parent is read out by the page's polite line (its own label; no new text).
     private void OnConditionalRowAppeared(Control row)
@@ -442,7 +459,12 @@ public partial class SettingsEditor
     // The user changed a value: the search-opened groups around it stay open from now on.
     private void OnSettingValueChanged(object? sender, RoutedEventArgs e)
     {
-        if (_searchJumping || e.Source is not Control source || !IsSettingInput(source)) return;
+        if (_isClosed || _searchJumping || e.Source is not Control source || !IsSettingInput(source)) return;
+        // Opening a collapsed section creates numeric/choice templates. Their text boxes
+        // publish deferred TextChanged after _searchJumping has ended; formatting the
+        // loaded value is not an edit and must not surrender the restoration ledger.
+        // The owning setting reports actual changes through ValueChanged/SelectionChanged.
+        if (source.TemplatedParent != null) return;
         _conditionalReveal.NoteEdited(source);
         if (_searchGroups.OpenedCount == 0) return;
         _searchGroups.NoteEdited(source.GetSelfAndLogicalAncestors().OfType<Expander>());

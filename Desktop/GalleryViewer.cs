@@ -1898,6 +1898,8 @@ internal sealed partial class GalleryViewer : UserControl
     internal async Task StopAsync()
     {
         _terminalRetirement = true;
+        foreach (var reclaim in _pointerFocusReclaims) reclaim.Dispose();
+        _pointerFocusReclaims.Clear();
         _favoriteConfirmKey = null; _favoriteGestureKey = null; _favoriteConfirmPanel.IsVisible = false;
         UpdateFavoriteIndicators();
         // Permanently close both owners' placement admission before the FIRST await.
@@ -1912,6 +1914,7 @@ internal sealed partial class GalleryViewer : UserControl
         StopViewerInteraction();
         UnbindVideoPlaybackSignals();
         ++_request; CancelLoads();
+        _decodeQueue.Dispose();
         await RetireGifAsync();
         InvalidateMediaMenu();
         ClearBitmaps(); _entry = null; _info = null; _restore = null;

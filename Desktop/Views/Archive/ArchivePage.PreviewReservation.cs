@@ -86,7 +86,11 @@ public partial class ArchivePage
             PendingSize[] ordered = unknown.OrderBy(item => Math.Abs(item.Post - anchor)).ThenBy(item => item.Post < anchor).ToArray();
             CancellationTokenSource pass = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
             _previewSizePass = pass;
-            PreviewSizePassTask = ReadPreviewSizesAsync(resource, ordered, _mediaReady.Task, pass.Token);
+            PreviewSizePassTask = CancellationWork.RunAsync(pass,
+                token => ReadPreviewSizesAsync(resource, ordered, _mediaReady.Task, token), () =>
+                {
+                    if (ReferenceEquals(_previewSizePass, pass)) _previewSizePass = null;
+                });
         }
         SchedulePreviewPrefetch();
     }
@@ -139,7 +143,7 @@ public partial class ArchivePage
     {
         CancellationTokenSource? pass = _previewSizePass;
         _previewSizePass = null;
-        if (pass != null) { pass.Cancel(); pass.Dispose(); }
+        pass?.Cancel(); // The header-read task disposes its source when the work has unwound.
         PreviewSizePassTask = Task.CompletedTask;
         ++_previewPrefetchGeneration;
         _previewPrefetchQueue.Clear();

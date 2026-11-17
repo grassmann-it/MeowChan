@@ -11,6 +11,8 @@ using MeowChan.Desktop.MediaActions;
 using MeowChan.Favorites;
 using MeowChan.Gallery;
 
+using MeowChan.Desktop.Controls;
+
 namespace MeowChan;
 public partial class ArchivePage
 {
@@ -72,7 +74,7 @@ public partial class ArchivePage
     private void OnEditMediaRatingClick(object? sender, RoutedEventArgs e)
     {
         if (_selectedThread == null || SelectedMediaRow() == null) return;
-        OpenActions.Start(() => OpenRateAndTagForFocusAsync(focusRating: true, ArchiveEditRatingButton), "media.rating.edit");
+        OpenActions.Start(() => OpenRateAndTagForFocusAsync(initialFocus: QuickTagInitialFocus.TagInput, ArchiveEditRatingButton), "media.rating.edit");
     }
     /// <summary>The control the "Rate and tag" popover opens on for <paramref name="button"/>: the button, "More" when the toolbar reduced it, the media list otherwise.</summary>
     internal Control RatingMenuAnchor(Control button)
@@ -81,11 +83,6 @@ public partial class ArchivePage
         if (!bar.ReducedItems.Contains(button) && button.IsEffectivelyVisible) return button;
         if (bar.More is { IsEffectivelyVisible: true } more) return more;
         return _mediaTiles ? ArchiveMediaTiles : ArchiveMediaGrid;
-    }
-    private int? CurrentMediaRating(FavoriteAssetKey key)
-    {
-        try { return GetMediaRating?.Invoke(key); }
-        catch (Exception) { return null; } // the error is shown by the rating row of the page (_mediaRatingError)
     }
     private void UpdateMediaRatingAction()
     {
