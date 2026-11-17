@@ -31,6 +31,24 @@ public sealed class PointOfUseDiscoveryTests
         finally { player.DisposeAsync().AsTask().GetAwaiter().GetResult(); }
     });
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void VolumeNamesBothEffectiveBindingsInTooltipAndAccessibleHelp(bool rebound) => WithControls(() =>
+    {
+        var section = new ShortcutBindingsSection();
+        if (rebound) section = section.Set("video.volume-down", [ShortcutGesture.Parse("Alt+F7")])
+            .Set("video.volume-up", [ShortcutGesture.Parse("Alt+F8")]);
+        ShortcutService.Publish(section);
+        GalleryVideoPlayer player = new();
+        try
+        {
+            Refresh(player);
+            AssertHelp(Field<Control>(player, "_volume"), "gallery", "video.volume-down", "video.volume-up");
+        }
+        finally { player.DisposeAsync().AsTask().GetAwaiter().GetResult(); }
+    });
+
     private static void AssertHelp(Control control, string context, params string[] commands)
     {
         string tip = Assert.IsType<string>(ToolTip.GetTip(control));

@@ -708,7 +708,9 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
         RefreshSeekTooltip();
         string volumeLabel = _audioAvailable ? Texts.T("viewer.video.volume") : audioUnavailable;
         AutomationProperties.SetName(_volume, volumeLabel);
-        ToolTip.SetTip(_volume, volumeLabel);
+        string volumeTip = ShortcutHelp.Append(volumeLabel, ShortcutHelp.Commands("gallery", "video.volume-down", "video.volume-up"));
+        AutomationProperties.SetHelpText(_volume, volumeTip);
+        ToolTip.SetTip(_volume, volumeTip);
         RefreshTransportExtras();
     }
     private static Control TransportIcon(string command, int size, string? state = null)
