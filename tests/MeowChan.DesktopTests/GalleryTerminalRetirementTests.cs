@@ -37,7 +37,7 @@ public sealed class GalleryTerminalRetirementTests
     public static IEnumerable<object[]> RetiredInputCallbacks()
     {
         string[] operations = ["RememberPointer", "RefreshHoverGeometry", "RevealHoveredPanels",
-            "OnOverlayPointerMoved", "OnIndicatorExpiry", "OnOverlayPointerExited", "OnOverlayPointerPressed",
+            "OnOverlayPointerMoved", "OnIndicatorExpiry", "OnOverlayPointerMovedOrExited", "OnOverlayPointerPressed",
             "OnOverlayPointerReleased", "OnOverlayPointerCaptureLost", "OnOverlayPointerWheel", "OnOverlayTap",
             "OnViewerInteractionTick"];
         foreach (string operation in operations)

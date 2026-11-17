@@ -310,8 +310,8 @@ internal sealed partial class GalleryViewer
         foreach (Control surface in new Control[] { this, _nativeVideoOverlay })
         {
             surface.AddHandler(PointerMovedEvent, OnOverlayPointerMoved, RoutingStrategies.Tunnel, handledEventsToo: true);
-            surface.PointerEntered += OnOverlayPointerExited;
-            surface.PointerExited += OnOverlayPointerExited;
+            surface.PointerEntered += OnOverlayPointerMovedOrExited;
+            surface.PointerExited += OnOverlayPointerMovedOrExited;
             surface.AddHandler(GotFocusEvent, (_, e) =>
             {
                 if (e.NavigationMethod == NavigationMethod.Pointer) _keyboardInteraction = false;
@@ -684,7 +684,7 @@ internal sealed partial class GalleryViewer
         UpdateEdgeIndicatorArtwork();
     }
 
-    private void OnOverlayPointerExited(object? sender, PointerEventArgs e)
+    private void OnOverlayPointerMovedOrExited(object? sender, PointerEventArgs e)
     {
         if (_terminalRetirement || _viewerInteractionStopped) return;
         // Exit can also mean that a newly shown child replaced the hit-test target.

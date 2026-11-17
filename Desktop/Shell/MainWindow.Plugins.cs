@@ -43,9 +43,4 @@ public partial class MainWindow
         _pluginsPage.Attach(services);
         _rulesPage?.AttachPluginServices(services);
     }
-    private void OnPluginsNavigationClick(object? sender, RoutedEventArgs e)
-    {
-        ToolsNavigationButton.Flyout?.Hide();
-        if (NavigateWorkspace(WorkspacePage.Sources)) _ = _sourcesPage?.ActivateAsync(SourcesPluginsFilter.AllPlugins);
-    }
 }

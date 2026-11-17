@@ -962,36 +962,6 @@ public partial class ArchivePage : UserControl
         await OpenAssetGalleryAsync(row, sender as Control);
     }
 
-    private async Task ShowPreviewAsync(ArchiveAssetRow row)
-    {
-        ClosePreview();
-        int request = _previewRequest;
-        using CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
-        _previewCancellation = loading;
-        CancellationToken cancellationToken = loading.Token;
-        _previewPath = row.Asset.Path;
-        ArchivePreview.IsVisible = true;
-        PreviewTitle.Text = row.Name;
-        ArchivePreviewPath.Text = row.Asset.Path;
-        ArchivePreviewMessage.Text = Texts.T("archive.loading");
-        try
-        {
-            Bitmap? bitmap = await Task.Run(async () =>
-            {
-                string extension = System.IO.Path.GetExtension(row.Asset.Path).ToLowerInvariant();
-                if (extension is not (".png" or ".jpg" or ".jpeg" or ".gif" or ".webp" or ".bmp")) return null;
-                if (row.Asset.Length > 64L * 1024 * 1024) throw new InvalidDataException(Texts.T("archive.tooLarge"));
-                await using Stream stream = await row.Manifest.OpenVerifiedReadAsync(row.Asset.AssetId, cancellationToken).ConfigureAwait(false);
-                using (SKCodec? codec = SKCodec.Create(new SKManagedStream(stream, disposeManagedStream: false)))
-                {
-                    if (codec == null) throw new InvalidDataException(Texts.T("archive.invalidImage"));
-                    PixelSize shown = ImageOrientation.DisplaySize(codec);
-                    if (shown.Width <= 0 || shown.Height <= 0 || (long)shown.Width * shown.Height > 80_000_000)
-                        throw new InvalidDataException(Texts.T("archive.tooLarge"));
-                    int width = Math.Min(shown.Width, Math.Min(1200, Math.Max(1, (int)(1200L * shown.Width / shown.Height))));
-                    stream.Position = 0;
-                    return ImageOrientation.DecodeToWidth(stream, width);
-                }
             }, cancellationToken);
             if (_ended || request != _previewRequest || !ArchivePreview.IsVisible) { bitmap?.Dispose(); return; }
             _preview = bitmap;

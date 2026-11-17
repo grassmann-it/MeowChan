@@ -390,14 +390,4 @@ public partial class ArchivePage
         Message(Texts.T("archive.command.noWatch"));
         return Task.CompletedTask;
     }
-    private async void OnArchiveRemoveSelection(object? sender, RoutedEventArgs e) => await RemoveArchiveSelectionAsync();
-    private async void OnArchiveCopySelection(object? sender, RoutedEventArgs e) => await CopyArchiveSelectionAsync();
-    private async void OnArchiveCheckSelection(object? sender, RoutedEventArgs e)
-    { if (CheckSelectedWatches != null) await CheckArchiveSelectionAsync(false); }
-    private async void OnArchiveRetrySelection(object? sender, RoutedEventArgs e)
-    { if (CheckSelectedWatches != null) await CheckArchiveSelectionAsync(true); }
-    private async void OnArchiveSelectionDetails(object? sender, RoutedEventArgs e)
-    { if (ArchiveLead is ArchiveThreadRow row) await ShowArchiveDetailsAsync(row); }
-    private void OnArchiveLeadAction(object? sender, RoutedEventArgs e)
-    { if (ArchiveLead is ArchiveThreadRow row && sender is MenuItem { CommandParameter: string action }) RunArchiveLeadAction(row, action); }
 }
