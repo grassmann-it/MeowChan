@@ -720,14 +720,14 @@
                             </Border>
                         </Popup>
                         <WrapPanel x:Name="ReaderNavigation" Classes="reader-cross" Background="Transparent" IsVisible="False" HorizontalAlignment="Right"
-                                   VerticalAlignment="Bottom" Margin="0,0,24,32" ZIndex="100">
+                                   VerticalAlignment="Bottom" Margin="0,0,24,32" ZIndex="1000">
                             <!-- The navigation bar is an overlay above the content, one capsule of 40 dip: [thread arrow, counter, thread arrow | post arrow,
                                  counter, post arrow]. The whole capsule takes the pointer (a click in a gap never reaches the post below); below
                                  ReaderNavigationLayout.CompactBelowSurfaceWidth (or with the position switched off) the two counters are hidden. MaxWidth and
                                  the counter's MinWidth are ReaderNavigationLayout.BarMaxWidth and CounterMinWidth (a test pins both). -->
                             <!-- WrapPanel only hit-tests its children. Keep an explicit transparent surface around the capsule so separator/counter gaps
                                  cannot fall through to the reader content; the surface remains inside ReaderNavigation for the overlay contract. -->
-                            <Border x:Name="ReaderNavigationHitSurface" Background="Transparent" IsHitTestVisible="True">
+                            <Border x:Name="ReaderNavigationHitSurface" Background="#01000000" IsHitTestVisible="True">
                                 <Border x:Name="ReaderNavigationBar" Classes="workspace-overlay" Padding="3" MaxWidth="320">
                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                     <StackPanel.Styles>
