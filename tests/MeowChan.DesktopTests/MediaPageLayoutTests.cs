@@ -592,7 +592,9 @@ public sealed class MediaPageLayoutTests : IDisposable
     {
         string editor = Read("Desktop/Views/Settings/SettingsEditor.TagQueue.cs"), media = Read("Desktop/Shell/MainWindow.Media.cs"),
             shell = Read("Desktop/Shell/MainWindow.axaml.cs"), page = Read("Desktop/Views/Media/MediaPage.Layout.cs");
-        Assert.Contains("_initialMediaTagListWidth = MediaPageLayout.Parse(config.MediaLayout", editor);
+        Assert.Contains("MediaPageLayout layout = MediaPageLayout.Parse(config.MediaLayout, config.MediaBooruMode);", editor);
+        Assert.Contains("if (captureBaseline)", editor); // a section reset loads the defaults into the box but keeps the loaded baseline
+        Assert.Contains("_initialMediaTagListWidth = layout.TagListWidth;", editor);
         Assert.Contains("candidate.SettingsBaselineMediaTagListWidth = _initialMediaTagListWidth;", editor);
         Assert.Contains("frozen.SettingsBaselineMediaTagListWidth = settings.SettingsBaselineMediaTagListWidth;", Read("Desktop/DesktopSessionHost.cs"));
         Assert.Contains("ApplyMediaTagListWidthAfterSettings(mediaTagListWidthBefore);", shell);
