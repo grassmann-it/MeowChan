@@ -88,7 +88,10 @@ public sealed class FocusClickContractTests
     public void MediaRightClickPreservesOnlyASelectionContainingTheTargetAndFocusesBeforeMenu(string handler)
     {
         string body = Method("Desktop/Views/Media/MediaPage.cs", handler);
-        Before(body, "if (!_grid.Selection.SelectedItems.Contains(row)) _grid.SelectedItem = row;", "OpenSharedMediaMenu(row, origin)");
+        Before(body, "TargetForMenu(RowAt(e.Source))", "OpenSharedMediaMenu(row, origin)");
+        string target = Method("Desktop/Views/Media/MediaPage.cs", "TargetForMenu");
+        Before(target, "_grid.Selection.IsSelected(row.Index)) return row;", "_grid.SelectedItem = row");
+        Assert.DoesNotContain("_grid.Selection.Clear()", target); // no transient empty selection/recycled menu origin
         Before(body, "(_grid.ContainerFromItem(row) as Control ?? origin).Focus()", "OpenSharedMediaMenu(row, origin)");
         Assert.Contains("e.Handled = true;", body);
         // A paired release must not reopen a menu against a new selection.
@@ -188,7 +191,7 @@ public sealed class FocusClickContractTests
     {
         string text = Read(relative);
         var declaration = System.Text.RegularExpressions.Regex.Match(text,
-            @"(?:private|internal)\s+(?:async\s+)?(?:void|Task)\s+" + name + @"\([^\n]*\)\s*\{");
+            @"(?:private|internal)\s+(?:async\s+)?(?:void|Task|MediaLibraryTileRow\?)\s+" + name + @"\([^\n]*\)\s*\{");
         Assert.True(declaration.Success, $"Missing handler {name} in {relative}.");
         int start = text.IndexOf('{', declaration.Index), depth = 1, end = start + 1;
         for (; end < text.Length && depth > 0; end++)
