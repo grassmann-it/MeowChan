@@ -48,11 +48,7 @@ public partial class MainWindow
             ? plugins.BundledReviewBlockReasonKey() : "booru.ui.repair.notReady";
         _booruRepairMismatchSeen = false;
         page.Model.Search.Changed += OnBooruSearchChangedForRepair;
-        if (_pluginsPage is { } pluginsPage)
-        {
-            pluginsPage.BusyChanged -= OnPluginsBusyChangedForBooruRepair;
-            pluginsPage.BusyChanged += OnPluginsBusyChangedForBooruRepair;
-        }
+        ObservePluginsBusyForBooruRepair();
         if (BooruRepairProbe?.Ledger is { } ledger && !ReferenceEquals(ledger, _booruRepairLedger))
         {
             if (_booruRepairLedger is { } previous) previous.Changed -= OnBooruRepairLedgerChanged;
@@ -78,6 +74,14 @@ public partial class MainWindow
         if (seen) RequestBooruRepairRefresh();
     });
 
+    // The Plugins page is built lazily; (re)subscribe whenever the route is shown. Idempotent.
+    private void ObservePluginsBusyForBooruRepair()
+    {
+        if (_pluginsPage is not { } pluginsPage) return;
+        pluginsPage.BusyChanged -= OnPluginsBusyChangedForBooruRepair;
+        pluginsPage.BusyChanged += OnPluginsBusyChangedForBooruRepair;
+    }
+
     private void OnBooruRepairLedgerChanged() => Dispatcher.UIThread.Post(RequestBooruRepairRefresh);
 
     private void OnPluginsBusyChangedForBooruRepair(object? sender, EventArgs e) => Dispatcher.UIThread.Post(() =>
@@ -89,6 +93,7 @@ public partial class MainWindow
     private void RequestBooruRepairRefresh()
     {
         if (_isClosing || _booruPage is not { } page) return;
+        ObservePluginsBusyForBooruRepair();
         _ = RefreshBooruRepairAsync(page);
     }
 
