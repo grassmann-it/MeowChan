@@ -513,7 +513,7 @@ internal sealed partial class GalleryVideoPlayer
         UpdateTransportExtrasEnabled();
         RefreshAbLoopPresentation();
         _frameStep.Content = TransportIcon("video.frame-step", 18);
-        string frameTip = CommandBindings.Tooltip("video.frame-step") + " · " + Texts.T("viewer.video.frameStepHelp");
+        string frameTip = CommandBindings.Tooltip("video.frame-step", keyContext: ShortcutContext) + " · " + Texts.T("viewer.video.frameStepHelp");
         AutomationProperties.SetName(_frameStep, CommandCatalog.Label("video.frame-step"));
         AutomationProperties.SetHelpText(_frameStep, frameTip);
         ToolTip.SetTip(_frameStep, frameTip);

@@ -120,7 +120,7 @@ public sealed class ListItemEnterParityTests
     [Fact]
     public void EnterOnACommandRowOfTheShortcutTableStartsRecordingAndSpaceOrEnterOnAGroupHeaderFoldsIt() => Run(() =>
     {
-        ShortcutBindingsEditor editor = new();
+        using ShortcutBindingsEditor editor = new();
         try
         {
             editor.ApplyContext(ShortcutHelpContext.Settings);

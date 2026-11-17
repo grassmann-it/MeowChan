@@ -464,6 +464,8 @@ public sealed class ArchiveAttachmentView : UserControl
             subscribed = false;
         }
         this.AttachedToVisualTree += SubscribeLayout;
+        AttachedToVisualTree += (_, _) => { MeowChan.Desktop.Commands.ShortcutService.Changed += UpdateLabel; UpdateLabel(); };
+        DetachedFromVisualTree += (_, _) => MeowChan.Desktop.Commands.ShortcutService.Changed -= UpdateLabel;
         this.DetachedFromVisualTree += UnsubscribeLayout;
         DetachedFromVisualTree += (_, _) => { _visible = false; Reset(); _autoplay?.Stop(); _ = _inlineVideo?.ReleaseAsync(); };
     }
@@ -632,7 +634,7 @@ public sealed class ArchiveAttachmentView : UserControl
         Avalonia.Automation.AutomationProperties.SetName(_button, ArchiveMediaBadges.Append(inline
             ? Texts.T("reader.video.play", row!.Shown.OriginalFileName ?? row.Shown.MediaId ?? Texts.T("reader.video.unnamed"))
             : row?.Label ?? string.Empty, badges, "\n"));
-        Avalonia.Automation.AutomationProperties.SetHelpText(_button, inline ? ArchiveMediaBadges.Append(Texts.T("reader.video.playHint"), badges, "\n")
+        Avalonia.Automation.AutomationProperties.SetHelpText(_button, inline ? ArchiveMediaBadges.Append(MeowChan.Desktop.Commands.ReaderShortcutHelp.PlayHint(), badges, "\n")
             : badges.Length > 0 ? badges : null);
     }
 

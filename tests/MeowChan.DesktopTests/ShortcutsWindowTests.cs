@@ -39,7 +39,7 @@ public sealed class ShortcutsWindowTests : IDisposable
     [Fact]
     public void TheF1ContextOpensItsAreaExpandedOnTopAndTheSettingsContextEverything()
     {
-        var editor = new ShortcutBindingsEditor();
+        using var editor = new ShortcutBindingsEditor();
         editor.ApplyContext(ReaderContext());
         Assert.Equal(ShortcutGroups.Order.Where(g => g != ShortcutGroups.Reader).Order(), editor.CollapsedGroups.Order());
         ListBoxItem[] items = editor.ActionList.Items.OfType<ListBoxItem>().ToArray();
@@ -60,7 +60,7 @@ public sealed class ShortcutsWindowTests : IDisposable
     [Fact]
     public void ASearchShowsHitsInCollapsedGroupsAndTheEmptyStateSaysSo()
     {
-        var editor = new ShortcutBindingsEditor();
+        using var editor = new ShortcutBindingsEditor();
         editor.ApplyContext(ReaderContext());
         // Statistics is a segment of Status now (navigation.statistics lost its default and is not listed while only assigned ones show).
         editor.SearchInput.Text = "navigation.status";
@@ -73,7 +73,7 @@ public sealed class ShortcutsWindowTests : IDisposable
     [Fact]
     public void TheTableIsAPlainHeaderRowOverAlignedRowsAndTheToolbarHasTwoRows()
     {
-        var editor = new ShortcutBindingsEditor();
+        using var editor = new ShortcutBindingsEditor();
         // Header: text labels with header semantics, no buttons, no sort state.
         Border headerRule = ((Grid)Field(editor, "_root")).Children.OfType<Border>().Single(b => b.Child is Grid { Name: ShortcutBindingsEditor.HeaderName });
         Grid header = (Grid)headerRule.Child!;
@@ -118,10 +118,10 @@ public sealed class ShortcutsWindowTests : IDisposable
     [Fact]
     public void PlainTextIsTheFormerF1ListWithOneGeneralNote()
     {
-        var editor = new ShortcutBindingsEditor();
+        using var editor = new ShortcutBindingsEditor();
         editor.ApplyContext(ReaderContext());
         string text = editor.PlainText;
-        Assert.StartsWith(Texts.T("help.reader.mediaActivation"), text);
+        Assert.StartsWith(ReaderShortcutHelp.ActivationNote(), text);
         Assert.Contains(Texts.T("help.scope.current"), text);
         Assert.Contains(Texts.T("help.scope.application"), text);
         Assert.Contains(CommandCatalog.Label("navigation.archive") + "   " + CommandCatalog.ShortcutDisplay("navigation.archive"), text);
@@ -134,7 +134,7 @@ public sealed class ShortcutsWindowTests : IDisposable
     public void SaveCommitsTheSharedDraftOnceAndAConflictNeverReachesTheHost()
     {
         var session = new ShortcutDraftSession(new ShortcutBindingsSection());
-        var editor = new ShortcutBindingsEditor(session);
+        using var editor = new ShortcutBindingsEditor(session);
         List<ShortcutBindingsSection> commits = new();
         editor.SaveHandler = draft => { commits.Add(draft); return Task.CompletedTask; };
         Assert.False(editor.SaveButton.IsEnabled); // nothing to save
@@ -159,7 +159,7 @@ public sealed class ShortcutsWindowTests : IDisposable
     public void AFailedSaveKeepsTheDraftAndSaysWhy()
     {
         var session = new ShortcutDraftSession(new ShortcutBindingsSection());
-        var editor = new ShortcutBindingsEditor(session) { SaveHandler = _ => throw new InvalidOperationException("busy") };
+        using var editor = new ShortcutBindingsEditor(session) { SaveHandler = _ => throw new InvalidOperationException("busy") };
         session.Clear("navigation.archive");
         editor.SaveButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         Assert.True(session.IsDirty);
@@ -171,7 +171,7 @@ public sealed class ShortcutsWindowTests : IDisposable
     public void ClosingWithChangesAsksAndEscapeKeepsEditing()
     {
         var session = new ShortcutDraftSession(new ShortcutBindingsSection());
-        var editor = new ShortcutBindingsEditor(session);
+        using var editor = new ShortcutBindingsEditor(session);
         session.Clear("navigation.archive");
         List<bool> decisions = new();
         editor.AskBeforeClose(decisions.Add);
@@ -193,7 +193,7 @@ public sealed class ShortcutsWindowTests : IDisposable
     {
         var card = new ShortcutEditor();
         card.Load(new ShortcutBindingsSection());
-        var editor = new ShortcutBindingsEditor(card.Session);
+        using var editor = new ShortcutBindingsEditor(card.Session);
         int edits = 0;
         card.DraftEdited += (_, _) => edits++;
         editor.Session.Clear("navigation.archive");
@@ -236,7 +236,7 @@ public sealed class ShortcutsWindowTests : IDisposable
     {
         var context = new ShortcutHelpContext(ShortcutGroups.Gallery, new[] { "gallery.next", "gallery.previous" },
             NoteKeys: new[] { "viewer.help.escape" }, ExpandedAreas: new[] { ShortcutGroups.TagPanel });
-        var editor = new ShortcutBindingsEditor();
+        using var editor = new ShortcutBindingsEditor();
         editor.ApplyContext(context);
         Assert.Equal(ShortcutGroups.Order.Where(g => g is not (ShortcutGroups.Gallery or ShortcutGroups.TagPanel)).Order(),
             editor.CollapsedGroups.Order());

@@ -233,6 +233,7 @@ internal sealed class QuickTagPopover
         options ??= new QuickTagPopoverOptions();
         QuickTagSurface surface = new(session, options.Quick, options.Name)
         {
+            ShortcutContext = options.TooltipKeyContext ?? "gallery",
             TargetLabel = label ?? string.Empty,
             ReadSourceTags = options.ReadSourceTags,
             NavigationEnabled = false
