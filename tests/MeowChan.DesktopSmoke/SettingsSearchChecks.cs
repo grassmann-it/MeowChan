@@ -40,13 +40,28 @@ internal static class SettingsSearchChecks
             Require(!advanced.IsExpanded, "The advanced limits start collapsed.");
             decimal? timer = editor.RecheckTimer;
 
-            // SP1: the search sits in the page header, to the right of the title, 240-480 dip wide, and Ctrl+F and "/" focus it.
+            // SP1 / UX-LEDGER-02: the search sits in the page header over the content column (not the navigation column): the field's left edge and the
+            // "More" button's right edge are the edges of the settings content, and Ctrl+F and "/" focus it.
             Control title = editor.FindControl<Control>("SettingsTitleBlock")!;
             Control searchHost = editor.FindControl<Control>("SettingsSearchHost")!;
             Control moreButton = editor.FindControl<Control>("SettingsMoreButton")!;
-            Require(searchHost.Bounds.Width is >= 240 and <= 480.5 && searchHost.Bounds.Left > title.Bounds.Left && searchHost.Bounds.Right <= moreButton.Bounds.Left + 0.5
-                && Math.Abs(searchHost.Bounds.Top - title.Bounds.Top) < title.Bounds.Height + 24,
-                "The search is not in the header row between the title and the menu, 240-480 wide: " + searchHost.Bounds + " / " + moreButton.Bounds);
+            Control settingsContent = editor.FindControl<Control>("SettingsContent")!;
+            // Exercise both category-navigation modes and switching back to the wide layout.
+            foreach (double width in new[] { 1100d, 800d, 1100d })
+            {
+                window.Width = width;
+                await Task.Delay(200);
+                window.UpdateLayout();
+                Point searchLeft = searchHost.TranslatePoint(new Point(0, 0), editor)!.Value;
+                Point moreRight = moreButton.TranslatePoint(new Point(moreButton.Bounds.Width, 0), editor)!.Value;
+                Point contentLeft = settingsContent.TranslatePoint(new Point(0, 0), editor)!.Value;
+                Point contentRight = settingsContent.TranslatePoint(new Point(settingsContent.Bounds.Width, 0), editor)!.Value;
+                Point titleBottom = title.TranslatePoint(new Point(0, title.Bounds.Height), editor)!.Value;
+                Require(searchHost.Bounds.Width > 0 && searchHost.Bounds.Left < moreButton.Bounds.Left
+                    && Math.Abs(searchLeft.X - contentLeft.X) <= 1.5 && Math.Abs(moreRight.X - contentRight.X) <= 1.5
+                    && searchLeft.Y >= titleBottom.Y,
+                    $"At width {width}, search/menu edges are not flush over the content column: search {searchLeft.X} / content {contentLeft.X}, menu {moreRight.X} / content {contentRight.X}");
+            }
             editor.FindControl<Button>("SettingsMoreButton")?.Focus();
             editor.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.OemQuestion, KeySymbol = "/", Source = editor });
             Require(box.IsKeyboardFocusWithin, "'/' did not focus the search.");

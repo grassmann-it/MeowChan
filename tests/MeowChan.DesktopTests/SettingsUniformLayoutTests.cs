@@ -28,28 +28,58 @@ public sealed class SettingsUniformLayoutTests
         ["NumericUpDown", "ComboBox", "TextBox", "ToggleSwitch", "CheckBox", "Slider", "AccessibleNumberInput", "SettingsNumberInput", "RadioButton", "Button"];
 
     [Fact]
-    public void TheSearchSitsInTheHeaderRowBetweenTheTitleAndTheMoreMenu()
+    public void TheSearchAndTheMoreMenuSitOverTheContentColumnOfTheForm()
     {
         XElement row = Named("SettingsHeaderRow");
         XElement title = Named("SettingsTitleBlock");
+        XElement actions = Named("SettingsSearchActions");
         XElement search = Named("SettingsSearchHost");
         XElement more = Named("SettingsMoreButton");
+        XElement form = Named("SettingsFormLayout");
         Assert.Same(row, title.Parent);
-        Assert.Same(row, search.Parent);
-        Assert.Same(row, more.Parent);
-        Assert.True(Column(title) < Column(search) && Column(search) < Column(more), "Order in the header row: title, search, menu.");
-        Assert.Equal(1, Column(search));
-        Assert.Equal(2, Column(more));
-        // The search column is the flexible 240 to 480 one; the narrow window moves the field to its own row (SettingsHeaderLayout).
-        XElement[] columns = row.Elements().Single(e => e.Name.LocalName == "Grid.ColumnDefinitions").Elements().ToArray();
-        Assert.Equal(3, columns.Length);
-        Assert.Equal("240", (string?)columns[1].Attribute("MinWidth"));
-        Assert.Equal("480", (string?)columns[1].Attribute("MaxWidth"));
-        Assert.Equal(240d, SettingsHeaderLayout.SearchMinimumWidth);
-        Assert.Equal(480d, SettingsHeaderLayout.SearchMaximumWidth);
+        Assert.Same(row, actions.Parent);
+        Assert.Same(actions, search.Parent);
+        Assert.Same(actions, more.Parent);
+        // The head row has the column grid of the form: navigation column, then the content column; the title spans both, the actions sit in the content column only.
+        Assert.Equal("176,*", (string?)row.Attribute("ColumnDefinitions"));
+        Assert.Equal((string?)form.Attribute("ColumnDefinitions"), (string?)row.Attribute("ColumnDefinitions"));
+        Assert.Equal((string?)form.Attribute("ColumnSpacing"), (string?)row.Attribute("ColumnSpacing"));
+        Assert.Equal(176d, SettingsHeaderLayout.NavigationWidth);
+        Assert.Equal("2", (string?)title.Attribute("Grid.ColumnSpan"));
+        Assert.Equal("1", (string?)actions.Attribute("Grid.Column"));
+        Assert.Equal("1", (string?)actions.Attribute("Grid.Row"));
+        // Flush with the Interface section: the same 10 dip inset as SettingsContent inside its scroll viewer (Width = column - 20), nothing else narrows the field.
+        Assert.Equal("10,0", (string?)actions.Attribute("Margin"));
+        Assert.Equal(SettingsHeaderLayout.ContentInset, 10d);
+        Assert.Equal("*,Auto", (string?)actions.Attribute("ColumnDefinitions"));
+        Assert.Null(search.Attribute("MaxWidth"));
+        Assert.Null(search.Attribute("Width"));
+        Assert.Null(search.Attribute("Margin"));
+        Assert.Equal("Stretch", (string?)search.Attribute("HorizontalContentAlignment"));
+        Assert.Null(more.Attribute("Margin"));
+        Assert.Equal("1", (string?)more.Attribute("Grid.Column"));
+        Assert.Null(search.Attribute("Grid.Column"));
+        // The old flexible 240-480 header column is gone.
+        Assert.DoesNotContain(row.Descendants(), e => (string?)e.Attribute("MaxWidth") == "480");
+        // The header and the form share one width and one centring, so the two grids line up.
+        XElement header = Named("SettingsHeader");
+        Assert.Equal((string?)form.Attribute("MaxWidth"), (string?)header.Attribute("MaxWidth"));
+        Assert.Equal(((string?)form.Attribute("Margin"))?.Split(',')[0], ((string?)header.Attribute("Margin"))?.Split(',')[0]);
+        string code = Source("SettingsEditor.axaml.cs");
+        Assert.Contains("SettingsHeader.Width = sharedWidth;", code);
+        Assert.Contains("SettingsFormLayout.Width = sharedWidth;", code);
+        Assert.Contains("ApplyHeaderLayout(categories);", code);
         // The search field is no longer a row of the page body under the header.
         Assert.DoesNotContain(Markup().Descendants(), e => (string?)e.Attribute(X + "Name") == "SettingsSearchRow");
     }
+
+    [Theory]
+    [InlineData(1100, true)]
+    [InlineData(820, true)]
+    [InlineData(819.5, false)]
+    [InlineData(500, false)]
+    public void TheCategoryColumnOfTheHeaderFollowsTheFormsCategoryColumn(double width, bool categories) =>
+        Assert.Equal(categories, SettingsHeaderLayout.ShowsCategories(width));
 
     [Fact]
     public void TheSearchFieldIsHostedInTheHeaderAndTheHitsAreAnOverlayOfThePage()

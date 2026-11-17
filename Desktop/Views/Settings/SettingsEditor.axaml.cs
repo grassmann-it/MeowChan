@@ -831,7 +831,7 @@ namespace MeowChan
 
         private void OnEditorSizeChanged(object? sender, SizeChangedEventArgs e)
         {
-            bool categories = e.NewSize.Width >= 820;
+            bool categories = SettingsHeaderLayout.ShowsCategories(e.NewSize.Width);
             bool presentationChanged = categories != SettingsCategories.IsVisible;
             bool navigationFocus = SettingsCategories.IsKeyboardFocusWithin || SettingsSections.IsKeyboardFocusWithin;
             string? selectedSection = SelectedSectionId;
@@ -864,7 +864,7 @@ namespace MeowChan
             SettingsContent.Width = width;
             if (presentationChanged && navigationFocus && focusOwner != null)
                 QueueSectionNavigationFocus(focusOwner, focusOrigin, categories, selectedSection);
-            ApplyHeaderLayout(SettingsHeaderLayout.IsStacked(e.NewSize.Width));
+            ApplyHeaderLayout(categories);
             bool narrow = width < 700;
             foreach (Grid row in SettingsContent.GetLogicalDescendants().OfType<Grid>().Where(row => row.Classes.Contains("settings-row")))
             {
