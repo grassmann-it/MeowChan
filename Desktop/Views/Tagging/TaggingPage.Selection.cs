@@ -69,6 +69,7 @@ public sealed partial class TaggingPage
         _selClear.Click += (_, _) => ClearSelection();
         _selClear.HorizontalAlignment = HorizontalAlignment.Right;
         _selClear.Classes.Add("command-icon");
+        _selClear.Classes.Add(WorkspaceIcons.SquareClass);
         _selClear.Classes.Add("bar-button");
 
         Grid bar = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"), ColumnSpacing = 12 };

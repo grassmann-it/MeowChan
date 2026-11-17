@@ -9,6 +9,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Templates;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
@@ -62,13 +63,14 @@ public sealed partial class TaggingPage : UserControl
     private readonly ListBox _list = new() { Name = "TaggingList", SelectionMode = SelectionMode.Multiple };
     private readonly TextBlock _empty = new() { Name = "TaggingEmpty" };
     private readonly WorkspaceEmptyState _emptyState = new() { Name = "TaggingEmptyState", IsVisible = false };
-    // Up to three actions side by side, centred; they wrap to a second line on a narrow page instead of running off both edges (like the Media page's).
+    // Empty-state actions side by side, centred; they wrap to a second line on a narrow page instead of running off both edges (like the Media page's).
     private readonly WrapPanel _emptyActions = new() { Name = "TaggingEmptyActions", ItemSpacing = 8, LineSpacing = 8, HorizontalAlignment = HorizontalAlignment.Center };
-    private readonly Button _emptyMedia = new() { Name = "TaggingEmptyMedia", Classes = { "primary" } };
+    private readonly Button _emptyMedia = new() { Name = "TaggingEmptyMedia" };
     private readonly Button _emptyHow = new() { Name = "TaggingEmptyHow", Classes = { "link" } };
+    private readonly Button _emptyDeleteGroup = new() { Name = "TaggingEmptyDeleteGroup", Classes = { "danger" } };
     private readonly Button _emptyClearDone = new() { Name = "TaggingEmptyClearDone" };
     private readonly Button _emptyReopen = new() { Name = "TaggingEmptyReopen" };
-    private readonly Button _emptyShowAll = new() { Name = "TaggingEmptyShowAll", Classes = { "primary" } };
+    private readonly Button _emptyShowAll = new() { Name = "TaggingEmptyShowAll" };
     private readonly TextBlock _keysHint = new() { Name = "TaggingKeysHint", Classes = { "workspace-help" }, TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _status = new() { Name = "TaggingStatus", Classes = { "muted" }, TextWrapping = TextWrapping.Wrap, IsVisible = false };
     private readonly CancellationTokenSource _lifetime = new();
@@ -140,9 +142,10 @@ public sealed partial class TaggingPage : UserControl
 
     private Control BuildLayout()
     {
-        StackPanel heading = new() { Classes = { "workspace-page-header" }, Children = { _title, _subtitle } };
+        StackPanel heading = new() { Name = "TaggingHeading", Classes = { "workspace-page-header" },
+            [!StackPanel.SpacingProperty] = new DynamicResourceExtension("Workspace.Space.8"), Children = { _title, _subtitle } };
 
-        _error.Child = new StackPanel { Spacing = 8, Children = { _errorText, _errorSource, _retryLoad } };
+        _error.Child = new StackPanel { [!StackPanel.SpacingProperty] = new DynamicResourceExtension("Workspace.Space.8"), Children = { _errorText, _errorSource, _retryLoad } };
         AutomationProperties.SetLiveSetting(_errorText, AutomationLiveSetting.Assertive);
         AutomationProperties.SetLiveSetting(_errorSource, AutomationLiveSetting.Polite);
 
@@ -157,13 +160,17 @@ public sealed partial class TaggingPage : UserControl
         _filterPanel.Children.Add(_filter);
 
         // The title starts where every page title starts (PageHeader.PageTopOffset, LY-03); the page has no margin of its own.
-        StackPanel header = new() { Spacing = 8, Margin = new Thickness(12, PageHeader.PageTopOffset, 12, 8) };
+        StackPanel header = new() { Name = "TaggingSections",
+            [!StackPanel.SpacingProperty] = new DynamicResourceExtension("Workspace.Space.16"),
+            Margin = new Thickness(12, PageHeader.PageTopOffset, 12, 16) };
         header.Children.Add(heading);
         header.Children.Add(_error);
         header.Children.Add(BuildClearConfirmation());
-        header.Children.Add(_progress);
-        header.Children.Add(_actions);
-        header.Children.Add(_secondaryToolbar);
+        // Preserve the existing rows; only distinguish the queue controls from other major sections.
+        StackPanel queueControls = new() { Name = "TaggingQueueControls",
+            [!StackPanel.SpacingProperty] = new DynamicResourceExtension("Workspace.Space.8"),
+            Children = { _progress, _actions, _secondaryToolbar } };
+        header.Children.Add(queueControls);
         header.Children.Add(BuildStamp());
         SizeChanged += (_, _) =>
         {
@@ -191,6 +198,7 @@ public sealed partial class TaggingPage : UserControl
         _emptyActions.Children.Add(_emptyMedia);
         _emptyActions.Children.Add(_emptyClearDone);
         _emptyActions.Children.Add(_emptyReopen);
+        _emptyActions.Children.Add(_emptyDeleteGroup);
         _emptyState.Children.Add(_emptyActions);
         _emptyState.Children.Add(_emptyHow);
         _emptyHow.HorizontalAlignment = HorizontalAlignment.Center;
@@ -474,7 +482,7 @@ public sealed partial class TaggingPage : UserControl
                 Text = column switch { 0 => "#", 1 => string.Empty, _ => Texts.T(keys[column]) }, Classes = { "workspace-meta" },
                 TextAlignment = column is 0 or 6 ? TextAlignment.Right : TextAlignment.Left,
                 VerticalAlignment = VerticalAlignment.Center,
-                Margin = column switch { 0 => TaggingQueueRowView.NumberMargin(ShowPreviewColumn), 7 => TaggingQueueRowView.StateMargin, _ => default }
+                Margin = column == 0 ? TaggingQueueRowView.NumberMargin(ShowPreviewColumn) : default
             };
             header.IsVisible = column != 1 || ShowPreviewColumn;
             Grid.SetColumn(header, column);

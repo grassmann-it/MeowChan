@@ -173,6 +173,8 @@ public sealed partial class TaggingPage
         {
             bool reduced = ToolBar.GetOverflowMode(button) == OverflowMode.Always;
             CommandBindings.Apply(button, id, iconOnly: !reduced, iconWithLabel: reduced);
+            // Geometry is local to this page; labelled overflow presentations must not retain an icon-only width.
+            button.Classes.Set(WorkspaceIcons.SquareClass, !reduced);
         }
     }
 
