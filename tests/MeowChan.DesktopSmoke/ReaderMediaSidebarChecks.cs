@@ -152,13 +152,16 @@ internal static class ReaderMediaSidebarChecks
             page.ApplyReaderMediaPreferences(page.ReaderMedia with { SidebarMinimumReaderWidth = ReaderDisplayPreferences.MediaSidebarReaderWidthDefault });
             await Program.WaitUntilAsync(() => page.IsMediaSidebarShown);
 
-            // Escape inside the sidebar closes only the sidebar, the reader stays and the focus is back in the posts.
+            // Escape inside the sidebar only takes the focus back to the posts: the sidebar stays on (its choice is stored, only the × and the
+            // switch change it) and the reader stays open.
             sidebar.Open.Focus();
             await Flush();
             KeyEventArgs escape = new() { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape, Source = sidebar.Open };
             sidebar.Open.RaiseEvent(escape);
-            await Program.WaitUntilAsync(() => !page.IsMediaSidebarShown);
-            Require(host.IsVisible && !page.ReaderMedia.Sidebar, "Escape in the sidebar closed the reader or kept the sidebar on.");
+            await Flush();
+            Require(escape.Handled && host.IsVisible && page.ReaderMedia.Sidebar && page.IsMediaSidebarShown,
+                "Escape in the sidebar closed the reader or switched the sidebar off.");
+            Require(!sidebar.IsKeyboardFocusWithin, "Escape in the sidebar did not take the focus out of it.");
             Require(KeyboardNavigation.GetTabNavigation(pane) == KeyboardNavigationMode.Cycle, "The pane did not get its Tab cycle back.");
         }
         finally

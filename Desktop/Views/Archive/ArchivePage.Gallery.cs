@@ -255,8 +255,8 @@ public partial class ArchivePage
         ArchiveThreadRow? row = EventThread(sender, e.Source);
         if (row == null || OpenGallery == null || FrozenArchiveSelection().Length != 1) return;
         e.Handled = true;
-        OpenReaderRequested?.Invoke(e.Source as Control);
-        await OpenActions.RunAsync(() => LoadThreadAsync(row.Summary.Id), "archive.list.doubleClick");
+        Control? origin = e.Source as Control;
+        await OpenActions.RunAsync(() => OpenReaderOnThreadAsync(row.Summary.Id, () => OpenReaderRequested?.Invoke(origin)), "archive.list.doubleClick");
     }
 
     private void OnThreadTableSelected(object? sender, SelectionChangedEventArgs e) => ArchiveSelectionChanged(sender);
@@ -270,8 +270,7 @@ public partial class ArchivePage
         if (target?.DataContext is not ArchiveThreadRow row || OpenGallery == null
             || FrozenArchiveSelection().Length != 1) return;
         e.Handled = true;
-        OpenReaderRequested?.Invoke(target);
-        await OpenActions.RunAsync(() => LoadThreadAsync(row.Summary.Id), "archive.table.doubleClick");
+        await OpenActions.RunAsync(() => OpenReaderOnThreadAsync(row.Summary.Id, () => OpenReaderRequested?.Invoke(target)), "archive.table.doubleClick");
     }
 
     private async void OnThreadGalleryMenu(object? sender, RoutedEventArgs e)
@@ -286,8 +285,8 @@ public partial class ArchivePage
         if (IsFilenameSearchOpen) return;
         if (EventThread(sender, e.Source) is ArchiveThreadRow row)
         {
-            OpenReaderRequested?.Invoke(ThreadOrigin(row));
-            await OpenActions.RunAsync(() => LoadThreadAsync(row.Summary.Id), "archive.menu.read");
+            Control origin = ThreadOrigin(row);
+            await OpenActions.RunAsync(() => OpenReaderOnThreadAsync(row.Summary.Id, () => OpenReaderRequested?.Invoke(origin)), "archive.menu.read");
         }
     }
 
@@ -372,10 +371,11 @@ public partial class ArchivePage
     private async void OnReadPostsClick(object? sender, RoutedEventArgs e)
     {
         if (!CanExpandReader || _selectedThread is not { } selectedThread) return;
-        OpenReaderRequested?.Invoke(sender as Control);
-        await OpenActions.RunAsync(() => LoadThreadAsync(selectedThread), "archive.readPosts");
-        ArchiveContentTabs.SelectedIndex = 0;
-        ReaderPositionChanged(deliberate: true);
+        Control? origin = sender as Control;
+        await OpenActions.RunAsync(() => OpenReaderOnThreadAsync(selectedThread, () => OpenReaderRequested?.Invoke(origin)), "archive.readPosts");
+        // Enlarging is no reading: it writes no reading position (the entry anchor already kept the place), and a thread without posts opens on its media.
+        if (_thread != null && DownloadReaderGate.OpensOnMedia(_thread.PostCount, _thread.Summary.LastCapturedAt)) ArchiveContentTabs.SelectedItem = ArchiveMediaTab;
+        else ArchiveContentTabs.SelectedIndex = 0;
     }
 
     private void OnVersionScopeChanged(object? sender, SelectionChangedEventArgs e)

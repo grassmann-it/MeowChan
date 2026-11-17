@@ -498,9 +498,10 @@ public partial class MainWindow
     private async Task OpenDownloadReaderAsync(ResourceId id, Control? origin)
     {
         if (_sessionRowsApplying) return;
+        // A row with nothing captured has no reader to open: Enter and a double click say why instead of showing an empty one (DL-01).
+        if (ReportNothingCaptured(_threadRows.Values.FirstOrDefault(row => row.Snapshot.Id == id))) return;
         ResourceId[] scope = DownloadList(false).CollectionView.Cast<ThreadRow>().Where(row => !row.IsHistorical).Select(row => row.Snapshot.Id).ToArray();
-        OpenLargeReader(origin, scope);
-        await ArchivePage.LoadThreadAsync(id);
+        await ArchivePage.OpenReaderOnThreadAsync(id, () => OpenLargeReader(origin, scope));
     }
 
     private async Task ExportDownloadSelectionAsync(Control? origin)

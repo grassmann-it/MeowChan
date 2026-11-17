@@ -40,6 +40,7 @@ internal static class BuiltInCatalog
         ("menu.unavailable.busy", "Another operation is running. Try again when it has finished.", "Ein anderer Vorgang läuft. Nach dessen Ende erneut versuchen."),
         ("menu.unavailable.restoring", "The list is still being restored. Try again in a moment.", "Die Liste wird noch wiederhergestellt. In einem Moment erneut versuchen."),
         ("menu.unavailable.singleThread", "Select exactly one thread to use this action.", "Für diese Aktion genau einen Thread auswählen."),
+        ("menu.unavailable.nothingCaptured", "Nothing captured yet", "Noch nichts erfasst"),
         ("menu.unavailable.nothingToCheck", "None of the selected entries can be checked right now.", "Keiner der ausgewählten Einträge kann gerade geprüft werden."),
         ("menu.unavailable.nothingToRetry", "None of the selected threads has media to retry.", "Keiner der ausgewählten Threads hat Medien zum Wiederholen."),
         ("progress.mediaOf", "{0} / {1} media", "{0} / {1} Medien"),

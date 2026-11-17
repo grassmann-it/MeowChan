@@ -197,6 +197,20 @@ public partial class ArchivePage
         catch (Exception exception) { if (!_ended && request == _referenceRequest) OperationMessage("reference", exception.Message, true); }
         finally { if (ReferenceEquals(_referenceCancellation, loading)) _referenceCancellation = null; }
     }
+    /// <summary>
+    /// The large reader's entry for a thread (the "Large reader" button, Enter and double-click on a row, the menu entries, Downloads): the embedded
+    /// reader's own thread keeps its page, selected post and scroll place (the same anchor the paging and the live refresh keep); another thread starts
+    /// at its first post, a jump of any kind (a quote, "Show in thread", a bookmark) goes its own way and wins over both.
+    /// <paramref name="openReader"/> moves the pane to the large reader; the place is taken before that, while the pane still lies where the user left it.
+    /// </summary>
+    internal Task OpenReaderOnThreadAsync(ResourceId id, Action openReader, ArchivedThreadView? preparedThread = null)
+    {
+        ArgumentNullException.ThrowIfNull(openReader);
+        ReaderAnchor? kept = !_largeReader && !_busy && !_ended && _thread?.Summary.Id == id ? CaptureReaderAnchor() : null;
+        openReader();
+        return LoadThreadAsync(id, resetPage: kept == null, preparedThread, null, entryAnchor: kept);
+    }
+
     private void ShowCapturedView(ArchivedThreadView view, int offset, string? postId = null)
     {
         InvalidateFilenameSearch();

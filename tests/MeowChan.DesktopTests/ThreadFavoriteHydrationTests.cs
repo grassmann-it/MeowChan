@@ -327,7 +327,7 @@ public sealed class ThreadFavoriteHydrationTests
         string entry = menus[menus.IndexOf("private async Task OpenFrozenReaderAsync", StringComparison.Ordinal)..];
         entry = entry[..entry.IndexOf("private void OpenFrozenDetails", StringComparison.Ordinal)];
         Assert.Contains("OpenLargeReader(origin, frozen.Scope)", entry);
-        Assert.Contains("await ArchivePage.LoadThreadAsync(frozen.Lead)", entry);
+        Assert.Contains("await ArchivePage.OpenReaderOnThreadAsync(frozen.Lead,", entry);
         Assert.DoesNotContain("LoadListAsync", entry);
         string navigation = Source("Desktop/Shell/MainWindow.Navigation.cs");
         Assert.Contains("_archivePage = new ArchivePage(_session.OpenArchiveReaderAsync", navigation);
