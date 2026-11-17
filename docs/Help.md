@@ -110,6 +110,15 @@ when the feature is enabled and a saved reading position is known; it is hidden
 while the reader or gallery is visible. When no icon is shown on Downloads or
 the archive list, use the app-menu entry to check the reading-position state.
 
+### Toolbar layout
+
+Primary actions stay at the left of the toolbar; presentation controls sit at the
+right when there is room. In Archive these are **Columns** and the compact
+**List/Table** pair; in Downloads, **Choose columns** and **Show details**; in
+Tagging, **Choose columns**, **List/Grid** and **Help**. In narrow windows,
+overflow contains the available actions that no longer fit. An overflow button
+with no available actions is hidden rather than opening an empty menu.
+
 ### Integrated work-view behavior
 
 The integrated work-view behavior covers **Downloads**, **Archive**, **Reader**,
@@ -421,6 +430,32 @@ unavailable. Provider size/hash verification still applies. Already queued or
 saved posts are not admitted as a second active download; additional search,
 one-shot and watcher findings retain their provenance.
 
+#### Browse result previews
+
+Choose **Open in gallery** on a Booru result card to open a larger, preview-only
+viewer. Enter or a double-click on an unsaved card's body opens the same viewer;
+on a result with a saved original, those primary gestures still use **Show in
+Media**. Buttons, tags and text inside a card keep their own actions.
+
+The viewer enlarges the bounded preview already fetched by the search, not the
+original. Its quality depends on the provider's preview; a missing or restricted
+preview shows its status instead of keeping the previous picture. Opening the
+viewer, moving between results and selecting them do not download originals or
+request another result page.
+
+| Key or action | In the Booru result viewer |
+| --- | --- |
+| Left / Right, Previous / Next | Move within the current result page; stop at either end without wrapping |
+| Space / Enter on the picture | Select or deselect the displayed result |
+| Selection checkbox | Share the same per-image selection with the result card; closing and reopening on the same result page keeps it |
+| **Load original**, Ctrl+E (Command+E on macOS) | Queue or retry only the displayed original, not every selected result |
+| Escape / Close | Close the viewer and return focus to the last browsed result card |
+
+The download key follows your customized **Export** shortcut for originals. Availability,
+restrictions and queue deduplication still apply; selection alone never starts a
+download. Tab and native Space/Enter activation remain available on the toolbar
+controls. Local-media rating and tagging actions do not apply to these previews.
+
 #### Saved watchers
 
 - **Create.** Saves the explicit query. The first successful check establishes a
@@ -544,6 +579,16 @@ repair, testing and technical information; **Back to source** returns to the sou
 In narrow windows, the list and details appear one after the other. Registration
 or a plugin's session status does not prove website availability.
 
+In **All plugins**, cards with current or recent request activity come first.
+They stay in that group for ten seconds after the last observed activity to avoid
+jumping between requests. Cards then sort by status (**Active**, **Disabled**,
+**Unavailable**, **Not loaded**) and name, with a stable tie-break for equal names.
+Every card has the same **Sources**, **Filters**, **Running**, **Files** footer.
+Disabled, unavailable, not-loaded or unused plugins show zeros rather than missing
+statistics; active plugins count their effective active release, not pending
+candidate capabilities. **Running** shows current request activity (0 or 1), so it
+can return to zero before the card leaves the recently active sort group.
+
 There is no second plugins page: the former Sources & Plugins page is now simply
 called Plugins, and the command IDs are unchanged (its digit follows the footer, see [Page shortcuts and footer numbering](#page-shortcuts-and-footer-numbering); its letter is Ctrl+Shift+X). The compatibility
 command **Show all plugins** and previously saved plugin-navigation shortcuts open
@@ -564,6 +609,16 @@ ein Plugin mehrere Quellen, gilt seine Einstellung für sie zusammen.
 technische Angaben; **Zurück zur Quelle** führt dich zur Quelle zurück. In schmalen
 Fenstern folgen Liste und Details aufeinander. Registrierung und Sitzungsstatus
 belegen nicht, dass die Website erreichbar ist.
+
+Unter **Alle Plugins** stehen Karten mit laufender oder kürzlich beobachteter
+Anfrageaktivität zuerst; nach der letzten Aktivität bleiben sie zehn Sekunden in
+dieser Gruppe, damit die Reihenfolge zwischen Anfragen nicht springt. Danach
+entscheiden Status (aktiv, deaktiviert, nicht verfügbar, nicht geladen) und Name.
+Jede Karte hat dieselbe Fußzeile **Quellen**, **Filter**, **Aktiv**, **Dateien**.
+Deaktivierte, nicht verfügbare, nicht geladene oder ungenutzte Plugins zeigen
+Nullen. Aktive Plugins zählen die tatsächlich aktive Fassung, nicht eine nur
+vorgemerkte. **Aktiv** zeigt die momentane Anfrageaktivität (0 oder 1), unabhängig
+von der Zehn-Sekunden-Haltezeit der Sortierung.
 
 Eine zweite Pluginseite gibt es nicht: Die frühere Seite Quellen & Plugins heißt
 jetzt einfach Plugins; die Befehls-IDs bleiben unverändert (die Ziffer folgt der Fußleiste, siehe [Seitentasten und Fußleistenzählung](#page-shortcuts-and-footer-numbering); der Buchstabe ist Strg+Umschalt+X). Der
@@ -715,14 +770,27 @@ or menu action, toggles real window fullscreen (Control+Command+F on macOS). Esc
 menu, help or dialog first, then leaves fullscreen, and only then closes a gallery or
 reader. Modal dialogs retain their own input.
 
-**Pointer.** Three double-click rules apply everywhere: (1) a double-click on an item
-opens it. On a thread in Downloads or Archive it opens the large reader (a board row opens
-its details); on a saved-media row or tile in Archive, on a tile on the Media page and on the
-picture of a media sidebar it opens the **gallery** at that item, like Enter does; on an
-entry of the Tagging page it continues the walk there. (2) A double-click on the picture or
-video **inside the gallery** switches between Fit and 1:1; it never changes the
-fullscreen state. (3) Window fullscreen is only F11 or the explicit fullscreen button or menu
-action.
+**Pointer.** A single click on a Downloads row, Archive thread/media item, Media
+tile or Tagging entry selects it; Archive and Media also update their preview.
+A double-click on the item body opens the large reader for a thread in Downloads
+or Archive (a board row opens its details), the **gallery** for a saved-media row
+or tile in Archive/Media or a media sidebar picture, or continues the walk for a
+Tagging entry. Nested buttons, tag chips, text editors, column headers and empty
+space keep their own behavior. Unsaved Booru cards instead open the
+[Booru preview viewer](#browse-result-previews).
+
+On Downloads rows, Archive thread/media items and Media tiles, right-clicking an
+item outside the current selection selects that item before opening its menu;
+right-clicking inside a multi-selection preserves the group. Keyboard focus is
+placed on the clicked item or table cell before the menu opens. On the Media
+page, a single click on the sidebar picture stays in the preview (play/pause for
+video); use a double-click or **Open in gallery** to open the gallery. This
+preview-only single-click rule does not change the reader's configurable
+[media click action](#reader-media-sidebar-and-inline-video).
+
+A double-click on the picture or video **inside the local-media gallery** toggles
+window fullscreen, as do F11 and the explicit fullscreen action. Use **0** for
+Fit and **1** for 1:1; zoom and window fullscreen are separate controls.
 
 If letter keys trigger actions by mistake, for example with speech input, turn off
 **Standard single-key shortcuts (letters, digits, + and −)** under **Keyboard
@@ -737,7 +805,9 @@ form or disappears rather than clipping. Right-click it to choose another quip,
 hide it or open its settings.
 
 A round **?** beside a section opens a short explanation with paragraphs and
-bullet points. Esc closes it and returns focus to the button.
+bullet points. Text and the further-help link wrap within the popup; help popups
+and tooltips do not scroll sideways. Esc closes the help popup and returns focus
+to the button.
 
 ### Customizing shortcuts
 
@@ -1033,7 +1103,10 @@ Switching categories keeps all drafts, including invalid text. **Save** applies
 changes across every category; **Discard draft** reverts all unapplied edits.
 Saving with an invalid field opens its category so you can correct it.
 
-The search at the top (Ctrl+F, Command+F on macOS) finds settings by name, hint or
+The search is above the settings content column, with **More** beside it; their
+combined row aligns with the form below, not with the category navigation. When
+the category sidebar collapses in a narrow window, the row follows the content.
+Ctrl+F (Command+F on macOS) focuses the search. It finds settings by name, hint or
 key, including English terms in other languages. Results update as you type.
 Up/Down selects a hit; Enter or a click jumps to it and opens its group. A screen
 reader can receive the current hit's position and name, or the empty-result notice.
@@ -1432,7 +1505,7 @@ The gallery uses the window's remaining work area. Left/Right or its navigation 
 move between media. Use Fit, 1:1, +/− or wheel/touchpad gestures to zoom.
 Fractional touchpad deltas produce finer zoom changes. Zooming out stops at Fit;
 the image is then centered and pan resets. Drag a zoomed image or video to pan;
-wheel zoom and double-click Fit/1:1 work on
+wheel zoom and double-click window fullscreen work on
 videos too. **Shift+R** or **Rotate 90°** under More (also in the player menu)
 rotates the shown image or video clockwise. Rotation changes only the view, never
 the file, and resets for each new medium. Escape closes the gallery.
@@ -1791,9 +1864,17 @@ sidebar and inline-video controls. The full Settings page still uses Save/Discar
 **Enlarge an image while the pointer rests on it** are also switches in View;
 their widths, scale and hover delay are under Settings → **Reading & media**.
 
-**Media sidebar in the large reader** is on by default. When enabled in View or
-Settings, it shows the selected post’s medium beside the posts, following Up/Down
-navigation. Choose left or right. A post with several media gets a thumbnail strip
+The reader toolbar has a **Media sidebar: On/Off** toggle beside the large-reader
+and gallery actions; it stays out of overflow. It uses the same saved choice as
+View, Ctrl/Cmd+Shift+M and the sidebar's close button. Its On/Off state is the
+saved choice for the current host, not whether the window is currently wide
+enough to show the sidebar. A narrow window can hide an On sidebar without
+turning the preference off; it returns when space is available.
+
+**Media sidebar in the large reader** is on by default, with **Large reader only**
+scope, so a new profile's embedded Archive reader starts with the toggle Off.
+When enabled, it shows the selected post’s medium beside the posts, following
+Up/Down navigation. Choose left or right. A post with several media gets a thumbnail strip
 under the picture (**Thumbnails in the media sidebar strip** sets how many show at once,
 12 by default, 2–40; a larger post slides a window along); click a thumbnail or use
 **Alt+Shift+Left** and **Alt+Shift+Right** to step through the post's media. The sidebar header holds the

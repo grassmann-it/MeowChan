@@ -2,8 +2,9 @@
 
 MeowChan behandelt Danbooru in der 1.1-Linie als **öffentliche,
 schreibgeschützte Quelle**. Die Oberfläche zeigt Treffer und Provider-Metadaten;
-ein Download wird erst durch eine bewusste Auswahl in die normale MeowChan-
-Downloadwarteschlange gegeben. Es gibt keine Provider-Anmeldung und keine
+ein Original kommt erst durch **Original laden** oder einen anderen ausdrücklichen
+Downloadauftrag in die normale MeowChan-Downloadwarteschlange. Das Markieren eines
+Treffers allein startet keinen Download. Es gibt keine Provider-Anmeldung und keine
 Provider-Credentials in MeowChan. Die beschriebene 1.1.0-Entwicklungslinie ist noch
 nicht als fertiges Release abgenommen.
 
@@ -107,6 +108,34 @@ Deaktivieren des Plugins unter Plugins.
 - Treffer, die bereits durch eine andere Suchbeobachtung, Suche oder einen
   One-Shot bekannt sind, werden nicht als zweiter aktiver Download eingereiht.
   Zusätzliche Fundstellen bleiben als Provenienz erhalten.
+
+## Treffer in der Vorschau durchsehen
+
+**In Galerie öffnen** auf einer Trefferkarte öffnet eine größere Vorschau. Enter
+oder ein Doppelklick auf den Kartenkörper eines noch nicht gespeicherten Treffers
+öffnet dieselbe Ansicht. Ist das Original schon lokal gespeichert, führen diese
+beiden Hauptgesten weiterhin zu **In Medien anzeigen**. Schaltflächen, Tags und
+Text innerhalb der Karte behalten ihre eigenen Aktionen.
+
+Die Ansicht vergrößert nur die bereits von der Suche geladene, begrenzte
+**Vorschau**, nicht das Original. Die Auflösung hängt von der Provider-Vorschau
+ab. Fehlt sie oder ist sie gesperrt, erscheint der entsprechende Hinweis statt
+des vorherigen Bilds. Öffnen, Blättern und Markieren laden weder Originale noch
+eine weitere Ergebnisseite nach.
+
+| Taste oder Aktion | Wirkung in der Booru-Vorschau |
+| --- | --- |
+| Links / Rechts, Zurück / Weiter | Vorheriger/nächster Treffer auf der aktuellen Ergebnisseite; kein Umlauf am Rand |
+| Leertaste / Enter auf dem Bild | Angezeigten Treffer markieren oder die Markierung entfernen |
+| Auswahlkästchen | Gleiche Markierung wie auf der Trefferkarte; bleibt beim Schließen und Wiederöffnen auf derselben Ergebnisseite erhalten |
+| **Original laden**, Strg+E (⌘+E auf macOS) | Nur das angezeigte Original einreihen beziehungsweise erneut versuchen, nicht alle markierten Treffer |
+| Esc / Schließen | Vorschau schließen und den Fokus auf die zuletzt betrachtete Trefferkarte zurückgeben |
+
+Das Downloadkürzel folgt deiner eigenen Belegung für **Exportieren**. Die üblichen
+Verfügbarkeits-, Sperr- und Deduplizierungsregeln gelten weiter; eine Markierung
+allein startet nie einen Download. Tab sowie die normale Aktivierung mit Enter
+oder Leertaste bleiben an den Bedienelementen erhalten. Bewertung und eigene Tags
+für lokale Medien stehen in dieser Vorschau nicht zur Verfügung.
 
 ## Safebooru-Alias und Links
 
