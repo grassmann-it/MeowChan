@@ -601,6 +601,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         if (force || key != _resultsKey)
         {
             _resultsKey = key;
+            _selectedResults.IntersectWith(view.Rows.Select(row => row.Post.PostId));
             _resultWorkViewActions.Clear();
             RebuildPanel(_results, () => NumberHits(view.Rows.Select(CreateResultCard).ToList()), fallback: () => null);
             PruneBitmaps(view.Rows);

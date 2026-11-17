@@ -43,6 +43,7 @@ internal sealed class BooruResultViewerWindow : Window
     private readonly TextBlock _status = new() { Name = "BooruViewerStatus", TextWrapping = TextWrapping.Wrap };
     private int _index;
     private byte[]? _shownBytes;
+    private BooruPreviewState? _shownPreview;
     private string? _shownId;
     private bool _ended;
 
@@ -139,6 +140,7 @@ internal sealed class BooruResultViewerWindow : Window
         if (e.KeyModifiers == KeyModifiers.None && e.Key is Key.Space or Key.Enter
             && !ItemActivation.IsOwnedByInteractivePart(e.Source, _viewer))
         { e.Handled = true; ToggleSelection(); return; }
+        if (e.KeyModifiers == KeyModifiers.None && e.Key is Key.Space or Key.Enter) return;
         using var context = EffectiveShortcutBindings.EnterKeyContext("gallery");
         if (CommandBindings.Matches(e, "media.export-original"))
         { e.Handled = true; _ = DownloadAsync(); return; }
@@ -151,7 +153,8 @@ internal sealed class BooruResultViewerWindow : Window
 
     private void Refresh()
     {
-        if (Row is not { } row) { Close(); return; }
+        if (!_ids.SequenceEqual(_search.View.Rows.Select(value => value.Post.PostId)) || Row is not { } row)
+        { Close(); return; }
         Title = Texts.T("booru.ui.post.title", CurrentPostId);
         _caption.Text = $"{Title} · {_index + 1}/{_ids.Length} · {Texts.T("booru.ui.post.rating", BooruText.Rating(row.Post.Rating))}";
         _previous.Content = Texts.T("gallery.viewer1") + " · ←";
@@ -166,7 +169,8 @@ internal sealed class BooruResultViewerWindow : Window
         _status.Text = BooruText.Load(row) ?? BooruText.Original(row.Post.OriginalAccess, row.Post.IsDeleted || row.Post.IsBanned);
         ToolTip.SetTip(_download, _status.Text);
         ToolTip.SetShowOnDisabled(_download, true);
-        if (_shownId == CurrentPostId && ReferenceEquals(_shownBytes, row.PreviewBytes)) return;
+        if (_shownId == CurrentPostId && _shownPreview == row.Preview && ReferenceEquals(_shownBytes, row.PreviewBytes)) return;
+        _shownPreview = row.Preview;
         _shownId = CurrentPostId;
         _shownBytes = row.PreviewBytes;
         if (row.Preview != BooruPreviewState.Ready || row.PreviewBytes is not { Length: > 0 and <= 8388608 })
