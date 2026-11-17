@@ -29,6 +29,27 @@ internal static class BooruText
     internal static bool CanReviewCurrentBuild(BooruSearchView view) =>
         view.Status == BooruSearchStatus.Failed && view.Code == SdkMismatchCode;
 
+    // ---- repair route (sdk-mismatch) ------------------------------------------------------------
+
+    /// <summary>The page knows that the running Danbooru build cannot bind to this SDK: from a search, or from the session's observation.</summary>
+    internal static bool RepairKnown(BooruSearchView view, BooruBuildRepair repair) => CanReviewCurrentBuild(view) || repair.MismatchObserved;
+
+    /// <summary>The Search tab's status shows the repair route instead of the idle prompt or the plain failure.</summary>
+    internal static bool SearchShowsRepair(BooruSearchView view, BooruBuildRepair repair) =>
+        CanReviewCurrentBuild(view) || repair.MismatchObserved && view.Status == BooruSearchStatus.Idle && !view.IsBusy;
+
+    /// <summary>
+    /// One status sentence per stage. The mismatch text states the whole route (the dialog's shared name, confirm, restart);
+    /// a pinned build adds what confirming does to the pin. A confirmed repair only asks for the restart.
+    /// </summary>
+    internal static string RepairStatus(BooruBuildRepair repair) => repair.Stage switch
+    {
+        BooruRepairStage.ConfirmedPending => Texts.T("booru.ui.repair.confirmed") + " " + Texts.T("booru.ui.repair.confirmedHint"),
+        BooruRepairStage.Blocked => Texts.T("booru.ui.repair.blocked", Texts.T(repair.BlockedReasonKey ?? BooruBuildRepair.NothingToReviewKey)),
+        _ => Texts.T("booru.ui.status.pluginMismatch", Texts.T("plugins.repair.review"))
+            + (repair.ReleasesPin ? " " + Texts.T("booru.ui.repair.releasesPin") : string.Empty)
+    };
+
     internal static string Time(DateTimeOffset value) =>
         value.ToLocalTime().ToString("g", Texts.Culture);
 
@@ -82,7 +103,7 @@ internal static class BooruText
             BooruSearchStatus.Unavailable => Texts.T("booru.ui.status.unavailable"),
             BooruSearchStatus.InvalidInput => Issue(view.Parsed.Issue),
             // The active plugin build does not fit this MeowChan (for example a pinned older build): say what to do.
-            BooruSearchStatus.Failed when view.Code == SdkMismatchCode => Texts.T("booru.ui.status.pluginMismatch"),
+            BooruSearchStatus.Failed when view.Code == SdkMismatchCode => Texts.T("booru.ui.status.pluginMismatch", Texts.T("plugins.repair.review")),
             _ => Texts.T("booru.ui.status.failed", Code(view.Code))
         };
     }
@@ -138,7 +159,9 @@ internal static class BooruText
             "booru.ui.status.idle", "booru.ui.status.idlePost", "booru.ui.status.searching", "booru.ui.status.lookingUp",
             "booru.ui.status.results", "booru.ui.status.post", "booru.ui.status.empty", "booru.ui.status.offline",
             "booru.ui.status.rateLimited", "booru.ui.status.cooldown", "booru.ui.status.pauseOver", "booru.ui.status.denied",
-            "booru.ui.status.notFound", "booru.ui.status.unavailable", "booru.ui.status.failed", "booru.ui.status.pluginMismatch", "booru.ui.status.reviewBuild", "booru.ui.status.retry",
+            "booru.ui.status.notFound", "booru.ui.status.unavailable", "booru.ui.status.failed", "booru.ui.status.pluginMismatch", "booru.ui.status.retry",
+            "booru.ui.repair.releasesPin", "booru.ui.repair.confirmed", "booru.ui.repair.confirmedHint", "booru.ui.repair.blocked",
+            "booru.ui.repair.nothing", "booru.ui.repair.openPlugin", "booru.ui.repair.notReady", "booru.ui.repair.busy", "booru.ui.repair.notOpened",
             "booru.ui.post.title", "booru.ui.post.rating", "booru.ui.post.score", "booru.ui.post.favorites",
             "booru.ui.post.created", "booru.ui.post.urlLabel", "booru.ui.post.noPreview", "booru.ui.post.previewLoading",
             "booru.ui.post.previewUnavailable", "booru.ui.tags.label", "booru.ui.tags.none", "booru.ui.tags.more",

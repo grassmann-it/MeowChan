@@ -426,6 +426,9 @@ internal sealed class BooruSchedulerWatcherPort : IBooruWatcherPort, IDisposable
         DanbooruWatcherCheckKind.Rejected => new BooruWatcherCommandResult(BooruWatcherCommandStatus.Rejected, summary.Code),
         DanbooruWatcherCheckKind.Failed when summary.Code is "http-network" or "http-timeout"
             => new BooruWatcherCommandResult(BooruWatcherCommandStatus.Offline, summary.Code),
+        // A build that does not bind to this SDK is enabled and running, not "disabled or not running": say what it is.
+        DanbooruWatcherCheckKind.SourceUnavailable when summary.Code == BooruText.SdkMismatchCode
+            => new BooruWatcherCommandResult(BooruWatcherCommandStatus.Failed, BooruCodes.PluginSdkMismatch),
         // The worker's own reason (stopped, worker-exit, …) is diagnostic; the user sees "plugin not available".
         DanbooruWatcherCheckKind.SourceUnavailable => new BooruWatcherCommandResult(BooruWatcherCommandStatus.Failed,
             BooruCodes.SourceUnavailable),
