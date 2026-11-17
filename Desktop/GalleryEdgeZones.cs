@@ -114,7 +114,7 @@ internal static class GalleryEdgeHandleVisual
         chevron.Stroke = RestBrush;
         var face = new Border
         {
-            CornerRadius = new CornerRadius(DiscRadius), BorderThickness = new Thickness(RingThickness), IsHitTestVisible = false, Child = chevron
+            CornerRadius = new CornerRadius(DiscRadius), BorderThickness = new Thickness(0), IsHitTestVisible = false, Child = chevron
         };
         // Keep the complete transparent handle in the native hit-test map (a bare Path owns only its stroked pixels).
         var root = new Border { Background = Brushes.Transparent, Child = face };
@@ -123,6 +123,7 @@ internal static class GalleryEdgeHandleVisual
             bool focused = button.Classes.Contains(FocusVisiblePseudoClass);
             face.Background = focused ? DiscBrush : null;
             face.BorderBrush = focused ? RingBrush : null;
+            face.BorderThickness = focused ? new Thickness(RingThickness) : new Thickness(0);
             chevron.Stroke = focused ? RingBrush : RestBrush;
         }
         void OnClasses(object? sender, NotifyCollectionChangedEventArgs e) => Apply();

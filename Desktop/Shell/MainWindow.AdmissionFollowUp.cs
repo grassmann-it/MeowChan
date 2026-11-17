@@ -34,10 +34,12 @@ public partial class MainWindow
         int after = WorkspaceIntakeStack.Children.IndexOf(AdmissionResultsPanel);
         WorkspaceIntakeStack.Children.Insert(after < 0 ? WorkspaceIntakeStack.Children.Count : after + 1, _admissionLinkStrip);
         // Esc in the banner or anywhere in the results (report, links, problem tools) dismisses it; the key bubbles up from the focused control.
-        AdmissionRepairPanel.KeyDown += OnAdmissionRepairKeyDown;
-        AdmissionResultsPanel.KeyDown += OnAdmissionResultsKeyDown;
-        _admissionLinkStrip.KeyDown += OnAdmissionResultsKeyDown;
-        if (_admissionProblemTools != null) _admissionProblemTools.KeyDown += OnAdmissionResultsKeyDown;
+        // TextBox and other child controls may mark Escape handled before it bubbles.
+        // Observe handled bubbling events so the results surface can always dismiss.
+        AdmissionRepairPanel.AddHandler(InputElement.KeyDownEvent, OnAdmissionRepairKeyDown, RoutingStrategies.Bubble, handledEventsToo: true);
+        AdmissionResultsPanel.AddHandler(InputElement.KeyDownEvent, OnAdmissionResultsKeyDown, RoutingStrategies.Bubble, handledEventsToo: true);
+        _admissionLinkStrip.AddHandler(InputElement.KeyDownEvent, OnAdmissionResultsKeyDown, RoutingStrategies.Bubble, handledEventsToo: true);
+        if (_admissionProblemTools != null) _admissionProblemTools.AddHandler(InputElement.KeyDownEvent, OnAdmissionResultsKeyDown, RoutingStrategies.Bubble, handledEventsToo: true);
         LocalizeAdmissionDismiss();
     }
 
@@ -61,7 +63,7 @@ public partial class MainWindow
         }
     }
 
-    private static bool IsDismissKey(KeyEventArgs e) => !e.Handled && e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None;
+    private static bool IsDismissKey(KeyEventArgs e) => e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None;
 
     private void OnAdmissionRepairKeyDown(object? sender, KeyEventArgs e)
     {
