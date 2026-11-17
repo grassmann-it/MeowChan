@@ -281,12 +281,15 @@ public sealed class GalleryRatingPanelTests : IDisposable
     // ---- R and the deletions ---------------------------------------------------------------------------------------------------
 
     [Fact]
-    public void RMovesToTheTagsSegmentWithItsStarsFocusedAndTheMenusHaveNoRatingMenuAnyMore()
+    public void RMovesToTheTagsSegmentWithItsFieldFocusedAndTheMenusHaveNoRatingMenuAnyMore()
     {
         string viewer = Source("Desktop", "GalleryViewer.cs"), post = Source("Desktop", "GalleryViewer.PostPanel.cs");
         Assert.Contains("RequestRateAndTag, Priority: 200", viewer);
-        // The Tags segment opens first (when it can), then its row's stars take the focus; a medium without Tags segment gets the Post segment's stars.
+        // The Tags segment opens first (when it can), then the tag field takes focus; without a field the Post stars remain reachable.
         Assert.Contains("if (!_tagPanelOpen && CanOpenTagPanel) RequestTags();", post);
+        int field = post.IndexOf("if (_tagPanelOpen && _tagSurface != null) { _tagSurface.FocusField(); return; }", StringComparison.Ordinal);
+        int stars = post.IndexOf("if (FocusRatingStars()) return;", StringComparison.Ordinal);
+        Assert.True(field >= 0 && stars > field, "R must prefer the tag field, not the stars.");
         Assert.Contains("if (_tagPanelOpen && _decisionRow is { } tagsRow) return _contextOpen && tagsRow.FocusRating();", post);
         Assert.Contains("return _postDecision is { } row && row.FocusRating();", post);
         Assert.DoesNotContain("BuildRatingMenu", post + Source("Desktop", "MediaActions", "MediaMenuBuilder.cs"));

@@ -7,8 +7,15 @@
 - Keep primary toolbar actions left and presentation controls right in Archive, Downloads
   and Tagging, with consistent spacing, a compact Archive List/Table pair and no empty
   overflow button.
-- Align Settings search and More with the content column, including narrow windows;
+- Place Settings search and the three-dot **More** menu above the actual content
+  column, aligned with the form even when the category navigation collapses;
   wrap help-popup text and links without sideways scrolling in help or tooltips.
+- Move the gallery's live medium counter beside **Post | Tags** in the side-panel
+  header, retaining localized position text and polite accessibility announcements.
+- Enlarge the **Favorite** control in the gallery tag panel and **Rate and tag**
+  popover to match the five-star row width, with its rating caption below.
+- Fix clicking a tag autocomplete suggestion so it accepts the chosen suggestion,
+  not the typed prefix or a different “New tag” row; preserve token-aware completion.
 - Add an always-visible **Media sidebar: On/Off** reader-toolbar toggle, sharing the
   saved View/shortcut/close choice. Keep the large-reader-only default and retain the
   choice while a narrow window hides the sidebar; stabilize its header and full-height layout.
@@ -22,9 +29,11 @@
   Ctrl/Cmd+E queues only the displayed original, never the whole marked set.
 - Right-click Downloads rows, Archive thread/media items and Media tiles with the clicked
   target selected and focused; keep a multi-selection only when it contains that target.
-  A single click on the Media page's sidebar stays in preview/play-pause; double-click
-  opens the gallery. Clarify the existing local-media gallery gesture: double-click
-  toggles window fullscreen; 0 and 1 select Fit and 1:1 separately.
+  A single click on the Reader or Media page's sidebar stays in preview/play-pause,
+  never opening the gallery; double-click or **Open in gallery** opens it explicitly.
+  The gallery viewport takes focus before opening its context menu. Clarify the
+  existing local-media gallery gesture: double-click toggles window fullscreen;
+  0 and 1 select Fit and 1:1 separately.
 - Continue independent desktop smoke modes after failures and keep failed results in the
   final workflow aggregates and summaries; unsafe cleanup and interruption still block.
   This hardens CI reporting, not a claim of all-platform release acceptance.

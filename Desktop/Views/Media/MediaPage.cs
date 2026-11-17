@@ -125,7 +125,7 @@ public sealed partial class MediaPage : UserControl
     /// </summary>
     internal Func<MediaLibraryEntry, Control, TagContext, Func<bool>, RateAndTagRequest, Task>? TagPopoverAsync { get; set; }
     /// <summary>The favourite and rating row of the selection's "Rate and tag" popover over these entries (the shell supplies the decision session); null: no row.</summary>
-    internal Func<IReadOnlyList<MediaLibraryEntry>, bool, QuickTagPopoverDecision?>? DecisionForEntries { get; set; }
+    internal Func<IReadOnlyList<MediaLibraryEntry>, QuickTagInitialFocus, QuickTagPopoverDecision?>? DecisionForEntries { get; set; }
     /// <summary>Limits and suggestions of the selection's tag popover (the shell binds the saved settings); unset uses the defaults.</summary>
     internal Func<TagContext, QuickTagPopoverOptions>? TagPopoverOptions { get; set; }
     /// <summary>Opens the manager of saved ratings (the shell's dialog); the page re-reads ratings when the dialog has closed.</summary>
@@ -709,7 +709,7 @@ public sealed partial class MediaPage : UserControl
         if (_loadingCache) parts.Add(Texts.T("media.cache.loading"));
         if (_progress is { } progress && progress.ThreadsTotal > 0) parts.Add(Texts.Count("media.indexing", progress.ThreadsTotal, progress.ThreadsDone, progress.ThreadsTotal));
         if (_snapshot != null) parts.Add(_filterActive && !_filterFailed ? Texts.T("media.filter.count", _shown.Count, _unfiltered)
-            : missing > 0 ? Texts.Count("media.countMissing", threads, _shown.Count, threads, missing) : Texts.Count("media.count", threads, _shown.Count, threads));
+            : CountPhrases.MediaSummary(_shown.Count, threads, missing));
         if (_snapshot != null && _providerEntries is > 0 and int provider)
             parts.Add(Texts.Count("booru.media.statusCount", provider));
         if (_snapshot != null && _queueOpen > 0) parts.Add(Texts.T("media.status.queue", _queueOpen.ToString("N0", Texts.Culture))); // MP3
@@ -937,12 +937,12 @@ public sealed partial class MediaPage : UserControl
     internal async Task EditTagsByShortcutAsync()
     {
         if (_lifetime.IsCancellationRequested || _building != null || _selectionBusy) return;
-        if (_grid.Selection.Count > 1) { await TagSelectionAsync(focusRating: false); return; }
+        if (_grid.Selection.Count > 1) { await TagSelectionAsync(initialFocus: QuickTagInitialFocus.TagInput); return; }
         if (SelectedRow is not { } row) return;
         bool Current() => !_lifetime.IsCancellationRequested && _building == null && IsEffectivelyVisible;
         MediaLibraryEntry entry = row.Entry;
         Control anchor = _grid.ContainerFromItem(row) ?? _grid;
-        await OpenRateAndTagAsync(entry, row, anchor, Current, focusRating: false);
+        await OpenRateAndTagAsync(entry, row, anchor, Current, initialFocus: QuickTagInitialFocus.TagInput);
     }
 
     /// <summary>Why the tile cannot be tagged (null when it can): unknown tag index, a provider medium, no bound version.</summary>
@@ -957,13 +957,13 @@ public sealed partial class MediaPage : UserControl
     /// it; several selected tiles are rated and tagged together. A tile that cannot be tagged gets the stars and the reason as text. Without a popover
     /// host the tag dialog opens as before.
     /// </summary>
-    private async Task OpenRateAndTagAsync(MediaLibraryEntry entry, MediaLibraryTileRow row, Control anchor, Func<bool> current, bool focusRating, bool useSelection = true)
+    private async Task OpenRateAndTagAsync(MediaLibraryEntry entry, MediaLibraryTileRow row, Control anchor, Func<bool> current, QuickTagInitialFocus initialFocus, bool useSelection = true)
     {
-        if (useSelection && _grid.Selection.Count > 1 && !_selectionBusy) { await TagSelectionAsync(anchor, focusRating); return; }
+        if (useSelection && _grid.Selection.Count > 1 && !_selectionBusy) { await TagSelectionAsync(anchor, initialFocus); return; }
         string? blocked = TagsBlockedReason(entry, row.State);
         if (TagPopoverAsync is { } popover)
         {
-            await popover(entry, anchor, QuickTagPopoverContext.ContextOf(entry, _shown, row.Index), current, new RateAndTagRequest(focusRating, blocked, FocusGridNow));
+            await popover(entry, anchor, QuickTagPopoverContext.ContextOf(entry, _shown, row.Index), current, new RateAndTagRequest(initialFocus, blocked, FocusGridNow));
             return;
         }
         if (blocked != null)
@@ -1033,11 +1033,11 @@ public sealed partial class MediaPage : UserControl
                 .FirstOrDefault(item => ReferenceEquals(ItemsControl.ItemsControlFromItemContainer(item), _grid)) is { DataContext: MediaLibraryTileRow focused }
             && !_grid.Selection.SelectedItems.Contains(focused))
             _grid.SelectedItem = focused;
-        if (_grid.Selection.Count > 1) { await TagSelectionAsync(focusRating: true); return; }
+        if (_grid.Selection.Count > 1) { await TagSelectionAsync(initialFocus: QuickTagInitialFocus.TagInput); return; }
         if (SelectedRow is not { } row) { ShowSelectionNote(MediaMenuReasons.Unavailable); return; }
         if (row.Entry.Presence != MediaLibraryPresence.Present) { ShowSelectionNote(MediaMenuReasons.NotSaved); return; }
         bool Current() => !_lifetime.IsCancellationRequested && _building == null && IsEffectivelyVisible;
-        await OpenRateAndTagAsync(row.Entry, row, _grid.ContainerFromItem(row) ?? _grid, Current, focusRating: true);
+        await OpenRateAndTagAsync(row.Entry, row, _grid.ContainerFromItem(row) ?? _grid, Current, initialFocus: QuickTagInitialFocus.TagInput);
     }
 
     // Route only the page's media commands before ListBox typeahead. Panel video/favourite
@@ -1064,6 +1064,9 @@ public sealed partial class MediaPage : UserControl
         Visual[] ancestors = source.GetSelfAndVisualAncestors().ToArray();
         if (!ancestors.Contains(this) || ancestors.Any(visual => ReferenceEquals(visual, _grid)
             || _panel != null && ReferenceEquals(visual, _panel))) return;
+        // The tag list owns Delete/Back (remove the selected filter term). Do not
+        // consume them as the page's tagging.remove shortcut on the tunnel down.
+        if (e.Key is Key.Delete or Key.Back && ancestors.Contains(_tagSidebar.List)) return;
         OnGridKeyDown(sender, e);
     }
 
@@ -1287,7 +1290,7 @@ public sealed partial class MediaPage : UserControl
             [MediaMenuAction.Favorite] = several
                 ? () => Current() ? FavoriteKeyTask = WriteFavoriteKeyAsync(FavoriteKeyAction.Toggle, favoriteRows) : Task.CompletedTask
                 : () => ExecuteMediaActionAsync("favorites.toggle", entry, Current),
-            [MediaMenuAction.RateAndTag] = () => OpenRateAndTagAsync(entry, row, origin, Current, focusRating: true),
+            [MediaMenuAction.RateAndTag] = () => OpenRateAndTagAsync(entry, row, origin, Current, initialFocus: QuickTagInitialFocus.TagInput),
             // One tile: that tile. Several selected: the selection frozen now, like the selection actions below.
             [MediaMenuAction.Queue] = queueTiles is { Count: > 1 } ? () => AddTilesToQueueAsync(queueTiles) : () => AddEntryToQueueAsync(entry),
             [MediaMenuAction.Export] = several ? () => Current() ? ExportSelectionAsync() : Task.CompletedTask

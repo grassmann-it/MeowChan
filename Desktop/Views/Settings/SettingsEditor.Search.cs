@@ -442,7 +442,12 @@ public partial class SettingsEditor
     // The user changed a value: the search-opened groups around it stay open from now on.
     private void OnSettingValueChanged(object? sender, RoutedEventArgs e)
     {
-        if (_searchJumping || e.Source is not Control source || !IsSettingInput(source)) return;
+        if (_isClosed || _searchJumping || e.Source is not Control source || !IsSettingInput(source)) return;
+        // Opening a collapsed section creates numeric/choice templates. Their text boxes
+        // publish deferred TextChanged after _searchJumping has ended; formatting the
+        // loaded value is not an edit and must not surrender the restoration ledger.
+        // The owning setting reports actual changes through ValueChanged/SelectionChanged.
+        if (source.TemplatedParent != null) return;
         _conditionalReveal.NoteEdited(source);
         if (_searchGroups.OpenedCount == 0) return;
         _searchGroups.NoteEdited(source.GetSelfAndLogicalAncestors().OfType<Expander>());

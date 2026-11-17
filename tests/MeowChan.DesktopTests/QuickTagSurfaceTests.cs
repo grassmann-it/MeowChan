@@ -488,7 +488,9 @@ public sealed class QuickTagSurfaceTests : IDisposable
         string source = File.ReadAllText(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(ThisFile())!, "../../Desktop/Controls/QuickTagSurface.cs")));
         Assert.Contains("_input.AddHandler(PointerPressedEvent, OnInputPointerPressed, RoutingStrategies.Tunnel);", source);
         Assert.Contains("e.Pointer.Type != PointerType.Mouse", source);
-        Assert.Contains("if (!_disposed && _input.IsEffectivelyEnabled) _input.Focus();", source);
+        // Popup suggestions are logical descendants, not editor visuals: their captured gestures must not reclaim focus.
+        Assert.Contains("e.Source is not Visual source || (source != _input && !_input.IsVisualAncestorOf(source))", source);
+        Assert.Contains("if (!_disposed && _input.IsEffectivelyEnabled && !_input.IsKeyboardFocusWithin) _input.Focus();", source);
     }
 
     // ---- the control (built without an application: names, layout, chips) --------------------------------------
@@ -1041,8 +1043,8 @@ public sealed class QuickTagSurfaceTests : IDisposable
         Assert.Equal("aus diesem Thread", QuickTagReasons.Text(QuickTagReason.Thread));
     }
 
-    // The slot of the strip is what the assigned block leaves (a star row), so the strip can only be fitted once that block is built and laid
-    // out. Layout is not available without a window, so the order is pinned in the source, and the flag that lets Refresh do its own fit.
+    // Refresh keeps the old candidates and chips consistent through the layout pass; the shared viewport, not the assigned block, now
+    // determines fit capacity. Pin refresh ordering here as well as exercising actual layout in QuickTagScrollFlowTests.
     [Fact]
     public void RefreshBuildsTheAssignedBlockAndLaysItOutBeforeTheStripIsFittedAndNoSecondFitIsScheduled()
     {
@@ -1060,7 +1062,7 @@ public sealed class QuickTagSurfaceTests : IDisposable
             "a size change caused by the refresh's own layout starts no debounce timer");
         // The fit asks for the configured count as its minimum, and a measured size is kept per width.
         string fit = Between(source, "private void ApplyFit()", "private StripItem EnsureItem(");
-        Assert.Contains("new(width, height, StripItemSpacing, StripMinimum)", fit);
+        Assert.Contains("new(width, height, StripItemSpacing, StripMinimum, MinimumSuggestionRows)", fit);
         Assert.Contains("QuickTagStripFit.NeedsMeasure(item.Measured, item.MeasuredWidth, width)", fit);
         Assert.Contains("item.MeasuredWidth = width;", fit);
         Assert.DoesNotContain("QuickTagOptions.NumberedSuggestions", fit);

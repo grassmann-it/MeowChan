@@ -44,7 +44,7 @@ internal static class ReaderSidebarShortcutChecks
         {
             opens++;
             targetPost = entry.EntryKey.PostId;
-            Require(entry.Key.Thread == Fixture && request.FocusRating, "Wrong rating target/request.");
+            Require(entry.Key.Thread == Fixture && request.InitialFocus == QuickTagInitialFocus.TagInput, "Wrong rating target/request.");
             await originalPopover(entry, origin, context, current, request);
         };
         ContentControl host = window.FindControl<ContentControl>("ReaderHost")!;
@@ -69,6 +69,7 @@ internal static class ReaderSidebarShortcutChecks
             await page.ApplySearchAsync();
             page.FindControl<ListBox>("ArchiveThreads")!.SelectedIndex = 0;
             await Program.WaitUntilAsync(() => !page.IsBusy && page.CurrentThread?.Summary.Id == Fixture);
+            await page.LoadThreadAsync(Fixture); // A retained id alone does not prove a fresh media snapshot.
             // Opening the large reader snapshots the embedded origin, including its assets.
             // Finish that origin's scan before detaching, so close restores usable media.
             await page.MediaLoadTask;

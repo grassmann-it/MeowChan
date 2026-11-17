@@ -30,8 +30,13 @@ The plural column follows the CLDR cardinal rules for whole counts in
 `PluralRules`. A pack may only contain variant keys its language can select: the
 completeness test rejects any `.one` in zh-Hans/ja/ko, a `.many` in cs (its CLDR
 "many" is for fractions only) or a `.few` in pt-BR/it. zh-Hans, ja and ko therefore
-cover the English keys minus the 25 `<key>.one` texts of `CountCatalog` and use
-the base text for every number.
+omit all English `<key>.one` texts (across all catalogs, not just `CountCatalog`)
+and use their own translated base text for every number, including 0 and 1.
+This is not an English fallback: `PluralRules.Category` returns `other` for these
+languages, and `Texts.Count` selects the current pack's base key directly
+(`Texts.cs:214-220`). Only a missing base key would select the English catalog.
+`LanguagePackAuditRegressionTests` checks every omitted singular against its
+translated base at 0, 1, 2, 4, 21 and 100. Do not add `.one` copies to these packs.
 
 ### CJK fonts (system dependency, nothing bundled)
 

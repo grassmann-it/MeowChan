@@ -13,7 +13,11 @@ public sealed class MediaBooruOverflowRegistrationTests
         Assert.Contains("WorkViewElement.SetId(_booruOpen, \"media.toolbar.booru\")", view);
         Assert.Contains("Overflowed(_booruMode, _layoutButton, _focus, _refresh, _shuffle, _exportAll, _manageRatings, _booruOpen, _queueWalk, _taggingPageOpen, _queueAll, _mediaFolders)", view);
         Assert.Contains("UpdateMore(_more, HeaderOverflow())", view);
-        Assert.Contains("FillMore((MenuFlyout)_more.Flyout!, HeaderOverflow())", view);
+        // Opening freezes one projection for both the count and the entries. Requiring
+        // another inline HeaderOverflow() call rejects that stronger same-list contract.
+        Assert.Contains("List<Control> items = HeaderOverflow();\n"
+            + "            UpdateMore(_more, items);\n"
+            + "            FillMore((MenuFlyout)_more.Flyout!, items);", view.ReplaceLineEndings("\n"));
         Assert.Contains("WorkViewGate.Apply(_booruOpen, view, stateVisible: _canOpenBooru?.Invoke() == true)", view);
         Assert.DoesNotContain("AddBooruOverflow", toolbar);
         Assert.DoesNotContain("flyout.Items.Insert", toolbar);

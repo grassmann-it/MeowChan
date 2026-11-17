@@ -61,14 +61,32 @@ internal static partial class MediaPageChecks
         // From the keyboard: Enter includes the selected tag, Shift+Enter excludes it, Delete takes it out.
         sidebar.List.SelectedItem = Surface();
         sidebar.List.Focus(NavigationMethod.Tab);
-        void Key(Avalonia.Input.Key key, KeyModifiers modifiers = KeyModifiers.None) =>
-            (sidebar.List.ContainerFromIndex(sidebar.List.SelectedIndex) ?? (Control)sidebar.List).RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = key, KeyModifiers = modifiers });
+        void Key(Avalonia.Input.Key key, KeyModifiers modifiers = KeyModifiers.None)
+        {
+            Control target = sidebar.List.ContainerFromIndex(sidebar.List.SelectedIndex) ?? (Control)sidebar.List;
+            var input = new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = key, KeyModifiers = modifiers };
+            target.RaiseEvent(input);
+            Require(input.Handled, state + $": the tag list did not handle {key}/{modifiers}.");
+            Console.WriteLine($"SMOKE media key {key}/{modifiers}: handled={input.Handled}, tagTerms={page.FilterTerms.Count(term => term.Field == MediaFilterField.Tag)}, tiles={page.Tiles.Count}/{all}");
+        }
         Key(Avalonia.Input.Key.Enter);
         await UntilAsync(() => page.TagCountTask.IsCompleted && Surface().Polarity == 1 && page.Tiles.Count == tagged);
         Require((sidebar.List.SelectedItem as MediaTagListItem)?.Name == "surface", state + ": the selection must stay on the tag after the list was rebuilt.");
         Key(Avalonia.Input.Key.Enter, KeyModifiers.Shift);
         await UntilAsync(() => page.TagCountTask.IsCompleted && Surface().Polarity == -1);
         Key(Avalonia.Input.Key.Delete);
+        Require(!page.FilterTerms.Any(term => term.Field == MediaFilterField.Tag),
+            state + ": Delete was consumed before removing the sidebar tag filter.");
+        await UntilAsync(() => page.TagCountTask.IsCompleted && Surface().Polarity == 0 && page.Tiles.Count == all);
+        // Backspace is the sidebar's other remove gesture, not the page's media command.
+        // The zero-count row can disappear while the unfiltered count is rebuilt.
+        sidebar.List.SelectedItem = Surface();
+        sidebar.List.Focus(NavigationMethod.Tab);
+        Key(Avalonia.Input.Key.Enter, KeyModifiers.Shift);
+        await UntilAsync(() => page.TagCountTask.IsCompleted && Surface().Polarity == -1);
+        Key(Avalonia.Input.Key.Back);
+        Require(!page.FilterTerms.Any(term => term.Field == MediaFilterField.Tag),
+            state + ": Backspace was consumed before removing the sidebar tag filter.");
         await UntilAsync(() => page.TagCountTask.IsCompleted && Surface().Polarity == 0 && page.Tiles.Count == all);
 
         // The search box narrows the rows; nothing found says so.

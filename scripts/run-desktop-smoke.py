@@ -290,42 +290,39 @@ def check_scenario(log_text: str, expected: str, explicit: bool) -> tuple[str | 
     return observed[0], None
 
 
+CAPTURE_PATTERNS = ("smoke-*.png", "v0.9.0-*.png", "smoke-*.json", "smoke-*.html")
+
+
 @contextlib.contextmanager
-def capture_bin_lock(directory: Path):
-    """The fixtures write smoke-*.png/json next to the assembly and the runner collects them by mtime, so two
-    concurrent runs of one build would collect each other's captures. Runs sharing a bin take turns (POSIX
-    flock, released by the kernel if the runner dies); the wait is outside every run's own deadline."""
-    try:
-        import fcntl
-    except ImportError:  # Windows: no cross-process lock here; callers must not share a bin concurrently.
-        yield
-        return
-    with (directory / ".smoke-capture.lock").open("w") as handle:
-        waited = time.monotonic()
-        fcntl.flock(handle, fcntl.LOCK_EX)
-        if time.monotonic() - waited > 1:
-            print(f"Desktop harness waited {time.monotonic() - waited:.0f}s for another run using {directory}.", flush=True)
-        try:
-            yield
-        finally:
-            fcntl.flock(handle, fcntl.LOCK_UN)
+def private_assembly(assembly: Path):
+    """Own all BaseDirectory writes, on every platform, without serializing GUI processes.
+
+    Stage below the original bin so fixtures that search ancestors for repository assets still work.
+    Exclude other stages (including this one), prior captures, and the obsolete POSIX lock. Copy rather
+    than hard-link dependencies: a child must not be able to modify the shared build through its stage.
+    The scope outlives child/group cleanup AND capture collection, including failed and timed-out runs.
+    """
+    assembly = assembly.resolve(strict=True)
+    with tempfile.TemporaryDirectory(prefix=".smoke-run-", dir=assembly.parent) as directory:
+        staged = Path(directory) / "bin"
+        shutil.copytree(assembly.parent, staged, ignore=shutil.ignore_patterns(
+            ".smoke-run-*", ".smoke-capture.lock", *CAPTURE_PATTERNS))
+        yield staged / assembly.name
 
 
 def run_mode(mode: str, assembly: Path, destination: Path, environment: dict[str, str],
              isolated: bool, timeout: float, expected_scenario: str | None = None) -> dict[str, object]:
-    with capture_bin_lock(assembly.parent):
-        return run_mode_locked(mode, assembly, destination, environment, isolated, timeout, expected_scenario)
+    with private_assembly(assembly) as staged:
+        return run_mode_staged(mode, staged, destination, environment, isolated, timeout, expected_scenario)
 
 
-def run_mode_locked(mode: str, assembly: Path, destination: Path, environment: dict[str, str],
+def run_mode_staged(mode: str, assembly: Path, destination: Path, environment: dict[str, str],
              isolated: bool, timeout: float, expected_scenario: str | None = None) -> dict[str, object]:
     destination = destination.resolve()
     destination.mkdir()
     command = ["dotnet", str(assembly)]
     if mode != "normal":
         command.append("--" + mode)
-    previous = {image: image.stat().st_mtime_ns for pattern in ("smoke-*.png", "v0.9.0-*.png")
-                for image in assembly.parent.glob(pattern)}
     timed_out = False
     interrupted = False
     error = None
@@ -415,9 +412,12 @@ def run_mode_locked(mode: str, assembly: Path, destination: Path, environment: d
             print(f"Desktop harness {mode}: timed out on an overloaded host (loadavg {end_load['loadavg_1m']:.1f} "
                   f"> {end_load['cpus']} CPUs); rerun with a larger --timeout before treating this as a product failure.",
                   flush=True)
-    for image in (image for pattern in ("smoke-*.png", "v0.9.0-*.png") for image in assembly.parent.glob(pattern)):
-        if previous.get(image) != image.stat().st_mtime_ns:
-            shutil.copy2(image, destination / image.name)
+    # The stage started without captures and belongs to this child alone: no timestamp inference.
+    captures = sorted(image for pattern in CAPTURE_PATTERNS for image in assembly.parent.glob(pattern))
+    for image in captures:
+        shutil.copy2(image, destination / image.name)
+    (destination / "captures.json").write_text(json.dumps({"scenario": scenario,
+        "files": [image.name for image in captures]}, indent=2) + "\n", encoding="utf-8")
     scales = sorted({float(value) for value in re.findall(
         r"^SMOKE render scaling: actual=([0-9]+(?:\.[0-9]+)?);", log_text, re.MULTILINE)})
     requested_scale = environment.get("AVALONIA_GLOBAL_SCALE_FACTOR")

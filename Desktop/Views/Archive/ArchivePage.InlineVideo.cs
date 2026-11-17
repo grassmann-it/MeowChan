@@ -115,9 +115,9 @@ public partial class ArchivePage
     /// </summary>
     private bool TryRouteReaderVideoKey(KeyEventArgs e)
     {
-        if (e.Handled || !_largeReader || e.Source is not Control source || ArchivePosts.SelectedItem is not ArchivePostRow post) return false;
+        if (e.Handled || e.Source is not Control source || ArchivePosts.SelectedItem is not ArchivePostRow post) return false;
         if (e.Source is ReaderBodyTextBlock { HasHiddenSpoilers: true }) return false;
-        if (!ReaderMediaContextIsCurrent(source, post, needsGallery: false)) return false;
+        if (!ReaderMediaContextIsCurrent(source, post, needsGallery: false, largeReaderOnly: false)) return false;
         ReaderVideoAction action = ReaderVideoKeys.ClassifyUnclaimed(id => ShortcutService.Current.Matches(e, id));
         if (ReaderMediaActivation.IsMediaKey(e.Key, e.KeyModifiers, ShortcutService.Current.Matches(e, ActivateMediumCommandId), ClaimedByOtherReaderCommand(e))
             || action == ReaderVideoAction.PlayPause)

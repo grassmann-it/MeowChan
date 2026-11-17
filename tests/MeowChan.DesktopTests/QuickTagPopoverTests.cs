@@ -245,12 +245,12 @@ public sealed class QuickTagPopoverTests : IDisposable
         internal bool Favorite;
         internal int Released;
         internal bool Changed;
-        internal QuickTagPopoverDecision Make(bool focusRating = false, bool withFavorite = true) => new()
+        internal QuickTagPopoverDecision Make(QuickTagInitialFocus initialFocus = QuickTagInitialFocus.TagInput, bool withFavorite = true) => new()
         {
             View = () => new GalleryDecisionView(1, Favorite ? GalleryDecisionCoverage.All : GalleryDecisionCoverage.None, Rating, false, true),
             SetRating = value => { Rating = value; Changed = true; return Task.CompletedTask; },
             SetFavorite = withFavorite ? (selected => { Favorite = selected; Changed = true; return Task.CompletedTask; }) : null,
-            FocusRating = focusRating,
+            InitialFocus = initialFocus,
             HasChanged = () => Changed,
             Release = () => Released++
         };
@@ -286,17 +286,18 @@ public sealed class QuickTagPopoverTests : IDisposable
     }
 
     [Fact]
-    public void AHostWithoutAFavouritesCallHidesTheFavouriteButtonAndRFocusKeepsTheFieldFromTakingTheFocus()
+    public void ExplicitStarFocusIsStillAvailableButGeneralRateAndTagDefaultsToTheField()
     {
+        Assert.Equal(QuickTagInitialFocus.TagInput, new RateAndTagRequest().InitialFocus);
         using Fixture fixture = new();
         DecisionHost host = new();
         QuickTagPopover popover = QuickTagPopover.Create(new Border(), fixture.Session(), "x",
-            new QuickTagPopoverOptions { RestoreFocus = false, Decision = host.Make(focusRating: true, withFavorite: false) });
+            new QuickTagPopoverOptions { RestoreFocus = false, Decision = host.Make(initialFocus: QuickTagInitialFocus.Rating, withFavorite: false) });
         Assert.False(popover.DecisionRow!.FavoriteVisible);
         Assert.False(popover.Surface!.FocusOnAttach);
         popover.Close();
         QuickTagPopover field = QuickTagPopover.Create(new Border(), fixture.Session(), "x",
-            new QuickTagPopoverOptions { RestoreFocus = false, Decision = new DecisionHost().Make(focusRating: false) });
+            new QuickTagPopoverOptions { RestoreFocus = false, Decision = new DecisionHost().Make(initialFocus: QuickTagInitialFocus.TagInput) });
         Assert.True(field.Surface!.FocusOnAttach);
         field.Close();
     }
