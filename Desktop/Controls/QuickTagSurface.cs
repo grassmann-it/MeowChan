@@ -134,10 +134,10 @@ internal static class QuickTagKeys
         }
     }
 
-    /// <summary>The shortcut text of suggestion <paramref name="index"/> (0-based): "Alt+3", "⌘3"; null beyond the numbered ones.</summary>
+    /// <summary>The effective shortcut text of suggestion <paramref name="index"/> (0-based); null beyond the numbered ones or when unbound.</summary>
     internal static string? SuggestionGesture(int index, ShortcutPlatform platform) =>
         index is < 0 or >= QuickTagOptions.NumberedSuggestions ? null
-        : new ShortcutGesture("D" + (index + 1), new[] { platform == ShortcutPlatform.MacOS ? "Meta" : "Alt" }).Display(platform);
+        : BoundGesture(QuickTagCommands.Suggestion(index + 1), platform);
 
     /// <summary>
     /// The shortcut text of a command as it is bound now (the person may have changed or removed it, or a default may have yielded to another
@@ -145,8 +145,9 @@ internal static class QuickTagKeys
     /// </summary>
     internal static string? BoundGesture(string commandId, ShortcutPlatform platform)
     {
-        IReadOnlyList<ShortcutGesture> gestures = ShortcutService.Current.For(commandId);
-        return gestures.Count == 0 ? null : string.Join(" / ", gestures.Select(gesture => gesture.Display(platform)));
+        var bindings = ShortcutService.Current.Platform == platform ? ShortcutService.Current
+            : EffectiveShortcutBindings.Build(ShortcutService.CurrentSection, platform);
+        return CommandCatalog.ShortcutTooltipDisplay(commandId, platform == ShortcutPlatform.MacOS, bindings: bindings);
     }
 
     internal static string? UndoGesture(ShortcutPlatform platform) => BoundGesture(QuickTagCommands.Undo, platform);

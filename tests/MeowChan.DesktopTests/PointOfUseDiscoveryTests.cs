@@ -5,6 +5,7 @@ using Avalonia.Controls;
 using Avalonia.Platform;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan.DesktopTests;
@@ -96,6 +97,26 @@ public sealed class PointOfUseDiscoveryTests
             if (!unbound) Assert.DoesNotContain("Space", hint);
         }
         Texts.SetLanguage("en");
+    });
+
+    [Theory]
+    [InlineData(ShortcutPlatform.MacOS)]
+    [InlineData(ShortcutPlatform.Linux)]
+    [InlineData(ShortcutPlatform.Windows)]
+    public void SuggestionChipsUseCatalogueDefaultsOrTheEffectiveOverride(ShortcutPlatform platform) => WithControls(() =>
+    {
+        ShortcutService.Publish(new ShortcutBindingsSection());
+        for (int index = 0; index < QuickTagCommands.SuggestionCount; index++)
+        {
+            string id = QuickTagCommands.Suggestion(index + 1);
+            string expected = string.Join(" / ", EffectiveShortcutBindings.Defaults(CommandCatalog.Get(id), platform).Select(g => g.Display(platform)));
+            Assert.Equal(expected, QuickTagKeys.SuggestionGesture(index, platform));
+        }
+        string command = QuickTagCommands.Suggestion(1);
+        ShortcutService.Publish(new ShortcutBindingsSection().Set(command, [ShortcutGesture.Parse("Primary+F9")]));
+        Assert.Equal(ShortcutGesture.Parse("Primary+F9").Display(platform), QuickTagKeys.SuggestionGesture(0, platform));
+        ShortcutService.Publish(new ShortcutBindingsSection().Set(command, []));
+        Assert.Null(QuickTagKeys.SuggestionGesture(0, platform));
     });
 
     private static void AssertHelp(Control control, string context, params string[] commands)

@@ -452,7 +452,8 @@ public sealed class QuickTagSurfaceTests : IDisposable
     {
         Assert.Equal("Alt+1", QuickTagKeys.SuggestionGesture(0, ShortcutPlatform.Linux));
         Assert.Equal("Alt+9", QuickTagKeys.SuggestionGesture(8, ShortcutPlatform.Windows));
-        Assert.Equal("⌘1", QuickTagKeys.SuggestionGesture(0, ShortcutPlatform.MacOS));
+        Assert.Equal(string.Join(" / ", EffectiveShortcutBindings.Defaults(CommandCatalog.Get(QuickTagCommands.Suggestion(1)), ShortcutPlatform.MacOS)
+            .Select(gesture => gesture.Display(ShortcutPlatform.MacOS))), QuickTagKeys.SuggestionGesture(0, ShortcutPlatform.MacOS));
         Assert.Null(QuickTagKeys.SuggestionGesture(9, ShortcutPlatform.Linux));
         Assert.Equal("Ctrl+Z", QuickTagKeys.UndoGesture(ShortcutPlatform.Linux));
         Assert.Equal("⌘Z", QuickTagKeys.UndoGesture(ShortcutPlatform.MacOS));
