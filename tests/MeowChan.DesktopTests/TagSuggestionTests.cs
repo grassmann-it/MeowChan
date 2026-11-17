@@ -112,6 +112,16 @@ public sealed class TagSuggestionTests : IDisposable
     }
 
     [Fact]
+    public void EnterResolvesTheOnlySuggestionAndCompletionKeepsEarlierTagsAndQuotes()
+    {
+        IdentitySuggestion innocent = new("innocent", null, "innocent");
+        Assert.Same(innocent, IdentitySuggestions.Resolve("in", null, new[] { innocent }));
+        Assert.Equal("hot innocent", TagEntryParser.Complete("hot ", innocent.Value));
+        Assert.Equal("hot \"big tits\"", TagEntryParser.Complete("hot ", "big tits"));
+        Assert.Equal("\"hot blonde\"", TagEntryParser.Complete("", "hot blonde"));
+    }
+
+    [Fact]
     public void TabCompletesTheHighlightedOrFirstSuggestionButNeverTrapsFocus()
     {
         IdentitySuggestion first = new("cats", null, "cats"), second = new("catgirl", null, "catgirl");

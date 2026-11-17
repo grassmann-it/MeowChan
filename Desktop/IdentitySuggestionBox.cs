@@ -144,7 +144,7 @@ public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox
         // The pointer gesture owns its commit; the adapter must not accept on press or twice.
         if (!_pointerInPopup) AcceptCandidate();
     }
-    private void AcceptCandidate() => Accept((SelectionAdapter?.SelectedItem ?? SelectedItem) as IdentitySuggestion);
+    private void AcceptCandidate() => Accept(IdentitySuggestions.Resolve(Text, HighlightedCandidate, ShownCandidates()));
     private void Accept(IdentitySuggestion? item)
     {
         if (_ended || _suppressed) return;

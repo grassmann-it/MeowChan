@@ -273,7 +273,7 @@ public sealed class GalleryEntryPointAuditTests
         Assert.Contains("DispatcherPriority.Input", player);
         Assert.Contains("_video.MouseTransportActionCompleted += FocusGallerySurface", viewer);
         // Mouse mute/loop clicks must not leave Enter on the toggle; keyboard Tab/Enter remains native.
-        Assert.Contains("Keyboard activation retain the control's native focus", player);
+        Assert.Contains("Keyboard activation intentionally keeps native control focus", player);
     }
 
     // Quote chips of the post panel present "Show quoted post" like the reader's quote buttons, so a key bound to it opens the focused chip.
