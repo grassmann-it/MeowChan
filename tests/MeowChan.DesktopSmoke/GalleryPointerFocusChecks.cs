@@ -26,6 +26,17 @@ internal static class GalleryPointerFocusChecks
     internal static async Task ClickAsync(Window window, Control target, PointerType type = PointerType.Mouse)
     {
         Point center = CenterIn(window, target);
+        // A Button raises Click on the release only where the window's hit test finds it under the pointer, and the window hit-tests the
+        // renderer's last frame: a control that was just shown or moved (the docked toolbar after ConfigurePlayback) is clickable once a frame
+        // has it, as for a person's mouse.
+        await Program.WaitUntilAsync(() =>
+            {
+                window.UpdateLayout();
+                center = CenterIn(window, target);
+                return window.InputHitTest(center) is Visual hit && (ReferenceEquals(hit, target) || target.IsVisualAncestorOf(hit));
+            },
+            () => "The pointer does not reach " + target.Name + ": the window hits " + Describe(window.InputHitTest(center)) + " at " + center
+                + " in a client of " + window.ClientSize + "; target bounds " + target.Bounds + ", viewer bounds " + (window.Content as Control)?.Bounds);
         Require(target.Focus(NavigationMethod.Pointer), "The pressed control did not take the focus: " + target.Name);
         using Avalonia.Input.Pointer pointer = new(Avalonia.Input.Pointer.GetNextFreeId(), type, true);
         target.RaiseEvent(new PointerPressedEventArgs(target, pointer, window, center, 0,
@@ -75,7 +86,7 @@ internal static class GalleryPointerFocusChecks
         {
             await ClickAsync(window, star);
             await settled();
-            Require(clicks == 1 && saved() != start, "A mouse click on the toolbar star did not toggle the favourite once.");
+            Require(clicks == 1 && saved() != start, $"A mouse click on the toolbar star did not toggle the favourite once: clicks {clicks}, saved {start} -> {saved()}, hit {Describe(window.InputHitTest(CenterIn(window, star)))}, pressed {star.IsPressed}.");
             Require(ReferenceEquals(Focused(window), viewer), "A mouse click on the toolbar star left the keys on the star: " + Describe(Focused(window)));
             await SpaceAsync(window);
             await settled();
