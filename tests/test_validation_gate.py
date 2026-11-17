@@ -235,7 +235,8 @@ class OfflineRetestTests(unittest.TestCase):
     def test_mode_cannot_run_any_staging_release_or_packaging_job(self):
         for job, expr in job_conditions().items():
             ran = predicate(expr, "workflow_dispatch", "offline-retest", "all", False, "Linux", "X64")
-            self.assertEqual(job == "validate", ran, job)
+            # The always-run status rollup does no staging/release/package work.
+            self.assertEqual(job in {"validate", "full-sweep-aggregate"}, ran, job)
 
     def test_candidate_modes_keep_complete_requirements(self):
         for mode in ("prerelease-candidate", "stable-candidate"):

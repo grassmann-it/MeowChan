@@ -80,3 +80,30 @@ steps from running; `always()` is not a guarantee beyond platform termination.
 Targeted contracts simulate scheduling/receipts/cleanup failures; they do not
 prove native rendering, decoder behavior, physical audio or runtime correctness
 of the new C# helpers. Those require the corresponding native receipts.
+
+## CI-LEDGER-07 full-sweep status and focused retests
+
+- `python3 -m unittest discover -s tests/gui-ci-orchestration -v` runs the
+  full-sweep contracts, including failing fake scenes (no GUI or product build).
+  Also run `test_desktop_smoke_runner.py`, `test_gui_ci_scenes.py`, and
+  `test_release_gates.py` in the parent tests directory.
+- Ordinary multi-mode smoke failures continue to the next mode; a later pass
+  cannot clear the failed verdict. Interruption or unproven process cleanup
+  still blocks unsafe followups. Registry child launch errors are recorded as
+  failures without suppressing later independent entries.
+- Both workflows end in an `always()` aggregate job. The original step
+  `outcome`, not its continue-on-error `conclusion`, determines failure. Every
+  gate writes its decision to `$GITHUB_STEP_SUMMARY`; the desktop rollup waits
+  for all producer/coverage/candidate jobs and preserves RED on failure or
+  cancellation. Only the workflow-wide rollup allows mode-excluded jobs to
+  skip; required coverage and release admission remain fail-closed.
+- The registry workflow already has the exact-smoke dispatch input `only`:
+  `gh workflow run desktop-smoke-registry.yml --repo grassmann-it/MeowChan
+  --ref BRANCH -f only=REGISTRY_ID`. Use one ID per dispatch for individual
+  retests. An empty input retains the full sweep. No duplicate input is needed.
+- The desktop workflow already supports a focused portable shard via
+  `-f mode=offline-retest -f platform=ubuntu-24.04 -f scenario=all
+  -f offline_lane=lane-c`. This is a retest, not full coverage evidence.
+- Registry verification/fixture steps continue independently; restore, build
+  and desktop setup remain prerequisites. The final step gate and downstream
+  aggregate turn any continued failure back into a failing job/run.
