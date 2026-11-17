@@ -261,6 +261,21 @@ public sealed class GalleryEntryPointAuditTests
         Assert.Contains("_nativeVideoOverlay.AddHandler(KeyUpEvent, OnContextKeyUp, RoutingStrategies.Tunnel, handledEventsToo: true)", viewer);
     }
 
+    [Fact]
+    public void MouseTransportActionsReturnShortcutOwnershipToTheGallery()
+    {
+        string? directory = AppContext.BaseDirectory;
+        while (directory != null && !File.Exists(Path.Combine(directory, "MeowChan.csproj"))) directory = Path.GetDirectoryName(directory);
+        string player = File.ReadAllText(Path.Combine(directory!, "Desktop", "GalleryVideoPlayer.cs"));
+        string viewer = File.ReadAllText(Path.Combine(directory!, "Desktop", "GalleryViewer.cs"));
+        Assert.Contains("MouseTransportActionCompleted", player);
+        Assert.Contains("e.Pointer.Type == PointerType.Mouse", player);
+        Assert.Contains("DispatcherPriority.Input", player);
+        Assert.Contains("_video.MouseTransportActionCompleted += FocusGallerySurface", viewer);
+        // Mouse mute/loop clicks must not leave Enter on the toggle; keyboard Tab/Enter remains native.
+        Assert.Contains("Keyboard activation retain the control's native focus", player);
+    }
+
     // Quote chips of the post panel present "Show quoted post" like the reader's quote buttons, so a key bound to it opens the focused chip.
     [Fact]
     public void QuoteChipsCarryTheShowQuotedPostCommand()

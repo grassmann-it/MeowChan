@@ -1259,6 +1259,7 @@ internal sealed partial class GalleryViewer : UserControl
                         DiagnosticNotice?.Invoke(new("video-cleanup", _videoDiagnosticEntry, _videoDiagnosticRevision, message, true));
                 };
                 _video.VolumeChanged += volume => { _videoVolume = volume; VideoVolumeChanged?.Invoke(volume); };
+                _video.MouseTransportActionCompleted += FocusGallerySurface;
                 _video.DurationChanged += OnVideoDurationChanged;
                 _video.LoopChanged += OnVideoLoopChanged;
                 _video.TransportControl.SizeChanged += (_, _) => { if (_contextOpen) LayoutContextPlacement(); };

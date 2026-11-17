@@ -103,6 +103,9 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
     internal event Action<string>? DiagnosticNotice;
     internal event Action<string>? CleanupDiagnostic;
     internal event Action<bool>? UserPlaybackRequested;
+    /// <summary>Raised after a mouse activation of transport chrome so the gallery can reclaim shortcut focus.
+    /// Keyboard activation intentionally keeps native control focus for accessibility.</summary>
+    internal event Action? MouseTransportActionCompleted;
     internal event Action? SeekInteractionStarted;
     internal bool LoopEnabled => _intent.LoopEnabled;
     /// <summary>The playback speed chosen for the current medium (1 after every new medium).</summary>
@@ -570,6 +573,16 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
         _mute.Click += async (_, _) => await ToggleMuteAsync();
         _loop.Click += (_, _) => ToggleLoop();
         _speed.Click += (_, _) => CycleRate();
+        // A pointer activation is an action, not a request to move keyboard ownership
+        // into the transport. Restore the gallery surface after the native Button has
+        // completed its click so the next Enter/Space reaches gallery playback. Tab and
+        // keyboard activation retain the control's native focus for accessibility.
+        foreach (Control control in new Control[] { _playPause, _mute, _loop, _speed, _abLoopButton, _frameStep, _fullscreen, _playerMenuButton })
+            control.AddHandler(PointerReleasedEvent, (_, e) =>
+            {
+                if (e.Pointer.Type == PointerType.Mouse && e.InitialPressMouseButton == MouseButton.Left)
+                    Dispatcher.UIThread.Post(() => MouseTransportActionCompleted?.Invoke(), DispatcherPriority.Input);
+            }, RoutingStrategies.Bubble, handledEventsToo: true);
         _volume.PropertyChanged += (_, args) =>
         {
             if (args.Property != Slider.ValueProperty || _settingVolume) return;
