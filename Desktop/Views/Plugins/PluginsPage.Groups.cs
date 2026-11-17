@@ -36,22 +36,29 @@ public partial class PluginsPage
     /// <summary>The key of the card that stands for the entry's plugin (the entry's own key when it has no sibling files).</summary>
     private string CardKey(string key) => _catalog?.Entries.FirstOrDefault(entry => entry.Key == key) is { } found ? Representative(found).Key : key;
 
-    private static int AvailabilityRank(PluginEntryPresentation presentation) => presentation.Availability switch
-    {
-        PluginAvailability.Active => 0, PluginAvailability.Disabled => 1, PluginAvailability.Unavailable => 2, _ => 3
-    };
-
     private static bool HasProblem(PluginEntryPresentation presentation) => presentation.CandidateMissing || presentation.HasWorkerProblem
         || presentation.HasSdkMismatch || !string.IsNullOrEmpty(presentation.CandidateProblem) || !string.IsNullOrEmpty(presentation.VisibleActivationProblem);
 
-    /// <summary>One entry per plugin, active plugins first, then disabled, then those that are unavailable or not loaded; by name within each.</summary>
+    private readonly PluginActivityTracker _activity = new();
+
+    /// <summary>One entry per plugin: plugins with activity first, then active, disabled, unavailable or not loaded; by name, then key, within each.</summary>
     private PluginCatalogEntry[] CardEntries()
     {
         if (_catalog == null) return Array.Empty<PluginCatalogEntry>();
         var productionWorkers = _services?.GetProductionWorkerSnapshots?.Invoke();
-        return _catalog.Entries.Where(Included).GroupBy(entry => entry.PluginId ?? entry.Key).Select(group => Representative(group.First()))
-            .Select(entry => (Entry: entry, Rank: AvailabilityRank(PluginEntryPresentation.Create(entry, productionWorkers, sdkMismatch: _services?.HasSdkMismatch))))
-            .OrderBy(item => item.Rank).Select(item => item.Entry).ToArray();
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        PluginCatalogEntry[] representatives = _catalog.Entries.Where(Included).GroupBy(entry => entry.PluginId ?? entry.Key).Select(group => Representative(group.First())).ToArray();
+        Dictionary<string, PluginCatalogEntry> byKey = new(StringComparer.Ordinal);
+        List<PluginCardRank> ranks = new();
+        foreach (PluginCatalogEntry entry in representatives)
+        {
+            if (!byKey.TryAdd(entry.Key, entry)) continue;
+            PluginEntryPresentation presentation = PluginEntryPresentation.Create(entry, productionWorkers, sdkMismatch: _services?.HasSdkMismatch);
+            bool running = _activity.Observe(entry.Key, PluginActivityTracker.IsBusy(presentation), now);
+            ranks.Add(new PluginCardRank(entry.Key, presentation.Name, presentation.Availability, running));
+        }
+        _activity.Retain(byKey.Keys);
+        return PluginCardOrder.Order(ranks).Select(rank => byKey[rank.Key]).ToArray();
     }
 
     private bool GroupNeedsAttention(PluginCatalogEntry entry)

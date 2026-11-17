@@ -29,7 +29,7 @@ public partial class PluginsPage : UserControl
     private readonly Dictionary<string, PluginConfigurationDraft> _drafts = new(StringComparer.Ordinal);
     private readonly Dictionary<string, SelectionListItem> _cards = new(StringComparer.Ordinal);
     private readonly Dictionary<string, PluginSettingsEditor> _editors = new(StringComparer.Ordinal);
-    private sealed record PluginListContent(TextBlock Name, WrapPanel Chips, TextBlock Description, TextBlock Origin, TextBlock State, TextBlock Identity)
+    private sealed record PluginListContent(TextBlock Name, WrapPanel Chips, TextBlock Description, TextBlock Origin, TextBlock State, TextBlock Identity, Desktop.Controls.StatFooterRow Footer)
     {
         internal string ChipSignature { get; set; } = string.Empty;
     }
@@ -302,9 +302,11 @@ public partial class PluginsPage : UserControl
                     var identity = new TextBlock { Name = "PluginListIdentity", TextWrapping = TextWrapping.Wrap, MaxLines = 2, TextTrimming = TextTrimming.CharacterEllipsis };
                     title.Classes.Add("section-title");
                     purpose.Classes.Add("workspace-meta"); origin.Classes.Add("workspace-meta"); state.Classes.Add("workspace-meta"); identity.Classes.Add("workspace-meta");
-                    _cardContent.Add(entry.Key, new(title, chips, purpose, origin, state, identity));
+                    // The counts close every card the same way (also a disabled or unused plugin: zeros, never blank).
+                    var footer = new Desktop.Controls.StatFooterRow();
+                    _cardContent.Add(entry.Key, new(title, chips, purpose, origin, state, identity, footer));
                     item = new PluginSelectionItem { HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
-                        Classes = { "workspace-list-card" }, Content = new StackPanel { Spacing = 4, Children = { title, chips, purpose, origin, state, identity } } };
+                        Classes = { "workspace-list-card" }, Content = new StackPanel { Spacing = 4, Children = { title, chips, purpose, origin, state, identity, footer } } };
                     string key = entry.Key;
                     item.PointerReleased += (_, args) =>
                     {
@@ -340,6 +342,7 @@ public partial class PluginsPage : UserControl
                 content.Identity.IsVisible = identityText.Length > 0;
                 content.Identity.Text = identityText;
                 ToolTip.SetTip(content.Identity, identityText.Length > 0 ? identityText : null);
+                content.Footer.Update(PluginCardStats.Items(presentation, fileCount, PluginActivityTracker.IsBusy(presentation)));
                 string fullState = type + (sourceClassifications.Length > 0 ? " · " + sourceClassifications : string.Empty) + " · " + status;
                 AutomationProperties.SetName(item, string.Join(". ", new[] { presentation.Name, content.Description.Text, content.Origin.Text, fullState,
                     content.Identity.IsVisible ? content.Identity.Text : null }.Where(value => !string.IsNullOrEmpty(value))));
