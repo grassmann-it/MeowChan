@@ -41,7 +41,8 @@ public sealed partial class MediaPage : UserControl
     private readonly MediaManifestCache _manifests;
     private readonly TextBlock _title = new() { Classes = { "page-title" } };
     private readonly TextBlock _subtitle = new() { TextWrapping = Avalonia.Media.TextWrapping.Wrap, Classes = { "muted" } };
-    private readonly ComboBox _sort = new() { Name = "MediaSort", MinWidth = 160 };
+    // The criterion with its "Sort" prefix inside the box (MediaPage.Sorting.cs); its minimum width follows the toolbar stage (MediaPage.Toolbar.cs).
+    private readonly PrefixedComboBox _sort = new() { Name = "MediaSort", MinWidth = MediaToolbarLayout.SortMinWidth };
     private readonly Button _shuffle = new() { Name = "MediaShuffle", IsVisible = false };
     private readonly CheckBox _missing = new() { Name = "MediaShowMissing" };
     private readonly Button _refresh = new() { Name = "MediaRefresh" };
