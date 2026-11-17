@@ -190,7 +190,9 @@ internal static class ReaderNavigationOverlayChecks
             await Dispatcher.Yield();
             Point far = new(60, 60);
             Point onBar = Bounds(bar, window) is Rect box ? new Point(box.Center.X, box.Center.Y) : default;
-            Point barInSurface = bar.Bounds.Center;
+            Grid surface = page.FindControl<Grid>("ReaderContentSurface")!;
+            Point barInSurface = bar.TranslatePoint(bar.Bounds.Center, surface)
+                ?? throw new InvalidOperationException("The reader navigation capsule is detached from the reader surface.");
             async Task WaitHiddenAsync() => await Program.WaitUntilAsync(() => !page.ReaderNavigationShown && bar.Opacity == 0 && !bar.IsHitTestVisible,
                 () => $"The bar did not hide after the idle delay: shown={page.ReaderNavigationShown} opacity={bar.Opacity} hit={bar.IsHitTestVisible} focus={bar.IsKeyboardFocusWithin} bounds={bar.Bounds}");
             async Task WaitShownAsync() => await Program.WaitUntilAsync(() => page.ReaderNavigationShown && bar.Opacity == 1 && bar.IsHitTestVisible,
