@@ -61,6 +61,37 @@ managed pointer events; source contracts cover all five requested pages.
 | Tagging list/grid / double | Continue here | Existing list/grid continue action | Existing; guarded |
 | Tagging list/grid / right | Select cursor target outside group; menu + focus | No page-local target resolution before selection-based menu composition; native end-to-end selection not asserted | **Skipped: Tagging selection fix forbidden (one theory case per view)** |
 
+### Media panel cursor follow-up (MD-03)
+
+PR #18 (`8fb4eb495`) deliberately removed preference-dependent single-click
+opening from `OnPanelPictureActivated`: pictures stay in preview and the frame
+is made focusable; offered videos toggle playback. PR #26 (`7ad872838`) applied
+the same video-only click/cursor rule to the Reader host, but left the Media
+panel's old Gallery-preference cursor expression and its source-string test.
+That conflicted with `InteractionAuditTests` and advertised a picture action
+which no longer existed.
+
+The Media panel now sets `SingleClickActs` only from `slot.IsOffered`. This is
+option (a): pictures have the normal cursor in every reader click mode; double
+click and the explicit Open button still open the gallery at the panel's item.
+The reader preference does not override the panel's preview contract.
+
+Both conflicting tests are retained. Their Media-panel source-string checks
+are replaced by managed pointer events on the real `ReaderMediaSidebar` wired
+to a real `MediaPage`, with actual cursor and gallery-callback assertions in
+Gallery, Sidebar and Post modes. The affordance test also checks the offered
+video's hand, a click requesting playback (media resolution stubbed; no native
+backend), and retirement of the hand for missing/empty/image states. The
+Reader-host source wiring guards remain; no Reader behavior is changed here.
+These are component tests, not native OS pointer or GUI-smoke evidence.
+
+Validation: the two formerly contradictory files passed together (**42 passed,
+0 failed, 0 skipped**) within a project-scoped related run (**145 passed,
+0 failed, 2 existing skips; 147 total**). Related coverage: FocusClickContract,
+MediaPanel, MediaPanelPageKeys and ReaderMediaSidebar tests. Only the
+DesktopTests project and required project references were built; no solution
+build or GUI smoke suite was run.
+
 ### Protected gaps
 
 `FocusClickContractTests` contains explicit, reasoned skips for Reader single-click,
