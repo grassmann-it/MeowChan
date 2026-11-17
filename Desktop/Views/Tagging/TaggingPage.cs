@@ -36,7 +36,8 @@ public sealed partial class TaggingPage : UserControl
     // TG1: one toolbar row: the primary start button, the icon buttons, then "Show", the view switch and the help. Items that do not fit
     // move into the toolbar's "More" in the order of the work view.
     private readonly ActionToolBar _actions = new() { Name = "TaggingActions", HorizontalAlignment = HorizontalAlignment.Stretch };
-    private readonly WrapPanel _secondaryToolbar = new() { Name = "TaggingSecondaryToolbar", ItemSpacing = 16, LineSpacing = 8, IsVisible = false };
+    private readonly TaggingControlRow _listControls = new() { Name = "TaggingListControls" };
+    private readonly ActionToolBar _listPresentation = new() { Name = "TaggingListPresentation" };
     private readonly Border _error = new() { Name = "TaggingError", Classes = { "workspace-error" }, IsVisible = false };
     private readonly TextBlock _errorText = new() { Name = "TaggingErrorText", TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _errorSource = new() { Name = "TaggingErrorSource", Classes = { "muted" }, TextWrapping = TextWrapping.Wrap };
@@ -107,8 +108,6 @@ public sealed partial class TaggingPage : UserControl
         _host.StateChanged += OnHostChanged;
         Localize();
         Render();
-        AttachedToVisualTree += (_, _) => UpdateToolbarRows();
-        UpdateToolbarRows();
     }
 
     /// <summary>
@@ -174,12 +173,11 @@ public sealed partial class TaggingPage : UserControl
         // Preserve the existing rows; only distinguish the queue controls from other major sections.
         StackPanel queueControls = new() { Name = "TaggingQueueControls",
             [!StackPanel.SpacingProperty] = new DynamicResourceExtension("Workspace.Space.8"),
-            Children = { _queueActionRow, _secondaryToolbar } };
+            Children = { _queueActionRow } };
         header.Children.Add(queueControls);
         header.Children.Add(BuildStamp());
         SizeChanged += (_, _) =>
         {
-            UpdateToolbarRows();
             UpdateTableLayout();
         };
         header.Children.Add(_status);
@@ -212,12 +210,15 @@ public sealed partial class TaggingPage : UserControl
         body.Children.Add(_grid);
         body.Children.Add(_emptyState);
         // The selection bar (only with a selection) stands above the column header; the toolbar above it never moves.
-        Grid listArea = new() { RowDefinitions = new RowDefinitions("Auto,Auto,*") };
-        listArea.Children.Add(BuildSelectionBar());
-        Grid.SetRow(_columnHeader, 1);
+        Grid listArea = new() { Name = "TaggingListArea", RowDefinitions = new RowDefinitions("Auto,Auto,Auto,*"), RowSpacing = 0 };
+        listArea.Children.Add(_listControls);
+        Control selection = BuildSelectionBar();
+        Grid.SetRow(selection, 1);
+        listArea.Children.Add(selection);
+        Grid.SetRow(_columnHeader, 2);
         listArea.Children.Add(_columnHeader);
         Border surface = new() { Name = "TaggingListSurface", Child = body, Classes = { "workspace-section-flush" } };
-        Grid.SetRow(surface, 2);
+        Grid.SetRow(surface, 3);
         listArea.Children.Add(surface);
 
         Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*,Auto") };

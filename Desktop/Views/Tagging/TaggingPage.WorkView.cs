@@ -49,6 +49,7 @@ public sealed partial class TaggingPage
     {
         if (_queueWork.Ended) return;
         WorkViewPresenter.ApplyToolBar(_actions, _workView, nonDefaultState: item => ReferenceEquals(item, _filterPanel) && Filter != TaggingQueueFilter.All);
+        WorkViewPresenter.ApplyToolBar(_listPresentation, _workView);
         WorkViewPresenter.ApplyToolBar(_selectionActions, _workView);
         ApplyToolbarIcons();
         ShowStampBlock();
