@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
+using Avalonia.Styling;
 using Semi.Avalonia;
 using Ursa.Themes.Semi;
 using MeowChan.Desktop;
@@ -20,13 +21,33 @@ public partial class App : Application
     {
         LinuxVideoPreflight.Begin();
         using (MeowChan.Diagnostics.PerformanceDiagnostics.Measure("startup.app.harfbuzz")) LinuxHarfBuzzBootstrap.EnsureLoaded();
-        using (MeowChan.Diagnostics.PerformanceDiagnostics.Measure("startup.app.xaml")) AvaloniaXamlLoader.Load(this);
+        using (MeowChan.Diagnostics.PerformanceDiagnostics.Measure("startup.app.xaml")) LoadApplicationXaml();
         // TH1: the theme dictionaries come from the runtime palette (no overrides yet, so exactly the XAML colours).
         using (MeowChan.Diagnostics.PerformanceDiagnostics.Measure("startup.app.theme-palette")) MeowChan.Desktop.Theming.ThemeRuntime.Install(this);
         MeowChan.Desktop.Controls.HeadingLevels.Install(Styles);
         ThemeLogo.FollowAllWindows();
         ApplyControlLanguage();
         Texts.Changed += OnLanguageChanged;
+    }
+
+    // Avalonia resolves compiled XAML by the concrete runtime type. Smoke fixtures derive from App to
+    // inject offline sessions, so loading `this` there would look for a nonexistent fixture XAML class.
+    // Load the production resource through an exact App instance and transfer its application styles.
+    private void LoadApplicationXaml()
+    {
+        if (GetType() == typeof(App))
+        {
+            AvaloniaXamlLoader.Load(this);
+            return;
+        }
+
+        App template = new();
+        AvaloniaXamlLoader.Load(template);
+        RequestedThemeVariant = template.RequestedThemeVariant;
+        foreach (IStyle style in template.Styles)
+            Styles.Add(style);
+        foreach (var resource in template.Resources)
+            Resources[resource.Key] = resource.Value;
     }
 
     private void OnLanguageChanged(object? sender, EventArgs args)
