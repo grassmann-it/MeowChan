@@ -197,8 +197,13 @@ internal static class BundledChangeDialogChecks
                         "Saved outcome is not pending-only with the reviewed settings.");
                     Require(modal.IsVisible && page.IsBusy && !modal.GetVisualDescendants().OfType<CheckBox>().Any(c => c.IsChecked == true),
                         "Save closed the receipt modal or retained consumed consent.");
-                    Require(modal.GetVisualDescendants().OfType<TextBlock>().Any(t => t.Text == Texts.T("plugins.approval.receipt", "fixture",
-                        store.ValidRow.NewExecutionRevision, Texts.T("plugins.approval.state.Saved"))), "Saved receipt is absent.");
+                    // Since the per-plugin receipt cards (16.11.) the exact receipt line sits in the card's collapsed technical
+                    // details and the visible status says "Confirmed … next start".
+                    Expander receiptDetails = modal.GetVisualDescendants().OfType<Expander>()
+                        .Single(e => AutomationProperties.GetAutomationId(e) == "BundledApprovalReceiptTechnical:fixture");
+                    Require(receiptDetails.Content is StackPanel receiptLines && receiptLines.Children.OfType<TextBlock>().Any(t => t.Text == Texts.T("plugins.approval.receipt", "fixture",
+                        store.ValidRow.NewExecutionRevision, Texts.T("plugins.approval.state.Saved")))
+                        && ById<TextBlock>(modal, "BundledApprovalReceiptStatus:fixture").Text == Texts.T("plugins.repair.status.confirmed"), "Saved receipt is absent.");
                     Program.CaptureWindow(modal, "smoke-bundled-change-saved-" + current + ".png");
                     await ClickAsync(modal, input, Close(modal));
                 }
