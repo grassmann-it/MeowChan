@@ -194,6 +194,24 @@ public sealed class DefaultShortcutInvariantTests
                 Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.Left, KeyModifiers = KeyModifiers.Meta }, id, "reader"));
     }
 
+    [Theory, MemberData(nameof(Platforms))]
+    public void Ledger17SharedBindingsHaveExactlyTheirIntendedOwners(ShortcutPlatform platform)
+    {
+        var bindings = EffectiveShortcutBindings.Build(platform: platform);
+        foreach ((string gesture, string[] owners) in new[]
+        {
+            ("S", new[] { "tagging.mark-skipped", "tags.queue.skip" }),
+            ("Primary+Enter", new[] { "tags.queue.done-next", "tags.quick.commit-next" }),
+            ("Enter", new[] { "media.open", "reader.media.activate", "tagging.continue-here", "thread.read" })
+        })
+        {
+            var key = ShortcutGesture.Parse(gesture).Resolve(platform);
+            Assert.Equal(owners, CommandCatalog.All.Where(command => bindings.Matches(
+                new KeyEventArgs { Key = key.Key, KeyModifiers = key.KeyModifiers }, command.Id))
+                .Select(command => command.Id).Order(StringComparer.Ordinal));
+        }
+    }
+
     /// <summary>The nine video commands the gallery shares with the reader and the Media page's panel (revision 18).</summary>
     private static readonly string[] MediaPanelVideoCommands =
     {

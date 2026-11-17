@@ -45,7 +45,7 @@ public static class GalleryShortcutScheme
         "video.loop", "video.ab-loop"
     });
 
-    /// <summary>The Shift-letter defaults that act on the shown medium instead of showing or hiding a block: mute (Shift+M), rotate (Shift+R) snapshot (Shift+S) and slideshow (Shift+D, revision 22).</summary>
+    /// <summary>The Shift-letter defaults that act on the shown medium instead of showing or hiding a block: mute (Shift+M), rotate (Shift+R), snapshot (Shift+S) and slideshow (Shift+D, revision 22).</summary>
     public static IReadOnlyList<string> ShiftLetterActionIds { get; } = Array.AsReadOnly(new[] { "video.mute", "gallery.rotate", "video.snapshot", "gallery.slideshow-toggle" });
 
     /// <summary>The Shift-letter defaults of another page that switch what that page shows (the Media page's focus mode, Shift+F next to the favourite's F). They are

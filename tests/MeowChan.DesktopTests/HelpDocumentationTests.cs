@@ -539,7 +539,7 @@ public sealed class HelpDocumentationTests
             "Shift plus a letter shows or hides a panel or block",
             "Shift+K toggles Card mode on / off",
             "Kartenmodus ein / aus",
-            "D starts or pauses Start / pause slideshow",
+            "Shift+D starts or pauses Start / pause slideshow",
             "Diashow starten / pausieren",
             "M adds the favorite (German: Favorit hinzufügen), U removes it and F toggles it",
             "Favorit hinzufügen",
@@ -651,7 +651,7 @@ public sealed class HelpDocumentationTests
         string frames = Plain(Section(Read(Help), "Saving a video frame"));
         CommandDefinition snapshot = CommandCatalog.Get("video.snapshot");
         Assert.Equal("command.video.snapshot", snapshot.LabelKey);
-        Assert.Equal("S", snapshot.Shortcut); // revision 13 (was Shift+S)
+        Assert.Equal("Shift+S", snapshot.Shortcut); // UX-LEDGER-17: S is tagging skip
         Assert.Contains("**Save frame as image**", Section(Read(Help), "Saving a video frame"), StringComparison.Ordinal);
         Assert.Contains(snapshot.LabelEn, frames, StringComparison.Ordinal);
 

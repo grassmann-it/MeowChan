@@ -337,8 +337,8 @@ public static class CommandCatalog
         new("tags.quick.suggestion-7", "command.tags.quick.suggestion-7", "Toggle tag suggestion 7", "Tagvorschlag 7 umschalten", "check", "Alt+7", CommandScope.Gallery | CommandScope.Media | CommandScope.Reader | CommandScope.Archive, new[] { "gallery-tag-panel", "quick-tag-popover" }, new[] { "gallery", "media", "reader", "archive" }),
         new("tags.quick.suggestion-8", "command.tags.quick.suggestion-8", "Toggle tag suggestion 8", "Tagvorschlag 8 umschalten", "check", "Alt+8", CommandScope.Gallery | CommandScope.Media | CommandScope.Reader | CommandScope.Archive, new[] { "gallery-tag-panel", "quick-tag-popover" }, new[] { "gallery", "media", "reader", "archive" }),
         new("tags.quick.suggestion-9", "command.tags.quick.suggestion-9", "Toggle tag suggestion 9", "Tagvorschlag 9 umschalten", "check", "Alt+9", CommandScope.Gallery | CommandScope.Media | CommandScope.Reader | CommandScope.Archive, new[] { "gallery-tag-panel", "quick-tag-popover" }, new[] { "gallery", "media", "reader", "archive" }),
-        // Tagging mode (PT3): the gallery walking the tagging queue. Own execution context "gallery-tagging": the keys mean something
-        // there; playback gestures remain available on the same focused medium. S skips (as on the tagging page),
+        // Tagging mode (PT3): the gallery walking the tagging queue. Own execution context "gallery-tagging":
+        // playback gestures remain available on the same focused medium. S skips (as on the tagging page),
         // and only the tagging mode routes them, ahead of the gallery's own keys.
         new("tags.queue.done-next", "command.tags.queue.done-next", "Done and next", "Erledigt und weiter", "check", "Primary+Enter", CommandScope.Gallery, new[] { "gallery-tagging" }, new[] { "gallery-tagging" }),
         new("tags.queue.skip", "command.tags.queue.skip", "Skip and next", "Überspringen und weiter", "arrow-right", "S", CommandScope.Gallery, new[] { "gallery-tagging" }, new[] { "gallery-tagging" }),

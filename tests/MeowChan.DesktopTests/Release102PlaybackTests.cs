@@ -22,10 +22,10 @@ public sealed class Release102PlaybackTests
     }
 
     [Fact]
-    public void SlideshowHasTheSingleKeyDefaultAndCanStillBeRebound()
+    public void SlideshowHasTheShiftDDefaultAndCanStillBeRebound()
     {
-        // The shortcut rework (K-F) gave the slideshow S, the gallery key scheme (revision 13) D (S saves the video frame); a saved binding still replaces it without blocking.
-        Assert.Contains(CommandCatalog.Get("gallery.slideshow-toggle").DefaultGestures, gesture => gesture.Key == "D");
+        // UX-LEDGER-17: Shift+D starts the slideshow; D marks tagging entries done. Saved bindings still replace the default.
+        Assert.Contains(CommandCatalog.Get("gallery.slideshow-toggle").DefaultGestures, gesture => gesture.Key == "D" && gesture.Modifiers.SequenceEqual(new[] { "Shift" }));
         var section = new ShortcutBindingsSection().Set("gallery.slideshow-toggle", [ShortcutGesture.Parse("Primary+Shift+F9")]);
         foreach (var platform in Enum.GetValues<ShortcutPlatform>())
         {
