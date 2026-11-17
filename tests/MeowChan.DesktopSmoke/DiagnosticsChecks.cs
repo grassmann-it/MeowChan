@@ -334,8 +334,12 @@ internal static class DiagnosticsChecks
     {
         if (Fits(viewport, control)) return true;
         Point? point = control.TranslatePoint(new Point(0, 0), viewport);
-        return control.IsEffectivelyVisible && control.Bounds.Width > 0 && control.Bounds.Height > viewport.Viewport.Height
-            && point.HasValue && point.Value.X >= 0 && point.Value.Y >= -1 && point.Value.Y <= 1
+        // Native Windows can report a viewport taller than the ScrollViewer's clipped bounds while
+        // recycling the diagnostics editor. Treat that difference as the retained header clip: the
+        // editor must be at the top of the real viewport, but may start within that clip.
+        double retainedClip = Math.Max(0, viewport.Viewport.Height - viewport.Bounds.Height);
+        return control.IsEffectivelyVisible && control.Bounds.Width > 0 && control.Bounds.Height > viewport.Bounds.Height
+            && point.HasValue && point.Value.X >= 0 && point.Value.Y >= -1 && point.Value.Y <= retainedClip + 1
             && VisibleHeight(viewport, control) > 0;
     }
     private static void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
