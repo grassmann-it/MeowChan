@@ -30,7 +30,8 @@ public sealed partial class TaggingPage
     // block; the body holds the chips, the field, the add button and the hint in one wrapping row.
     private readonly ToggleButton _stampToggle = new() { Name = "TaggingStampToggle", Classes = { "disclosure" }, HorizontalAlignment = HorizontalAlignment.Left,
         VerticalAlignment = VerticalAlignment.Center };
-    private readonly TextBlock _stampHeading = new() { Name = "TaggingStampHeading", Classes = { "section-title" }, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _stampHeading = new() { Name = "TaggingStampHeading", [!TextBlock.FontSizeProperty] = new DynamicResourceExtension("Workspace.Text.Body"),
+        FontWeight = FontWeight.SemiBold, VerticalAlignment = VerticalAlignment.Center };
     private readonly ContentControl _stampArrow = new() { VerticalAlignment = VerticalAlignment.Center, Focusable = false, RenderTransformOrigin = new RelativePoint(0.5, 0.5, RelativeUnit.Relative) };
     private readonly HelpButton _stampHelp = new() { Name = "TaggingStampHelp", HelpKey = "help.taggingStamp" };
     private readonly WrapPanel _stampBody = new() { Name = "TaggingStampBody", ItemSpacing = 8, LineSpacing = 8, VerticalAlignment = VerticalAlignment.Center };

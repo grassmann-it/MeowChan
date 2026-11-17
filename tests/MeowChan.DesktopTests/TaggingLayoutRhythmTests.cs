@@ -199,6 +199,14 @@ public sealed class TaggingLayoutRhythmTests
 
     private static string Source([System.Runtime.CompilerServices.CallerFilePath] string path = "") => path;
     [Fact]
+    public void StampTitleChangesWeightOnlyAtTheBodyTextSize() => WithPage(page =>
+    {
+        TextBlock heading = Find<TextBlock>(page, "TaggingStampHeading");
+        Assert.Equal(Token(heading, "Workspace.Text.Body"), heading.FontSize);
+        Assert.Equal(Avalonia.Media.FontWeight.SemiBold, heading.FontWeight);
+        Assert.DoesNotContain("section-title", heading.Classes);
+    });
+    [Fact]
     public void EnabledStartYieldsToTheEmptyRecommendationAndReclaimsPrimaryWithRows() => WithPage(page =>
     {
         DesktopSessionHost host = (DesktopSessionHost)typeof(TaggingPage).GetField("_host", Private)!.GetValue(page)!;
