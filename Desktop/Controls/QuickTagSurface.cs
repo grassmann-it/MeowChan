@@ -559,6 +559,9 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     }
     private bool _navigation;
 
+    // The popover supplies the key-context used by its tooltip/help contract.
+    internal string ShortcutContext { get; set; } = "gallery";
+
     /// <summary>An extra section under the assigned chips (the gallery panel's thread tags); null hides it.</summary>
     internal Control? ExtraContent
     {
