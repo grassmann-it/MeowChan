@@ -20,6 +20,9 @@ rather than only one screen.
   available width consistently; verify at half, normal, and full-screen sizes.
 - **Reader/sidebar command routing:** rating, favorite, tag, and navigation shortcuts must reach
   the reader when a media sidebar or thumbnail has focus, without stealing text-entry keys.
+- **Shortcut scope parity:** when a media sidebar or reader media has focus, the user should be
+  able to request gallery-scoped media actions explicitly (for example `Alt+<gallery shortcut>`);
+  document and test the modifier policy so reader commands and gallery commands never conflict.
 - **Reader/sidebar rating-entry regression:** with an Archive/Media sidebar item focused, `R` must
   still open the Tagging/Rating surface; test the same routing from Downloads and the reader.
 - **Tagging editor keyboard regression (breaking):** the tag input must accept typed text after
