@@ -65,11 +65,11 @@ public sealed partial class TaggingPage : UserControl
     private readonly WorkspaceEmptyState _emptyState = new() { Name = "TaggingEmptyState", IsVisible = false };
     // Up to three actions side by side, centred; they wrap to a second line on a narrow page instead of running off both edges (like the Media page's).
     private readonly WrapPanel _emptyActions = new() { Name = "TaggingEmptyActions", ItemSpacing = 8, LineSpacing = 8, HorizontalAlignment = HorizontalAlignment.Center };
-    private readonly Button _emptyMedia = new() { Name = "TaggingEmptyMedia", Classes = { "primary" } };
+    private readonly Button _emptyMedia = new() { Name = "TaggingEmptyMedia" };
     private readonly Button _emptyHow = new() { Name = "TaggingEmptyHow", Classes = { "link" } };
     private readonly Button _emptyClearDone = new() { Name = "TaggingEmptyClearDone" };
     private readonly Button _emptyReopen = new() { Name = "TaggingEmptyReopen" };
-    private readonly Button _emptyShowAll = new() { Name = "TaggingEmptyShowAll", Classes = { "primary" } };
+    private readonly Button _emptyShowAll = new() { Name = "TaggingEmptyShowAll" };
     private readonly TextBlock _keysHint = new() { Name = "TaggingKeysHint", Classes = { "workspace-help" }, TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _status = new() { Name = "TaggingStatus", Classes = { "muted" }, TextWrapping = TextWrapping.Wrap, IsVisible = false };
     private readonly CancellationTokenSource _lifetime = new();

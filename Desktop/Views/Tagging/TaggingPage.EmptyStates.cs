@@ -79,6 +79,10 @@ public sealed partial class TaggingPage
         _emptyReopen.IsVisible = _emptyKind == TaggingEmptyKind.AllDone && selectedCounts.Skipped > 0;
         _emptyShowAll.Content = _emptyKind == TaggingEmptyKind.GroupEmpty ? Texts.T("tagging.page.empty.group.assign") : Texts.T("tagging.page.empty.showAll");
         _emptyShowAll.IsVisible = _emptyKind is TaggingEmptyKind.FilterNoHits or TaggingEmptyKind.GroupEmpty;
+        // Empty-state recommendations own the accent; GroupEmpty recommends returning to the queue to assign entries.
+        _start.Classes.Set("primary", _emptyKind == TaggingEmptyKind.None);
+        _emptyMedia.Classes.Set("primary", _emptyKind is TaggingEmptyKind.QueueEmpty or TaggingEmptyKind.AllDone);
+        _emptyShowAll.Classes.Set("primary", _emptyKind is TaggingEmptyKind.FilterNoHits or TaggingEmptyKind.GroupEmpty);
         bool canChange = CanChange;
         _emptyClearDone.IsEnabled = canChange;
         _emptyReopen.IsEnabled = canChange;

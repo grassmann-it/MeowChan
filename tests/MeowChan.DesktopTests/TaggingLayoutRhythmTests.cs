@@ -70,4 +70,96 @@ public sealed class TaggingLayoutRhythmTests
         Assert.False(page.ErrorPanel.IsVisible);
         Assert.False(page.SecondaryToolbar.IsVisible);
     });
+    private static readonly BindingFlags Private = BindingFlags.Instance | BindingFlags.NonPublic;
+
+    private static void RenderSnapshot(TaggingPage page, TagQueueSnapshot snapshot, TaggingQueueFilter filter = TaggingQueueFilter.All,
+        string? group = null, bool ungrouped = false, bool loading = false, Exception? error = null)
+    {
+        // Feed immutable queue states into the actual presenter, not a parallel role model.
+        object work = typeof(TaggingPage).GetField("_queueWork", Private)!.GetValue(page)!;
+        foreach ((string name, object? value) in new (string, object?)[]
+        {
+            ("Queue", snapshot), ("Loaded", !loading), ("Loading", loading), ("LoadError", error)
+        }) typeof(TaggingQueueController).GetProperty(name, Private)!.SetValue(work, value);
+        typeof(TaggingPage).GetField("_selectedGroupId", Private)!.SetValue(page, group);
+        typeof(TaggingPage).GetField("_ungroupedSelected", Private)!.SetValue(page, ungrouped);
+        page.Filter = filter;
+        typeof(TaggingPage).GetMethod("Show", Private)!.Invoke(page, null);
+    }
+
+    private static TagQueueItem Item(TagQueueState state = TagQueueState.Open) =>
+        new(new ResourceId("4chan", "g", "123"), "/media/123", "asset-1", new string('a', 64), 101, "media-1", "original",
+            "p1", null, null, null, false, null, "file.png", SavedMediaKind.Image, state, DateTimeOffset.UnixEpoch);
+
+    [Theory]
+    [InlineData("en")]
+    [InlineData("de")]
+    public void EveryEmptyStateOwnsAtMostOneEnabledPrimaryAndStartRegainsItOnReturn(string language) => WithPage(page =>
+    {
+        Texts.SetLanguage(language);
+        page.AddRequested = () => { };
+        TagQueueGroup group = new("empty", "Empty", 0, Array.Empty<string>());
+        TagQueueSnapshot open = new(1, 0, Array.Empty<string>(), new[] { Item() }, TagQueueLoadState.Ready, new[] { group });
+        TagQueueSnapshot done = new(1, 0, Array.Empty<string>(), new[] { Item(TagQueueState.Done) }, TagQueueLoadState.Ready);
+        TagQueueSnapshot skipped = new(1, 0, Array.Empty<string>(), new[] { Item(TagQueueState.Skipped) }, TagQueueLoadState.Ready);
+        foreach (WorkView view in WorkViewSetting.All)
+        {
+            page.ApplyWorkView(view);
+            Check(TagQueueSnapshot.Empty, TaggingQueueFilter.All, null, false, TaggingEmptyKind.QueueEmpty, page.EmptyMediaButton);
+            Check(done, TaggingQueueFilter.Open, null, false, TaggingEmptyKind.AllDone, page.EmptyMediaButton);
+            Check(skipped, TaggingQueueFilter.Open, null, false, TaggingEmptyKind.AllDone, page.EmptyMediaButton);
+            Check(open, TaggingQueueFilter.Done, null, false, TaggingEmptyKind.FilterNoHits, page.EmptyShowAllButton);
+            Check(open, TaggingQueueFilter.All, group.Id, false, TaggingEmptyKind.GroupEmpty, page.EmptyShowAllButton);
+            // Neighbouring defect: empty "Without group" currently classifies as FilterNoHits (CountFor(null) counts the whole queue).
+            // Preserve that classifier here; both empty states must still have only one recommendation.
+            Check(new TagQueueSnapshot(1, 0, Array.Empty<string>(), new[] { Item() with { GroupId = group.Id } }, TagQueueLoadState.Ready, new[] { group }), TaggingQueueFilter.All, null, true,
+                TaggingEmptyKind.FilterNoHits, page.EmptyShowAllButton);
+            RenderSnapshot(page, open);
+            Assert.True(page.StartButton.Classes.Contains("primary"));
+            Assert.False(page.EmptyMediaButton.Classes.Contains("primary"));
+            Assert.False(page.EmptyShowAllButton.Classes.Contains("primary"));
+            RenderSnapshot(page, open, loading: true);
+            Assert.Equal(TaggingEmptyKind.None, page.EmptyKind);
+            Assert.False(page.StartButton.IsEnabled);
+            RenderSnapshot(page, open, error: new IOException("unreadable"));
+            Assert.Equal(TaggingEmptyKind.None, page.EmptyKind);
+            Assert.False(page.StartButton.IsEnabled);
+        }
+
+        void Check(TagQueueSnapshot snapshot, TaggingQueueFilter filter, string? groupId, bool ungrouped, TaggingEmptyKind kind, Button primary)
+        {
+            RenderSnapshot(page, snapshot, filter, groupId, ungrouped);
+            Assert.Equal(kind, page.EmptyKind);
+            Button[] recommendations = { page.StartButton, page.EmptyMediaButton, page.EmptyShowAllButton };
+            Assert.Same(primary, Assert.Single(recommendations.Where(b => b.Classes.Contains("primary"))));
+            Assert.True(primary.IsEnabled);
+            Assert.True(primary.IsVisible);
+            Assert.True(recommendations.Count(b => b.IsEnabled && b.IsVisible && b.Classes.Contains("primary")) <= 1);
+            Assert.DoesNotContain("primary", page.StartButton.Classes);
+        }
+    });
+    [Fact]
+    public void EnabledStartYieldsToTheEmptyRecommendationAndReclaimsPrimaryWithRows() => WithPage(page =>
+    {
+        DesktopSessionHost host = (DesktopSessionHost)typeof(TaggingPage).GetField("_host", Private)!.GetValue(page)!;
+        Task.Run(() => host.StartAsync()).GetAwaiter().GetResult();
+        page.StartTagging = () => Task.CompletedTask;
+        page.AddRequested = () => { };
+        TagQueueSnapshot open = new(1, 0, Array.Empty<string>(), new[] { Item() }, TagQueueLoadState.Ready);
+        foreach (WorkView view in WorkViewSetting.All)
+        {
+            page.ApplyWorkView(view);
+            RenderSnapshot(page, open, TaggingQueueFilter.Done);
+            Assert.Equal(TaggingEmptyKind.FilterNoHits, page.EmptyKind);
+            Assert.True(page.StartButton.IsEnabled); // A state filter does not prevent continuing the queue.
+            Assert.DoesNotContain("primary", page.StartButton.Classes);
+            Assert.Same(page.EmptyShowAllButton, Assert.Single(EnabledPrimaries()));
+            RenderSnapshot(page, open);
+            Assert.True(page.StartButton.IsEnabled);
+            Assert.Same(page.StartButton, Assert.Single(EnabledPrimaries()));
+        }
+        IEnumerable<Button> EnabledPrimaries() => ((ILogical)page).GetLogicalDescendants().OfType<Button>()
+            .Concat(page.Actions.Items.OfType<Button>()).Distinct()
+            .Where(b => b.IsEffectivelyVisible && b.IsEnabled && b.Classes.Contains("primary"));
+    });
 }
