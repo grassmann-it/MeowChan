@@ -27,7 +27,7 @@ internal static class WorkCatalog
         ("work.capturePending", "Saving the final capture is still pending; completion is blocked.", "Die letzte Erfassung ist noch nicht gespeichert; der Abschluss ist blockiert."),
         ("work.unnamedMedia", "Media file", "Mediendatei"),
         ("work.mediaDetail", "{0}: {1} · attempts: {2}", "{0}: {1} · Versuche: {2}"),
-        ("work.retry", "Retry missing media", "Fehlende Medien erneut versuchen"),
+        ("work.retry", "Retry missing media", "Fehlende Medien laden"),
         ("work.retryAccepted", "Requested one retry for {0} media files. Queue and source limits still apply.", "Ein Wiederholungsversuch für {0} Mediendateien angefordert. Warteschlange und Quellenlimits gelten weiterhin."),
         ("work.retryPaused", "Requested one retry for {0} media files. Transfers wait until the session resumes; source limits still apply.", "Ein Wiederholungsversuch für {0} Mediendateien angefordert. Transfers warten auf das Fortsetzen der Sitzung; Quellenlimits gelten weiterhin."),
         ("work.retryNoneRemoved", "Nothing to retry: this watch was removed.", "Nichts zu wiederholen: Diese Beobachtung wurde entfernt."),

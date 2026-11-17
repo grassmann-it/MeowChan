@@ -119,13 +119,10 @@ public partial class ArchivePage
         List<Func<string?>> disabledReasons = new();
         ContextMenuBuilder builder = new ContextMenuBuilder().Named(Texts.T("nav.archive"));
         bool Ready() => _available && !_ended && !_busy && !IsReaderDialogOpen;
-        static string BatchLabel(string action, int targets) => Texts.Count("archive.command.batchCount", targets, action, targets);
         void Add(string id, Action execute, Func<bool>? eligible = null, string? reason = null,
-            Func<int>? count = null, bool leadAction = false, Func<string>? actionLabel = null)
+            Func<int>? count = null, Func<string>? actionLabel = null)
         {
-            string Label() => count != null ? BatchLabel(actionLabel?.Invoke() ?? CommandCatalog.Label(id), count())
-                : leadAction ? Texts.T("archive.command.leadTarget", actionLabel?.Invoke() ?? CommandCatalog.Label(id), ExportMemberLabel(lead.Summary.Id))
-                : actionLabel?.Invoke() ?? CommandCatalog.Label(id);
+            string Label() => ArchiveMenuLabels.Action(actionLabel?.Invoke() ?? CommandCatalog.Label(id), ids.Length, count?.Invoke());
             bool Enabled() => Ready() && (eligible?.Invoke() ?? true);
             string? Reason() => !Ready() ? Texts.T("archive.command.busy") : !Enabled() ? reason : null;
             builder.Command(id, execute, Enabled(), Reason(), Label(), availableWhen: Enabled, reasonWhen: Reason, labelWhen: Label);
@@ -133,9 +130,9 @@ public partial class ArchivePage
         }
         Add("thread.favorite-toggle", async () => await ToggleThreadFavoriteAsync(lead.Summary.Id),
             () => CanToggleThreadFavorite(lead.Summary.Id), _threadFavoriteLoadError ?? Texts.T("archive.command.busy"),
-            leadAction: true, actionLabel: () => ThreadFavoriteText.Action(_threadFavoriteIds.Contains(lead.Summary.Id)));
+            actionLabel: () => ThreadFavoriteText.Action(_threadFavoriteIds.Contains(lead.Summary.Id)));
         Add("thread.read", () => { OpenReaderRequested?.Invoke(origin); OpenActions.Start(() => LoadThreadAsync(lead.Summary.Id), "archive.menu.read"); },
-            () => ids.Length == 1, Texts.T("archive.command.singleRead"), leadAction: true);
+            () => ids.Length == 1, Texts.T("archive.command.singleRead"));
         // RH1: the one "continue reading" command with the place of this thread; its shortcut opens the newest place, so none is shown here.
         string? continueTip = null;
         if (ids.Length == 1 && ReadingPlaceFor?.Invoke(lead.Summary.Id) is { } readingPlace && ResumeReadingPlace is { } resumeReading)
@@ -146,16 +143,16 @@ public partial class ArchivePage
                 showShortcut: false, availableWhen: Ready, reasonWhen: ContinueReason, labelWhen: ContinueLabel);
             continueTip = ReadingHistoryMenu.EntryTip(readingPlace);
         }
-        Add("gallery.open", () => { if (OpenGallery is { } open) OpenActions.Start(() => open(lead.Summary.Id, null, origin), "archive.menu.gallery"); }, leadAction: true);
-        Add("thread.details", async () => await ShowArchiveDetailsAsync(lead), leadAction: true);
+        Add("gallery.open", () => { if (OpenGallery is { } open) OpenActions.Start(() => open(lead.Summary.Id, null, origin), "archive.menu.gallery"); });
+        Add("thread.details", async () => await ShowArchiveDetailsAsync(lead));
         // QW-A #7: from a thread to its media (the thread: chip of the Media page); several selected threads open as one thread set.
         if (ids.Length == 1)
             Add("thread.show-in-media", () => ShowThreadInMediaRequested?.Invoke(lead.Summary.Id, lead.Summary.Title),
-                () => ShowThreadInMediaRequested != null, null, leadAction: true);
+                () => ShowThreadInMediaRequested != null, null);
         else
             Add("thread.show-in-media", () => ShowArchiveSelectionInMedia(ids, lead),
                 () => ShowThreadsInMediaRequested != null, null, count: () => ids.Length);
-        if (ids.Length == 1) Add("thread.tags", async () => await OpenThreadTagsAsync(lead.Summary.Id), leadAction: true);
+        if (ids.Length == 1) Add("thread.tags", async () => await OpenThreadTagsAsync(lead.Summary.Id));
         // Post bookmarks are scoped to individual posts, but the manager is still useful from a
         // thread selection: it is the only place to review bookmarks when no post row is open.
         Add("post-bookmarks.open-manager", () => OpenPostBookmarks?.Invoke(),
@@ -168,16 +165,16 @@ public partial class ArchivePage
                 () => CanOpenUrlTextExport, Texts.T("urltext.export.error.busy"));
         Add("selection.copy-links", async () => { if (CopySelectedUrls != null) await CopySelectedUrls(urls); }, count: () => urls.Length);
         Add("location.open-folder", () => RunArchiveLeadAction(lead, "folder"),
-            () => !string.IsNullOrWhiteSpace(lead.Summary.MediaDirectory), Texts.T("archive.command.noFolder"), leadAction: true);
+            () => !string.IsNullOrWhiteSpace(lead.Summary.MediaDirectory), Texts.T("archive.command.noFolder"));
         Add("location.open-source", () => RunArchiveLeadAction(lead, "browser"),
-            () => !string.IsNullOrWhiteSpace(lead.Summary.Url), Texts.T("archive.command.noSource"), leadAction: true);
+            () => !string.IsNullOrWhiteSpace(lead.Summary.Url), Texts.T("archive.command.noSource"));
         builder.Section();
         Add("watch.check", async () => await CheckArchiveTargetsAsync(ids, false),
             () => CheckSelectedWatches != null && EligibleArchiveWatches(ids, false).Length > 0, Texts.T("archive.command.noCheck"), count: () => EligibleArchiveWatches(ids, false).Length);
         Add("watch.retry-media", async () => await CheckArchiveTargetsAsync(ids, true),
             () => CheckSelectedWatches != null && EligibleArchiveWatches(ids, true).Length > 0, Texts.T("archive.command.noRetry"), count: () => EligibleArchiveWatches(ids, true).Length);
         Add("rules.edit-scope", () => RunArchiveLeadAction(lead, "rules"),
-            () => CanRemoveWatch?.Invoke(lead.Summary.Id) == true && SelectionLeadAction != null, Texts.T("archive.command.noWatch"), leadAction: true);
+            () => CanRemoveWatch?.Invoke(lead.Summary.Id) == true && SelectionLeadAction != null, Texts.T("archive.command.noWatch"));
         builder.Section();
         Add("watch.remove", async () =>
         {
