@@ -370,11 +370,12 @@ internal sealed class FakeBooruCdn
 }
 
 /// <summary>
-/// Sample bytes for the post viewer. The method shape follows the preview port; B4 gives it its interface
-/// (an <c>IBooruSamplePort</c> with this one method) and the production adapter. A post without a sample variant that has
-/// an address gets null and no request, like the real port. The default bytes are <see cref="BooruUiFixtures.Sample"/>.
+/// Sample bytes for the post viewer, behind <see cref="IBooruSamplePort"/> like the production adapter. A post without a
+/// still-image sample address (none declared, which includes a sample that equals the original, or a video or ugoira
+/// sample) gets null and no request, as the real port decides it (<see cref="BooruHostSamplePort.HasImageSample"/>). The
+/// default bytes are <see cref="BooruUiFixtures.Sample"/>.
 /// </summary>
-internal sealed class FakeSamplePort
+internal sealed class FakeSamplePort : IBooruSamplePort
 {
     private readonly object _gate = new();
     private int _requests;
@@ -390,7 +391,7 @@ internal sealed class FakeSamplePort
     public Task<byte[]?> LoadSampleAsync(BooruPostView post, CancellationToken cancellationToken)
     {
         Interlocked.Increment(ref _requests);
-        bool hasSample = post.Post.Media?.Any(variant => variant.Role == BooruMediaRole.Sample && variant.Url is not null) == true;
+        bool hasSample = BooruHostSamplePort.HasImageSample(post);
         lock (_gate) (hasSample ? Loaded : WithoutSample).Add(post.PostId);
         if (!hasSample) return Task.FromResult<byte[]?>(null);
         if (OnSample is not null) return Task.FromResult(OnSample(post));
@@ -534,7 +535,7 @@ internal sealed class BooruUiHarness
         Samples = new FakeSamplePort { Cdn = Cdn };
         Watchers = new FakeBooruWatcherPort(Clock);
         Links = new FakeBooruLinks();
-        Services = new BooruWorkbenchServices(Search, Queue, Watchers, Previews, Clock, Links.Actions);
+        Services = new BooruWorkbenchServices(Search, Queue, Watchers, Previews, Clock, Links.Actions, Samples);
     }
 
     internal FakeBooruLinks Links { get; }
@@ -543,7 +544,7 @@ internal sealed class BooruUiHarness
     internal FakeBooruSearchPort Search { get; }
     internal FakeBooruQueuePort Queue { get; }
     internal FakeBooruPreviewPort Previews { get; }
-    /// <summary>Not part of <see cref="BooruWorkbenchServices"/> yet; B4 adds the sample port to the services.</summary>
+    /// <summary>The sample port of <see cref="Services"/>.</summary>
     internal FakeSamplePort Samples { get; }
     /// <summary>The CDN behind <see cref="Previews"/> and <see cref="Samples"/>: scripted failures, the 429/503 fence.</summary>
     internal FakeBooruCdn Cdn { get; }

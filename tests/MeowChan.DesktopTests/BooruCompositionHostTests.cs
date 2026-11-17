@@ -260,6 +260,38 @@ public sealed class BooruCompositionHostTests
     }
 
     [Fact]
+    public async Task SamplesRunThroughTheRealHostImagePathAndAProviderThrottleFencesPreviewsToo()
+    {
+        using TempDirectory profile = new();
+        using DanbooruStub stub = new();
+        DanbooruStubPost first = stub.Add(new(4103, Color: 0xFFD94A4A));
+        DanbooruStubPost throttled = stub.Add(new(4102, Color: 0xFF4AD97A));
+        DanbooruStubPost restricted = stub.Add(new(4101, Restricted: true));
+        stub.Publish("cat_ears", first.Id, throttled.Id, restricted.Id);
+        stub.Cdn.On(throttled.SampleUrl, BooruCdn.RateLimited(90));
+        using DanbooruTestBinding binding = new(stub);
+        await using DesktopSessionHost host = await StartAsync(profile.Path, stub, () => binding.Binding, paused: true);
+        BooruWorkbenchServices services = host.BooruServices!;
+        BooruResultPage page = (await services.Search.SearchAsync("cat_ears", 1, CancellationToken.None).WaitAsync(Deadline)).Value!;
+        Assert.All(page.Posts.Take(2), post => Assert.Equal(BooruSampleAvailability.Provided, post.SampleAvailability));
+        Assert.Equal(BooruSampleAvailability.None, page.Posts[2].SampleAvailability); // withheld original: no address at all
+
+        Assert.Equal(first.Sample, await services.Samples.LoadSampleAsync(page.Posts[0], CancellationToken.None).WaitAsync(Deadline));
+        Assert.Equal(first.Sample, await services.Samples.LoadSampleAsync(page.Posts[0], CancellationToken.None)); // cached in memory
+        Assert.Null(await services.Samples.LoadSampleAsync(page.Posts[2], CancellationToken.None));
+        Assert.Equal((1, 0, 0), (stub.SampleRequests, stub.PreviewRequests, stub.OriginalRequests));
+
+        // The provider throttles the second sample: no bytes, and the shared media fence now holds back the previews as well.
+        Assert.Null(await services.Samples.LoadSampleAsync(page.Posts[1], CancellationToken.None).WaitAsync(Deadline));
+        Assert.Equal(2, stub.SampleRequests);
+        Assert.Null(await services.Previews.LoadPreviewAsync(page.Posts[0], CancellationToken.None));
+        Assert.Null(await services.Samples.LoadSampleAsync(page.Posts[1], CancellationToken.None));
+        Assert.Equal((2, 0, 0), (stub.SampleRequests, stub.PreviewRequests, stub.OriginalRequests));
+        Assert.Empty(stub.Violations);
+        Assert.Empty(ReadCatalog(host).Posts); // looking at samples stores and queues nothing
+    }
+
+    [Fact]
     public async Task SearchPreviewsAndLoadOriginalRunThroughTheRealQueueExactlyOnce()
     {
         using TempDirectory profile = new();

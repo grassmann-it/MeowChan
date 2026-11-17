@@ -463,6 +463,105 @@ public sealed class BooruPortAvailabilityTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => watchers.CheckNowAsync("missing", cancelled.Token));
     }
 
+    [Fact]
+    public async Task SamplesUseTheSharedImagePathAndNeverTheOriginalOrTheQueue()
+    {
+        await using Fixture f = new();
+        await f.StartAsync();
+        IBooruSamplePort samples = f.Composition.Services.Samples;
+        Assert.Equal(Image, await samples.LoadSampleAsync(PostWithSample("1"), CancellationToken.None));
+        Assert.Equal((1, 0, 0), (f.Http.Samples, f.Http.Previews, f.Http.Originals));
+        Assert.Equal(1, f.Composition.Previews.RequestCount);
+        // Cached in memory by the same host path: the second load makes no request.
+        Assert.Equal(Image, await samples.LoadSampleAsync(PostWithSample("1"), CancellationToken.None));
+        Assert.Equal(1, f.Http.Samples);
+
+        // No sample address (the sample is the original), a foreign source, a video sample: nothing is requested, least of all the original.
+        Assert.Null(await samples.LoadSampleAsync(Post("2"), CancellationToken.None));
+        Assert.Null(await samples.LoadSampleAsync(PostWithSample("3", "mp4"), CancellationToken.None));
+        Assert.Null(await samples.LoadSampleAsync(PostWithSample("4", "webm"), CancellationToken.None));
+        BooruPostView foreign = BooruPostView.From(new BooruPost(new BooruPostId("gelbooru", "5"), BooruFieldPresence.Media, Media:
+            [new BooruMediaVariant(BooruMediaRole.Sample, new Uri("https://cdn.donmai.us/sample/sample-5.jpg"))]));
+        Assert.Null(await samples.LoadSampleAsync(foreign, CancellationToken.None));
+        Assert.Equal((1, 0, 0), (f.Http.Samples, f.Http.Previews, f.Http.Originals));
+        Assert.Empty(f.Catalog.Read().Posts); // viewing a sample never writes the catalog or queues anything
+    }
+
+    [Fact]
+    public async Task AHeldSamplePortIsRevokedWhileDisabledAndWorksAgainOnAFreshGenerationAfterReenable()
+    {
+        await using Fixture f = new();
+        await f.StartAsync();
+        IBooruSamplePort held = f.Composition.Services.Samples;
+        Assert.NotNull(await held.LoadSampleAsync(PostWithSample("1"), CancellationToken.None));
+
+        f.SetEnabled(false);
+        await WaitAsync(() => !f.Composition.IsAvailable);
+        int samples = f.Http.Samples;
+        Assert.Null(await held.LoadSampleAsync(PostWithSample("2"), CancellationToken.None));
+        Assert.Null(await held.LoadSampleAsync(PostWithSample("1"), CancellationToken.None)); // no cached bytes escape either
+        Assert.Equal(samples, f.Http.Samples);
+
+        f.SetEnabled(true);
+        await WaitAsync(() => f.Composition.IsAvailable);
+        Assert.Same(held, f.Composition.Services.Samples);
+        Assert.NotNull(await held.LoadSampleAsync(PostWithSample("1"), CancellationToken.None));
+        Assert.Equal(samples + 1, f.Http.Samples); // the disabled generation's cache was retired
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task InFlightAndLateSamplesAreRevokedAndNeverEscape(bool stop)
+    {
+        await using Fixture f = new();
+        await f.StartAsync();
+        IBooruSamplePort held = f.Composition.Services.Samples;
+        f.Http.HoldSamples = true; // ignores HTTP cancellation until released
+        Task<byte[]?> running = held.LoadSampleAsync(PostWithSample("10"), CancellationToken.None);
+        await WaitAsync(() => f.Http.Samples == 1);
+        if (stop) f.Composition.ClosePortIngress();
+        else f.SetEnabled(false);
+        try
+        {
+            Assert.Null(await held.LoadSampleAsync(PostWithSample("11"), CancellationToken.None));
+            Assert.Equal(1, f.Http.Samples);
+            Assert.True(f.Http.SampleToken.IsCancellationRequested); // the request is aborted, not merely ignored
+        }
+        finally { f.Http.ReleaseSamples.TrySetResult(); }
+        Assert.Null(await running.WaitAsync(Deadline)); // the late bytes of the revoked request never reach the caller
+    }
+
+    [Fact]
+    public async Task CallerCancellationOfASampleIsThrownAndAbortsTheRequest()
+    {
+        await using Fixture f = new();
+        await f.StartAsync();
+        f.Http.HoldSamples = true;
+        using CancellationTokenSource caller = new();
+        Task<byte[]?> pending = f.Composition.Services.Samples.LoadSampleAsync(PostWithSample("20"), caller.Token);
+        await WaitAsync(() => f.Http.Samples == 1);
+        caller.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending.WaitAsync(Deadline));
+        await WaitAsync(() => f.Http.SampleToken.IsCancellationRequested);
+        using CancellationTokenSource cancelled = new();
+        cancelled.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            f.Composition.Services.Samples.LoadSampleAsync(PostWithSample("21"), cancelled.Token));
+        f.Http.ReleaseSamples.TrySetResult();
+    }
+
+    [Fact]
+    public async Task AStandaloneSamplePortWorksWithDefaultAvailabilityAndTheCompositionsHostPath()
+    {
+        await using Fixture f = new();
+        BooruHostSamplePort samples = new(f.Composition.Previews, "danbooru");
+        Assert.Equal(Image, await samples.LoadSampleAsync(PostWithSample("30"), CancellationToken.None));
+        Assert.Null(await samples.LoadSampleAsync(Post("31"), CancellationToken.None));
+        Assert.Equal(1, f.Http.Samples);
+        Assert.Equal(0, f.Http.Originals);
+    }
+
     private static async Task AssertCommandsUnavailable(IBooruWatcherPort watchers, string id)
     {
         AssertUnavailable(await watchers.CreateAsync("dog", CancellationToken.None));
@@ -479,6 +578,15 @@ public sealed class BooruPortAvailabilityTests
         Assert.Equal((BooruWatcherCommandStatus.Failed, BooruCodes.SourceUnavailable), (result.Status, result.Code));
     private static TaskCompletionSource Signal() => new(TaskCreationOptions.RunContinuationsAsynchronously);
     private static Task WaitAsync(Func<bool> predicate) => BooruTestSupport.WaitAsync(predicate, "booru availability boundary", 15000);
+
+    private static BooruPostView PostWithSample(string id, string extension = "jpg") => BooruPostView.From(new BooruPost(
+        new BooruPostId("danbooru", id), BooruFieldPresence.Media, Media:
+        [
+            new BooruMediaVariant(BooruMediaRole.Preview, new Uri($"https://cdn.donmai.us/preview/{id}.jpg")),
+            new BooruMediaVariant(BooruMediaRole.Sample, new Uri($"https://cdn.donmai.us/sample/sample-{id}.{extension}")),
+            new BooruMediaVariant(BooruMediaRole.Original, new Uri($"https://cdn.donmai.us/original/{id}.jpg"),
+                ".jpg", Image.Length, ExpectedMd5: Convert.ToBase64String(MD5.HashData(Image)))
+        ]));
 
     private static BooruPostView Post(string id) => BooruPostView.From(new BooruPost(new BooruPostId("danbooru", id),
         BooruFieldPresence.Media, Media:
@@ -583,6 +691,7 @@ public sealed class BooruPortAvailabilityTests
         public async ValueTask DisposeAsync()
         {
             Http.ReleasePreviews.TrySetResult();
+            Http.ReleaseSamples.TrySetResult();
             ReleaseWorkerResolution.TrySetResult();
             Worker.Release.TrySetResult();
             try
@@ -605,8 +714,12 @@ public sealed class BooruPortAvailabilityTests
 
     private sealed class MemoryHttp : HttpMessageHandler
     {
-        private int _previews, _originals;
+        private int _previews, _originals, _samples;
         internal bool HoldPreviews { get; set; }
+        internal int Samples => Volatile.Read(ref _samples);
+        internal bool HoldSamples { get; set; }
+        internal TaskCompletionSource ReleaseSamples { get; } = Signal();
+        internal CancellationToken SampleToken { get; private set; }
         internal TaskCompletionSource ReleasePreviews { get; } = Signal();
         internal CancellationToken PreviewToken { get; private set; }
         internal int Previews => Volatile.Read(ref _previews);
@@ -621,6 +734,12 @@ public sealed class BooruPortAvailabilityTests
                 PreviewToken = cancellationToken;
                 Interlocked.Increment(ref _previews);
                 if (HoldPreviews) await ReleasePreviews.Task; // deliberate non-cooperative completion
+            }
+            else if (request.RequestUri.AbsolutePath.StartsWith("/sample/", StringComparison.Ordinal))
+            {
+                SampleToken = cancellationToken;
+                Interlocked.Increment(ref _samples);
+                if (HoldSamples) await ReleaseSamples.Task;
             }
             else Interlocked.Increment(ref _originals);
             // Original downloads are MIME-validated before the queue publishes the verified asset.
