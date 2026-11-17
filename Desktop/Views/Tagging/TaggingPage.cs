@@ -9,6 +9,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Templates;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
@@ -140,9 +141,10 @@ public sealed partial class TaggingPage : UserControl
 
     private Control BuildLayout()
     {
-        StackPanel heading = new() { Classes = { "workspace-page-header" }, Children = { _title, _subtitle } };
+        StackPanel heading = new() { Name = "TaggingHeading", Classes = { "workspace-page-header" },
+            [!StackPanel.SpacingProperty] = new DynamicResourceExtension("Workspace.Space.8"), Children = { _title, _subtitle } };
 
-        _error.Child = new StackPanel { Spacing = 8, Children = { _errorText, _errorSource, _retryLoad } };
+        _error.Child = new StackPanel { [!StackPanel.SpacingProperty] = new DynamicResourceExtension("Workspace.Space.8"), Children = { _errorText, _errorSource, _retryLoad } };
         AutomationProperties.SetLiveSetting(_errorText, AutomationLiveSetting.Assertive);
         AutomationProperties.SetLiveSetting(_errorSource, AutomationLiveSetting.Polite);
 
@@ -157,13 +159,17 @@ public sealed partial class TaggingPage : UserControl
         _filterPanel.Children.Add(_filter);
 
         // The title starts where every page title starts (PageHeader.PageTopOffset, LY-03); the page has no margin of its own.
-        StackPanel header = new() { Spacing = 8, Margin = new Thickness(12, PageHeader.PageTopOffset, 12, 8) };
+        StackPanel header = new() { Name = "TaggingSections",
+            [!StackPanel.SpacingProperty] = new DynamicResourceExtension("Workspace.Space.16"),
+            Margin = new Thickness(12, PageHeader.PageTopOffset, 12, 16) };
         header.Children.Add(heading);
         header.Children.Add(_error);
         header.Children.Add(BuildClearConfirmation());
-        header.Children.Add(_progress);
-        header.Children.Add(_actions);
-        header.Children.Add(_secondaryToolbar);
+        // Preserve the existing rows; only distinguish the queue controls from other major sections.
+        StackPanel queueControls = new() { Name = "TaggingQueueControls",
+            [!StackPanel.SpacingProperty] = new DynamicResourceExtension("Workspace.Space.8"),
+            Children = { _progress, _actions, _secondaryToolbar } };
+        header.Children.Add(queueControls);
         header.Children.Add(BuildStamp());
         SizeChanged += (_, _) =>
         {

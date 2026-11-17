@@ -8,6 +8,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Markup.Xaml.MarkupExtensions;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
@@ -23,7 +24,8 @@ namespace MeowChan;
 public sealed partial class TaggingPage
 {
     // Head and body share one line while they fit (a short stamp on a wide page); a long stamp or a narrow page puts the body below the head.
-    private readonly WrapPanel _stampPanel = new() { Name = "TaggingStamp", ItemSpacing = 16, LineSpacing = 8 };
+    private readonly WrapPanel _stampPanel = new() { Name = "TaggingStamp", [!WrapPanel.ItemSpacingProperty] = new DynamicResourceExtension("Workspace.Space.12"),
+        [!WrapPanel.LineSpacingProperty] = new DynamicResourceExtension("Workspace.Space.12") };
     // The block's head: a quiet disclosure (turning arrow, title with the number of stamp tags) and, right after it, the help of the
     // block; the body holds the chips, the field, the add button and the hint in one wrapping row.
     private readonly ToggleButton _stampToggle = new() { Name = "TaggingStampToggle", Classes = { "disclosure" }, HorizontalAlignment = HorizontalAlignment.Left,
