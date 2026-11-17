@@ -56,7 +56,7 @@ public sealed class TaggingLayoutRhythmTests
         Assert.Equal(Token(sections, "Workspace.Space.12"), sections.Margin.Left);
         Assert.Equal(Token(sections, "Workspace.Space.12"), sections.Margin.Right);
         Assert.Equal(Token(queue, "Workspace.Space.8"), queue.Spacing);
-        Assert.Equal(new[] { "TaggingProgress", "TaggingActions", "TaggingSecondaryToolbar" }, queue.Children.Select(c => c.Name));
+        Assert.Equal(new[] { "TaggingQueueActionRow", "TaggingClearConfirm" }, queue.Children.Select(c => c.Name));
         StackPanel heading = Find<StackPanel>(page, "TaggingHeading");
         Assert.Equal(Token(sections, "Workspace.Space.8"), heading.Spacing);
         Assert.Equal(Avalonia.Layout.Orientation.Vertical, heading.Orientation);
@@ -68,7 +68,7 @@ public sealed class TaggingLayoutRhythmTests
         Assert.Equal(Token(stamp, "Workspace.Space.12"), stamp.LineSpacing);
         // Hidden feedback/secondary rows must not add phantom spacing.
         Assert.False(page.ErrorPanel.IsVisible);
-        Assert.False(page.SecondaryToolbar.IsVisible);
+        Assert.Equal(new[] { "TaggingGroupPanel", "TaggingFilterPanel", "TaggingListPresentation" }, page.ListControls.Children.Select(c => c.Name));
     });
     private static readonly BindingFlags Private = BindingFlags.Instance | BindingFlags.NonPublic;
 

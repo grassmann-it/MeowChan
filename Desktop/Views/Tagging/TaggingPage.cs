@@ -25,7 +25,7 @@ namespace MeowChan;
 /// The tagging page (PT2, PLAN-POWER-TAGGEN §1.3): a thin working page over the tagging queue. It shows the progress, edits the
 /// stamp set, lists the entries with their state (open, finished, skipped) and lets the user reorder, remove and clear them;
 /// "Start tagging" hands over to the gallery (<see cref="StartTagging"/>, the seam of the tagging mode). The queue work itself is
-/// <see cref="TaggingQueueController"/>; this class only shows it. Tab order: title, actions, progress, stamp set, start and filter, list.
+/// <see cref="TaggingQueueController"/>; this class only shows it. Tab order: queue actions, stamp, list controls, selection, list.
 /// </summary>
 public sealed partial class TaggingPage : UserControl
 {
@@ -33,8 +33,7 @@ public sealed partial class TaggingPage : UserControl
     private readonly TaggingQueueController _queueWork;
     private readonly TextBlock _title = new() { Name = "TaggingTitle", Classes = { "page-title" } };
     private readonly TextBlock _subtitle = new() { Name = "TaggingSubtitle", Classes = { "muted" }, TextWrapping = TextWrapping.Wrap };
-    // TG1: one toolbar row: the primary start button, the icon buttons, then "Show", the view switch and the help. Items that do not fit
-    // move into the toolbar's "More" in the order of the work view.
+    // Queue mutations and feedback share a measured row; visible-result controls live directly above the list.
     private readonly ActionToolBar _actions = new() { Name = "TaggingActions", HorizontalAlignment = HorizontalAlignment.Stretch };
     private readonly TaggingControlRow _listControls = new() { Name = "TaggingListControls" };
     private readonly ActionToolBar _listPresentation = new() { Name = "TaggingListPresentation" };
@@ -42,16 +41,14 @@ public sealed partial class TaggingPage : UserControl
     private readonly TextBlock _errorText = new() { Name = "TaggingErrorText", TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _errorSource = new() { Name = "TaggingErrorSource", Classes = { "muted" }, TextWrapping = TextWrapping.Wrap };
     private readonly Button _retryLoad = new() { Name = "TaggingRetryLoad", Classes = { "subtle" } };
-    // The counters row: "Open n · Finished n · Skipped n", a 120 dip mini bar and the percentage; the "last shown" link follows them
-    // directly (it wraps below them on a narrow page instead of drifting to the far edge of a wide one).
+    // Counters, mini bar and percentage are supporting feedback in the queue-action row.
     private readonly WrapPanel _progress = new() { Name = "TaggingProgress", ItemSpacing = 16, LineSpacing = 4 };
     private readonly TextBlock _progressText = new() { Name = "TaggingProgressText", Classes = { "tnum" }, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
     internal const double MiniBarWidth = 120;
     private readonly ProgressBar _bar = new() { Name = "TaggingProgressBar", Minimum = 0, Maximum = 100, Width = MiniBarWidth, Height = 6, MinHeight = 0, MaxHeight = 6 };
     private readonly TextBlock _percent = new() { Name = "TaggingPercent", Classes = { "muted", "tnum" }, VerticalAlignment = VerticalAlignment.Center };
     private readonly Button _start = new() { Name = "TaggingStart", Classes = { "primary" } };
-    // T1: "Last shown: file · position n of m"; the link continues exactly there (the same action as the start button, which stands at
-    // the same entry).
+    // Passive supporting context for Start: never a second spatially separated continue action.
     private readonly TextBlock _lastShown = new() { Name = "TaggingLastShown", Classes = { "muted", "tnum" }, MaxWidth = 280,
         TextTrimming = TextTrimming.CharacterEllipsis, IsVisible = false };
     private readonly StackPanel _startContext = new() { Name = "TaggingStartContext", Spacing = 4 };
@@ -150,6 +147,12 @@ public sealed partial class TaggingPage : UserControl
         AutomationProperties.SetLiveSetting(_errorText, AutomationLiveSetting.Assertive);
         AutomationProperties.SetLiveSetting(_errorSource, AutomationLiveSetting.Polite);
 
+        foreach (TaggingControlRow row in new[] { _queueActionRow, _listControls })
+        {
+            row[!TaggingControlRow.GroupSpacingProperty] = new DynamicResourceExtension("Workspace.Space.16");
+            row[!TaggingControlRow.LineSpacingProperty] = new DynamicResourceExtension("Workspace.Space.8");
+        }
+        _listControls.Margin = new Thickness(0, 0, 0, 8);
         _bar.VerticalAlignment = VerticalAlignment.Center;
         // Narrow-window sweep (16.11.2026): a horizontal StackPanel measured the counters at their full length, so the wrapping text never wrapped
         // and a long language pushed the bar and the percentage off a narrow page; in a WrapPanel the text gets the row's width.
@@ -169,7 +172,7 @@ public sealed partial class TaggingPage : UserControl
             Margin = new Thickness(12, PageHeader.PageTopOffset, 12, 16) };
         header.Children.Add(heading);
         header.Children.Add(_error);
-        // Preserve the existing rows; only distinguish the queue controls from other major sections.
+        // A confirmation belongs immediately after its trigger row, before the next major section.
         StackPanel queueControls = new() { Name = "TaggingQueueControls",
             [!StackPanel.SpacingProperty] = new DynamicResourceExtension("Workspace.Space.8"),
             Children = { _queueActionRow, BuildClearConfirmation() } };
@@ -397,8 +400,7 @@ public sealed partial class TaggingPage : UserControl
         UpdateSelectionBar();
     }
 
-    // T1: the link follows the queue; it continues like the start button, so it is as enabled as that button. Whether it is shown at all
-    // is the work view's call (WorkViewGate in RefreshWorkView) together with the queue's state.
+    // The work-view gate controls supporting context; the only activation target is Start.
     private void RenderLastShown(TagQueueSnapshot queue)
     {
         string? text = TaggingQueueView.LastShownText(queue, _selectedGroupId, _ungroupedSelected, Scope);
@@ -407,7 +409,7 @@ public sealed partial class TaggingPage : UserControl
         {
             AutomationProperties.SetName(_lastShown, text);
             AutomationProperties.SetHelpText(_lastShown, Texts.T("tagging.page.lastShown.help"));
-            ToolTip.SetTip(_lastShown, Texts.T("tagging.page.lastShown.help"));
+            ToolTip.SetTip(_lastShown, text);
         }
     }
 

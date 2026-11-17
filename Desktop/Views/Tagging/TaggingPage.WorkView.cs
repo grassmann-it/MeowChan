@@ -4,7 +4,7 @@ using MeowChan.Desktop.WorkViews;
 namespace MeowChan;
 
 // Work views (WorkViewPolicy.Tagging.cs): the page only applies the table. Progress, start, list and errors are the page in every
-// view; the stamp set and the filter stay as tools (a filter other than "All entries" is a state, R6); Barebones drops the key hint;
+// view; the stamp set and the filter stay as tools (a filter other than "All entries" is a state, R6); shortcuts live in Help;
 // the toolbar moves Remove finished / Clear queue under its More as the view says. Row commands stay in the context menu and keys.
 public sealed partial class TaggingPage
 {

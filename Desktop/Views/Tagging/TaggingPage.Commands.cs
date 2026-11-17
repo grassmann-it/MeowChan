@@ -64,9 +64,7 @@ public sealed partial class TaggingPage
         _clearDone.Command = new DelegateCommand(() => _ = ClearFinishedAsync(), () => CanChange && _queueWork.Queue.Done > 0);
         _clear.Command = new DelegateCommand(AskClear, () => !_queueWork.Ended && !_queueWork.Busy && !_queueWork.Loading && _queueWork.Loaded
             && (_queueWork.Queue.Count > 0 && _queueWork.Queue.CanWrite || _queueWork.LoadError != null));
-        // The bar reads as five groups with the bar's own thin lines between them (RL1): primary work (continue, add), scope (group,
-        // show), cleanup, then the presentation controls (columns, list/grid) together at the trailing end, with help last. This keeps
-        // presentation choices separate from queue mutations and makes the right side predictable. What does not fit moves under More.
+        // Queue actions stay together; visible-result controls have their own measured row above the list.
         (Control Item, int Group)[] items =
         {
             (_startContext, 0), (_add, 0), (_clearDone, 2), (_clear, 2), (_help, 4)
@@ -77,7 +75,7 @@ public sealed partial class TaggingPage
             ActionToolBar.SetGroup(item, group);
             _actions.Items.Add(item);
         }
-        // Design language (UX-LEDGER-01): primary actions stand left; the layout/secondary run (columns, list/grid, help) docks to the right edge.
+        // Help stays at the trailing edge of the queue actions; list presentation docks on the list-controls row.
         ActionToolBar.SetEnd(_help, true);
         _listControls.Children.Add(_groupPanel);
         _listControls.Children.Add(_filterPanel);
