@@ -242,6 +242,38 @@ public sealed partial class PluginProfileStoreTests
     }
 
     [Fact]
+    public async Task PinnedSameCandidateIdWithHistoricalProvenanceOffersCurrentRebuildAndPreservesSettings()
+    {
+        var old = await Delivered("pinned-historical", "one", source: true, settings: NumberSchema("1", 42));
+        var store = Store();
+        var state = await store.ApplyBundledStartupAsync([old.Candidate], [old.Proof], [], 0);
+        Assert.Equal(42, Number(Active(state)));
+        state = await store.SelectRollbackAsync("test.plugin", state.Revision);
+
+        foreach (string build in new[] { "two", "three", "four" })
+        {
+            var historical = await Delivered("pinned-historical", build, source: true, settings: NumberSchema("1", 42));
+            state = await store.ApplyBundledStartupAsync([historical.Candidate], [historical.Proof], [], state.Revision);
+        }
+        var current = await Delivered("pinned-historical", "current", source: true, settings: NumberSchema("1", 42));
+        current = await Redeclared(current, description => description with
+        {
+            Sources = [description.Sources[0] with { PostOrder = PostOrderKind.DecimalPostId }]
+        });
+        state = await store.ApplyBundledStartupAsync([current.Candidate], [current.Proof], [], state.Revision);
+
+        var preview = await store.PreviewBundledReselectionsAsync();
+        var row = Assert.Single(preview.Rows);
+        Assert.True(row.CanConfirm, row.BlockedReason);
+        Assert.Equal(old.Candidate.CandidateId, row.OldCandidateId);
+        Assert.Equal(current.Candidate.Artifact!.ExecutionRevision, row.NewExecutionRevision);
+
+        state = await store.ConfirmBundledReselectionAsync(row, preview.ProfileRevision);
+        Assert.Null(state.Plugins[0].Pinned);
+        Assert.Equal(42, Number(state.Plugins[0].Pending!));
+    }
+
+    [Fact]
     public async Task PinnedMissingCandidateCannotBeUnpinnedByNewSelection()
     {
         var old = await Delivered("legacy", "one"); var target = await Delivered("new", "two"); var store = Store();

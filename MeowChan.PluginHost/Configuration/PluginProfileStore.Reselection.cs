@@ -45,10 +45,10 @@ public sealed partial class PluginProfileStore
                 pin.CandidateId == selected && basis.CandidateId == selected && basis.ExecutionRevision == pin.ExecutionRevision &&
                 target.CandidateId == selected && target.Artifact!.ExecutionRevision != pin.ExecutionRevision &&
                 string.Equals(target.CandidatePath, prior.Provenance?.CandidatePath, StringComparison.Ordinal) &&
-                SdkJson.Serialize(basis.Description).AsSpan().SequenceEqual(SdkJson.Serialize(target.Description));
+                SamePinnedBundleDescription(basis.Description, target.Description!);
             // Existing local selections and proven delivered repair history keep their own paths.
             // The exception above is the one explicit current-build recovery offered for a
-            // pinned bundled executable whose exact declaration/path remains the same.
+            // pinned bundled executable whose trust-relevant declaration and manifest path remain the same.
             if ((!pinnedSameBundleRebuild && missing is { IsPresent: true }) ||
                 (!pinnedSameBundleRebuild && (document.Provenance.Any(p => p.CandidateId == selected) ||
                     document.Bindings.Any(b => b.PluginId == plugin.PluginId)))) continue;
@@ -72,6 +72,23 @@ public sealed partial class PluginProfileStore
                 basis is null ? null : Encoding.UTF8.GetString(SdkJson.Serialize(basis.Configuration)), reason));
         }
         return new(document.Profile.Revision, rows);
+    }
+
+    // A pinned bundle may be rebuilt in place without re-reviewing permissions when only the
+    // source's post ordering changed. This is operational source metadata, not a new host,
+    // route, capability, filter, or source identity. Keep the comparison fail-closed: every
+    // other declaration field, including any future SDK field, must remain byte-identical.
+    private static bool SamePinnedBundleDescription(PluginDescription previous, PluginDescription candidate)
+    {
+        if (previous.Sources.Count != candidate.Sources.Count ||
+            !previous.Sources.Select(source => source.SourceId).SequenceEqual(
+                candidate.Sources.Select(source => source.SourceId), StringComparer.Ordinal)) return false;
+        PluginDescription normalized = candidate with
+        {
+            Sources = candidate.Sources.Select((source, index) =>
+                source with { PostOrder = previous.Sources[index].PostOrder }).ToArray()
+        };
+        return SdkJson.Serialize(previous).AsSpan().SequenceEqual(SdkJson.Serialize(normalized));
     }
 
     public async Task<PluginProfileSnapshot> ConfirmBundledReselectionAsync(BundledCandidateReselection selection, long expectedRevision,
