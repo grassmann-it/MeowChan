@@ -387,6 +387,7 @@ internal static class ExperimentalActivationChecks
                 pending?.TrySetResult(new(ExperimentalSourceActivationStatus.GrantFailed, null, null, "Fixture cleanup"));
                 foreach (var modal in Dialogs().ToArray()) modal.Close();
                 window.Close();
+                window.Dispose();
                 await Program.WaitUntilAsync(() => host.State == DesktopSessionState.Stopped);
                 Texts.SetLanguage(original.Language); Application.Current.RequestedThemeVariant = originalTheme;
             }, exception => Console.Error.WriteLine("SMOKE cleanup failed in ExperimentalActivationChecks: " + exception));
@@ -681,6 +682,7 @@ internal static class ExperimentalActivationChecks
                 }
                 foreach (var modal in Dialogs().ToArray()) modal.Close();
                 window.Close();
+                window.Dispose();
                 await host.StopAsync().WaitAsync(TimeSpan.FromSeconds(45));
                 await Program.WaitUntilAsync(() => !window.IsVisible);
             }, exception => Console.Error.WriteLine("SMOKE cleanup failed in ExperimentalActivationChecks: " + exception));
