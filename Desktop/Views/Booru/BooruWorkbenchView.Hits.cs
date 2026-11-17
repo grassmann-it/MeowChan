@@ -100,9 +100,9 @@ internal sealed partial class BooruWorkbenchView
         card.DoubleTapped += (_, e) =>
         {
             if (_closed || !ItemActivation.IsCardDoubleClick(e, card)) return;
-            if (BooruHitKeys.Primary(showInMedia) is not { } primary) return;
             e.Handled = true;
-            Click(primary);
+            if (BooruHitKeys.Primary(showInMedia) is { } primary) Click(primary);
+            else OpenResultViewer(postId);
         };
         ConfigureMiddleClick(card, postId);
         card.KeyDown += (_, e) =>
@@ -112,9 +112,9 @@ internal sealed partial class BooruWorkbenchView
             switch (key)
             {
                 case BooruHitKey.Activate:
-                    if (BooruHitKeys.Primary(showInMedia) is not { } primary) return;
                     e.Handled = true;
-                    Click(primary);
+                    if (BooruHitKeys.Primary(showInMedia) is { } primary) Click(primary);
+                    else OpenResultViewer(postId);
                     break;
                 case BooruHitKey.None:
                     break;

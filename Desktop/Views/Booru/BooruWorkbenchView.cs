@@ -229,6 +229,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     {
         _attached = false;
         _clock.Stop();
+        _resultViewer?.Close();
         base.OnDetachedFromVisualTree(e);
     }
 
@@ -772,6 +773,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         info.Children.Add(new TextBlock { Text = Texts.T("booru.ui.post.title", post.PostId), Classes = { "card-title" }, TextWrapping = TextWrapping.Wrap });
         // I8: the post facts as a definition list; the address is no longer a text line, it is the tooltip of the link buttons.
         info.Children.Add(CreateDetails(post));
+        info.Children.Add(CreateResultViewerActions(post.PostId));
 
         bool withdrawn = post.IsDeleted || post.IsBanned;
         TextBlock original = new()
@@ -1380,6 +1382,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     {
         if (_closed) return;
         _closed = true;
+        _resultViewer?.Close();
         Interlocked.Increment(ref _linkActionRevision);
         _clock.Stop();
         _clock.Tick -= OnClockTick;
