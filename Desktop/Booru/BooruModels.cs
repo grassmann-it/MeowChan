@@ -75,6 +75,9 @@ internal sealed record BooruPostView
         BooruMediaVariant? original = post.Media?.FirstOrDefault(media => media.Role == BooruMediaRole.Original);
         BooruMediaVariant? preview = post.Media?.FirstOrDefault(media => media.Role == BooruMediaRole.Preview);
         BooruMediaVariant? sample = post.Media?.FirstOrDefault(media => media.Role == BooruMediaRole.Sample);
+        // Defence in depth even for a port supplied by another provider: role aliases must never fetch originals.
+        if (sample?.Url is { } sampleUrl && sampleUrl == original?.Url) sample = null;
+        if (preview?.Url is { } previewUrl && previewUrl == original?.Url) preview = null;
         bool withdrawn = post.IsDeleted || post.IsBanned;
         BooruOriginalAccess access = withdrawn ? BooruOriginalAccess.Restricted
             : original is null ? BooruOriginalAccess.NotOffered

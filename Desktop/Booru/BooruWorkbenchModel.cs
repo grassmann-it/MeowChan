@@ -14,11 +14,22 @@ internal sealed class BooruWorkbenchModel : IDisposable
         Services = services ?? throw new ArgumentNullException(nameof(services));
         Search = new BooruSearchModel(services.Search, services.Queue, services.Previews, services.Clock);
         Watchers = new BooruWatcherListModel(services.Watchers, services.Clock);
+        Viewer = new BooruViewerModel(services);
     }
 
     internal BooruWorkbenchServices Services { get; }
     internal BooruSearchModel Search { get; }
     internal BooruWatcherListModel Watchers { get; }
+    internal BooruViewerModel Viewer { get; }
+
+    /// <summary>Opens only a result on the currently displayed page, preserving its executed provenance.</summary>
+    internal Task OpenViewerAsync(string postId)
+    {
+        BooruSearchView view = Search.View;
+        int index = view.Rows.IndexWhere(row => row.Post.PostId == postId);
+        return index < 0 ? Task.CompletedTask : Viewer.OpenAsync(view.Rows[index],
+            view.IsPostResult ? BooruLoadOrigin.OneShot : BooruLoadOrigin.Search, view.ExecutedQuery);
+    }
 
     /// <summary>Only the read of the stored watcher list; nothing is requested from the provider.</summary>
     internal Task InitializeAsync() => Watchers.RefreshAsync();
@@ -54,6 +65,7 @@ internal sealed class BooruWorkbenchModel : IDisposable
 
     public void Dispose()
     {
+        Viewer.Dispose();
         Search.Dispose();
         Watchers.Dispose();
     }
