@@ -1111,8 +1111,17 @@ public partial class ArchivePage
 
     // only: the one medium of the post a key chose (null: the first available medium of the post, in position order).
     private async Task ActivateReaderMediaAsync(Control origin, ArchivePostRow post, ResourceId resource,
-        Task<IReadOnlyList<ArchiveAssetRow>> ready, CancellationTokenSource cancellation, ArchiveAttachmentRow? only = null)
+        Task<IReadOnlyList<ArchiveAssetRow>> ready, CancellationTokenSource cancellation, ArchiveAttachmentRow? only = null, bool largeReaderOnly = true)
     {
+        bool handedOff = false, refusalReported = false;
+        void Refused(string reason = "reader.media.activation.contextChanged")
+        {
+            if (refusalReported) return;
+            refusalReported = true;
+            // The reader header's existing live status remains visible when the
+            // large reader is detached; the archive-only overlay does not.
+            if (!_ended) ShowReadingPositionMessage(Texts.T(reason));
+        }
         int content = _contentRequest, media = _mediaRequest, focus = _readerFocusRequest;
         long coverage = _readerCoverageRevision, shortcuts = ShortcutService.Revision;
         var open = OpenGallery;
@@ -1120,7 +1129,13 @@ public partial class ArchivePage
             && media == _mediaRequest && focus == _readerFocusRequest && coverage == _readerCoverageRevision
             && shortcuts == ShortcutService.Revision && ReferenceEquals(ready, _mediaReady.Task)
             && _thread?.Summary.Id == resource && ReferenceEquals(open, OpenGallery)
-            && ReaderMediaContextIsCurrent(origin, post);
+            && ReaderMediaContextIsCurrent(origin, post, largeReaderOnly: largeReaderOnly);
+        bool GuardHandoff()
+        {
+            if (Current()) return true;
+            Refused(); // The shell also rechecks the guard after its own awaits.
+            return false;
+        }
         try
         {
             // Await only the existing local manifest scan, never initiate a download.
@@ -1134,24 +1149,33 @@ public partial class ArchivePage
             ReaderMediaTarget? target = await Task.Run(() => only == null
                 ? FindReaderMediaTarget(resource, post, assets, row => File.Exists(row.Asset.Path))
                 : FindReaderMediumTarget(resource, post, only, assets, row => File.Exists(row.Asset.Path)), cancellation.Token);
-            if (target == null || !Current()) return;
+            if (!Current()) return;
+            if (target == null) { Refused("reader.media.activation.missing"); return; }
             // The routed Space event can originate at the posts ListBox itself. Resolve the
             // current realized selected row only now, after all awaits; never use a container
             // captured from another row. Keep the original source in Current() so selection,
             // cancellation, and stale-origin checks remain tied to the event that started this.
             Control? galleryOrigin = ResolveReaderMediaGalleryOrigin(origin, post);
             if (galleryOrigin == null || !Current()) return;
-            ReaderMediaActivationGuard = Current;
-            try { await open!(resource, target.Key, galleryOrigin); }
+            ReaderMediaActivationGuard = GuardHandoff;
+            try
+            {
+                await open!(resource, target.Key, galleryOrigin);
+                handedOff = true;
+            }
             finally { ReaderMediaActivationGuard = null; }
         }
         catch (OperationCanceledException) { }
         catch (Exception exception)
         {
-            if (Current()) Message(exception.Message, true);
+            refusalReported = true;
+            if (!_ended) ShowReadingPositionMessage(exception.Message, true);
         }
         finally
         {
+            // Admission already consumed the key. A stale context, cancellation or
+            // missing realized origin must not turn that into a silent no-op.
+            if (!handedOff) Refused();
             if (ReferenceEquals(_readerMediaActivationCancellation, cancellation)) _readerMediaActivationCancellation = null;
             cancellation.Dispose();
         }
