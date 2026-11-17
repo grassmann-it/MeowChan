@@ -39,7 +39,7 @@ internal static class SettingsSearchShortcut
 /// </summary>
 internal static class SettingsHeaderLayout
 {
-    /// <summary>The category navigation column of the form and of the header row (SettingsEditor.axaml: ColumnDefinitions="176,*").</summary>
+    /// <summary>The category navigation column of the shared form grid (SettingsEditor.axaml: ColumnDefinitions="176,*").</summary>
     internal const double NavigationWidth = 176;
     /// <summary>The gap between the navigation column and the content column.</summary>
     internal const double NavigationGap = 16;

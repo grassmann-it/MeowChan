@@ -71,22 +71,10 @@
     </UserControl.Styles>
     <Grid x:Name="SettingsRoot" RowDefinitions="Auto,*,Auto">
         <StackPanel x:Name="SettingsHeader" Classes="workspace-page-header" Margin="16,12,16,12" MaxWidth="1088" HorizontalAlignment="Center">
-            <!-- SP1/UX-LEDGER-02: the head is two rows on the column grid of the form below (SettingsFormLayout: navigation column, then the content column).
-                 Row 0 is the title and the subtitle. Row 1 sits over the content column only: the search field (it takes all the width the "More" button
-                 leaves, Ctrl+F and "/" focus it) and, at the end, the single "More" button. Export and "Reset all" are its two entries (Reset all is rare
-                 and destructive, so it is not a button of its own). The 10 dip inset on both sides is the inset of SettingsContent inside its scroll viewer, so the
-                 field's and the button's outer edges are the left and right edges of the Interface section. The ranked hits are an overlay of this page
-                 (SettingsSearchPanel), placed under the field and as wide as it. -->
-            <Grid x:Name="SettingsHeaderRow" ColumnDefinitions="176,*" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.16}" RowSpacing="{StaticResource Workspace.Space.8}">
-                <StackPanel x:Name="SettingsTitleBlock" Grid.ColumnSpan="2" Classes="workspace-page-header">
-                    <TextBlock Text="{Binding SettingsTitle}" Classes="page-title" />
-                    <TextBlock Text="{Binding SettingsSubtitle}" Classes="muted" TextWrapping="Wrap" />
-                </StackPanel>
-                <Grid x:Name="SettingsSearchActions" Grid.Row="1" Grid.Column="1" ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource Workspace.Space.12}" Margin="10,0">
-                    <ContentControl x:Name="SettingsSearchHost" VerticalAlignment="Top" HorizontalContentAlignment="Stretch" />
-                    <Button x:Name="SettingsMoreButton" Grid.Column="1" Classes="ghost" VerticalAlignment="Top" AutomationProperties.Name="{Binding SettingsMoreLabel}" Click="OnSettingsMoreClick" IsEnabled="{Binding IsEditable}" />
-                </Grid>
-            </Grid>
+            <StackPanel x:Name="SettingsTitleBlock" Classes="workspace-page-header">
+                <TextBlock Text="{Binding SettingsTitle}" Classes="page-title" />
+                <TextBlock Text="{Binding SettingsSubtitle}" Classes="muted" TextWrapping="Wrap" />
+            </StackPanel>
             <!-- The polite line that reads out a row which appeared under its parent (its own label; see SettingsConditional). -->
             <TextBlock x:Name="SettingsConditionalAnnouncement" Height="0" Opacity="0" IsHitTestVisible="False" Focusable="False" AutomationProperties.LiveSetting="Polite" />
             <TextBlock x:Name="SettingsResetStatus" IsVisible="False" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" HorizontalAlignment="Right" Margin="0,0,10,0" />
@@ -96,7 +84,14 @@
             <ScrollViewer x:Name="SettingsCategories" Grid.Row="1" HorizontalScrollBarVisibility="Disabled" IsVisible="False">
                 <StackPanel x:Name="SettingsCategoryLinks" Spacing="{StaticResource Workspace.Space.4}" IsEnabled="{Binding IsEditable}" />
             </ScrollViewer>
-        <ScrollViewer x:Name="SettingsScrollViewer" Grid.Row="1" Grid.Column="1" HorizontalScrollBarVisibility="Disabled" ScrollChanged="OnSettingsScrollChanged">
+            <!-- UX-LEDGER-09: search/actions and the form share the actual content column, not a second header grid.
+                 The 10 dip inset matches SettingsContent; only the form scrolls. Hits overlay the page below the field. -->
+            <Grid x:Name="SettingsContentColumn" Grid.Row="1" Grid.Column="1" RowDefinitions="Auto,*">
+                <Grid x:Name="SettingsSearchActions" ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource Workspace.Space.12}" Margin="10,0,10,12">
+                    <ContentControl x:Name="SettingsSearchHost" VerticalAlignment="Top" HorizontalContentAlignment="Stretch" />
+                    <Button x:Name="SettingsMoreButton" Grid.Column="1" Classes="ghost" VerticalAlignment="Top" AutomationProperties.Name="{Binding SettingsMoreLabel}" Click="OnSettingsMoreClick" IsEnabled="{Binding IsEditable}" />
+                </Grid>
+        <ScrollViewer x:Name="SettingsScrollViewer" Grid.Row="1" HorizontalScrollBarVisibility="Disabled" ScrollChanged="OnSettingsScrollChanged">
             <StackPanel x:Name="SettingsContent" MaxWidth="880" HorizontalAlignment="Center" Spacing="{StaticResource Workspace.Space.16}">
                 <StackPanel x:Name="SettingsInterfacePage" Spacing="0" IsEnabled="{Binding IsEditable}">
                     <Grid Classes="settings-section-header" ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource Workspace.Space.12}">
@@ -2437,6 +2432,7 @@
                 </StackPanel></controls:WorkspaceBanner>
             </StackPanel>
         </ScrollViewer>
+            </Grid>
         </Grid>
         <Border Grid.Row="2" Classes="workspace-dialog-footer">
             <Grid x:Name="SettingsFooter" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.12}" RowSpacing="{StaticResource Workspace.Space.8}" HorizontalAlignment="Center" MaxWidth="1088">

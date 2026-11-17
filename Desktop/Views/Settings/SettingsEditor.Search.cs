@@ -72,7 +72,7 @@ public partial class SettingsEditor
     private void InitializeSearch()
     {
         _searchSession = new SettingsSearchSession(() => { EnsureSearchIndex(); return _searchIndex!; }, CommitSearchHit);
-        // SP1: the field lives in the page header (SettingsSearchHost), its width is the flexible 240 to 480 dip of the header column.
+        // UX-LEDGER-09: the field fills the content-column header, leaving room only for the More button.
         _searchBox = new SearchBox { Name = "SettingsSearchBox", MaxLength = 100, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch };
         SettingsSearchSession.Configure(_searchBox);
         AddHandler(TextBox.TextChangedEvent, OnSettingValueChanged, RoutingStrategies.Bubble, handledEventsToo: true);
@@ -151,6 +151,11 @@ public partial class SettingsEditor
         Grid.SetRowSpan(_searchPanel, SettingsRoot.RowDefinitions.Count);
         _searchBox.SizeChanged += (_, _) => PositionSearchPanel();
         SettingsRoot.SizeChanged += (_, _) => PositionSearchPanel();
+        // A wrapped title/navigation or a breakpoint can move the field without resizing it.
+        SettingsContentColumn.LayoutUpdated += (_, _) =>
+        {
+            if (_searchPanel.IsVisible) PositionSearchPanel();
+        };
 
         WorkViewElement.SetId(_searchBox, "settings.search");
         SettingsSearchHost.Content = _searchBox;
