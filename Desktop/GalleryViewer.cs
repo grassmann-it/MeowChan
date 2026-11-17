@@ -1913,6 +1913,7 @@ internal sealed partial class GalleryViewer : UserControl
         StopViewerInteraction();
         UnbindVideoPlaybackSignals();
         ++_request; CancelLoads();
+        _decodeQueue.Dispose();
         await RetireGifAsync();
         InvalidateMediaMenu();
         ClearBitmaps(); _entry = null; _info = null; _restore = null;

@@ -13,7 +13,7 @@ namespace MeowChan.Desktop.Updates;
 /// UI-independent R10-15a checking. Use one service per leased profile and a dedicated client.
 /// The caller owns the client; no downloads, browser launches, identifiers or telemetry are sent.
 /// </summary>
-public sealed class UpdateService
+public sealed class UpdateService : IDisposable
 {
     /// <summary>
     /// Tester switch: <c>MEOWCHAN_UPDATE_SIMULATE=&lt;semantic version&gt;</c> makes every check answer as if that version were the
@@ -35,6 +35,7 @@ public sealed class UpdateService
     private string? _simulationLogged;
     private readonly Action<UpdateCheckError, Exception?> _diagnostic;
     private readonly SemaphoreSlim _gate = new(1, 1);
+    private int _disposed;
     private long _checkGeneration;
     private UpdateCheckResult? _lastResult;
 
@@ -69,6 +70,7 @@ public sealed class UpdateService
 
     public async Task<UpdateCheckResult> CheckAfterStartupAsync(CancellationToken cancellationToken = default)
     {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
         UpdateCheckResult? disabled = Disabled(UpdateCheckKind.Automatic);
         if (disabled is not null) return disabled;
         await Task.Delay(TimeSpan.FromSeconds(30), _time, cancellationToken).ConfigureAwait(false);
@@ -77,6 +79,7 @@ public sealed class UpdateService
 
     internal async Task ConfigureAsync(bool automaticChecks, bool includePrereleases, CancellationToken cancellationToken)
     {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
@@ -88,6 +91,7 @@ public sealed class UpdateService
 
     public async Task<UpdateState> GetStateAsync(CancellationToken cancellationToken = default)
     {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
@@ -100,6 +104,7 @@ public sealed class UpdateService
 
     public async Task SkipVersionAsync(SemanticVersion? version, CancellationToken cancellationToken = default)
     {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
@@ -144,6 +149,7 @@ public sealed class UpdateService
 
     public async Task<UpdateCheckResult> CheckAsync(UpdateCheckKind kind, CancellationToken cancellationToken = default)
     {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
         if (kind is not (UpdateCheckKind.Automatic or UpdateCheckKind.Manual)) throw new ArgumentOutOfRangeException(nameof(kind));
         cancellationToken.ThrowIfCancellationRequested();
         UpdateCheckResult? disabled = Disabled(kind);
@@ -243,6 +249,12 @@ public sealed class UpdateService
         ? new UpdateCheckResult(UpdateCheckStatus.Disabled, DisabledReason: UpdateDisabledReason.Environment)
         : kind == UpdateCheckKind.Automatic && !_options.AutomaticChecksEnabled
             ? new UpdateCheckResult(UpdateCheckStatus.Disabled, DisabledReason: UpdateDisabledReason.AutomaticChecksOff) : null;
+
+    /// <summary>Releases the owned gate after callers have drained operations. The injected transport remains caller-owned.</summary>
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) == 0) _gate.Dispose();
+    }
 
     private UpdateCheckResult Failure(UpdateCheckError error, Exception? exception = null)
     {
