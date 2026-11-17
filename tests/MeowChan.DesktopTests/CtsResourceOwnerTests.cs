@@ -49,7 +49,7 @@ public sealed class CtsResourceOwnerTests
         });
         suggestions.Warm(new PrivateTagStoreSnapshot(1, "snapshot", [], [], []));
         await entered.Task.WaitAsync(TimeSpan.FromSeconds(30));
-        var source = (CancellationTokenSource)typeof(GalleryTagPanelSuggestions).GetField("_warming", Fields)!.GetValue(suggestions)!;
+        // Observe the worker token directly: the panel owns cancellation authority, not its source.
         try
         {
             suggestions.Dispose();
@@ -62,7 +62,7 @@ public sealed class CtsResourceOwnerTests
         await suggestions.WarmTask.WaitAsync(TimeSpan.FromSeconds(30));
         Assert.True(released, "Controlled warm-up was not released.");
         Assert.True(handleUsable, "The worker must still be able to use its cancelled token after Dispose.");
-        Assert.Throws<ObjectDisposedException>(() => source.Token);
+        Assert.Throws<ObjectDisposedException>(() => token.WaitHandle);
     }
 
     [Fact]
@@ -72,7 +72,7 @@ public sealed class CtsResourceOwnerTests
         TaskCompletionSource pending = new(TaskCreationOptions.RunContinuationsAsynchronously);
         CancellationToken token = default;
         Task work = queue.Replace(value => { token = value; return pending.Task; }, debounce: false);
-        var source = (CancellationTokenSource)typeof(GalleryDecodeQueue).GetField("_active", Fields)!.GetValue(queue)!;
+        // The pump, not the queue field, owns the scoped source.
         Task completion = queue.Completion;
         queue.Dispose();
         queue.Dispose();
@@ -83,7 +83,7 @@ public sealed class CtsResourceOwnerTests
         pending.SetResult();
         await completion.WaitAsync(TimeSpan.FromSeconds(30));
         await work;
-        Assert.Throws<ObjectDisposedException>(() => source.Token);
+        Assert.Throws<ObjectDisposedException>(() => token.WaitHandle);
     }
 
     [Fact]

@@ -205,8 +205,8 @@ public sealed class TaggingDecisionLogTests : IDisposable
         using TaggingWalk walk = new(paired, 0, queue, writer, depth: 2);
         for (int i = 0; i < 5; i++) await walk.Decide(i, TagQueueState.Done).Write;
         Assert.Equal(2, walk.Steps);
-        using TaggingWalk defaultWalk = new(paired, 0, queue, writer);
-        Assert.Equal(TagQueueDecisionLog.DefaultDepth, defaultWalk.Depth);
+        using TaggingWalk defaults = new(paired, 0, queue, writer);
+        Assert.Equal(TagQueueDecisionLog.DefaultDepth, defaults.Depth);
     }
 
     // W3-01 (a): an entry removed on the tagging page during the walk: its step goes, the next undo takes back the newest decision that

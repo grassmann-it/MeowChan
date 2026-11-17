@@ -264,7 +264,7 @@ public sealed class UpdateServiceTests
             Service = NewService();
         }
         internal UpdateService NewService() => new(Client, Store, _options, Time, () => Disable, (_, _) => { });
-        public void Dispose() { Client.Dispose(); Directory.Delete(DirectoryPath, true); }
+        public void Dispose() { Service.Dispose(); Client.Dispose(); Directory.Delete(DirectoryPath, true); }
     }
 
     internal sealed class FakeHandler : HttpMessageHandler

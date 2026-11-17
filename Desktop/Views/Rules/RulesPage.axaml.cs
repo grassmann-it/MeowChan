@@ -18,8 +18,7 @@ namespace MeowChan;
 
 public sealed record RuleScopeChoice(MediaRuleScope Scope, string Label);
 
-[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1001", Justification = "The shell calls EndLifetime to drain the page-owned lifetime.")]
-public partial class RulesPage : UserControl, INotifyPropertyChanged
+public sealed partial class RulesPage : UserControl, INotifyPropertyChanged, IAsyncDisposable
 {
     // The limit is typed in MiB, like every other size of the app (1 MiB = 1024 * 1024 bytes); the rule stores whole bytes.
     private const decimal BytesPerMebibyte = 1_048_576m;
@@ -40,7 +39,6 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
     private bool _available;
     private bool _busy;
     private bool _ended;
-    private IDisposable? _pageKeyContext;
     private string? _validationKey;
     private string? _saveRejectedKey;
     private string? _operationErrorKey;
@@ -301,18 +299,26 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
         RuleEnabledInput.BringIntoView();
     }
 
+    private readonly IDisposable _pageKeyContext;
+
+    public ValueTask DisposeAsync()
+    {
+        EndLifetime();
+        return ValueTask.CompletedTask;
+    }
+
     public void EndLifetime()
     {
         if (_ended) return;
         _discardConfirmation.Close(); _templateDeleteConfirmation?.Close(); _templateEditorConfirmation?.Close();
         foreach (Desktop.Controls.DraftDiscardConfirmation confirmation in _overviewConfirmations) confirmation.Close();
         _ended = true;
+        _pageKeyContext.Dispose();
         EndRuleSuggestions();
         IsEnabled = false;
         _available = false;
         Texts.Changed -= OnLanguageChanged;
         _filterLifetime.Cancel(); _filterLifetime.Dispose();
-        _pageKeyContext?.Dispose(); _pageKeyContext = null;
     }
 
     /// <summary>Refreshes confirmed values while preserving dirty drafts and detecting conflicting edits.</summary>

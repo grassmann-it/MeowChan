@@ -12,7 +12,14 @@ namespace MeowChan.Desktop;
 /// </summary>
 internal static class VideoPlaybackObservation
 {
-    internal static async Task<TResult> RunAsync<TPlayback, TResult>(SemaphoreSlim operations,
+    internal static Task<TResult> RunAsync<TPlayback, TResult>(SemaphoreSlim operations,
+        VideoPlaybackLifetime lifetime, long generation, Func<TPlayback?> currentPlayback,
+        Func<TPlayback, long> playbackGeneration, Func<TPlayback, TResult> observe,
+        Func<string, TResult> unavailable, CancellationToken cancellationToken = default) where TPlayback : class
+        => RunAsync(operations.WaitAsync, () => operations.Release(), lifetime, generation,
+            currentPlayback, playbackGeneration, observe, unavailable, cancellationToken);
+
+    internal static async Task<TResult> RunAsync<TPlayback, TResult>(Func<CancellationToken, Task> wait, Action release,
         VideoPlaybackLifetime lifetime, long generation, Func<TPlayback?> currentPlayback,
         Func<TPlayback, long> playbackGeneration, Func<TPlayback, TResult> observe,
         Func<string, TResult> unavailable, CancellationToken cancellationToken = default) where TPlayback : class
@@ -21,7 +28,7 @@ internal static class VideoPlaybackObservation
         return await Task.Run(async () =>
         {
             using (PerformanceDiagnostics.Measure("video.observer.operations-wait", revision: generation))
-                await operations.WaitAsync(cancellationToken).ConfigureAwait(false);
+                await wait(cancellationToken).ConfigureAwait(false);
             try
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -37,7 +44,7 @@ internal static class VideoPlaybackObservation
                 // Do not publish a now-retired read as evidence for the new selection.
                 return lifetime.IsCurrent(generation) ? evidence : unavailable("Retired");
             }
-            finally { operations.Release(); }
+            finally { release(); }
         }, cancellationToken).ConfigureAwait(false);
     }
 }

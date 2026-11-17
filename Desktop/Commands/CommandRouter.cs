@@ -36,6 +36,14 @@ public sealed class CommandRouter : IDisposable
         return Routers.Any(w => w.TryGetTarget(out var router) && !router._disposed &&
             router._registrations.Any(r => r.CommandId == id && TopLevel.GetTopLevel(r.Owner) == top));
     }
+    /// <summary>Registers for the entire router lifetime; Dispose clears these with detachable registrations.</summary>
+    public void RegisterOwned(CommandRegistration registration)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        CommandCatalog.Get(registration.CommandId);
+        _registrations.Add(registration);
+    }
+
     public IDisposable Register(CommandRegistration registration)
     {
         CommandCatalog.Get(registration.CommandId);
