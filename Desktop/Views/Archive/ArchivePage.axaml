@@ -719,7 +719,7 @@
                                 </StackPanel>
                             </Border>
                         </Popup>
-                        <Border x:Name="ReaderNavigationHitHost" Background="#01000000" IsVisible="{Binding #ReaderNavigation.IsHitTestVisible}"
+                        <Border x:Name="ReaderNavigationHitHost" Background="Transparent" IsVisible="{Binding #ReaderNavigation.IsHitTestVisible}"
                                 IsHitTestVisible="True" HorizontalAlignment="Right" VerticalAlignment="Bottom" ZIndex="1000">
                         <WrapPanel x:Name="ReaderNavigation" Classes="reader-cross" Background="{DynamicResource Workspace.Card}" IsVisible="False" HorizontalAlignment="Right"
                                    VerticalAlignment="Bottom" Margin="0,0,24,32">
@@ -729,7 +729,7 @@
                                  the counter's MinWidth are ReaderNavigationLayout.BarMaxWidth and CounterMinWidth (a test pins both). -->
                             <!-- WrapPanel only hit-tests its children. Keep an explicit transparent surface around the capsule so separator/counter gaps
                                  cannot fall through to the reader content; the surface remains inside ReaderNavigation for the overlay contract. -->
-                            <Border x:Name="ReaderNavigationHitSurface" Background="#01000000" IsHitTestVisible="True">
+                            <Border x:Name="ReaderNavigationHitSurface" Background="Transparent" IsHitTestVisible="True">
                                 <Border x:Name="ReaderNavigationBar" Classes="workspace-overlay" Padding="3" MaxWidth="320">
                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                     <StackPanel.Styles>
