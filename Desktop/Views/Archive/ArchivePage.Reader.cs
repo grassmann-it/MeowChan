@@ -773,6 +773,10 @@ public partial class ArchivePage
     internal void NotifyReaderPointerMoved(Point position)
     {
         _readerSurfacePointer = position;
+        // The smoke harness and non-native pointer paths report movement on the reader surface
+        // without raising PointerExited on the capsule. Keep the hover flag in sync so a move
+        // away from the capsule can actually arm auto-hide even when the hit host is present.
+        _readerNavigationPointerOver = false;
         ShowReaderNavigation();
     }
 
@@ -789,11 +793,11 @@ public partial class ArchivePage
             _readerNavigationIdleTimer = new DispatcherTimer();
             _readerNavigationIdleTimer.Tick += (_, _) => OnReaderNavigationIdleTick();
         }
+        // Keep a changed delay effective even when the existing timer is already running.
+        // This matters for settings/smoke transitions that re-arm Auto without recreating it.
+        _readerNavigationIdleTimer.Interval = TimeSpan.FromMilliseconds(_readerNavigationIdleDelayMs);
         if (!_readerNavigationIdleTimer.IsEnabled)
-        {
-            _readerNavigationIdleTimer.Interval = TimeSpan.FromMilliseconds(_readerNavigationIdleDelayMs);
             _readerNavigationIdleTimer.Start();
-        }
         // Refresh the hit-test state even when the timer was already armed. Layout/theme/tab
         // changes can hide the bar while the activity flag remains true; a fresh pointer move
         // or keyboard command must restore the whole capsule, including its gap surface.
