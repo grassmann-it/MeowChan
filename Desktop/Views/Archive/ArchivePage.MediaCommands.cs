@@ -223,6 +223,7 @@ public partial class ArchivePage
             Control? item = ancestors.FirstOrDefault(control => control is ListBoxItem or DataGridRow);
             DataGridCell? cell = ancestors.OfType<DataGridCell>().FirstOrDefault()
                 ?? item?.GetVisualDescendants().OfType<DataGridCell>().FirstOrDefault(candidate => candidate.IsEffectivelyVisible);
+            if (cell != null) cell.Focusable = true;
             if (cell?.Focus(NavigationMethod.Pointer) != true) item?.Focus();
             UpdateActions();
         }

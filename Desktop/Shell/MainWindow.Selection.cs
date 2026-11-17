@@ -218,6 +218,9 @@ public partial class MainWindow
             // handled press cannot strand keyboard input on the previous row.
             DataGridCell? cell = (e.Source as Visual)?.GetSelfAndVisualAncestors().OfType<DataGridCell>().FirstOrDefault()
                 ?? hit?.GetVisualDescendants().OfType<DataGridCell>().FirstOrDefault(candidate => candidate.IsEffectivelyVisible);
+            // Native DataGrid cells default to non-focusable too. Opt in only
+            // the pointer target, not every cell through a shared style.
+            if (cell != null) cell.Focusable = true;
             if (cell?.Focus(NavigationMethod.Pointer) != true && hit?.Focus() != true) grid.Focus();
             // The handler is registered in the tunnel phase. Avalonia's DataGrid applies the
             // selection in its later class/bubble handling, so composing the menu here reads

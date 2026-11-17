@@ -121,11 +121,17 @@ internal static partial class MediaPageChecks
                 return first is { IsArrangeValid: true, Bounds.Width: > 0 }
                     && third is { IsArrangeValid: true, Bounds.Width: > 0 };
             });
+            await UntilAsync(() => !owner.SessionRowsApplying);
             grid.SelectedIndex = 0;
             grid.Focus();
             await RightContractClickAsync(third!, window);
-            Require(grid.SelectedIndex == 2 && third!.IsKeyboardFocusWithin,
-                "Downloads handler must select and focus a cell of the clicked row, not the table/old row.");
+            string focusEvidence = $"selected={grid.SelectedIndex}, rowFocus={third!.IsKeyboardFocusWithin}, "
+                + $"focused={window.FocusManager?.GetFocusedElement()?.GetType().Name}, applying={owner.SessionRowsApplying}, cells="
+                + string.Join(",", third.GetVisualDescendants().OfType<DataGridCell>().Select(cell =>
+                    $"focusable:{cell.Focusable}/shown:{cell.IsEffectivelyVisible}/focused:{cell.IsKeyboardFocusWithin}"));
+            Console.WriteLine("SMOKE Downloads focus evidence: " + focusEvidence);
+            Require(grid.SelectedIndex == 2 && third.IsKeyboardFocusWithin,
+                "Downloads handler must select and focus a cell of the clicked row, not the table/old row: " + focusEvidence);
             grid.SelectedItems.Add("first");
             await RightContractClickAsync(first!, window);
             Require(grid.SelectedItems.Count == 2 && first!.IsKeyboardFocusWithin,
