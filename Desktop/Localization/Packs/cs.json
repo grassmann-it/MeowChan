@@ -2941,6 +2941,8 @@
     "booru.ui.query.sent": "Dotaz odeslaný na Danbooru: {0}",
     "booru.ui.query.hint": "Až dva štítky a jeden volitelný výraz rating:, odeslané přesně tak, jak jsou napsány (oddělovače se změní na jednoduché mezery). MeowChan nic nepřidává.",
     "booru.ui.post.sent": "Příspěvek k vyhledání: #{0}",
+    "booru.ui.page.jump": "Přejít na stránku",
+    "booru.ui.page.atLeast": "Nejméně {0} výsledků; nejde o celkový počet.",
     "booru.ui.page.info": "Stránka {0} z nejvýše {1} · výsledků na stránku: {2}",
     "booru.ui.page.previous": "Předchozí stránka",
     "booru.ui.page.next": "Další stránka",

@@ -2927,6 +2927,8 @@
     "booru.ui.query.sent": "Ricerca inviata a Danbooru: {0}",
     "booru.ui.query.hint": "Fino a due tag e un termine rating: facoltativo, inviati esattamente come digitati (i separatori diventano spazi singoli). MeowChan non aggiunge nulla.",
     "booru.ui.post.sent": "Post da cercare: #{0}",
+    "booru.ui.page.jump": "Vai alla pagina",
+    "booru.ui.page.atLeast": "Almeno {0} risultati; non è un totale.",
     "booru.ui.page.info": "Pagina {0} di al massimo {1} · {2} risultati per pagina",
     "booru.ui.page.previous": "Pagina precedente",
     "booru.ui.page.next": "Pagina successiva",

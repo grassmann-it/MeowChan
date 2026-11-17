@@ -31,6 +31,8 @@ internal static class BooruUiCatalog
         ("booru.ui.query.hint", "Up to two tags and one optional rating: term, sent exactly as typed (separators become single spaces). MeowChan adds nothing.", "Bis zu zwei Tags und ein optionaler rating:-Term, genau wie eingegeben gesendet (Trennzeichen werden zu einzelnen Leerzeichen). MeowChan fügt nichts hinzu."),
         ("booru.ui.post.sent", "Post to look up: #{0}", "Abzurufender Post: #{0}"),
         ("booru.ui.page.info", "Page {0} of at most {1} · {2} results per page", "Seite {0} von höchstens {1} · {2} Treffer pro Seite"),
+        ("booru.ui.page.jump", "Go to page", "Zur Seite"),
+        ("booru.ui.page.atLeast", "At least {0} results; not a total count.", "Mindestens {0} Treffer; keine Gesamtzahl."),
         ("booru.ui.page.previous", "Previous page", "Vorherige Seite"),
         ("booru.ui.page.next", "Next page", "Nächste Seite"),
         ("booru.ui.page.limit", "Searches here are limited to {0} pages of {1} results. Refine the tags, or create a watcher to follow new posts.", "Suchen sind hier auf {0} Seiten mit je {1} Treffern begrenzt. Tags eingrenzen oder eine Suchbeobachtung anlegen, um neue Posts zu verfolgen."),

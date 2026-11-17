@@ -3300,6 +3300,8 @@
     "booru.ui.query.sent": "Consulta enviada a Danbooru: {0}",
     "booru.ui.query.hint": "Hasta dos etiquetas y un término rating: opcional, enviados exactamente como se escriben (los separadores pasan a ser espacios simples). MeowChan no añade nada.",
     "booru.ui.post.sent": "Publicación que se consultará: #{0}",
+    "booru.ui.page.jump": "Ir a la página",
+    "booru.ui.page.atLeast": "Al menos {0} resultados; no es un total.",
     "booru.ui.page.info": "Página {0} de un máximo de {1} · {2} resultados por página",
     "booru.ui.page.previous": "Página anterior",
     "booru.ui.page.next": "Página siguiente",

@@ -3123,6 +3123,8 @@
     "booru.ui.query.sent": "Danbooruに送ったクエリ: {0}",
     "booru.ui.query.hint": "タグは2つまでと任意のrating:の語1つで、入力したとおりに送られます（区切りは単一の空白になります）。MeowChanは何も加えません。",
     "booru.ui.post.sent": "照会する投稿: #{0}",
+    "booru.ui.page.jump": "ページへ移動",
+    "booru.ui.page.atLeast": "少なくとも {0} 件の結果。総数ではありません。",
     "booru.ui.page.info": "ページ {0} / 最大{1} · 1ページ{2}件",
     "booru.ui.page.previous": "前のページ",
     "booru.ui.page.next": "次のページ",

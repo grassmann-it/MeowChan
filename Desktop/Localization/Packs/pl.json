@@ -2944,6 +2944,8 @@
     "booru.ui.query.sent": "Zapytanie wysłane do Danbooru: {0}",
     "booru.ui.query.hint": "Do dwóch tagów i jedno opcjonalne wyrażenie rating:, wysyłane dokładnie tak, jak wpisano (separatory stają się pojedynczymi spacjami). MeowChan niczego nie dodaje.",
     "booru.ui.post.sent": "Post do wyszukania: #{0}",
+    "booru.ui.page.jump": "Przejdź do strony",
+    "booru.ui.page.atLeast": "Co najmniej {0} wyników; to nie jest łączna liczba.",
     "booru.ui.page.info": "Strona {0} z najwyżej {1} · wyników na stronę: {2}",
     "booru.ui.page.previous": "Poprzednia strona",
     "booru.ui.page.next": "Następna strona",

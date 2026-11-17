@@ -32,6 +32,10 @@ internal sealed record BooruSearchView(
 {
     internal bool IsPostResult => ExecutedPostId is not null;
     internal bool IsBusy => Status == BooruSearchStatus.Searching;
+    // Provider pages are snapshots, not an authoritative total (even at the end or the host bound).
+    // Empty/failed/aborted pages cannot establish an offset-based lower bound.
+    internal int? ResultCountLowerBound => Status == BooruSearchStatus.Results && !IsPostResult
+        ? (Page - 1) * BooruSearchModel.PageSize + Rows.Length : null;
     /// <summary>Bounded paging: never beyond page 5, never after the provider reported the end.</summary>
     internal bool HasNextPage => Status == BooruSearchStatus.Results && ExecutedQuery is not null && !IsPostResult
         && !IsEnd && Page < BooruSearchModel.MaximumPage;

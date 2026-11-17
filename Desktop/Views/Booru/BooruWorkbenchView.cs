@@ -99,6 +99,9 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     private readonly WrapPanel _pager = new() { Classes = { "workspace-toolbar" } };
     private readonly Button _previous = new() { Name = PreviousName };
     private readonly Button _next = new() { Name = NextName };
+    private readonly NumericUpDown _pageTarget = new() { Name = "BooruPageTarget", Minimum = 1, Maximum = BooruSearchModel.MaximumPage, Value = 1, Increment = 1, FormatString = "0", Width = 90 };
+    private readonly Button _jumpPage = new() { Name = "BooruJumpPage" };
+    private readonly TextBlock _resultCount = new() { Name = "BooruResultCount", Classes = { "workspace-meta", "tnum" }, TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _pageInfo = new() { Classes = { "workspace-meta", "tnum" }, VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBlock _pageLimit = new() { Classes = { "workspace-help" } };
     private readonly Button _createWatcher = new() { Name = CreateWatcherName, HorizontalAlignment = HorizontalAlignment.Left };

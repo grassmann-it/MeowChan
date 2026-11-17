@@ -3123,6 +3123,8 @@
     "booru.ui.query.sent": "发送给 Danbooru 的查询：{0}",
     "booru.ui.query.hint": "最多两个标签和一个可选的 rating: 词条，按输入原样发送（分隔符会变为单个空格）。MeowChan 不会添加任何内容。",
     "booru.ui.post.sent": "要查找的帖子：#{0}",
+    "booru.ui.page.jump": "跳转到页",
+    "booru.ui.page.atLeast": "至少 {0} 个结果；不是总数。",
     "booru.ui.page.info": "第 {0} 页，最多 {1} 页 · 每页 {2} 个结果",
     "booru.ui.page.previous": "上一页",
     "booru.ui.page.next": "下一页",

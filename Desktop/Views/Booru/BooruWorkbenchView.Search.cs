@@ -69,6 +69,14 @@ internal sealed partial class BooruWorkbenchView
         _pager.Children.Add(_previous);
         _pager.Children.Add(_pageInfo);
         _pager.Children.Add(_next);
+        _pager.Children.Add(_pageTarget);
+        _pager.Children.Add(_jumpPage);
+        _pageTarget.ValueChanged += (_, _) => OnModelChanged();
+        _jumpPage.Click += async (_, _) =>
+        {
+            if (_pageTarget.Value is { } page && page == decimal.Truncate(page))
+                await _model.Search.GoToPageAsync((int)page);
+        };
 
         StackPanel watcherRow = new() { Spacing = 4 };
         watcherRow.Children.Add(_createWatcher);
@@ -87,6 +95,7 @@ internal sealed partial class BooruWorkbenchView
         tab.Children.Add(_noticeHost);
         tab.Children.Add(_statusHost);
         tab.Children.Add(_pager);
+        tab.Children.Add(_resultCount);
         tab.Children.Add(_results);
         tab.Children.Add(_pageLimit);
         return tab;
@@ -191,6 +200,11 @@ internal sealed partial class BooruWorkbenchView
         IconButtons.Apply(_next, "chevron-right", Texts.T("booru.ui.page.next"));
         _next.IsEnabled = view.HasNextPage && !paused;
         _pageInfo.Text = Texts.T("booru.ui.page.info", view.Page, BooruSearchModel.MaximumPage, BooruSearchModel.PageSize);
+        _jumpPage.Content = Texts.T("booru.ui.page.jump");
+        AutomationProperties.SetName(_pageTarget, Texts.T("booru.ui.page.jump"));
+        _pageTarget.IsEnabled = _jumpPage.IsEnabled = !view.IsBusy && !paused;
+        _resultCount.IsVisible = view.ResultCountLowerBound is not null;
+        _resultCount.Text = view.ResultCountLowerBound is { } count ? Texts.T("booru.ui.page.atLeast", count) : string.Empty;
         _pageLimit.IsVisible = view.PageLimitReached;
         _pageLimit.Text = Texts.T("booru.ui.page.limit", BooruSearchModel.MaximumPage, BooruSearchModel.PageSize);
 
