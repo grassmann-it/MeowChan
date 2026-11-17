@@ -17,8 +17,8 @@ namespace MeowChan.Desktop.Controls;
 
 /// <summary>
 /// The favorite and rating row on top of the gallery tag panel and of the "Rate and tag…" popover (PT6, decision E2; design plan 16.11.2026): line one is
-/// the rating bar, five equal full-width star cells (no gaps, so the hit area is continuous) and the remove button; line two is "☆ Favorite" on the left and
-/// the rating caption ("4 of 5", "Unrated", "Ratings differ") at the right. The row shows a <see cref="GalleryDecisionView"/> and raises requests; the
+/// the rating bar, five equal full-width star cells (no gaps, so the hit area is continuous) and the remove button; below it is a centered "☆ Favorite"
+/// as wide as the five stars, followed by the right-aligned rating caption ("4 of 5", "Unrated", "Ratings differ"). The row shows a <see cref="GalleryDecisionView"/> and raises requests; the
 /// viewer writes. The five stars are a group of toggle buttons of which exactly the rated one is checked (the radio role: a screen
 /// reader names "Rating: 4 of 5" and its state); the filled stars up to the rating carry the sight, and the stars under the pointer preview the rating they
 /// would set (never a request). The stars are one tab stop (the checked one, star 1 while unrated); Left, Right, Home and End rove along them. A click never takes the focus out of the
@@ -26,7 +26,7 @@ namespace MeowChan.Desktop.Controls;
 /// </summary>
 internal sealed class GalleryDecisionRow : StackPanel
 {
-    private readonly ToggleButton _favorite = new() { Classes = { "media-control" } };
+    private readonly ToggleButton _favorite = new() { Classes = { "media-control", "rating-favorite" } };
     private readonly ToggleButton[] _stars = new ToggleButton[5];
     private readonly Button _clear = new();
     /// <summary>Edge of a star glyph in dip; the cell around it (class "rating-star") is the Workspace.Size.Nav high, equal-width hit area.</summary>
@@ -55,7 +55,7 @@ internal sealed class GalleryDecisionRow : StackPanel
         Spacing = 8; // the rating bar and the favourite line
         _favorite.Name = name + "Favorite"; _clear.Name = name + "RatingClear"; _group.Name = name + "Rating"; _summary.Name = name + "Summary";
         _favorite.IsThreeState = true;
-        _favoriteContent = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { FavoriteStar.Create(false, 16), _favoriteLabel } };
+        _favoriteContent = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { FavoriteStar.Create(false, StarGlyphSize), _favoriteLabel } };
         _favorite.Content = _favoriteContent;
         for (int index = 0; index < _stars.Length; index++)
         {
@@ -73,10 +73,20 @@ internal sealed class GalleryDecisionRow : StackPanel
         _clear.VerticalAlignment = VerticalAlignment.Center;
         Grid.SetColumn(_clear, 6);
         _group.Children.Add(_clear);
-        // The favourite on its own line (an icon-only star beside five rating stars would read as a sixth one) with the caption at the right.
-        Grid line = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*"), Name = name + "Line" };
-        _summary.Margin = new Thickness(8, 0, 0, 0);
-        Grid.SetColumn(_summary, 1);
+        // Share the clear-button gutter, not a fixed width: the favourite always spans exactly the five star cells.
+        // Keep the caption below, rather than stealing width from the button or crushing translated/mixed-state text into the gutter.
+        Grid.SetIsSharedSizeScope(this, true);
+        _group.ColumnDefinitions[6].SharedSizeGroup = "DecisionClear";
+        Grid line = new()
+        {
+            ColumnDefinitions = new ColumnDefinitions("*,*,*,*,*,8,Auto"),
+            RowDefinitions = new RowDefinitions("Auto,Auto"), Name = name + "Line"
+        };
+        line.ColumnDefinitions[6].SharedSizeGroup = "DecisionClear";
+        Grid.SetColumnSpan(_favorite, 5);
+        _summary.Margin = new Thickness(0, 8, 0, 0);
+        Grid.SetRow(_summary, 1);
+        Grid.SetColumnSpan(_summary, 7);
         line.Children.Add(_favorite);
         line.Children.Add(_summary);
         Children.Add(_group);
@@ -171,7 +181,7 @@ internal sealed class GalleryDecisionRow : StackPanel
         bool all = view.Favorite == GalleryDecisionCoverage.All;
         _favorite.IsEnabled = view.Available;
         _favorite.IsChecked = view.Favorite == GalleryDecisionCoverage.Some ? null : all;
-        _favoriteContent.Children[0] = FavoriteStar.Create(all, 16);
+        _favoriteContent.Children[0] = FavoriteStar.Create(all, StarGlyphSize);
         // The label says what the targets carry: "Favorite", and "Favorite on some" while only some of a selection are.
         _favoriteLabel.Text = view.Favorite == GalleryDecisionCoverage.Some ? Texts.T("gallery.decision.favorite.some") : Texts.T("gallery.decision.favorite");
         int rating = view.RatingMixed ? 0 : view.Rating ?? 0;
@@ -189,7 +199,7 @@ internal sealed class GalleryDecisionRow : StackPanel
         _clear.IsEnabled = view.Available && (view.Rating.HasValue || view.RatingMixed);
         Paint();
         _summary.Text = GalleryDecisionText.Caption(view);
-        // The group's help is the full sentence (rating and favourite); the caption beside the favourite shows the rating alone.
+        // The group's help is the full sentence (rating and favourite); the caption below the favourite shows the rating alone.
         AutomationProperties.SetHelpText(_group, GalleryDecisionText.Summary(view));
         AutomationProperties.SetHelpText(_favorite, GalleryDecisionText.Favorite(view));
     }

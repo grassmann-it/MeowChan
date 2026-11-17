@@ -10,9 +10,9 @@ using MeowChan.Desktop.Localization;
 
 namespace MeowChan.DesktopTests;
 
-// Design plan "Rate and tag…" popover (16.11.2026): the shared favourite and rating row. Two lines: the rating bar (five equal full-width star
-// cells and the remove button) and the favourite with the short rating caption. Hover previews, one tab stop, the label of a partly favourite
-// selection, the caption beside a full help sentence. Controls without an application have no theme, so geometry is checked on the grid and
+// Shared "Rate and tag…" decision row (UX-LEDGER-12): the rating bar (five equal full-width star cells and the remove button),
+// an equally wide favourite, then a short rating caption. Hover previews, one tab stop, the label of a partly favourite
+// selection, and the full help sentence stay intact. Controls without an application have no theme, so geometry is checked on the grid and
 // the real layout of the cells at the popover width and the narrow width belongs to the captures run centrally.
 [Collection("Localization")]
 public sealed class GalleryDecisionRowDesignTests : IDisposable
@@ -181,6 +181,65 @@ public sealed class GalleryDecisionRowDesignTests : IDisposable
 
     // ---- the favourite line --------------------------------------------------------------------------------------------------------
 
+    [Theory]
+    [InlineData(440.0, 32.0), InlineData(336.0, 32.0), InlineData(280.0, 40.0), InlineData(160.0, 32.0)]
+    public void FavouriteSpansExactlyTheFiveStarsAndKeepsTheCaptionOutOfItsWidth(double width, double clearWidth)
+    {
+        GalleryDecisionRow row = new("DesignRow");
+        Grid bar = Assert.IsType<Grid>(row.RatingGroup);
+        Grid line = Assert.IsType<Grid>(row.Children[1]);
+        Assert.True(Grid.GetIsSharedSizeScope(row));
+        Assert.Equal(bar.ColumnDefinitions[6].SharedSizeGroup, line.ColumnDefinitions[6].SharedSizeGroup);
+        Assert.Equal("DecisionClear", line.ColumnDefinitions[6].SharedSizeGroup);
+        Assert.Equal(5, Grid.GetColumnSpan(row.FavoriteButton));
+        Assert.Equal(1, Grid.GetRow(row.Summary));
+        Assert.Equal(7, Grid.GetColumnSpan(row.Summary));
+        // No application/text services: give both shared gutters the resolved clear width and remove text content.
+        // The shared-size contract above is what supplies that width in the visual tree.
+        bar.ColumnDefinitions[6].Width = new GridLength(clearWidth);
+        line.ColumnDefinitions[6].Width = new GridLength(clearWidth);
+        row.FavoriteButton.Content = null;
+        row.Summary.IsVisible = false;
+        foreach (Grid grid in new[] { bar, line })
+        {
+            grid.Measure(new Size(width, double.PositiveInfinity));
+            grid.Arrange(new Rect(0, 0, width, 40));
+        }
+        Assert.Equal(row.StarButtons[0].Bounds.Left, row.FavoriteButton.Bounds.Left, 3);
+        Assert.Equal(row.StarButtons[4].Bounds.Right, row.FavoriteButton.Bounds.Right, 3);
+        Assert.Equal(width - clearWidth - 8, row.FavoriteButton.Bounds.Width, 3);
+    }
+
+    [Fact]
+    public void FavouriteStyleCentersTheWholeContentAndEnlargesOnlyTheDecisionRowTarget()
+    {
+        GalleryDecisionRow row = new("DesignRow");
+        Assert.Contains("rating-favorite", row.FavoriteButton.Classes);
+        Assert.Contains("media-control", row.FavoriteButton.Classes);
+        XElement style = XDocument.Parse(File.ReadAllText(Root("Desktop/WorkspaceStyles.axaml"))).Root!
+            .Elements(A + "Style").Single(style => (string?)style.Attribute("Selector") == "ToggleButton.rating-favorite");
+        Dictionary<string, string?> settings = style.Elements(A + "Setter")
+            .ToDictionary(setter => (string)setter.Attribute("Property")!, setter => (string?)setter.Attribute("Value"));
+        Assert.Equal("{StaticResource Workspace.Size.Nav}", settings["MinHeight"]);
+        Assert.Equal("11,7", settings["Padding"]);
+        Assert.Equal("Stretch", settings["HorizontalAlignment"]);
+        Assert.Equal("Center", settings["HorizontalContentAlignment"]);
+        Assert.Equal("Center", settings["VerticalContentAlignment"]);
+        Assert.Equal("{StaticResource Workspace.FocusAdorner}", settings["FocusAdorner"]);
+        Assert.DoesNotContain("Height", settings.Keys); // larger text may grow; no fixed-height clipping
+        Assert.DoesNotContain("Background", settings.Keys); // existing media-control theme/state colors stay intact
+        Assert.DoesNotContain("Foreground", settings.Keys);
+        foreach (GalleryDecisionCoverage coverage in Enum.GetValues<GalleryDecisionCoverage>())
+        {
+            GalleryDecisionView view = View(3, coverage);
+            row.Show(view);
+            Assert.Equal(GalleryDecisionText.Favorite(view), AutomationProperties.GetHelpText(row.FavoriteButton));
+            StackPanel content = Assert.IsType<StackPanel>(row.FavoriteButton.Content);
+            Assert.Equal(20, content.Children[0].Width);
+            Assert.Equal(20, content.Children[0].Height);
+        }
+    }
+
     private static string FavoriteLabel(GalleryDecisionRow row) =>
         Assert.IsType<StackPanel>(row.FavoriteButton.Content).Children.OfType<TextBlock>().Single().Text!;
 
@@ -239,7 +298,8 @@ public sealed class GalleryDecisionRowDesignTests : IDisposable
         Assert.Same(row.RatingGroup, row.Children[0]);
         Assert.Contains(row.FavoriteButton, line.Children);
         Assert.Contains(row.Summary, line.Children);
-        Assert.Equal(1, Grid.GetColumn(row.Summary));
+        Assert.Equal(1, Grid.GetRow(row.Summary));
+        Assert.Equal(7, Grid.GetColumnSpan(row.Summary));
         Assert.Equal(Avalonia.Layout.HorizontalAlignment.Right, row.Summary.HorizontalAlignment);
         Assert.Equal(8, row.Spacing); // the two lines
     }
