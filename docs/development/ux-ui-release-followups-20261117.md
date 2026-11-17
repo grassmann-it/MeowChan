@@ -20,6 +20,9 @@ only the specific behavior covered here, not the remaining backlog or release ga
 | UX-LEDGER-05 | [#16](https://github.com/grassmann-it/MeowChan/pull/16) | Booru preview viewer, current-page navigation and shared per-image selection, explicit displayed-original download |
 | UX-LEDGER-06 | [#18](https://github.com/grassmann-it/MeowChan/pull/18) | Downloads/Archive/Media pointer-target selection and focus; Media sidebar preview-only single-click; interaction guards with explicit protected-scope skips |
 | UX-LEDGER-07 (CI-LEDGER-07) | [#15](https://github.com/grassmann-it/MeowChan/pull/15) | Independent smoke modes continue after failures; aggregate jobs and summaries retain failures and unsafe-cleanup/interruption blocking; no product behavior changes |
+| UX-LEDGER-08 | `d00eb27f9`, `3c946ef77` | Continue Reading is reachable over Gallery and opening a thread restores its valid saved post/anchor, with deterministic first-visible fallback; targeted Shell/Reader entry tests pass |
+| UX-LEDGER-09 | `f4378faa3` | Header network/disk statistics activation closes Gallery/large Reader before opening Statistics; contract coverage added |
+| UX-LEDGER-10 | `d00eb27f9` | Continue Reading remains enabled and usable while Gallery/large Reader covers the workspace; Gallery closes before resume is applied |
 
 The gallery behavior audited by UX-LEDGER-06 is **double-click toggles window
 fullscreen**, not the older Fit/1:1 description below; **0** selects Fit and **1**
@@ -74,15 +77,10 @@ hardening does not itself establish a green sweep.
   leave a permanent grey loading surface.
 - **Booru/plugin diagnostics:** current bundled plugin repair must be reachable and actionable;
   stale pinned builds should explain the repair path without silently changing the user pin.
-- **Continue-reading entry point (new UX-LEDGER-08):** when a thread has a persisted reading
-  position, opening it from Archive/Downloads/Reader entry points must select and reveal the
-  corresponding post and its applicable medium instead of always selecting post one. A valid
-  saved position on the final post remains on that final post; it must not wrap to the first
-  post. If the position is missing, stale, filtered out, or no longer maps to a captured post,
-  fall back deterministically to the first visible post. The restore must not steal focus from
-  an active text field, overwrite a newer live reading position, or let a stale async load paint
-  a previous thread. Add native entry-path coverage for first/middle/final, invalid and empty
-  positions, plus rapid thread switching and sidebar-open media selection.
+- **Continue-reading entry point (UX-LEDGER-08):** implemented for the Archive large-reader
+  entry path and covered-view resume routing. Native full entry-path coverage still belongs to
+  the release sweep: first/middle/final, invalid/filtered positions, rapid thread switching,
+  and sidebar-open media selection must be checked before release.
 
 ## Later (1.2+ candidate)
 
@@ -162,18 +160,12 @@ in order of appearance. Review reports, screenshots and runtime evidence stay ou
 
 ### Newly captured follow-ups (17 November 2026)
 
-- **UX-LEDGER-09 Header statistics routing:** clicking the network/disk graph in the persistent
-  shell header must always open the Statistics segment, including while Gallery or the large
-  Reader covers the workspace. The route must close or suspend the covering surface first, so
-  navigation is visible rather than changing a hidden page underneath it. Verify mouse, keyboard
-  activation and screen-reader name from Gallery, large Reader, every workspace page, and
-  Barebones/Simple/Advanced work-view layouts; preserve the originating reader/gallery state for
-  the normal back/close path.
-- **UX-LEDGER-10 Continue Reading reachability in covered views:** the shell Continue reading
-  button, history arrow, app-menu entry and configured shortcut must remain enabled and usable while
-  Gallery or the large Reader is visible. Selecting a place closes only the covering Gallery before
-  applying the saved position; it must not silently no-op or strand focus. Test mouse, Enter/Space,
-  Menu/Shift+F10, app menu and shortcut activation from Gallery, large Reader and normal Archive.
+- **UX-LEDGER-09 Header statistics routing:** implementation is present and contract-tested. The
+  full native matrix (mouse, keyboard, accessible name, every work-view layout, and the normal
+  return path) remains part of the release sweep.
+- **UX-LEDGER-10 Continue Reading reachability in covered views:** implementation is present and
+  contract-tested for Gallery/large Reader coverage. The full native matrix (mouse, Enter/Space,
+  menu/Shift+F10, app menu and shortcut) remains part of the release sweep.
 - **Ledger audit rule:** every newly reported click/focus/routing failure gets a stable ledger ID
   before implementation, with its reproduction surface, expected behavior, fallback behavior and
   a native smoke or contract test. Before release, compare the conversation handover against this
