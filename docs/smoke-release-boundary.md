@@ -57,3 +57,21 @@ dotnet build tests/MeowChan.DesktopSmoke/MeowChan.DesktopSmoke.csproj -c Debug
 dotnet build tests/MeowChan.DesktopSmoke/MeowChan.DesktopSmoke.csproj -c Release
 python3 scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll --registry --only no-tray --output artifacts/ledger21
 ```
+
+## Recorded validation (2026-11-17)
+
+At code commit `d708440d436ffb63e0282e8b40cad1514207131b`:
+
+- Product + DesktopTests built in Debug and Release (zero errors).
+- Focused Debug tests: **76 passed, 0 failed, 0 skipped**.
+- Focused Release tests: **20 passed, 0 failed, 0 skipped**, including the PE metadata absence
+  assertion and the retained source-activation startup/diagnostic assertions.
+- DesktopSmoke built in Debug and Release (zero errors), against those already-built products.
+- Release registry invocation above: **no-tray passed; summary 1 passed, 0 failed, 0 skipped**.
+- Debug in-app `--smoke-startup-seconds 3` on private DBus/Xvfb: **APPHOST STARTUP PASS**;
+  actual main window/session ready, dwell and normal shutdown completed, exit 0.
+- No full solution build or full smoke suite was run. Existing compiler/analyzer warnings remain.
+
+The legacy Release-archive in-app packaging probes were not migrated or executed here. They cannot
+keep their old claim that an embedded harness executed inside the shipping Release binary once
+that harness is absent. Keep this distinct from the successfully validated external Release registry.
