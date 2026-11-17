@@ -95,7 +95,7 @@ public sealed class SmokeDeterminismTests
             .Select(match => match.Groups[1].Value).ToArray();
         Assert.Equal(new[]
         {
-            "thread.favorite-toggle", "thread.read", "gallery.open", "thread.details", "export.open-html-dialog",
+            "thread.favorite-toggle", "thread.read", "gallery.open", "thread.details", "post-bookmarks.open-manager", "export.open-html-dialog",
             "selection.copy-links", "location.open-folder", "location.open-source", "watch.check", "watch.retry-media",
             "rules.edit-scope", "watch.remove", "archive.delete-permanently"
         }, batch);
@@ -115,7 +115,7 @@ public sealed class SmokeDeterminismTests
         Assert.Contains("RequireArchiveMenuOrder(cardMenu, single: false);", source);
         Assert.Contains("CheckKeyboardContextAsync(table, table.ContextMenu!, singleArchiveSelection: true)", source);
         Assert.Contains("CheckKeyboardContextAsync(table, table.ContextMenu, singleArchiveSelection: false)", source);
-        Assert.Contains("expected.Insert(5, \"thread.tags\"); expected.Insert(7, \"export.open-urltext-dialog\");", source);
+        Assert.Contains("expected.Insert(5, \"thread.tags\"); expected.Insert(8, \"export.open-urltext-dialog\");", source);
         Assert.Contains("actual.SequenceEqual(expected)", source);
     }
 
