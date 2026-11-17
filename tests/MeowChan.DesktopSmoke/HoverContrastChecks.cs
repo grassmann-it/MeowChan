@@ -52,6 +52,7 @@ internal static class HoverContrastChecks
                 await ContextMenuAsync(window, mouse, tag, failures);
                 await ToolsMenuAsync(window, mouse, tag, failures);
                 await SettingsDropDownAsync(window, mouse, tag, failures);
+                await SettingsSwitchAsync(window, mouse, tag, failures);
             }
         }
         finally
@@ -64,7 +65,7 @@ internal static class HoverContrastChecks
         }
         if (failures.Count > 0) throw new InvalidOperationException("Hover contrast: " + string.Join("; ", failures));
         Console.WriteLine("SMOKE hover contrast: footer navigation (hover, selected, selected+hover), work-view selector and drop-down, Tools menu, "
-            + "columns context menu and a settings drop-down passed rendered text 4.5:1 and state boundaries 3:1 in Light and Dark.");
+            + "columns context menu, a settings drop-down and the settings switches (off and on) passed rendered text 4.5:1 and state boundaries 3:1 in Light and Dark.");
     }
 
     private static async Task FooterAsync(MainWindow window, MouseDevice mouse, string tag, List<string> failures)
@@ -148,6 +149,62 @@ internal static class HoverContrastChecks
         Click(window.FindControl<Button>("DownloadsNavigationButton")!);
         await Program.WaitUntilAsync(() => window.SelectedPage == MainWindow.WorkspacePage.Downloads);
     }
+
+    // AX-02: a settings switch under the real Semi template. The track is the control's visible boundary (3:1 against the row around it, WCAG 1.4.11)
+    // in the off and the on state, and the knob stays distinct from the track (3:1). Rendered pixels: the track is the commonest colour inside the switch
+    // that is not the row colour; the knob is the strongest pixel on the centre line between the two ends of the switch.
+    private static async Task SettingsSwitchAsync(MainWindow main, MouseDevice mouse, string tag, List<string> failures)
+    {
+        Click(main.FindControl<Button>("SettingsNavigationButton")!);
+        await Program.WaitUntilAsync(() => main.SettingsEditor.IsEffectivelyVisible);
+        Leave(main, mouse);
+        await SettleAsync(main);
+        ToggleSwitch[] switches = main.SettingsEditor.GetVisualDescendants().OfType<ToggleSwitch>()
+            .Where(candidate => candidate.IsEffectivelyVisible && candidate.IsEffectivelyEnabled && candidate.OnContent == null && candidate.OffContent == null
+                && candidate.Bounds.Width >= 24 && candidate.Bounds.Height >= 12 && InsideWindow(candidate, main)).ToArray();
+        ToggleSwitch? off = switches.FirstOrDefault(candidate => candidate.IsChecked != true), on = switches.FirstOrDefault(candidate => candidate.IsChecked == true);
+        if (off == null && on == null) throw new InvalidOperationException("No settings switch is visible to measure.");
+        using (SKBitmap image = CaptureWindow(main, $"smoke-hover-{tag}-settings-switches.png"))
+        {
+            foreach ((ToggleSwitch? toggle, string state) in new[] { (off, "off"), (on, "on") })
+            {
+                if (toggle == null) { Console.WriteLine($"SMOKE hover probe: {tag} settings switch {state}: none visible, not measured"); continue; }
+                Color around = Sample(image, toggle, main, -3, toggle.Bounds.Height / 2);
+                double scale = main.RenderScaling;
+                Point origin = toggle.TranslatePoint(default, main) ?? throw new InvalidOperationException("No switch position.");
+                int left = Math.Max(0, (int)Math.Floor(origin.X * scale)), right = Math.Min(image.Width, (int)Math.Ceiling((origin.X + toggle.Bounds.Width) * scale));
+                int top = Math.Max(0, (int)Math.Floor(origin.Y * scale)), bottom = Math.Min(image.Height, (int)Math.Ceiling((origin.Y + toggle.Bounds.Height) * scale));
+                Dictionary<Color, int> counts = new();
+                for (int y = top; y < bottom; y++)
+                for (int x = left; x < right; x++)
+                {
+                    Color color = Pixel(image, x, y);
+                    if (color != around) counts[color] = counts.GetValueOrDefault(color) + 1;
+                }
+                if (counts.Count == 0) { failures.Add($"{tag} settings switch {state}: nothing but the row colour inside the switch"); continue; }
+                Color track = counts.OrderByDescending(pair => pair.Value).First().Key;
+                Require(failures, tag, $"settings switch {state} track/row", Contrast(track, around), BoundaryMinimum);
+                int mid = (top + bottom) / 2, first = left, last = right - 1;
+                while (first < last && Pixel(image, first, mid) == around) first++;
+                while (last > first && Pixel(image, last, mid) == around) last--;
+                double knob = 1;
+                for (int x = first + 2; x <= last - 2; x++) knob = Math.Max(knob, Contrast(Pixel(image, x, mid), track));
+                Require(failures, tag, $"settings switch {state} knob/track", knob, BoundaryMinimum);
+            }
+        }
+        Click(main.FindControl<Button>("DownloadsNavigationButton")!);
+        await Program.WaitUntilAsync(() => main.SelectedPage == MainWindow.WorkspacePage.Downloads);
+    }
+
+    private static Color Pixel(SKBitmap image, int x, int y)
+    {
+        SKColor pixel = image.GetPixel(x, y);
+        return Color.FromArgb(255, pixel.Red, pixel.Green, pixel.Blue);
+    }
+
+    private static bool InsideWindow(Control control, Window window) =>
+        control.TranslatePoint(default, window) is { } origin && origin.X >= 0 && origin.Y >= 0
+        && origin.X + control.Bounds.Width <= window.Bounds.Width && origin.Y + control.Bounds.Height <= window.Bounds.Height;
 
     private static async Task DropDownAsync(MainWindow window, ComboBox combo, MouseDevice mouse, string file, string tag, string scene,
         List<string> failures)

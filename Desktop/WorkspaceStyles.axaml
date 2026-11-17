@@ -273,6 +273,17 @@
                     <SolidColorBrush x:Key="BadgeLightPrimaryBadgeForeground">#6AA7FF</SolidColorBrush>
                     <SolidColorBrush x:Key="GridSplitterPreviewBackground">#666AA7FF</SolidColorBrush>
                     <SolidColorBrush x:Key="DataGridDropLocationIndicatorBackground">#666AA7FF</SolidColorBrush>
+                    <!-- AX-02 (a11y package): ToggleSwitch tracks meet 3:1 against every surface in both states (Semi's own off track was 1.1-1.4:1 and its Light on track 2.1:1).
+                         Off track = ControlBorder in every pointer state (the position of the knob, not the track colour, carries on/off), on track = Accent (hover AccentHover, pressed the pressed accent);
+                         the knob is OnAccent, so it keeps 4.5:1 or better against the track in both states. Disabled keeps the quiet outline tone. -->
+                    <SolidColorBrush x:Key="ToggleSwitchContainerUnCheckedDefaultBackground">#7D8793</SolidColorBrush>
+                    <SolidColorBrush x:Key="ToggleSwitchContainerUnCheckedPointeroverBackground">#7D8793</SolidColorBrush>
+                    <SolidColorBrush x:Key="ToggleSwitchContainerUnCheckedPressedBackground">#7D8793</SolidColorBrush>
+                    <SolidColorBrush x:Key="ToggleSwitchContainerCheckedDefaultBackground">#6AA7FF</SolidColorBrush>
+                    <SolidColorBrush x:Key="ToggleSwitchContainerCheckedPointeroverBackground">#8ABBFF</SolidColorBrush>
+                    <SolidColorBrush x:Key="ToggleSwitchContainerCheckedPressedBackground">#6AA7FF</SolidColorBrush>
+                    <SolidColorBrush x:Key="ToggleSwitchContainerCheckedDisabledBackground">#4A525C</SolidColorBrush>
+                    <SolidColorBrush x:Key="ToggleSwitchIndicatorBackground">#121416</SolidColorBrush>
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="Light">
                     <SolidColorBrush x:Key="Workspace.Background">#E3DFD8</SolidColorBrush>
@@ -564,6 +575,17 @@
                     <SolidColorBrush x:Key="BadgeLightPrimaryBadgeForeground">#803B06</SolidColorBrush>
                     <SolidColorBrush x:Key="GridSplitterPreviewBackground">#66803B06</SolidColorBrush>
                     <SolidColorBrush x:Key="DataGridDropLocationIndicatorBackground">#66803B06</SolidColorBrush>
+                    <!-- AX-02 (a11y package): ToggleSwitch tracks meet 3:1 against every surface in both states (Semi's own off track was 1.1-1.4:1 and its Light on track 2.1:1).
+                         Off track = ControlBorder in every pointer state (the position of the knob, not the track colour, carries on/off), on track = Accent (hover AccentHover, pressed the pressed accent);
+                         the knob is OnAccent, so it keeps 4.5:1 or better against the track in both states. Disabled keeps the quiet outline tone. -->
+                    <SolidColorBrush x:Key="ToggleSwitchContainerUnCheckedDefaultBackground">#726858</SolidColorBrush>
+                    <SolidColorBrush x:Key="ToggleSwitchContainerUnCheckedPointeroverBackground">#726858</SolidColorBrush>
+                    <SolidColorBrush x:Key="ToggleSwitchContainerUnCheckedPressedBackground">#726858</SolidColorBrush>
+                    <SolidColorBrush x:Key="ToggleSwitchContainerCheckedDefaultBackground">#803B06</SolidColorBrush>
+                    <SolidColorBrush x:Key="ToggleSwitchContainerCheckedPointeroverBackground">#9A4B0B</SolidColorBrush>
+                    <SolidColorBrush x:Key="ToggleSwitchContainerCheckedPressedBackground">#662F05</SolidColorBrush>
+                    <SolidColorBrush x:Key="ToggleSwitchContainerCheckedDisabledBackground">#948A7D</SolidColorBrush>
+                    <SolidColorBrush x:Key="ToggleSwitchIndicatorBackground">#FFFFFF</SolidColorBrush>
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
         </ResourceDictionary>
