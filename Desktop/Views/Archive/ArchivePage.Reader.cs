@@ -770,6 +770,10 @@ public partial class ArchivePage
     internal void NotifyReaderPointerMoved(Point position)
     {
         _readerSurfacePointer = position;
+        // The smoke harness and non-native pointer paths report movement on the reader surface
+        // without raising PointerExited on the capsule. Keep the hover flag in sync so a move
+        // away from the capsule can actually arm auto-hide even when the hit host is present.
+        _readerNavigationPointerOver = ReaderNavigation.Bounds.Contains(position);
         ShowReaderNavigation();
     }
 
