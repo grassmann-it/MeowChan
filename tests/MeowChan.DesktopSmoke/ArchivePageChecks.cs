@@ -80,12 +80,21 @@ internal static class ArchivePageChecks
         // context panel builds no controls until it is opened.
         Require(page.IsObscuredByGallery, "The archive page was not told that the gallery covers it.");
         Require(ArchiveAttachmentView.GetLoadingSuspended(page), "Thumbnail loading was not suspended while the gallery covers the page.");
-        Require(inlineViewer.ContextBuildCount == 0, "A closed gallery context was built eagerly.");
+        // A persisted preference may open the post panel with the gallery. Normalize that
+        // state first; the lazy-build contract is about the transition from closed to open,
+        // not about overriding the user's saved preference.
+        if (inlineViewer.CaptureState().ContextOpen)
+        {
+            Click(GalleryControl<Button>(inlineViewer, "GalleryToggleContext"));
+            await Program.WaitUntilAsync(() => !inlineViewer.CaptureState().ContextOpen);
+        }
+        long contextBuildsBeforeOpen = inlineViewer.ContextBuildCount;
         Click(GalleryControl<Button>(inlineViewer, "GalleryToggleContext"));
         // The hidden context ScrollViewer applies its content template on the next layout pass.
         await Program.WaitUntilAsync(() => inlineViewer.GetVisualDescendants().OfType<Button>()
             .Any(button => button.Name == "GalleryReadPost"));
-        Require(inlineViewer.ContextBuildCount == 1, "Opening the gallery context did not build its content exactly once.");
+        Require(inlineViewer.ContextBuildCount == contextBuildsBeforeOpen + 1,
+            "Opening the gallery context did not build its content exactly once.");
         await CheckGalleryLanguageFocusAsync(window, inlineViewer);
         Click(GalleryControl<Button>(inlineViewer, "GalleryReadPost"));
         await Program.WaitUntilAsync(() => !gallery.IsVisible && !page.IsBusy && page.CurrentThread?.Summary.Id == id);

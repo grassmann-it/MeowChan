@@ -602,8 +602,9 @@ public partial class MainWindow
             // repair/report content scrolls in intake instead of reducing the table to zero.
             double rowHeight = barebones || _config.CompactDensity ? 32 : 44;
             double tableMinimum = Math.Max(38, DownloadsTabs.Bounds.Height) + 32 + rowHeight + 4;
-            content.MinHeight = retainedErrorLayout ? tableMinimum : 0;
-            WorkspaceIntakeScroll.MaxHeight = retainedErrorLayout
+            bool reserveTable = retainedErrorLayout || compactIntake;
+            content.MinHeight = reserveTable ? tableMinimum : 0;
+            WorkspaceIntakeScroll.MaxHeight = reserveTable
                 ? Math.Max(0, body.Bounds.Height - 2 * body.RowSpacing - tableMinimum)
                 : double.PositiveInfinity;
             AdmissionRepairPanel.Padding = compactIntake ? new Thickness(8, 4) : new Thickness(12);
