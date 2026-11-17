@@ -37,7 +37,12 @@ public partial class ArchivePage
         // Installed on the pane itself: the same handler survives reader detach/reattach.
         ArchiveReaderPane.AddHandler(ContextRequestedEvent, OnPostBookmarkContext,
             RoutingStrategies.Bubble);
+        // The posts list belongs to the pane and moves with it. Bubble, after the text has taken its own press (it handles one): see OnPostCardPressed.
+        ArchivePosts.AddHandler(PointerPressedEvent, OnPostCardPressed, RoutingStrategies.Bubble, handledEventsToo: true);
     }
+
+    /// <summary>The post menu that was opened last by a context request on a post (test seam: the menu is otherwise only held by its popup).</summary>
+    internal ContextMenu? PostMenu { get; private set; }
 
     private void OnPostBookmarkContext(object? sender, ContextRequestedEventArgs e)
     {
@@ -47,21 +52,57 @@ public partial class ArchivePage
         ArchivePostRow? row = ancestors.Select(node => node.DataContext).OfType<ArchivePostRow>().FirstOrDefault();
         if (row == null && !e.TryGetPosition(this, out _)) row = ArchivePosts.SelectedItem as ArchivePostRow;
         if (row == null || _thread.FindPostIndex(row.Id) < 0) return;
-        ContextMenu menu = BuildPostMenu(row, source);
+        // A selection in the post's own text is frozen now: opening the menu takes the focus, which clears it.
+        ContextMenu menu = BuildPostMenu(row, source, SelectedBodyText(row));
+        PostMenu = menu;
         e.Handled = true; menu.Open(source);
     }
 
     /// <summary>
-    /// The post menu: copy text, number and (where the source's address scheme is known) link, then the bookmark action.
+    /// A press anywhere in a post card selects that post (PT-02), so H, Primary+Shift+C, R, F and the post menu act on the post the person is
+    /// pointing at. The text of a body takes its press itself (a selection by drag, a click on a link or a quote), so the card never saw it;
+    /// this runs after the text, selects the post and leaves the focus, the text selection and the press untouched. Buttons keep their own click
+    /// (selecting could move them between press and release), a medium keeps its own press, and the native toggle with Ctrl or Command stays native.
+    /// </summary>
+    private void OnPostCardPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (_ended || _thread == null || IsFilenameSearchOpen || e.Source is not Avalonia.Visual source) return;
+        PointerPointProperties pressed = e.GetCurrentPoint(ArchivePosts).Properties;
+        if (!pressed.IsLeftButtonPressed && !pressed.IsRightButtonPressed) return;
+        if ((e.KeyModifiers & (KeyModifiers.Control | KeyModifiers.Meta)) != 0) return;
+        Avalonia.Visual[] path = source.GetSelfAndVisualAncestors().ToArray();
+        if (path.Any(node => node is Button or ArchiveAttachmentView)) return;
+        if (path.OfType<ReaderPostItem>().FirstOrDefault() is not { DataContext: ArchivePostRow row } card) return;
+        ListBox posts = ArchivePosts;
+        if (ReferenceEquals(posts.SelectedItem, row) || !ReferenceEquals(posts.ContainerFromItem(row), card) || _thread.FindPostIndex(row.Id) < 0) return;
+        posts.SelectedItem = row;
+    }
+
+    // The text selected in the body of a post's card (a body keeps its selection only while it has the focus), null without one.
+    private string? SelectedBodyText(ArchivePostRow row)
+    {
+        if (ArchivePosts.ContainerFromItem(row) is not Control card) return null;
+        foreach (ReaderBodyTextBlock body in card.GetVisualDescendants().OfType<ReaderBodyTextBlock>())
+            if (body.SelectedPlainText is { Length: > 0 } text) return text;
+        return null;
+    }
+
+    /// <summary>
+    /// The post menu: copy text, number and (where the source's address scheme is known) link, then the bookmark action; with a
+    /// <paramref name="selectedText"/> of the post's body, "Copy" for that selection comes first.
     /// Everything is frozen to the post it was opened on; copying is local only and never starts a network request.
     /// </summary>
-    internal ContextMenu BuildPostMenu(ArchivePostRow row, Control origin)
+    internal ContextMenu BuildPostMenu(ArchivePostRow row, Control origin, string? selectedText = null)
     {
         ArgumentNullException.ThrowIfNull(row);
         ResourceId thread = _thread!.Summary.Id;
         string? link = PostMenuText.Link(thread, _thread.Summary.Url, row.Id);
         ContextMenuBuilder builder = new ContextMenuBuilder();
         Func<bool> CanCopy = () => !_ended;
+        // With text selected in the post, "Copy" (that selection) leads and the post menu follows after a separator.
+        if (!string.IsNullOrEmpty(selectedText))
+            builder.Item("post.copy-selection", Texts.T("post.copy.selection"), () => _ = CopyPostTextAsync(selectedText, "post.copy.selectionDone"),
+                available: CanCopy(), availableWhen: CanCopy, icon: "copy").Section();
         builder.Command("post.copy-text", () => _ = CopyPostTextAsync(PostMenuText.Text(row), "post.copy.textDone"),
             available: CanCopy(), availableWhen: CanCopy);
         builder.Command("post.copy-number", () => _ = CopyPostTextAsync(PostMenuText.Number(row.Id), "post.copy.numberDone"),

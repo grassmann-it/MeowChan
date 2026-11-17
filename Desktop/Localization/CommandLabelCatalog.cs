@@ -258,6 +258,7 @@ internal static class CommandLabelCatalog
         ("command.scope.gallery-open.reader", "Large reader post area · current thread", "Post-Bereich im großen Reader · aktuell gelesener Thread"),
         ("command.scope.export-open-html.reader", "Current reader thread · outside inputs and dialogs", "Aktuell gelesener Thread · außerhalb von Eingaben und Dialogen"),
         ("command.scope.reader.expand", "In the thread list: Enter", "In der Threadliste: Enter"),
+        ("command.scope.reader.find", "With the focus in the reader", "Mit Fokus im Reader"),
         ("command.scope.archive.select-page", "Results list · this page only", "Ergebnisliste · nur diese Seite"),
         ("command.scope.archive.page-navigation", "Results-list focus · within page boundaries", "Fokus in der Ergebnisliste · innerhalb der Seitengrenzen"),
         ("command.scope.selection.select-all", "Focused downloads list", "Fokussierte Downloadliste"),
