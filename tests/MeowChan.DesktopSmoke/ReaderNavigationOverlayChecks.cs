@@ -244,7 +244,7 @@ internal static class ReaderNavigationOverlayChecks
                 Require(focusAssigned, "Reader navigation focus could not be assigned. "
                     + $"visible={focusSurface.IsEffectivelyVisible} enabled={focusSurface.IsEffectivelyEnabled} "
                     + $"focusable={focusSurface.Focusable} tab={focusSurface.IsTabStop} "
-                    + $"attached={focusSurface.IsAttachedToVisualTree()} root={focusSurface.VisualRoot is not null} "
+                    + $"attached={focusSurface.IsAttachedToVisualTree()} "
                     + $"barVisible={bar.IsEffectivelyVisible} barHit={bar.IsHitTestVisible} "
                     + $"buttons={string.Join(',', bar.GetVisualDescendants().OfType<Button>().Select(button => button.Name + ':' + button.IsEffectivelyEnabled))}");
                 Require(page.ReaderNavigationShown && bar.Opacity == 1 && bar.IsHitTestVisible,
