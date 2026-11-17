@@ -29,10 +29,10 @@ These are the default gallery bindings; saved shortcut customizations take prece
 | --- | --- |
 | **M** | Explicitly add the current medium to favorites |
 | **U** | Explicitly remove the favorite mark from the current medium |
-| **F** | Toggle the favorite mark (compatibility binding) |
+| **F** | Toggle the favorite mark; on a saved favorite it asks before it removes the mark |
 | **↑ / ↓** | Increase or decrease video volume, only with usable audio output |
 
-The upper-right indicator shows **★** for a saved favorite and **☆** for an item that is not a favorite. **…** means a save is pending. The indicator remains visible while gallery controls are hidden. It is display-only and is not clickable. While the persisted state of a newly selected medium is still unknown, MeowChan does not claim that it is unfavorited.
+The favorite badge at the upper left, beside **Back to …**, shows **★** for a saved favorite and **☆** for an item that is not a favorite. **…** means a save is pending. The badge remains visible while gallery controls are hidden, and a click on it toggles the mark. While the persisted state of a newly selected medium is still unknown, MeowChan does not claim that it is unfavorited.
 
 The favorites overview resolves the chosen scope through saved local manifests. Missing or unverifiable files remain favorites but are reported unavailable and are not exported. The original-file export freezes the displayed selection, reports missing files before copying, and copies only locally verified files. It starts no network retrieval. The favorite marks themselves are not transferred to another profile by this operation.
 
@@ -55,7 +55,7 @@ This surface also does not create a transfer package. There is no user-facing ch
 
 **↑/↓** changes volume only for a video with usable audio output. Volume stays in the 0–100 range, is saved, and does not switch between Playing and Paused. A positive user volume change unmutes; volume 0 alone does not make an independent mute/unmute decision.
 
-Mute/unmute and repeat are controls in the video area. By default they have no additional dedicated key bindings. A manual mute or unmute choice survives previous/next and image/video changes within the same open gallery. Reopening a gallery returns to the saved **Start videos muted** preference rather than the last manual mute choice.
+Mute/unmute and repeat are controls in the video area. By default **Shift+M** mutes or unmutes and **L** switches repeat on or off. A manual mute or unmute choice survives previous/next and image/video changes within the same open gallery. Reopening a gallery returns to the saved **Start videos muted** preference rather than the last manual mute choice.
 
 **Repeat current video** is a saved gallery playback choice. While active, it applies to every selected video until changed and survives an application restart. A slideshow must still be started explicitly.
 

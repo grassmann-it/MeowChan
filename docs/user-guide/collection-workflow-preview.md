@@ -29,10 +29,10 @@ Die folgenden Tasten sind die Standardbelegungen der Galerie; eigene gespeichert
 | --- | --- |
 | **M** | Aktuelles Medium ausdrücklich als Favorit aufnehmen |
 | **U** | Favoritenmarkierung des aktuellen Mediums ausdrücklich entfernen |
-| **F** | Favoritenmarkierung umschalten (Kompatibilitätskürzel) |
+| **F** | Favoritenmarkierung umschalten; bei einem gespeicherten Favoriten fragt die Galerie vor dem Entfernen nach |
 | **↑ / ↓** | Videolautstärke erhöhen oder verringern, nur bei verfügbarer Tonwiedergabe |
 
-Oben rechts zeigt **★** einen gespeicherten Favoriten und **☆** ein nicht favorisiertes Medium. Während des Speicherns erscheint **…**. Die Anzeige bleibt auch bei ausgeblendeten Galerie-Bedienelementen sichtbar. Das Zeichen ist nur eine Anzeige und kein klickbares Bedienelement. Wenn der gespeicherte Zustand eines neu gewählten Mediums noch nicht gelesen ist, wird keine unbegründete „kein Favorit“-Aussage angezeigt.
+Das Favoritenzeichen oben links neben **Zurück zu …** zeigt **★** einen gespeicherten Favoriten und **☆** ein nicht favorisiertes Medium. Während des Speicherns erscheint **…**. Die Anzeige bleibt auch bei ausgeblendeten Galerie-Bedienelementen sichtbar. Ein Klick auf das Zeichen schaltet die Markierung um. Wenn der gespeicherte Zustand eines neu gewählten Mediums noch nicht gelesen ist, wird keine unbegründete „kein Favorit“-Aussage angezeigt.
 
 Die Favoritenübersicht löst die gewählte Menge gegen gespeicherte lokale Manifeste auf. Fehlende oder nicht verifizierbare Dateien bleiben Favoriten, werden aber als nicht verfügbar gemeldet und nicht exportiert. Der Originalexport friert die angezeigte Auswahl ein, meldet fehlende Dateien vor dem Kopieren und kopiert nur lokal verifizierte Dateien. Dabei wird kein Netzwerkabruf gestartet. Favoritenmarkierungen selbst werden dadurch nicht in ein anderes Profil übertragen.
 
@@ -55,7 +55,7 @@ Die Oberfläche erstellt auch kein Transferpaket. Es gibt noch keine bedienbare 
 
 **↑/↓** ändert nur die Lautstärke eines Videos mit tatsächlich verfügbarer Tonwiedergabe. Der Wert bleibt im Bereich 0–100, wird gespeichert und ändert nicht zwischen Wiedergabe und Pause. Eine positive Lautstärkeänderung hebt Stummschaltung auf; Lautstärke 0 allein entscheidet nicht automatisch über Mute.
 
-Ton aus/an und Wiederholen sind Bedienelemente des Videobereichs. Im Standardprofil sind sie nicht zusätzlich mit eigenen Tastenkürzeln belegt. Eine manuelle Mute-/Unmute-Wahl bleibt über Vor/Zurück- und Bild-/Videowechsel innerhalb derselben geöffneten Galerie erhalten. Beim erneuten Öffnen einer Galerie gilt wieder die gespeicherte Startpräferenz **Videos stumm starten**.
+Ton aus/an und Wiederholen sind Bedienelemente des Videobereichs. Im Standardprofil schaltet **Umschalt+M** Ton aus/an und **L** die Wiederholung. Eine manuelle Mute-/Unmute-Wahl bleibt über Vor/Zurück- und Bild-/Videowechsel innerhalb derselben geöffneten Galerie erhalten. Beim erneuten Öffnen einer Galerie gilt wieder die gespeicherte Startpräferenz **Videos stumm starten**.
 
 Der Modus **Video wiederholen** ist eine gespeicherte Galerie-Wiedergabewahl. Bleibt er aktiv, gilt er für jedes ausgewählte Video, bis er geändert wird; er bleibt auch über einen Neustart gespeichert. Die Diashow muss weiterhin ausdrücklich gestartet werden.
 
