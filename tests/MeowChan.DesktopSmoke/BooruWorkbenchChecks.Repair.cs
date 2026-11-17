@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Reflection;
 using System.Text.Json;
 using Avalonia;
@@ -95,9 +96,27 @@ internal static partial class BooruWorkbenchChecks
             search.Review.BringIntoView();
             search.Review.Focus(Avalonia.Input.NavigationMethod.Tab);
             await Program.WaitUntilAsync(() => search.Review.IsFocused, () => "the review action does not take keyboard focus");
-            using (MediaNativeInput input0 = new(owner)) await input0.KeyAsync(MediaNativeInput.Enter);
+            string RepairState() => "page=" + owner.SelectedPage + " active=" + owner.IsActive
+                + " focused=" + Describe(owner.FocusManager?.GetFocusedElement())
+                + " reviewFocused=" + search.Review.IsFocused + " busy=" + plugins.IsBusy
+                + " pluginsVisible=" + plugins.IsEffectivelyVisible + " note=" + search.Note.Text
+                + " routing=" + MeowChan.Desktop.Commands.CommandRouter.IsRoutingContextActive(page.View, page.View);
+            Stopwatch activation = Stopwatch.StartNew();
+            using (MediaNativeInput input0 = new(owner))
+            {
+                // This scene submits ONE Enter. On an overloaded private X server, the
+                // nominal 40 ms press can exceed the repeat delay: a second Return then
+                // reaches the dialog's initially focused Close and dismisses it before
+                // the visibility assertion. Keep native delivery; suppress only X11
+                // autorepeat in this private fixture, restoring it even on failure.
+                input0.SetAutoRepeat(false);
+                try { await input0.KeyAsync(MediaNativeInput.Enter); }
+                finally { input0.SetAutoRepeat(true); }
+            }
             string title = Texts.T("plugins.repair.review");
-            await Program.WaitUntilAsync(() => owner.OwnedWindows.Any(w => w.IsVisible && w.Title == title), () => "the review dialog did not open from the Booru page");
+            await Program.WaitUntilAsync(() => owner.OwnedWindows.Any(w => w.IsVisible && w.Title == title),
+                () => "the review dialog did not open from the Booru page; " + RepairState());
+            Console.WriteLine("SMOKE booru repair native activation: " + activation.Elapsed.TotalMilliseconds.ToString("F0") + " ms");
             Window modal = owner.OwnedWindows.Single(w => w.IsVisible && w.Title == title);
             Require(owner.SelectedPage == MainWindow.WorkspacePage.Sources, "The dialog is not owned by the Plugins page route.");
             await Program.WaitUntilAsync(() => modal.GetVisualDescendants().OfType<TextBlock>()
