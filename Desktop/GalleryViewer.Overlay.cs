@@ -122,7 +122,7 @@ internal sealed partial class GalleryViewer
     private readonly Button _postEdgeIndicator = CreateEdgeIndicator(post: true);
 
     // Overlaid in the media cell, never in an Auto footer row. A small visible
-    // chevron retains a full 44px keyboard/touch target; focus uses the glyph only.
+    // chevron retains a full 44px keyboard/touch target; keyboard focus adds a disc and ring (GalleryEdgeHandleVisual), not the glyph alone.
     internal static Button CreateEdgeIndicator(bool post)
     {
         var indicator = new Button
@@ -142,13 +142,10 @@ internal sealed partial class GalleryViewer
             {
                 Avalonia.Controls.Shapes.Path chevron = MeowChan.Desktop.Controls.WorkspaceIcons.Create(
                     post ? MeowChan.Desktop.Controls.WorkspaceIcons.ChevronLeft : MeowChan.Desktop.Controls.WorkspaceIcons.ChevronUp, inheritForeground: false);
-                chevron.Stroke = new SolidColorBrush(Color.FromArgb(100, 150, 150, 150));
                 chevron.Opacity = 0;
-                // Keep the complete transparent handle in the native hit-test map.
-                // A bare Path only owns its stroked pixels, so the button's center can
-                // fall through to the gallery surface even while its 44-DIP bounds are
-                // visible and arranged.
-                return new Border { Background = Brushes.Transparent, Child = chevron };
+                // The composed root keeps the complete transparent handle in the native hit-test map (a bare Path only owns its
+                // stroked pixels, so the centre could fall through to the gallery surface) and draws the keyboard focus disc and ring (AX-03).
+                return GalleryEdgeHandleVisual.Compose(button, chevron);
             })
         };
         SetEdgeIndicatorLabel(indicator, EdgeIndicatorLabel(post));

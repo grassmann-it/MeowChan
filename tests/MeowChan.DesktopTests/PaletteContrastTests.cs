@@ -545,6 +545,33 @@ public sealed class PaletteContrastTests
         }
     }
 
+    // A11y review AX-02: the Settings ToggleSwitch ran on Semi's own colours (measured from rendered pixels: Light off track #DAD7D0 on the #E3DFD8
+    // page 1.08:1 and on track #3BB346 2.05:1, Dark off track #2E3031 on #121416 1.39:1, white knob on the Light on track 2.72:1 and on the Dark on
+    // track 2.24:1). The tracks are now palette tokens (off = ControlBorder, on = Accent, knob = OnAccent): 3:1 on every surface in both states,
+    // the knob 4.5:1 on every track. On/off is still also carried by the knob position, never by colour alone.
+    [Theory, InlineData("Dark"), InlineData("Light")]
+    public void ToggleSwitchTracksAndKnobReachNonTextContrastInBothThemes(string theme)
+    {
+        string page = Color(theme, "Workspace.Background");
+        Assert.True(Contrast(theme == "Dark" ? "#2E3031" : "#DAD7D0", page) < 3.0, "the Semi off track this replaces was below 3:1");
+        foreach (string surface in new[] { "Workspace.Background", "Workspace.Panel", "Workspace.Raised", "Workspace.Card", "Workspace.Overlay", "Workspace.Hover", "Workspace.AccentSurface" })
+        {
+            AssertContrast(theme, "ToggleSwitchContainerUnCheckedDefaultBackground", surface, 3.0);
+            AssertContrast(theme, "ToggleSwitchContainerCheckedDefaultBackground", surface, 3.0);
+        }
+        foreach (string key in new[] { "ToggleSwitchContainerUnCheckedPointeroverBackground", "ToggleSwitchContainerUnCheckedPressedBackground",
+                     "ToggleSwitchContainerCheckedPointeroverBackground", "ToggleSwitchContainerCheckedPressedBackground" })
+            AssertContrast(theme, key, "Workspace.Panel", 3.0);
+        foreach (string state in new[] { "UnCheckedDefault", "UnCheckedPointerover", "UnCheckedPressed", "CheckedDefault", "CheckedPointerover", "CheckedPressed" })
+            AssertContrast(theme, "ToggleSwitchIndicatorBackground", "ToggleSwitchContainer" + state + "Background", 4.5);
+        // The tracks are the theme's own tokens, so a custom accent or outline colour moves the switch with it.
+        Assert.Equal(Color(theme, "Workspace.ControlBorder"), Color(theme, "ToggleSwitchContainerUnCheckedDefaultBackground"));
+        Assert.Equal(Color(theme, "Workspace.Accent"), Color(theme, "ToggleSwitchContainerCheckedDefaultBackground"));
+        Assert.Equal(Color(theme, "Workspace.OnAccent"), Color(theme, "ToggleSwitchIndicatorBackground"));
+        // The two resting tracks are different colours (the knob position stays the primary on/off cue).
+        Assert.NotEqual(Color(theme, "ToggleSwitchContainerUnCheckedDefaultBackground"), Color(theme, "ToggleSwitchContainerCheckedDefaultBackground"));
+    }
+
     private static int Channel(string hex, int index) =>
         int.Parse(hex.AsSpan(1 + index * 2, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture);
 

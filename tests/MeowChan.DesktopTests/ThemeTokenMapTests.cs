@@ -99,11 +99,13 @@ public sealed class ThemeTokenMapTests
         Add(ThemeTokenVariation.DisabledOutline, "#4A525C", "#948A7D",
             "ButtonDefaultDisabledBorderBrush", "ButtonSolidDisabledBorderBrush",
             "CheckBoxCheckedDisabledBackground", "CheckBoxCheckedDisabledBorderBrush", "CheckBoxCardCheckedDisabledBorderBrush",
-            "RadioButtonCheckIconDisabledBackground", "RadioButtonCheckIconDisabledBorderBrush", "SliderThumbDisabledBorderBrush");
+            "RadioButtonCheckIconDisabledBackground", "RadioButtonCheckIconDisabledBorderBrush", "SliderThumbDisabledBorderBrush",
+            "ToggleSwitchContainerCheckedDisabledBackground");
         Add(ThemeTokenVariation.PressedAccent, "#6AA7FF", "#662F05",
             "ButtonSolidPrimaryPressedBackground", "ButtonSolidPrimaryPressedBorderBrush",
             "CheckBoxCheckedPressedBackground", "CheckBoxCheckedPressedBorderBrush",
-            "RadioButtonCheckIconPressedBackground", "RadioButtonCheckIconPressedBorderBrush", "SliderThumbPressedBorderBrush");
+            "RadioButtonCheckIconPressedBackground", "RadioButtonCheckIconPressedBorderBrush", "SliderThumbPressedBorderBrush",
+            "ToggleSwitchContainerCheckedPressedBackground");
         Add(ThemeTokenVariation.PressedAccentBorder, "#8ABBFF", "#662F05",
             "CheckBoxPressedBorderBrush", "CheckBoxCardCheckedPressedBorderBrush",
             "RadioButtonUncheckIconPressedBorderBrush", "RadioButtonCardCheckPressedBorderBrush");

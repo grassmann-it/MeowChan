@@ -274,6 +274,19 @@ public static class ContrastRules
                      "SliderThumbPointeroverBorderBrush", "SliderThumbPressedBorderBrush" })
             Add(key, "Workspace.Panel", 3.0);
 
+        // AX-02: the ToggleSwitch track is the control's visible boundary (WCAG 1.4.11), so both resting tracks reach 3:1 on every surface a
+        // settings row can sit on; the other pointer states on the panel; the knob (OnAccent) reads on every track state, as a mark (4.5).
+        foreach (string surface in new[] { "Workspace.Background", "Workspace.Panel", "Workspace.Raised", "Workspace.Card", "Workspace.Overlay", "Workspace.Hover", "Workspace.AccentSurface" })
+        {
+            Add("ToggleSwitchContainerUnCheckedDefaultBackground", surface, 3.0);
+            Add("ToggleSwitchContainerCheckedDefaultBackground", surface, 3.0);
+        }
+        foreach (string key in new[] { "ToggleSwitchContainerUnCheckedPointeroverBackground", "ToggleSwitchContainerUnCheckedPressedBackground",
+                     "ToggleSwitchContainerCheckedPointeroverBackground", "ToggleSwitchContainerCheckedPressedBackground" })
+            Add(key, "Workspace.Panel", 3.0);
+        foreach (string state in new[] { "UnCheckedDefault", "UnCheckedPointerover", "UnCheckedPressed", "CheckedDefault", "CheckedPointerover", "CheckedPressed" })
+            Add("ToggleSwitchIndicatorBackground", "ToggleSwitchContainer" + state + "Background", 4.5);
+
         Add("Workspace.Success", "Workspace.SuccessSurface", 4.5);
         foreach (string around in new[] { "Workspace.Panel", "Workspace.Raised", "Workspace.Card", "Workspace.ChipSurface" })
         {
