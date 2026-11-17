@@ -247,6 +247,93 @@ public sealed class DanbooruSourceTests
         Assert.Equal(BooruMediaRole.Sample, third.Media[1].Role);
     }
 
+    // The browse-to-download pipeline (sample viewer, state badges) is tested against these shapes; see the fixture README.
+    [Fact]
+    public async Task SearchVariantsFixtureCoversEveryMediaShapeOfThePostViewer()
+    {
+        (BooruSearchResult result, _) = await Search(Json(Fixture("search-variants.json")), "cat", page: 1, limit: 8);
+        BooruSearchPage page = Assert.IsType<BooruSearchSnapshot>(result).Page;
+        Assert.Equal(new[] { "9008", "9007", "9006", "9005", "9004", "9003", "9002", "9001" }, page.Posts.Select(post => post.Id.PostId));
+        static BooruMediaRole[] Roles(BooruPost post) => post.Media!.Select(variant => variant.Role).ToArray();
+        static BooruMediaVariant Variant(BooruPost post, BooruMediaRole role) => post.Media!.Single(variant => variant.Role == role);
+        BooruPost At(string id) => page.Posts.Single(post => post.Id.PostId == id);
+
+        // Preview, sample and original are three different addresses; the sample carries only an address.
+        BooruPost image = At("9008");
+        Assert.Equal(new[] { BooruMediaRole.Original, BooruMediaRole.Sample, BooruMediaRole.Preview }, Roles(image));
+        Assert.EndsWith(".jpg", Variant(image, BooruMediaRole.Sample).Url!.AbsolutePath);
+        Assert.StartsWith("/sample/", Variant(image, BooruMediaRole.Sample).Url!.AbsolutePath);
+        Assert.Equal(new[] { 3000, 2000 }, new[] { Variant(image, BooruMediaRole.Original).Width!.Value, Variant(image, BooruMediaRole.Original).Height!.Value });
+        Assert.Null(Variant(image, BooruMediaRole.Sample).Width);
+
+        // Sample address equal to the original address: Danbooru's fallback, so the plugin offers no sample at all.
+        BooruPost same = At("9007");
+        Assert.Equal(new[] { BooruMediaRole.Original, BooruMediaRole.Preview }, Roles(same));
+
+        // No sample address and an animated original.
+        BooruPost gif = At("9006");
+        Assert.Equal(new[] { BooruMediaRole.Original, BooruMediaRole.Preview }, Roles(gif));
+        Assert.Equal(".gif", Variant(gif, BooruMediaRole.Original).Extension);
+
+        // Video and ugoira: the original and the sample are not images; only the preview is a still.
+        BooruPost video = At("9005");
+        Assert.Equal(".mp4", Variant(video, BooruMediaRole.Original).Extension);
+        Assert.EndsWith(".mp4", Variant(video, BooruMediaRole.Sample).Url!.AbsolutePath);
+        Assert.EndsWith(".jpg", Variant(video, BooruMediaRole.Preview).Url!.AbsolutePath);
+        BooruPost ugoira = At("9004");
+        Assert.Equal(".zip", Variant(ugoira, BooruMediaRole.Original).Extension);
+        Assert.EndsWith(".webm", Variant(ugoira, BooruMediaRole.Sample).Url!.AbsolutePath);
+        Assert.EndsWith(".jpg", Variant(ugoira, BooruMediaRole.Preview).Url!.AbsolutePath);
+
+        // Deleted: flag set, no original or sample address, the preview address survives.
+        BooruPost deleted = At("9003");
+        Assert.True(deleted.IsDeleted);
+        Assert.False(deleted.IsBanned);
+        Assert.Equal(new[] { BooruMediaRole.Original, BooruMediaRole.Preview }, Roles(deleted));
+        Assert.Null(Variant(deleted, BooruMediaRole.Original).Url);
+
+        // Banned: flag set, nothing offered but the claim of an original.
+        BooruPost banned = At("9002");
+        Assert.True(banned.IsBanned);
+        Assert.False(banned.IsDeleted);
+        Assert.Equal(new[] { BooruMediaRole.Original }, Roles(banned));
+        Assert.Null(Variant(banned, BooruMediaRole.Original).Url);
+
+        // Missing file: not deleted, not banned, and no address of any kind.
+        BooruPost missing = At("9001");
+        Assert.False(missing.IsDeleted || missing.IsBanned);
+        Assert.Equal(new[] { BooruMediaRole.Original }, Roles(missing));
+        Assert.Null(Variant(missing, BooruMediaRole.Original).Url);
+        Assert.All(page.Posts, post => Assert.All(post.Media!, variant => Assert.True(variant.Url is null || variant.Url.Host == "cdn.donmai.us")));
+    }
+
+    [Fact]
+    public async Task SearchPageFixturesAreAFullPageOfTwentyAndAFullFollowingPage()
+    {
+        (BooruSearchResult first, RecordingHttp http) = await Search(Json(Fixture("search-page20-first.json")), "cat", page: 1, limit: 20);
+        BooruSearchPage one = Assert.IsType<BooruSearchSnapshot>(first).Page;
+        Assert.Equal(20, one.Posts.Count);
+        Assert.Equal("9220", one.Posts[0].Id.PostId);
+        Assert.Equal("9201", one.Posts[^1].Id.PostId);
+        Assert.False(one.IsEnd);
+        Assert.Equal("9201", one.NextBeforePostId);
+        Assert.Contains("limit=20", Assert.Single(http.Requests).Url.Query);
+
+        // The following page is what the provider returns below the cursor of the first one.
+        (BooruSearchResult second, RecordingHttp next) = await Search(Json(Fixture("search-page20-second.json")), "cat", page: 1, limit: 20, cursor: one.NextBeforePostId);
+        BooruSearchPage two = Assert.IsType<BooruSearchSnapshot>(second).Page;
+        Assert.Contains("page=b9201", Assert.Single(next.Requests).Url.Query);
+        Assert.Equal(20, two.Posts.Count);
+        Assert.Equal("9200", two.Posts[0].Id.PostId);
+        Assert.Equal("9181", two.Posts[^1].Id.PostId);
+        Assert.Empty(one.Posts.Select(post => post.Id.PostId).Intersect(two.Posts.Select(post => post.Id.PostId)));
+        Assert.False(two.IsEnd);
+        Assert.Equal("9181", two.NextBeforePostId);
+        // Every fourth post carries no sample; the rest do or repeat the original.
+        Assert.Contains(one.Posts, post => post.Media!.All(variant => variant.Role != BooruMediaRole.Sample));
+        Assert.Contains(one.Posts, post => post.Media!.Any(variant => variant.Role == BooruMediaRole.Sample));
+    }
+
     // Regression for the 16 Nov 2026 "plugin-error" report on a "blue_eyes" search: three posts copied unchanged from
     // that live response (nested media_asset, ISO timestamps with a -05:00 offset, every current field). The parser
     // was never the fault there (see LiveResponseShape in the fixture README); this pins the live shape as one.
@@ -545,7 +632,7 @@ public sealed class DanbooruSourceTests
         // Search and Read validate each result internally; run every fixture through both entry points.
         string[] bodies = Directory.EnumerateFiles(Path.Combine(AppContext.BaseDirectory, "Fixtures", "danbooru"))
             .Where(path => !path.EndsWith(".md", StringComparison.Ordinal)).Select(File.ReadAllText).ToArray();
-        Assert.Equal(17, bodies.Length);
+        Assert.Equal(20, bodies.Length);
         foreach (string body in bodies)
         {
             await Search(Json(body), "q", 1, 3);

@@ -21,6 +21,7 @@
     <Compile Include="../../Shared/TemporaryWorkspacePaths.cs" Link="TestSupport/TemporaryWorkspacePaths.cs" />
     <Compile Include="../MeowChan.Tests/PersistenceCorruption/DamageVariants.cs" Link="TestSupport/DamageVariants.cs" />
     <Compile Include="../Shared/BooruCompositionFixture.cs" Link="TestSupport/BooruCompositionFixture.cs" />
+    <Compile Include="../Shared/BooruCdnFixtures.cs" Link="TestSupport/BooruCdnFixtures.cs" />
     <Compile Include="../MeowChan.DesktopSmoke/SmokeCleanup.cs" Link="TestSupport/SmokeCleanup.cs" />
     <Compile Include="../MeowChan.DesktopSmoke/StatisticsResetContract.cs" Link="TestSupport/StatisticsResetContract.cs" />
     <Compile Include="../MeowChan.DesktopSmoke/SmokeScenarios.cs" Link="TestSupport/SmokeScenarios.cs" />

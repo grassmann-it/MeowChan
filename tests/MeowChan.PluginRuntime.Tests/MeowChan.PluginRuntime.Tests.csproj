@@ -10,6 +10,7 @@
     <ProjectReference Include="../MeowChan.PluginRuntime.Fixture/MeowChan.PluginRuntime.Fixture.csproj" />
     <ProjectReference Include="../PluginReauthorizationProbe/PluginReauthorizationProbe.csproj" ReferenceOutputAssembly="false" />
     <Compile Include="../Shared/BuiltTestBinaries.cs" Link="BuiltTestBinaries.cs" />
+    <Compile Include="../Shared/BooruCdnFixtures.cs" Link="BooruCdnFixtures.cs" />
     <Using Include="Xunit" />
   </ItemGroup>
 </Project>
