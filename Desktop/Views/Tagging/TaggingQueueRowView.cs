@@ -72,8 +72,6 @@ internal sealed class TaggingQueueRowView : Grid
     /// <summary>The margin of the number cell (header and rows): it reaches into the gap that the hidden preview column would double.</summary>
     internal static Thickness NumberMargin(bool showPreview) => new(0, 0, showPreview ? 0 : -ColumnGap, 0);
 
-    /// <summary>The state cell keeps this much air to its left, so the right-aligned tag count and the state never touch.</summary>
-    internal static Thickness StateMargin => new(ColumnGap, 0, 0, 0);
     internal const double RowHeight = WorkspaceMetrics.NormalRowHeight;
     internal const double CompactHeight = WorkspaceMetrics.CompactRowHeight;
     /// <summary>The preview's edge in the normal and in the compact density (inside the row's own padding).</summary>
@@ -110,7 +108,7 @@ internal sealed class TaggingQueueRowView : Grid
         number.Margin = NumberMargin(showPreview);
         Children.Add(number);
         Add(_preview, 1); Add(_kind, 2); Add(_name, 3); Add(_source, 4); Add(_group, 5); Add(_tags, 6);
-        Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = StateMargin, VerticalAlignment = VerticalAlignment.Center, Children = { _stateIcon, _state } }, 7);
+        Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center, Children = { _stateIcon, _state } }, 7);
         _number.Classes.Add("tnum");
         _tags.Classes.Add("tnum");
     }

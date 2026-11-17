@@ -482,7 +482,7 @@ public sealed partial class TaggingPage : UserControl
                 Text = column switch { 0 => "#", 1 => string.Empty, _ => Texts.T(keys[column]) }, Classes = { "workspace-meta" },
                 TextAlignment = column is 0 or 6 ? TextAlignment.Right : TextAlignment.Left,
                 VerticalAlignment = VerticalAlignment.Center,
-                Margin = column switch { 0 => TaggingQueueRowView.NumberMargin(ShowPreviewColumn), 7 => TaggingQueueRowView.StateMargin, _ => default }
+                Margin = column == 0 ? TaggingQueueRowView.NumberMargin(ShowPreviewColumn) : default
             };
             header.IsVisible = column != 1 || ShowPreviewColumn;
             Grid.SetColumn(header, column);

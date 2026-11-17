@@ -236,6 +236,37 @@ public sealed class TaggingLayoutRhythmTests
         Assert.True(page.StampOpen);
     });
     [Fact]
+    public void StateColumnUsesTheSameSingleGapAsEveryOtherColumnInRowsAndHeader() => WithPage(page =>
+    {
+        foreach (bool preview in new[] { true, false })
+        foreach (bool compact in new[] { true, false })
+        {
+            TaggingQueueRowView row = new(showPreview: preview, compactTable: compact);
+            Assert.Equal(Token(page, "Workspace.Space.12"), row.ColumnSpacing);
+            // Isolate column geometry from native text shaping: keep the real State container and use cell-sized probes for text cells.
+            foreach (TextBlock text in ((ILogical)row).GetLogicalDescendants().OfType<TextBlock>()) text.IsVisible = false;
+            foreach (int column in new[] { 5, 6 })
+            {
+                Control text = row.Children.Single(c => Grid.GetColumn(c) == column);
+                Border probe = new() { Margin = text.Margin, HorizontalAlignment = text.HorizontalAlignment };
+                Grid.SetColumn(probe, column);
+                row.Children.Remove(text);
+                row.Children.Add(probe);
+            }
+            row.Measure(new Size(1440, double.PositiveInfinity));
+            row.Arrange(new Rect(0, 0, 1440, 44));
+            Control tags = row.Children.Single(c => Grid.GetColumn(c) == 6);
+            Control state = row.Children.Single(c => Grid.GetColumn(c) == 7);
+            Control group = row.Children.Single(c => Grid.GetColumn(c) == 5);
+            Assert.Equal(default(Thickness), state.Margin);
+            Assert.Equal(row.ColumnSpacing, state.Bounds.Left - tags.Bounds.Right, 6);
+            Assert.Equal(tags.Bounds.Left - group.Bounds.Right, state.Bounds.Left - tags.Bounds.Right, 6);
+            page.RestorePreviewColumn(preview);
+            Assert.Equal(row.ColumnSpacing, page.ColumnHeader.ColumnSpacing);
+            Assert.Equal(default(Thickness), page.ColumnHeader.Children.Single(c => Grid.GetColumn(c) == 7).Margin);
+        }
+    });
+    [Fact]
     public void EnabledStartYieldsToTheEmptyRecommendationAndReclaimsPrimaryWithRows() => WithPage(page =>
     {
         DesktopSessionHost host = (DesktopSessionHost)typeof(TaggingPage).GetField("_host", Private)!.GetValue(page)!;
