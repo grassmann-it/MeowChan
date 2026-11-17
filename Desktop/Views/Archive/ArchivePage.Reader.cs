@@ -791,7 +791,10 @@ public partial class ArchivePage
             _readerNavigationIdleTimer.Interval = TimeSpan.FromMilliseconds(_readerNavigationIdleDelayMs);
             _readerNavigationIdleTimer.Start();
         }
-        if (!wasActive) UpdateReaderNavigationShown();
+        // Refresh the hit-test state even when the timer was already armed. Layout/theme/tab
+        // changes can hide the bar while the activity flag remains true; a fresh pointer move
+        // or keyboard command must restore the whole capsule, including its gap surface.
+        UpdateReaderNavigationShown();
     }
 
     private void OnReaderNavigationIdleTick()
