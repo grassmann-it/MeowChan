@@ -41,8 +41,8 @@ public static partial class WorkViewPolicy
         // Results bar: "media of the matching threads" stays direct in every view; the pager and range line are data (P).
         Same("archive.results.bar", WorkViewPage.Archive, WorkViewKind.Element, Required),
         Same("archive.results.gallery", WorkViewPage.Archive, WorkViewKind.Action, Direct, "gallery.open-results"),
-        new("archive.results.layout-list", WorkViewPage.Archive, WorkViewKind.Action, Overflow, Direct, Direct, OverflowOrder: 10),
-        new("archive.results.layout-table", WorkViewPage.Archive, WorkViewKind.Action, Overflow, Direct, Direct, OverflowOrder: 20),
+        new("archive.results.layout-list", WorkViewPage.Archive, WorkViewKind.Action, Required, Required, Required, OverflowOrder: 10),
+        new("archive.results.layout-table", WorkViewPage.Archive, WorkViewKind.Action, Required, Required, Required, OverflowOrder: 20),
         new("archive.results.open-in-media", WorkViewPage.Archive, WorkViewKind.Action, Overflow, Direct, Direct, "archive.open-results-in-media", OverflowOrder: 25),
         new("archive.results.favorites", WorkViewPage.Archive, WorkViewKind.Action, Overflow, Direct, Direct, "favorites.open", OverflowOrder: 30),
         new("archive.results.columns", WorkViewPage.Archive, WorkViewKind.Action, Overflow, Overflow, Direct, "table.choose-columns", OverflowOrder: 40),

@@ -34,8 +34,8 @@ public sealed class WorkViewArchiveTests
         { "archive.filters.zone", Presence.Overflow, Presence.Overflow, Presence.Direct },
         { "archive.filters.applied", Presence.Required, Presence.Required, Presence.Required },
         { "archive.results.bar", Presence.Required, Presence.Required, Presence.Required },
-        { "archive.results.layout-list", Presence.Overflow, Presence.Direct, Presence.Direct },
-        { "archive.results.layout-table", Presence.Overflow, Presence.Direct, Presence.Direct },
+        { "archive.results.layout-list", Presence.Required, Presence.Required, Presence.Required },
+        { "archive.results.layout-table", Presence.Required, Presence.Required, Presence.Required },
         { "archive.results.gallery", Presence.Direct, Presence.Direct, Presence.Direct },
         { "archive.results.open-in-media", Presence.Overflow, Presence.Direct, Presence.Direct },
         { "archive.results.favorites", Presence.Overflow, Presence.Direct, Presence.Direct },
@@ -106,9 +106,12 @@ public sealed class WorkViewArchiveTests
             Assert.All(WorkViewSetting.All, view => Assert.NotEqual(Presence.Hidden, entry.For(view)));
         // Barebones keeps only "media of the matching threads" on the bar; the rest is under More and still has its shortcut.
         Assert.Equal(OverflowMode.AsNeeded, WorkViewPresenter.ToolBarMode(P("archive.results.gallery", WorkView.Barebones)));
-        foreach (string id in new[] { "layout-list", "layout-table", "favorites", "columns", "export", "reader-groups", "saved-searches", "bookmarks", "other" })
+        foreach (string id in new[] { "favorites", "columns", "export", "reader-groups", "saved-searches", "bookmarks", "other" })
             Assert.Equal(OverflowMode.Always, WorkViewPresenter.ToolBarMode(P("archive.results." + id, WorkView.Barebones)));
-        foreach (string id in new[] { "layout-list", "layout-table", "favorites", "gallery" })
+        foreach (string id in new[] { "layout-list", "layout-table" })
+            Assert.All(WorkViewSetting.All, view =>
+                Assert.Equal(OverflowMode.Never, WorkViewPresenter.ToolBarMode(P("archive.results." + id, view))));
+        foreach (string id in new[] { "favorites", "gallery" })
             Assert.All(new[] { WorkView.Simple, WorkView.Advanced },
                 view => Assert.Equal(OverflowMode.AsNeeded, WorkViewPresenter.ToolBarMode(P("archive.results." + id, view))));
         Assert.Equal("favorites.open", WorkViewPolicy.Get("archive.results.favorites").CommandId);
