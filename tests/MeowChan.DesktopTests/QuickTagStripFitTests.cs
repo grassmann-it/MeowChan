@@ -118,6 +118,26 @@ public sealed class QuickTagStripFitTests : IDisposable
         Assert.True(QuickTagStripFit.Count(sizes, 400, 400, 8, 9) >= first);                      // more width never shows fewer
     }
 
+    [Theory]
+    [InlineData(280, 0, 9)]
+    [InlineData(280, 32, 9)]
+    [InlineData(280, 64, 9)]
+    [InlineData(400, 0, 12)]
+    [InlineData(280, 128, 12)]
+    public void TheSharedFlowKeepsThreeCompleteSuggestionRowsEvenWhenOnlyOneRowWouldFit(double width, double height, int expected)
+    {
+        Assert.Equal(3, QuickTagSurface.MinimumSuggestionRows);
+        Assert.Equal(expected, QuickTagStripFit.Count(Chips(40), width, height, 8, minimum: 3,
+            minimumRows: QuickTagSurface.MinimumSuggestionRows));
+    }
+
+    [Fact]
+    public void ThreeRowsDoNotInventSuggestionsAndTheConfiguredMinimumStillWins()
+    {
+        Assert.Equal(5, QuickTagStripFit.Count(Chips(5), 280, 0, 8, 3, minimumRows: 3));
+        Assert.Equal(18, QuickTagStripFit.Count(Chips(40), 280, 0, 8, 18, minimumRows: 3));
+    }
+
     private static readonly DateTimeOffset Day = new(2026, 11, 14, 0, 0, 0, TimeSpan.Zero);
 
     private static MediaLibraryEntry Entry() =>
@@ -148,7 +168,7 @@ public sealed class QuickTagStripFitTests : IDisposable
     }
 
     [Fact]
-    public void WithoutAHeightTheStripKeepsTheConfiguredCountAndTheRankingIsAskedForNoMore()
+    public void WithoutLayoutTheStripKeepsTheConfiguredCountButBothHostsRequestABoundedCandidatePool()
     {
         using TempDirectory temp = new();
         using ProfileLease lease = ProfileLease.Acquire(temp.Path);
@@ -158,7 +178,7 @@ public sealed class QuickTagStripFitTests : IDisposable
         using (popover)
         {
             Assert.Equal(QuickTagOptions.DefaultSuggestionCount, popover.Shown.Count);
-            Assert.All(popoverLimits, limit => Assert.Equal(QuickTagOptions.DefaultSuggestionCount, limit));
+            Assert.All(popoverLimits, limit => Assert.Equal(60, limit));
         }
         // The gallery panel before it was laid out (or in a unit test): the same count, but the ranking is asked for the panel limit.
         (QuickTagSurface panel, QuickTagSession panelSession, List<int> panelLimits) = Surface(store, fill: true, panelLimit: 40);
@@ -194,17 +214,22 @@ public sealed class QuickTagStripFitTests : IDisposable
         using (session)
         using (surface)
         {
-            Grid layout = Assert.IsType<Grid>(surface.Content);
+            ScrollViewer scroll = Assert.IsType<ScrollViewer>(surface.Content);
+            Grid layout = Assert.IsType<Grid>(scroll.Content);
             Control Child(string suffix) => layout.Children.OfType<Control>().Single(child => child.Name == "QuickTag" + suffix);
             int Row(string suffix) => Grid.GetRow(Child(suffix));
             Assert.True(Row("Field") < Row("Body"), "the assigned block follows the field");
             Assert.True(Row("Body") < Row("SuggestionArea"), "assigned tags come before the suggestions");
             Assert.True(Row("SuggestionArea") < Row("Status") && Row("Status") < Row("Actions"));
-            Assert.Equal(GridUnitType.Star, layout.RowDefinitions[Row("SuggestionArea")].Height.GridUnitType); // the suggestions take what is left
+            Assert.All(layout.RowDefinitions, row => Assert.Equal(GridUnitType.Auto, row.Height.GridUnitType)); // the whole sequence scrolls
             Assert.Equal(GridUnitType.Auto, layout.RowDefinitions[Row("Body")].Height.GridUnitType);
             Grid area = Assert.IsType<Grid>(Child("SuggestionArea"));
             Assert.Equal(2, Grid.GetRow(surface.MoreButton));
-            Assert.Equal(GridUnitType.Star, area.RowDefinitions[1].Height.GridUnitType);
+            Assert.All(area.RowDefinitions, row => Assert.Equal(GridUnitType.Auto, row.Height.GridUnitType));
+            Assert.IsType<Border>(Child("Body"));
+            Assert.IsType<Border>(area.Children.Single(child => Grid.GetRow(child) == 1));
+            Assert.Equal(Avalonia.Controls.Primitives.ScrollBarVisibility.Auto, scroll.VerticalScrollBarVisibility);
+            Assert.Equal(Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled, scroll.HorizontalScrollBarVisibility);
             Assert.Equal(Avalonia.Layout.VerticalAlignment.Bottom, surface.MoreButton.VerticalAlignment);
         }
     }
