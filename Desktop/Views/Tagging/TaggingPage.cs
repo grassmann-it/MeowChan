@@ -51,8 +51,10 @@ public sealed partial class TaggingPage : UserControl
     private readonly Button _start = new() { Name = "TaggingStart", Classes = { "primary" } };
     // T1: "Last shown: file · position n of m"; the link continues exactly there (the same action as the start button, which stands at
     // the same entry).
-    private readonly Button _lastShown = new() { Name = "TaggingLastShown", Classes = { "link", "tnum" }, Padding = new Thickness(0), MinHeight = 24,
-        HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center, IsVisible = false };
+    private readonly TextBlock _lastShown = new() { Name = "TaggingLastShown", Classes = { "muted", "tnum" }, MaxWidth = 280,
+        TextTrimming = TextTrimming.CharacterEllipsis, IsVisible = false };
+    private readonly StackPanel _startContext = new() { Name = "TaggingStartContext", Spacing = 4 };
+    private readonly TaggingControlRow _queueActionRow = new() { Name = "TaggingQueueActionRow" };
     private readonly StackPanel _filterPanel = new() { Name = "TaggingFilterPanel", Orientation = Orientation.Horizontal, Spacing = 8 };
     private readonly TextBlock _filterLabel = new() { VerticalAlignment = VerticalAlignment.Center };
     private readonly ComboBox _filter = new() { Name = "TaggingFilter", MinWidth = 160 };
@@ -75,6 +77,7 @@ public sealed partial class TaggingPage : UserControl
     private readonly TextBlock _status = new() { Name = "TaggingStatus", Classes = { "muted" }, TextWrapping = TextWrapping.Wrap, IsVisible = false };
     private readonly CancellationTokenSource _lifetime = new();
     private readonly TaggingThumbnails _thumbnails;
+    private readonly IDisposable _keyContext;
     private MediaLibraryUserData? _userData;
     private bool _compactRows;
     private bool _compactTable;
@@ -89,10 +92,9 @@ public sealed partial class TaggingPage : UserControl
         Name = "TaggingPage";
         // Every key of the page runs in the "tagging" context, as the commands of its queue list are declared (tagging.remove, media.tile-size.*): a default
         // that a saved binding took away only elsewhere (a partial yield) stays active here (EffectiveShortcutBindings.EnterKeyContext).
-        MeowChan.Desktop.Controls.KeyContextHost.Install(this, _ => "tagging");
+        _keyContext = MeowChan.Desktop.Controls.KeyContextHost.Install(this, _ => "tagging");
         Content = BuildLayout();
         _start.Click += (_, _) => OpenActions.Start(() => StartAsync(null), "tagging.start");
-        _lastShown.Click += (_, _) => OpenActions.Start(() => StartAsync(null), "tagging.start");
         _filter.SelectionChanged += (_, _) => { if (!_localizing) { Render(); RefreshWorkView(); } };
         InitializeGrid();
         InitializeCommands();
@@ -128,7 +130,7 @@ public sealed partial class TaggingPage : UserControl
     internal ComboBox FilterBox => _filter;
     internal TextBlock StatusText => _status;
     internal TextBlock ProgressText => _progressText;
-    internal Button LastShownLink => _lastShown;
+    internal TextBlock LastShownContext => _lastShown;
     internal Border ErrorPanel => _error;
     internal TextBlock ErrorSourceText => _errorSource;
     internal Button RetryLoadButton => _retryLoad;
@@ -154,7 +156,10 @@ public sealed partial class TaggingPage : UserControl
         // and a long language pushed the bar and the percentage off a narrow page; in a WrapPanel the text gets the row's width.
         WrapPanel counters = new() { ItemSpacing = 12, LineSpacing = 4, Children = { _progressText, _bar, _percent } };
         _progress.Children.Add(counters);
-        _progress.Children.Add(_lastShown);
+        _startContext.Children.Add(_start);
+        _startContext.Children.Add(_lastShown);
+        _queueActionRow.Children.Add(_actions);
+        _queueActionRow.Children.Add(_progress);
 
         _filterPanel.Children.Add(_filterLabel);
         _filterPanel.Children.Add(_filter);
@@ -169,7 +174,7 @@ public sealed partial class TaggingPage : UserControl
         // Preserve the existing rows; only distinguish the queue controls from other major sections.
         StackPanel queueControls = new() { Name = "TaggingQueueControls",
             [!StackPanel.SpacingProperty] = new DynamicResourceExtension("Workspace.Space.8"),
-            Children = { _progress, _actions, _secondaryToolbar } };
+            Children = { _queueActionRow, _secondaryToolbar } };
         header.Children.Add(queueControls);
         header.Children.Add(BuildStamp());
         SizeChanged += (_, _) =>
@@ -398,8 +403,7 @@ public sealed partial class TaggingPage : UserControl
     private void RenderLastShown(TagQueueSnapshot queue)
     {
         string? text = TaggingQueueView.LastShownText(queue, _selectedGroupId, _ungroupedSelected, Scope);
-        _lastShown.Content = text; // its visibility is the work-view gate's (RefreshWorkView)
-        _lastShown.IsEnabled = text != null && CanStart;
+        _lastShown.Text = text; // its visibility is the work-view gate's (RefreshWorkView)
         if (text != null)
         {
             AutomationProperties.SetName(_lastShown, text);
@@ -423,6 +427,7 @@ public sealed partial class TaggingPage : UserControl
         if (label == null)
             ToolTip.SetTip(_start, Texts.T(_queueWork.Queue.Count == 0 ? "queue.empty" : "queue.allDone"));
         RenderLastShown(_queueWork.Queue);
+        AutomationProperties.SetHelpText(_start, _lastShown.Text);
         RefreshCommandStates();
     }
 
@@ -497,6 +502,7 @@ public sealed partial class TaggingPage : UserControl
     {
         if (_queueWork.Ended) return;
         _queueWork.End();
+        _keyContext.Dispose();
         EndTagging();
         _menuHost?.Dispose();
         _gridMenuHost?.Dispose();

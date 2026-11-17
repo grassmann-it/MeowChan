@@ -69,7 +69,7 @@ public sealed partial class TaggingPage
         // presentation choices separate from queue mutations and makes the right side predictable. What does not fit moves under More.
         (Control Item, int Group)[] items =
         {
-            (_start, 0), (_add, 0), (_groupPanel, 1), (_filterPanel, 1), (_clearDone, 2), (_clear, 2),
+            (_startContext, 0), (_add, 0), (_groupPanel, 1), (_filterPanel, 1), (_clearDone, 2), (_clear, 2),
             (_columnsButton, 3), (_viewToggle, 3), (_help, 4)
         };
         foreach ((Control item, int group) in items)

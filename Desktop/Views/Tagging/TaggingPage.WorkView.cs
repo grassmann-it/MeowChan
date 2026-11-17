@@ -16,6 +16,7 @@ public sealed partial class TaggingPage
     {
         WorkViewElement.SetId(_progress, "tagging.progress");
         WorkViewElement.SetId(_start, "tagging.start");
+        WorkViewElement.SetId(_startContext, "tagging.start");
         WorkViewElement.SetId(_lastShown, "tagging.last-shown");
         WorkViewElement.SetId(_list, "tagging.list");
         WorkViewElement.SetId(_error, "tagging.error");
