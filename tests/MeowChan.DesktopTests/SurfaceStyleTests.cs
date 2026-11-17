@@ -62,7 +62,7 @@ public sealed class SurfaceStyleTests
     public void BooruHitsAndWatchersAreCardsAndTheirThumbnailIsFlat()
     {
         // Cards belong to the shared view; the window is only a host after the workspace extraction.
-        string booru = File.ReadAllText(Root("Desktop/Views/Booru/BooruWorkbenchView.cs"));
+        string booru = BooruViewSources.ReadAll(Root("Desktop/Views/Booru/BooruWorkbenchView.cs"));
         Assert.Contains("BooruResult:\" + post.PostId };\n        card.Classes.Add(\"workspace-card\")", booru.Replace("\r\n", "\n"));
         Assert.Contains("BooruWatcher:\" + watcher.WatcherId };\n        card.Classes.Add(\"workspace-card\")", booru.Replace("\r\n", "\n"));
         Assert.Contains("frame.Classes.Add(\"workspace-thumb-placeholder\")", booru);

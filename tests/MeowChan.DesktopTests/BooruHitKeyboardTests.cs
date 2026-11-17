@@ -242,6 +242,89 @@ public sealed class BooruHitKeyboardTests
         }
     });
 
+    // ---- B1: unchanged hits keep their card -------------------------------------------------------------------------
+
+    [Fact]
+    public void AStateChangeOfOneHitBuildsOnlyThatHitsCardAgain() => OnDispatcher(async () =>
+    {
+        BooruUiHarness harness = Harness(out BooruWorkbenchModel model, out BooruWorkbenchView view);
+        using (model) using (view)
+        {
+            List<Border> before = await SearchAsync(harness, model, view);
+            await model.Search.LoadOriginalAsync("102");
+            await BooruTestSupport.WaitAsync(() => !ReferenceEquals(Cards(view)[1], before[1]), "the new card of post 102");
+
+            List<Border> after = Cards(view);
+            Assert.Equal(new[] { "BooruResult:101", "BooruResult:102", "BooruResult:103" }, after.Select(card => card.Name));
+            Assert.Same(before[0], after[0]);
+            Assert.Same(before[2], after[2]);
+            Assert.NotSame(before[1], after[1]);
+            Assert.DoesNotContain(after[1].GetLogicalDescendants().OfType<Button>(), button => button.Name == BooruWorkbenchView.LoadPrefix + "102");
+            Assert.Equal(new[] { 1, 2, 3 }, after.Select(AutomationProperties.GetPositionInSet));
+            Assert.All(after, card => Assert.Equal(3, AutomationProperties.GetSizeOfSet(card)));
+            // The work-view action list names only buttons of the cards that are shown (no stale card keeps a registration).
+            List<Button> actions = Field<List<Button>>(view, "_resultWorkViewActions");
+            Assert.NotEmpty(actions);
+            Assert.All(actions, button => Assert.Contains(after, card => card.GetLogicalDescendants().Contains(button)));
+            Assert.Equal(after.Sum(card => card.GetLogicalDescendants().OfType<Button>().Count(button => WorkViewElementId(button) != null)), actions.Count);
+        }
+    });
+
+    [Fact]
+    public void ExpandingTheTagsOfOneHitBuildsOnlyThatHitsCardAgain() => OnDispatcher(async () =>
+    {
+        BooruUiHarness harness = new();
+        harness.Previews.OnPreview = _ => null;
+        string[] names = Enumerable.Range(1, 30).Select(number => "tag_" + number).ToArray();
+        harness.Search.OnSearch = (query, page, _) => Task.FromResult(BooruCallResult<BooruResultPage>.Ok(BooruUiFixtures.Page(query, page, true,
+            BooruUiFixtures.Post("901", tags: names), BooruUiFixtures.Post("902"))));
+        using BooruWorkbenchModel model = new(harness.Services);
+        using BooruWorkbenchView view = new(model, ownsModel: false);
+        await BooruTestSupport.SearchAsync(model.Search, "cat");
+        await BooruTestSupport.WaitAsync(() => Cards(view).Count == 2, "the hit cards");
+        List<Border> before = Cards(view);
+        Button more = Button(before[0], BooruWorkbenchView.MoreTagsPrefix + "901");
+
+        more.RaiseEvent(new RoutedEventArgs(Avalonia.Controls.Button.ClickEvent));
+        await BooruTestSupport.WaitAsync(() => !ReferenceEquals(Cards(view)[0], before[0]), "the card of post 901 with every tag");
+        List<Border> after = Cards(view);
+        Assert.Same(before[1], after[1]);
+        Assert.Equal(30, after[0].GetLogicalDescendants().OfType<Button>().Count(button => button.Name!.StartsWith(BooruWorkbenchView.ResultTagPrefix, StringComparison.Ordinal)));
+        Assert.DoesNotContain(after[0].GetLogicalDescendants().OfType<Button>(), button => button.Name == BooruWorkbenchView.MoreTagsPrefix + "901");
+    });
+
+    [Fact]
+    public void AForcedRenderBuildsEveryCardAgain() => OnDispatcher(async () =>
+    {
+        BooruUiHarness harness = Harness(out BooruWorkbenchModel model, out BooruWorkbenchView view);
+        using (model) using (view)
+        {
+            List<Border> before = await SearchAsync(harness, model, view);
+            // The host callbacks (and a language change) decide what a card offers, so they never reuse a card.
+            view.IsPostSavedInMedia = _ => false;
+            List<Border> after = Cards(view);
+            Assert.Equal(3, after.Count);
+            Assert.All(after.Zip(before), pair => Assert.NotSame(pair.First, pair.Second));
+        }
+    });
+
+    [Fact]
+    public void ReconcilingKeepsSurvivingControlsAndFollowsTheDesiredOrder()
+    {
+        Border a = new(), b = new(), c = new(), d = new();
+        StackPanel panel = new() { Children = { a, b, c } };
+        BooruWorkbenchView.ReconcileChildren(panel, new Control[] { c, d, a });
+        Assert.Equal(new Control[] { c, d, a }, panel.Children);
+        BooruWorkbenchView.ReconcileChildren(panel, new Control[] { c, d, a });
+        Assert.Equal(new Control[] { c, d, a }, panel.Children);
+        BooruWorkbenchView.ReconcileChildren(panel, new Control[] { a, b });
+        Assert.Equal(new Control[] { a, b }, panel.Children);
+        BooruWorkbenchView.ReconcileChildren(panel, Array.Empty<Control>());
+        Assert.Empty(panel.Children);
+    }
+
+    private static string? WorkViewElementId(Button button) => MeowChan.Desktop.WorkViews.WorkViewElement.GetId(button);
+
     // ---- V12: the watcher double click ------------------------------------------------------------------------------
 
     [Fact]

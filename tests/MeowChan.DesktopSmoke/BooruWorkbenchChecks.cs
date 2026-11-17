@@ -170,6 +170,7 @@ internal static partial class BooruWorkbenchChecks
             Require(h.Search.Searches[1] == ("cat blue_eyes", 2), "Next page asked for another query/page.");
             Click(Find<Button>(page, BooruWorkbenchView.PreviousName));
             await Program.WaitUntilAsync(() => Text(page).Contains("Post #101"), () => "page 1 not shown again");
+            await CheckFocusRetentionAsync(page, h);
 
             // ---- load original: one explicit handover ----------------------------------------------------------------
             Click(Find<Button>(page, BooruWorkbenchView.LoadPrefix + "101"));
@@ -575,6 +576,43 @@ internal static partial class BooruWorkbenchChecks
                 && Focused(page) is Button { Name: { } back } && back == BooruWorkbenchView.RemovePrefix + "w-error",
             () => "Escape did not answer the question with Cancel: " + Describe(Focused(page)));
         Require(Shell(page).IsVisible && page.IsEffectivelyVisible && !h.Watchers.Calls.Contains("remove:w-error"), "Escape closed the shell/page or removed the watcher.");
+    }
+
+    // B1: the result list updates per post. A result that changes while another hit holds the focus leaves that hit's card (and the focus) alone,
+    // and a hit that changes under the focus gets the focus back on its own new card.
+    private static async Task CheckFocusRetentionAsync(BooruPage page, BooruUiHarness h)
+    {
+        await Program.WaitUntilAsync(() => Cards(page, "BooruResult:").Count == 3 && Previews(page) == 3,
+            () => "cards=" + Cards(page, "BooruResult:").Count + " previews=" + Previews(page));
+        Control Card(string post) => Cards(page, "BooruResult:").Single(card => card.Name == "BooruResult:" + post);
+        Control card101 = Card("101"), card102 = Card("102"), card103 = Card("103");
+        card102.Focus(NavigationMethod.Tab);
+        await Program.WaitUntilAsync(() => ReferenceEquals(Focused(page), card102), () => "the hit card did not take the focus: " + Describe(Focused(page)));
+        try
+        {
+            // Another hit becomes "saved locally": only its card is built again, the focused one stays the same control with the focus.
+            h.Queue.States["103"] = BooruLocalState.Loaded;
+            h.Queue.RaiseLocalStatesChanged();
+            await Program.WaitUntilAsync(() => !ReferenceEquals(Card("103"), card103), () => "the card of post 103 was not updated");
+            await SettleAsync();
+            Require(ReferenceEquals(Card("101"), card101) && ReferenceEquals(Card("102"), card102) && ReferenceEquals(Focused(page), card102),
+                "A change of another hit moved the focus or replaced the focused card: " + Describe(Focused(page)));
+            Require(Cards(page, "BooruResult:").Select(card => card.Name).SequenceEqual(new[] { "BooruResult:101", "BooruResult:102", "BooruResult:103" }),
+                "The hit order changed.");
+
+            // The focused hit itself changes: its card is replaced and the focus returns to the same post.
+            h.Queue.States["102"] = BooruLocalState.Loaded;
+            h.Queue.RaiseLocalStatesChanged();
+            await Program.WaitUntilAsync(() => !ReferenceEquals(Card("102"), card102), () => "the card of post 102 was not updated");
+            await Program.WaitUntilAsync(() => Focused(page) is Visual focused && (ReferenceEquals(focused, Card("102")) || Card("102").IsVisualAncestorOf(focused)),
+                () => "the focus did not come back to post 102: " + Describe(Focused(page)));
+            Require(ReferenceEquals(Card("101"), card101), "A change of one hit replaced an unchanged hit.");
+        }
+        finally
+        {
+            h.Queue.States.Remove("102");
+            h.Queue.States.Remove("103");
+        }
     }
 
     private static object? Focused(BooruPage page) => Shell(page).FocusManager?.GetFocusedElement();

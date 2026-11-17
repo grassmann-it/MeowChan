@@ -162,7 +162,8 @@ public sealed class BooruWorkbenchViewContractTests
     }
 
     private static string WindowSource() => Source("BooruWorkbenchWindow.cs");
-    private static string ViewSource() => Source("BooruWorkbenchView.cs");
+    private static string ViewSource([CallerFilePath] string path = "") =>
+        BooruViewSources.ReadAll(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(path)!, "../../Desktop/Views/Booru", "BooruWorkbenchView.cs")));
     private static string ControlSource(string file, [CallerFilePath] string path = "") =>
         File.ReadAllText(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(path)!, "../../Desktop/Controls", file)));
     private static string Source(string file, [CallerFilePath] string path = "") =>

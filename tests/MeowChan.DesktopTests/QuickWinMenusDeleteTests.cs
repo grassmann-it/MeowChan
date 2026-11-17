@@ -19,7 +19,7 @@ public sealed class QuickWinMenusDeleteTests : IDisposable
     public void Dispose() { Texts.Initialize(); Texts.SetLanguage("en"); }
 
     private static string Read(string relative, [CallerFilePath] string sourcePath = "") =>
-        File.ReadAllText(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sourcePath)!, "../..", relative)));
+        BooruViewSources.ReadAll(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sourcePath)!, "../..", relative)));
 
     private static readonly DateTimeOffset Day = DateTimeOffset.UnixEpoch;
 
