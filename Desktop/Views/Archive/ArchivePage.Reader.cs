@@ -760,6 +760,9 @@ public partial class ArchivePage
     }
 
     /// <summary>True while the bar is shown: always in "Always", never in "Off"; in "Auto" with recent pointer movement, pointer over or near it, keyboard focus in it.</summary>
+    internal bool IsLargeReader => _largeReader;
+    internal string ReaderNavigationDebugState => $"large={_largeReader};mode={_readerNavigationMode};active={_readerNavigationActive};pointerOver={_readerNavigationPointerOver};visible={ReaderNavigation.IsVisible};focus={ReaderNavigation.IsKeyboardFocusWithin}";
+
     internal bool ReaderNavigationShown => _largeReader && _readerNavigationMode != Config.ReaderNavigationModeOff
         && (_readerNavigationMode == Config.ReaderNavigationModeAlways || _readerNavigationActive || _readerNavigationPointerOver
         || ReaderNavigation.IsKeyboardFocusWithin || PointerNearReaderNavigation());

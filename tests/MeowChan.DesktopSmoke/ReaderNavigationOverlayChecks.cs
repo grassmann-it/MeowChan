@@ -196,7 +196,7 @@ internal static class ReaderNavigationOverlayChecks
             async Task WaitHiddenAsync() => await Program.WaitUntilAsync(() => !page.ReaderNavigationShown && bar.Opacity == 0 && !bar.IsHitTestVisible,
                 () => $"The bar did not hide after the idle delay: shown={page.ReaderNavigationShown} opacity={bar.Opacity} hit={bar.IsHitTestVisible} focus={bar.IsKeyboardFocusWithin} bounds={bar.Bounds}");
             async Task WaitShownAsync() => await Program.WaitUntilAsync(() => page.ReaderNavigationShown && bar.Opacity == 1 && bar.IsHitTestVisible,
-                () => $"The bar did not show: shown={page.ReaderNavigationShown} opacity={bar.Opacity} hit={bar.IsHitTestVisible}");
+                () => $"The bar did not show: shown={page.ReaderNavigationShown} opacity={bar.Opacity} hit={bar.IsHitTestVisible}; {page.ReaderNavigationDebugState}");
             if (MotionPolicy.IsOff)
                 Require(bar.Transitions is not { Count: > 0 }, "The bar fades although motion is off.");
             // Idle: hidden, and clicks go to the content below it.
