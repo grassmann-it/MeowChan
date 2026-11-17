@@ -522,6 +522,13 @@ internal static class ReaderNavigationOverlayChecks
         Rect separator = Bounds(page.FindControl<Border>("ReaderNavigationSeparator")!, window);
         Point gap = new(separator.Center.X, pad.Top + 5);
         Visual? gapHit = window.InputHitTest(gap) as Visual;
+        Console.WriteLine("SMOKE NAVBAR-05 hit state: " + System.Text.Json.JsonSerializer.Serialize(new
+        {
+            navigation.IsHitTestVisible, navigation.Opacity, navigation.IsVisible,
+            surface = Bounds(page.FindControl<Border>("ReaderNavigationHitSurface")!, window).ToString(),
+            gapHit = gapHit?.GetType().Name, gapHitName = (gapHit as Control)?.Name,
+            ancestors = gapHit?.GetSelfAndVisualAncestors().OfType<Control>().Select(control => control.Name ?? control.GetType().Name).ToArray()
+        }));
         Require(gapHit != null && gapHit.GetSelfAndVisualAncestors().Contains(navigation),
             "NAVBAR-05: a click beside the separator inside the capsule passed through to the content: " + gap + " in " + pad);
         foreach (string counterName in new[] { "ReaderThreadPosition", "ReaderPostPosition" })
