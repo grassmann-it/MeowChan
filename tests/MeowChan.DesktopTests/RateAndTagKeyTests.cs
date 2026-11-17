@@ -57,7 +57,7 @@ public sealed class RateAndTagPopoverCloseTests : IDisposable
         public void Dispose() { _lease.Dispose(); _temp.Dispose(); }
     }
 
-    private static QuickTagPopoverDecision Decision(bool focusRating = true) => new()
+    private static QuickTagPopoverDecision Decision(bool focusRating = false) => new()
     {
         View = () => new GalleryDecisionView(1, GalleryDecisionCoverage.None, null, false, true),
         SetRating = _ => Task.CompletedTask,
@@ -66,6 +66,28 @@ public sealed class RateAndTagPopoverCloseTests : IDisposable
 
     private static KeyEventArgs Key(Key key, KeyModifiers modifiers = KeyModifiers.None, object? source = null) =>
         new() { RoutedEvent = InputElement.KeyDownEvent, Key = key, KeyModifiers = modifiers, Source = source };
+
+    [Theory]
+    [InlineData("Desktop/Views/Media/MediaPage.cs")]
+    [InlineData("Desktop/Views/Media/MediaPage.PanelKeys.cs")]
+    [InlineData("Desktop/Views/Archive/ArchivePage.MediaCommands.cs")]
+    [InlineData("Desktop/Views/Archive/ArchivePage.Ratings.cs")]
+    public void GeneralRateAndTagEntryDoesNotRequestStarFocus(string path)
+    {
+        string source = Source(path);
+        Assert.DoesNotContain("focusRating: true", source);
+        Assert.Contains("focusRating: false", source);
+    }
+
+    [Fact]
+    public void TaggingRIncludesTheDecisionRowWithoutGivingItInitialFocus()
+    {
+        string source = Source("Desktop/Views/Tagging/TaggingPage.Tagging.cs");
+        Assert.Contains("TagSelectionAsync(anchor, includeRating: true)", source);
+        Assert.Contains("Decision = includeRating ? DecisionForEntries?.Invoke", source);
+        Assert.Contains("ToArray(), false) : null", source);
+        Assert.Contains("new RateAndTagRequest(TagsBlocked: blocked, FocusFallback: FocusGallery)", Source("Desktop/Shell/MainWindow.QuickTags.cs"));
+    }
 
     // ---- Esc: at most two presses, from any element ---------------------------------------------------------------------------
 
@@ -499,7 +521,7 @@ public sealed class RateAndTagMediaPageKeyTests
         Assert.True(fixture.LastHandled);
         Opened open = Assert.Single(opened);
         Assert.Same(fixture.Entries[2], open.Entry);
-        Assert.True(open.Request.FocusRating);
+        Assert.False(open.Request.FocusRating);
         Assert.NotNull(open.Request.FocusFallback); // the grid takes the keyboard when the tile is gone after the close
         Assert.Equal(new[] { 2 }, fixture.Grid.Selection.SelectedIndexes.ToArray());
     });
@@ -790,6 +812,6 @@ public sealed class RateAndTagSurfaceTests : IDisposable
         int loop = commands.IndexOf("foreach (string id in TaggingCommands.All)", StringComparison.Ordinal);
         Assert.True(r >= 0 && loop > r, "R must be taken before the list's commands and its type-ahead.");
         Assert.Contains("DecisionForEntries = DecisionForMediaEntries", Source("Desktop/Shell/MainWindow.TaggingPage.cs"));
-        Assert.Contains("TagSelectionAsync(anchor, focusRating: true)", Source("Desktop/Views/Tagging/TaggingPage.Tagging.cs"));
+        Assert.Contains("TagSelectionAsync(anchor, includeRating: true)", Source("Desktop/Views/Tagging/TaggingPage.Tagging.cs"));
     }
 }

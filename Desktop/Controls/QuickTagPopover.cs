@@ -48,7 +48,7 @@ internal sealed record QuickTagPopoverDecision
     internal required Func<int?, Task> SetRating { get; init; }
     /// <summary>The flag the favourite button asks for; null hides the button (a host without a favourites call for its targets).</summary>
     internal Func<bool, Task>? SetFavorite { get; init; }
-    /// <summary>R: the stars take the focus when the popover opens (the checked star, star 1 while unrated); otherwise the tag field does.</summary>
+    /// <summary>Explicit rating-only focus opt-in; general R / "Rate and tag" entry leaves this false so the tag field takes focus.</summary>
     internal bool FocusRating { get; init; }
     /// <summary>True once a request wrote something (read by the host after the popover closed: the page then refreshes its tiles and captions).</summary>
     internal Func<bool>? HasChanged { get; init; }
@@ -57,12 +57,12 @@ internal sealed record QuickTagPopoverDecision
 }
 
 /// <summary>How a page asked the shell for the "Rate and tag" popover of one medium.</summary>
-/// <param name="FocusRating">The stars take the focus (R, the menu entry, the rating caption); false: the tag field does (Ctrl+Shift+T).</param>
+/// <param name="FocusRating">Explicit star-focus opt-in. R, menus, rating captions and tagging entry default to the tag field. A blocked target without a field focuses the stars regardless.</param>
 /// <param name="TagsBlocked">The localized reason the medium cannot be tagged (a Danbooru medium, a file shared by several posts), or null; the popover then
 /// still offers the stars and says the reason as text.</param>
 /// <param name="FocusFallback">Where the keyboard goes after the popover closed when the control it was opened from is gone or hidden (the page's
 /// selected post, tile or list); see <see cref="QuickTagPopoverOptions.FocusFallback"/>.</param>
-internal sealed record RateAndTagRequest(bool FocusRating = true, string? TagsBlocked = null, Func<bool>? FocusFallback = null);
+internal sealed record RateAndTagRequest(bool FocusRating = false, string? TagsBlocked = null, Func<bool>? FocusFallback = null);
 
 /// <summary>What a host passes besides the target: the suggestion source, the guard and the tag dialog hand-over.</summary>
 internal sealed record QuickTagPopoverOptions
@@ -258,7 +258,7 @@ internal sealed class QuickTagPopover
             decisionRow.FieldFocused = () => surface.Input.IsKeyboardFocusWithin;
             decisionRow.ReturnFocus = () => surface.FocusField();
             surface.DecisionContent = decisionRow;
-            // R puts the focus on the stars instead (OnOpened); the field then does not take it when the surface attaches.
+            // An explicit star-focus request suppresses the surface's automatic field focus; general rate-and-tag entry keeps it.
             if (decision.FocusRating) surface.FocusOnAttach = false;
         }
         QuickTagPopover popover = new(anchor, options, surface, session, surface, unsubscribe, decisionRow);
@@ -384,17 +384,8 @@ internal sealed class QuickTagPopover
         _flyout.Opened -= OnOpened;
         if (_closed) return;
         AttachKeyGuard();
-        if (_options.Decision is { FocusRating: true } && _decisionRow != null)
-        {
-            // R: the stars take the focus (posted: the flyout has laid its content out by then); the field or × when the row cannot take it.
-            GalleryDecisionRow row = _decisionRow;
-            Dispatcher.UIThread.Post(() =>
-            {
-                if (_closed || row.FocusRating()) return;
-                if (Surface != null) Surface.FocusField(); else BlockedClose?.Focus(NavigationMethod.Tab);
-            }, DispatcherPriority.Input);
-        }
-        else BlockedClose?.Focus(NavigationMethod.Tab);
+        // Run after the flyout has attached and laid out its field. Reuse the same focus contract when Tab repairs a lost focus.
+        Dispatcher.UIThread.Post(FocusInside, DispatcherPriority.Input);
         if (_options.IsCurrent != null)
         {
             _guard = new DispatcherTimer(GuardInterval, DispatcherPriority.Background, (_, _) => CheckCurrent());
@@ -575,11 +566,11 @@ internal sealed class QuickTagPopover
     internal static bool IsModifierKey(Key key) => key is Key.LeftShift or Key.RightShift or Key.LeftCtrl or Key.RightCtrl
         or Key.LeftAlt or Key.RightAlt or Key.LWin or Key.RWin;
 
-    // The keyboard goes back into the popover: the stars for R, else the field, else the ×.
+    // General entry and focus repair prefer the tag field. An explicit star request, or no field, uses the stars; otherwise ×.
     private void FocusInside()
     {
         if (_closed) return;
-        if (_options.Decision is { FocusRating: true } && _decisionRow?.FocusRating() == true) return;
+        if ((Surface == null || _options.Decision is { FocusRating: true }) && _decisionRow?.FocusRating() == true) return;
         if (Surface != null) Surface.FocusField();
         else BlockedClose?.Focus(NavigationMethod.Tab);
     }
@@ -613,7 +604,7 @@ internal sealed class QuickTagPopover
     /// <summary>
     /// The frame's decision for a key that bubbled out of the content: an already handled key, Tab (the cycle) and a lone modifier pass; a key that types
     /// text into the text box it came from passes UNHANDLED (marking it handled would swallow the character: the platform raises TextInput only for an
-    /// unhandled KeyDown, Tom 17.11.2026); printable text from any other part (the stars after R, a chip, a button) goes into the field when there is one
+    /// unhandled KeyDown, Tom 17.11.2026); printable text from any other part (the stars after Tab, a chip, a button) goes into the field when there is one
     /// (TG-02); a plain Esc closes; everything else is consumed, so it never reaches the page behind the popover.
     /// </summary>
     internal static UnhandledKeyAction UnhandledKey(KeyEventArgs e, bool hasField)

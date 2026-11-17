@@ -25,7 +25,7 @@ namespace MeowChan.DesktopSmoke;
 // only for an unhandled keyDown). This smoke types with OS input (XTest, private Xvfb) into the real main window: the popover from R, Ctrl+Shift+T and
 // the media menu over a playing sidebar video and over a picture in the embedded reader, R and Ctrl+Shift+T in the large reader with its sidebar video,
 // R on a Media page tile and a Tagging page row, the gallery's tag panel (Ctrl+Shift+T, R) and the Tagging page's stamp field. It records which element
-// marked a typed key handled and whether a TextInput was raised at all, and fails unless the typed text arrives (also right after R, with the stars
+// marked a typed key handled and whether a TextInput was raised at all, and fails unless the typed text arrives (also right after R, with the field
 // focused), the popover stays, the video keeps playing and no page shortcut ran; the star keys, Alt+1, Ctrl+Z, Backspace, Ctrl+A, Esc and the focus
 // hand-back are checked with the same OS input.
 internal static class QuickTagNativeTypingChecks
@@ -121,7 +121,7 @@ internal static class QuickTagNativeTypingChecks
             typeof(MainWindow).GetMethod("CloseLargeReader", Private)!.Invoke(window, [true]);
             await Settle(window);
 
-            // C: the gallery's tag panel (Ctrl+Shift+T: the field; R: the stars) over the picture.
+            // C: the gallery's tag panel (Ctrl+Shift+T and R: the field) over the picture.
             cases.AddRange(await GalleryCasesAsync(window, page, input, trace));
 
             // D: the Media page (R on a tile) and E: the Tagging page (R on a row, the stamp field).
@@ -222,14 +222,32 @@ internal static class QuickTagNativeTypingChecks
         await Settle(window);
         List<string> problems = new();
         if (!string.IsNullOrEmpty(surface.Input.Text)) problems.Add("the repeats of a held R were typed into the field: '" + surface.Input.Text + "'");
+        if (!surface.Input.IsKeyboardFocusWithin) problems.Add("R did not put the caret in the tag input");
+        // Preserve the existing direct-rating contract on an empty field; once typing starts Shift+digit is text, not a rating.
+        await input.ChordAsync('3', MediaNativeInput.ShiftLeft);
+        await WaitQuietly(() => row.View.Rating == 3);
+        if (row.View.Rating != 3 || !string.IsNullOrEmpty(surface.Input.Text)) problems.Add("Shift+3 on the empty field did not rate 3");
+        await input.ChordAsync('0', MediaNativeInput.ShiftLeft);
+        await WaitQuietly(() => row.View.Rating == null);
+        if (row.View.Rating != null) problems.Add("Shift+0 on the empty field did not clear the rating");
         await TypeAsync(input, "r");
         await Settle(window);
         if (surface.Input.Text != "r") problems.Add("a new R after the held one did not type 'r': '" + surface.Input.Text + "'");
+        await input.ChordAsync('3', MediaNativeInput.ShiftLeft);
+        await Settle(window);
+        if (surface.Input.Text != "r#" || row.View.Rating != null) problems.Add("Shift+3 while typing did not remain text: '" + surface.Input.Text + "'");
         surface.Input.Text = "";
+        surface.Input.Dismiss();
         row.FocusRating();
         await Settle(window);
         string focusOnOpen = Describe(TopLevel.GetTopLevel(popover.Frame)?.FocusManager?.GetFocusedElement());
-        if (!row.IsRatingFocused) problems.Add("R did not put the focus on the stars (" + focusOnOpen + ")");
+        if (!row.IsRatingFocused) problems.Add("Explicit star focus failed (" + focusOnOpen + ")");
+        await input.KeyAsync(MediaNativeInput.Right);
+        await Settle(window);
+        if (!row.StarButtons[1].IsFocused) problems.Add("Right did not rove from the unrated star to star 2");
+        await input.KeyAsync(MediaNativeInput.Space);
+        await WaitQuietly(() => row.View.Rating == 2);
+        if (row.View.Rating != 2) problems.Add("Space on the focused star did not rate 2");
         await input.ChordAsync('3', MediaNativeInput.ShiftLeft);
         await WaitQuietly(() => row.View.Rating == 3);
         if (row.View.Rating != 3) problems.Add("Shift+3 on the stars did not rate 3 (" + row.View.Rating + ")");
@@ -322,7 +340,8 @@ internal static class QuickTagNativeTypingChecks
         TopLevel? popupRoot = TopLevel.GetTopLevel(popover.Frame);
         string focusOnOpen = Describe(popupRoot?.FocusManager?.GetFocusedElement());
 
-        // The keys typed right after opening (R and the menu: the stars hold the focus; Ctrl+Shift+T: the field).
+        // All general entry points must already have the caret in the field, before any typing or click.
+        bool fieldFocusedOnOpen = surface.Input.IsKeyboardFocusWithin;
         trace.Begin();
         await TypeAsync(input, "q");
         await Settle(window);
@@ -352,6 +371,7 @@ internal static class QuickTagNativeTypingChecks
         if (popover.IsOpen) { await input.KeyAsync(MediaNativeInput.Escape); await Settle(window); }
         Control? focused = (origin == null ? null : TopLevel.GetTopLevel(origin))?.FocusManager?.GetFocusedElement() as Control;
         List<string> problems = new();
+        if (!fieldFocusedOnOpen) problems.Add("opening did not focus the tag input (" + focusOnOpen + ")");
         if (afterOpenTyping != "q") problems.Add($"'q' typed right after opening gave '{afterOpenTyping}' (focus {focusOnOpen})");
         if (typed != Word) problems.Add($"'{Word}' typed after a click gave '{typed}' (focus {focusAfterClick}; first handled at {handled}; text inputs {textInputs})");
         if (!same) problems.Add("the popover closed or was replaced while typing");
@@ -405,6 +425,7 @@ internal static class QuickTagNativeTypingChecks
             QuickTagSurface surface = viewer.TagSurface!;
             surface.Input.Text = "";
             string focusOnOpen = Describe(window.FocusManager?.GetFocusedElement());
+            bool fieldFocusedOnOpen = surface.Input.IsKeyboardFocusWithin;
             trace.Begin();
             await TypeAsync(input, "q");
             await Settle(window);
@@ -424,9 +445,9 @@ internal static class QuickTagNativeTypingChecks
             trace.End();
             surface.Input.Text = "";
             List<string> problems = new();
-            // The gallery panel is no popover: a letter typed on its stars may stay the gallery's (TG-02 covers the popover); record it, require the field.
+            if (!fieldFocusedOnOpen) problems.Add("opening did not focus the tag input (" + focusOnOpen + ")");
             if (typed != Word) problems.Add($"'{Word}' typed after a click gave '{typed}' (focus {focusAfterClick}; first handled at {handled}; text inputs {textInputs})");
-            if (entry == "Ctrl+Shift+T" && afterOpenTyping != "q") problems.Add($"'q' typed into the focused field gave '{afterOpenTyping}' (focus {focusOnOpen})");
+            if (afterOpenTyping != "q") problems.Add($"'q' typed into the focused field gave '{afterOpenTyping}' (focus {focusOnOpen})");
             if (!viewer.IsTagPanelOpen || !ReferenceEquals(host.Content, viewer)) problems.Add("typing closed the tag panel or the gallery");
             cases.Add(new Case("gallery", entry, viewer.CaptureState().PostId == VideoPost ? "video" : "picture", focusOnOpen, afterOpenTyping, focusAfterClick, typed, true, handled, textInputs,
                 problems.Count == 0 ? null : string.Join("; ", problems)));

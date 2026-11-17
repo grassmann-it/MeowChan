@@ -129,7 +129,7 @@ public partial class ArchivePage
         OpenActions.Start(OpenAsync, "archive.media.rateAndTag");
         async Task OpenAsync()
         {
-            try { await OpenRateAndTagAsync(subject, tile, selection, focusRating: true); }
+            try { await OpenRateAndTagAsync(subject, tile, selection, focusRating: false); }
             catch (Exception error) { report(error.Message); }
         }
     }
@@ -362,8 +362,8 @@ public partial class ArchivePage
     /// <summary>
     /// "Rate and tag…" (menu entry, R, the toolbar button, the tile's rating caption and Ctrl+Shift+T): the quick tag popover on <paramref name="origin"/>
     /// with the favourite and stars row on top, then the tag field. Several selected files (the file it opened on is one of them) are rated and tagged
-    /// together. A file that cannot be tagged gets the stars and the reason as text. <paramref name="focusRating"/>: the stars take the focus (R and the
-    /// menu entry); otherwise the field does (the tag shortcut).
+    /// together. R, menus and captions focus the tag field; <paramref name="focusRating"/> is an explicit star-focus opt-in.
+    /// A file that cannot be tagged gets the stars and the reason as text, with focus on its stars.
     /// </summary>
     private async Task OpenRateAndTagAsync(ArchiveMediaSubject subject, Control origin, ArchiveAssetRow[]? selection, bool focusRating, string? label = null)
     {
@@ -436,14 +436,14 @@ public partial class ArchivePage
         }
         if (FocusedMediaForRateAndTag() != null || ReaderPostsInBackground && SelectedMediaRow() != null)
         {
-            await OpenRateAndTagForFocusAsync(focusRating: true, ArchiveEditRatingButton);
+            await OpenRateAndTagForFocusAsync(focusRating: false, ArchiveEditRatingButton);
             return;
         }
         if (SelectedPostRateAndTagMedium() is { } medium)
         {
             ArchiveMediaSubject subject = ResolveArchiveMediaSubject(medium.Asset, medium.Attachment, medium.PostId);
             Action<string> report = CaptureActionErrorReporter();
-            try { await OpenRateAndTagAsync(subject, medium.Origin, null, focusRating: true, medium.Attachment.Label); }
+            try { await OpenRateAndTagAsync(subject, medium.Origin, null, focusRating: false, medium.Attachment.Label); }
             catch (Exception error) { report(error.Message); }
             return;
         }
@@ -643,9 +643,9 @@ public partial class ArchivePage
                 // and closing this menu gives the focus back, so in the large reader it would cancel the opening it had just started.
                 : OpenGallery!(threadId, readerKey, origin)),
             [MediaMenuAction.Favorite] = When(MediaMenuAction.Favorite, CanFavorite, () => ToggleArchiveMediaFavoriteAsync(target!)),
-            // "Rate and tag…": the popover on the tile or attachment the menu opened on (frozen with the menu), the stars focused. A file that cannot be
+            // "Rate and tag…": the popover on the tile or attachment the menu opened on (frozen with the menu), the tag field focused. A file that cannot be
             // rated or tagged gets the popover with the reason as text, so the entry has no precondition of its own.
-            [MediaMenuAction.RateAndTag] = () => OpenRateAndTagAsync(subject, origin, selection, focusRating: true, attachment?.Label),
+            [MediaMenuAction.RateAndTag] = () => OpenRateAndTagAsync(subject, origin, selection, focusRating: false, attachment?.Label),
             [MediaMenuAction.Queue] = When(MediaMenuAction.Queue, CanQueue, async () =>
             {
                 string message = await AddToTagQueue!(new[] { target! });

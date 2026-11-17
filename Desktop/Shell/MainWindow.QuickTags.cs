@@ -183,7 +183,7 @@ public partial class MainWindow
             gallery.FocusGallerySurface();
             return true;
         }
-        return OpenArchiveMediaTagPopoverAsync(entry, anchor, context, () => !_isClosing && ReferenceEquals(_gallery, gallery), new RateAndTagRequest(true, blocked, FocusGallery));
+        return OpenArchiveMediaTagPopoverAsync(entry, anchor, context, () => !_isClosing && ReferenceEquals(_gallery, gallery), new RateAndTagRequest(TagsBlocked: blocked, FocusFallback: FocusGallery));
     }
 
     // ---- favourite and rating row of the popovers --------------------------------------------------------------------------------

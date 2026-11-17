@@ -286,8 +286,9 @@ public sealed class QuickTagPopoverTests : IDisposable
     }
 
     [Fact]
-    public void AHostWithoutAFavouritesCallHidesTheFavouriteButtonAndRFocusKeepsTheFieldFromTakingTheFocus()
+    public void ExplicitStarFocusIsStillAvailableButGeneralRateAndTagDefaultsToTheField()
     {
+        Assert.False(new RateAndTagRequest().FocusRating);
         using Fixture fixture = new();
         DecisionHost host = new();
         QuickTagPopover popover = QuickTagPopover.Create(new Border(), fixture.Session(), "x",

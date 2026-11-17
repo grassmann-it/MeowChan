@@ -1033,11 +1033,11 @@ public sealed partial class MediaPage : UserControl
                 .FirstOrDefault(item => ReferenceEquals(ItemsControl.ItemsControlFromItemContainer(item), _grid)) is { DataContext: MediaLibraryTileRow focused }
             && !_grid.Selection.SelectedItems.Contains(focused))
             _grid.SelectedItem = focused;
-        if (_grid.Selection.Count > 1) { await TagSelectionAsync(focusRating: true); return; }
+        if (_grid.Selection.Count > 1) { await TagSelectionAsync(focusRating: false); return; }
         if (SelectedRow is not { } row) { ShowSelectionNote(MediaMenuReasons.Unavailable); return; }
         if (row.Entry.Presence != MediaLibraryPresence.Present) { ShowSelectionNote(MediaMenuReasons.NotSaved); return; }
         bool Current() => !_lifetime.IsCancellationRequested && _building == null && IsEffectivelyVisible;
-        await OpenRateAndTagAsync(row.Entry, row, _grid.ContainerFromItem(row) ?? _grid, Current, focusRating: true);
+        await OpenRateAndTagAsync(row.Entry, row, _grid.ContainerFromItem(row) ?? _grid, Current, focusRating: false);
     }
 
     // Route only the page's media commands before ListBox typeahead. Panel video/favourite
@@ -1287,7 +1287,7 @@ public sealed partial class MediaPage : UserControl
             [MediaMenuAction.Favorite] = several
                 ? () => Current() ? FavoriteKeyTask = WriteFavoriteKeyAsync(FavoriteKeyAction.Toggle, favoriteRows) : Task.CompletedTask
                 : () => ExecuteMediaActionAsync("favorites.toggle", entry, Current),
-            [MediaMenuAction.RateAndTag] = () => OpenRateAndTagAsync(entry, row, origin, Current, focusRating: true),
+            [MediaMenuAction.RateAndTag] = () => OpenRateAndTagAsync(entry, row, origin, Current, focusRating: false),
             // One tile: that tile. Several selected: the selection frozen now, like the selection actions below.
             [MediaMenuAction.Queue] = queueTiles is { Count: > 1 } ? () => AddTilesToQueueAsync(queueTiles) : () => AddEntryToQueueAsync(entry),
             [MediaMenuAction.Export] = several ? () => Current() ? ExportSelectionAsync() : Task.CompletedTask

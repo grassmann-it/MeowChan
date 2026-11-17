@@ -65,7 +65,7 @@ public sealed partial class MediaPage
             if (row.Entry.Presence != MediaLibraryPresence.Present) { ShowSelectionNote(MediaMenuReasons.NotSaved); return Task.CompletedTask; }
             return OpenRateAndTagAsync(row.Entry, row, anchor,
                 () => !_lifetime.IsCancellationRequested && _building == null && IsEffectivelyVisible,
-                focusRating: id == "media.rating.edit", useSelection: false);
+                focusRating: false, useSelection: false);
         }
         if (_lifetime.IsCancellationRequested || _building != null || _selectionBusy || ExecuteMediaMenuActionAsync == null || row.Entry.Presence != MediaLibraryPresence.Present)
             return Task.CompletedTask;

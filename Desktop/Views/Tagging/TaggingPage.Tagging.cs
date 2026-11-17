@@ -60,7 +60,7 @@ public sealed partial class TaggingPage
     /// "Tag…" and "Tag together…": the quick tag popover over the selected entries (the lead for one), anchored at <paramref name="anchor"/>
     /// (the list by default). "Advanced…" opens the dialog that lists every occurrence.
     /// </summary>
-    internal async Task TagSelectionAsync(Control? anchor = null, bool focusRating = false)
+    internal async Task TagSelectionAsync(Control? anchor = null, bool includeRating = false)
     {
         if (!CanTag || Lead is not { } lead) return;
         IReadOnlyList<TaggingQueueRow> taggable = TaggingRowCommands.Taggable(Selected);
@@ -96,8 +96,8 @@ public sealed partial class TaggingPage
                 RestoreFocus = true,
                 FocusFallback = FocusListNow,
                 Name = "TaggingTagPopover",
-                // R: the stars of the selected entries on top, focused (a Danbooru medium can be rated though it takes no own tags).
-                Decision = focusRating ? DecisionForEntries?.Invoke(Selected.Select(row => row.Item.ToLibraryEntry()).ToArray(), true) : null
+                // R: the stars of the selected entries on top; the tag field takes focus (a Danbooru medium can be rated though it takes no own tags).
+                Decision = includeRating ? DecisionForEntries?.Invoke(Selected.Select(row => row.Item.ToLibraryEntry()).ToArray(), false) : null
             });
             shown = popover;
             _tagPopover = popover;
@@ -119,7 +119,7 @@ public sealed partial class TaggingPage
 
     /// <summary>
     /// R ("Rate and tag…", audit 16.11.2026: the key did nothing on this page): the "Tag…" popover over the selection (the entry the key came from when it is
-    /// not selected yet), with the stars of the selected media on top and focused. When the entries cannot be tagged now the status line says why.
+    /// not selected yet), with the stars of the selected media on top and the tag field focused. When the entries cannot be tagged now the status line says why.
     /// </summary>
     internal Task RateAndTagByKeyAsync(Control? anchor)
     {
@@ -131,7 +131,7 @@ public sealed partial class TaggingPage
             else ShowStatus(MeowChan.Desktop.MediaActions.MediaMenuReasons.Unavailable);
             return Task.CompletedTask;
         }
-        return TagSelectionAsync(anchor, focusRating: true);
+        return TagSelectionAsync(anchor, includeRating: true);
     }
 
     // The list's place for the keyboard after the popover closed without its row (the list was rebuilt): the selected entry, else the list.

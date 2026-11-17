@@ -617,7 +617,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     internal void FocusField() => _input.Focus();
 
     /// <summary>
-    /// Text typed while another part of the host holds the keyboard (the stars after R, a chip, a footer button): the field takes the focus and the text,
+    /// Text typed while another part of the host holds the keyboard (the stars after Tab, a chip, a footer button): the field takes the focus and the text,
     /// at its caret, as if it had been typed there (TG-02: the letters went nowhere). The host marks the key handled, so the platform raises no TextInput
     /// of its own. False when the field cannot take it (disabled, disposed, not realized).
     /// </summary>
