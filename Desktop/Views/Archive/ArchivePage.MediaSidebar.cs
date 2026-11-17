@@ -598,10 +598,10 @@ public partial class ArchivePage
             CancelSidebarStripLoad();
             OfferSidebarVideo(null, null);
             // Say what is true (RD-03, RD-04): a thread being read, a view being prepared or a view without posts is no "select a post".
-            bool loading = (_thread == null && _selectedThread != null && _busy) || (_thread != null && Projection == null);
+            bool threadLoading = (_thread == null && _selectedThread != null && _busy) || (_thread != null && Projection == null);
             bool noPosts = _thread != null && Projection is { Count: 0 };
-            string text = Texts.T(ReaderMediaSidebarRules.EmptyTextKey(loading, noPosts));
-            if (loading) sidebar.ShowThreadLoading(text); // the previous picture stays until the new post is known
+            string text = Texts.T(ReaderMediaSidebarRules.EmptyTextKey(threadLoading, noPosts));
+            if (threadLoading) sidebar.ShowThreadLoading(text); // the previous picture stays until the new post is known
             else
             {
                 sidebar.ShowEmpty(text);
