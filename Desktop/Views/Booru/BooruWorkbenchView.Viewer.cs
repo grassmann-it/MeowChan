@@ -13,6 +13,8 @@ internal sealed partial class BooruWorkbenchView
     private readonly HashSet<string> _selectedResults = new(StringComparer.Ordinal);
     private BooruResultViewerWindow? _resultViewer;
 
+    private void DismissResultViewer() => _resultViewer?.Close();
+
     internal bool OpenResultViewer(string postId)
     {
         if (_closed || TopLevel.GetTopLevel(this) is not Window owner

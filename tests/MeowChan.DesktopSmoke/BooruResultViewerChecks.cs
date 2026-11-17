@@ -35,7 +35,8 @@ internal static class BooruResultViewerChecks
             viewer = host.OwnedWindows.OfType<BooruResultViewerWindow>().Single();
             await Program.WaitUntilAsync(() => Find<Image>(viewer, "GalleryImage").Source is Bitmap);
             Image image = Find<Image>(viewer, "GalleryImage");
-            Require(image.Bounds.Width > 112 && image.Bounds.Height > 112, "The viewer did not enlarge the card preview.");
+            await Program.WaitUntilAsync(() => image.Bounds.Width > 112 && image.Bounds.Height > 112,
+                () => "The viewer did not enlarge the card preview: image=" + image.Bounds + ", window=" + viewer.Bounds);
             Require(!Find<Control>(viewer, "GalleryOverlayControls").IsEffectivelyVisible,
                 "Local-original gallery tools leaked into the Booru preview.");
             Require(h.Queue.Loads.Count == 0 && h.Search.Requests == 1 && h.Previews.Requests == 2,
@@ -74,15 +75,16 @@ internal static class BooruResultViewerChecks
                 "Escape did not close or selection was lost from the result cards.");
             Require(host.FocusManager?.GetFocusedElement() is Control { Name: "BooruResult:703" },
                 "Closing did not restore focus to the browsed result.");
-            Click(Find<Button>(view, "BooruView:701"));
+            Send(Find<Border>(view, "BooruResult:701"), Key.Enter);
             viewer = host.OwnedWindows.OfType<BooruResultViewerWindow>().Single();
-            Require(Find<CheckBox>(viewer, "BooruViewerSelect").IsChecked == true, "Reopening lost per-image selection.");
+            Require(Find<CheckBox>(viewer, "BooruViewerSelect").IsChecked == true, "Card Enter did not reopen with per-image selection.");
             Click(Find<Button>(viewer, "BooruViewerDownload"));
             await Program.WaitUntilAsync(() => h.Queue.Loads.Count == 2);
             Require(h.Queue.Loads.Last().PostId == "701", "Download button did not target the displayed result.");
             host.Content = null;
             await viewer.Cleanup;
             Require(!viewer.IsVisible, "Detaching the Booru page left a viewer alive.");
+            Console.WriteLine("SMOKE BOORU VIEWER PASS: enlarged preview, navigation, selection, exact downloads, restrictions, Escape/focus and detach cleanup; fixtures only.");
         }
         finally
         {

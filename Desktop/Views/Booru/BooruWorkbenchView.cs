@@ -229,7 +229,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     {
         _attached = false;
         _clock.Stop();
-        _resultViewer?.Close();
+        DismissResultViewer();
         base.OnDetachedFromVisualTree(e);
     }
 
@@ -1383,7 +1383,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     {
         if (_closed) return;
         _closed = true;
-        _resultViewer?.Close();
+        DismissResultViewer();
         Interlocked.Increment(ref _linkActionRevision);
         _clock.Stop();
         _clock.Tick -= OnClockTick;
