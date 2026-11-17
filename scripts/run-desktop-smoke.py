@@ -332,6 +332,8 @@ def run_mode_locked(mode: str, assembly: Path, destination: Path, environment: d
     with private_working_directory(isolated) as working_directory:
         child_environment = prepare_environment(environment, isolated, Path(working_directory))
         scenario = expected_scenario or derived_scenario(mode, child_environment)
+        if environment.get("MEOWCHAN_REVIEW_ARTIFACTS"):
+            child_environment["MEOWCHAN_REVIEW_ARTIFACTS"] = str(destination / "review-artifacts")
         if not isolated:
             child_environment["MEOWCHAN_DESKTOP_SMOKE_NATIVE_ALLOWED"] = "1"
         if mode == "shell-load":

@@ -798,6 +798,7 @@ internal static class Program
             new Vector(96 * scale, 96 * scale));
         screenshot.Render(window);
         screenshot.Save(screenshotPath, PngBitmapEncoderOptions.Default);
+        ReviewArtifacts.Capture(window, fileName);
         Console.WriteLine("SMOKE window render: " + screenshotPath);
         Console.WriteLine("SMOKE capture metadata: " + System.Text.Json.JsonSerializer.Serialize(new
         {
