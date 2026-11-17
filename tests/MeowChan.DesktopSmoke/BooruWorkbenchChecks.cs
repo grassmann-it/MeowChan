@@ -41,7 +41,12 @@ internal static partial class BooruWorkbenchChecks
         {
             Texts.SetLanguage("en");
             Application.Current.RequestedThemeVariant = ThemeVariant.Light;
-            await BooruResultViewerChecks.RunAsync(owner);
+            // Focused fixture scene: MEOWCHAN_BOORU_WORKBENCH_ONLY=1 plus
+            // MEOWCHAN_BOORU_VIEWER_CHECKS=only. "skip" replays the older workbench checks
+            // without the viewer fixture, so unrelated native-repair failures can be compared.
+            string? viewerChecks = Environment.GetEnvironmentVariable("MEOWCHAN_BOORU_VIEWER_CHECKS");
+            if (viewerChecks != "skip") await BooruResultViewerChecks.RunAsync(owner);
+            if (viewerChecks == "only") return;
             MenuItem menu = owner.FindControl<MenuItem>("WorkspaceMenuItem")!;
             await CheckMenuHiddenWithoutPortsAsync(owner, menu);
 
