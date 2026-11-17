@@ -94,3 +94,51 @@ and `ledger08-final-smoke.log`. Captures are emitted into the smoke build
 output, including `smoke-tagging-revisit-list.png` and
 `smoke-tagging-revisit-grid.png`. This is Linux managed-input evidence, not
 native-pointer or Windows/macOS acceptance.
+
+## Revisit delivery after PRs #22 and #24 (2026-11-17)
+
+Rebased the contract commit onto `afc35bc4e2a18cbed8cd34f42dbd699e7afda3d6`
+(`origin/goal/gesamtprogramm-profile-a`, including #22 and #24). Then merged the
+previously published contract tip `24ffecb10be3877dff4aa1ace7966d43ad6c78b7`
+back into the rebased history without content changes, so updating PR #23 is a
+normal fast-forward push: no force-push and no published work discarded.
+
+The new assignment's premise that the product fix is missing is contradicted by
+the repository: `git merge-base --is-ancestor 548b25ae3
+origin/goal/gesamtprogramm-profile-a` exits 0. Moreover,
+`Desktop/Views/Tagging/TaggingPage.cs` is byte-for-byte identical to that file in
+548b25ae3 (SHA-256
+`37389a0d871f730ebfe091bb58c170e0ef7019c412834f080d8ccb0a46a89c9c`).
+The clear-before-bind root-cause fix is already present; no duplicate or
+speculative product change was introduced. No tests or assertions were changed,
+and no timeout was raised. The unchanged pinned smoke passes on the rebased base.
+
+Fresh validation on the integrated tree (`9d9e01d4a`):
+
+```text
+$ dotnet build tests/MeowChan.DesktopSmoke/MeowChan.DesktopSmoke.csproj -c Release
+    47 Warning(s)
+    0 Error(s)
+Time Elapsed 00:05:12.20
+
+$ dotnet test tests/MeowChan.DesktopTests/MeowChan.DesktopTests.csproj --filter 'FullyQualifiedName~Tagging' --nologo -v:q
+Passed!  - Failed:     0, Passed:   172, Skipped:     1, Total:   173, Duration: 2 m 35 s - MeowChan.DesktopTests.dll (net10.0)
+
+$ MEOWCHAN_TAGGING_PAGE_ONLY=1 TMPDIR="$COMMANDCODE_SCRATCHPAD" python3 scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll --mode normal --output "$COMMANDCODE_SCRATCHPAD/ledger08-baseline"
+Desktop harness normal: passed (exit 0)
+SMOKE tagging-selection-lifecycle: 20 revisit cycles; single/multi selection, lead, native model, current row identity, containers, list/grid, work views, scope, groups, filter and clear passed.
+SMOKE tagging-page: footer button and More entry, progress, Delete/Alt+Down, context menu, selection bar, grid view and switch, stamp, filter, work views, clear; Light/Dark EN/DE captures.
+SMOKE SCENARIO: normal+MEOWCHAN_TAGGING_PAGE_ONLY
+```
+
+The runner reports `passed: true`, `exit_code: 0`, `timed_out: false`, actual
+render scaling 1, no binding errors, and normal shutdown/profile-lease release.
+It ran in private Xvfb/Openbox/DBus on Linux, not the personal desktop. Both list
+and grid revisit captures were emitted into the Release smoke output directory.
+Full session-local evidence: `ledger08-build.log`, `ledger08-revisit-tests.log`,
+`ledger08-baseline-run.log`, `ledger08-baseline/results.json` and
+`ledger08-baseline/normal/output.log` under `$COMMANDCODE_SCRATCHPAD`.
+
+UX-LEDGER-08's targeted merge gate is green. This is not a claim that unrun
+repository-wide CI or Windows/macOS acceptance has passed. At inspection time
+PR #23 exposed no remote status checks.
