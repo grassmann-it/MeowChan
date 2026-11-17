@@ -74,7 +74,6 @@ public sealed partial class TaggingPage : UserControl
     private readonly Button _emptyClearDone = new() { Name = "TaggingEmptyClearDone" };
     private readonly Button _emptyReopen = new() { Name = "TaggingEmptyReopen" };
     private readonly Button _emptyShowAll = new() { Name = "TaggingEmptyShowAll" };
-    private readonly TextBlock _keysHint = new() { Name = "TaggingKeysHint", Classes = { "workspace-help" }, TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _status = new() { Name = "TaggingStatus", Classes = { "muted" }, TextWrapping = TextWrapping.Wrap, IsVisible = false };
     private readonly CancellationTokenSource _lifetime = new();
     private readonly TaggingThumbnails _thumbnails;
@@ -158,7 +157,7 @@ public sealed partial class TaggingPage : UserControl
         _startContext.Children.Add(_start);
         _startContext.Children.Add(_lastShown);
         _queueActionRow.Children.Add(_actions);
-        _queueActionRow.Children.Add(_progress);
+        _queueActionRow.Children.Add(new StackPanel { Name = "TaggingFeedback", Spacing = 4, Children = { _progress, _status } });
 
         _filterPanel.Children.Add(_filterLabel);
         _filterPanel.Children.Add(_filter);
@@ -180,7 +179,6 @@ public sealed partial class TaggingPage : UserControl
         {
             UpdateTableLayout();
         };
-        header.Children.Add(_status);
         AutomationProperties.SetLiveSetting(_status, AutomationLiveSetting.Polite);
 
         _list.ItemTemplate = RowTemplate();
