@@ -35,6 +35,8 @@ internal static class ArchiveCatalog
         ("archive.reveal.searchReplaced", "The archive search was set to the board {0} so the opened thread is in the list.", "Die Archivsuche wurde auf das Board {0} gesetzt, damit der geöffnete Thread in der Liste steht."),
         ("archive.reveal.restoreSearch", "Restore previous search", "Vorherige Suche wiederherstellen"),
         // F1/F6 (16.11.2026): "Show in thread" for a thread or a post the archive does not hold.
+        ("reader.media.activation.contextChanged", "Medium not opened: the reader context changed or is no longer available. Focus the post and try again.", "Medium nicht geöffnet: Der Lesekontext hat sich geändert oder ist nicht mehr verfügbar. Den Post fokussieren und erneut versuchen."),
+        ("reader.media.activation.missing", "Medium not opened: its saved original is no longer available locally.", "Medium nicht geöffnet: Sein gespeichertes Original ist lokal nicht mehr verfügbar."),
         ("archive.showInThread.missing", "This thread is not in the archive. Nothing was opened.", "Dieser Thread ist nicht im Archiv. Es wurde nichts geöffnet."),
         ("archive.showInThread.postMissing", "This post is not in the archived copy of the thread. The thread is shown from the start.", "Dieser Post ist nicht in der archivierten Kopie des Threads. Der Thread wird ab dem Anfang angezeigt."),
         ("archive.dateChip", "First registered locally: {0} – {1} · {2}", "Erstmals lokal registriert: {0} – {1} · {2}"),

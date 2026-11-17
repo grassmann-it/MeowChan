@@ -47,11 +47,24 @@ public sealed class ReaderGalleryShortcutParityTests
     }
 
     [Fact]
+    public void MediumActivationCarriesAdmissionPolicyThroughEveryGuard()
+    {
+        string inline = Source("ArchivePage.InlineVideo.cs");
+        Assert.Contains("const bool largeReaderOnly = false;", inline);
+        Assert.Contains("ReaderMediaContextIsCurrent(source, post, needsGallery: false, largeReaderOnly: largeReaderOnly)", inline);
+        Assert.Contains("TryActivatePostMedium(e, post, source, largeReaderOnly)", inline);
+        Assert.Contains("cancellation, row, largeReaderOnly)", Source("ArchivePage.MediaActivation.cs"));
+        string reader = Source("ArchivePage.Reader.cs");
+        Assert.Contains("ArchiveAttachmentRow? only = null, bool largeReaderOnly = true)", reader);
+        Assert.Contains("ReaderMediaContextIsCurrent(origin, post, largeReaderOnly: largeReaderOnly)", reader);
+    }
+
+    [Fact]
     public void FocusedMediumGalleryRoutePrecedesGenericThreadGalleryFallback()
     {
         string source = Source("ArchivePage.Reader.cs");
         Assert.Contains("TryOpenFocusedReaderMedium(e)", source);
-        Assert.Contains("StartReaderMediumGalleryOpen(source, post, row)", Source("ArchivePage.MediaActivation.cs"));
+        Assert.Contains("StartReaderMediumGalleryOpen(source, post, row, largeReaderOnly)", Source("ArchivePage.MediaActivation.cs"));
     }
 
     [Fact]
