@@ -251,13 +251,12 @@ public sealed class InteractionAuditTests
     }
 
     [Fact]
-    public void GalleryDoubleClickZoomAndWindowFullscreenRemainSeparate()
+    public void GalleryDoubleClickEntersWindowFullscreen()
     {
         string transform = Read("Desktop/GalleryViewer.ViewTransform.cs");
         string viewer = Read("Desktop/GalleryViewer.cs");
-        // The image gesture is the established Fit/1:1 toggle; native window fullscreen
-        // remains an explicit command/F11 so a double click cannot unexpectedly hide chrome.
-        Assert.Contains("if (_manualZoom) Fit(); else ActualPixels();", transform);
+        // Double-click enters window fullscreen; Fit/1:1 remain explicit toolbar commands.
+        Assert.Contains("FullscreenRequested?.Invoke();", transform);
         Assert.Contains("_viewport.DoubleTapped += OnViewDoubleTapped;", viewer);
         Assert.Contains("GalleryFullscreen", viewer);
         Assert.Contains("FullscreenRequested", viewer);

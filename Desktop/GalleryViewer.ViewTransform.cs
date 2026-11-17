@@ -243,7 +243,10 @@ internal sealed partial class GalleryViewer
             if (!IsOverVideoSurface(e.Source, root) || CurrentGeometry == null) return;
         }
         else if (ReferenceEquals(root, _nativeVideoOverlay)) return;
-        if (_manualZoom) Fit(); else ActualPixels();
+        // Double-clicking the gallery medium is the direct, discoverable way to enter
+        // window fullscreen. Fit/1:1 remains available through the explicit toolbar
+        // commands, so the gesture does not silently change the image transform.
+        FullscreenRequested?.Invoke();
         e.Handled = true;
     }
 
