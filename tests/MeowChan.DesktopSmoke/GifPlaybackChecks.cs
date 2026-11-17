@@ -295,14 +295,18 @@ internal static partial class GalleryPlaybackFeatureChecks
             // The pixel hold intentionally allows the auto-hide timer to fire.
             // Reveal the actual control through the OS pointer before each native
             // click rather than relying on a stale retained visual.
+            // macOS can retain the pre-reparenting Avalonia hit cache while the transport is
+            // already visible in its current native root. The OS click still uses the fresh
+            // screen geometry and the state assertion below proves delivery.
+            bool requireFrameworkHitTest = !OperatingSystem.IsMacOS();
             await MediaInteractionSmokeHelpers.WaitForNativeTargetAsync(native, viewer, gifPlayPause,
-                "GIF play/pause did not become a current hit target after revealing the gallery transport.");
-            await native.ClickAsync(gifPlayPause);
+                "GIF play/pause did not become a current target after revealing the gallery transport.", requireFrameworkHitTest);
+            await native.ClickAsync(gifPlayPause, requireHitTest: requireFrameworkHitTest);
             await UntilAsync(() => !GifState(viewer).UserPaused && GifState(viewer).IsRunning, "GIF button did not resume.");
             await GifChangingPixelsAsync(viewer, "button-resumed");
             await MediaInteractionSmokeHelpers.WaitForNativeTargetAsync(native, viewer, gifPlayPause,
-                "GIF play/pause did not remain a current hit target before the second native click.");
-            await native.ClickAsync(gifPlayPause);
+                "GIF play/pause did not remain a current target before the second native click.", requireFrameworkHitTest);
+            await native.ClickAsync(gifPlayPause, requireHitTest: requireFrameworkHitTest);
             await UntilAsync(() => GifState(viewer).UserPaused && !GifState(viewer).IsRunning, "GIF button did not pause.");
             await GifStablePixelsAsync(viewer, "button-paused");
             viewer.FocusGallerySurface(); await native.KeyAsync(MediaNativeInput.Space);

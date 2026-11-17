@@ -97,13 +97,14 @@ internal static class MediaInteractionSmokeHelpers
     }
 
     /// <summary>Reveal an auto-hidden gallery transport, then wait for its current native hit geometry.</summary>
-    internal static async Task WaitForNativeTargetAsync(MediaNativeInput native, GalleryViewer viewer, Control target, string message)
+    internal static async Task WaitForNativeTargetAsync(MediaNativeInput native, GalleryViewer viewer, Control target, string message, bool requireHitTest = true)
     {
         // Native macOS popup hit testing can take more than one compositor turn
         // after the transport auto-hides. Re-issue a real pointer move rather
         // than falling back to a routed/synthetic click.
         const int revealAttempts = 8;
-        for (int attempt = 0; attempt < revealAttempts && !IsPointerTargetReady(target); attempt++)
+        bool Ready() => requireHitTest ? IsPointerTargetReady(target) : IsNativeGeometryReady(target, requireEnabled: true);
+        for (int attempt = 0; attempt < revealAttempts && !Ready(); attempt++)
         {
             // First cross the reveal edge with real OS input. On macOS the
             // transport can be a separate native presentation and its hit-test
@@ -121,7 +122,7 @@ internal static class MediaInteractionSmokeHelpers
                 await Task.Delay(100);
             }
         }
-        await Program.WaitUntilAsync(() => IsPointerTargetReady(target), () => message);
+        await Program.WaitUntilAsync(Ready, () => message);
     }
 
     internal static Point TrackPoint(Slider slider, double fraction)

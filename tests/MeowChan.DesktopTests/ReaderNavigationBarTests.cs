@@ -182,8 +182,10 @@ public sealed class ReaderNavigationBarTests : IDisposable
         XElement root = Named(markup, "ReaderNavigation");
         Assert.Equal("WrapPanel", root.Name.LocalName);
         Assert.Equal("False", (string?)root.Attribute("IsVisible"));
+        XElement surface = Named(markup, "ReaderNavigationHitSurface");
+        Assert.Same(root, surface.Parent);
         XElement bar = Named(markup, "ReaderNavigationBar");
-        Assert.Same(root, bar.Parent);
+        Assert.Same(surface, bar.Parent);
         Assert.Contains("workspace-overlay", (string?)bar.Attribute("Classes"));
         Assert.Equal("Transparent", (string?)root.Attribute("Background"));
         Assert.Equal("3", (string?)bar.Attribute("Padding"));

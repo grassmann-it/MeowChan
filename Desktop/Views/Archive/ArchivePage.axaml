@@ -725,8 +725,11 @@
                                  counter, post arrow]. The whole capsule takes the pointer (a click in a gap never reaches the post below); below
                                  ReaderNavigationLayout.CompactBelowSurfaceWidth (or with the position switched off) the two counters are hidden. MaxWidth and
                                  the counter's MinWidth are ReaderNavigationLayout.BarMaxWidth and CounterMinWidth (a test pins both). -->
-                            <Border x:Name="ReaderNavigationBar" Classes="workspace-overlay" Padding="3" MaxWidth="320">
-                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <!-- WrapPanel only hit-tests its children. Keep an explicit transparent surface around the capsule so separator/counter gaps
+                                 cannot fall through to the reader content; the surface remains inside ReaderNavigation for the overlay contract. -->
+                            <Border x:Name="ReaderNavigationHitSurface" Background="Transparent" IsHitTestVisible="True">
+                                <Border x:Name="ReaderNavigationBar" Classes="workspace-overlay" Padding="3" MaxWidth="320">
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                     <StackPanel.Styles>
                                         <Style Selector="Button">
                                             <Setter Property="Width" Value="{StaticResource Workspace.Size.Input}" /><Setter Property="Height" Value="{StaticResource Workspace.Size.Input}" />
@@ -745,7 +748,8 @@
                                         <TextBlock x:Name="ReaderPostPosition" Classes="tnum workspace-meta" MinWidth="56" Margin="4,0" TextAlignment="Center" VerticalAlignment="Center" TextWrapping="NoWrap" />
                                         <Button x:Name="ReaderNextPost" Tag="reader.nextPost" Classes="localized ghost" ToolTip.ShowOnDisabled="True" Click="OnReaderNavigationClick" />
                                     </StackPanel>
-                                </StackPanel>
+                                    </StackPanel>
+                                </Border>
                             </Border>
                         </WrapPanel>
                     </Grid>
