@@ -321,7 +321,7 @@ footer does not show a Booru button.** Booru stays reachable from **More**, from
 **Danbooru search and watchers…** in the ⋯ app menu, from **Media → More → Open
 Booru** and from its shortcuts: Ctrl+Shift+B (Command+Shift+B on macOS), which never
 changes, and a Ctrl/Cmd+digit. Because the default footer hides Booru, its digit is
-the last one, **Ctrl+8**; if you show it in the footer, it takes **Ctrl+5** in Simple and Advanced and the
+the last one, **Ctrl+8**; if you show it in the footer, it takes **Ctrl+5** and the
 pages behind it move up by one. The numbers for every page are in the table under
 [Page shortcuts and footer numbering](#page-shortcuts-and-footer-numbering). A
 saved binding of another command, for example a saved Plugins binding on Ctrl+6 or
@@ -351,7 +351,7 @@ bleibt erreichbar über **Mehr**, über **Danbooru-Suche und Suchbeobachtungen�
 ⋯-Appmenü, über **Medien → Mehr → Booru öffnen** und über die Tastenkürzel:
 Strg+Umschalt+B (⌘⇧B auf macOS), das sich nie ändert, und eine Strg/⌘+Ziffer.
 Weil die Standard-Fußleiste Booru ausblendet, hat Booru die letzte Ziffer,
-**Strg+8**; zeigst du Booru in der Fußleiste, belegt es in Einfach und Erweitert **Strg+5** und die Seiten
+**Strg+8**; zeigst du Booru in der Fußleiste, belegt es **Strg+5** und die Seiten
 dahinter rücken um eins nach oben. Die Zuordnung aller Seiten steht in der Tabelle unter
 [Seitentasten und Fußleistenzählung](#page-shortcuts-and-footer-numbering). Eine gespeicherte
 Belegung eines anderen Befehls, etwa Plugins auf Strg+6 oder Strg+8, hat Vorrang vor dem
@@ -679,8 +679,8 @@ Settings → **Interface → Footer** show both keys, and both can be rebound.
 The table lists the pages in the order of the digits in Simple. These are the numbers
 with the default footer, which has no Booru button; Simple also moves Rules and Plugins
 under More, so Status comes before them. If you add Booru to the footer, it takes digit 5
-in Simple and Advanced and the pages behind it move up by one; in Barebones its button
-stays under More, so the digits keep the values in the table. Ctrl+, opens **Settings** on
+in every work view (in Barebones the button stays under More, the digit does not change)
+and the pages behind it move up by one. Ctrl+, opens **Settings** on
 every platform. Diagnostics and Statistics are segments of Status, not pages: they have no
 default key, and the Status digit opens the last-used segment. Ctrl+9 is unassigned by
 default. Use Command instead of Ctrl on macOS. In German, tooltips and the F1 window write

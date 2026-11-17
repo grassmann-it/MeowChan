@@ -1228,9 +1228,12 @@ public sealed class HelpDocumentationTests
         Assert.Equal("navigation.booru", ids[^1]);
         Assert.Equal("navigation.booru", barebones[^1]);
         Assert.Equal(MainPageOrder.CommandIds.Count, new HashSet<string>(ids).Count);
+        // Shown in the footer, Booru takes the fifth digit in every work view (a button under More in Barebones counts as well).
+        foreach (WorkView view in WorkViewSetting.All)
+            Assert.Equal(5, FooterLayout.Default.WithVisible("navigation.booru", true).NumberingFor(view).ToList().IndexOf("navigation.booru") + 1);
         Assert.Contains("The table lists the pages in the order of the digits in Simple", section, StringComparison.Ordinal);
         Assert.Contains("which the default footer hides, comes last", section, StringComparison.Ordinal);
-        Assert.Contains("it takes digit 5 in Simple and Advanced and the pages behind it move up by one", section, StringComparison.Ordinal);
+        Assert.Contains("it takes digit 5 in every work view", section, StringComparison.Ordinal);
         Assert.Contains("A binding you saved for another command always wins over a default", section, StringComparison.Ordinal);
         foreach (string compatibility in MainPageOrder.StatusSegmentCommandIds.Append("navigation.plugins"))
         {

@@ -50,9 +50,9 @@ Standard-Fußleiste gilt:
 | Booru | Strg+Umschalt+B | Strg+8 | Strg+8 |
 
 Weil die Standard-Fußleiste Booru ausblendet, hat Booru die letzte Ziffer, **Strg+8**
-(⌘+8 auf macOS). Zeigst du Booru in der Fußleiste, belegt es in Einfach und Erweitert
-**Strg+5** und die Seiten dahinter rücken um eins nach oben; unter Minimal bleibt der
-Knopf unter Mehr, die Ziffern behalten ihre Werte. Die Tabelle steht auch in der
+(⌘+8 auf macOS). Zeigst du Booru in der Fußleiste, belegt es **Strg+5** und die
+Seiten dahinter rücken um eins nach oben (unter Minimal bleibt der Knopf unter Mehr,
+die Ziffer ändert sich trotzdem). Die Tabelle steht auch in der
 [Hilfe](../Help.md#page-shortcuts-and-footer-numbering). Eine gespeicherte Belegung
 eines anderen Befehls, etwa Plugins auf Strg+6 oder Strg+8, hat Vorrang vor dem
 Booru-Standard und behält ihre Bedeutung; eine gespeicherte Plugins-Belegung öffnet
