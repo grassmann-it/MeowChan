@@ -46,6 +46,37 @@ public sealed class SettingsSearchMatcherTests : IDisposable
     [InlineData("tray", "tray")]
     public void TyposAndAbbreviationsFindTheSetting(string query, string expected) => Assert.Equal(expected, Top(English(), query));
 
+    [Theory]
+    [InlineData("en", "bandwith")]
+    [InlineData("en", "bandwdith")]
+    [InlineData("de", "bandwith")]
+    [InlineData("de", "bandbrite")]
+    public void BandwidthTyposRankTheLocalizedSettingAboveIncidentalMatches(string language, string query)
+    {
+        Texts.SetLanguage(language);
+        string label = Texts.T("settings.bandwidth");
+        var bandwidth = Doc("bandwidth", label, "", "Downloads", "Bandwidth", "settings.downloads",
+            Texts.EnglishEquivalents(label).ToArray());
+        // Put the incidental matches first: a tie or page-order fallback must not hide a ranking regression.
+        var index = SettingsSearchMatcher.Build(new[]
+        {
+            new SettingsSearchDocument("alias", "Connection", "", "Downloads", null,
+                new[] { label, "bandwidth" }, Array.Empty<string>()),
+            Doc("key", "Transfer rate", "", "Downloads", "Bandwidth"),
+            Doc("hint", "Network", query, "Downloads", null),
+            bandwidth,
+        });
+
+        IReadOnlyList<SettingsSearchHit> hits = SettingsSearchMatcher.Search(index, query);
+        Assert.Equal("bandwidth", hits[0].Document.Id);
+        Assert.Equal(label, hits[0].Document.Label);
+        Assert.Contains(hits, hit => hit.Document.Id == "alias");
+        Assert.Contains(hits, hit => hit.Document.Id == "hint");
+        Assert.All(hits.Skip(1), hit => Assert.True(hits[0].Score > hit.Score));
+        if (language == "en")
+            Assert.Equal(new[] { new SettingsTextRange(0, "Bandwidth".Length) }, hits[0].LabelRanges);
+    }
+
     [Fact]
     public void WordStartsAndWordsInAnyOrderMatch()
     {
