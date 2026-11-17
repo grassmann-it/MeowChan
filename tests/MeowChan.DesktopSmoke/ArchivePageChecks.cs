@@ -51,7 +51,7 @@ internal static class ArchivePageChecks
         // page may still be reconciling that write when the preview button is clicked; the
         // production guard correctly defers opens while busy, so wait for the page contract
         // instead of racing it and reporting a misleading gallery timeout.
-        await Program.WaitUntilAsync(() => !page.IsBusy, "Archive media command reconciliation did not finish before preview.");
+        await Program.WaitUntilAsync(() => !page.IsBusy, () => "Archive media command reconciliation did not finish before preview.");
         Click(inline.PreviewButton);
         ContentControl gallery = window.FindControl<ContentControl>("GalleryHost")!;
         await Program.WaitUntilAsync(() => gallery.IsVisible && gallery.GetVisualDescendants().OfType<Image>()
