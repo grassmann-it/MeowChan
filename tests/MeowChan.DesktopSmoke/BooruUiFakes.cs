@@ -193,6 +193,18 @@ internal sealed class FakeBooruQueuePort : IBooruQueuePort
 {
     private readonly object _gate = new();
     internal Func<BooruPostView, BooruLoadOrigin, Task<BooruLoadResult>>? OnLoad { get; set; }
+    internal List<string> Retries { get; } = new();
+    internal List<string> Cancellations { get; } = new();
+    public Task<BooruLoadResult> RetryOriginalAsync(string postId, CancellationToken cancellationToken)
+    {
+        lock (_gate) Retries.Add(postId);
+        return Task.FromResult(new BooruLoadResult(BooruLoadStatus.Queued));
+    }
+    public Task<bool> CancelOriginalAsync(string postId, CancellationToken cancellationToken)
+    {
+        lock (_gate) Cancellations.Add(postId);
+        return Task.FromResult(true);
+    }
     internal Dictionary<string, BooruLocalState> States { get; } = new(StringComparer.Ordinal);
     internal List<(string PostId, BooruLoadOrigin Origin)> Loads { get; } = new();
     /// <summary>The query each load carried as provenance (null for a one-shot), parallel to <see cref="Loads"/>.</summary>

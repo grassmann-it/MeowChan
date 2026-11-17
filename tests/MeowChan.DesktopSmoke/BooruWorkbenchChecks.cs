@@ -362,6 +362,7 @@ internal static partial class BooruWorkbenchChecks
 
             // ---- sdk-mismatch repair route: mismatch → review → confirm → restart notice (BooruWorkbenchChecks.Repair) ---------
             tabs.SelectedIndex = 0;
+            await CheckBrowseContractsAsync(owner, page, h);
             await CheckRepairRouteAsync(owner, page, h, shots);
 
             // ---- the service-composition boundary ends the page lifetime (navigation does not) ------------------------------
@@ -438,22 +439,11 @@ internal static partial class BooruWorkbenchChecks
             return;
         }
         Require(owner.SessionHost.BooruServices is null, "Ports are connected in the plain app.");
-        MenuItem entry = Entry(menu);
-        menu.IsSubMenuOpen = true;
-        await SettleAsync();
-        Require(!entry.IsVisible, "The Danbooru entry is visible although no ports are connected.");
-        menu.IsSubMenuOpen = false;
+        Require(!SmokeNavigation.FooterButton(owner, MainWindow.WorkspacePage.Booru).IsVisible
+            && SmokeNavigation.MoreEntry(owner, MainWindow.WorkspacePage.Booru) is not { IsVisible: true },
+            "A Danbooru route is visible although no ports are connected.");
         await SettleAsync();
     }
-
-    // The entry keeps the header it was created with when the language changes afterwards (observed in the dialog gallery: the
-    // German cells still show the English text), so the English catalog label counts as well as the current one. The smoke itself runs in English.
-    private static MenuItem Entry(MenuItem menu) => menu.Items.OfType<MenuItem>()
-        .FirstOrDefault(item => item.Header as string == CommandLabel()
-            || item.Header as string == MeowChan.Desktop.Commands.CommandCatalog.Get("booru.open").LabelEn)
-        ?? throw new InvalidOperationException("The Danbooru menu entry does not exist.");
-
-    private static string CommandLabel() => MeowChan.Desktop.Commands.CommandCatalog.Label("booru.open");
 
     // BooruServices' test override does not publish BooruChanged. Use the normal shell
     // reconciliation callback after swapping it; never mutate navigation/restore/busy guards.
@@ -466,13 +456,9 @@ internal static partial class BooruWorkbenchChecks
     {
         IClassicDesktopStyleApplicationLifetime lifetime = (IClassicDesktopStyleApplicationLifetime)Application.Current!.ApplicationLifetime!;
         Window[] windowsBefore = lifetime.Windows.ToArray();
-        MenuItem entry = Entry(menu);
-        menu.IsSubMenuOpen = true;
-        await SettleAsync(owner);
-        Require(entry.IsVisible && entry.IsEnabled && entry.Command?.CanExecute(null) == true,
-            "The Danbooru entry is not available although ports are connected.");
-        menu.IsSubMenuOpen = false;
-        entry.Command!.Execute(null);
+        Require(SmokeNavigation.IsEnabled(owner, MainWindow.WorkspacePage.Booru),
+            "The Danbooru footer/More route is not available although ports are connected.");
+        await SmokeNavigation.GoToAsync(owner, MainWindow.WorkspacePage.Booru);
         await Program.WaitUntilAsync(() => owner.SelectedPage == MainWindow.WorkspacePage.Booru
             && owner.BooruPageForTests is { IsEffectivelyVisible: true } candidate
             && ReferenceEquals(owner.FindControl<ContentControl>("BooruPageHost")!.Content, candidate),
@@ -484,7 +470,7 @@ internal static partial class BooruWorkbenchChecks
                 && input.IsEffectivelyVisible), () => "the hosted Booru view/search tab did not materialize");
         Require(ReferenceEquals(page.Content, page.View) && ReferenceEquals(page.Services, owner.SessionHost.BooruServices)
             && page.View.CurrentWorkView == WorkView.Advanced, "The shell hosted another view/service bundle or work view.");
-        entry.Command.Execute(null);
+        await SmokeNavigation.GoToAsync(owner, MainWindow.WorkspacePage.Booru);
         await SettleAsync(owner);
         Require(ReferenceEquals(owner.BooruPageForTests, page)
             && ReferenceEquals(owner.FindControl<ContentControl>("BooruPageHost")!.Content, page),
