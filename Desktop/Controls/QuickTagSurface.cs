@@ -47,17 +47,12 @@ internal readonly record struct QuickTagKeyRoute(QuickTagKeyAction Action, int V
 internal enum QuickTagNavigation { Next, Previous, MarkNext, UnmarkPrevious }
 
 /// <summary>
-/// Key routing of the quick tag surface as a pure function, so it can be tested and later fed from the shortcut editor (TP6).
-/// Tom's decisions of 14.11.: Alt+1…9 (macOS ⌘1…9) toggles suggestion n in every focus state; bare digits and badge letters only
-/// while the focus is in the suggestion strip (tag names like <c>2girls</c> stay typeable); Page Down/Up move through the
-/// gallery, Ctrl+Enter adds and moves on, Shift+Page Down marks and moves on. Escape is layered and never needs more than two presses (Tom, 16.11.):
-/// with text in the field the first Esc empties it and closes its list, with an open list over an empty field it closes the list, otherwise (and the
-/// second time) it closes the surface, from any element of it.
+/// Fixed focus navigation and effective command routing of the quick tag surface. Rebindable commands have no local aliases;
+/// only Escape, focus movement, focused-chip activation/removal and letter mnemonics remain structural keys.
 /// </summary>
 internal static class QuickTagKeys
 {
-    /// <summary>The modifier of the numbered suggestions: Alt, ⌘ on macOS.</summary>
-    internal static KeyModifiers ChooseModifier(ShortcutPlatform platform) => platform == ShortcutPlatform.MacOS ? KeyModifiers.Meta : KeyModifiers.Alt;
+    internal static KeyModifiers ChooseModifier(ShortcutPlatform platform) => KeyModifiers.Alt;
     internal static KeyModifiers PrimaryModifier(ShortcutPlatform platform) => platform == ShortcutPlatform.MacOS ? KeyModifiers.Meta : KeyModifiers.Control;
 
     /// <summary>1–9 of the main row or the number pad, else null.</summary>
@@ -70,27 +65,15 @@ internal static class QuickTagKeys
     /// <param name="fieldEmpty">The field holds no text (Ctrl+Z then is the surface's undo, not the editor's).</param>
     /// <param name="navigation">The host moves through media (gallery panel); off in a popover.</param>
     internal static QuickTagKeyRoute Route(Key key, KeyModifiers modifiers, QuickTagFocus focus, bool listOpen, bool fieldEmpty,
-        bool navigation, ShortcutPlatform platform)
+        bool navigation, ShortcutPlatform platform, EffectiveShortcutBindings? bindings = null)
     {
-        KeyModifiers primary = PrimaryModifier(platform);
-        if (modifiers == ChooseModifier(platform) && Digit(key) is { } chosen) return new(QuickTagKeyAction.ToggleSuggestion, chosen - 1);
-        if (modifiers == primary && key == Key.Z)
-            return focus == QuickTagFocus.Field && !fieldEmpty ? QuickTagKeyRoute.None : new(QuickTagKeyAction.Undo);
+        bindings ??= EffectiveShortcutBindings.Build(platform: platform);
+        QuickTagKeyRoute command = RouteCommand(key, modifiers, focus, listOpen, fieldEmpty, navigation, bindings);
+        if (command.Action != QuickTagKeyAction.None) return command;
         if (key == Key.Escape && modifiers == KeyModifiers.None)
             return new(focus != QuickTagFocus.Field ? QuickTagKeyAction.Close
                 : !fieldEmpty ? QuickTagKeyAction.ClearField
                 : listOpen ? QuickTagKeyAction.CloseList : QuickTagKeyAction.Close);
-        // The stamp works on every surface and in every focus state (the typed draft stays in the field).
-        if (key == Key.Enter && modifiers == (primary | KeyModifiers.Shift)) return new(QuickTagKeyAction.ApplyStamp);
-        if (navigation && !(focus == QuickTagFocus.Field && listOpen))
-        {
-            if (key == Key.PageDown && modifiers == KeyModifiers.None) return new(QuickTagKeyAction.Next);
-            if (key == Key.PageUp && modifiers == KeyModifiers.None) return new(QuickTagKeyAction.Previous);
-            if (key == Key.PageDown && modifiers == KeyModifiers.Shift) return new(QuickTagKeyAction.MarkNext);
-            if (key == Key.PageUp && modifiers == KeyModifiers.Shift) return new(QuickTagKeyAction.UnmarkPrevious);
-            if (key == Key.Enter && modifiers == primary) return new(QuickTagKeyAction.CommitAndNext);
-            if (key == Key.T && modifiers == primary) return new(QuickTagKeyAction.ThreadSection);
-        }
         if (modifiers != KeyModifiers.None) return QuickTagKeyRoute.None;
         switch (focus)
         {
@@ -104,7 +87,6 @@ internal static class QuickTagKeys
                     _ => QuickTagKeyRoute.None
                 };
             case QuickTagFocus.Suggestions:
-                if (Digit(key) is { } digit) return new(QuickTagKeyAction.ToggleSuggestion, digit - 1);
                 if (Letter(key) is { } letter) return new(QuickTagKeyAction.ToggleBadge, letter);
                 return key switch
                 {
@@ -134,20 +116,43 @@ internal static class QuickTagKeys
         }
     }
 
-    /// <summary>The effective shortcut text of suggestion <paramref name="index"/> (0-based); null beyond the numbered ones or when unbound.</summary>
-    internal static string? SuggestionGesture(int index, ShortcutPlatform platform, string? context = null) =>
+    /// <summary>All rebindable quick-tag actions resolve from the same snapshot as the shortcut table.</summary>
+    internal static QuickTagKeyRoute RouteCommand(Key key, KeyModifiers modifiers, QuickTagFocus focus, bool listOpen,
+        bool fieldEmpty, bool navigation, EffectiveShortcutBindings bindings)
+    {
+        KeyEventArgs press = new() { Key = key, KeyModifiers = modifiers };
+        // A recorded bare character must not steal tag-name typing.
+        if (focus == QuickTagFocus.Field && EffectiveShortcutBindings.IsSingleCharacterKey(
+            new ShortcutGesture(key.ToString(), ModifierNames(modifiers)))) return QuickTagKeyRoute.None;
+        foreach (string id in QuickTagCommands.All)
+        {
+            if (!bindings.Matches(press, id) || GalleryTagPanelCommands.RouteOf(id) is not { } route) continue;
+            if (route.Action == QuickTagKeyAction.Undo && focus == QuickTagFocus.Field && !fieldEmpty) return QuickTagKeyRoute.None;
+            bool moves = route.Action is QuickTagKeyAction.Next or QuickTagKeyAction.Previous or QuickTagKeyAction.MarkNext
+                or QuickTagKeyAction.UnmarkPrevious or QuickTagKeyAction.CommitAndNext or QuickTagKeyAction.ThreadSection;
+            if (moves && (!navigation || focus == QuickTagFocus.Field && listOpen)) return QuickTagKeyRoute.None;
+            return route;
+        }
+        return QuickTagKeyRoute.None;
+    }
+
+    private static IReadOnlyList<string> ModifierNames(KeyModifiers modifiers) =>
+        new[] { (KeyModifiers.Control, "Control"), (KeyModifiers.Meta, "Meta"), (KeyModifiers.Alt, "Alt"), (KeyModifiers.Shift, "Shift") }
+            .Where(part => modifiers.HasFlag(part.Item1)).Select(part => part.Item2).ToArray();
+
+    /// <summary>The effective suggestion binding (0-based); null when unbound or beyond the numbered ones.</summary>
+    internal static string? SuggestionGesture(int index, ShortcutPlatform platform) =>
         index is < 0 or >= QuickTagOptions.NumberedSuggestions ? null
-        : BoundGesture(QuickTagCommands.Suggestion(index + 1), platform, context);
+        : BoundGesture(QuickTagCommands.Suggestion(index + 1), platform);
 
     /// <summary>
     /// The shortcut text of a command as it is bound now (the person may have changed or removed it, or a default may have yielded to another
     /// command), several gestures joined by " / "; null when the command has no key. The help texts name this, never the catalog default.
     /// </summary>
-    internal static string? BoundGesture(string commandId, ShortcutPlatform platform, string? context = null)
+    internal static string? BoundGesture(string commandId, ShortcutPlatform platform)
     {
-        var bindings = ShortcutService.Current.Platform == platform ? ShortcutService.Current
-            : EffectiveShortcutBindings.Build(ShortcutService.CurrentSection, platform);
-        return CommandCatalog.ShortcutTooltipDisplay(commandId, platform == ShortcutPlatform.MacOS, context, bindings);
+        IReadOnlyList<ShortcutGesture> gestures = ShortcutService.Current.For(commandId);
+        return gestures.Count == 0 ? null : string.Join(" / ", gestures.Select(gesture => gesture.Display(platform)));
     }
 
     internal static string? UndoGesture(ShortcutPlatform platform) => BoundGesture(QuickTagCommands.Undo, platform);
@@ -553,14 +558,6 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         set { if (_navigation == value) return; _navigation = value; if (!_disposed) Localize(); }
     }
     private bool _navigation;
-    internal string ShortcutContext { get; set; } = "gallery";
-
-    private string LocalCommandHelp(params string[] commands) => ShortcutHelp.Commands(ShortcutContext,
-        _platform == ShortcutPlatform.MacOS, ShortcutService.Current.Platform == _platform ? ShortcutService.Current
-            : EffectiveShortcutBindings.Build(ShortcutService.CurrentSection, _platform), commands);
-
-    private string NavigationHelp() => NavigationEnabled ? LocalCommandHelp(QuickTagCommands.Next, QuickTagCommands.Previous,
-        QuickTagCommands.CommitNext, QuickTagCommands.MarkNext, QuickTagCommands.MarkPrevious, QuickTagCommands.ThreadSection) : string.Empty;
 
     /// <summary>An extra section under the assigned chips (the gallery panel's thread tags); null hides it.</summary>
     internal Control? ExtraContent
@@ -796,24 +793,8 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         _shown = count == _candidates.Count ? _candidates : _candidates.Take(count).ToArray();
         Letters = count == _candidateLetters.Length ? _candidateLetters : _candidateLetters.Take(count).ToArray();
         for (int index = 0; index < count; index++)
-        {
-            Button button = _stripItems[index].Chip.Button;
-            AutomationProperties.SetName(button, AccessibleName(_shown[index], index, count));
-            RefreshSuggestionHelp(button, _shown[index], index);
-        }
+            AutomationProperties.SetName(_stripItems[index].Chip.Button, AccessibleName(_shown[index], index, count));
         ShowLetters(_strip.IsKeyboardFocusWithin);
-    }
-
-    private void RefreshSuggestionHelp(Button button, QuickTagSuggestion suggestion, int index)
-    {
-        string? gesture = QuickTagKeys.SuggestionGesture(index, _platform, ShortcutContext);
-        string reason = QuickTagReasons.Text(suggestion.Reason, suggestion.Detail);
-        string help = gesture == null ? Texts.T("tags.quick.suggestion.tip", suggestion.Name.Display, reason)
-            : Texts.T("tags.quick.suggestion.tipShortcut", suggestion.Name.Display, reason, gesture);
-        ToolTip.SetTip(button, help);
-        AutomationProperties.SetHelpText(button, help);
-        if (gesture == null) button.ClearValue(AutomationProperties.AcceleratorKeyProperty);
-        else AutomationProperties.SetAcceleratorKey(button, gesture);
     }
 
     private StripItem EnsureItem(int index)
@@ -958,18 +939,15 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
 
         AutomationProperties.SetName(this, Texts.T("tags.quick.name", label.Length == 0 ? Texts.T("tags.quick.heading") : label));
         AutomationProperties.SetName(_flow, AutomationProperties.GetName(this));
-        AutomationProperties.SetHelpText(this, ShortcutHelp.Append(Texts.T("tags.quick.help", _shown.Count, _assignedChips.Count), NavigationHelp()));
+        AutomationProperties.SetHelpText(this, Texts.T("tags.quick.help", _shown.Count, _assignedChips.Count));
     }
 
     private void Localize()
     {
         TagSuggestionInput.Localize(_input);
-        foreach (var item in _stripItems) RefreshSuggestionHelp(item.Chip.Button, item.Chip.Suggestion, item.Chip.Index);
-        // Do not construct a range from the first/last chip: overrides can be sparse,
-        // have aliases, or remove any of the nine bindings independently.
-        string hint = ShortcutHelp.Append(Texts.T("tags.suggest.hint") + " " + Texts.T("tags.quick.fieldNavigation"),
-            LocalCommandHelp(Enumerable.Range(1, QuickTagCommands.SuggestionCount).Select(QuickTagCommands.Suggestion).ToArray()));
-        hint = ShortcutHelp.Append(hint, NavigationHelp());
+        string first = QuickTagKeys.SuggestionGesture(0, _platform)!, last = QuickTagKeys.SuggestionGesture(QuickTagOptions.NumberedSuggestions - 1, _platform)!;
+        string hint = Texts.T("tags.suggest.hint") + " " + Texts.T("tags.quick.fieldHint", first, last);
+        if (NavigationEnabled) hint += " " + QuickTagKeys.TextWithKey("tags.quick.fieldHintNavigation", QuickTagKeys.CommitNextGesture(_platform));
         AutomationProperties.SetHelpText(_input, hint);
         ToolTip.SetTip(_input, hint);
         AutomationProperties.SetName(_close, Texts.T("tags.quick.close"));
@@ -1247,9 +1225,9 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
 
     private void OnKey(object? sender, KeyEventArgs e)
     {
-        if (e.Handled) return;
+        if (e.Handled || ShortcutService.IsCapturing) return;
         QuickTagKeyRoute route = QuickTagKeys.Route(e.Key, e.KeyModifiers, FocusZone(), _input.IsDropDownOpen,
-            string.IsNullOrEmpty(_input.Text), NavigationEnabled, _platform);
+            string.IsNullOrEmpty(_input.Text), NavigationEnabled, _platform, ShortcutService.Current);
         if (Execute(route)) e.Handled = true;
     }
 
@@ -1571,11 +1549,9 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         {
             string reason = QuickTagReasons.Text(suggestion.Reason, suggestion.Detail);
             string display = suggestion.Name.Display;
-            string help = QuickTagKeys.SuggestionGesture(index, platform) is { } gesture
+            ToolTip.SetTip(button, QuickTagKeys.SuggestionGesture(index, platform) is { } gesture
                 ? Texts.T("tags.quick.suggestion.tipShortcut", display, reason, gesture)
-                : Texts.T("tags.quick.suggestion.tip", display, reason);
-            ToolTip.SetTip(button, help);
-            AutomationProperties.SetHelpText(button, help);
+                : Texts.T("tags.quick.suggestion.tip", display, reason));
         }
     }
 

@@ -137,11 +137,16 @@ public sealed class ShortcutBindingsTests
     [InlineData("reader-groups.create", "navigation.archive")]
     [InlineData("media.rating.cleanup-retry", "media.rating.remove-selected")]
     [InlineData("sections.go-to", "archive.saved-searches.apply")]
-    public void SeparateModalSurfacesMayReuseAGesture(string first, string second)
+    public void SeparateModalSurfacesStillRejectUnrelatedMeaningsWhenSaving(string first, string second)
     {
         var gesture = new[] { ShortcutGesture.Parse("Primary+Shift+F9") };
-        var result = EffectiveShortcutBindings.Build(new ShortcutBindingsSection().Set(first, gesture).Set(second, gesture), ShortcutPlatform.Linux);
-        Assert.Empty(result.Issues);
+        var section = new ShortcutBindingsSection().Set(first, gesture).Set(second, gesture);
+        var result = EffectiveShortcutBindings.Build(section, ShortcutPlatform.Linux);
+        Assert.Contains(result.Issues, issue => issue.BlocksSave && issue.CommandId == first && issue.OtherCommandId == second
+            || issue.BlocksSave && issue.CommandId == second && issue.OtherCommandId == first);
+        Assert.Throws<ArgumentException>(() => ShortcutService.ValidateForCommit(section));
+        // Existing profiles retain their non-overlapping runtime routes, but the
+        // editor cannot promise two unrelated meanings just because they are modal.
         Assert.Single(result.For(first));
         Assert.Single(result.For(second));
     }

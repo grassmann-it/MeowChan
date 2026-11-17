@@ -590,11 +590,18 @@ public sealed class EffectiveShortcutBindings
         var ids = values.Keys.ToArray();
         for (int a = 0; a < ids.Length; a++) for (int b = a + 1; b < ids.Length; b++)
         {
-            if (!ContextsOverlap(ids[a], ids[b])) continue;
+            bool edited = section.HasOverride(ids[a]) || section.HasOverride(ids[b]);
+            bool editorConflict = edited && ShortcutMeaning.Compete(ids[a], ids[b]);
+            if (!ContextsOverlap(ids[a], ids[b]) && !editorConflict) continue;
             foreach (var first in values[ids[a]]) foreach (var second in values[ids[b]])
-                if (Equivalent(first, second, os) && ContextsOverlap(ContextsOf(ids[a], first), ContextsOf(ids[b], second)))
+                if (Equivalent(first, second, os))
                 {
+                    bool runtimeConflict = ContextsOverlap(ContextsOf(ids[a], first), ContextsOf(ids[b], second));
+                    if (!runtimeConflict && !editorConflict) continue;
                     issues.Add(ShortcutIssue.FromReason(ids[a], new("conflictingActions", "Conflicting actions / Kollidierende Aktionen"), ids[b]));
+                    // Keep legacy runtime fallback/migration behavior. Save must nevertheless explain
+                    // shadowing and unrelated meanings, including on disjoint execution surfaces.
+                    if (!runtimeConflict) continue;
                     if (!rejected.ContainsKey(ids[a])) rejected[ids[a]] = new();
                     if (!rejected.ContainsKey(ids[b])) rejected[ids[b]] = new();
                     rejected[ids[a]].Add(first); rejected[ids[b]].Add(second);
