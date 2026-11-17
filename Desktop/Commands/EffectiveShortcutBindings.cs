@@ -115,7 +115,7 @@ public sealed class EffectiveShortcutBindings
     private static long _nextVersion;
     /// <summary>Revision of the default table. Raise it, and list the command in
     /// <see cref="DefaultChangedInRevision"/>, whenever a default gesture is added to or changed on a command.</summary>
-    public const int DefaultsRevision = 21;
+    public const int DefaultsRevision = 22;
     /// <summary>Command ids that existed in an earlier build and were removed on purpose (the previous/next media-panel keys).
     /// A saved binding for one is dead data, not a typo: <see cref="Build"/> skips it without an issue and the next save drops it
     /// (<see cref="ShortcutBindingsSection.WithoutRetired"/>). A truly unknown id is still reported and kept. The defaults revision does not change.</summary>
@@ -186,7 +186,7 @@ public sealed class EffectiveShortcutBindings
         ["media.focus-mode"] = 9,
         // New in revision 9 (PT3): the keys of the tagging mode in the gallery. They live in their own context ("gallery-tagging"), so they
         // never compete with Space, Enter and Backspace of the plain gallery, and yield to a saved binding like every new default.
-        ["tags.queue.done-next"] = 9, ["tags.queue.skip"] = 9, ["tags.queue.back"] = 9, ["tags.queue.play-pause"] = 9,
+        ["tags.queue.done-next"] = 9, ["tags.queue.skip"] = 22, ["tags.queue.back"] = 9, ["tags.queue.play-pause"] = 9,
         // New in revision 9 (PT2): the list keys of the tagging page. They act only in its queue list (context "tagging") and
         // yield to a saved binding of another command like every new default.
         ["tagging.continue-here"] = 9, ["tagging.move-up"] = 9, ["tagging.move-down"] = 9,
@@ -276,6 +276,8 @@ public sealed class EffectiveShortcutBindings
         // new can collide with a saved binding. What a saved profile holds stays exactly as it is: a binding saved for "Add favorite" that lists B
         // (the editor freezes the whole list when a person adds a key) keeps B, and a saved binding of another command on B no longer has a default to
         // silence it (B is free in the gallery, the reader, the Media page and the archive).
+        // Revision 22 (UX-LEDGER-17): one gesture, one meaning across tagging, reader and video transport.
+        // Changed entries above carry 22; explicit saved bindings remain untouched and new defaults yield to them.
     };
     public static IReadOnlyCollection<string> YieldingDefaultCommandIds => DefaultChangedInRevision.Keys.ToArray();
     // Commands whose default changed only in the macOS table: on Windows and Linux their gesture is the old stable one

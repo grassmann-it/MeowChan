@@ -338,10 +338,10 @@ public static class CommandCatalog
         new("tags.quick.suggestion-8", "command.tags.quick.suggestion-8", "Toggle tag suggestion 8", "Tagvorschlag 8 umschalten", "check", "Alt+8", CommandScope.Gallery | CommandScope.Media | CommandScope.Reader | CommandScope.Archive, new[] { "gallery-tag-panel", "quick-tag-popover" }, new[] { "gallery", "media", "reader", "archive" }),
         new("tags.quick.suggestion-9", "command.tags.quick.suggestion-9", "Toggle tag suggestion 9", "Tagvorschlag 9 umschalten", "check", "Alt+9", CommandScope.Gallery | CommandScope.Media | CommandScope.Reader | CommandScope.Archive, new[] { "gallery-tag-panel", "quick-tag-popover" }, new[] { "gallery", "media", "reader", "archive" }),
         // Tagging mode (PT3): the gallery walking the tagging queue. Own execution context "gallery-tagging": the keys mean something
-        // else there than in the plain gallery (Space skips instead of playing, Backspace goes back instead of resetting the speed),
+        // there; playback gestures remain available on the same focused medium. S skips (as on the tagging page),
         // and only the tagging mode routes them, ahead of the gallery's own keys.
         new("tags.queue.done-next", "command.tags.queue.done-next", "Done and next", "Erledigt und weiter", "check", "Enter", CommandScope.Gallery, new[] { "gallery-tagging" }, new[] { "gallery-tagging" }),
-        new("tags.queue.skip", "command.tags.queue.skip", "Skip and next", "Überspringen und weiter", "arrow-right", "Space", CommandScope.Gallery, new[] { "gallery-tagging" }, new[] { "gallery-tagging" }),
+        new("tags.queue.skip", "command.tags.queue.skip", "Skip and next", "Überspringen und weiter", "arrow-right", "S", CommandScope.Gallery, new[] { "gallery-tagging" }, new[] { "gallery-tagging" }),
         new("tags.queue.back", "command.tags.queue.back", "Back: undo the last decision", "Zurück: letzte Entscheidung zurücknehmen", "corner-up-left", "Back", CommandScope.Gallery, new[] { "gallery-tagging" }, new[] { "gallery-tagging" }),
         new("tags.queue.play-pause", "command.tags.queue.play-pause", "Play / pause in tagging mode", "Wiedergabe / Pause im Tagging-Modus", "play", "Shift+Space", CommandScope.Gallery, new[] { "gallery-tagging" }, new[] { "gallery-tagging" }),
         // Card mode (PT4): Shift+K switches it on and off inside the tagging mode (the cards are a block, so Shift plus a letter since revision 13); the five card keys (1 to 5) act only while the cards are shown.

@@ -15,10 +15,10 @@ using MeowChan.Tags;
 namespace MeowChan.Desktop;
 
 // The tagging mode (PT3, PLAN-POWER-TAGGEN §1.4/§1.6): the gallery over the open entries of the tagging queue with the tag panel (TP2)
-// and its favorite/rating row (PT6) open, plus a decision strip at the bottom of the controls: Back (Backspace), Skip (Space), Done &
+// and its favorite/rating row (PT6) open, plus a decision strip at the bottom of the controls: Back (Backspace), Skip (S), Done &
 // next (Enter) and Stamp & next (Ctrl+Shift+Enter, the PT5 stamp). The strip is part of the controls (_chrome), below the toolbar and
 // the video transport, and holds them visible while the mode runs (never auto-hidden). Its keys have their own execution context
-// ("gallery-tagging") and are routed here before the gallery's own keys: in the mode Space skips and Shift+Space plays or pauses a
+// ("gallery-tagging") and are routed here before the gallery's own keys: in the mode S skips and Space or Shift+Space plays or pauses a
 // video; outside the mode nothing changes. In the tag field Enter keeps taking over the typed tag and finishes the medium only when the
 // field is empty; Ctrl+Enter takes over the tag and finishes. The model (TaggingWalk, TaggingUndo) is in TaggingDecisionLog.cs.
 internal sealed partial class GalleryViewer
@@ -202,7 +202,7 @@ internal sealed partial class GalleryViewer
     }
 
     /// <summary>
-    /// Routes the keys of the tagging mode ahead of the gallery's own: Enter, Space and Backspace on the picture and the controls, the
+    /// Routes the keys of the tagging mode ahead of the gallery's own: Enter, S and Backspace on the picture and the controls, the
     /// stamp and Ctrl+Enter everywhere. Inside the tag panel the keys stay the panel's (Backspace removes a focused chip, Space toggles it,
     /// typing stays typing); only an empty field's Enter finishes the medium there. Returns true when handled.
     /// </summary>

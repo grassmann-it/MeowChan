@@ -357,7 +357,7 @@ public sealed class TaggingDecisionLogTests : IDisposable
         using TaggingWalk walk = new(paired, unavailable, queue, writer);
         // The announcement uses the same platform keycaps as shortcut help, not fixed PC key names.
         bool mac = OperatingSystem.IsMacOS();
-        string enter = mac ? "↩" : "Enter", space = mac ? "␣" : "Space", back = mac ? "⌫" : "Backspace";
+        string enter = mac ? "↩" : "Enter", space = "S", back = mac ? "⌫" : "Backspace";
         string start = TaggingModeText.Start(walk);
         Assert.Equal($"Tagging mode: {enter} finishes the medium, {space} skips it, {back} takes back the last decision. "
             + "Not shown because the file is missing right now (they stay open in the queue): 2.", start);
@@ -366,16 +366,16 @@ public sealed class TaggingDecisionLogTests : IDisposable
         Assert.DoesNotContain(mac ? "Backspace" : "⌫", start);
         Assert.Equal(2, walk.OpenOutsideWalk());
         Texts.SetLanguage("de");
-        Assert.StartsWith($"Tagging-Modus: {enter} schließt das Medium ab, {(mac ? "␣" : "Leertaste")} überspringt es, "
+        Assert.StartsWith($"Tagging-Modus: {enter} schließt das Medium ab, S überspringt es, "
             + $"{(mac ? "⌫" : "Rücktaste")} nimmt die letzte Entscheidung zurück.", TaggingModeText.Start(walk));
         Assert.Equal("Warteschlange 1 von 3", TaggingModeText.Position(walk, 0));
         await Task.CompletedTask;
     }
 
     [Theory]
-    [InlineData(ShortcutPlatform.Windows, "Enter", "Space", "Backspace")]
-    [InlineData(ShortcutPlatform.Linux, "Enter", "Space", "Backspace")]
-    [InlineData(ShortcutPlatform.MacOS, "↩", "␣", "⌫")]
+    [InlineData(ShortcutPlatform.Windows, "Enter", "S", "Backspace")]
+    [InlineData(ShortcutPlatform.Linux, "Enter", "S", "Backspace")]
+    [InlineData(ShortcutPlatform.MacOS, "↩", "S", "⌫")]
     public void TheDecisionKeysUseExactPlatformKeycaps(ShortcutPlatform platform, string enter, string space, string back)
     {
         EffectiveShortcutBindings bindings = EffectiveShortcutBindings.Build(platform: platform);
@@ -391,7 +391,7 @@ public sealed class TaggingDecisionLogTests : IDisposable
         }
         Texts.SetLanguage("de");
         Assert.Equal(enter, bindings.Display("tags.queue.done-next"));
-        Assert.Equal(platform == ShortcutPlatform.MacOS ? "␣" : "Leertaste", bindings.Display("tags.queue.skip"));
+        Assert.Equal("S", bindings.Display("tags.queue.skip"));
         Assert.Equal(platform == ShortcutPlatform.MacOS ? "⌫" : "Rücktaste", bindings.Display("tags.queue.back"));
     }
 

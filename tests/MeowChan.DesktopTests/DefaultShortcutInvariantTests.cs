@@ -1,3 +1,4 @@
+using Avalonia.Input;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 
@@ -39,7 +40,7 @@ public sealed class DefaultShortcutInvariantTests
         "gallery.layout.info", "gallery.layout.hints",
         // Revision 19 (decision #125): D and S mark the selected tagging entries done or skipped (the tagging page's queue list only), H hides the
         // selected post in the reader (its post list; a text field keeps the letter, CommandBindings.Matches).
-        "tagging.mark-done", "tagging.mark-skipped", "post.hide"
+        "tagging.mark-done", "tagging.mark-skipped", "tags.queue.skip", "post.hide"
     };
 
     [Theory, MemberData(nameof(Platforms))]
@@ -108,6 +109,30 @@ public sealed class DefaultShortcutInvariantTests
             "video.play-pause", "video.loop", "video.step-back", "video.step-forward",
             "gallery.context-toggle", "gallery.tools-toggle", "gallery.overlay-toggle", "gallery.layout.info", "gallery.layout.hints" })
             Assert.Contains(id, EffectiveShortcutBindings.YieldingDefaultCommandIds);
+    }
+
+    [Theory]
+    [InlineData("tags.queue.skip", "Space", "S", "gallery-tagging")]
+    public void Ledger17MovedGesturesResolveAndTheirOldGesturesDoNot(string id, string oldKey, string newKey, string context)
+    {
+        foreach (ShortcutPlatform platform in Enum.GetValues<ShortcutPlatform>())
+        {
+            var bindings = EffectiveShortcutBindings.Build(platform: platform);
+            var expected = ShortcutGesture.Parse(newKey).Resolve(platform);
+            var old = ShortcutGesture.Parse(oldKey).Resolve(platform);
+            Assert.True(bindings.Matches(new KeyEventArgs { Key = expected.Key, KeyModifiers = expected.KeyModifiers }, id, context), id);
+            Assert.False(bindings.Matches(new KeyEventArgs { Key = old.Key, KeyModifiers = old.KeyModifiers }, id, context), id);
+            Assert.True(EffectiveShortcutBindings.YieldsOn(id, platform), id);
+        }
+    }
+
+    [Theory, MemberData(nameof(Platforms))]
+    public void Ledger17SMeansSkipInBothTaggingSurfaces(ShortcutPlatform platform)
+    {
+        var bindings = EffectiveShortcutBindings.Build(platform: platform);
+        Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.S }, "tagging.mark-skipped", "tagging"));
+        Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.S }, "tags.queue.skip", "gallery-tagging"));
+        Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.Space }, "video.play-pause", "gallery"));
     }
 
     /// <summary>The nine video commands the gallery shares with the reader and the Media page's panel (revision 18).</summary>

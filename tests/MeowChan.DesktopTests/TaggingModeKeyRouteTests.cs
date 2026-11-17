@@ -21,7 +21,7 @@ public sealed class TaggingModeKeyRouteTests : IDisposable
 
     [Theory]
     [MemberData(nameof(Platforms))]
-    public void TheModeKeysAreEnterSpaceBackspaceAndShiftSpaceOnEveryPlatformWithoutIssues(ShortcutPlatform platform)
+    public void TheModeKeysResolveOnEveryPlatformWithoutIssues(ShortcutPlatform platform)
     {
         var bindings = EffectiveShortcutBindings.Build(platform: platform);
         Assert.Empty(bindings.Issues);
@@ -36,7 +36,7 @@ public sealed class TaggingModeKeyRouteTests : IDisposable
         }
         var linux = EffectiveShortcutBindings.Build(platform: ShortcutPlatform.Linux);
         Assert.True(linux.Matches(new KeyEventArgs { Key = Key.Enter, KeyModifiers = KeyModifiers.None }, "tags.queue.done-next"));
-        Assert.True(linux.Matches(new KeyEventArgs { Key = Key.Space, KeyModifiers = KeyModifiers.None }, "tags.queue.skip"));
+        Assert.True(linux.Matches(new KeyEventArgs { Key = Key.S, KeyModifiers = KeyModifiers.None }, "tags.queue.skip"));
         Assert.True(linux.Matches(new KeyEventArgs { Key = Key.Back, KeyModifiers = KeyModifiers.None }, "tags.queue.back"));
         Assert.True(linux.Matches(new KeyEventArgs { Key = Key.Space, KeyModifiers = KeyModifiers.Shift }, "tags.queue.play-pause"));
         Assert.False(linux.Matches(new KeyEventArgs { Key = Key.Space, KeyModifiers = KeyModifiers.Shift }, "tags.queue.skip"));
