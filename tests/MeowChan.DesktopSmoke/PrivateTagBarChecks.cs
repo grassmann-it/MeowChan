@@ -434,8 +434,8 @@ internal static partial class PrivateTagBarChecks
             Require(Equals(open.Content, Texts.T("tags.openCount", 2)), "Tags did not survive a restart: " + open.Content);
             f.Click("ReaderTagsOpen");
             Require(f.Chips().SequenceEqual(new[] { "my_tag", "/sdg/" }), "Restart lost or reordered tags.");
-            await Program.WaitUntilAsync(() => Equals(f.C<Button>("ReaderTagAdd").Content, "Tag hinzufügen")
-                && f.C<IdentitySuggestionBox>("ReaderTagInput").PlaceholderText == "Tagname",
+            await Program.WaitUntilAsync(() => Equals(f.C<Button>("ReaderTagAdd").Content, Texts.T("tags.add"))
+                && f.C<IdentitySuggestionBox>("ReaderTagInput").PlaceholderText == Texts.T("tags.input.several"),
                 () => $"German labels missing: add={f.C<Button>("ReaderTagAdd").Content}, placeholder={f.C<IdentitySuggestionBox>("ReaderTagInput").PlaceholderText}");
             Capture(f.Page, "bar-de");
             Require(f.Suggestions().Select(Fixture.Label).SequenceEqual(new[] { "+ /rpt/" }), "Restart suggestions wrong.");
