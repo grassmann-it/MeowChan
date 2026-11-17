@@ -46,7 +46,7 @@ that the plugin reads: `id`, `created_at`, `rating`, `score`, `fav_count`,
 ## Browse-to-download fixtures (package B2)
 
 Synthetic as above (md5 values are repeated 8-digit hex patterns). The CDN side of the
-same cases, which cannot be expressed as JSON, is in `tests/Shared/BooruCdnFixtures.cs`
+same cases, which cannot be expressed as JSON, is in `tests/Shared/BooruCdnFixtures.cs` (linked into `MeowChan.PluginRuntime.Tests`, `MeowChan.DesktopTests` and `MeowChan.DesktopSmoke`; pinned by `BooruCdnFixtureTests` and `BooruBrowseFixturesTests`)
 and the UI fakes are in both `BooruUiFakes.cs` copies; see "Fixture map" below for who
 uses what. Parsed and pinned by `DanbooruSourceTests.SearchVariantsFixtureCoversEveryMediaShapeOfThePostViewer`
 and `SearchPageFixturesAreAFullPageOfTwentyAndAFullFollowingPage`.
@@ -74,13 +74,13 @@ both sample and no-sample tiles. They exist for the 20-hit page and "next page" 
 | --- | --- | --- |
 | Posts with preview, sample and original; sample equal to original; no sample; video; ugoira; deleted, banned, missing file | `search-variants.json`; in the UI fakes `BooruUiFixtures.Variant(id, BooruFixtureKind)` | B4 (ports, `SampleUrl` projection, state derivation), B6 (grid and badges), B7 (viewer) |
 | 20+ hits and a following page | `search-page20-first.json`, `search-page20-second.json`; in the UI fakes `BooruUiHarness.ServeFullPages()` | B4, B6 (grid, paging, bulk bound), B10 (smoke) |
-| Tiny decodable PNG, JPEG, WebP, GIF | `BooruTinyImages` in `tests/Shared/BooruCdnFixtures.cs`; in the UI fakes `BooruUiFixtures.Png/Jpeg/WebP/Sample` | B3 (host signature checks), B7, B10 |
-| CDN 429 and 503 with `Retry-After` (preview and sample, delta seconds and HTTP date) | `BooruCdnScript.RateLimited/ServiceUnavailable`; UI side `FakeBooruCdn` fence | B3 (media fence), B7 and B10 (fence state) |
-| Oversized body, with and without `Content-Length` | `BooruCdnScript.Oversized` (streamed, never materialized) | B3 (byte budget per role) |
-| Wrong content type, HTML body, truncated image | `BooruCdnScript.WrongContentType/HtmlBody/Truncated` | B3 |
-| Redirect (3xx with `Location`), to the CDN and to a foreign host | `BooruCdnScript.Redirect` (must be refused by the host later) | B3 |
-| Missing file (404), gone (410) | `BooruCdnScript.Status` | B3, B7 |
-| Slow or held responses | `BooruCdnScript.Hold` (released by the test) | B3 (concurrency), B7 (stale navigation) |
+| Tiny decodable PNG, JPEG, WebP, GIF (16x12, under 1 KiB) | `BooruTinyImages` in `tests/Shared/BooruCdnFixtures.cs`; in the UI fakes `BooruUiFixtures.Png/Jpeg/WebP/Sample` | B3 (host signature checks), B7, B10 |
+| CDN 429 and 503 with `Retry-After` (preview and sample, delta seconds and HTTP date) | `BooruCdn.RateLimited/RateLimitedUntil/ServiceUnavailable/ServiceUnavailableUntil/ThrottledWithInvalidRetryAfter`; UI side `FakeBooruCdn` (60 s floor fence) | B3 (media fence), B7 and B10 (fence state) |
+| Oversized body, with and without `Content-Length` | `BooruCdn.Oversized` (streamed, never materialized; the last byte of the budget is accepted today, one more is refused) | B3 (byte budget per role) |
+| Wrong content type, HTML body, truncated image | `BooruCdn.WrongContentType/HtmlLabelledAsImage/Truncated/EmptyBody`. Today's preview path judges the signature, not the content type, so an image body under `text/html` is a decision for B3 | B3 |
+| Redirect (3xx with `Location`), to the CDN and to a foreign host | `BooruCdn.Redirect` and `BooruCdn.FollowedRedirect` (a transport that followed it); the host must refuse both | B3 |
+| Missing file (404), gone (410) | `BooruCdn.Status` | B3, B7 |
+| Slow or held responses | `BooruCdn.Held` with `BooruCdn.NewGate()` (released by the test); `BooruCdnScript.MaxInFlight` counts concurrency | B3 (concurrency), B7 (stale navigation) |
 | `FakeSamplePort`, `FakeBooruCdn` | `tests/MeowChan.DesktopTests/BooruUiFakes.cs`, `tests/MeowChan.DesktopSmoke/BooruUiFakes.cs` (kept identical) | B4, B6, B7, B10 |
 | Composition-level CDN (real host transport over the stub) | `DanbooruStub.Cdn` in `tests/Shared/BooruCompositionFixture.cs` | B10 |
 
