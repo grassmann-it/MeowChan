@@ -133,14 +133,17 @@ public sealed class ShortcutDraftSession
         if (!_draft.IsEditable) return ShortcutAddResult.ReadOnly;
         ShortcutPlatform os = platform ?? EffectiveShortcutBindings.CurrentPlatform;
         if (EffectiveShortcutBindings.InvalidIssueReason(gesture, os) != null) return ShortcutAddResult.Invalid;
-        List<ShortcutGesture> list = replace ? new() : Requested(id).ToList();
+        EffectiveShortcutBindings snapshot = Snapshot(os);
+        IReadOnlyList<ShortcutGesture> For(string commandId) => snapshot.RequestedGestures.TryGetValue(commandId, out var gestures)
+            ? gestures : Array.Empty<ShortcutGesture>();
+        List<ShortcutGesture> list = replace ? new() : For(id).ToList();
         if (list.Count >= GestureLimit) return ShortcutAddResult.Limit;
         if (!list.Any(g => EffectiveShortcutBindings.Equivalent(g, gesture, os))) list.Add(gesture);
         ShortcutBindingsSection next = _draft;
         if (takeOver)
-            foreach (CommandDefinition command in CommandCatalog.All.Where(c => c.Id != id && EffectiveShortcutBindings.ContextsOverlap(c.Id, id)))
+            foreach (CommandDefinition command in CommandCatalog.All.Where(c => c.Id != id && ShortcutMeaning.Compete(c.Id, id)))
             {
-                IReadOnlyList<ShortcutGesture> other = Requested(command.Id);
+                IReadOnlyList<ShortcutGesture> other = For(command.Id);
                 ShortcutGesture[] remaining = other.Where(g => !EffectiveShortcutBindings.Equivalent(g, gesture, os)).ToArray();
                 if (remaining.Length != other.Count) next = next.Set(command.Id, remaining);
             }

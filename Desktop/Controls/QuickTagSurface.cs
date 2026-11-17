@@ -140,10 +140,10 @@ internal static class QuickTagKeys
         new[] { (KeyModifiers.Control, "Control"), (KeyModifiers.Meta, "Meta"), (KeyModifiers.Alt, "Alt"), (KeyModifiers.Shift, "Shift") }
             .Where(part => modifiers.HasFlag(part.Item1)).Select(part => part.Item2).ToArray();
 
-    /// <summary>The shortcut text of suggestion <paramref name="index"/> (0-based): "Alt+3", "⌘3"; null beyond the numbered ones.</summary>
+    /// <summary>The effective suggestion binding (0-based); null when unbound or beyond the numbered ones.</summary>
     internal static string? SuggestionGesture(int index, ShortcutPlatform platform) =>
         index is < 0 or >= QuickTagOptions.NumberedSuggestions ? null
-        : new ShortcutGesture("D" + (index + 1), new[] { platform == ShortcutPlatform.MacOS ? "Meta" : "Alt" }).Display(platform);
+        : BoundGesture(QuickTagCommands.Suggestion(index + 1), platform);
 
     /// <summary>
     /// The shortcut text of a command as it is bound now (the person may have changed or removed it, or a default may have yielded to another
