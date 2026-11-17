@@ -41,6 +41,36 @@ Total tests: 1
 
 The original defect retains one subscription; it does not add another delegate every time this particular control attaches. The test deliberately checks return to baseline rather than falsely claiming linear delegate growth.
 
+## PointerFocusReclaim owner regressions
+
+`PointerFocusReclaimOwnerLifetimeTests` inspects the actual `PointerReleasedEvent` subscriptions, filtering by delegate target so unrelated pointer handlers are not counted. Both real owner controls are constructed without showing windows; no native media is opened. Each terminal cleanup is called twice.
+
+Before retaining handles:
+
+```text
+StoppingTheViewerRemovesReclaimFromBothOverlayRoots [FAIL]
+Expected: 0
+Actual:   1
+DisposingThePlayerRemovesReclaimFromItsTransport [FAIL]
+Expected: 0
+Actual:   1
+Test Run Failed.
+Total tests: 2
+     Failed: 2
+```
+
+After retaining and disposing handles, the combined filter `FullyQualifiedName~PointerFocusReclaim|FullyQualifiedName~LayoutSubscriptionLifetimeTests` passes:
+
+```text
+Passed ...StoppingTheViewerRemovesReclaimFromBothOverlayRoots
+Passed ...DisposingThePlayerRemovesReclaimFromItsTransport
+Test Run Successful.
+Total tests: 15
+     Passed: 15
+```
+
+The viewer retains both roots' handles until terminal `StopAsync`; the player retains its transport's handle until `DisposeAsync` (removed on the UI thread alongside transport retirement). The predicate implementation in `PointerFocusReclaim.cs` is unchanged, avoiding conflict with the text-input consolidation worker.
+
 ## Sidebar investigation
 
 Neither subscription is dead on this base, and they are **not on the same control**:

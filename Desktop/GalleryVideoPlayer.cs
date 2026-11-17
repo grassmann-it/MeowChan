@@ -33,6 +33,7 @@ namespace MeowChan.Desktop;
 /// </summary>
 internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
 {
+    private readonly PointerFocusReclaim _transportPointerFocusReclaim;
     private readonly VideoView _video = new() { Name = "GalleryNativeVideo", MinHeight = 100 };
     private readonly Image _softwareVideo = new() { Name = "GallerySoftwareVideo", MinHeight = 100, Stretch = Avalonia.Media.Stretch.Uniform };
     // Status and time belong to the themed transport below the black media viewport.
@@ -579,7 +580,7 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
         // once released, the speed and player menus once closed): the owner gets the keyboard back so the next Enter/Space reaches playback.
         // The timeline keeps its focus (its arrows seek); Tab and keyboard activation keep the control's native focus for accessibility.
         PointerFocusReclaim.SetReclaims(_volume, true);
-        PointerFocusReclaim.Attach(_transportPanel, () => ShortcutFocusRequested?.Invoke());
+        _transportPointerFocusReclaim = PointerFocusReclaim.Attach(_transportPanel, () => ShortcutFocusRequested?.Invoke());
         _volume.PropertyChanged += (_, args) =>
         {
             if (args.Property != Slider.ValueProperty || _settingVolume) return;
@@ -1438,8 +1439,13 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
         Task cleanup = _lifetime.DisposeAsync();
         Task scrubCleanup = DisposeScrubPreviewAsync();
         cleanup = Task.WhenAll(cleanup, scrubCleanup);
-        if (Dispatcher.UIThread.CheckAccess()) RetireTransportPlacement();
-        else Dispatcher.UIThread.Post(RetireTransportPlacement);
+        void RetireTransportInteraction()
+        {
+            _transportPointerFocusReclaim.Dispose();
+            RetireTransportPlacement();
+        }
+        if (Dispatcher.UIThread.CheckAccess()) RetireTransportInteraction();
+        else Dispatcher.UIThread.Post(RetireTransportInteraction);
         return new(DetachTransportAfterCleanupAsync(cleanup));
     }
     private async Task DetachTransportAfterCleanupAsync(Task cleanup)
