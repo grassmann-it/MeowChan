@@ -328,13 +328,16 @@ public partial class ArchivePage : UserControl
     internal Task LoadThreadAsync(ResourceId id, bool resetPage = true, ArchivedThreadView? preparedThread = null) =>
         LoadThreadAsync(id, resetPage, preparedThread, null);
 
+    // entryAnchor (AR-01): the place the embedded reader had before its pane moved to the large reader (OpenReaderOnThreadAsync); a pane that is
+    // already moved can no longer tell it, so the anchor is taken from the page that was shown, not from the load.
     private async Task LoadThreadAsync(ResourceId id, bool resetPage, ArchivedThreadView? preparedThread,
-        ReaderFocusIntent? focusIntent, FilenameSearchOwner? filenameNavigation = null)
+        ReaderFocusIntent? focusIntent, FilenameSearchOwner? filenameNavigation = null, ReaderAnchor? entryAnchor = null)
     {
         if (!ReferenceEquals(_filenameSearchOwner, filenameNavigation)) InvalidateFilenameSearch();
         if (_ended || !CanRead || _openReader == null) return;
         if (resetPage || _unreadMark?.Thread != id) _unreadMark = null;
-        ReaderAnchor? retainedAnchor = !resetPage && _thread?.Summary.Id == id ? CaptureReaderAnchor() : null;
+        ReaderAnchor? retainedAnchor = !resetPage && _thread?.Summary.Id == id
+            ? entryAnchor is { } entered && entered.Thread == id ? entered : CaptureReaderAnchor() : null;
         CancelReferences();
         CancelInlineReplies();
         int request = ++_contentRequest;
@@ -403,6 +406,8 @@ public partial class ArchivePage : UserControl
             if (thread != null)
             {
                 MediaLoadTask = LoadMediaAsync(thread);
+                if (filenameNavigation == null && _largeReader && DownloadReaderGate.OpensOnMedia(thread.PostCount, thread.Summary.LastCapturedAt))
+                    ArchiveContentTabs.SelectedItem = ArchiveMediaTab; // DL-01: nothing to read, so the open lands on the saved media
                 if (retainedAnchor != null) await RestoreReaderAnchorAsync(retainedAnchor, focusIntent: focusIntent);
                 else if (filenameNavigation == null && _largeReader && thread.PostCount > 0)
                 {
@@ -411,7 +416,7 @@ public partial class ArchivePage : UserControl
                     if (_ended || request != _contentRequest) return;
                     if (Projection is { Count: > 0 } shown)
                         await FocusPostAsync(shown[Math.Min(_postOffset, shown.Count - 1)].Post.PostId,
-                            resetPage ? null : _readerInteractionRevision, focusIntent: focusIntent);
+                            resetPage ? null : _readerInteractionRevision, focusIntent: focusIntent, passiveOpen: true);
                     else if (focusIntent != null) focusIntent.Restore(ArchiveCloseReader);
                     else ArchiveCloseReader.Focus();
                 }
@@ -509,7 +514,7 @@ public partial class ArchivePage : UserControl
     private void RenderThread(bool refreshMedia = true)
     {
         CloseQuotePreview();
-        ReaderFindOpen.IsEnabled = !_ended && !_busy && _thread != null;
+        UpdateReaderThreadActions();
         ArchiveSelectHint.IsVisible = _thread == null && !_busy;
         ArchiveContentTabs.IsVisible = _thread != null;
         ArchiveReaderTitle.Text = _thread?.Summary.Title ?? string.Empty;
@@ -702,6 +707,7 @@ public partial class ArchivePage : UserControl
         UpdateTransferExportAction();
         UpdateArchiveSelectionActions();
         UpdateReaderNavigation();
+        UpdateReaderThreadActions();
         bool ready = _available && !_busy && !_ended && !IsFilenameSearchOpen;
         bool readReady = CanRead && !_busy && !_ended && !IsFilenameSearchOpen; // list/search/paging/reading only
         SearchArchiveButton.IsEnabled = ArchiveScope == MeowChan.Desktop.Controls.SearchScope.Text ? readReady : CanRunArchiveScope;
@@ -1195,11 +1201,11 @@ public partial class ArchivePage : UserControl
         CommandBindings.Apply(ArchiveHistoryBack, "reader.history-back", iconWithLabel: true);
         CommandBindings.Apply(ArchiveReaderFullscreen, "window.fullscreen", iconWithLabel: true);
         ApplyReaderCloseLabel();
-        CommandBindings.Apply(ArchiveOpenGallery, "gallery.open", iconWithLabel: true);
-        CommandBindings.Apply(ArchiveReadPosts, "reader.expand", iconWithLabel: true);
+        CommandBindings.Apply(ArchiveOpenGallery, "gallery.open", NoThreadSelectedReason, iconWithLabel: true);
+        CommandBindings.Apply(ArchiveReadPosts, "reader.expand", NoThreadSelectedReason, iconWithLabel: true);
         CommandBindings.Apply(ArchiveGalleryReturn, "gallery.return", iconWithLabel: true);
         ApplyMediaReturnLabel();
-        CommandBindings.Apply(ExportArchiveButton, "export.open-html-dialog", iconWithLabel: true);
+        CommandBindings.Apply(ExportArchiveButton, "export.open-html-dialog", NoThreadSelectedReason, iconWithLabel: true);
         CommandBindings.Apply(ReaderPreviousThread, "reader.previous-thread", iconOnly: true);
         CommandBindings.Apply(ReaderPreviousPost, "reader.previous-post", iconOnly: true);
         CommandBindings.Apply(ReaderNextPost, "reader.next-post", iconOnly: true);

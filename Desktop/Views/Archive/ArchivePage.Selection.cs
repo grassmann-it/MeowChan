@@ -356,7 +356,7 @@ public partial class ArchivePage
             ResourceId id = row.Summary.Id;
             if (MatchesArchiveCommand(e, "gallery.open")) { if (OpenGallery is { } open) await OpenActions.RunAsync(() => open(id, null, list), "archive.list.gallery"); }
             else if (FrozenArchiveSelection().Length != 1) Message(Texts.T("archive.command.singleRead"));
-            else { OpenReaderRequested?.Invoke(list); await OpenActions.RunAsync(() => LoadThreadAsync(id), "archive.list.read"); }
+            else await OpenActions.RunAsync(() => OpenReaderOnThreadAsync(id, () => OpenReaderRequested?.Invoke(list)), "archive.list.read");
             return;
         }
         string? action = MatchesArchiveCommand(e, "rules.edit-scope") ? "rules"

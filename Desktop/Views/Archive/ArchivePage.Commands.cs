@@ -134,7 +134,7 @@ public partial class ArchivePage
         Add("thread.favorite-toggle", async () => await ToggleThreadFavoriteAsync(lead.Summary.Id),
             () => CanToggleThreadFavorite(lead.Summary.Id), _threadFavoriteLoadError ?? Texts.T("archive.command.busy"),
             leadAction: true, actionLabel: () => ThreadFavoriteText.Action(_threadFavoriteIds.Contains(lead.Summary.Id)));
-        Add("thread.read", () => { OpenReaderRequested?.Invoke(origin); OpenActions.Start(() => LoadThreadAsync(lead.Summary.Id), "archive.menu.read"); },
+        Add("thread.read", () => OpenActions.Start(() => OpenReaderOnThreadAsync(lead.Summary.Id, () => OpenReaderRequested?.Invoke(origin)), "archive.menu.read"),
             () => ids.Length == 1, Texts.T("archive.command.singleRead"), leadAction: true);
         // RH1: the one "continue reading" command with the place of this thread; its shortcut opens the newest place, so none is shown here.
         string? continueTip = null;
