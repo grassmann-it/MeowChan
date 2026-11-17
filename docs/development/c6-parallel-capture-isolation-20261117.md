@@ -56,6 +56,8 @@ There are no retries.
 Additional verification:
 
 - `python3 -m unittest discover -s tests -p 'test_*smoke*.py'`: **49 tests passed**.
+- `dotnet build tests/MeowChan.DesktopSmoke/MeowChan.DesktopSmoke.csproj -c Release --nologo`:
+  **succeeded**, 0 errors / 47 existing warnings (8m56s).
 - Failure-path regression: a failed child retains its JSON evidence and manifest even
   with an epoch-zero mtime; the child remains failed and its stage is cleaned up.
 - Independent-copy regression: changing a staged dependency changes neither another
@@ -89,9 +91,16 @@ global localization/environment mutations in desktop xUnit tests. Those require 
 lifecycle/state ownership fixes and actual GUI repeat gates. In particular the exact-once
 gallery assertion is retained unchanged, not weakened.
 
-An attempted concurrent GUI preflight could not reach the application: both Openbox
+An initial concurrent GUI preflight could not reach the application: both Openbox
 instances reported `Failed to open the display` / `The isolated window manager exited
-during startup`. This is **not** counted as before/after application evidence. Its logs
-are retained in `c6-evidence/gui-preflight/`. Native Windows/macOS UI runs were not available.
-No broad desktop-test assembly parallelization switch is re-enabled on the strength of
-this filesystem-only proof.
+during startup`. After the build completed, a baseline pair did enter the application,
+but both scenarios exceeded the unchanged 60-second harness deadline. The host's measured
+one-minute load was **82.8 on 16 CPUs**. Further GUI stress was interrupted rather than
+raising deadlines or treating infrastructure-dominated outcomes as product evidence.
+These attempts are **not** the ten-iteration before/after proof above; no claim of
+improved historical GUI smoke pass rates is made. Logs are retained in
+`c6-evidence/gui-preflight/` and `c6-evidence/gui-before/`. Native Windows/macOS UI runs
+were not available. No broad desktop-test assembly parallelization switch is re-enabled
+on the strength of this filesystem-only proof.
+
+PR: <https://github.com/grassmann-it/MeowChan/pull/32>.
