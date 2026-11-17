@@ -63,6 +63,7 @@ public sealed partial class TaggingPage : UserControl
     private readonly Grid _columnHeader = new() { Name = "TaggingColumns", ColumnDefinitions = TaggingQueueRowView.BuildColumns(true), ColumnSpacing = TaggingQueueRowView.ColumnGap, Margin = new Thickness(12, 0, 12, 0),
         // A right-click between the header words has to find the header too (it carries the column menu), so it takes a transparent fill.
         Background = Brushes.Transparent };
+    private readonly Border _columnHeaderSurface = new() { Name = "TaggingColumnHeaderSurface", Classes = { "workspace-table-header" } };
     private readonly ListBox _list = new() { Name = "TaggingList", SelectionMode = SelectionMode.Multiple };
     private readonly TextBlock _empty = new() { Name = "TaggingEmpty" };
     private readonly WorkspaceEmptyState _emptyState = new() { Name = "TaggingEmptyState", IsVisible = false };
@@ -207,15 +208,17 @@ public sealed partial class TaggingPage : UserControl
         body.Children.Add(_grid);
         body.Children.Add(_emptyState);
         // The selection bar (only with a selection) stands above the column header; the toolbar above it never moves.
-        Grid listArea = new() { Name = "TaggingListArea", RowDefinitions = new RowDefinitions("Auto,Auto,Auto,*"), RowSpacing = 0 };
+        Grid listArea = new() { Name = "TaggingListArea", RowDefinitions = new RowDefinitions("Auto,Auto,*"), RowSpacing = 0 };
         listArea.Children.Add(_listControls);
         Control selection = BuildSelectionBar();
         Grid.SetRow(selection, 1);
         listArea.Children.Add(selection);
-        Grid.SetRow(_columnHeader, 2);
-        listArea.Children.Add(_columnHeader);
-        Border surface = new() { Name = "TaggingListSurface", Child = body, Classes = { "workspace-section-flush" } };
-        Grid.SetRow(surface, 3);
+        _columnHeaderSurface.Child = _columnHeader;
+        Grid table = new() { Name = "TaggingTable", RowDefinitions = new RowDefinitions("Auto,*"), Children = { _columnHeaderSurface } };
+        Grid.SetRow(body, 1);
+        table.Children.Add(body);
+        Border surface = new() { Name = "TaggingListSurface", Child = table, Classes = { "workspace-section-flush" } };
+        Grid.SetRow(surface, 2);
         listArea.Children.Add(surface);
 
         Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*") };
@@ -379,6 +382,7 @@ public sealed partial class TaggingPage : UserControl
         _list.IsVisible = !empty && _viewMode == TaggingViewMode.List;
         _grid.IsVisible = !empty && _viewMode == TaggingViewMode.Grid;
         _columnHeader.IsVisible = !empty && _viewMode == TaggingViewMode.List;
+        _columnHeaderSurface.IsVisible = _columnHeader.IsVisible;
         // "Choose columns…" only means something where there are columns: the list view (the work view still decides first, by the
         // toolbar's own omission of the item; a hidden item takes no width and no group line).
         _columnsButton.IsVisible = _viewMode == TaggingViewMode.List;

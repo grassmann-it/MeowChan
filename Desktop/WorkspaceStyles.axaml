@@ -923,6 +923,12 @@
              decorative line colour (2.32:1 on Raised in Light) closes the head. -->
         <Setter Property="BorderThickness" Value="0,0,0,1" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Border}" />
     </Style>
+    <!-- Custom queue tables share the DataGrid header's Input height, Raised fill and lower rule. -->
+    <Style Selector="Border.workspace-table-header">
+        <Setter Property="Height" Value="{StaticResource Workspace.Size.Input}" />
+        <Setter Property="Background" Value="{DynamicResource Workspace.Raised}" />
+        <Setter Property="BorderThickness" Value="0,0,0,1" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Border}" />
+    </Style>
     <!-- Narrow-window sweep (16.11.2026): a column head that is narrower than its localized name ("En attente" over the 85 dip Queued
          column) ends in an ellipsis instead of being cut off mid-letter by the column edge; the Columns menu names every column in full. -->
     <Style Selector="DataGridColumnHeader TextBlock"><Setter Property="TextTrimming" Value="CharacterEllipsis" /></Style>
