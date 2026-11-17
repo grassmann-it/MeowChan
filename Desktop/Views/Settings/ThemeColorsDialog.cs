@@ -231,6 +231,7 @@ internal sealed class ThemeColorsDialog : Window
         _cancel.Content = Texts.T("action.cancel");
         AutomationProperties.SetName(_cancel, _cancel.Content.ToString());
         _try.Content = Texts.T("theme.colors.try");
+        AutomationProperties.SetName(_try, _try.Content.ToString());
         ToolTip.SetTip(_try, Texts.T("theme.colors.tryHint"));
         AutomationProperties.SetHelpText(_try, Texts.T("theme.colors.tryHint"));
         _resetAll.Content = Texts.T("theme.colors.resetAll");
