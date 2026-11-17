@@ -54,8 +54,16 @@ internal static class ArchivePageChecks
         await Program.WaitUntilAsync(() => !page.IsBusy, () => "Archive media command reconciliation did not finish before preview.");
         Click(inline.PreviewButton);
         ContentControl gallery = window.FindControl<ContentControl>("GalleryHost")!;
+        // Native macOS ARM runners can spend longer than the normal 15-second UI poll decoding
+        // the first gallery image even though the archive thumbnail is already available. Keep the
+        // assertion strict, but give that platform enough time and report whether the overlay itself
+        // opened or only its image decode is late.
         await Program.WaitUntilAsync(() => gallery.IsVisible && gallery.GetVisualDescendants().OfType<Image>()
-            .Any(image => image.Name == "GalleryImage" && image.Source is Bitmap));
+            .Any(image => image.Name == "GalleryImage" && image.Source is Bitmap), TimeSpan.FromSeconds(45), () =>
+        {
+            Image? image = gallery.GetVisualDescendants().OfType<Image>().FirstOrDefault(value => value.Name == "GalleryImage");
+            return $"galleryVisible={gallery.IsVisible}; content={gallery.Content?.GetType().Name ?? "<null>"}; imageSource={image?.Source?.GetType().Name ?? "<null>"}";
+        });
         Require(page.FindControl<TabControl>("ArchiveContentTabs")!.SelectedIndex == 0,
             "Clicking an inline image changed away from the post reader.");
         GalleryViewer inlineViewer = (GalleryViewer)gallery.Content!;

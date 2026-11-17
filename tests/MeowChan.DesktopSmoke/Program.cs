@@ -850,11 +850,16 @@ internal static class Program
     }
 
     // state: optional description of what the condition observes, printed and attached on timeout only.
-    internal static async Task WaitUntilAsync(Func<bool> condition, Func<string>? state = null,
+    internal static Task WaitUntilAsync(Func<bool> condition, Func<string>? state = null,
+        [System.Runtime.CompilerServices.CallerFilePath] string callerFile = "",
+        [System.Runtime.CompilerServices.CallerLineNumber] int callerLine = 0) =>
+        WaitUntilAsync(condition, TimeSpan.FromSeconds(15), state, callerFile, callerLine);
+
+    internal static async Task WaitUntilAsync(Func<bool> condition, TimeSpan timeout, Func<string>? state = null,
         [System.Runtime.CompilerServices.CallerFilePath] string callerFile = "",
         [System.Runtime.CompilerServices.CallerLineNumber] int callerLine = 0)
     {
-        DateTime deadline = DateTime.UtcNow.AddSeconds(15);
+        DateTime deadline = DateTime.UtcNow.Add(timeout);
         while (!condition())
         {
             if (DateTime.UtcNow >= deadline)
