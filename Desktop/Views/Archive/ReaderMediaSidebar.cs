@@ -264,7 +264,7 @@ internal sealed class ReaderMediaSidebar : Border
     // The card (Tom, 15.11.2026): the medium with, inside the same edge, the strip of a post with several files and the video's controls.
     // The medium fills what the rows below it leave; nothing under the card keeps space, so a host can make it flush with a neighbour card.
     private readonly Grid _card = new() { Name = "ReaderMediaSidebarCard", RowDefinitions = new RowDefinitions("*,Auto,Auto") };
-    private readonly Grid _header = new() { Name = "ReaderMediaSidebarHeaderRow", ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto,Auto"), ColumnSpacing = 8 };
+    private readonly Grid _header = new() { Name = "ReaderMediaSidebarHeaderRow", Height = HeaderLineHeight, ClipToBounds = true, ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto,Auto"), ColumnSpacing = 8 };
     // Polite live region: the page sets its text once the selection rested (AnnounceDelayMs).
     private readonly TextBlock _live = new() { Name = "ReaderMediaSidebarLive", Opacity = 0, IsHitTestVisible = false, Height = 0 };
     private readonly ArchiveFavoriteButton _favorite = new() { VerticalAlignment = VerticalAlignment.Center };

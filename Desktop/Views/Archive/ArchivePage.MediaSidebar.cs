@@ -79,6 +79,11 @@ public partial class ArchivePage
     private void InitializeMediaSidebar()
     {
         RegisterViewOption("reader.sidebar.toggle", () => ReaderMediaSidebarRules.IsOn(ReaderMedia, _largeReader), ToggleMediaSidebar, note: MediaSidebarHint);
+        ReaderMediaSidebarToggle.Click += (_, e) => { e.Handled = true; ToggleMediaSidebar(); RefreshMediaSidebarToggle(); };
+        // The toolbar travels with the reader. Refresh on layout as well as preference changes:
+        // host, dialog, language and shortcut changes must not leave a stale On/Off action.
+        ReaderMediaSidebarToggle.LayoutUpdated += (_, _) => RefreshMediaSidebarToggle();
+        RefreshMediaSidebarToggle();
         ArchivePosts.SelectionChanged += (_, _) => OnMediaSidebarSelectionChanged();
         // The archive view: the reader pane gets the sidebar's columns (posts card, splitter, sidebar). Its header rows (title, toolbar, status)
         // stand over the posts card's column only: the sidebar's own header line sits in the strip above its frame, on the side of the card
@@ -290,6 +295,7 @@ public partial class ArchivePage
     // Columns, side, width, visibility and the Tab scope from the preferences and the reader's width, in the host of the current view.
     private void LayoutMediaSidebar(bool force = false)
     {
+        RefreshMediaSidebarToggle();
         if (_movingMediaSidebar) return;
         Grid pane = ArchiveReaderPane;
         bool large = _largeReader;
@@ -413,6 +419,26 @@ public partial class ArchivePage
     }
 
     // ---- switch and commands -------------------------------------------------------------------------------------------------
+
+    private (bool On, bool Enabled, string Label, string Tip)? _mediaSidebarTogglePresentation;
+
+    private void RefreshMediaSidebarToggle()
+    {
+        if (ReaderMediaSidebarToggle is not { } button) return;
+        // Checked means the saved choice for this host, not the responsive width collapse.
+        bool on = ReaderMediaSidebarRules.IsOn(ReaderMedia, _largeReader);
+        string label = CommandCatalog.Label("reader.sidebar.toggle") + ": " + Texts.T(on ? "window.fullscreen.on" : "window.fullscreen.off");
+        string tip = CommandBindings.Tooltip("reader.sidebar.toggle", MediaSidebarHint());
+        var presentation = (on, CanToggleMediaSidebar, label, tip);
+        if (button.IsChecked != on) button.IsChecked = on;
+        if (_mediaSidebarTogglePresentation == presentation) return;
+        _mediaSidebarTogglePresentation = presentation;
+        button.IsEnabled = CanToggleMediaSidebar;
+        button.Content = label;
+        ToolTip.SetTip(button, tip);
+        Avalonia.Automation.AutomationProperties.SetName(button, label);
+        Avalonia.Automation.AutomationProperties.SetHelpText(button, tip);
+    }
 
     private string? MediaSidebarHint()
     {
