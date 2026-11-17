@@ -5,7 +5,7 @@ using MeowChan.Desktop.Localization;
 namespace MeowChan.DesktopTests;
 
 /// <summary>
-/// Tooltips name the first key and at most one alias (Tom's decision #135 of 16.11.2026, sweep S3); the shortcuts window (F1), the menus and the shortcut editor
+/// Tooltips name all active gestures (UX-LEDGER-19 supersedes the former two-gesture cap); the shortcuts window (F1), the menus and the shortcut editor
 /// keep listing every gesture. A control that knows its execution context passes it, so a default that gave way to a saved binding there is not named.
 /// Plain objects and source scans; no window.
 /// </summary>
@@ -20,11 +20,8 @@ public sealed class TooltipAliasLimitTests : IDisposable
     private static string Source(string relative, [System.Runtime.CompilerServices.CallerFilePath] string path = "") =>
         File.ReadAllText(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(path)!, "../..", relative)));
 
-    [Fact]
-    public void TheLimitIsTheFirstKeyAndOneAlias() => Assert.Equal(2, CommandCatalog.TooltipGestureLimit);
-
     [Theory, MemberData(nameof(Platforms))]
-    public void NoTooltipOfTheCatalogNamesMoreThanTwoGesturesAndKeepsTheOrder(ShortcutPlatform platform)
+    public void EveryTooltipNamesAllEffectiveGesturesAndKeepsTheOrder(ShortcutPlatform platform)
     {
         EffectiveShortcutBindings bindings = EffectiveShortcutBindings.Build(null, platform);
         bool mac = platform == ShortcutPlatform.MacOS;
@@ -34,9 +31,9 @@ public sealed class TooltipAliasLimitTests : IDisposable
         {
             IReadOnlyList<string> tooltip = CommandCatalog.TooltipGestures(command.Id, mac, null, bindings);
             string[] all = bindings.For(command.Id).Select(gesture => gesture.Display(shown)).Distinct(StringComparer.Ordinal).ToArray();
-            Assert.True(tooltip.Count <= 2, command.Id + ": " + string.Join(" / ", tooltip));
+            Assert.Equal(all.Length, tooltip.Count);
             // The first gestures, in the order of the bindings (the first key stays first).
-            Assert.Equal(all.Take(2).ToArray(), tooltip.ToArray());
+            Assert.Equal(all, tooltip.ToArray());
             string? text = CommandCatalog.ShortcutTooltipDisplay(command.Id, mac, null, bindings);
             Assert.Equal(tooltip.Count == 0 ? null : string.Join(" / ", tooltip), text);
             if (all.Length > 2) withAliases++;
@@ -48,21 +45,21 @@ public sealed class TooltipAliasLimitTests : IDisposable
     [Fact]
     public void AMenuAndTheShortcutsWindowStillListEveryGesture()
     {
-        // Zoom in has more than two default gestures; its tooltip shows two, the catalog's full display (menus, F1, editor) all of them.
+        // Zoom in has more than two default gestures; all presentation paths must keep them.
         string[] all = CommandCatalog.ShortcutDisplay("gallery.zoom-in")!.Split(" / ");
         Assert.True(all.Length >= 3, string.Join(" / ", all));
         string tip = CommandBindings.Tooltip("gallery.zoom-in", null, null, null);
         string headline = tip.Split('\n')[0];
         string[] shown = headline[(CommandCatalog.Label("gallery.zoom-in") + " · ").Length..].Split(" / ");
-        Assert.Equal(2, shown.Length);
-        Assert.Equal(all.Take(2), shown);
+        Assert.Equal(all.Length, shown.Length);
+        Assert.Equal(all, shown);
         Assert.Equal(CommandCatalog.ShortcutTooltipDisplay("gallery.zoom-in"), headline[(CommandCatalog.Label("gallery.zoom-in") + " · ").Length..]);
         // The editor / help line uses ShortcutDisplay, not the tooltip text.
         Assert.Contains("ShortcutDisplay(id)", Source("Desktop/Views/Shortcuts/ShortcutBindingsEditor.cs"));
     }
 
     [Fact]
-    public void TheFirstLineOfEveryCommandTooltipIsTheLabelAndTheLimitedKeys()
+    public void TheFirstLineOfEveryCommandTooltipIsTheLabelAndAllEffectiveKeys()
     {
         foreach (CommandDefinition command in CommandCatalog.All.Where(command => command.IsImplemented))
         {

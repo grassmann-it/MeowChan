@@ -484,26 +484,18 @@ public static class CommandCatalog
         return gestures.Count == 0 ? null : string.Join(" / ", gestures.Select(g => g.Display(platform)));
     }
 
-    /// <summary>The most gestures a tooltip names (Tom's decision #135 of 16.11.2026): the first key and at most one alias. Menus, the shortcuts window (F1)
-    /// and the shortcut editor keep listing every gesture (<see cref="ShortcutDisplay(string)"/>).</summary>
-    public const int TooltipGestureLimit = 2;
-
-    /// <summary>
-    /// The gestures a tooltip of <paramref name="id"/> names: the bound ones in their order, as the platform shows them, without repeats, at most
-    /// <see cref="TooltipGestureLimit"/>. With a <paramref name="context"/> (an execution context such as "media" or "gallery") a default that gave way to a
-    /// saved binding of another command in exactly that context is left out, so the tip never names a key that does nothing where the control is.
-    /// Without one every bound gesture counts, like <see cref="ShortcutDisplay(string)"/>.
-    /// </summary>
+    /// <summary>All effective gestures in binding order. A supplied execution context filters
+    /// yielded defaults and the real reader/media video ownership policy.</summary>
     internal static IReadOnlyList<string> TooltipGestures(string id, bool macOS, string? context = null, EffectiveShortcutBindings? bindings = null)
     {
         EffectiveShortcutBindings snapshot = bindings ?? ShortcutService.Current;
         var platform = macOS ? ShortcutPlatform.MacOS : ShortcutPlatform.Windows;
         return snapshot.For(id)
-            .Where(g => context == null || !snapshot.YieldedContexts(id, g).Contains(context, StringComparer.Ordinal))
-            .Select(g => g.Display(platform)).Distinct(StringComparer.Ordinal).Take(TooltipGestureLimit).ToArray();
+            .Where(g => context == null || ShortcutHelp.ActsHere(id, g, context, snapshot))
+            .Select(g => g.Display(platform)).Distinct(StringComparer.Ordinal).ToArray();
     }
 
-    /// <summary>The shortcut text of a tooltip: <see cref="TooltipGestures"/> joined by " / " (the first key and at most one alias), null without a key.</summary>
+    /// <summary>The shortcut text of a tooltip: <see cref="TooltipGestures"/> joined by " / " (all active aliases), null without a key.</summary>
     public static string? ShortcutTooltipDisplay(string id, string? context = null) => ShortcutTooltipDisplay(id, OperatingSystem.IsMacOS(), context);
 
     internal static string? ShortcutTooltipDisplay(string id, bool macOS, string? context = null, EffectiveShortcutBindings? bindings = null)

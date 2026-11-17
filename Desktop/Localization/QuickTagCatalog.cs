@@ -16,6 +16,8 @@ internal static class QuickTagCatalog
         ("tags.quick.files.one", "{0} media file", "{0} Medium"),
         ("tags.quick.close", "Close", "Schließen"),
         ("tags.quick.closeTip", "Close · Esc", "Schließen · Esc"),
+        ("tags.quick.fieldNavigation", "With an empty field, Down moves to the suggestions and Backspace to the assigned tags.",
+            "Bei leerem Feld führt Pfeil runter zu den Vorschlägen und die Rücktaste zu den zugewiesenen Tags."),
         ("tags.quick.fieldHint", "{0} to {1} toggle the numbered suggestions. With an empty field, Down moves to the suggestions and Backspace to the assigned tags.",
             "{0} bis {1} schalten die nummerierten Vorschläge um. Bei leerem Feld führt Pfeil runter zu den Vorschlägen und die Rücktaste zu den zugewiesenen Tags."),
         ("tags.quick.fieldHintNavigation", "Page Down and Page Up show the next or previous media file, {0} adds the typed tag and moves on.",

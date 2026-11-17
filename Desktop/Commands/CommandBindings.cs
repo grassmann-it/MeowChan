@@ -242,8 +242,7 @@ public static class CommandBindings
     /// <summary>
     /// The tooltip of a command: line 1 is "Label · shortcut" (the label alone without a key), line 2 the hint where it applies and the
     /// reason it is unavailable, joined by " · " (HB1: no more row of four middle dots). The tooltip style wraps a line that is still too
-    /// long at 360 dip; a command without a hint or reason has one line. The shortcut names the first gesture and at most one alias
-    /// (<see cref="CommandCatalog.TooltipGestureLimit"/>; the shortcuts window lists them all); <paramref name="keyContext"/> is the execution context
+    /// long at 360 dip; a command without a hint or reason has one line. The shortcut names every effective gesture; <paramref name="keyContext"/> is the execution context
     /// of the control that shows the tip, for a command that runs in several (a default that gave way there is not named).
     /// </summary>
     public static string Tooltip(string id, string? unavailableReason = null, string? visibleLabel = null, string? keyContext = null)

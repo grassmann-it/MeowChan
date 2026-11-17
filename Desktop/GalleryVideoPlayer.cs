@@ -677,7 +677,7 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
     {
         void ActionName(Control control, string id, string label)
         {
-            string tip = CommandCatalog.ShortcutTooltipDisplay(id) is string gesture ? label + " · " + gesture : label;
+            string tip = CommandCatalog.ShortcutTooltipDisplay(id, ShortcutContext) is string gesture ? label + " · " + gesture : label;
             AutomationProperties.SetName(control, label);
             AutomationProperties.SetHelpText(control, tip);
             ToolTip.SetTip(control, tip);
@@ -696,7 +696,7 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
         _speed.Content = RateLabel(Rate);
         string speed = Texts.T("viewer.video.speed", RateLabel(Rate));
         string speedKeys = string.Join(" · ", new[] { "video.speed-down", "video.speed-up", "video.speed-reset" }
-            .Select(id => CommandCatalog.ShortcutTooltipDisplay(id)).Where(gesture => gesture != null));
+            .Select(id => CommandCatalog.ShortcutTooltipDisplay(id, ShortcutContext)).Where(gesture => gesture != null));
         string speedTip = speed + " · " + Texts.T("viewer.video.speedHelp") + (speedKeys.Length > 0 ? " · " + speedKeys : string.Empty);
         speedTip += " · " + Texts.T("viewer.video.speedMore");
         AutomationProperties.SetName(_speed, speed);
@@ -705,7 +705,9 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
         RefreshSeekTooltip();
         string volumeLabel = _audioAvailable ? Texts.T("viewer.video.volume") : audioUnavailable;
         AutomationProperties.SetName(_volume, volumeLabel);
-        ToolTip.SetTip(_volume, volumeLabel);
+        string volumeTip = ShortcutHelp.Append(volumeLabel, ShortcutHelp.Commands(ShortcutContext, "video.volume-down", "video.volume-up"));
+        AutomationProperties.SetHelpText(_volume, volumeTip);
+        ToolTip.SetTip(_volume, volumeTip);
         RefreshTransportExtras();
     }
     private static Control TransportIcon(string command, int size, string? state = null)

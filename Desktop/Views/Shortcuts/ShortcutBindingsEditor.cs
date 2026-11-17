@@ -26,8 +26,18 @@ namespace MeowChan.Desktop.Views.Shortcuts;
 /// count, Undo, Reset all, Discard and Save. It edits a <see cref="ShortcutDraftSession"/> that the Settings card shares;
 /// recording never persists or publishes, only Save does (through <see cref="SaveHandler"/>).
 /// </summary>
-public sealed partial class ShortcutBindingsEditor : UserControl
+public sealed partial class ShortcutBindingsEditor : UserControl, IDisposable
 {
+    /// <summary>Release an active recorder even when a detached editor is retired.</summary>
+    public void Dispose()
+    {
+        _validationFocusRequest++;
+        CancelValidationViewportReveal();
+        Detach();
+        Texts.Changed -= OnLanguageChanged;
+        GC.SuppressFinalize(this);
+    }
+
     internal const string SearchName = "ShortcutsSearch";
     internal const string ListName = "ShortcutsList";
     internal const string SaveName = "ShortcutsSave";
@@ -526,7 +536,7 @@ public sealed partial class ShortcutBindingsEditor : UserControl
 
     private void RefreshNotes()
     {
-        List<string> notes = (_context.NoteKeys ?? Array.Empty<string>()).Select(key => Texts.T(key)).ToList();
+        List<string> notes = (_context.NoteKeys ?? Array.Empty<string>()).Select(ReaderShortcutHelp.Note).ToList();
         if (!ShortcutService.Current.SingleKeyShortcuts || !_session.Draft.SingleKeyShortcuts) notes.Add(Texts.T("help.singleKeysOff"));
         _noteLines = notes.Distinct().ToArray();
         _notes.Children.Clear();
@@ -1019,7 +1029,7 @@ public sealed partial class ShortcutBindingsEditor : UserControl
             if (lines.Length > 0) sections.Add(Texts.T(label) + Environment.NewLine + string.Join(Environment.NewLine, lines));
         }
         foreach (string key in context.NoteKeys ?? Array.Empty<string>())
-            if (key != "help.scope.generalNote") sections.Insert(0, Texts.T(key));
+            if (key != "help.scope.generalNote") sections.Insert(0, ReaderShortcutHelp.Note(key));
         // The "outside inputs and overlays" qualifier of the page shortcuts is stated once, not on every line (UX round 3).
         if (ids.Any(CommandCatalog.HasGenericScope)) sections.Add(Texts.T("help.scope.generalNote"));
         return string.Join(Environment.NewLine + Environment.NewLine, sections)

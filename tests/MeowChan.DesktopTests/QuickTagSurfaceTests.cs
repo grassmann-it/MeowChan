@@ -54,6 +54,40 @@ public sealed class QuickTagSurfaceTests : IDisposable
         return name!;
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void NavigationAndSuggestionHelpFollowTheEffectiveBindings(bool rebound) => BooruComponentDispatcher.Run(() =>
+    {
+        string[] commands = [QuickTagCommands.Next, QuickTagCommands.Previous, QuickTagCommands.CommitNext,
+            QuickTagCommands.MarkNext, QuickTagCommands.MarkPrevious, QuickTagCommands.ThreadSection];
+        var previous = ShortcutService.CurrentSection;
+        var section = new ShortcutBindingsSection();
+        if (rebound)
+            for (int i = 0; i < commands.Length; i++) section = section.Set(commands[i], [ShortcutGesture.Parse("Alt+F" + (i + 13))]);
+        ShortcutService.Publish(section);
+        Assert.DoesNotContain(ShortcutService.Current.Issues, issue => issue.BlocksSave);
+        try
+        {
+            using TempDirectory temp = new();
+            using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+            PrivateTagStore store = new(temp.Path, lease);
+            using QuickTagSession session = new(QuickTagTarget.For(Single(store, Entry("discovery", 'a'))));
+            using QuickTagSurface surface = new(session) { NavigationEnabled = true };
+            string help = Assert.IsType<string>(AutomationProperties.GetHelpText(surface.Input));
+            foreach (string command in commands)
+            {
+                var gestures = ShortcutService.Current.For(command);
+                Assert.NotEmpty(gestures);
+                foreach (var gesture in gestures) Assert.Contains(gesture.Display(ShortcutService.Current.Platform), help);
+            }
+            surface.NavigationEnabled = false;
+            string localOnly = Assert.IsType<string>(AutomationProperties.GetHelpText(surface.Input));
+            Assert.DoesNotContain(CommandCatalog.Label(QuickTagCommands.Next), localOnly);
+        }
+        finally { ShortcutService.Publish(previous); }
+    });
+
     [Fact]
     public void GalleryCounterMovesBesidePostTagsAndKeepsLiveTextVisibilityAndAccessibleName()
     {
@@ -452,7 +486,8 @@ public sealed class QuickTagSurfaceTests : IDisposable
     {
         Assert.Equal("Alt+1", QuickTagKeys.SuggestionGesture(0, ShortcutPlatform.Linux));
         Assert.Equal("Alt+9", QuickTagKeys.SuggestionGesture(8, ShortcutPlatform.Windows));
-        Assert.Equal("⌘1", QuickTagKeys.SuggestionGesture(0, ShortcutPlatform.MacOS));
+        Assert.Equal(string.Join(" / ", EffectiveShortcutBindings.Defaults(CommandCatalog.Get(QuickTagCommands.Suggestion(1)), ShortcutPlatform.MacOS)
+            .Select(gesture => gesture.Display(ShortcutPlatform.MacOS))), QuickTagKeys.SuggestionGesture(0, ShortcutPlatform.MacOS));
         Assert.Null(QuickTagKeys.SuggestionGesture(9, ShortcutPlatform.Linux));
         Assert.Equal("Ctrl+Z", QuickTagKeys.UndoGesture(ShortcutPlatform.Linux));
         Assert.Equal("⌘Z", QuickTagKeys.UndoGesture(ShortcutPlatform.MacOS));
