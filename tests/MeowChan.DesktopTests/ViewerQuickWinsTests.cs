@@ -302,7 +302,7 @@ public sealed class ViewerQuickWinsTests : IDisposable
     [InlineData("video.snapshot", "S")]
     [InlineData("video.speed-down", "OemOpenBrackets")]
     [InlineData("video.speed-up", "OemCloseBrackets")]
-    [InlineData("video.speed-reset", "Back")]
+    [InlineData("video.speed-reset", "Shift+Back")]
     public void TheNewGalleryCommandsHaveTheirDefaultsInTheirExecutionContexts(string id, string shortcut)
     {
         CommandDefinition command = CommandCatalog.Get(id);

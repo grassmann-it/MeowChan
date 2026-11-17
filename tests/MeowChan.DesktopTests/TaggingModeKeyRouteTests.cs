@@ -45,10 +45,10 @@ public sealed class TaggingModeKeyRouteTests : IDisposable
     [Fact]
     public void TheOwnContextKeepsThePlainGalleryKeysAsTheyAre()
     {
-        // Space still plays a video and Backspace still resets the speed outside the mode; Enter stays "read posts" in the archive.
+        // Space plays video in either mode; Shift+Backspace resets speed, leaving Backspace to queue undo.
         var bindings = EffectiveShortcutBindings.Build(platform: ShortcutPlatform.Linux);
         Assert.Equal("Space", bindings.Display("video.play-pause"));
-        Assert.Equal("Backspace", bindings.Display("video.speed-reset"));
+        Assert.Equal("Shift+Backspace", bindings.Display("video.speed-reset"));
         foreach (string id in ModeIds)
             foreach (string other in new[] { "video.play-pause", "video.speed-reset", "thread.read", "gallery.next", "media.open" })
                 Assert.False(EffectiveShortcutBindings.ContextsOverlap(id, other), id + " / " + other);

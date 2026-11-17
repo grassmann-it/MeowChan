@@ -113,6 +113,9 @@ public sealed class DefaultShortcutInvariantTests
 
     [Theory]
     [InlineData("tags.queue.skip", "Space", "S", "gallery-tagging")]
+    [InlineData("video.speed-reset", "Back", "Shift+Back", "gallery")]
+    [InlineData("video.speed-reset", "Back", "Shift+Back", "reader")]
+    [InlineData("video.speed-reset", "Back", "Shift+Back", "media")]
     public void Ledger17MovedGesturesResolveAndTheirOldGesturesDoNot(string id, string oldKey, string newKey, string context)
     {
         foreach (ShortcutPlatform platform in Enum.GetValues<ShortcutPlatform>())
@@ -133,6 +136,7 @@ public sealed class DefaultShortcutInvariantTests
         Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.S }, "tagging.mark-skipped", "tagging"));
         Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.S }, "tags.queue.skip", "gallery-tagging"));
         Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.Space }, "video.play-pause", "gallery"));
+        Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.Back }, "tags.queue.back", "gallery-tagging"));
     }
 
     /// <summary>The nine video commands the gallery shares with the reader and the Media page's panel (revision 18).</summary>
