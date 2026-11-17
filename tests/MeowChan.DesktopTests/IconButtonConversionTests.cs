@@ -281,7 +281,7 @@ public sealed class IconButtonConversionTests
             .ToDictionary(property => property.Name, property => property.Value.GetString()!, StringComparer.Ordinal);
     }
 
-    private static string ReadSource(string relative) => File.ReadAllText(Root(relative));
+    private static string ReadSource(string relative) => BooruViewSources.ReadAll(Root(relative));
 
     private static string Root(string relative, [CallerFilePath] string sourcePath = "") =>
         Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sourcePath)!, "../..", relative));

@@ -245,5 +245,5 @@ public sealed class KeyContextHostTests
     }
 
     private static string Source(string relative, [CallerFilePath] string sourcePath = "") =>
-        File.ReadAllText(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sourcePath)!, "../..", relative)));
+        BooruViewSources.ReadAll(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sourcePath)!, "../..", relative)));
 }
