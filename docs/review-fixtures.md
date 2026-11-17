@@ -112,3 +112,31 @@ photon latency. Hover-release, continuous resize, input heartbeat/memory,
 pseudo-localization, focus walks, persistence/restart and live-region event
 journeys need dedicated subsequent scripted runs. The existing `ReviewArtifacts`
 gesture API remains available for them. No model is called by this harness.
+
+## Recorded validation (2026-11-17)
+
+See [`review-fixtures-validation-20261117.json`](review-fixtures-validation-20261117.json)
+for the durable machine-readable summary. The full run with seed 20261117 and
+1000 media captured **260/260 scenes** (240 core + 20 gallery), with **0 failures**.
+All 1560 artifact checksums were verified; 1,319,765 controls (including detached
+roots) had nonempty review names. All 20 Archive overview scenes exposed their
+results list and all 20 large-reader scenes exposed the real ReaderHost. The
+control text/tooltips/accessibility strings contained no host home/username paths.
+
+All five fixture scales (0/1/100/1000/10000) were generated and counted; 100 media
+hashes matched across independent scale generations, including the generated
+video. The 10000-media fixture took 4.53 seconds end-to-end on this host. Additional
+10000-media grid and 1250-post large-reader GUI probes both passed. Five focused
+Python contracts passed. The full smoke suite was **not** run.
+
+The deterministic report found 40 missing pack keys (four in each preview pack),
+30 extra pack keys, 219 missing plural variants (CS 66 / PL 65 / RU 88), 1042
+byte-identical English observations, 33 off-token-scale spacing literals and 688
+on-scale literals not referencing tokens. These are raw structural observations,
+not 1042 translation-defect verdicts. All 356 command defaults were checked on
+three platforms with zero resolver issues; all 82 measured palette pairs met
+their configured contrast thresholds. No check was unavailable.
+
+Generated runs contain the detailed `prechecks.json` and top-level `captures.json`;
+large image/tree bundles are not committed to Git. Mean per-scene setup/capture
+was 1.09 seconds in this run, not an input-to-photon latency assertion.
