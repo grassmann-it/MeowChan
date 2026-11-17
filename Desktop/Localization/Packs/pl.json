@@ -2605,10 +2605,8 @@
     "media.filter.missingChip": "Z brakującymi plikami",
     "media.refresh": "Odśwież",
     "media.indexing": "Odczytywanie archiwum… wątek {0} z {1}",
-    "media.count": "Media: {0} w {1} wątkach",
-    "media.count.few": "Media: {0} w {1} wątkach",
-    "media.countMissing": "Media: {0} w {1} wątkach, brakujące: {2}",
-    "media.countMissing.few": "Media: {0} w {1} wątkach, brakujące: {2}",
+    "media.count": "{0} · {1}",
+    "media.countMissing": "{0} · {1} · Brakujące: {2}",
     "media.incomplete": "Niektórych wątków nie udało się odczytać w całości; może tu brakować ich mediów.",
     "media.failed": "Nie udało się odczytać archiwum. Użyj „Odśwież”, aby spróbować ponownie.",
     "media.empty": "Brak jeszcze zapisanych mediów.",
@@ -3445,8 +3443,6 @@
     "archive.delete.ratings.one": "{0} ocena mediów zostanie usunięta.",
     "archive.delete.summary.one": "Trwale usunąć {0} wątek i lokalne pliki: {1} ({2:N0} bajtów)?",
     "media.filters.countName.one": "Filtry, aktywne: {0}",
-    "media.count.one": "Media: {0} w {1} wątku",
-    "media.countMissing.one": "Media: {0} w {1} wątku, brakujące: {2}",
     "downloads.searchCount.one": "{0} wynik",
     "downloads.searchActive.one": "{0} wynik · {1}",
     "search.count.one": "{0} wynik",
@@ -5234,6 +5230,10 @@
     "archive.matchGroup.other": "W innych postach · {0}",
     "archive.foundIn.opening": "Post otwierający",
     "archive.foundIn.other": "Inne posty",
-    "archive.columns.foundIn": "Znaleziono w"
+    "archive.columns.foundIn": "Znaleziono w",
+    "media.count.media": "Media: {0}",
+    "media.count.threads": "Wątki: {0}",
+    "media.count.media.one": "Media: {0}",
+    "media.count.threads.one": "Wątki: {0}"
   }
 }

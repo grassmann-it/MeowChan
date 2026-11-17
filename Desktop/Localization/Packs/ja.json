@@ -2669,8 +2669,8 @@
     "media.filter.missingChip": "見つからないファイルを含む",
     "media.refresh": "更新",
     "media.indexing": "アーカイブを読み込んでいます… スレッド {0} / {1}",
-    "media.count": "スレッド{1}件にメディア{0}件",
-    "media.countMissing": "スレッド{1}件にメディア{0}件、うち{2}件が見つかりません",
+    "media.count": "{0} · {1}",
+    "media.countMissing": "{0} · {1} · 見つからない件数: {2}",
     "media.incomplete": "一部のスレッドを完全に読み取れませんでした。それらのメディアはここに表示されない場合があります。",
     "media.failed": "アーカイブを読み取れませんでした。「更新」で再試行してください。",
     "media.empty": "保存済みメディアはまだありません。",
@@ -5087,6 +5087,8 @@
     "archive.matchGroup.other": "その他の投稿内 · {0}",
     "archive.foundIn.opening": "最初の投稿",
     "archive.foundIn.other": "その他の投稿",
-    "archive.columns.foundIn": "見つかった場所"
+    "archive.columns.foundIn": "見つかった場所",
+    "media.count.media": "メディア: {0}",
+    "media.count.threads": "スレッド: {0}"
   }
 }

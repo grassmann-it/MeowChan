@@ -2849,8 +2849,8 @@
     "media.filter.missingChip": "С отсутствующими файлами",
     "media.refresh": "Обновить",
     "media.indexing": "Чтение архива… тред {0} из {1}",
-    "media.count": "Медиа: {0}, тредов: {1}",
-    "media.countMissing": "Медиа: {0}, тредов: {1}, отсутствует: {2}",
+    "media.count": "{0} · {1}",
+    "media.countMissing": "{0} · {1} · Отсутствует: {2}",
     "media.incomplete": "Некоторые треды не удалось прочитать полностью; их медиа здесь могут отсутствовать.",
     "media.failed": "Не удалось прочитать архив. Нажмите «Обновить», чтобы повторить.",
     "media.empty": "Сохранённых медиа пока нет.",
@@ -3664,8 +3664,6 @@
     "archive.delete.deleted.one": "Удалено тредов: {0}.",
     "archive.delete.ratings.one": "Будет удалено оценок медиафайлов: {0}.",
     "archive.delete.summary.one": "Безвозвратно удалить тредов: {0} и локальных файлов: {1} ({2:N0} байт)?",
-    "media.count.one": "Медиа: {0}, тредов: {1}",
-    "media.countMissing.one": "Медиа: {0}, тредов: {1}, отсутствует: {2}",
     "downloads.searchCount.one": "Результатов: {0}",
     "downloads.searchActive.one": "Результатов: {0} · {1}",
     "search.count.one": "Результатов: {0}",
@@ -5208,6 +5206,10 @@
     "archive.matchGroup.other": "В других постах · {0}",
     "archive.foundIn.opening": "Начальный пост",
     "archive.foundIn.other": "Другие посты",
-    "archive.columns.foundIn": "Найдено в"
+    "archive.columns.foundIn": "Найдено в",
+    "media.count.media": "Медиа: {0}",
+    "media.count.threads": "Треды: {0}",
+    "media.count.media.one": "Медиа: {0}",
+    "media.count.threads.one": "Треды: {0}"
   }
 }

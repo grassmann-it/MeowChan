@@ -2669,8 +2669,8 @@
     "media.filter.missingChip": "包含缺失的文件",
     "media.refresh": "刷新",
     "media.indexing": "正在读取归档…{0} / {1} 个串",
-    "media.count": "{1} 个串中的 {0} 个媒体",
-    "media.countMissing": "{1} 个串中的 {0} 个媒体，缺失 {2} 个",
+    "media.count": "{0} · {1}",
+    "media.countMissing": "{0} · {1} · 缺失: {2}",
     "media.incomplete": "部分串无法完整读取；其媒体可能不会显示在这里。",
     "media.failed": "无法读取归档。请使用“刷新”重试。",
     "media.empty": "还没有已保存的媒体。",
@@ -5087,6 +5087,8 @@
     "archive.matchGroup.other": "其他帖子中 · {0}",
     "archive.foundIn.opening": "首帖",
     "archive.foundIn.other": "其他帖子",
-    "archive.columns.foundIn": "匹配位置"
+    "archive.columns.foundIn": "匹配位置",
+    "media.count.media": "媒体: {0}",
+    "media.count.threads": "串: {0}"
   }
 }

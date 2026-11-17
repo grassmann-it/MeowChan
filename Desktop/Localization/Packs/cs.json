@@ -2604,8 +2604,8 @@
     "media.filter.missingChip": "Včetně chybějících souborů",
     "media.refresh": "Obnovit",
     "media.indexing": "Čte se archiv… vlákno {0} z {1}",
-    "media.count": "Média: {0} · vlákna: {1}",
-    "media.countMissing": "Média: {0} · vlákna: {1} · chybí: {2}",
+    "media.count": "{0} · {1}",
+    "media.countMissing": "{0} · {1} · Chybí: {2}",
     "media.incomplete": "Některá vlákna se nepodařilo přečíst celá; jejich média tu mohou chybět.",
     "media.failed": "Archiv se nepodařilo přečíst. Zkuste to znovu tlačítkem Obnovit.",
     "media.empty": "Zatím žádná uložená média.",
@@ -3442,8 +3442,6 @@
     "archive.delete.ratings.one": "Bude odebráno {0} hodnocení média.",
     "archive.delete.summary.one": "Trvale smazat {0} vlákno a místní soubory ({1}, {2:N0} bajtů)?",
     "media.filters.countName.one": "Filtry, aktivní: {0}",
-    "media.count.one": "Média: {0} · vlákna: {1}",
-    "media.countMissing.one": "Média: {0} · vlákna: {1} · chybí: {2}",
     "downloads.searchCount.one": "{0} výsledek",
     "downloads.searchActive.one": "{0} výsledek · {1}",
     "search.count.one": "{0} výsledek",
@@ -5231,6 +5229,10 @@
     "archive.matchGroup.other": "V ostatních příspěvcích · {0}",
     "archive.foundIn.opening": "Úvodní příspěvek",
     "archive.foundIn.other": "Ostatní příspěvky",
-    "archive.columns.foundIn": "Nalezeno v"
+    "archive.columns.foundIn": "Nalezeno v",
+    "media.count.media": "Média: {0}",
+    "media.count.threads": "Vlákna: {0}",
+    "media.count.media.one": "Média: {0}",
+    "media.count.threads.one": "Vlákna: {0}"
   }
 }

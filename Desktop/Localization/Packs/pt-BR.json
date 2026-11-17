@@ -2594,8 +2594,8 @@
     "media.filter.missingChip": "Inclui arquivos ausentes",
     "media.refresh": "Atualizar",
     "media.indexing": "Lendo o acervo… {0} de {1} tópicos",
-    "media.count": "{0} mídias em {1} tópicos",
-    "media.countMissing": "{0} mídias em {1} tópicos, {2} ausentes",
+    "media.count": "{0} · {1}",
+    "media.countMissing": "{0} · {1} · Ausentes: {2}",
     "media.incomplete": "Alguns tópicos não puderam ser lidos por completo; as mídias deles podem estar faltando aqui.",
     "media.failed": "Não foi possível ler o acervo. Use Atualizar para tentar de novo.",
     "media.empty": "Ainda não há mídias salvas.",
@@ -3421,8 +3421,6 @@
     "archive.delete.ratings.one": "{0} avaliação de mídia será removida.",
     "archive.delete.summary.one": "Excluir permanentemente {0} tópico e {1} arquivos locais ({2:N0} bytes)?",
     "media.filters.countName.one": "Filtros, {0} ativo",
-    "media.count.one": "{0} mídias em {1} tópico",
-    "media.countMissing.one": "{0} mídias em {1} tópico, {2} ausentes",
     "downloads.searchCount.one": "{0} resultado",
     "downloads.searchActive.one": "{0} resultado · {1}",
     "search.count.one": "{0} resultado",
@@ -5188,6 +5186,10 @@
     "archive.matchGroup.other": "Em outras postagens · {0}",
     "archive.foundIn.opening": "Postagem inicial",
     "archive.foundIn.other": "Outras postagens",
-    "archive.columns.foundIn": "Encontrado em"
+    "archive.columns.foundIn": "Encontrado em",
+    "media.count.media": "Mídias: {0}",
+    "media.count.threads": "Tópicos: {0}",
+    "media.count.media.one": "Mídias: {0}",
+    "media.count.threads.one": "Tópicos: {0}"
   }
 }

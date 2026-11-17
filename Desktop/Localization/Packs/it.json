@@ -2594,8 +2594,8 @@
     "media.filter.missingChip": "Inclusi i file mancanti",
     "media.refresh": "Aggiorna",
     "media.indexing": "Lettura dell’archivio… {0} di {1} thread",
-    "media.count": "{0} media in {1} thread",
-    "media.countMissing": "{0} media in {1} thread, {2} mancanti",
+    "media.count": "{0} · {1}",
+    "media.countMissing": "{0} · {1} · Mancanti: {2}",
     "media.incomplete": "Alcuni thread non hanno potuto essere letti completamente; i loro media potrebbero mancare qui.",
     "media.failed": "Impossibile leggere l’archivio. Usa Aggiorna per riprovare.",
     "media.empty": "Ancora nessun media salvato.",
@@ -3421,8 +3421,6 @@
     "archive.delete.ratings.one": "Verrà rimossa {0} valutazione dei media.",
     "archive.delete.summary.one": "Eliminare definitivamente {0} thread e {1} file locali ({2:N0} byte)?",
     "media.filters.countName.one": "Filtri, {0} attivo",
-    "media.count.one": "{0} media in {1} thread",
-    "media.countMissing.one": "{0} media in {1} thread, {2} mancanti",
     "downloads.searchCount.one": "{0} risultato",
     "downloads.searchActive.one": "{0} risultato · {1}",
     "search.count.one": "{0} risultato",
@@ -5188,6 +5186,10 @@
     "archive.matchGroup.other": "In altri post · {0}",
     "archive.foundIn.opening": "Post di apertura",
     "archive.foundIn.other": "Altri post",
-    "archive.columns.foundIn": "Trovato in"
+    "archive.columns.foundIn": "Trovato in",
+    "media.count.media": "Media: {0}",
+    "media.count.threads": "Thread: {0}",
+    "media.count.media.one": "Media: {0}",
+    "media.count.threads.one": "Thread: {0}"
   }
 }

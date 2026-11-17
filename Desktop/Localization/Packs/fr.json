@@ -2845,8 +2845,8 @@
     "media.filter.missingChip": "Fichiers manquants inclus",
     "media.refresh": "Actualiser",
     "media.indexing": "Lecture de l’archive… {0} sur {1} fils",
-    "media.count": "{0} médias dans {1} fils",
-    "media.countMissing": "{0} médias dans {1} fils, dont {2} manquants",
+    "media.count": "{0} · {1}",
+    "media.countMissing": "{0} · {1} · Manquants: {2}",
     "media.incomplete": "Certains fils n’ont pas pu être lus entièrement ; leurs médias peuvent manquer ici.",
     "media.failed": "L’archive n’a pas pu être lue. Utilisez Actualiser pour réessayer.",
     "media.empty": "Aucun média enregistré pour l’instant.",
@@ -3657,8 +3657,6 @@
     "archive.delete.deleted.one": "{0} fil supprimé.",
     "archive.delete.ratings.one": "{0} évaluation de média sera supprimée.",
     "archive.delete.summary.one": "Supprimer définitivement {0} fil et {1} fichiers locaux ({2:N0} octets) ?",
-    "media.count.one": "{0} médias dans {1} fil",
-    "media.countMissing.one": "{0} médias dans {1} fil, dont {2} manquants",
     "downloads.searchCount.one": "{0} résultat",
     "downloads.searchActive.one": "{0} résultat · {1}",
     "search.count.one": "{0} résultat",
@@ -5182,6 +5180,10 @@
     "archive.matchGroup.other": "Dans d’autres messages · {0}",
     "archive.foundIn.opening": "Message initial",
     "archive.foundIn.other": "Autres messages",
-    "archive.columns.foundIn": "Trouvé dans"
+    "archive.columns.foundIn": "Trouvé dans",
+    "media.count.media": "Médias: {0}",
+    "media.count.threads": "Fils: {0}",
+    "media.count.media.one": "Médias: {0}",
+    "media.count.threads.one": "Fils: {0}"
   }
 }

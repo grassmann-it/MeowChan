@@ -2845,8 +2845,8 @@
     "media.filter.missingChip": "Incluye archivos ausentes",
     "media.refresh": "Actualizar",
     "media.indexing": "Leyendo el archivo… {0} de {1} hilos",
-    "media.count": "{0} medios en {1} hilos",
-    "media.countMissing": "{0} medios en {1} hilos, {2} ausentes",
+    "media.count": "{0} · {1}",
+    "media.countMissing": "{0} · {1} · Ausentes: {2}",
     "media.incomplete": "Algunos hilos no se pudieron leer por completo; sus medios pueden faltar aquí.",
     "media.failed": "No se pudo leer el archivo. Use Actualizar para volver a intentarlo.",
     "media.empty": "Aún no hay medios guardados.",
@@ -3657,8 +3657,6 @@
     "archive.delete.deleted.one": "Se eliminó {0} hilo.",
     "archive.delete.ratings.one": "Se eliminará {0} valoración de medios.",
     "archive.delete.summary.one": "¿Eliminar de forma permanente {0} hilo y {1} archivos locales ({2:N0} bytes)?",
-    "media.count.one": "{0} medios en {1} hilo",
-    "media.countMissing.one": "{0} medios en {1} hilo, {2} ausentes",
     "downloads.searchCount.one": "{0} resultado",
     "downloads.searchActive.one": "{0} resultado · {1}",
     "search.count.one": "{0} resultado",
@@ -5182,6 +5180,10 @@
     "archive.matchGroup.other": "En otras publicaciones · {0}",
     "archive.foundIn.opening": "Publicación inicial",
     "archive.foundIn.other": "Otras publicaciones",
-    "archive.columns.foundIn": "Encontrado en"
+    "archive.columns.foundIn": "Encontrado en",
+    "media.count.media": "Medios: {0}",
+    "media.count.threads": "Hilos: {0}",
+    "media.count.media.one": "Medios: {0}",
+    "media.count.threads.one": "Hilos: {0}"
   }
 }
