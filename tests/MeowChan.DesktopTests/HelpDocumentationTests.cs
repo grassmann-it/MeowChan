@@ -1659,6 +1659,29 @@ public sealed class HelpDocumentationTests
         Assert.DoesNotContain("Open **Statistics** with Ctrl+8", Read(Help), StringComparison.Ordinal);
     }
 
+    // Docs guard (UX review KB-01, GA-06, RN-01/02/05, MD-02): defaults that were removed or moved must not be described as current again.
+    [Theory]
+    [InlineData("docs/Help.md")]
+    [InlineData("docs/user-guide/danbooru.md")]
+    [InlineData("README.md")]
+    [InlineData("CHANGELOG.md")]
+    [InlineData("docs/releases/v1.1.0.md")]
+    public void UserFacingDocsDoNotDescribeRemovedOrMovedDefaultsAsCurrent(string file)
+    {
+        string text = Plain(Read(file));
+        foreach (string stale in new[]
+        {
+            "B adds the current medium to favorites", "B performs Add favorite", "Add favourite moved from M to B",
+            "previous/next arrows for the current selection", "Sidebar's Previous/Next buttons", "Ctrl+Shift+R opens Thread filters",
+            "Ctrl/Cmd+Shift+R opens Thread filters", "Show Booru in the footer and app menu", "Strg+6 öffnet standardmäßig Booru",
+            "Ctrl+6 Booru", "Ctrl+5 Booru", "S slideshow"
+        })
+            Assert.DoesNotContain(stale, text, StringComparison.Ordinal);
+        Assert.DoesNotMatch(@"(?<![+\w])M (mutes|mute,)", text); // Shift+M mutes; a bare M is the favorite key
+        if (file != "docs/releases/v1.1.0.md" && file != "CHANGELOG.md")
+            Assert.DoesNotContain("upper-right indicator", text, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void DocumentedPreviewLanguagesMatchTheEmbeddedPacksExactly()
     {
