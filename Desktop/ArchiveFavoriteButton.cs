@@ -13,6 +13,17 @@ using MeowChan.Desktop.Localization;
 
 namespace MeowChan.Desktop;
 
+/// <summary>Why a favorite star that cannot be used right now is off (the tooltip names it): not known yet, or the favorites file is unreadable.</summary>
+internal enum FavoriteStarHold
+{
+    /// <summary>No specific reason: the medium has no saved version.</summary>
+    None,
+    /// <summary>The saved files of the thread are still being scanned: dimmed, "checking" instead of a permanent-looking "not saved".</summary>
+    Loading,
+    /// <summary>The favorites file could not be read: disabled for the session, the reason and where to look in the tooltip.</summary>
+    Unreadable
+}
+
 internal sealed class ArchiveFavoriteButton : ToggleButton
 {
     /// <summary>
@@ -33,6 +44,7 @@ internal sealed class ArchiveFavoriteButton : ToggleButton
     private Func<Task>? _toggle;
     private bool _running;
     private Func<string?>? _errorSource;
+    private Func<FavoriteStarHold>? _hold;
     private string? _error;
     private bool _failed;
     private string? _shownError;
@@ -67,8 +79,8 @@ internal sealed class ArchiveFavoriteButton : ToggleButton
         };
     }
 
-    internal void Configure(Func<bool>? available, Func<bool>? marked, Func<Task>? toggle, Func<string?>? error = null)
-    { _available = available; _marked = marked; _toggle = toggle; _errorSource = error; Refresh(); }
+    internal void Configure(Func<bool>? available, Func<bool>? marked, Func<Task>? toggle, Func<string?>? error = null, Func<FavoriteStarHold>? hold = null)
+    { _available = available; _marked = marked; _toggle = toggle; _errorSource = error; _hold = hold; Refresh(); }
 
     /// <summary>
     /// The star of a reader attachment. It asks the row each time instead of keeping the callbacks the row has now: the page wires (and rewires) a row's
@@ -79,7 +91,7 @@ internal sealed class ArchiveFavoriteButton : ToggleButton
     {
         if (row == null) { Configure(null, null, null); return; }
         var (available, marked, toggle, error) = Callbacks(row);
-        Configure(available, marked, toggle, error);
+        Configure(available, marked, toggle, error, () => row.FavoriteHold?.Invoke() ?? FavoriteStarHold.None);
     }
 
     /// <summary>The star of an archive media tile, read from the row the same way as <see cref="Configure(ArchiveAttachmentRow?)"/>.</summary>
@@ -87,7 +99,8 @@ internal sealed class ArchiveFavoriteButton : ToggleButton
     {
         if (row == null) { Configure(null, null, null); return; }
         Configure(() => row.FavoriteAvailable?.Invoke() == true, () => row.IsFavorite?.Invoke() == true,
-            () => row.ToggleFavoriteAsync?.Invoke() ?? Task.CompletedTask, () => row.FavoriteError?.Invoke());
+            () => row.ToggleFavoriteAsync?.Invoke() ?? Task.CompletedTask, () => row.FavoriteError?.Invoke(),
+            () => row.FavoriteHold?.Invoke() ?? FavoriteStarHold.None);
     }
 
     /// <summary>The star's callbacks for a reader attachment: each asks the row's callback of the moment (tests read them without a control).</summary>
@@ -104,15 +117,28 @@ internal sealed class ArchiveFavoriteButton : ToggleButton
         return (true, marked?.Invoke() == true, error?.Invoke());
     }
 
+    /// <summary>The tooltip and name of a star that is off for <paramref name="hold"/> (the reason, never a permanent-looking "not saved" for a state that is only pending).</summary>
+    internal static string HoldText(FavoriteStarHold hold) => hold switch
+    {
+        FavoriteStarHold.Loading => Texts.T("archive.favoriteLoading"),
+        FavoriteStarHold.Unreadable => Texts.T("archive.favoritesUnreadable"),
+        _ => Texts.T("archive.notSaved")
+    };
+
     internal void Refresh()
     {
         var state = ReadState(_available, _marked, _errorSource);
         bool marked = state.Marked;
+        // Only a star that is off has a reason; an available one never asks (the callback belongs to the row's wiring, which may already be gone).
+        FavoriteStarHold hold = state.Available ? FavoriteStarHold.None : _hold?.Invoke() ?? FavoriteStarHold.None;
         if (!state.Available || _errorSource != null) _error = state.Error;
         IsEnabled = !_running && state.Available;
         IsChecked = marked;
         // ★ filled when marked, ☆ outline otherwise: the same pair as the thread list and the gallery badge.
-        Content = MeowChan.Desktop.Controls.FavoriteStar.Create(marked, tinted: _error == null);
+        Border star = MeowChan.Desktop.Controls.FavoriteStar.Create(marked, tinted: _error == null);
+        // Dimmed while the saved copy is still being looked up, as the thread star is while its state loads.
+        if (hold == FavoriteStarHold.Loading) star.Opacity = 0.5;
+        Content = star;
         // A failed write keeps the star in place: an error edge plus the reason in the tooltip, which
         // opens once for a new error, instead of a text block that pushes the card layout apart.
         bool failed = _error != null;
@@ -130,7 +156,7 @@ internal sealed class ArchiveFavoriteButton : ToggleButton
         // ("saving") and a medium that is not saved say so instead of the keys.
         string label = Texts.T(marked ? "viewer.favorite.remove" : "viewer.favorite.add");
         string description = _error != null ? label + ": " + _error : _running ? label + " · " + Texts.T("gallery.saving")
-            : IsEnabled ? label : Texts.T("archive.notSaved");
+            : IsEnabled ? label : HoldText(hold);
         string tip = _error == null && IsEnabled ? FavoriteKeys.Tooltip(marked, KeyContext) : description;
         ToolTip.SetShowOnDisabled(this, true);
         ToolTip.SetTip(this, tip);

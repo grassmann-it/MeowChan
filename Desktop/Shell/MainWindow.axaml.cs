@@ -504,6 +504,7 @@ public partial class MainWindow : Window
             }
             UpdateInteractionState();
             RefreshWorkViewNotice();
+            NotifyFavoritesUnreadable();
             TryOfferFirstRunSetup();
         });
         // The restore body has returned from its existing UI continuation, independently of any

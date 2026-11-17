@@ -43,7 +43,9 @@ public partial class ArchivePage
     {
         if (_ended || GetFavorites == null || ResolveFavoriteAssets == null
             || (TopLevel.GetTopLevel(ArchiveReaderPane) ?? TopLevel.GetTopLevel(this)) is not Window owner) return;
-        FavoriteEntry[] all = GetFavorites().ToArray();
+        // An unreadable favorites file is refused with its own sentence (never an exception out of the click handler); the file is left as it is.
+        try { _ = GetFavorites(); }
+        catch (System.IO.InvalidDataException) { CaptureActionErrorReporter()(Texts.T("archive.favoritesUnreadable")); return; }
         ResourceId? currentThread = _selectedThread;
         ResourceId[] selectedThreads = FrozenArchiveSelection();
         var query = _appliedSearch ?? ArchiveSearchRequest.Create(_query);
@@ -87,6 +89,7 @@ public partial class ArchivePage
         // One message at a time, as before: failures in the local strip, notices in the footer.
         void Notice(string text) { status.Text = text; error.Text = string.Empty; }
         void Fail(string text) { status.Text = string.Empty; error.Text = text; }
+        void FailWith(Exception failure) => Fail(FavoriteOverviewError(failure));
         Button export = CommandBindings.CreateButton("favorites.export-originals", () => { });
         export.Name = "FavoritesExportOriginals";
         MeowChan.Desktop.Controls.IconButtons.WithText(export, "download");
@@ -119,17 +122,19 @@ public partial class ArchivePage
         clearSearch.Click += (_, _) => { search.Text = string.Empty; search.Focus(); };
         MeowChan.Desktop.Controls.DialogEscape.Attach(dialog);
 
-        FavoriteEntry[] scoped = all;
-        FavoriteEntry[] visible = all;
-        bool scopeLoading = false;
+        // Nothing is listed until the first scope has loaded: the restored scope's name must not stand over the full list.
+        FavoriteEntry[] scoped = Array.Empty<FavoriteEntry>();
+        FavoriteEntry[] visible = Array.Empty<FavoriteEntry>();
+        bool scopeLoading = true;
         bool actionRunning = false;
         FavoriteAssetKey? selection = restore?.Selected;
         GalleryEntry[]? galleryEntries = null;
         GalleryEntryKey? galleryStart = null;
         FavoriteOverviewState? returnState = null;
         HashSet<FavoriteAssetKey> missing = new();
-        int generation = 0;
         CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+        // The newest scope wins: changing the scope cancels the load that runs, waits until it has unwound and then loads the new one.
+        LatestWinsLoad scopeLoads = new(loading.Token);
         dialog.Closed += (_, _) => loading.Cancel();
         void Render()
         {
@@ -163,34 +168,41 @@ public partial class ArchivePage
             if (selected?.Missing == true) Notice(Texts.Count("viewer.favorites.unavailable", 1));
         }
         list.SelectionChanged += (_, _) => RefreshActions();
-        async Task LoadScopeAsync()
+        // scopeChanged: the list of the scope that was shown is dropped at once (it must never stand under another scope's name while the new
+        // one loads); a reload of the same scope (after a Remove) keeps its rows until the new ones are there.
+        async Task LoadScopeAsync(bool scopeChanged = true)
         {
-            int request = ++generation;
             try
             {
                 scopeLoading = true;
+                if (scopeChanged) { scoped = Array.Empty<FavoriteEntry>(); missing = new HashSet<FavoriteAssetKey>(); }
                 Render();
                 Notice(Texts.T("viewer.favorites.loading"));
                 FavoriteScope choice = (FavoriteScope)Math.Clamp(scope.SelectedIndex, 0, 3);
-                HashSet<ResourceId>? threadIds = choice switch
+                FavoriteScopeLoad? loaded = await scopeLoads.RunAsync(async token =>
                 {
-                    FavoriteScope.CurrentThread => currentThread == null ? new HashSet<ResourceId>() : new HashSet<ResourceId> { currentThread },
-                    FavoriteScope.SelectedThreads => selectedThreads.ToHashSet(),
-                    FavoriteScope.FilteredThreads => await FilteredFavoriteThreadsAsync(query, eligibleUrls, loading.Token),
-                    _ => null
-                };
-                all = GetFavorites().ToArray();
-                FavoriteEntry[] next = threadIds == null ? all : all.Where(entry => threadIds.Contains(entry.Key.Thread)).ToArray();
-                FavoriteResolutionSnapshot resolved = await ResolveFavoriteAssets(next, loading.Token);
-                if (request != generation || loading.IsCancellationRequested) return;
-                scoped = next;
-                missing = resolved.Missing.Select(entry => entry.Key).ToHashSet();
+                    HashSet<ResourceId>? threadIds = choice switch
+                    {
+                        FavoriteScope.CurrentThread => currentThread == null ? new HashSet<ResourceId>() : new HashSet<ResourceId> { currentThread },
+                        FavoriteScope.SelectedThreads => selectedThreads.ToHashSet(),
+                        FavoriteScope.FilteredThreads => await FilteredFavoriteThreadsAsync(query, eligibleUrls, token),
+                        _ => null
+                    };
+                    FavoriteEntry[] current = GetFavorites().ToArray();
+                    FavoriteEntry[] next = threadIds == null ? current : current.Where(entry => threadIds.Contains(entry.Key.Thread)).ToArray();
+                    FavoriteResolutionSnapshot resolved = await ResolveFavoriteAssets(next, token);
+                    return new FavoriteScopeLoad(next, resolved.Missing.Select(entry => entry.Key).ToHashSet());
+                });
+                // Null: a newer scope took over (it owns the state and the messages now) or the dialog closed.
+                if (loaded == null || loading.IsCancellationRequested) return;
+                scoped = loaded.Scoped;
+                missing = loaded.Missing;
                 Notice(missing.Count == 0 ? string.Empty : Texts.Count("viewer.favorites.unavailable", missing.Count));
                 scopeLoading = false;
                 Render();
             }
             catch (OperationCanceledException) when (loading.IsCancellationRequested) { }
-            catch (Exception ex) { if (request == generation) { Fail(ex.Message); scopeLoading = false; Render(); } }
+            catch (Exception ex) { FailWith(ex); scopeLoading = false; Render(); }
         }
         scope.SelectionChanged += async (_, _) => await LoadScopeAsync();
         search.PropertyChanged += (_, args) => { if (args.Property == TextBox.TextProperty) Render(); };
@@ -207,7 +219,7 @@ public partial class ArchivePage
                 await OpenOriginalExportAsync(resolved.Available, export, resolved.Missing.Count, label);
             }
             catch (OperationCanceledException) when (loading.IsCancellationRequested) { }
-            catch (Exception ex) { Fail(ex.Message); }
+            catch (Exception ex) { FailWith(ex); }
             finally { actionRunning = false; RefreshActions(); }
         };
         remove.Click += async (_, _) =>
@@ -219,11 +231,11 @@ public partial class ArchivePage
             try
             {
                 await RemoveFavoriteAsync(selected.Entry);
-                await LoadScopeAsync();
+                await LoadScopeAsync(scopeChanged: false);
                 if (list.ItemCount > 0) list.SelectedIndex = Math.Min(index, list.ItemCount - 1);
                 selection = (list.SelectedItem as FavoriteOverviewRow)?.Entry.Key;
             }
-            catch (Exception failure) { Fail(failure.Message); }
+            catch (Exception failure) { FailWith(failure); }
             finally { actionRunning = false; RefreshActions(); }
         };
         view.Click += async (_, _) =>
@@ -251,7 +263,7 @@ public partial class ArchivePage
                 dialog.Close();
             }
             catch (OperationCanceledException) when (loading.IsCancellationRequested) { }
-            catch (Exception failure) { Fail(failure.Message); }
+            catch (Exception failure) { FailWith(failure); }
             finally { actionRunning = false; RefreshActions(); }
         };
         Render();
@@ -262,6 +274,13 @@ public partial class ArchivePage
         if (galleryStart != null && galleryEntries != null && OpenFavoritesGallery != null && !_ended)
             await OpenFavoritesGallery(galleryEntries, galleryStart, () => { if (!_ended) OpenActions.Start(() => OpenFavoritesOverviewAsync(returnState), "archive.favorites.open"); });
     }
+
+    /// <summary>What one finished scope load publishes: the favorites in the scope and which of those have no intact original.</summary>
+    private sealed record FavoriteScopeLoad(FavoriteEntry[] Scoped, HashSet<FavoriteAssetKey> Missing);
+
+    /// <summary>The overview's failure sentence: the host's English "busy" refusal becomes a localized one, any other message stays as it is.</summary>
+    private static string FavoriteOverviewError(Exception failure) =>
+        failure is DesktopSessionBusyException ? Texts.T("queue.error.busy") : failure.Message;
 
     private async Task<HashSet<ResourceId>> FilteredFavoriteThreadsAsync(MeowChan.Archive.ArchiveSearchRequest query,
         IReadOnlySet<string>? eligibleUrls, CancellationToken token)
