@@ -335,7 +335,7 @@ public partial class MainWindow
             if (boards) OpenWorkspaceDetails();
             else if (LeadThread is ThreadRow row)
             {
-                if (DownloadsMatches(e, "gallery.open")) await OpenActions.RunAsync(() => OpenGalleryAsync(row.Snapshot.Id, origin: grid), "downloads.list.gallery");
+                if (!DownloadsMatches(e, "thread.read") && DownloadsMatches(e, "gallery.open")) await OpenActions.RunAsync(() => OpenGalleryAsync(row.Snapshot.Id, origin: grid), "downloads.list.gallery");
                 else if (SelectedThreads().Length == 1)
                     await OpenActions.RunAsync(() => OpenDownloadReaderAsync(row.Snapshot.Id, grid), "downloads.list.read");
             }

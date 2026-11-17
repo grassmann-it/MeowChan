@@ -187,63 +187,90 @@ internal static class ReaderGalleryShortcutParityChecks
                     await page.PostFilterTask;
                     Require(key.Handled && page.PostFilters!.IsHidden(Fixture, "7000"), "H must hide the selected post per the catalog");
                 });
-                await Scene(mode + "-sidebar-medium-ShiftEnter", async () =>
+                foreach (KeyModifiers modifiers in new[] { KeyModifiers.None, KeyModifiers.Shift })
+                {
+                    string gesture = modifiers == KeyModifiers.None ? "Enter" : "ShiftEnter";
+                    await Scene(mode + "-sidebar-medium-" + gesture, async () =>
+                    {
+                        await Setup(large);
+                        int opens = 0;
+                        page.OpenGallery = (_, key, _) =>
+                        {
+                            opens++;
+                            Require(key?.PostId == "7000" && key?.AttachmentPosition == 2, "gallery must open exact focused attachment");
+                            return Task.CompletedTask;
+                        };
+                        Control source = Thumbnail(2); Focus(window, source);
+                        var key = Press(source, Key.Enter, modifiers);
+                        await Program.WaitUntilAsync(() => opens > 0);
+                        Require(key.Handled && opens == 1, gesture + " must open once");
+                    });
+                    await Scene(mode + "-inline-medium-" + gesture, async () =>
+                    {
+                        await Setup(large);
+                        int opens = 0;
+                        page.OpenGallery = (_, key, _) =>
+                        {
+                            opens++;
+                            Require(key?.PostId == "7000" && key?.AttachmentPosition == 2, "inline focus drifted to thread's first medium");
+                            return Task.CompletedTask;
+                        };
+                        var post = (ArchivePostRow)page.FindControl<ListBox>("ArchivePosts")!.SelectedItem!;
+                        var view = Post().GetVisualDescendants().OfType<ArchiveAttachmentView>().Single(v => ReferenceEquals(v.DataContext, post.Attachments[2]));
+                        Focus(window, view.PreviewButton);
+                        Press(view.PreviewButton, Key.Enter, modifiers);
+                        await Program.WaitUntilAsync(() => opens > 0);
+                        Require(opens == 1, "inline " + gesture + " must open once");
+                    });
+                }
+                await Scene(mode + "-medium-button-single-Click-Enter", async () =>
                 {
                     await Setup(large);
-                    int opens = 0;
-                    page.OpenGallery = (_, key, _) =>
+                    int opens = 0, clicks = 0;
+                    page.OpenGallery = (_, entry, _) =>
                     {
                         opens++;
-                        Require(key?.PostId == "7000" && key?.AttachmentPosition == 2, "gallery must open exact focused attachment");
-                        return Task.CompletedTask;
-                    };
-                    Control source = Thumbnail(2); Focus(window, source);
-                    var key = Press(source, Key.Enter, KeyModifiers.Shift);
-                    await Program.WaitUntilAsync(() => opens > 0);
-                    Require(key.Handled && opens == 1, "Shift+Enter must open once");
-                });
-                await Scene(mode + "-inline-medium-ShiftEnter", async () =>
-                {
-                    await Setup(large);
-                    int opens = 0;
-                    page.OpenGallery = (_, key, _) =>
-                    {
-                        opens++;
-                        Require(key?.PostId == "7000" && key?.AttachmentPosition == 2, "inline focus drifted to thread's first medium");
+                        Require(entry?.AttachmentPosition == 2, "medium-button Enter must open attachment position 2");
                         return Task.CompletedTask;
                     };
                     var post = (ArchivePostRow)page.FindControl<ListBox>("ArchivePosts")!.SelectedItem!;
                     var view = Post().GetVisualDescendants().OfType<ArchiveAttachmentView>().Single(v => ReferenceEquals(v.DataContext, post.Attachments[2]));
-                    Focus(window, view.PreviewButton);
-                    Press(view.PreviewButton, Key.Enter, KeyModifiers.Shift);
-                    await Program.WaitUntilAsync(() => opens > 0);
-                    Require(opens == 1, "inline Shift+Enter must open once");
+                    Button source = view.PreviewButton; Focus(window, source);
+                    void Clicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => clicks++;
+                    source.Click += Clicked;
+                    try
+                    {
+                        Press(source, Key.Enter);
+                        await Program.WaitUntilAsync(() => opens > 0);
+                        Require(clicks == 1 && opens == 1 && source.IsFocused, "Enter must emit exactly one medium-button Click, open once and keep focus");
+                    }
+                    finally { source.Click -= Clicked; }
                 });
                 await Scene(mode + "-button-native-Enter", async () =>
                 {
                     await Setup(large);
                     int opens = 0;
                     page.OpenGallery = (_, _, _) => { opens++; return Task.CompletedTask; };
-                    // ReaderFindOpen is intentionally not keyboard-focusable. Use
-                    // the actual medium button: native Enter must click it, not
-                    // run the explicit gallery command (the sidebar is shown).
-                    var post = (ArchivePostRow)page.FindControl<ListBox>("ArchivePosts")!.SelectedItem!;
-                    var view = Post().GetVisualDescendants().OfType<ArchiveAttachmentView>().Single(v => ReferenceEquals(v.DataContext, post.Attachments[0]));
-                    Button source = view.PreviewButton; Focus(window, source);
+                    // An actual action button, not the medium preview implemented as a Button.
+                    // Its native Click opens the gallery; the tunnel must not bypass Click.
+                    Button source = page.MediaSidebar!.Open; Focus(window, source);
                     int clicks = 0;
                     void Clicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => clicks++;
                     source.Click += Clicked;
                     try
                     {
                         Press(source, Key.Enter);
-                        Require(clicks == 1, "Enter did not perform exactly one native medium-button click");
-                        Require(opens == 0 && source.IsFocused, "Enter was stolen by a reader command");
+                        Require(clicks == 1, "Enter did not perform exactly one native button click");
+                        await Program.WaitUntilAsync(() => opens > 0);
+                        Require(opens == 1 && source.IsFocused, "Enter was stolen or activated twice");
                     }
                     finally { source.Click -= Clicked; }
                 });
                 await Scene(mode + "-tag-input-focus", async () =>
                 {
                     await Setup(large);
+                    int opens = 0;
+                    page.OpenGallery = (_, _, _) => { opens++; return Task.CompletedTask; };
                     Control source = Post(); Focus(window, source); Press(source, Key.R);
                     await Program.WaitUntilAsync(() => QuickTagPopover.Current?.IsOpen == true);
                     QuickTagPopover popover = QuickTagPopover.Current!;
@@ -256,13 +283,23 @@ internal static class ReaderGalleryShortcutParityChecks
                     }
                     Press(editor, Key.Enter, KeyModifiers.Shift);
                     Require(editor.Text == "qhl" && editor.IsFocused && popover.IsOpen && !page.PostFilters!.IsHidden(Fixture, "7000"), "text focus/letters were stolen");
+                    QuickTagSurface surface = popover.Surface!;
+                    int undo = surface.Session.UndoSteps.Count;
+                    surface.Input.Dismiss(); // Commit the typed draft, not an asynchronous suggestion.
+                    Press(editor, Key.Enter);
+                    await Program.WaitUntilAsync(() => surface.Session.Ready && surface.Input.Text == "");
+                    Require(surface.Session.UndoSteps.Count == undo + 1
+                        && surface.Session.Assignments().Any(tag => tag.Tag.Name.Display == "qhl")
+                        && opens == 0 && editor.IsFocused && popover.IsOpen,
+                        "Enter must commit exactly one tag without opening a gallery or moving focus");
+                    await surface.UndoAsync();
                 });
             }
             await Scene("gallery-focus", async () =>
             {
                 await Setup(true);
                 page.SelectMediaSidebarIndex(2); await page.MediaSidebarTask;
-                Focus(window, Thumbnail(2)); Press(Thumbnail(2), Key.Enter, KeyModifiers.Shift);
+                Focus(window, Thumbnail(2)); Press(Thumbnail(2), Key.Enter);
                 ContentControl galleryHost = window.FindControl<ContentControl>("GalleryHost")!;
                 await Program.WaitUntilAsync(() => galleryHost.IsEffectivelyVisible && galleryHost.Content is GalleryViewer);
                 GalleryViewer viewer = (GalleryViewer)galleryHost.Content!;
