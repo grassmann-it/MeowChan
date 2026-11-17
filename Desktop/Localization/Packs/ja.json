@@ -890,6 +890,8 @@
     "media.copyPath.done": "パスをコピーしました",
     "media.copyPath.failed": "パスをクリップボードにコピーできませんでした。",
     "post.copy.textDone": "投稿のテキストをコピーしました",
+    "post.copy.selection": "コピー",
+    "post.copy.selectionDone": "選択範囲をコピーしました",
     "post.copy.numberDone": "投稿番号をコピーしました",
     "post.copy.linkDone": "投稿のリンクをコピーしました",
     "post.copy.failed": "クリップボードにコピーできませんでした。",

@@ -226,6 +226,17 @@ internal sealed class ReaderBodyTextBlock : SelectableTextBlock
     /// <summary>The plain post text, also while the content lives in <see cref="TextBlock.Inlines"/>.</summary>
     internal string PlainText => Document?.Text ?? Text ?? string.Empty;
 
+    /// <summary>The selected part of <see cref="PlainText"/> (the offsets of the selection are those of the plain text); empty without a selection.</summary>
+    internal string SelectedPlainText
+    {
+        get
+        {
+            string text = PlainText;
+            int start = Math.Clamp(Math.Min(SelectionStart, SelectionEnd), 0, text.Length), end = Math.Clamp(Math.Max(SelectionStart, SelectionEnd), 0, text.Length);
+            return end > start ? text.Substring(start, end - start) : string.Empty;
+        }
+    }
+
     // Reading line height follows the reading size (13/15/18 px -> 19/22/26 px), never a fixed gap.
     internal static double ReadingLineHeight(double fontSize) => Math.Round(fontSize * 1.45);
 
@@ -251,6 +262,9 @@ internal sealed class ReaderBodyTextBlock : SelectableTextBlock
     public ReaderBodyTextBlock()
     {
         UpdateReadingMetrics();
+        // The theme gives a selectable text its own "Copy" flyout, which answers a context request before the post card sees it: a right click
+        // (or the Menu key) on the text would never reach the post menu. The page's post menu takes its place and offers Copy with a selection.
+        ContextFlyout = null;
         this[!SpoilerOutlineBrushProperty] = new DynamicResourceExtension("Workspace.ControlBorder");
     }
 

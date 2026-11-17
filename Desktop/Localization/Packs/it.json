@@ -3590,6 +3590,8 @@
     "media.copyPath.done": "Percorso copiato",
     "media.copyPath.failed": "Impossibile copiare il percorso negli appunti.",
     "post.copy.textDone": "Testo del post copiato",
+    "post.copy.selection": "Copia",
+    "post.copy.selectionDone": "Selezione copiata",
     "post.copy.numberDone": "Numero del post copiato",
     "post.copy.linkDone": "Link del post copiato",
     "post.copy.failed": "Impossibile copiare negli appunti.",

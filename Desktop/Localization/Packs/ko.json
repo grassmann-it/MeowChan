@@ -890,6 +890,8 @@
     "media.copyPath.done": "경로를 복사했습니다",
     "media.copyPath.failed": "경로를 클립보드에 복사할 수 없습니다.",
     "post.copy.textDone": "게시물 텍스트를 복사했습니다",
+    "post.copy.selection": "복사",
+    "post.copy.selectionDone": "선택 영역을 복사했습니다",
     "post.copy.numberDone": "게시물 번호를 복사했습니다",
     "post.copy.linkDone": "게시물 링크를 복사했습니다",
     "post.copy.failed": "클립보드에 복사할 수 없습니다.",

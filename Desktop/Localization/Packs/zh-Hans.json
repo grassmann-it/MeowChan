@@ -890,6 +890,8 @@
     "media.copyPath.done": "路径已复制",
     "media.copyPath.failed": "无法将路径复制到剪贴板。",
     "post.copy.textDone": "帖子文本已复制",
+    "post.copy.selection": "复制",
+    "post.copy.selectionDone": "所选内容已复制",
     "post.copy.numberDone": "帖子编号已复制",
     "post.copy.linkDone": "帖子链接已复制",
     "post.copy.failed": "无法复制到剪贴板。",

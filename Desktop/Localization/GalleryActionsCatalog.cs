@@ -18,6 +18,8 @@ internal static class GalleryActionsCatalog
         ("media.copyPath.done", "Path copied", "Pfad kopiert"),
         ("media.copyPath.failed", "The path could not be copied to the clipboard.", "Der Pfad konnte nicht in die Zwischenablage kopiert werden."),
         ("post.copy.textDone", "Post text copied", "Post-Text kopiert"),
+        ("post.copy.selection", "Copy", "Kopieren"),
+        ("post.copy.selectionDone", "Selection copied", "Auswahl kopiert"),
         ("post.copy.numberDone", "Post number copied", "Post-Nummer kopiert"),
         ("post.copy.linkDone", "Post link copied", "Post-Link kopiert"),
         ("post.copy.failed", "Could not copy to the clipboard.", "Konnte nicht in die Zwischenablage kopieren."),

@@ -3615,6 +3615,8 @@
     "media.copyPath.done": "Cesta zkopírována",
     "media.copyPath.failed": "Cestu se nepodařilo zkopírovat do schránky.",
     "post.copy.textDone": "Text příspěvku zkopírován",
+    "post.copy.selection": "Kopírovat",
+    "post.copy.selectionDone": "Výběr zkopírován",
     "post.copy.numberDone": "Číslo příspěvku zkopírováno",
     "post.copy.linkDone": "Odkaz na příspěvek zkopírován",
     "post.copy.failed": "Nepodařilo se zkopírovat do schránky.",

@@ -3620,6 +3620,8 @@
     "media.copyPath.done": "Skopiowano ścieżkę",
     "media.copyPath.failed": "Nie udało się skopiować ścieżki do schowka.",
     "post.copy.textDone": "Skopiowano tekst postu",
+    "post.copy.selection": "Kopiuj",
+    "post.copy.selectionDone": "Skopiowano zaznaczenie",
     "post.copy.numberDone": "Skopiowano numer postu",
     "post.copy.linkDone": "Skopiowano link do postu",
     "post.copy.failed": "Nie udało się skopiować do schowka.",
