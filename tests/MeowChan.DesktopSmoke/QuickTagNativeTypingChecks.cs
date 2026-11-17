@@ -85,6 +85,8 @@ internal static class QuickTagNativeTypingChecks
         KeyTrace trace = new();
         trace.Install();
         List<Case> cases = new();
+        // One press, one character: no server autorepeat when a loaded host stretches a 40 ms press past the repeat delay.
+        input.SetAutoRepeat(false);
         try
         {
             // Suggestions for Alt+1 (the strip offers the profile's tags).
@@ -128,6 +130,7 @@ internal static class QuickTagNativeTypingChecks
         }
         finally
         {
+            input.SetAutoRepeat(true);
             trace.Uninstall();
             QuickTagPopover.Current?.Close();
         }
@@ -227,6 +230,26 @@ internal static class QuickTagNativeTypingChecks
         int steps = surface.Session.UndoSteps.Count;
         TextBox field = surface.Input.GetVisualDescendants().OfType<TextBox>().First(candidate => candidate.IsEffectivelyVisible);
         await input.ClickAsync(field, requireHitTest: false);
+        await Settle(window);
+        // The suggestion list of the field is a popup inside the popover's popup: typing opens it, a real click on its row takes the tag.
+        await TypeAsync(input, "inn");
+        string listState = "";
+        try
+        {
+            await Program.WaitUntilAsync(() => surface.Input.IsDropDownOpen && SuggestionRow(surface.Input, "innocent") is { Bounds.Width: > 0 } shownRow
+                && TopLevel.GetTopLevel(shownRow) is { IsVisible: true });
+            Control suggestion = SuggestionRow(surface.Input, "innocent")!;
+            listState = $"root={TopLevel.GetTopLevel(suggestion)?.GetType().Name} visible={TopLevel.GetTopLevel(suggestion)?.IsVisible} at={suggestion.PointToScreen(default)}";
+            await input.ClickAsync(suggestion);
+            await WaitQuietly(() => surface.Session.UndoSteps.Count == steps + 1 || surface.Input.Text == "innocent");
+            if (surface.Session.UndoSteps.Count == steps + 1) { await input.ChordAsync('z', MediaNativeInput.ControlLeft); await WaitQuietly(() => surface.Session.UndoSteps.Count == steps); }
+            else if (surface.Input.Text != "innocent") problems.Add("a click on the suggestion row took nothing (" + listState + ", field '" + surface.Input.Text + "')");
+        }
+        catch (TimeoutException) { problems.Add("typing 'inn' showed no suggestion row (open=" + surface.Input.IsDropDownOpen + ")"); }
+        catch (ArgumentException error) { problems.Add("the suggestion row cannot be clicked: " + error.Message + " " + listState); }
+        Console.WriteLine("SMOKE quick-tag-native-typing suggestion-list: " + listState + " steps " + steps + "->" + surface.Session.UndoSteps.Count + " field '" + surface.Input.Text + "'");
+        surface.Input.Text = "";
+        surface.Input.Dismiss();
         await Settle(window);
         await TypeAsync(input, "innocent");
         await input.KeyAsync(MediaNativeInput.Enter);
@@ -482,6 +505,10 @@ internal static class QuickTagNativeTypingChecks
     }
 
     // ---- helpers ------------------------------------------------------------------------------------------------------------------
+
+    private static Control? SuggestionRow(IdentitySuggestionBox field, string text) =>
+        field.GetVisualDescendants().OfType<Avalonia.Controls.Primitives.Popup>().FirstOrDefault()?.Child?.GetVisualDescendants().OfType<ListBoxItem>()
+            .FirstOrDefault(item => item.IsEffectivelyVisible && item.DataContext?.ToString()?.Contains(text, StringComparison.Ordinal) == true);
 
     private static Case Fail(string surface, string entry, string medium, string reason) => new(surface, entry, medium, "", "", "", "", false, "", 0, reason);
 
