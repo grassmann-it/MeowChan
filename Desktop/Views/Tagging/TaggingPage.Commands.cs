@@ -64,12 +64,13 @@ public sealed partial class TaggingPage
         _clearDone.Command = new DelegateCommand(() => _ = ClearFinishedAsync(), () => CanChange && _queueWork.Queue.Done > 0);
         _clear.Command = new DelegateCommand(AskClear, () => !_queueWork.Ended && !_queueWork.Busy && !_queueWork.Loading && _queueWork.Loaded
             && (_queueWork.Queue.Count > 0 && _queueWork.Queue.CanWrite || _queueWork.LoadError != null));
-        // The bar reads as four groups with the bar's own thin lines between them (RL1): what to do (continue, add), the scope (group,
-        // show), the view (columns, list or grid), and the rare end of the bar (cleanup, help). What does not fit moves under "More"
-        // from the end, so the help and the two cleanup icons go first.
+        // The bar reads as five groups with the bar's own thin lines between them (RL1): primary work (continue, add), scope (group,
+        // show), cleanup, then the presentation controls (columns, list/grid) together at the trailing end, with help last. This keeps
+        // presentation choices separate from queue mutations and makes the right side predictable. What does not fit moves under More.
         (Control Item, int Group)[] items =
         {
-            (_start, 0), (_add, 0), (_groupPanel, 1), (_filterPanel, 1), (_columnsButton, 2), (_viewToggle, 2), (_clearDone, 3), (_clear, 3), (_help, 3)
+            (_start, 0), (_add, 0), (_groupPanel, 1), (_filterPanel, 1), (_clearDone, 2), (_clear, 2),
+            (_columnsButton, 3), (_viewToggle, 3), (_help, 4)
         };
         foreach ((Control item, int group) in items)
         {
