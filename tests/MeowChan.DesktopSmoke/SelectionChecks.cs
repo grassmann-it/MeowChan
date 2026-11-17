@@ -265,7 +265,7 @@ internal static class SelectionChecks
             "rules.edit-scope", "watch.remove", "archive.delete-permanently"
         };
         // One thread only: its own tags follow Show in Media; the URL-text export follows the HTML export.
-        if (single) { expected.Insert(5, "thread.tags"); expected.Insert(7, "export.open-urltext-dialog"); }
+        if (single) { expected.Insert(5, "thread.tags"); expected.Insert(8, "export.open-urltext-dialog"); }
         string[] actual = menu.Items.OfType<MenuItem>().Where(item => item.Tag is string)
             .Select(item => (string)item.Tag!).ToArray();
         Require(actual.SequenceEqual(expected),
