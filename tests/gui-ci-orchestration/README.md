@@ -100,7 +100,14 @@ of the new C# helpers. Those require the corresponding native receipts.
 - The registry workflow already has the exact-smoke dispatch input `only`:
   `gh workflow run desktop-smoke-registry.yml --repo grassmann-it/MeowChan
   --ref BRANCH -f only=REGISTRY_ID`. Use one ID per dispatch for individual
-  retests. An empty input retains the full sweep. No duplicate input is needed.
+  retests. An empty input retains the full sweep.
+- GitHub rejects dispatching a workflow absent from the default branch (the
+  registry dispatch returned HTTP 404 during this task). The registered desktop
+  workflow therefore also exposes `mode=smoke-retest` and `smoke=REGISTRY_ID`:
+  `gh workflow run dotnet-desktop.yml --repo grassmann-it/MeowChan --ref BRANCH
+  -f mode=smoke-retest -f smoke=REGISTRY_ID`. It calls the same registry workflow
+  on that branch, rejects empty/multiple IDs, and caps the retest job at 25m.
+  Different smoke IDs have separate concurrency groups; no full sweep is started.
 - The desktop workflow already supports a focused portable shard via
   `-f mode=offline-retest -f platform=ubuntu-24.04 -f scenario=all
   -f offline_lane=lane-c`. This is a retest, not full coverage evidence.

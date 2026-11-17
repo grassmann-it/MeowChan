@@ -10,6 +10,16 @@ name: Desktop smoke registry
 on:
   schedule:
     - cron: '23 2 * * *'
+  workflow_call:
+    inputs:
+      only:
+        description: Exact registry id supplied by desktop smoke-retest
+        type: string
+        required: true
+      single:
+        description: Reject empty or multiple ids for an individual retest
+        type: boolean
+        default: true
   workflow_dispatch:
     inputs:
       only:
@@ -32,9 +42,21 @@ concurrency:
 jobs:
   registry:
     runs-on: ubuntu-24.04
-    timeout-minutes: 300
+    timeout-minutes: ${{ inputs.single && 25 || 300 }}
     steps:
       - uses: actions/checkout@v7
+      - name: Require exactly one id for individual retests
+        if: inputs.single
+        shell: bash
+        env:
+          ONLY: ${{ inputs.only }}
+        run: |
+          python3 - <<'PY'
+          import os, re
+          value = os.environ['ONLY']
+          if not re.fullmatch(r'[a-z0-9][a-z0-9-]*', value):
+              raise SystemExit('smoke-retest requires exactly one registry id')
+          PY
       - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json

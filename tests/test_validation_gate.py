@@ -238,6 +238,11 @@ class OfflineRetestTests(unittest.TestCase):
             # The always-run status rollup does no staging/release/package work.
             self.assertEqual(job in {"validate", "full-sweep-aggregate"}, ran, job)
 
+    def test_smoke_retest_runs_only_reusable_smoke_and_status_rollup(self):
+        for job, expr in job_conditions().items():
+            ran = predicate(expr, "workflow_dispatch", "smoke-retest", "all", False, "Linux", "X64")
+            self.assertEqual(job in {"smoke-retest", "full-sweep-aggregate"}, ran, job)
+
     def test_candidate_modes_keep_complete_requirements(self):
         for mode in ("prerelease-candidate", "stable-candidate"):
             required = compute.required_steps("workflow_dispatch", mode, "all", "lane-a", "Linux", "X64")

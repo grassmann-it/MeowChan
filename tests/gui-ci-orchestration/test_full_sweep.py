@@ -118,6 +118,16 @@ class FullSweepTests(unittest.TestCase):
         self.assertEqual(len(re.findall(r"^    strategy:$", workflow, re.M)),
                          len(re.findall(r"^      fail-fast: false$", workflow, re.M)))
 
+    def test_single_smoke_guard_rejects_empty_multiple_and_shell_inputs(self):
+        workflow = (ROOT / ".github/workflows/desktop-smoke-registry.yml").read_text()
+        guard = workflow.split("          python3 - <<'PY'\n", 1)[1].split("          PY\n", 1)[0]
+        guard = "\n".join(line[10:] for line in guard.splitlines())
+        for value in ("", "reader-navigation reader-stability", "$(touch injected)", "--registry", "reader-navigation\n"):
+            with self.subTest(value=value), patch.dict(os.environ, ONLY=value), self.assertRaises(SystemExit):
+                exec(guard, {})
+        with patch.dict(os.environ, ONLY="reader-navigation"):
+            exec(guard, {})
+
     def test_existing_single_smoke_and_single_shard_dispatch_are_preserved(self):
         registry = (ROOT / ".github/workflows/desktop-smoke-registry.yml").read_text()
         desktop = (ROOT / ".github/workflows/dotnet-desktop.yml").read_text()
