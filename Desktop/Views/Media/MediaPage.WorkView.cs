@@ -107,7 +107,18 @@ public sealed partial class MediaPage
                 Dispatcher.UIThread.Post(() => _more.Flyout?.Hide());
             }
         };
-        ((MenuFlyout)_selMore.Flyout!).Opening += (_, _) => FillMore((MenuFlyout)_selMore.Flyout!, SelectionOverflow());
+        ((MenuFlyout)_selMore.Flyout!).Opening += (_, _) =>
+        {
+            // Same rule as the header's More: never an empty "…" button or a bare flyout frame (design language, UX-LEDGER-01).
+            List<Control> items = SelectionOverflow();
+            UpdateMore(_selMore, items);
+            FillMore((MenuFlyout)_selMore.Flyout!, items);
+            if (items.Count == 0)
+            {
+                _selMore.IsVisible = false;
+                Dispatcher.UIThread.Post(() => _selMore.Flyout?.Hide());
+            }
+        };
         _moreFilters.IsCheckedChanged += (_, _) => { if (!_localizing) RefreshWorkView(); };
         // The drawn "more" icon in the one icon-only square button (P6); the count in the name is set by UpdateMore.
         WorkViewMoreSurface.Apply(_more, Texts.T("workview.more"));

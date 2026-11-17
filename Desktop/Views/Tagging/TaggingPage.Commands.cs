@@ -78,6 +78,8 @@ public sealed partial class TaggingPage
             ActionToolBar.SetGroup(item, group);
             _actions.Items.Add(item);
         }
+        // Design language (UX-LEDGER-01): primary actions stand left; the layout/secondary run (columns, list/grid, help) docks to the right edge.
+        foreach (Control item in new Control[] { _columnsButton, _viewToggle, _help }) ActionToolBar.SetEnd(item, true);
         // The error banner's "Retry" reads the queue file again (RetryLoadAsync is a no-op unless the page may reload now).
         _retryLoad.Click += (_, _) => OpenActions.Start(RetryLoadAsync, "tagging.retry");
         _clearYes.Click += async (_, _) => await ClearAllAsync();
