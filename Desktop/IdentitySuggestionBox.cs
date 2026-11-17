@@ -39,10 +39,37 @@ public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox
     internal string CountHelpKey { get; set; } = "suggestions.count";
     /// <summary>True while the list is populated because Up/Down opened it, not because of focus or typing.</summary>
     internal bool IsExplicitRequest { get; private set; }
-    /// <summary>The suggestion Up/Down (or an exact typed match) highlights in the open list, else null.</summary>
+    /// <summary>The suggestion Up/Down (or an exact typed match, or a preselected row) highlights in the open list, else null.</summary>
     internal IdentitySuggestion? HighlightedCandidate => IsDropDownOpen
         && (SelectionAdapter?.SelectedItem ?? SelectedItem) is IdentitySuggestion item
         && (ItemsSource?.Cast<object>().Contains(item) ?? false) ? item : null;
+    /// <summary>True while the highlighted row is the one the list preselected (<see cref="IdentitySuggestion.Preselect"/>), not one
+    /// the user chose with Up/Down.</summary>
+    /// <summary>True while an input method composes in the editor (Enter then belongs to the composition).</summary>
+    internal bool IsComposing => this.GetVisualDescendants().OfType<TextPresenter>().Any(x => !string.IsNullOrEmpty(x.PreeditText));
+    internal bool IsPreselected => _preselected != null && ReferenceEquals(HighlightedCandidate, _preselected);
+    /// <summary>
+    /// Opt-in: the list follows the caret. Given the text and the editor's selection it returns the token the list concerns (any
+    /// value with equality); a caret move (keys, a click) that changes it asks <see cref="Candidates"/> again. Null: the list only
+    /// follows the text.
+    /// </summary>
+    internal Func<string, int, int, object?>? CaretToken { get; set; }
+    /// <summary>The editor's selection (start ≤ end; both the caret without a selection), the end of the text without an editor.</summary>
+    internal (int Start, int End) EditorSelection
+    {
+        get
+        {
+            int length = Text?.Length ?? 0;
+            if (Editor() is not { } editor) return (length, length);
+            int start = Math.Min(editor.SelectionStart, editor.SelectionEnd), end = Math.Max(editor.SelectionStart, editor.SelectionEnd);
+            if (start == end) start = end = editor.CaretIndex;
+            return (Math.Clamp(start, 0, length), Math.Clamp(end, 0, length));
+        }
+    }
+    private IdentitySuggestion? _preselected;
+    private object? _populatedToken;
+    private (int Start, int End)? _navigationCaret;
+    private TextBox? _editor;
     private CancellationTokenSource? _request;
     private int _revision;
     private bool _publishing;
@@ -131,6 +158,13 @@ public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox
                 Avalonia.Threading.DispatcherPriority.Send);
         };
         AddHandler(KeyDownEvent, OnInputKey, RoutingStrategies.Tunnel);
+        // After the list's own Up/Down handling: moving the highlight never moves the caret (it says which token is completed).
+        AddHandler(KeyDownEvent, (_, _) =>
+        {
+            if (_navigationCaret is not { } caret) return;
+            _navigationCaret = null;
+            if (EditorSelection != caret) PlaceCaret(caret.Start, caret.End);
+        }, RoutingStrategies.Bubble, handledEventsToo: true);
     }
     protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
     {
@@ -138,6 +172,38 @@ public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox
         base.OnApplyTemplate(e);
         if (SelectionAdapter != null) SelectionAdapter.Commit += OnCommit;
         AttachPopupPointer(e.NameScope.Find<SelectingItemsControl>("PART_SelectingItemsControl"));
+        if (_editor != null) _editor.PropertyChanged -= OnEditorProperty;
+        _editor = e.NameScope.Find<TextBox>("PART_TextBox");
+        if (_editor != null) _editor.PropertyChanged += OnEditorProperty;
+    }
+    private TextBox? Editor() => _editor ?? this.GetVisualDescendants().OfType<TextBox>().FirstOrDefault();
+    private bool _placingCaret;
+    private void PlaceCaret(int start, int end)
+    {
+        if (Editor() is not { } editor) return;
+        int length = editor.Text?.Length ?? 0;
+        start = Math.Clamp(start, 0, length); end = Math.Clamp(end, start, length);
+        _placingCaret = true;
+        try
+        {
+            if (start == end) { editor.ClearSelection(); editor.CaretIndex = start; }
+            else { editor.SelectionStart = start; editor.SelectionEnd = end; }
+        }
+        finally { _placingCaret = false; }
+    }
+    // The caret moved (arrow keys, Home/End, a click): when it is now in another token, the list is asked again for that one.
+    // Typing is not this path: TextChanged repopulates first, so the token then is the one just listed.
+    private void OnEditorProperty(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.Property != TextBox.CaretIndexProperty && e.Property != TextBox.SelectionStartProperty && e.Property != TextBox.SelectionEndProperty) return;
+        if (CaretToken == null || _publishing || _placingCaret || _navigationCaret != null || _ended || _suppressed || Candidates == null || !IsKeyboardFocusWithin) return;
+        int revision = _revision;
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            if (CaretToken is not { } token || _ended || _suppressed || revision != _revision || !IsKeyboardFocusWithin) return;
+            (int start, int end) = EditorSelection;
+            if (!Equals(token(Text ?? "", start, end), _populatedToken)) _ = PopulateAsync();
+        }, Avalonia.Threading.DispatcherPriority.Input);
     }
     private void OnCommit(object? sender, RoutedEventArgs e)
     {
@@ -155,6 +221,8 @@ public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox
             finally { _publishing = false; }
         }
         Dismiss();
+        // A completed token in the middle of the draft keeps the caret right behind it.
+        if (item != null) PlaceCaret(item.Caret ?? item.Value.Length, item.Caret ?? item.Value.Length);
     }
     // Own a mouse gesture before ListBox focus/selection handling can close the popup.
     // A captured release accepts only the same still-current row, never a row dismissed
@@ -247,8 +315,7 @@ public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox
     }
     private void OnInputKey(object? sender, KeyEventArgs e)
     {
-        if (e.Key == Key.Enter && this.GetVisualDescendants().OfType<TextPresenter>().Any(x => !string.IsNullOrEmpty(x.PreeditText)))
-        { e.Handled = true; return; }
+        if (e.Key == Key.Enter && IsComposing) { e.Handled = true; return; }
         if (e.Key == Key.Escape)
         {
             bool listWasOpen = IsDropDownOpen;
@@ -273,6 +340,13 @@ public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox
             try { _ = PopulateAsync(); } finally { IsExplicitRequest = false; }
             return;
         }
+        if ((e.Key == Key.Down || e.Key == Key.Up) && IsDropDownOpen)
+        {
+            // The user chooses now: the preselection is over, and the caret stays where it is (restored after the list's handling).
+            _preselected = null;
+            _navigationCaret = EditorSelection;
+            return;
+        }
         if (e.Key != Key.Enter || !IsDropDownOpen) return;
         if (ReleaseUnselectedEnter && !(ItemsSource?.Cast<object>().Contains(SelectionAdapter?.SelectedItem ?? SelectedItem) ?? false))
         { Dismiss(); return; }
@@ -288,12 +362,11 @@ public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox
         try { SetCurrentValue(TextProperty, item.Value); }
         finally { _publishing = false; }
         Dismiss();
-        if (this.GetVisualDescendants().OfType<TextBox>().FirstOrDefault() is { } editor)
-        { editor.ClearSelection(); editor.CaretIndex = item.Value.Length; }
+        PlaceCaret(item.Caret ?? item.Value.Length, item.Caret ?? item.Value.Length);
     }
     internal void Dismiss()
     {
-        ++_revision; _suppressed = true;
+        ++_revision; _suppressed = true; _preselected = null;
         CancelPointerGesture();
         _request?.Cancel(); _request?.Dispose(); _request = null;
         IsDropDownOpen = false;
@@ -330,9 +403,19 @@ public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox
         _publishing = true;
         try
         {
-            ItemsSource = items.Take(VisibleLimit).ToArray();
+            IdentitySuggestion[] shown = items.Take(VisibleLimit).ToArray();
+            ItemsSource = shown;
             PopulateComplete();
             IsDropDownOpen = items.Length > 0;
+            _preselected = null;
+            // The one real match is highlighted at once (the list's selected item, so a screen reader names it); the caret stays.
+            if (IsDropDownOpen && SelectionAdapter != null && shown.FirstOrDefault(item => item.Preselect) is { } preselect)
+            {
+                (int start, int end) = EditorSelection;
+                _preselected = preselect;
+                SelectionAdapter.SelectedItem = preselect;
+                if (EditorSelection != (start, end)) PlaceCaret(start, end);
+            }
             return true;
         }
         catch (InvalidOperationException) { return false; }
@@ -356,6 +439,8 @@ public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox
         }
         if (_ended || _suppressed || !IsKeyboardFocusWithin || Candidates == null) return;
         string text = Text ?? "";
+        (int caretStart, int caretEnd) = EditorSelection;
+        _populatedToken = CaretToken?.Invoke(text, caretStart, caretEnd);
         try
         {
             var items = await Candidates(text, token);

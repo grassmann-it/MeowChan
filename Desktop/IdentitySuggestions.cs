@@ -7,7 +7,15 @@ namespace MeowChan.Desktop;
 
 /// <summary><paramref name="Description"/> is the screen reader name and tooltip of the row when it says more than the
 /// visible label. <paramref name="GroupHeader"/> labels a group that starts at this row; it is shown above it, not a row.</summary>
-internal sealed record IdentitySuggestion(string Value, string? Source, string Label, string? Description = null, string? GroupHeader = null);
+internal sealed record IdentitySuggestion(string Value, string? Source, string Label, string? Description = null, string? GroupHeader = null)
+{
+    /// <summary>Where the caret goes once <see cref="Value"/> is written into the editor; null: the end.</summary>
+    internal int? Caret { get; init; }
+    /// <summary>Accepting the row only edits the draft (another tag follows the completed one): nothing is added yet.</summary>
+    internal bool InPlace { get; init; }
+    /// <summary>The row is highlighted as soon as it is shown (the one real match of the typed word), so Enter takes it.</summary>
+    internal bool Preselect { get; init; }
+}
 
 /// <summary>Immutable bounded data shared by scalar and set-valued editor adapters. No query state.</summary>
 internal sealed class IdentitySuggestions

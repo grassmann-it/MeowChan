@@ -32,6 +32,13 @@ internal sealed record TagEntry(IReadOnlyList<TagEntryItem> Items, IReadOnlyList
 }
 
 /// <summary>
+/// One token of a tag field's draft (<see cref="TagEntryParser.TokenAt"/>): the range <see cref="Start"/>..<see cref="End"/>
+/// (end exclusive; a quoted token with its quotes) that a completion replaces, and the name as typed (quotes and escapes
+/// removed, trimmed). <see cref="Hard"/>: the draft is in hard-separator mode, where spaces belong to the name.
+/// </summary>
+internal sealed record TagEntryToken(int Start, int End, string Typed, bool Quoted, bool Hard);
+
+/// <summary>
 /// The shared parser of the tag fields: several tags in one entry (<c>piss pee cute anal</c> + Enter adds four). Tag names MAY
 /// contain spaces, commas and semicolons (only control and format characters are refused, see <see cref="PrivateTagName"/>), so whitespace
 /// alone cannot always separate; the rules keep every existing name usable:
@@ -168,25 +175,66 @@ internal static class TagEntryParser
         : item.Name.Display));
 
     /// <summary>
-    /// Splits the draft for completion: the text before the word being typed and that word (inside an open quote: everything
-    /// after the quote). <c>"piss pe"</c> gives ("piss ", "pe"); a draft without a separator gives ("", draft).
+    /// The token of the draft under the caret (the selection start), the one the suggestions concern and a completion replaces;
+    /// null while a selection spans more than one token (no list then). The rules are the parser's: in space mode a word or a
+    /// double-quoted part (an unclosed quote runs to the end), with a hard separator outside quotes the whole part between them
+    /// (its spaces belong to the name). A token is current while the caret is inside it or right after it, and at the very start
+    /// of the draft the first token (a text set by the program leaves the caret there); right after a separator or in blank text
+    /// the token is empty (<see cref="TagEntryToken.Typed"/> "").
     /// </summary>
-    internal static (string Prefix, string Last) SplitLast(string? text)
+    internal static TagEntryToken? TokenAt(string? text, int selectionStart, int selectionEnd)
     {
         text ??= string.Empty;
-        bool quoted = false;
-        int start = 0;
-        for (int index = 0; index < text.Length; index++)
-        {
-            char c = text[index];
-            if (quoted && c == '\\' && index + 1 < text.Length) { index++; continue; }
-            if (c == '"') { quoted = !quoted; start = index + 1; continue; }
-            if (!quoted && (IsSoftSeparator(c) || IsHardSeparator(c))) start = index + 1;
-        }
-        // Inside an open quote the word starts after it; the prefix ends before the quote, which the completion writes again.
-        int prefixEnd = quoted ? start - 1 : start;
-        return (text[..prefixEnd], text[start..]);
+        int start = Math.Clamp(Math.Min(selectionStart, selectionEnd), 0, text.Length);
+        int end = Math.Clamp(Math.Max(selectionStart, selectionEnd), 0, text.Length);
+        List<TagEntryToken> tokens = Tokens(text, out bool hard);
+        TagEntryToken? Containing(int at) => tokens.FirstOrDefault(token => token.Start < at && at <= token.End || at == 0 && token.Start == 0);
+        TagEntryToken empty = new(start, start, string.Empty, false, hard);
+        if (start == end) return Containing(start) ?? empty;
+        // A selection inside one token keeps that token (typing replaces only the selected part of it); anything wider has no list.
+        TagEntryToken? within = tokens.FirstOrDefault(token => token.Start <= start && end <= token.End);
+        if (within != null) return within;
+        return tokens.Any(token => token.Start < end && start < token.End) ? null : empty;
     }
+
+    /// <summary>
+    /// The unquoted words right before <paramref name="token"/> that may form one name with it (space mode only), nearest last, at
+    /// most <paramref name="limit"/>: <c>hot big ti</c> gives <c>hot</c>, <c>big</c> for the token <c>ti</c>, so a name with spaces
+    /// (<c>big tits</c>) replaces the words already typed instead of being appended to them.
+    /// </summary>
+    internal static IReadOnlyList<TagEntryToken> WordsBefore(string? text, TagEntryToken token, int limit)
+    {
+        if (token.Hard || token.Quoted || token.Typed.Length == 0 || limit <= 0) return Array.Empty<TagEntryToken>();
+        List<TagEntryToken> tokens = Tokens(text ?? string.Empty, out _);
+        int at = tokens.FindIndex(item => item.Start == token.Start && item.End == token.End);
+        List<TagEntryToken> words = new();
+        for (int index = at - 1; index >= 0 && words.Count < limit && !tokens[index].Quoted; index--) words.Insert(0, tokens[index]);
+        return words;
+    }
+
+    /// <summary>
+    /// The draft with the range <paramref name="start"/>..<paramref name="end"/> (a token, or the words of a name with spaces)
+    /// replaced by <paramref name="name"/>, and the caret after it. Everything before and after stays as it was. The name is quoted
+    /// when it needs it (space mode: spaces, separators, quotes; hard-separator mode only hard separators and quotes, since spaces
+    /// belong to the name there); exactly one separator follows it when the rest of the draft does not already start with one. A
+    /// name that becomes the whole draft is written bare: as a whole it is one tag.
+    /// </summary>
+    internal static (string Text, int Caret) Replace(string? text, int start, int end, string name, bool hard)
+    {
+        text ??= string.Empty;
+        start = Math.Clamp(start, 0, text.Length);
+        end = Math.Clamp(end, start, text.Length);
+        string prefix = text[..start], suffix = text[end..];
+        if (prefix.Trim().Length == 0 && suffix.Trim().Length == 0) return (name, name.Length);
+        string written = hard ? QuoteHard(name) : Quote(name);
+        // At the end of the draft nothing needs separating (Enter adds it, Tab keeps its completion as before).
+        string separator = suffix.Length == 0 || IsSoftSeparator(suffix[0]) || IsHardSeparator(suffix[0])
+            ? string.Empty : hard ? ", " : " ";
+        return (prefix + written + separator + suffix, prefix.Length + written.Length + separator.Length);
+    }
+
+    /// <summary>True when the text after a completed token names a further tag (the completion then only edits the draft).</summary>
+    internal static bool NamesMore(string? suffix) => suffix?.Any(c => !IsSoftSeparator(c) && !IsHardSeparator(c) && c != '"') == true;
 
     /// <summary>The draft with its last word replaced by <paramref name="name"/>, quoted when the name needs it.</summary>
     internal static string Complete(string prefix, string name) => prefix + Quote(name);
@@ -195,7 +243,48 @@ internal static class TagEntryParser
     internal static string Quote(string name)
     {
         if (!name.Any(c => IsSoftSeparator(c) || IsHardSeparator(c) || c is '"' or '\\')) return name;
-        return "\"" + name.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("\"", "\\\"", StringComparison.Ordinal) + "\"";
+        return Quoted(name);
+    }
+
+    // Hard-separator mode: spaces are part of the name, only a separator or a quote needs the quotes.
+    private static string QuoteHard(string name) => name.Any(c => IsHardSeparator(c) || c == '"') ? Quoted(name) : name;
+
+    private static string Quoted(string name) =>
+        "\"" + name.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("\"", "\\\"", StringComparison.Ordinal) + "\"";
+
+    // The tokens of a draft with their ranges, by the parser's rules (Tokenize): words and quoted parts, or with a hard separator
+    // the parts between them, trimmed. A quoted range includes its quotes; an unclosed quote runs to the end.
+    private static List<TagEntryToken> Tokens(string text, out bool hard)
+    {
+        List<(int Start, int End, string Text, bool Quoted, int Part)> words = new();
+        hard = false;
+        int part = 0;
+        for (int index = 0; index < text.Length;)
+        {
+            char c = text[index];
+            if (c == '"')
+            {
+                int start = index;
+                StringBuilder quoted = new();
+                for (index++; index < text.Length && text[index] != '"'; index++)
+                {
+                    if (text[index] == '\\' && index + 1 < text.Length && text[index + 1] is '"' or '\\') index++;
+                    quoted.Append(text[index]);
+                }
+                if (index < text.Length) index++; // the closing quote
+                words.Add((start, index, quoted.ToString().Trim(), true, part));
+                continue;
+            }
+            if (IsHardSeparator(c)) { hard = true; part++; index++; continue; }
+            if (IsSoftSeparator(c)) { index++; continue; }
+            int begin = index;
+            while (index < text.Length && text[index] != '"' && !IsHardSeparator(text[index]) && !IsSoftSeparator(text[index])) index++;
+            words.Add((begin, index, text[begin..index], false, part));
+        }
+        if (!hard) return words.Select(word => new TagEntryToken(word.Start, word.End, word.Text, word.Quoted, false)).ToList();
+        // Comma mode: one token per part, like the parser's joined part.
+        return words.GroupBy(word => word.Part).Select(group => group.ToList()).Select(items => new TagEntryToken(items[0].Start, items[^1].End,
+            string.Join(" ", items.Select(item => item.Text)).Trim(), items is [{ Quoted: true }], true)).ToList();
     }
 
     private static int Unquoted(List<Token> part, int index)
@@ -208,7 +297,7 @@ internal static class TagEntryParser
     // The most words any tag or alias name has: how far the longest-match looks ahead. Cached per snapshot.
     private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<PrivateTagStoreSnapshot, object> WordCounts = new();
 
-    private static int MaximumWords(PrivateTagStoreSnapshot snapshot) => (int)WordCounts.GetValue(snapshot, static current =>
+    internal static int MaximumWords(PrivateTagStoreSnapshot snapshot) => (int)WordCounts.GetValue(snapshot, static current =>
         current.Tags.Select(tag => tag.Name).Concat(current.Aliases.Select(alias => alias.Name))
             .Select(name => name.Display.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length).DefaultIfEmpty(1).Max());
 

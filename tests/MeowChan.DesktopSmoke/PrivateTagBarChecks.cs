@@ -18,7 +18,7 @@ namespace MeowChan.DesktopSmoke;
 
 // Root dispatch only: MEOWCHAN_PRIVATE_TAGS_ONLY. Real host, real store and actual page controls
 // on a synthetic offline profile. Routed managed input is NOT OS keyboard input.
-internal static class PrivateTagBarChecks
+internal static partial class PrivateTagBarChecks
 {
     private static readonly TimeSpan Deadline = TimeSpan.FromSeconds(15);
     private static readonly ResourceId Tagged = new("4chan", "g", "1000");
@@ -48,6 +48,8 @@ internal static class PrivateTagBarChecks
                     [new CapturedPost("2000", 0, PostFieldPresence.All, Html: "no markers here")]));
             }
             Texts.SetLanguage("en");
+            await QuickTagEnterAsync(owner);
+            await CaretEntryAsync(owner);
             await JourneyAsync(owner, profile);
             await ThreadMenuJourneyAsync(owner, profile);
             Texts.SetLanguage("de");
@@ -68,6 +70,7 @@ internal static class PrivateTagBarChecks
     {
         internal ArchivePage Page => page;
         internal DesktopSessionHost Host => host;
+        internal Window Window => window;
         internal T C<T>(string name) where T : Control => page.FindControl<T>(name)
             ?? throw new InvalidOperationException("Missing actual control " + name);
         internal void Click(string name) => Click(C<Button>(name));
@@ -248,6 +251,7 @@ internal static class PrivateTagBarChecks
             && !status.IsVisible && Equals(open.Content, "Tags"), "Bar did not follow the thread switch cleanly.");
         Require(f.Stored().TagsOf(Plain).Count == 0, "Thread switch tagged the new thread.");
         await AutocompleteAsync(f, input, bar);
+        await CaretAutocompleteAsync(f, input);
 
         input.Focus();
         bool listBefore = input.IsDropDownOpen;
@@ -359,11 +363,10 @@ internal static class PrivateTagBarChecks
         f.Page.SourceTagSuggestions.Read = () => catalog;
         f.Page.SourceTagSuggestions.Load();
         await f.Page.SourceTagSuggestions.LoadTask.WaitAsync(Deadline);
-        // Word start match with its use count; Down highlights without touching the draft, Enter adds it.
+        // Word start match with its use count; the one real match is highlighted at once without touching the draft, Enter adds it.
         await OpenAsync("sd", ["/sdg/ (1)", "New tag: \u201csd\u201d"]);
         Require(AutomationProperties.GetHelpText(input) == Texts.Count("tags.suggest.count", 2, 2, TagSuggestionIndex.VisibleLimit), "The list size was not announced.");
-        input.RaiseEvent(Press(Key.Down));
-        Require(input.HighlightedCandidate?.Value == "/sdg/" && input.Text == "sd", "Down must highlight without changing the draft.");
+        Require(input.HighlightedCandidate?.Value == "/sdg/" && input.Text == "sd", "The one match must be highlighted without changing the draft.");
         KeyEventArgs accept = Press(Key.Enter);
         input.RaiseEvent(accept);
         Require(accept.Handled, "Enter on a highlighted suggestion was not handled.");
@@ -394,7 +397,7 @@ internal static class PrivateTagBarChecks
         Require(source.GroupHeader == Texts.T("tags.suggest.sourceGroup") && source.Source == TagSuggestionIndex.SourceGroup
             && source.Description == Texts.T("tags.suggest.sourceName", "silver_hair", 2), "The source tag group is not labelled: " + source);
         Capture(f.Page, "autocomplete-source");
-        input.RaiseEvent(Press(Key.Down));
+        Require(input.HighlightedCandidate == source, "The one source match was not highlighted: " + input.HighlightedCandidate?.Value);
         input.RaiseEvent(Press(Key.Enter));
         await Program.WaitUntilAsync(() => f.Chips().Contains("silver_hair"), () => "Source tag was not added: " + string.Join("|", f.Chips()));
         await f.SettleAsync();
@@ -411,7 +414,7 @@ internal static class PrivateTagBarChecks
         await f.SettleAsync();
         Require(f.Chips().Length == 0 && f.Stored().TagsOf(Plain).Count == 0 && f.Stored().Tags.Count == tags,
             "Autocomplete cleanup left tags on the plain thread or in the vocabulary.");
-        Console.WriteLine("SMOKE private-tags autocomplete [en]: word-start match with uses, Down+Enter adds, assigned tag hidden, Escape closes list first, Tab completes, comma adds, Danbooru source tag group creates an own tag.");
+        Console.WriteLine("SMOKE private-tags autocomplete [en]: word-start match with uses, the one match highlighted and Enter adds it, assigned tag hidden, Escape closes list first, Tab completes, comma adds, Danbooru source tag group creates an own tag.");
     }
 
     private static async Task RestartAndDamageAsync(MainWindow owner, string profile)
