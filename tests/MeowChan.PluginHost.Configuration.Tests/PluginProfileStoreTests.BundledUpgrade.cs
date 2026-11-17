@@ -133,7 +133,8 @@ public sealed partial class PluginProfileStoreTests
     [InlineData("ambiguous-plugin", false)]
     [InlineData("ambiguous-slot", false)]
     [InlineData("unproven-old", false)]
-    [InlineData("pin", false)]
+    // #130 (17.11.): a pinned release follows its identical same-path rebuild of the same version; the pin moves along.
+    [InlineData("pin", true)]
     public async Task AutomaticInPlaceRebuildDoesNotBroadenEligibility(string guard, bool carriesOver)
     {
         var old = await Delivered("guard-install", "one", source: true);
@@ -191,7 +192,10 @@ public sealed partial class PluginProfileStoreTests
             {
                 Assert.Equal(next.Candidate.Artifact!.ExecutionRevision, Active(state).ExecutionRevision);
                 Assert.Equal(old.Candidate.Artifact!.ExecutionRevision, state.Plugins[0].LastGood!.ExecutionRevision);
-                Assert.Null(state.Plugins[0].Problem); Assert.Null(state.Plugins[0].Pending);
+                Assert.Equal(guard == "pin" && restart == 0 ? PluginActivationProblems.PinnedReleaseUpdatedInPlace : null, state.Plugins[0].Problem);
+                Assert.Null(state.Plugins[0].Pending);
+                if (guard == "pin") Assert.Equal(next.Candidate.Artifact.ExecutionRevision, state.Plugins[0].Pinned!.ExecutionRevision);
+                else Assert.Null(state.Plugins[0].Pinned);
                 Assert.Empty((await Store().PreviewBundledRepairsAsync()).Rows);
                 continue;
             }

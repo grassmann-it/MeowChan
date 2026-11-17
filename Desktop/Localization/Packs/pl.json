@@ -1208,6 +1208,7 @@
     "plugins.changedBuild": "Zmieniona kompilacja",
     "plugins.rollbackPinned": "Przypięto ostatnią dobrą zapisaną kompilację",
     "plugins.rollbackPinnedHint": "Zapisana kopia wycofania pozostaje przypięta, dopóki kandydat nie zostanie jawnie wybrany.",
+    "plugins.pinnedReleaseUpdatedHint": "To uruchomienie zaktualizowało na miejscu przypiętą wersję {0} do bieżącej dołączonej kompilacji tej samej wersji. Pozostaje przypięta; poprzednia kompilacja jest zachowana do wycofania.",
     "plugins.capability.threadRead": "Odczyt wątków",
     "plugins.capability.boardCatalog": "Katalogi tablic",
     "plugins.capability.postCapture": "Przechwytywanie postów",

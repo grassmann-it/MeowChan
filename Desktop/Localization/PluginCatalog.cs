@@ -130,6 +130,8 @@ internal static class PluginCatalog
         ("plugins.changedBuild", "Changed build", "Geänderter Build"),
         ("plugins.rollbackPinned", "Last good saved build pinned", "Letzte gute gespeicherte Fassung angeheftet"),
         ("plugins.rollbackPinnedHint", "The saved rollback stays pinned until a candidate is explicitly selected.", "Der gespeicherte Rückfall bleibt angeheftet, bis ein Kandidat ausdrücklich gewählt wird."),
+        // #130: shown once, on the first start after a pinned bundled release followed its in-place rebuild of the same version.
+        ("plugins.pinnedReleaseUpdatedHint", "This start updated the pinned release {0} in place to the current bundled build of the same version. It stays pinned; the previous build is kept for rollback.", "Dieser Start hat die angeheftete Version {0} an Ort und Stelle auf den aktuellen mitgelieferten Build derselben Version aktualisiert. Sie bleibt angeheftet; der vorherige Build bleibt für einen Rückfall erhalten."),
         ("plugins.capability.threadRead", "Read threads", "Threads lesen"),
         ("plugins.capability.boardCatalog", "Board catalogs", "Boardkataloge"),
         ("plugins.capability.postCapture", "Capture posts", "Posts erfassen"),

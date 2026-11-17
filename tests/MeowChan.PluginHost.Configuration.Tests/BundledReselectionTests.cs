@@ -225,7 +225,9 @@ public sealed partial class PluginProfileStoreTests
         Assert.Equal(old.Candidate.Artifact!.ExecutionRevision, state.Plugins[0].Pinned!.ExecutionRevision);
 
         var current = await Delivered("pinned-current-build", "two");
-        state = await store.ApplyBundledStartupAsync([current.Candidate], [current.Proof], [], state.Revision);
+        // Since #130 the fixed app carries such a same-release rebuild over automatically; a profile left stale by an
+        // earlier app (here: a host without a serialized live permission authority) keeps this explicit recovery route.
+        state = await StalePinnedStartupStore().ApplyBundledStartupAsync([current.Candidate], [current.Proof], [], state.Revision);
         var preview = await store.PreviewBundledReselectionsAsync();
         var row = Assert.Single(preview.Rows);
         Assert.True(row.CanConfirm, row.BlockedReason);
@@ -253,14 +255,14 @@ public sealed partial class PluginProfileStoreTests
         foreach (string build in new[] { "two", "three", "four" })
         {
             var historical = await Delivered("pinned-historical", build, source: true, settings: NumberSchema("1", 42));
-            state = await store.ApplyBundledStartupAsync([historical.Candidate], [historical.Proof], [], state.Revision);
+            state = await StalePinnedStartupStore().ApplyBundledStartupAsync([historical.Candidate], [historical.Proof], [], state.Revision);
         }
         var current = await Delivered("pinned-historical", "current", source: true, settings: NumberSchema("1", 42));
         current = await Redeclared(current, description => description with
         {
             Sources = [description.Sources[0] with { PostOrder = PostOrderKind.DecimalPostId }]
         });
-        state = await store.ApplyBundledStartupAsync([current.Candidate], [current.Proof], [], state.Revision);
+        state = await StalePinnedStartupStore().ApplyBundledStartupAsync([current.Candidate], [current.Proof], [], state.Revision);
 
         var preview = await store.PreviewBundledReselectionsAsync();
         var row = Assert.Single(preview.Rows);
@@ -272,6 +274,10 @@ public sealed partial class PluginProfileStoreTests
         Assert.Null(state.Plugins[0].Pinned);
         Assert.Equal(42, Number(state.Plugins[0].Pending!));
     }
+
+    /// <summary>Records current delivery proof but never updates automatically (no serialized live permission authority),
+    /// like an app before #130 that left a pinned bundled plugin stale. Used to reach the explicit recovery route.</summary>
+    private PluginProfileStore StalePinnedStartupStore() => new(profile, static _ => true, () => Array.Empty<string>());
 
     [Fact]
     public async Task PinnedMissingCandidateCannotBeUnpinnedByNewSelection()

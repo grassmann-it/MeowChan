@@ -1514,6 +1514,7 @@
     "plugins.changedBuild": "已更改的构建",
     "plugins.rollbackPinned": "已固定上一个正常保存的构建",
     "plugins.rollbackPinnedHint": "在手动选择候选版本之前，已保存的回滚会保持固定。",
+    "plugins.pinnedReleaseUpdatedHint": "本次启动已将固定的版本 {0} 就地更新为同一版本的当前内置构建。它仍保持固定；之前的构建会保留用于回滚。",
     "plugins.capability.threadRead": "读取串",
     "plugins.capability.boardCatalog": "版块目录",
     "plugins.capability.postCapture": "抓取帖子",

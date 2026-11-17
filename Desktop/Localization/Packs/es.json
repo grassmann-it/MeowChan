@@ -1693,6 +1693,7 @@
     "plugins.changedBuild": "Compilación modificada",
     "plugins.rollbackPinned": "Última compilación válida guardada fijada",
     "plugins.rollbackPinnedHint": "La versión guardada para volver atrás sigue fijada hasta seleccionar explícitamente un candidato.",
+    "plugins.pinnedReleaseUpdatedHint": "Este inicio actualizó en su sitio la versión fijada {0} a la compilación incluida actual de la misma versión. Sigue fijada; la compilación anterior se conserva para volver atrás.",
     "plugins.capability.threadRead": "Leer hilos",
     "plugins.capability.boardCatalog": "Catálogos de tablones",
     "plugins.capability.postCapture": "Capturar publicaciones",
