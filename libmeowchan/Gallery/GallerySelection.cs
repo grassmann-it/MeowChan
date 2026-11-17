@@ -80,6 +80,22 @@ public static class GallerySelection
         for (int index = 0; reliable && index < entries.Count; index++)
             if (entries[index].AttachmentResolution is null or { IsLegacy: true } && !bound.Contains(entries[index].Key))
                 entries[index] = entries[index] with { LocalTagEligible = true };
+
+        // The archive menu opens a whole thread, so its first gallery item must be the first
+        // post's first saved medium. Keep that invariant even when manifests arrive in a
+        // different order or a legacy binding was appended after the loose-file pass.
+        // Unassigned files remain useful, but come after post-bound entries.
+        entries.Sort((left, right) =>
+        {
+            int leftPost = left.Post == null ? int.MaxValue : thread.FindPostIndex(left.Post.PostId);
+            int rightPost = right.Post == null ? int.MaxValue : thread.FindPostIndex(right.Post.PostId);
+            int comparison = leftPost.CompareTo(rightPost);
+            if (comparison != 0) return comparison;
+            comparison = (left.Attachment?.Position ?? int.MaxValue).CompareTo(right.Attachment?.Position ?? int.MaxValue);
+            if (comparison != 0) return comparison;
+            comparison = string.Compare(left.Asset.AssetId, right.Asset.AssetId, StringComparison.Ordinal);
+            return comparison != 0 ? comparison : string.Compare(left.Key.Directory, right.Key.Directory, StringComparison.Ordinal);
+        });
         return new GalleryThreadResult(Array.AsReadOnly(entries.ToArray()), Array.AsReadOnly(warnings.ToArray()));
 
         void AppendPost(CapturedPost post)

@@ -212,6 +212,17 @@ public partial class ArchivePage
     // slot handler. The sidebar can be a sibling of the pane, so it must route configured reader view options too.
     private bool TryRouteSidebarSelectionShortcut(ReaderMediaSidebar sidebar, KeyEventArgs e)
     {
+        // Shift+Enter is the explicit "open in gallery" gesture. A focused strip item is
+        // otherwise a native ListBox selection, so it consumes the routed key before the
+        // reader can see it. Route the gallery command at the sidebar boundary while
+        // leaving plain Enter/Space selection untouched.
+        if (CommandBindings.Matches(e, "gallery.open") && e.Source is Visual gallerySource
+            && gallerySource.GetSelfAndVisualAncestors().Any(node => ReferenceEquals(node, sidebar)))
+        {
+            e.Handled = true;
+            OpenMediaSidebarMedia();
+            return true;
+        }
         if (ReaderSelectionOwnsActivationKey(e)) return false;
         bool inStrip = e.Source is Visual source
             && source.GetSelfAndVisualAncestors().Any(node => ReferenceEquals(node, sidebar.Strip));
