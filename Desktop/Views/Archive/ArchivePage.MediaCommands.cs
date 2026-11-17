@@ -24,6 +24,11 @@ public partial class ArchivePage
     internal ContextMenu? ArchiveMediaMenu => _mediaMenuPresenter.Menu;
     internal MediaMenuSession? ArchiveMediaMenuSession => _mediaMenuPresenter.Session;
     internal Func<GalleryEntry, bool>? IsArchiveFavorite { get; set; }
+    /// <summary>
+    /// True when the favorites file could not be read: every star of the page is then off (disabled, its tooltip says why) and the favorite keys refuse.
+    /// Null (nothing wired) counts as readable. Never throws.
+    /// </summary>
+    internal Func<bool>? ArchiveFavoritesUnreadable { get; set; }
     internal Func<GalleryEntry, Task>? ToggleArchiveFavoriteAsync { get; set; }
     internal Func<GalleryEntry, Task>? EditArchiveMediaTagsAsync { get; set; }
     /// <summary>
@@ -57,7 +62,8 @@ public partial class ArchivePage
         foreach (ArchiveAssetRow row in _assets)
         {
             GalleryEntry entry = Entry(row);
-            row.FavoriteAvailable = () => _available && !_ended && ToggleArchiveFavoriteAsync != null;
+            row.FavoriteAvailable = () => _available && !_ended && ToggleArchiveFavoriteAsync != null && ArchiveFavoritesUnreadable?.Invoke() != true;
+            row.FavoriteHold = () => ArchiveFavoritesUnreadable?.Invoke() == true ? FavoriteStarHold.Unreadable : FavoriteStarHold.None;
             row.IsFavorite = () => IsArchiveFavorite?.Invoke(entry) == true;
             row.ToggleFavoriteAsync = () => ToggleArchiveMediaFavoriteAsync(entry);
             row.FavoriteError = () => _favoriteErrors.GetValueOrDefault(FavoriteAssetKey.From(entry.Key.Thread, entry.Asset));
@@ -68,7 +74,10 @@ public partial class ArchivePage
                 {
                     ArchiveAssetRow? match = FindMatchingAsset(threadId, post.Id, row.Attachment, _assets);
                     GalleryEntry? entry = match == null ? null : Entry(match);
-                    row.FavoriteAvailable = () => _available && !_ended && entry != null && ToggleArchiveFavoriteAsync != null;
+                    row.FavoriteAvailable = () => _available && !_ended && entry != null && ToggleArchiveFavoriteAsync != null && ArchiveFavoritesUnreadable?.Invoke() != true;
+                    // No saved file known for it yet while the thread's media scan runs: "checking", not a permanent-looking "no saved version" (AR-04).
+                    row.FavoriteHold = () => ArchiveFavoritesUnreadable?.Invoke() == true ? FavoriteStarHold.Unreadable
+                        : entry == null && _mediaLoading ? FavoriteStarHold.Loading : FavoriteStarHold.None;
                     row.IsFavorite = () => entry != null && IsArchiveFavorite?.Invoke(entry) == true;
                     row.ToggleFavoriteAsync = () => entry == null ? Task.CompletedTask : ToggleArchiveMediaFavoriteAsync(entry);
                     row.FavoriteError = () => entry == null ? null : _favoriteErrors.GetValueOrDefault(FavoriteAssetKey.From(entry.Key.Thread, entry.Asset));

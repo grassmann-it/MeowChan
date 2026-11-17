@@ -86,7 +86,8 @@ public sealed class ReaderPostStarTests : IDisposable
         // The reason is the tooltip, shown on the disabled star too.
         string button = Source("Desktop/ArchiveFavoriteButton.cs");
         Assert.Contains("ToolTip.SetShowOnDisabled(this, true);", button);
-        Assert.Contains(": IsEnabled ? label : Texts.T(\"archive.notSaved\");", button);
+        Assert.Contains(": IsEnabled ? label : HoldText(hold);", button);
+        Assert.Equal(Texts.T("archive.notSaved"), ArchiveFavoriteButton.HoldText(FavoriteStarHold.None));
         Assert.Equal("No saved version of this attachment is available.", Texts.T("archive.notSaved"));
     }
 

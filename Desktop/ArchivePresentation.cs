@@ -57,6 +57,8 @@ internal sealed record ArchiveAttachmentRow(CapturedAttachment Attachment)
     public Func<bool>? IsFavorite { get; set; }
     public Func<Task>? ToggleFavoriteAsync { get; set; }
     public Func<string?>? FavoriteError { get; set; }
+    /// <summary>Why the star is off while <see cref="FavoriteAvailable"/> says no (still scanning, favorites unreadable); null: no specific reason.</summary>
+    public Func<FavoriteStarHold>? FavoriteHold { get; set; }
     public bool LargePreview { get; init; }
     /// <summary>A row of the thread list (a small thumbnail in a fixed slot): one trimmed file line, the picture centred in its slot. Reader posts wrap the line.</summary>
     public bool Compact { get; init; }
@@ -318,6 +320,8 @@ internal sealed record ArchiveAssetRow(MediaAssetSnapshot Manifest, MediaAssetRe
     public Func<bool>? IsFavorite { get; set; }
     public Func<Task>? ToggleFavoriteAsync { get; set; }
     public Func<string?>? FavoriteError { get; set; }
+    /// <summary>Why the star is off while <see cref="FavoriteAvailable"/> says no (still scanning, favorites unreadable); null: no specific reason.</summary>
+    public Func<FavoriteStarHold>? FavoriteHold { get; set; }
     public string Name => Asset.OriginalFileName ?? System.IO.Path.GetFileName(Asset.Path);
     public string Size => SizeText.Format(Asset.Length);
     public string TileSummary => Size + " · " + Texts.T(Asset.IsCurrent ? "gallery.latestVersions" : "gallery.earlierVersion");

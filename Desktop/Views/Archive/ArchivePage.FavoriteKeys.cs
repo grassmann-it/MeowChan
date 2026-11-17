@@ -7,6 +7,7 @@ using Avalonia.Input;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 
 namespace MeowChan;
@@ -87,8 +88,10 @@ public partial class ArchivePage
     private async Task WriteFavoriteKeyAsync(FavoriteKeyAction action, IReadOnlyList<GalleryEntry> targets)
     {
         if ((EffectiveArchiveFavorite ?? IsArchiveFavorite) is not { } isFavorite) return;
-        bool?[] marked = targets.Select(entry => (bool?)isFavorite(entry)).ToArray();
         Action<string> reportError = CaptureActionErrorReporter();
+        // The stars are off for an unreadable favorites file, so the keys say the same and write nothing (the file is never rewritten from here).
+        if (ArchiveFavoritesUnreadable?.Invoke() == true) { reportError(Texts.T("archive.favoritesUnreadable")); return; }
+        bool?[] marked = targets.Select(entry => (bool?)isFavorite(entry)).ToArray();
         foreach ((int index, bool selected) in FavoriteKeys.Writes(action, marked))
         {
             if (_ended) return;
