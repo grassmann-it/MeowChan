@@ -9,6 +9,7 @@
     <AvaloniaAccessUnstablePrivateApis>true</AvaloniaAccessUnstablePrivateApis>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Avalonia.Headless" Version="12.1.4" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
     <PackageReference Include="xunit" Version="2.9.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2">
@@ -28,6 +29,9 @@
     <Compile Include="../MeowChan.DesktopSmoke/SmokeStartupDiagnostics.cs" Link="TestSupport/SmokeStartupDiagnostics.cs" />
     <Compile Include="../MeowChan.DesktopSmoke/GalleryNativePointerProbe.cs" Link="TestSupport/GalleryNativePointerProbe.cs" />
     <Compile Include="../MeowChan.DesktopSmoke/SmokeVisualTree.cs" Link="TestSupport/SmokeVisualTree.cs" />
+    <!-- These test the Debug-only acceptance harness, not product behavior; unchanged assertions run in Debug. -->
+    <Compile Include="../Shared/Apphost/ApphostAcceptanceAssertions.cs;../Shared/Apphost/ApphostPlaybackDiagnostics.cs" Condition="'$(Configuration)' != 'Debug'" />
+    <Compile Remove="Apphost*SmokeTests.cs" Condition="'$(Configuration)' != 'Debug'" />
     <Using Include="Xunit" />
   </ItemGroup>
 </Project>

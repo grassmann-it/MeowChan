@@ -82,7 +82,22 @@ public partial class ArchivePage
         ReaderMediaSidebarToggle.Click += (_, e) => { e.Handled = true; ToggleMediaSidebar(); RefreshMediaSidebarToggle(); };
         // The toolbar travels with the reader. Refresh on layout as well as preference changes:
         // host, dialog, language and shortcut changes must not leave a stale On/Off action.
-        ReaderMediaSidebarToggle.LayoutUpdated += (_, _) => RefreshMediaSidebarToggle();
+        bool subscribed = false;
+        void OnSidebarToggleLayoutUpdated(object? sender, EventArgs e) => RefreshMediaSidebarToggle();
+        void SubscribeLayout(object? sender, Avalonia.VisualTreeAttachmentEventArgs e)
+        {
+            if (subscribed) return;
+            ReaderMediaSidebarToggle.LayoutUpdated += OnSidebarToggleLayoutUpdated;
+            subscribed = true;
+        }
+        void UnsubscribeLayout(object? sender, Avalonia.VisualTreeAttachmentEventArgs e)
+        {
+            if (!subscribed) return;
+            ReaderMediaSidebarToggle.LayoutUpdated -= OnSidebarToggleLayoutUpdated;
+            subscribed = false;
+        }
+        ReaderMediaSidebarToggle.AttachedToVisualTree += SubscribeLayout;
+        ReaderMediaSidebarToggle.DetachedFromVisualTree += UnsubscribeLayout;
         RefreshMediaSidebarToggle();
         ArchivePosts.SelectionChanged += (_, _) => OnMediaSidebarSelectionChanged();
         // The archive view: the pane gets posts, splitter and sidebar columns.
@@ -657,7 +672,7 @@ public partial class ArchivePage
         CancellationTokenSource? loading = _sidebarLoading;
         _sidebarLoading = null;
         try { loading?.Cancel(); } catch (ObjectDisposedException) { }
-        loading?.Dispose();
+        // The running task owns disposal, including non-cooperative decodes after cancellation.
     }
 
     private void RefreshMediaSidebar()
@@ -729,11 +744,18 @@ public partial class ArchivePage
             if (sidebar.Load.ShownSource is { } source)
                 sidebar.LimitPicture(ReaderMediaSidebarRules.MaximumDisplay(source.Width, _sidebarFit), ReaderMediaSidebarRules.MaximumDisplay(source.Height, _sidebarFit));
             ScheduleSidebarVideoAutoplay();
-            MediaSidebarTask = RewarmMediaSidebarNeighboursAsync(post, target, loading.Token);
+            MediaSidebarTask = RunMediaSidebarLoadAsync(loading, token => RewarmMediaSidebarNeighboursAsync(post, target, token));
             return;
         }
-        MediaSidebarTask = LoadMediaSidebarAsync(sidebar, post, row, size, mediumKey, ticket, target, loading.Token);
+        MediaSidebarTask = RunMediaSidebarLoadAsync(loading,
+            token => LoadMediaSidebarAsync(sidebar, post, row, size, mediumKey, ticket, target, token));
     }
+
+    private Task RunMediaSidebarLoadAsync(CancellationTokenSource loading, Func<CancellationToken, Task> work) =>
+        CancellationWork.RunAsync(loading, work, () =>
+        {
+            if (ReferenceEquals(_sidebarLoading, loading)) _sidebarLoading = null;
+        });
 
     // Whether any post of the open thread has an attachment (the sidebar's "This thread has no media" is about the whole thread); one scan per thread read.
     private object? _sidebarMediaScanned;
@@ -761,7 +783,7 @@ public partial class ArchivePage
         CancellationTokenSource? loading = _sidebarStripLoading;
         _sidebarStripLoading = null;
         try { loading?.Cancel(); } catch (ObjectDisposedException) { }
-        loading?.Dispose();
+        // The running task owns disposal, including non-cooperative decodes after cancellation.
     }
 
     // The strip shows the files of the focused post (at most the configured number at once); only a new layout (another post, another
@@ -779,7 +801,11 @@ public partial class ArchivePage
         if (missing.Count == 0) return;
         CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         _sidebarStripLoading = loading;
-        MediaSidebarStripTask = LoadSidebarStripAsync(sidebar, post, missing, loading.Token);
+        MediaSidebarStripTask = CancellationWork.RunAsync(loading,
+            token => LoadSidebarStripAsync(sidebar, post, missing, token), () =>
+            {
+                if (ReferenceEquals(_sidebarStripLoading, loading)) _sidebarStripLoading = null;
+            });
     }
 
     private async Task LoadSidebarStripAsync(ReaderMediaSidebar sidebar, ArchivePostRow post, IReadOnlyList<int> indexes, CancellationToken token)

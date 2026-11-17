@@ -294,15 +294,15 @@ public sealed class ViewerQuickWinsTests : IDisposable
     // ---- shortcuts ----
 
     [Theory]
-    [InlineData("video.seek-back", "Primary+Left")]
-    [InlineData("video.seek-forward", "Primary+Right")]
+    [InlineData("video.seek-back", "Alt+Left")]
+    [InlineData("video.seek-forward", "Alt+Right")]
     [InlineData("video.seek-back-far", "Primary+Shift+Left")]
     [InlineData("video.seek-forward-far", "Primary+Shift+Right")]
     [InlineData("video.mute", "Shift+M")]
-    [InlineData("video.snapshot", "S")]
+    [InlineData("video.snapshot", "Shift+S")]
     [InlineData("video.speed-down", "OemOpenBrackets")]
     [InlineData("video.speed-up", "OemCloseBrackets")]
-    [InlineData("video.speed-reset", "Back")]
+    [InlineData("video.speed-reset", "Shift+Back")]
     public void TheNewGalleryCommandsHaveTheirDefaultsInTheirExecutionContexts(string id, string shortcut)
     {
         CommandDefinition command = CommandCatalog.Get(id);
@@ -321,7 +321,7 @@ public sealed class ViewerQuickWinsTests : IDisposable
         Assert.Equal(new[] { "M" }, bindings.For("favorites.add").Select(gesture => gesture.Key).ToArray());
         Assert.Contains(bindings.For("favorites.remove"), gesture => gesture.Key == "U" && gesture.Modifiers.Count == 0);
         Assert.Contains(bindings.For("favorites.toggle"), gesture => gesture.Key == "F" && gesture.Modifiers.Count == 0);
-        Assert.Contains(bindings.For("gallery.slideshow-toggle"), gesture => gesture.Key == "D" && gesture.Modifiers.Count == 0);
+        Assert.Contains(bindings.For("gallery.slideshow-toggle"), gesture => gesture.Key == "D" && gesture.Modifiers.SequenceEqual(new[] { "Shift" }));
         // The "<" / ">" alias of the speed keys is gone: Shift+. is the next frame and "," / "." seek by the step setting. Revision 14 adds X and C
         // next to [ and ] (the brackets need AltGr on German and French layouts).
         Assert.Equal(new[] { "OemOpenBrackets", "X" }, bindings.For("video.speed-down").Select(gesture => gesture.Key).ToArray());
@@ -356,11 +356,11 @@ public sealed class ViewerQuickWinsTests : IDisposable
     [Fact]
     public void ASavedBindingOfAnotherGalleryCommandWinsOverANewSeekDefault()
     {
-        // A profile that bound Ctrl+Left to "previous medium" before the seek default existed keeps it.
+        // A profile that bound Alt+Left to "previous medium" before the seek default existed keeps it.
         ShortcutBindingsSection section = new ShortcutBindingsSection().Set("gallery.previous",
-            new[] { ShortcutGesture.Parse("Primary+Left") });
+            new[] { ShortcutGesture.Parse("Alt+Left") });
         EffectiveShortcutBindings bindings = EffectiveShortcutBindings.Build(section, ShortcutPlatform.Linux);
-        Assert.Contains(bindings.For("gallery.previous"), gesture => gesture.Key == "Left" && gesture.Modifiers.SequenceEqual(new[] { "Primary" }));
+        Assert.Contains(bindings.For("gallery.previous"), gesture => gesture.Key == "Left" && gesture.Modifiers.SequenceEqual(new[] { "Alt" }));
         Assert.Empty(bindings.For("video.seek-back"));
         Assert.DoesNotContain(bindings.Issues, issue => issue.BlocksSave);
     }

@@ -688,7 +688,7 @@ in a note, not replaced by another one. A file without a post offers no jump.
 
 Favorites use the same keys everywhere (gallery, large reader and its media sidebar, the
 Archive's media and the Media page's grid and panel): **M** adds the medium to the favorites,
-**U** removes it and **F** toggles it. In the gallery **D** starts or pauses the slideshow.
+**U** removes it and **F** toggles it. In the gallery **Shift+D** starts or pauses the slideshow.
 In the gallery and on the Media page, **I** opens the media
 details, **R** the rating, **Ctrl+E** the export of the original and **Ctrl+O** the
 file in its folder. In the large reader, **F3** and
@@ -708,11 +708,13 @@ More defaults that are easy to miss (F1 lists every key of the current area):
 | Alt+Home / Alt+End | Tagging page: move the entry to the start / the end of the queue |
 | Ctrl+Shift+C | Copy the file path of a medium, or the link of the selected reader post |
 | H | Reader: hide the selected post |
-| Ctrl+Left / Ctrl+Right | Video: back / forward 5 seconds (add Shift for 30 seconds) |
+| Alt+Left / Alt+Right | Video: back / forward 5 seconds; Ctrl+Shift+Left / Ctrl+Shift+Right seek 30 seconds |
+| Shift+Up / Shift+Down | Video: increase / decrease volume |
+| Ctrl+Alt+Enter | Open the embedded reader in the large reader |
 | , / . | Video: back / forward by the seek step (default 5 seconds) |
 | Shift+. | Video: next frame |
-| [ / ] or X / C | Video: slower / faster; Backspace sets the normal speed |
-| L / A / S | Video: repeat / A–B loop / save the frame as an image |
+| [ / ] or X / C | Video: slower / faster; Shift+Backspace sets the normal speed |
+| L / A / Shift+S | Video: repeat / A–B loop / save the frame as an image |
 | Shift+M | Mute or unmute a video |
 | Shift+H, Shift+I, Shift+N, Shift+L, Shift+O, Shift+P, Shift+K, Shift+T | Gallery: show or hide tools, info line, hints, filmstrip, controls overlay, post context, cards (Tagging mode), switch View / Tag |
 
@@ -1590,21 +1592,22 @@ A media-only item can have no captured post. In the gallery, **Shift+P** toggles
 keyboard help. Gallery panel and playback keys follow one scheme: **Shift** plus a
 letter shows or hides a panel or block; a plain letter acts on playback or the
 shown medium. Thus **Shift+K** toggles **Card mode on / off** (German:
-**Kartenmodus ein / aus**) in tagging mode, **D** starts or pauses **Start / pause
+**Kartenmodus ein / aus**) in tagging mode, **Shift+D** starts or pauses **Start / pause
 slideshow** (German: **Diashow starten / pausieren**), **Shift+P** performs **Show post
 context** (German: **Post-Kontext anzeigen**) and **Shift+L** is the filmstrip key.
-**S** saves a video frame as an image, **L** repeats a video, and **A** controls
+**Shift+S** saves a video frame as an image, **L** repeats a video, and **A** controls
 the A–B loop. Favorites use one scheme everywhere: **M** adds the favorite
 (German: **Favorit hinzufügen**), **U** removes it and **F** toggles it; there is no
 **B** key any more. The explicit add/remove actions set the mark rather than
 toggling it, and **F** on a saved favorite in the gallery asks before it removes
-the mark. **Shift+M** mutes and unmutes a video, one of two exceptions to the Shift rule
-besides **Shift+R** (rotate), because **M** is taken by the favorite. A favorite badge
+the mark. **Shift+M** mutes and unmutes a video because **M** is taken by the favorite.
+It joins **Shift+R** (rotate), **Shift+S** (snapshot) and **Shift+D** (slideshow)
+as shifted actions rather than panel switches. A favorite badge
 with a **★ / ☆** sits beside **Back to …** at the upper left; it shows favorite /
 not favorite, a click toggles it, and **…** indicates a pending save. These are
-default bindings; customized shortcuts still apply. Space plays or pauses an active local video. **Up/Down** raises/lowers
-available video volume without changing Playing/Paused; in the reader those keys
-still navigate posts. Manual mute/unmute survives media changes within the same
+default bindings; customized shortcuts still apply. Space plays or pauses an active local video. **Shift+Up/Shift+Down** raises/lowers
+available video volume without changing Playing/Paused; unmodified **Up/Down**
+still navigate posts in the reader. Manual mute/unmute survives media changes within the same
 open gallery. A user volume change to a positive value unmutes; reopening the
 gallery uses the saved **Start videos muted** preference, not the last manual mute choice.
 
@@ -1932,7 +1935,7 @@ the post's commands. There is no extra modifier key for this.
   (**R**, **Shift+1** to **Shift+5**, **Shift+0**, **Ctrl+Shift+T**) act on the focused
   medium or, from a post, on the post's medium. In the large reader the video keys do the
   same: **Space**, **Shift+M** (mute), **L** (repeat), **,** and **.** (seek step),
-  **X** and **C** (speed), **Backspace** (normal speed) and **Shift+.** (next frame).
+  **X** and **C** (speed), **Shift+Backspace** (normal speed) and **Shift+.** (next frame).
   They need a medium and, apart from Space, a player that is already running.
 - **Movement belongs to the reader.** **Up/Down**, **PageUp/PageDown** and **Home/End**
   move through posts whatever is focused, even on a video. **Left/Right** seek only on a
@@ -1943,9 +1946,9 @@ the post's commands. There is no extra modifier key for this.
   mean the medium when a medium has the focus (export the file, show it in its folder, copy
   its path, show in the thread, details) and the post or thread when a post has it.
 - **View keys stay in the gallery:** zoom, rotate, the **Shift+letter** panels, the
-  slideshow (**D**), **S** (save frame), **A** (A–B loop), volume and the **Ctrl+Left** /
-  **Ctrl+Right** seek. The queue key **Q** and the video keys in the embedded reader are
-  not available from the reader yet; use the context menu for the queue.
+  slideshow (**Shift+D**), **Shift+S** (save frame), **A** (A–B loop), volume
+  (**Shift+Up** / **Shift+Down**) and the **Alt+Left** / **Alt+Right** seek. The queue
+  key **Q** and the video keys in the embedded reader are not available from the reader yet; use the context menu for the queue.
 
 ### Gallery Fit enlargement
 
@@ -2229,14 +2232,14 @@ moves it, and the context menu changes its state. **Remove finished** and
 files stay in the queue and are reported rather than silently marked finished.
 
 In a walk, the gallery opens in **tagging mode** with progress and decision
-buttons. Outside the tag panel, **Enter** marks the medium finished and advances
-to the next open one, **Space** skips it and **Backspace** undoes the newest step;
+buttons. Outside the tag panel, **Ctrl+Enter** (Command+Enter) marks the medium finished
+and advances to the next open one, **S** skips it and **Backspace** undoes the newest step;
 undoing a queue decision returns to that medium. If there is no step, Backspace
 only goes back. Inside the tag panel, typing and chip keys keep their normal
-roles: Enter adds a typed tag, and only an empty field’s Enter finishes the medium.
+roles: Enter adds a typed tag without finishing the medium.
 Ctrl+Enter adds the typed tag and finishes. Ctrl+Shift+Enter applies the stamp and
-advances; an empty stamp or refused write leaves the medium open. **Shift+Space**
-plays/pauses video or animation outside the tag panel; Page Down/Page Up browse
+advances; an empty stamp or refused write leaves the medium open. **Space** plays/pauses
+video outside the tag panel; **Shift+Space** also plays/pauses video or animation; Page Down/Page Up browse
 without deciding. The next walk resumes at the last shown still-open entry.
 
 **Shift+K** toggles **card mode** during a walk. Keys **1–5** choose the displayed cards
@@ -2326,7 +2329,7 @@ rating, including one whose original is no longer available.
 ### Saving a video frame
 
 In the gallery, **Save frame as image** (German: **Einzelbild speichern**,
-S) saves the displayed video frame as a PNG. On first use you choose a
+Shift+S) saves the displayed video frame as a PNG. On first use you choose a
 folder for saved video frames. MeowChan remembers this dedicated folder, not the
 archive export folder; if it no longer exists, or matches the remembered export
 folder, you are asked again. You may explicitly select the export folder for

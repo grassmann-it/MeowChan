@@ -5,7 +5,7 @@ using MeowChan.Desktop.Localization;
 
 namespace MeowChan.DesktopTests;
 
-// PT3: the keys of the tagging mode (Enter done and next, Space skip, Backspace back, Shift+Space play/pause) are catalog commands of their
+// PT3: the tagging keys (Primary+Enter commit and advance, S skip, Backspace back, Shift+Space play/pause) are catalog commands of their
 // own execution context, so they never compete with Space/Enter/Backspace of the plain gallery; the stamp key is wired in the panel; the
 // texts exist in twelve languages; and the viewer and window hooks route, hold and persist as the plan says. The strip and the panel need
 // a platform (the tagging-mode smoke covers them).
@@ -21,7 +21,7 @@ public sealed class TaggingModeKeyRouteTests : IDisposable
 
     [Theory]
     [MemberData(nameof(Platforms))]
-    public void TheModeKeysAreEnterSpaceBackspaceAndShiftSpaceOnEveryPlatformWithoutIssues(ShortcutPlatform platform)
+    public void TheModeKeysResolveOnEveryPlatformWithoutIssues(ShortcutPlatform platform)
     {
         var bindings = EffectiveShortcutBindings.Build(platform: platform);
         Assert.Empty(bindings.Issues);
@@ -35,8 +35,8 @@ public sealed class TaggingModeKeyRouteTests : IDisposable
             foreach (ShortcutGesture gesture in bindings.For(id)) Assert.Null(EffectiveShortcutBindings.InvalidReason(gesture, platform));
         }
         var linux = EffectiveShortcutBindings.Build(platform: ShortcutPlatform.Linux);
-        Assert.True(linux.Matches(new KeyEventArgs { Key = Key.Enter, KeyModifiers = KeyModifiers.None }, "tags.queue.done-next"));
-        Assert.True(linux.Matches(new KeyEventArgs { Key = Key.Space, KeyModifiers = KeyModifiers.None }, "tags.queue.skip"));
+        Assert.True(linux.Matches(new KeyEventArgs { Key = Key.Enter, KeyModifiers = KeyModifiers.Control }, "tags.queue.done-next"));
+        Assert.True(linux.Matches(new KeyEventArgs { Key = Key.S, KeyModifiers = KeyModifiers.None }, "tags.queue.skip"));
         Assert.True(linux.Matches(new KeyEventArgs { Key = Key.Back, KeyModifiers = KeyModifiers.None }, "tags.queue.back"));
         Assert.True(linux.Matches(new KeyEventArgs { Key = Key.Space, KeyModifiers = KeyModifiers.Shift }, "tags.queue.play-pause"));
         Assert.False(linux.Matches(new KeyEventArgs { Key = Key.Space, KeyModifiers = KeyModifiers.Shift }, "tags.queue.skip"));
@@ -45,10 +45,10 @@ public sealed class TaggingModeKeyRouteTests : IDisposable
     [Fact]
     public void TheOwnContextKeepsThePlainGalleryKeysAsTheyAre()
     {
-        // Space still plays a video and Backspace still resets the speed outside the mode; Enter stays "read posts" in the archive.
+        // Space plays video in either mode; Shift+Backspace resets speed, leaving Backspace to queue undo.
         var bindings = EffectiveShortcutBindings.Build(platform: ShortcutPlatform.Linux);
         Assert.Equal("Space", bindings.Display("video.play-pause"));
-        Assert.Equal("Backspace", bindings.Display("video.speed-reset"));
+        Assert.Equal("Shift+Backspace", bindings.Display("video.speed-reset"));
         foreach (string id in ModeIds)
             foreach (string other in new[] { "video.play-pause", "video.speed-reset", "thread.read", "gallery.next", "media.open" })
                 Assert.False(EffectiveShortcutBindings.ContextsOverlap(id, other), id + " / " + other);

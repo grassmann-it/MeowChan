@@ -91,6 +91,13 @@ def direct_fake_command(apphost, kind, root):
 
 
 class VideoErrorContractTests(unittest.TestCase):
+    def setUp(self):
+        # Tiny ELF/process doubles have no managed PE; guard rejection has its own tests.
+        guard = mock.patch.object(runner.workflow.playback.boundary, 'managed_payload', return_value=
+            b'RunDevelopmentHost\x01\x00\x05Debug\x00\x00' + '--smoke-video-error'.encode('utf-16-le'))
+        guard.start()
+        self.addCleanup(guard.stop)
+
     def test_all_actual_error_kinds_and_required_ui_session_checks(self):
         root = Path('/owned')
         for kind in runner.KINDS:

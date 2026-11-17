@@ -148,7 +148,8 @@ public sealed class UnhandledErrorsTests
         Assert.Equal(2, Count(Source("Desktop/Views/Media/MediaSelectionTagDialog.cs"), "UnhandledErrors.TryRecover(error, \"media.selection.tags.add\")"));
         Assert.Contains("UnhandledErrors.TryRecover(error, \"inspector.gallery\")", Source("Desktop/Shell/MainWindow.ReaderActions.cs"));
         string program = Source("Program.cs");
-        Assert.Contains("UnhandledErrors.Install(failHard: StartupSmoke != null);", program);
+        Assert.Contains("UnhandledErrors.Install(failHard: false);", program);
+        Assert.Contains("UnhandledErrors.Install(failHard: true);", Source("Program.Development.cs"));
         Assert.Contains("AfterSetup(_ => UnhandledErrors.AttachDispatcher())", program);
     }
 

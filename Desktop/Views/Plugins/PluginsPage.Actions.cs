@@ -348,22 +348,6 @@ public partial class PluginsPage
         }
     }
 
-    private MenuItem CreatePluginActionMenuItem(PluginActionInvocation action, Control origin)
-    {
-        PluginCatalogEntry? entry = PluginActionEntry(action.Target);
-        string? version = action.CommandId switch
-        {
-            "plugins.select-candidate" => entry?.Candidate?.Description?.PluginVersion,
-            "plugins.rollback" => entry?.Activation?.LastGood?.Description.PluginVersion,
-            _ => null
-        };
-        string Label() => CommandCatalog.Label(action.CommandId) + (string.IsNullOrEmpty(version) ? string.Empty : " · " + version);
-        var item = CommandBindings.CreateMenuItem(action.CommandId, () => _ = ExecutePluginActionAsync(action, origin),
-            () => PluginActionUnavailableReason(action) == null, () => PluginActionUnavailableReason(action), Label);
-        item.Tag = action.CommandId;
-        return item;
-    }
-
     private MenuItem CreatePluginSourceMenuItem(PluginActionInvocation action, Control origin, string label)
     {
         // The general Watches shortcut opens this chooser; individual sources have no separate gesture.

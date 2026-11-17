@@ -84,11 +84,6 @@ public partial class ArchivePage
         if (bar.More is { IsEffectivelyVisible: true } more) return more;
         return _mediaTiles ? ArchiveMediaTiles : ArchiveMediaGrid;
     }
-    private int? CurrentMediaRating(FavoriteAssetKey key)
-    {
-        try { return GetMediaRating?.Invoke(key); }
-        catch (Exception) { return null; } // the error is shown by the rating row of the page (_mediaRatingError)
-    }
     private void UpdateMediaRatingAction()
     {
         if (this.FindControl<Button>("ArchiveEditRatingButton") is Button edit)

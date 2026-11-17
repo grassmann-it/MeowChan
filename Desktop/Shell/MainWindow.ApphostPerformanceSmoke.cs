@@ -1,3 +1,5 @@
+#if DEBUG
+using static MeowChan.Desktop.ApphostAcceptanceAssertions;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -71,3 +73,5 @@ public partial class MainWindow
         };
     }
 }
+
+#endif

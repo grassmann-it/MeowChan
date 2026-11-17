@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import math
 import os
@@ -798,9 +799,12 @@ def damage_bundle(root, artifact, runtime):
 
 
 def container_main(args):
-    report = {'schemaVersion': 1, 'scenario': args.scenario, 'passed': False, 'completed': False,
+    args.layout_only = getattr(args, 'layout_only', False)
+    report = {'configuration': 'Release' if args.layout_only else 'Debug', 'layoutOnly': args.layout_only,
+              'shippingArtifactExecuted': False, 'schemaVersion': 1, 'scenario': args.scenario, 'passed': False, 'completed': False,
               'sourceCommit': args.source_commit, 'runtime': args.runtime,
-              'scope': 'Actual production apphosts on private Xvfb/DBus; HTTP/external handoff fixture boundaries remain. '
+              'scope': ('Release package layout only; no apphost scene execution. ' if args.layout_only else
+                        'NON-SHIPPING Debug apphosts on private Xvfb/DBus; HTTP/external handoff fixture boundaries remain. ') +
                        'AppImage AppRun/extract-and-run only, no FUSE or physical audio/desktop claim.'}
     before, owned = None, False
     try:
@@ -831,7 +835,13 @@ def container_main(args):
             extract_tar(archive, artifact, root)
         report['payloadBefore'] = verify_payload(root, artifact, args.runtime)
         report['layoutChecks'] = run_layout_checks(root, artifact, args)
-        if args.scenario == 'missing-system-vlc':
+        if args.layout_only:
+            spec = importlib.util.spec_from_file_location('distribution_boundary', Path(__file__).with_name('apphost-acceptance-boundary.py'))
+            boundary = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(boundary)
+            boundary.require_release(root / artifact['apphost_member'])
+            report['executionClaim'] = False
+        elif args.scenario == 'missing-system-vlc':
             report['negative'] = run_negative(root / artifact['apphost_member'], artifact, args, 'SystemBackendUnavailable', 'missing-video')
         else:
             launcher = root / ('AppRun' if flavor == 'appimage' else artifact['apphost_member'])
@@ -842,7 +852,7 @@ def container_main(args):
                 report['extractAndRun'] = run_positive(archive, None, artifact, manifest, args, 'extract-and-run',
                                                        {'APPIMAGE_EXTRACT_AND_RUN': '1'})
         report['payloadAfter'] = verify_payload(root, artifact, args.runtime)
-        if args.scenario == 'bundled-vlc':
+        if args.scenario == 'bundled-vlc' and not args.layout_only:
             report['damage'] = damage_bundle(root, artifact, args.runtime)
             report['negative'] = run_negative(root / artifact['apphost_member'], artifact, args, 'BundleDamaged', 'damaged-video')
         if sha256(archive) != artifact['sha256'] or sha256(args.manifest) != report['manifestSha256']:
@@ -924,6 +934,8 @@ def docker_command(args, image_id, name, owner, work, evidence, scripts, fixture
                 '--package-dir', '/packages', '--manifest', '/packages/' + args.manifest.name,
                 '--source-commit', args.source_commit, '--runtime', args.runtime,
                 '--evidence-dir', '/evidence', '--work-dir', '/work', '--owner', owner, '--scenario', args.scenario]
+    if getattr(args, 'layout_only', False):
+        command.append('--layout-only')
     return command
 
 
@@ -969,10 +981,12 @@ def host_main(args):
     args.evidence = args.evidence.resolve(strict=True)
     owner = uuid.uuid4().hex
     (args.evidence / '.owner').write_text(owner)
-    report = {'schemaVersion': 1, 'sourceCommit': args.source_commit, 'runtime': args.runtime,
+    report = {'configuration': 'Release' if args.layout_only else 'Debug', 'layoutOnly': args.layout_only,
+              'shippingArtifactExecuted': False, 'schemaVersion': 1, 'sourceCommit': args.source_commit, 'runtime': args.runtime,
               'manifestSha256': sha256(args.manifest), 'docker': docker,
               'hostMachine': platform.machine(), 'minimumDiskReserveBytes': RESERVE,
-              'scope': 'Native Ubuntu 24.04 containers; real apphosts and private Xvfb/DBus. '
+              'scope': ('Release package layout only; no apphost scene execution. ' if args.layout_only else
+                        'NON-SHIPPING Debug native Ubuntu 24.04 containers; real apphosts and private Xvfb/DBus. ') +
                        'AppImage AppRun and extract-and-run, no FUSE/physical-desktop/audio claim.',
               'scenarios': [], 'passed': False, 'completed': False}
     try:
@@ -1000,7 +1014,9 @@ def host_main(args):
                             or proof.get('scenario') != scenario or proof.get('sourceCommit') != args.source_commit
                             or proof.get('runtime') != args.runtime or proof.get('manifestSha256') != report['manifestSha256']
                             or proof.get('systemVlcVerifiedBeforeAndAfter') is not True
-                            or proof.get('artifactVerifiedAfter') is not True):
+                            or proof.get('artifactVerifiedAfter') is not True
+                            or proof.get('layoutOnly') is not args.layout_only
+                            or proof.get('configuration') != report['configuration']):
                         raise ValueError('Container did not produce matching complete distribution proof')
                     result.update(passed=True, reportSha256=sha256(evidence / 'scenario.json'))
                 except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as error:
@@ -1039,6 +1055,7 @@ def parse_args(argv=None):
     if internal:
         argv.pop(0)
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--layout-only', action='store_true', help='Release layout evidence only; never a substitute for Debug acceptance')
     parser.add_argument('--package-dir', type=Path, required=True)
     parser.add_argument('--manifest', type=Path, required=True)
     parser.add_argument('--source-commit', required=True)

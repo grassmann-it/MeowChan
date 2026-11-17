@@ -424,7 +424,9 @@ def run_phase(apphost, root, phase, destination, timeout, scale, closure):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description=__doc__)
+    if workflow.playback.boundary.dry_run(argv, __file__):
+        return 0
+    parser = argparse.ArgumentParser(description=__doc__ + '\nRequires a NON-SHIPPING Debug apphost. Use APPHOST --dry-run for a routing-only check.')
     parser.add_argument('apphost', type=Path)
     parser.add_argument('--archive', type=Path, required=True)
     parser.add_argument('--archive-root', type=Path, required=True)
@@ -442,10 +444,11 @@ def main(argv=None):
     if missing:
         parser.error('Isolation dependencies missing: ' + ', '.join(missing))
     apphost = args.apphost.resolve(strict=True)
+    workflow.playback.boundary.require_debug(apphost, __file__)
     closure = plugin_archive_closure(args.archive, args.archive_root, args.archive_member, apphost)
     args.evidence_dir.mkdir(parents=True, exist_ok=False)
     destination = args.evidence_dir.resolve(strict=True)
-    report = {'schemaVersion': 1, 'passed': False, 'declaredSourceCommit': args.source_commit,
+    report = {'acceptanceConfiguration': 'Debug', 'shippingArtifactExecuted': False, 'schemaVersion': 1, 'passed': False, 'declaredSourceCommit': args.source_commit,
               'originalApphost': str(apphost), 'apphostSha256': workflow.sha256(apphost), 'phases': [],
               'sdkAccessible': False, 'nugetAccessible': False, 'networkAvailable': False,
               'installationReadOnly': True, 'relocated': True, 'isolatedDesktop': True,
