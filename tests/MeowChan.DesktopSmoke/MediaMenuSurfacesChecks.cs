@@ -97,7 +97,8 @@ internal static class MediaMenuSurfacesChecks
         ContextMenu menu = page.MediaMenu ?? throw new InvalidOperationException("A right-click on a media tile did not open the shared menu.");
         Require(menu.IsOpen && page.MediaMenuSession!.Target == MediaMenuTarget.Of(bound.Entry),
             "Right-clicking the bound tile while another tile is selected did not freeze the clicked occurrence.");
-        Require(ReferenceEquals(page.Grid.SelectedItem, other), "A right-click moved the selection.");
+        Require(ReferenceEquals(page.Grid.SelectedItem, bound) && page.Grid.Selection.Count == 1,
+            "UX-LEDGER-06: a right-click outside the selection must select the clicked tile.");
         string[] boundSnapshot = Snapshot(menu);
         Console.WriteLine("SMOKE media menu media page (bound): " + string.Join(" | ", boundSnapshot));
         RequireOrder(menu);
@@ -125,7 +126,9 @@ internal static class MediaMenuSurfacesChecks
         rows = page.Grid.ItemsSource!.Cast<MediaLibraryTileRow>().ToArray();
         bound = rows.Single(row => row.Entry.PostId == "100");
         boundControl = await ContainerAsync(page.Grid, bound.Index);
-        page.Grid.SelectedItem = rows.First(row => row != bound);
+        // Compare menus under the same selection as the pointer opening. Keyboard
+        // context invocation intentionally does not change an unrelated selection.
+        page.Grid.SelectedItem = bound;
         foreach ((Key key, KeyModifiers modifiers) in new[] { (Key.Apps, KeyModifiers.None), (Key.F10, KeyModifiers.Shift) })
         {
             boundControl.Focus();
@@ -197,9 +200,9 @@ internal static class MediaMenuSurfacesChecks
             Require(menu.IsOpen && target.AssetId == bound.Asset.AssetId && target.PostId == "100"
                 && page.ArchiveMediaMenuSession.Surface == (useTiles ? MediaMenuSurface.ArchiveTiles : MediaMenuSurface.ArchiveTable),
                 "Right-clicking the bound row while the loose row is selected did not freeze the clicked occurrence.");
-            // The platform may move the list's selection to the clicked row; the menu stays on the clicked one regardless.
-            object? selected = list is ListBox b ? b.SelectedItem : ((DataGrid)list).SelectedItem;
-            Require(ReferenceEquals(selected, looseRow) || ReferenceEquals(selected, bound), "A right-click selected a third row.");
+            // UX-LEDGER-06: the pointer target owns selection on every platform.
+            Require(page.SelectedMediaRows().Count == 1 && ReferenceEquals(page.SelectedMediaRows()[0], bound),
+                "Right-click outside the archive media selection must select the clicked row.");
             string[] snapshot = Snapshot(menu);
             Console.WriteLine("SMOKE media menu archive " + (useTiles ? "tiles" : "table") + ": " + string.Join(" | ", snapshot));
             RequireOrder(menu);
