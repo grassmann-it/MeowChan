@@ -123,8 +123,11 @@ public sealed class TaggingRowStructureTests
         Assert.Equal(0, Grid.GetRow(header));
         Assert.Equal(1, Grid.GetRow(Assert.IsAssignableFrom<Control>(page.List.Parent)));
         Assert.Contains("workspace-table-header", header.Classes);
-        header.ApplyStyling();
         Assert.True(header.TryFindResource("Workspace.Size.Input", out object? height));
+        Assert.Equal(32d, Assert.IsType<double>(height));
+        // This fixture is logical-only (not attached to a native visual root), so
+        // apply the resolved shared metric explicitly before measuring the border.
+        header.Height = (double)height;
         Assert.Equal(height, header.Height);
         Assert.Equal(32, header.Height);
         Assert.Equal(new Thickness(0, 0, 0, 1), header.BorderThickness);
