@@ -125,14 +125,14 @@ public sealed class TaggingRowStructureTests
         Assert.Contains("workspace-table-header", header.Classes);
         Assert.True(header.TryFindResource("Workspace.Size.Input", out object? height));
         Assert.Equal(32d, Assert.IsType<double>(height));
-        // Resolve the class style after capturing the resource through the logical tree.
+        Assert.True(header.TryFindResource("Workspace.Raised", out object? raised));
+        Assert.True(header.TryFindResource("Workspace.Border", out object? rule));
+        // Resolve the class style after capturing resources through the logical tree.
         header.ApplyStyling();
         Assert.Equal(height, header.Height);
         Assert.Equal(32, header.Height);
         Assert.Equal(new Thickness(0, 0, 0, 1), header.BorderThickness);
-        Assert.True(header.TryFindResource("Workspace.Raised", out object? raised));
         Assert.Equal(((ISolidColorBrush)raised!).Color, ((ISolidColorBrush)header.Background!).Color);
-        Assert.True(header.TryFindResource("Workspace.Border", out object? rule));
         Assert.Equal(((ISolidColorBrush)rule!).Color, ((ISolidColorBrush)header.BorderBrush!).Color);
         // Actual measure/arrange, not merely the Height setter.
         header.IsVisible = page.ColumnHeader.IsVisible = true;
