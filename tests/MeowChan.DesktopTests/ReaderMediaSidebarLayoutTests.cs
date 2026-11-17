@@ -47,7 +47,13 @@ public sealed class ReaderMediaSidebarLayoutTests
             Assert.False(button.IsChecked);
             Assert.Equal("Media sidebar: Off", button.Content);
             Assert.Equal(button.Content, AutomationProperties.GetName(button));
-            Assert.Equal(Ursa.Controls.OverflowMode.Never, Ursa.Controls.ToolBar.GetOverflowMode(button));
+            // 071e43347 deliberately registered this tool as Direct in every work
+            // view. Direct tools stay discoverable but overflow when they do not fit.
+            var policy = MeowChan.Desktop.WorkViews.WorkViewPolicy.Find("reader.toolbar.media-sidebar")!;
+            Assert.Equal(MeowChan.Desktop.WorkViews.Presence.Direct, policy.Barebones);
+            Assert.Equal(policy.Barebones, policy.Simple);
+            Assert.Equal(policy.Simple, policy.Advanced);
+            Assert.Equal(Ursa.Controls.OverflowMode.AsNeeded, Ursa.Controls.ToolBar.GetOverflowMode(button));
             Assert.Equal(ReaderMediaPreferences.From(new Config()), page.ReaderMedia);
             Assert.True(ReaderMediaSidebarRules.IsOn(page.ReaderMedia, largeReader: true));
             Assert.False(ReaderMediaSidebarRules.IsOn(page.ReaderMedia, largeReader: false));
@@ -95,6 +101,110 @@ public sealed class ReaderMediaSidebarLayoutTests
             Assert.True(saved.ReaderMediaSidebar || largeReader); // Embedded Off preserves the large reader's choice.
         }
         finally { large.SetValue(page, false); page.EndLifetime(); restored.EndLifetime(); }
+    });
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void SidebarUsesItsHostHeightIndependentlyOfPosts(bool largeReader, bool right) => OnDispatcher(() =>
+    {
+        ArchivePage page = Page();
+        FieldInfo large = typeof(ArchivePage).GetField("_largeReader", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        Grid pane = page.FindControl<Grid>("ArchiveReaderPane")!;
+        Control root = page.FindControl<Grid>("ArchiveRoot")!;
+        static void Layout(Control root, Size size)
+        {
+            // No window/layout manager in this fixture: settle the real visual tree.
+            for (int pass = 0; pass < 4; pass++)
+            {
+                foreach (Layoutable child in root.GetVisualDescendants().OfType<Layoutable>().Reverse()) child.InvalidateMeasure();
+                root.InvalidateMeasure();
+                root.Measure(size);
+                root.Arrange(new Rect(size));
+            }
+        }
+        try
+        {
+            page.ApplyReaderMediaPreferences(ReaderMediaPreferences.From(new Config
+            {
+                ReaderMediaSidebar = true,
+                ReaderMediaSidebarScope = Config.ReaderMediaSidebarScopeAlways,
+                ReaderMediaSidebarSide = right ? "Right" : "Left",
+                ReaderMediaSidebarMinimumWidth = Config.ReaderMediaSidebarMinimumWidthMinimum
+            }));
+            if (largeReader)
+            {
+                ((Grid)pane.Parent!).Children.Remove(pane);
+                large.SetValue(page, true);
+                root = (Control)typeof(ArchivePage).GetMethod("WrapLargeReader", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(page, new object[] { pane })!;
+            }
+            Size[] geometries = { new(1440, 720), new(1440, 900), new(1920, 1080) };
+            Layout(root, geometries[0]);
+            Assert.True(page.IsMediaSidebarShown);
+            ReaderMediaSidebar sidebar = page.MediaSidebar!;
+            Grid host = (Grid)sidebar.Parent!;
+            Assert.Equal(right ? 2 : 0, Grid.GetColumn(sidebar));
+            Assert.Equal(largeReader ? 1 : 2, Grid.GetRowSpan(sidebar));
+            foreach (bool withChrome in new[] { false, true })
+            {
+                if (withChrome)
+                {
+                    sidebar.ShowStrip(3, 0, 3, index => "file" + index, samePost: false);
+                    sidebar.VideoRow.Children.Add(new TextBlock { Text = "Transport" });
+                }
+                double previousRatio = 0, previousFrameHeight = 0, previousHostHeight = 0;
+                double? chromeHeight = null;
+                foreach (Size size in geometries)
+                {
+                    // First measure the normal stretching neighbour, then make it short.
+                    // Its content, scroll extent and header rows must not size the media.
+                    page.ReaderBox.MaxHeight = double.PositiveInfinity;
+                    page.ReaderBox.VerticalAlignment = VerticalAlignment.Stretch;
+                    Layout(root, size);
+                    double independentFrameHeight = sidebar.Frame.Bounds.Height;
+                    page.ReaderBox.MaxHeight = size.Height / 2;
+                    page.ReaderBox.VerticalAlignment = VerticalAlignment.Top;
+                    Layout(root, size);
+                    Assert.True(page.ReaderBox.Bounds.Height < host.Bounds.Height / 2);
+                    Assert.Equal(independentFrameHeight, sidebar.Frame.Bounds.Height);
+                    Assert.True(host.Bounds.Height > 0);
+                    Assert.Equal(host.Bounds.Height, sidebar.Bounds.Height);
+                    Assert.Equal(0, sidebar.TranslatePoint(default, host)!.Value.Y);
+                    Assert.Equal(0, sidebar.Padding.Top);
+                    Assert.Equal(0, sidebar.Padding.Bottom);
+                    Assert.Equal(ReaderMediaSidebar.HeaderLineHeight, sidebar.HeaderRow.Bounds.Height);
+                    Assert.Equal(sidebar.Bounds.Height - ReaderMediaSidebar.HeaderLineHeight - ReaderMediaSidebar.HeaderGap, sidebar.Card.Bounds.Height);
+                    Assert.Equal(sidebar.Bounds.Height, sidebar.Card.TranslatePoint(default, sidebar)!.Value.Y + sidebar.Card.Bounds.Height);
+                    double chrome = sidebar.Bounds.Height - sidebar.Frame.Bounds.Height;
+                    chromeHeight ??= chrome;
+                    Assert.Equal(chromeHeight.Value, chrome);
+                    double ratio = sidebar.Frame.Bounds.Width * sidebar.Frame.Bounds.Height / (sidebar.Bounds.Width * sidebar.Bounds.Height);
+                    Assert.True(ratio >= previousRatio, $"Media/pane area fell from {previousRatio} to {ratio} at {size}");
+                    if (previousHostHeight > 0)
+                        Assert.Equal(host.Bounds.Height - previousHostHeight, sidebar.Frame.Bounds.Height - previousFrameHeight);
+                    Console.WriteLine($"HEIGHT large={largeReader} right={right} chrome={withChrome} size={size} host={host.Bounds.Height} sidebar={sidebar.Bounds.Height} frame={sidebar.Frame.Bounds.Height} ratio={ratio:F6}");
+                    previousRatio = ratio;
+                    previousFrameHeight = sidebar.Frame.Bounds.Height;
+                    previousHostHeight = host.Bounds.Height;
+                }
+            }
+            // A responsive collapse returns the full column immediately; restoring it
+            // keeps the side and dragged-width preference, without navigation.
+            ReaderMediaPreferences saved = page.ReaderMedia;
+            page.ApplyReaderMediaPreferences(saved with { SidebarMinimumReaderWidth = ReaderDisplayPreferences.MediaSidebarReaderWidthMaximum });
+            Layout(root, geometries[0]);
+            Assert.False(page.IsMediaSidebarShown);
+            Assert.Equal(host.Bounds.Width, largeReader ? pane.Bounds.Width : page.ReaderBox.Bounds.Width);
+            page.ApplyReaderMediaPreferences(saved with { SidebarWidth = 620 });
+            Layout(root, geometries[0]);
+            Assert.True(page.IsMediaSidebarShown);
+            Assert.Equal(right ? 2 : 0, Grid.GetColumn(sidebar));
+            Assert.Equal(ReaderMediaSidebarRules.EffectiveWidth(620, host.Bounds.Width, largeReader ? 0 : 2 * ReaderMediaSidebarRules.ArchiveViewGap), sidebar.Bounds.Width);
+            Assert.Equal(host.Bounds.Height, sidebar.Bounds.Height);
+        }
+        finally { large.SetValue(page, false); page.EndLifetime(); }
     });
 
     [Theory]
