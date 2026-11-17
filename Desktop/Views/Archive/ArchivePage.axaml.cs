@@ -962,18 +962,6 @@ public partial class ArchivePage : UserControl
         await OpenAssetGalleryAsync(row, sender as Control);
     }
 
-            }, cancellationToken);
-            if (_ended || request != _previewRequest || !ArchivePreview.IsVisible) { bitmap?.Dispose(); return; }
-            _preview = bitmap;
-            // D1: the preview is one asynchronous load, so it fades in (not under motion-off).
-            MeowChan.Desktop.Motion.ImageFade.Show(ArchivePreviewImage, bitmap, arrivedAsync: true);
-            ArchivePreviewMessage.Text = bitmap == null ? Texts.T("archive.previewUnavailable") : string.Empty;
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
-        catch (Exception exception) { if (!_ended && request == _previewRequest) ArchivePreviewMessage.Text = exception.Message; }
-        finally { if (ReferenceEquals(_previewCancellation, loading)) _previewCancellation = null; }
-    }
-
     private void ClosePreview()
     {
         ++_previewRequest;

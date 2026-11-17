@@ -280,8 +280,6 @@ public partial class ArchivePage
             await OpenActions.RunAsync(() => OpenThreadGalleryAsync(row.Summary.Id, null, ThreadOrigin(row)), "archive.menu.gallery");
     }
 
-    }
-
     private Control ThreadOrigin(ArchiveThreadRow row) =>
         this.GetVisualDescendants().OfType<Control>().FirstOrDefault(control => (control is DataGridRow or ListBoxItem)
             && control.DataContext is ArchiveThreadRow found && found.Summary.Id == row.Summary.Id)

@@ -382,10 +382,6 @@ public static class CommandBindings
         }
     }
 
-        static string TooltipFor(string id) => Tooltip(id);
-        RefreshHint();
-    }
-
     internal static void BindExisting(Control control, string id, bool preserveHelp = false)
     {
         if (Actions.TryGetValue(control, out var current) && current.Id == id)
