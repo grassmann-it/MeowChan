@@ -49,9 +49,9 @@ def inventory(evidence, selected=None):
                         if key not in control: raise ValueError('Incomplete control dump: ' + key)
                 marker = json.loads((evidence / files['bundle.json']['path']).read_text())
                 if not marker.get('complete'): raise ValueError('Uncommitted bundle')
-                cell['checksum'] = hashlib.sha256(json.dumps(files, sort_keys=True).encode()).hexdigest()
                 for item in files.values(): item['path'] = 'run/review-artifacts/' + item['path']
-            except (OSError, ValueError, KeyError) as exc:
+                cell['checksum'] = hashlib.sha256(json.dumps(files, sort_keys=True).encode()).hexdigest()
+            except (OSError, ValueError, KeyError, TypeError, AttributeError) as exc:
                 cell['status'], cell['error'] = 'missing', str(exc)
         scenes.append(cell)
     return scenes

@@ -77,7 +77,7 @@ def run(root: Path, evidence: Path):
             matches += re.findall(r'Property="(Margin|Padding|Spacing|RowSpacing|ColumnSpacing)"\s+Value="([0-9., -]+)"', line)
             for attr, literal in matches:
                 values = [float(v) for v in re.split(r'[, ]+', literal) if v]
-                off = [v for v in values if abs(v) not in spacing_values]
+                off = [v for v in values if v not in spacing_values]
                 if off:
                     add('spacing-off-token-scale', file=str(path.relative_to(root)), line=number, property=attr, literal=literal, off_scale=off)
                 elif any(values):
@@ -89,7 +89,7 @@ def run(root: Path, evidence: Path):
             matches += re.findall(r'\b(Spacing|RowSpacing|ColumnSpacing)\s*=\s*([0-9.]+)\s*[,;}]', line)
             for attr, literal in matches:
                 values = [float(v) for v in re.split(r'[, ]+', literal) if v]
-                off = [v for v in values if abs(v) not in spacing_values]
+                off = [v for v in values if v not in spacing_values]
                 if off:
                     add('spacing-off-token-scale', file=str(path.relative_to(root)), line=number, property=attr, literal=literal, off_scale=off)
                 elif any(values):

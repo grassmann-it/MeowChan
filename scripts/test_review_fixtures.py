@@ -51,7 +51,9 @@ class ReviewContracts(unittest.TestCase):
             files = {p.name: {'path': p.name, 'sha256': hashlib.sha256(p.read_bytes()).hexdigest()} for p in root.iterdir()}
             scene = {'id': 'media-760-dark-de', 'status': 'captured', 'files': files}
             (root / 'scenes.json').write_text(json.dumps({'scenes': [scene]}))
-            self.assertEqual('captured', runner.inventory(root, scene['id'])[0]['status'])
+            captured = runner.inventory(root, scene['id'])[0]
+            self.assertEqual('captured', captured['status'])
+            self.assertEqual(hashlib.sha256(json.dumps(captured['files'], sort_keys=True).encode()).hexdigest(), captured['checksum'])
             (root / 'control-tree.json').write_text('{}')
             self.assertEqual('missing', runner.inventory(root, scene['id'])[0]['status'])
 

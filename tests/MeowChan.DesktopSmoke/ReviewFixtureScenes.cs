@@ -127,6 +127,10 @@ internal static class ReviewFixtureScenes
                 }
                 finally { Environment.SetEnvironmentVariable("MEOWCHAN_REVIEW_ARTIFACTS", _root); Manifest(); }
             }
+            // SyntheticShellRows' restore waits for the downloads projection to apply; it is suspended on other pages.
+            await LeaveAsync(w);
+            await SmokeNavigation.GoToAsync(w, MainWindow.WorkspacePage.Downloads);
+            await Dispatcher.UIThread.InvokeAsync(w.UpdateLayout, DispatcherPriority.Background);
         }
         catch (Exception e) { _failed++; Write(Path.Combine(_root, "fatal.json"), new { error = e.ToString() }); }
         finally { Manifest(); desktop.Shutdown(_failed == 0 ? 0 : 1); }
