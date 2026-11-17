@@ -416,6 +416,15 @@ internal sealed class MediaNativeInput : IDisposable
         Flush();
     }
 
+    /// <summary>Holds one key down for <paramref name="duration"/> (X11 keysym; Linux XTest only): with autorepeat on, the server repeats it.</summary>
+    internal async Task HoldAsync(ulong key, TimeSpan duration)
+    {
+        if (_display == 0) throw new PlatformNotSupportedException("Held keys are only implemented for the private X11 server.");
+        try { Key(key, true); Flush(); await Task.Delay(duration); }
+        finally { Key(key, false); Flush(); }
+        await Task.Delay(100);
+    }
+
     /// <summary>One key with the given modifier keys held (X11 keysyms; Linux XTest only).</summary>
     internal async Task ChordAsync(ulong key, params ulong[] modifiers)
     {

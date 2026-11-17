@@ -210,7 +210,10 @@ internal static class QuickTagNativeTypingChecks
         const string surfaceName = "archive", entry = "keys", medium = "picture";
         ListBoxItem? card = await SelectPostAsync(window, page, input, PicturePost, video: false);
         if (card == null) return Fail(surfaceName, entry, medium, "the post card is not realized");
-        await input.KeyAsync('r');
+        // R held past the server's repeat delay (Xvfb: 660 ms): the repeats must not land in the field as "rrr" (the popover latches the opening key).
+        input.SetAutoRepeat(true);
+        try { await input.HoldAsync('r', TimeSpan.FromMilliseconds(1400)); }
+        finally { input.SetAutoRepeat(false); }
         try { await Program.WaitUntilAsync(() => QuickTagPopover.Current is { IsOpen: true, Surface: not null, DecisionRow: not null }); }
         catch (TimeoutException) { return Fail(surfaceName, entry, medium, "R opened no popover"); }
         QuickTagPopover popover = QuickTagPopover.Current!;
@@ -218,6 +221,13 @@ internal static class QuickTagNativeTypingChecks
         GalleryDecisionRow row = popover.DecisionRow!;
         await Settle(window);
         List<string> problems = new();
+        if (!string.IsNullOrEmpty(surface.Input.Text)) problems.Add("the repeats of a held R were typed into the field: '" + surface.Input.Text + "'");
+        await TypeAsync(input, "r");
+        await Settle(window);
+        if (surface.Input.Text != "r") problems.Add("a new R after the held one did not type 'r': '" + surface.Input.Text + "'");
+        surface.Input.Text = "";
+        row.FocusRating();
+        await Settle(window);
         string focusOnOpen = Describe(TopLevel.GetTopLevel(popover.Frame)?.FocusManager?.GetFocusedElement());
         if (!row.IsRatingFocused) problems.Add("R did not put the focus on the stars (" + focusOnOpen + ")");
         await input.ChordAsync('3', MediaNativeInput.ShiftLeft);
