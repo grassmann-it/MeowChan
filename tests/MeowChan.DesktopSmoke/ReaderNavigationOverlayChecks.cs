@@ -226,23 +226,36 @@ internal static class ReaderNavigationOverlayChecks
                 Require(page.ReaderNavigationShown && bar.Opacity == 1 && bar.IsHitTestVisible,
                     "Pointer activity near the capsule did not keep it shown.");
             });
-            await Task.Delay(1400);
+            await Task.Delay(page.ReaderNavigationIdleDelayMs * 2);
             Require(page.ReaderNavigationShown && bar.Opacity == 1, "The bar hid while the pointer rested on it.");
             await Dispatcher.UIThread.InvokeAsync(() => page.NotifyReaderPointerMoved(far));
             await WaitHiddenAsync();
-            // Keyboard focus keeps it shown; losing focus lets it hide.
+            // Keyboard focus keeps a revealed capsule shown; losing focus lets it hide.
+            // Auto-hide collapses ReaderNavigationHitHost, so even an enabled edge action
+            // is not a focus target while idle. This is retention coverage, not hidden-bar
+            // keyboard discovery: reveal first, without changing any focusability flags.
+            Border focusSurface = page.FindControl<Border>("ReaderNavigationBar")!;
+            string FocusState() => $"target={focusSurface.Name} visible={focusSurface.IsEffectivelyVisible} "
+                + $"enabled={focusSurface.IsEffectivelyEnabled} focusable={focusSurface.Focusable} "
+                + $"hostVisible={page.FindControl<Border>("ReaderNavigationHitHost")!.IsVisible} "
+                + $"focused={focusSurface.IsFocused} within={bar.IsKeyboardFocusWithin}; {page.ReaderNavigationDebugState}";
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
-                // Focus cannot be assigned to a hidden overlay. Re-arm the capsule first, then
-                // verify that keyboard focus keeps it visible independent of edge-button state.
                 page.ShowReaderNavigation();
-                Border focusSurface = page.FindControl<Border>("ReaderNavigationBar")!;
-                Require(focusSurface.Focus(), "Reader navigation focus could not be assigned.");
+                Require(focusSurface.IsEffectivelyVisible && focusSurface.IsEffectivelyEnabled && focusSurface.Focusable,
+                    "Reader navigation focus precondition failed: " + FocusState());
+                Require(focusSurface.Focus() && focusSurface.IsFocused && bar.IsKeyboardFocusWithin,
+                    "Reader navigation focus could not be assigned: " + FocusState());
                 Require(page.ReaderNavigationShown && bar.Opacity == 1 && bar.IsHitTestVisible,
-                    "Keyboard focus did not reveal the reader navigation capsule.");
+                    "Keyboard focus did not keep the revealed reader navigation capsule shown.");
             });
-            await Task.Delay(1400);
-            Require(page.ReaderNavigationShown && bar.Opacity == 1, "The bar hid while it had keyboard focus.");
+            // 1400 ms was shorter than the configured 1500 ms: it could pass on
+            // recent activity alone, without ever exercising the focus keep condition.
+            await Task.Delay(page.ReaderNavigationIdleDelayMs * 2);
+            Require(focusSurface.IsFocused && bar.IsKeyboardFocusWithin
+                && page.ReaderNavigationShown && bar.Opacity == 1 && bar.IsHitTestVisible,
+                "The bar lost keyboard focus or hid after the idle delay: " + FocusState());
+            Console.WriteLine("SMOKE reader navigation focus retained beyond idle delay: " + FocusState());
             Require(page.FindControl<Button>("ArchiveCloseReader")!.Focus() && !bar.IsKeyboardFocusWithin, "Focus did not leave the bar.");
             await WaitHiddenAsync();
             // A navigation shortcut shows it briefly.
@@ -527,6 +540,11 @@ internal static class ReaderNavigationOverlayChecks
     private static async Task CheckSecondaryNavigationAsync(MainWindow window, ArchivePage page)
     {
         WrapPanel navigation = page.FindControl<WrapPanel>("ReaderNavigation")!;
+        // Media loading can outlast Auto's idle delay on a busy runner. These are
+        // shown-overlay geometry checks, just like CheckGeometry: reveal before
+        // measuring or asserting visibility, not only before the later hit test.
+        page.ShowReaderNavigation();
+        window.UpdateLayout(); window.UpdateLayout();
         TabControl tabs = page.FindControl<TabControl>("ArchiveContentTabs")!;
         // The References tab exists only while captured replies are listed; with none it is not there to be chosen.
         Require(!page.FindControl<TabItem>("ArchiveReferencesTab")!.IsVisible || page.FindControl<ListBox>("ArchiveReferences")!.ItemCount > 0,
