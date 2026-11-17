@@ -63,6 +63,12 @@ acceptance inventory below. B10 is not part of this increment.
   duplicate-key and placeholder checks. `git diff --check` and an independent
   ten-pack JSON/duplicate-key check passed. No solution-wide build, whole-Booru
   selection, native UI smoke or broad acceptance run was performed.
+- Supplementary localization-only validation of the compiled Desktop test DLL:
+  `BundledLanguagePackCompletenessTests` plus the required-key and no-orphan
+  `BooruLocalizationTests` methods: **14 passed, 0 failed, 0 skipped**
+  (21.5205 seconds). The initial `dotnet test --no-build` invocation hit the
+  30-second command limit under machine load; direct `dotnet vstest` passed
+  within the same limit, with no timeout or assertion changes.
 
 ## Rules for fixtures and stubs
 
