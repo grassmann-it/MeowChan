@@ -206,8 +206,8 @@ internal static class ReaderNavigationOverlayChecks
             // Any pointer movement over the reader shows it again.
             page.NotifyReaderPointerMoved(far);
             await WaitShownAsync();
-            Visual? shownHit = window.InputHitTest(Bounds(page.FindControl<Button>("ReaderNextPost")!, window).Center) as Visual;
-            Require(shownHit != null && shownHit.GetSelfAndVisualAncestors().Contains(page.FindControl<Button>("ReaderNextPost")!), "The shown bar is not clickable.");
+            Button nextPost = page.FindControl<Button>("ReaderNextPost")!;
+            await RequireHitAsync(window, Bounds(nextPost, window).Center, nextPost, () => "The shown bar is not clickable");
             await WaitHiddenAsync();
             // A pointer resting near the bar keeps it shown.
             page.NotifyReaderPointerMoved(barInSurface);
