@@ -217,7 +217,7 @@ internal static class ReaderUxChecks
             return;
         }
         await CheckOwnedNavigationAsync(window, page, reader);
-        await CheckGalleryRoundtripAsync(window, page, reader);
+        await RunFreshGalleryRoundtripAsync(window, page, reader);
         await CheckListGalleryReturnAsync(window, page, reader);
         await ReaderReturnChecks.RunAsync(window);
         await ReaderStabilityChecks.RunAsync(window);

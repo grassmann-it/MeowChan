@@ -108,7 +108,7 @@ internal static class ReaderNavigationOverlayChecks
                     await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
                     Require(Texts.Language == code && window.ActualThemeVariant == variant,
                         "Secondary media capture lost its requested language or theme.");
-                    CheckSecondaryNavigation(window, page);
+                    await CheckSecondaryNavigationAsync(window, page);
                     CheckSecondaryMediaGeometry(window, page, tiles);
                     string presentation = tiles ? "tiles" : "table";
                     Program.CaptureWindow(window, $"smoke-reader-navigation-secondary-media-{presentation}-barebones-640-{code}-{variant.ToString().ToLowerInvariant()}.png");
@@ -117,7 +117,7 @@ internal static class ReaderNavigationOverlayChecks
                 await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
                 Require(Texts.Language == code && window.ActualThemeVariant == variant,
                     "Secondary references capture lost its requested language or theme.");
-                CheckSecondaryNavigation(window, page);
+                await CheckSecondaryNavigationAsync(window, page);
                 Program.CaptureWindow(window, $"smoke-reader-navigation-secondary-references-barebones-640-{code}-{variant.ToString().ToLowerInvariant()}.png");
             }
             tabs.SelectedIndex = 0;
@@ -488,7 +488,7 @@ internal static class ReaderNavigationOverlayChecks
         }
     }
 
-    private static void CheckSecondaryNavigation(MainWindow window, ArchivePage page)
+    private static async Task CheckSecondaryNavigationAsync(MainWindow window, ArchivePage page)
     {
         WrapPanel navigation = page.FindControl<WrapPanel>("ReaderNavigation")!;
         TabControl tabs = page.FindControl<TabControl>("ArchiveContentTabs")!;
@@ -521,20 +521,17 @@ internal static class ReaderNavigationOverlayChecks
         page.ShowReaderNavigation();
         Rect separator = Bounds(page.FindControl<Border>("ReaderNavigationSeparator")!, window);
         Point gap = new(separator.Center.X, pad.Top + 5);
-        Visual? gapHit = window.InputHitTest(gap) as Visual;
-        Require(gapHit != null && gapHit.GetSelfAndVisualAncestors().Contains(navigation),
-            "NAVBAR-05: a click beside the separator inside the capsule passed through to the content: " + gap + " in " + pad);
+        // The window hit-tests the renderer's scene, which takes the bar's shown state (opacity, hit-test visibility) only with its next frame:
+        // the point is asked again until a frame has passed (as the export-dialog hit check above does), and fails with what it hit.
+        await RequireHitAsync(window, gap, navigation, () => "NAVBAR-05: a click beside the separator inside the capsule passed through to the content: " + gap + " in " + pad);
         foreach (string counterName in new[] { "ReaderThreadPosition", "ReaderPostPosition" })
         {
             TextBlock counter = page.FindControl<TextBlock>(counterName)!;
             if (!counter.IsEffectivelyVisible) continue;
-            Visual? counterHit = window.InputHitTest(Bounds(counter, window).Center) as Visual;
-            Require(counterHit != null && counterHit.GetSelfAndVisualAncestors().Contains(navigation),
-                "NAVBAR-05: a click on the counter " + counterName + " passed through to the content.");
+            await RequireHitAsync(window, Bounds(counter, window).Center, navigation, () => "NAVBAR-05: a click on the counter " + counterName + " passed through to the content.");
         }
-        Visual? buttonHit = window.InputHitTest(Bounds(page.FindControl<Button>("ReaderNextPost")!, window).Center) as Visual;
-        Require(buttonHit != null && buttonHit.GetSelfAndVisualAncestors().Contains(page.FindControl<Button>("ReaderNextPost")!),
-            "A bar button is not hit-testable.");
+        Button next = page.FindControl<Button>("ReaderNextPost")!;
+        await RequireHitAsync(window, Bounds(next, window).Center, next, () => "A bar button is not hit-testable.");
         if (tabs.SelectedIndex == 2)
             foreach (string name in new[] { "ArchiveReferencesTitle", "PreviousReferences", "ArchiveReferencesPage", "NextReferences" })
             {
@@ -544,6 +541,23 @@ internal static class ReaderNavigationOverlayChecks
                 Require(Contains(Bounds(tabs, window), box) && Separated(box, pad, 4),
                     name + " is clipped or crowded by the reader navigation.");
             }
+    }
+
+    private static async Task RequireHitAsync(MainWindow window, Point point, Visual owner, Func<string> failure)
+    {
+        Visual? hit = null;
+        DateTime deadline = DateTime.UtcNow.AddSeconds(5);
+        while (true)
+        {
+            window.UpdateLayout();
+            hit = window.InputHitTest(point) as Visual;
+            if (hit != null && hit.GetSelfAndVisualAncestors().Contains(owner)) return;
+            if (DateTime.UtcNow >= deadline) break;
+            await Task.Delay(50);
+        }
+        throw new InvalidOperationException(failure() + "; hit " + (hit == null ? "nothing"
+            : string.Join(" < ", hit.GetSelfAndVisualAncestors().Take(6).Select(node => node.GetType().Name + (node is Control { Name: { Length: > 0 } name } ? "#" + name : ""))))
+            + $"; owner opacity {owner.Opacity}, hit-test visible {(owner as InputElement)?.IsHitTestVisible}");
     }
 
     private static bool Separated(Rect first, Rect second, double gap) => first.Right + gap <= second.Left
