@@ -49,3 +49,12 @@ rather than only one screen.
   `workspace.view-cycle`, so the menu is scannable and consistent with the header affordance.
 - **Settings search alignment:** the settings search field should align with the content column
   (same left/right edges as the Interface section), not float narrower in the header.
+- **Inner-gallery video overlay/focus class:** verify overlay auto-hide/show, hover and pointer
+  re-entry, focus loss/return, Escape, fullscreen/fit, play/pause continuity, duration/buffering
+  states, and reader/gallery/favorite/rating/tagging shortcuts while a video is focused. A focus
+  transition must not silently pause, restart, replace a valid frame with grey, or strand keyboard
+  input; capture full- and half-window evidence in the next GUI sweep.
+- **Pointer activation semantics:** document and verify single-click, double-click, right-click,
+  Enter/Space, and context-menu first-action behavior for threads, posts, rows, tiles, thumbnails,
+  sidebars, and dialogs. Single-click selects, double-click opens only where intended, and
+  right-click preserves the target selection; differences must be intentional and localized.
