@@ -37,6 +37,7 @@ public partial class MainWindow
         {
             GetWorkerSnapshots = plugins.Runtime.GetSnapshots,
             GetProductionWorkerSnapshots = plugins.GetProductionWorkerSnapshots,
+            HasSdkMismatch = plugins.SdkMismatches.Has,
             GetRuleScopes = () => _session.MediaRules.Rules.Select(rule => rule.Scope).ToArray()
         };
         _pluginsPage.Attach(services);

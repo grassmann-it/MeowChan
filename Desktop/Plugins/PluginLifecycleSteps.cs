@@ -76,7 +76,8 @@ internal static class PluginLifecycleSteps
             next = presentation.PendingKind != PluginPendingKind.None ? PluginNextAction.SavedChangesApplyAtRestart : PluginNextAction.None;
         else next = PluginNextAction.RestartToUse;
 
-        bool activeNow = facts.Enabled && presentation.IsActiveCandidate && !presentation.HasWorkerProblem;
+        // A running build that fails with sdk-mismatch is not in use in any useful sense: its Active step is the problem.
+        bool activeNow = facts.Enabled && presentation.IsActiveCandidate && !presentation.HasWorkerProblem && !presentation.HasSdkMismatch;
         PluginStepState enabled = installed != PluginStepState.Done ? PluginStepState.Later : facts.Enabled ? PluginStepState.Done : PluginStepState.Next;
         PluginStepState active = activeNow ? PluginStepState.Done
             : facts.Enabled && presentation.IsActiveCandidate && presentation.HasWorkerProblem ? PluginStepState.Problem

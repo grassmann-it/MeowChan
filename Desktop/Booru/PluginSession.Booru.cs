@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using MeowChan.Booru;
 using MeowChan.Desktop.Booru;
+using MeowChan.Desktop.Plugins;
 using MeowChan.PluginHost.Activation;
 using MeowChan.PluginHost.Configuration;
 using MeowChan.PluginHost.Contracts;
@@ -44,7 +45,11 @@ internal sealed partial class PluginSession
             maximumCooldownProvider: () => TimeSpan.FromHours(_config.BooruRetryAfterCooldownHours));
         BooruHostServices services = new(new HostServices(GetPluginHttp(description), _filterStages, pluginId), booruHttp);
         BooruProviderBinding binding = new(source, services, _transport, _httpPolicy,
-            token => ResolveBooruWorkerAsync(pluginId, token), () => IsBooruPluginEnabled(pluginId), _logger);
+            token => ResolveBooruWorkerAsync(pluginId, token), () => IsBooruPluginEnabled(pluginId), _logger)
+        {
+            PluginId = pluginId,
+            SdkMismatchObserved = () => SdkMismatches.Record(pluginId, RunningExecutionRevision(pluginId))
+        };
         lock (_state)
         {
             _services.Add(booruHttp);
@@ -52,6 +57,17 @@ internal sealed partial class PluginSession
             _booruPluginId = pluginId;
             _booru = binding;
         }
+    }
+
+    /// <summary>Session-scope sdk-mismatch observations of running plugin builds (presentation only).</summary>
+    internal PluginSdkMismatchLedger SdkMismatches { get; } = new();
+
+    /// <summary>The build this session runs for the plugin (fixed at startup), or null when none runs.</summary>
+    internal string? RunningExecutionRevision(string pluginId)
+    {
+        lock (_state)
+            return !_disposed && _active.TryGetValue(pluginId, out PluginActivationSnapshot? activation)
+                ? activation.Active?.ExecutionRevision : null;
     }
 
     private bool TryGetBooruServices(string pluginId, out IPluginHostServices services)

@@ -332,8 +332,8 @@ internal static class PluginReselectionChecks
         Button review = page.FindControl<Button>("PluginsReviewRepairs")!;
         using (MediaNativeInput input = new(owner)) await ClickAsync(owner, input, review);
         Console.WriteLine("PLUGIN_RESELECTION owned " + JsonSerializer.Serialize(owner.OwnedWindows.Select(w => new { w.Title, w.IsVisible, w.IsActive })));
-        await Program.WaitUntilAsync(() => owner.OwnedWindows.Any(w => w.IsVisible && w.Title == Texts.T("plugins.reselection.reviewTitle")));
-        Window modal = owner.OwnedWindows.Single(w => w.IsVisible && w.Title == Texts.T("plugins.reselection.reviewTitle"));
+        await Program.WaitUntilAsync(() => owner.OwnedWindows.Any(w => w.IsVisible && w.Title == Texts.T("plugins.repair.review")));
+        Window modal = owner.OwnedWindows.Single(w => w.IsVisible && w.Title == Texts.T("plugins.repair.review"));
         Console.WriteLine("PLUGIN_RESELECTION modal " + JsonSerializer.Serialize(new { modal.Title, modal.IsActive,
             checkboxes = modal.GetVisualDescendants().OfType<CheckBox>().Count(), page.IsBusy }));
         Program.CaptureWindow(modal, "smoke-reselection-modal-" + Texts.Language + ".png");

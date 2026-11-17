@@ -248,8 +248,8 @@ internal static class BundledChangeDialogChecks
         owner.Activate();
         await Program.WaitUntilAsync(() => owner.IsActive && !page.IsBusy);
         using (MediaNativeInput input = new(owner)) await ClickAsync(owner, input, page.FindControl<Button>("PluginsReviewRepairs")!);
-        await Program.WaitUntilAsync(() => owner.OwnedWindows.Any(w => w.IsVisible && w.Title == Texts.T("plugins.reselection.reviewTitle")));
-        Window modal = owner.OwnedWindows.Single(w => w.IsVisible && w.Title == Texts.T("plugins.reselection.reviewTitle"));
+        await Program.WaitUntilAsync(() => owner.OwnedWindows.Any(w => w.IsVisible && w.Title == Texts.T("plugins.repair.review")));
+        Window modal = owner.OwnedWindows.Single(w => w.IsVisible && w.Title == Texts.T("plugins.repair.review"));
         modal.Activate();
         await Program.WaitUntilAsync(() => modal.IsActive && modal.GetVisualDescendants().OfType<Button>().Any(b => AutomationProperties.GetAutomationId(b) == "BundledApprovalClose"));
         Require(ReferenceEquals(modal.Owner, owner) && page.IsBusy, "Review is not the attached page's owned modal.");
