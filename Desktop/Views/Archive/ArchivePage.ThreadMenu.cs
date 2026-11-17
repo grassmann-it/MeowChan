@@ -58,7 +58,7 @@ public partial class ArchivePage
             Func<string>? label = null, bool showShortcut = false)
         {
             bool CanExecute() => ThreadMenuReady && (eligible?.Invoke() ?? true);
-            string? Reason() => !ThreadMenuReady ? Texts.T("archive.command.busy")
+            string? Reason() => !ThreadMenuReady ? ReaderThreadActionsReason ?? Texts.T("archive.command.busy")
                 : eligible?.Invoke() == false ? whyNot?.Invoke() : null;
             builder.Command(commandId, execute, CanExecute(), Reason(), label?.Invoke(), showShortcut: showShortcut,
                 availableWhen: CanExecute, reasonWhen: Reason, labelWhen: label);
