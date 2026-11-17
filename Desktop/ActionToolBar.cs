@@ -87,6 +87,18 @@ public sealed class ActionToolBar : ToolBar
     public static bool GetStretch(Control item) => item.GetValue(StretchProperty);
     public static void SetStretch(Control item, bool stretch) => item.SetValue(StretchProperty, stretch);
 
+    /// <summary>
+    /// Design language (UX-LEDGER-01): primary actions stand on the left, layout and secondary actions (columns, details, list/grid,
+    /// help) on the right. An item marked End belongs to that right-hand run: while the bar has spare room the trailing run of End
+    /// items shown on the bar is docked to the right edge of the bar (left of "More") instead of trailing the primary actions with
+    /// a ragged empty strip behind it. Item order, focus order and the overflow rules do not change; without spare room (or with a
+    /// stretching trailing group) nothing moves, and a bar without End items arranges exactly as before.
+    /// </summary>
+    public static readonly AttachedProperty<bool> EndProperty =
+        AvaloniaProperty.RegisterAttached<ActionToolBar, Control, bool>("End");
+    public static bool GetEnd(Control item) => item.GetValue(EndProperty);
+    public static void SetEnd(Control item, bool end) => item.SetValue(EndProperty, end);
+
     /// <summary>The Control items in item order, kept in step with <see cref="ItemsControl.Items"/> (no per-pass LINQ in the panel).</summary>
     internal Control[] GeneratedItems => _generatedItems;
 
@@ -111,6 +123,11 @@ public sealed class ActionToolBar : ToolBar
         // item stays under More at an unchanged width.
         GroupProperty.Changed.AddClassHandler<Control>((item, _) => (item.Parent as Panel)?.InvalidateArrange());
         StretchProperty.Changed.AddClassHandler<Control>((item, _) => (item.Parent as Panel)?.InvalidateArrange());
+        EndProperty.Changed.AddClassHandler<Control>((item, _) =>
+        {
+            // Items retain the toolbar as logical parent even while hosted by the popup.
+            if (item.Parent is ActionToolBar toolbar) toolbar.DirectHost?.InvalidateArrange();
+        });
         foreach (AvaloniaProperty property in new AvaloniaProperty[] { OmittedProperty, OverflowPriorityProperty, ToolBar.OverflowModeProperty })
             property.Changed.AddClassHandler<Control>((item, _) =>
             {
@@ -163,6 +180,13 @@ public sealed class ActionToolBar : ToolBar
 
     private void OnActionPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
+        // An item under "More" has the popup panel as its parent, so its own visibility change never reaches the bar's measure: the
+        // button would stay behind with an empty menu (hidden Columns button, view switched). Re-run the overflow decision instead.
+        if (e.Property == IsVisibleProperty && sender is Control)
+        {
+            DirectHost?.InvalidateMeasure();
+            InvalidateMeasure();
+        }
         if (e.Property == IsEffectivelyEnabledProperty && sender is Control control
             && !control.IsEffectivelyEnabled && ReferenceEquals(control, _lastOverflowFocus)
             && More?.IsChecked == true)
@@ -280,6 +304,9 @@ public sealed class ActionToolBar : ToolBar
     internal void SetOverflow(int count)
     {
         bool hasItems = count > 0;
+        // The custom panel owns overflow, not Ursa's built-in panel. Drive the toggle from that same count,
+        // including when the last item becomes hidden while reparented into a closed popup.
+        More?.SetCurrentValue(IsVisibleProperty, hasItems);
         if (_overflowShown != hasItems || PseudoClasses.Contains(PC_Overflow) != hasItems)
         {
             _overflowShown = hasItems;
@@ -436,6 +463,7 @@ public sealed class ActionToolBarPanel : StackPanel
     private int[] _groups = Array.Empty<int>();
     private bool[] _segments = Array.Empty<bool>();
     private bool[] _previous = Array.Empty<bool>();
+    private bool[] _ends = Array.Empty<bool>();
 
     private void EnsureScratch(int count)
     {
@@ -473,6 +501,21 @@ public sealed class ActionToolBarPanel : StackPanel
         while (start > 0 && Stretches(shown[start - 1]) && ActionToolBar.GetGroup(shown[start - 1]) == group) start--;
         return start;
     }
+
+    /// <summary>
+    /// The index of the first member of the trailing End run among the shown items (every item from there to the last one is marked
+    /// <see cref="ActionToolBar.EndProperty"/>), or -1 when the last shown item is not an End item.
+    /// </summary>
+    public static int EndRunStart(IReadOnlyList<bool> ends)
+    {
+        int start = ends.Count - 1;
+        if (start < 0 || !ends[start]) return -1;
+        while (start > 0 && ends[start - 1]) start--;
+        return start;
+    }
+
+    /// <summary>The extra room in front of the End run that docks it to the right edge: what is left of <paramref name="right"/> after the natural row (never negative).</summary>
+    public static double EndShift(double right, double natural) => double.IsFinite(right) && right > natural ? right - natural : 0;
 
     private static void StretchShown(double span, List<Control> shown, int start, double[] slots)
     {
@@ -599,12 +642,26 @@ public sealed class ActionToolBarPanel : StackPanel
             StretchShown(span, _shown, run, _stretched);
         }
         else run = -1;
+        // The trailing End run (ActionToolBar.End) docks to the right edge when there is spare room and no stretch group took it.
+        int endRun = -1;
+        double endShift = 0;
+        if (run < 0 && _shown.Count > 0)
+        {
+            if (_ends.Length < _shown.Count) _ends = new bool[Math.Max(_shown.Count, 8)];
+            for (int i = 0; i < _shown.Count; i++) _ends[i] = ActionToolBar.GetEnd(_shown[i]);
+            endRun = EndRunStart(new ArraySegment<bool>(_ends, 0, _shown.Count));
+            // Layout controls remain right-aligned even when every primary action is hidden or omitted.
+            // Ursa gives the presenter the slot left of More (including its leading margin already reserved).
+            // Use that actual arrange slot, not the conservative measurement budget, or a second gap remains.
+            if (endRun >= 0) endShift = EndShift(finalSize.Width, natural);
+        }
         double x = 0;
         Control? previous = null;
         for (int index = 0; index < _shown.Count; index++)
         {
             Control child = _shown[index];
             x += LeadingGap(previous, child);
+            if (index == endRun) x += endShift;
             double width = run >= 0 && index >= run ? _stretched[index - run] : child.DesiredSize.Width;
             child.Arrange(new Rect(x, 0, width, finalSize.Height));
             x += width;
@@ -647,6 +704,9 @@ public sealed class ActionToolBarPanel : StackPanel
             if (previous != null && StartsNewGroup(ActionToolBar.GetGroup(previous), ActionToolBar.GetGroup(child)))
             {
                 double gap = child.Bounds.X - previous.Bounds.Right;
+                // A docked End run stands apart by the free room itself: the empty strip needs no line in its middle.
+                if (ActionToolBar.GetEnd(child) && !ActionToolBar.GetEnd(previous) && gap > GroupGap + 0.5)
+                { previous = child; continue; }
                 double x = Math.Round(previous.Bounds.Right + (gap - GroupSeparatorThickness) / 2);
                 double height = Math.Min(GroupSeparatorHeight, Math.Max(child.Bounds.Height, previous.Bounds.Height));
                 double top = child.Bounds.Y + (Math.Max(child.Bounds.Height, previous.Bounds.Height) - height) / 2;
