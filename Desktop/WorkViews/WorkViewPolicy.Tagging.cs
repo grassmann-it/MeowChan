@@ -20,11 +20,9 @@ public static partial class WorkViewPolicy
         Same("tagging.filter", WorkViewPage.Tagging, WorkViewKind.Element, Direct),
         Same("tagging.group", WorkViewPage.Tagging, WorkViewKind.Element, Direct),
         new("tagging.columns", WorkViewPage.Tagging, WorkViewKind.Action, Overflow, Direct, Direct, "table.choose-columns", OverflowOrder: 35),
-        // T1: "Last shown: file · position n of m" under the progress; a link that continues exactly there. Barebones leaves the
-        // sentence out: its start button already says "Continue at n of m" and carries the same action.
+        // Supporting context attached to Start, never a separate link. Barebones already names the resume position on Start.
         new("tagging.last-shown", WorkViewPage.Tagging, WorkViewKind.Element, Hidden, Direct, Direct, Alternative: "tagging.start"),
-        // The key hint under the list is help text: Barebones leaves it out, the keys and the context menu stay.
-        new("tagging.keys-hint", WorkViewPage.Tagging, WorkViewKind.Element, Hidden, Direct, Direct, Alternative: "tagging.continue-here"),
+        // The shortcut reference lives in Help in every view, not in a separately gated footer row.
         // TG1: the help button of the page sits at the end of the tool row; Barebones moves it under More.
         new("tagging.help", WorkViewPage.Tagging, WorkViewKind.Element, Overflow, Direct, Direct, OverflowOrder: 50),
         // TG1: "List | Grid" sits next to the filter; Barebones moves it under More (the saved view stays what it was).

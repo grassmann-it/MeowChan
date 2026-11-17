@@ -13,16 +13,13 @@ namespace MeowChan;
 /// </summary>
 public sealed partial class TaggingPage
 {
-    private const double NarrowToolbarWidth = 1100;
     private readonly Button _columnsButton = new() { Name = "TaggingColumnsButton" };
     private bool _showPreviewColumn = true;
-    private bool _narrowToolbar;
     private ContextMenuHost? _columnMenuHost;
 
     internal bool ShowPreviewColumn => _showPreviewColumn;
     internal Grid ColumnHeader => _columnHeader;
-    internal WrapPanel SecondaryToolbar => _secondaryToolbar;
-    internal bool IsNarrowToolbar => _narrowToolbar;
+    internal TaggingControlRow ListControls => _listControls;
     internal Button ColumnsButton => _columnsButton;
     internal Action<bool>? SavePreviewColumn { get; set; }
 
@@ -54,37 +51,6 @@ public sealed partial class TaggingPage
         _list.ItemTemplate = RowTemplate();
         Render();
         if (save) SavePreviewColumn?.Invoke(visible);
-    }
-
-    /// <summary>Moves the group and state filter into a real second row only when the page cannot keep them on the main toolbar.</summary>
-    private void UpdateToolbarRows()
-    {
-        bool narrow = Bounds.Width > 0 && Bounds.Width < NarrowToolbarWidth;
-        if (narrow == _narrowToolbar) return;
-        _narrowToolbar = narrow;
-        if (narrow)
-        {
-            _actions.Items.Remove(_groupPanel);
-            _actions.Items.Remove(_filterPanel);
-            if (!_secondaryToolbar.Children.Contains(_groupPanel)) _secondaryToolbar.Children.Add(_groupPanel);
-            if (!_secondaryToolbar.Children.Contains(_filterPanel)) _secondaryToolbar.Children.Add(_filterPanel);
-        }
-        else
-        {
-            _secondaryToolbar.Children.Remove(_groupPanel);
-            _secondaryToolbar.Children.Remove(_filterPanel);
-            // Back to their fixed place: the scope group stands between "Add…" and the view tools.
-            if (!_actions.Items.Contains(_groupPanel)) _actions.Items.Insert(ScopeInsertIndex(), _groupPanel);
-            if (!_actions.Items.Contains(_filterPanel)) _actions.Items.Insert(ScopeInsertIndex(), _filterPanel);
-        }
-        _secondaryToolbar.IsVisible = narrow;
-    }
-
-    // The scope group (group box, then the state filter) stands right before the columns button, the first item of the view group.
-    private int ScopeInsertIndex()
-    {
-        int at = _actions.Items.IndexOf(_columnsButton);
-        return at < 0 ? _actions.Items.Count : at;
     }
 
     private void EndColumns()

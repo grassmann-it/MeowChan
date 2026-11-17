@@ -86,7 +86,7 @@ public sealed class TaggingPageLinksTests : IDisposable
     }
 
     [Fact]
-    public void TheLinkContinuesLikeTheStartButtonAndIsLeftOutOfBarebonesWhoseStartButtonSaysTheSame()
+    public void TheResumeContextSupportsTheOnlyStartButtonAndIsLeftOutOfBarebonesWhoseStartButtonSaysTheSame()
     {
         WorkViewEntry row = WorkViewPolicy.Get("tagging.last-shown");
         Assert.Equal(Presence.Hidden, row.Barebones);
@@ -95,7 +95,9 @@ public sealed class TaggingPageLinksTests : IDisposable
         Assert.Equal("tagging.start", row.Alternative);
         Assert.Equal(Presence.Required, WorkViewPolicy.Resolve("tagging.start", WorkView.Barebones));
         string page = Source("Desktop/Views/Tagging/TaggingPage.cs");
-        Assert.Contains("_lastShown.Click += (_, _) => OpenActions.Start(() => StartAsync(null), \"tagging.start\");", page);
+        Assert.Contains("_start.Click += (_, _) => OpenActions.Start(() => StartAsync(null), \"tagging.start\");", page);
+        Assert.DoesNotContain("_lastShown.Click", page);
+        Assert.Contains("private readonly TextBlock _lastShown", page);
         string view = Source("Desktop/Views/Tagging/TaggingPage.WorkView.cs");
         Assert.Contains("WorkViewElement.SetId(_lastShown, \"tagging.last-shown\");", view);
         Assert.Contains("WorkViewGate.Apply(_lastShown, _workView,", view);

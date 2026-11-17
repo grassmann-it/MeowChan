@@ -4965,7 +4965,7 @@
     "help.taggingPage.p1": "A galeria mostra as entradas abertas uma após a outra e você marca cada uma com tags. As que você conclui ou pula ficam marcadas na lista.",
     "help.taggingPage.li1": "Selecione uma ou mais entradas e abra o menu de contexto: ele lista marcação, estado, abrir e ordem, e explica por que uma opção está indisponível.",
     "help.taggingPage.li2": "“Adicionar tags em conjunto…” atribui uma tag a todas as entradas selecionadas de uma vez; o carimbo faz o mesmo com várias tags.",
-    "help.taggingPage.li3": "As teclas mostradas sob a lista podem ser alteradas nas configurações de atalhos.",
+    "help.taggingPage.li3": "As teclas mostradas aqui podem ser alteradas nas configurações de atalhos.",
     "help.taggingStamp.title": "Tags do carimbo",
     "help.taggingStamp.p1": "O carimbo guarda as tags que você atribui à maioria das mídias. Elas aparecem primeiro em cada painel de tags, na ordem mostrada aqui.",
     "help.taggingStamp.li1": "“Aplicar carimbo de tags” atribui todas às entradas selecionadas de uma vez; as que uma entrada já tem não são gravadas de novo.",

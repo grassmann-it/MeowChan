@@ -9,6 +9,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Templates;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
@@ -24,34 +25,34 @@ namespace MeowChan;
 /// The tagging page (PT2, PLAN-POWER-TAGGEN §1.3): a thin working page over the tagging queue. It shows the progress, edits the
 /// stamp set, lists the entries with their state (open, finished, skipped) and lets the user reorder, remove and clear them;
 /// "Start tagging" hands over to the gallery (<see cref="StartTagging"/>, the seam of the tagging mode). The queue work itself is
-/// <see cref="TaggingQueueController"/>; this class only shows it. Tab order: title, actions, progress, stamp set, start and filter, list.
+/// <see cref="TaggingQueueController"/>; this class only shows it. Tab order: queue actions, stamp, list controls, selection, list.
 /// </summary>
-public sealed partial class TaggingPage : UserControl
+public sealed partial class TaggingPage : UserControl, IDisposable
 {
     private readonly DesktopSessionHost _host;
     private readonly TaggingQueueController _queueWork;
     private readonly TextBlock _title = new() { Name = "TaggingTitle", Classes = { "page-title" } };
     private readonly TextBlock _subtitle = new() { Name = "TaggingSubtitle", Classes = { "muted" }, TextWrapping = TextWrapping.Wrap };
-    // TG1: one toolbar row: the primary start button, the icon buttons, then "Show", the view switch and the help. Items that do not fit
-    // move into the toolbar's "More" in the order of the work view.
+    // Queue mutations and feedback share a measured row; visible-result controls live directly above the list.
     private readonly ActionToolBar _actions = new() { Name = "TaggingActions", HorizontalAlignment = HorizontalAlignment.Stretch };
-    private readonly WrapPanel _secondaryToolbar = new() { Name = "TaggingSecondaryToolbar", ItemSpacing = 16, LineSpacing = 8, IsVisible = false };
+    private readonly TaggingControlRow _listControls = new() { Name = "TaggingListControls" };
+    private readonly ActionToolBar _listPresentation = new() { Name = "TaggingListPresentation" };
     private readonly Border _error = new() { Name = "TaggingError", Classes = { "workspace-error" }, IsVisible = false };
     private readonly TextBlock _errorText = new() { Name = "TaggingErrorText", TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _errorSource = new() { Name = "TaggingErrorSource", Classes = { "muted" }, TextWrapping = TextWrapping.Wrap };
     private readonly Button _retryLoad = new() { Name = "TaggingRetryLoad", Classes = { "subtle" } };
-    // The counters row: "Open n · Finished n · Skipped n", a 120 dip mini bar and the percentage; the "last shown" link follows them
-    // directly (it wraps below them on a narrow page instead of drifting to the far edge of a wide one).
+    // Counters, mini bar and percentage are supporting feedback in the queue-action row.
     private readonly WrapPanel _progress = new() { Name = "TaggingProgress", ItemSpacing = 16, LineSpacing = 4 };
     private readonly TextBlock _progressText = new() { Name = "TaggingProgressText", Classes = { "tnum" }, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
     internal const double MiniBarWidth = 120;
     private readonly ProgressBar _bar = new() { Name = "TaggingProgressBar", Minimum = 0, Maximum = 100, Width = MiniBarWidth, Height = 6, MinHeight = 0, MaxHeight = 6 };
     private readonly TextBlock _percent = new() { Name = "TaggingPercent", Classes = { "muted", "tnum" }, VerticalAlignment = VerticalAlignment.Center };
     private readonly Button _start = new() { Name = "TaggingStart", Classes = { "primary" } };
-    // T1: "Last shown: file · position n of m"; the link continues exactly there (the same action as the start button, which stands at
-    // the same entry).
-    private readonly Button _lastShown = new() { Name = "TaggingLastShown", Classes = { "link", "tnum" }, Padding = new Thickness(0), MinHeight = 24,
-        HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center, IsVisible = false };
+    // Passive supporting context for Start: never a second spatially separated continue action.
+    private readonly TextBlock _lastShown = new() { Name = "TaggingLastShown", Classes = { "muted", "tnum" }, MaxWidth = 280,
+        TextTrimming = TextTrimming.CharacterEllipsis, IsVisible = false };
+    private readonly StackPanel _startContext = new() { Name = "TaggingStartContext", Spacing = 4 };
+    private readonly TaggingControlRow _queueActionRow = new() { Name = "TaggingQueueActionRow" };
     private readonly StackPanel _filterPanel = new() { Name = "TaggingFilterPanel", Orientation = Orientation.Horizontal, Spacing = 8 };
     private readonly TextBlock _filterLabel = new() { VerticalAlignment = VerticalAlignment.Center };
     private readonly ComboBox _filter = new() { Name = "TaggingFilter", MinWidth = 160 };
@@ -59,20 +60,22 @@ public sealed partial class TaggingPage : UserControl
     private readonly Grid _columnHeader = new() { Name = "TaggingColumns", ColumnDefinitions = TaggingQueueRowView.BuildColumns(true), ColumnSpacing = TaggingQueueRowView.ColumnGap, Margin = new Thickness(12, 0, 12, 0),
         // A right-click between the header words has to find the header too (it carries the column menu), so it takes a transparent fill.
         Background = Brushes.Transparent };
-    private readonly ListBox _list = new() { Name = "TaggingList", SelectionMode = SelectionMode.Multiple };
+    private readonly Border _columnHeaderSurface = new() { Name = "TaggingColumnHeaderSurface", Classes = { "workspace-table-header" } };
+    private readonly ListBox _list = new() { Name = "TaggingList", Classes = { "tagging-table" }, SelectionMode = SelectionMode.Multiple };
     private readonly TextBlock _empty = new() { Name = "TaggingEmpty" };
     private readonly WorkspaceEmptyState _emptyState = new() { Name = "TaggingEmptyState", IsVisible = false };
-    // Up to three actions side by side, centred; they wrap to a second line on a narrow page instead of running off both edges (like the Media page's).
+    // Empty-state actions side by side, centred; they wrap to a second line on a narrow page instead of running off both edges (like the Media page's).
     private readonly WrapPanel _emptyActions = new() { Name = "TaggingEmptyActions", ItemSpacing = 8, LineSpacing = 8, HorizontalAlignment = HorizontalAlignment.Center };
-    private readonly Button _emptyMedia = new() { Name = "TaggingEmptyMedia", Classes = { "primary" } };
+    private readonly Button _emptyMedia = new() { Name = "TaggingEmptyMedia" };
     private readonly Button _emptyHow = new() { Name = "TaggingEmptyHow", Classes = { "link" } };
+    private readonly Button _emptyDeleteGroup = new() { Name = "TaggingEmptyDeleteGroup", Classes = { "danger" } };
     private readonly Button _emptyClearDone = new() { Name = "TaggingEmptyClearDone" };
     private readonly Button _emptyReopen = new() { Name = "TaggingEmptyReopen" };
-    private readonly Button _emptyShowAll = new() { Name = "TaggingEmptyShowAll", Classes = { "primary" } };
-    private readonly TextBlock _keysHint = new() { Name = "TaggingKeysHint", Classes = { "workspace-help" }, TextWrapping = TextWrapping.Wrap };
+    private readonly Button _emptyShowAll = new() { Name = "TaggingEmptyShowAll" };
     private readonly TextBlock _status = new() { Name = "TaggingStatus", Classes = { "muted" }, TextWrapping = TextWrapping.Wrap, IsVisible = false };
     private readonly CancellationTokenSource _lifetime = new();
     private readonly TaggingThumbnails _thumbnails;
+    private readonly IDisposable _keyContext;
     private MediaLibraryUserData? _userData;
     private bool _compactRows;
     private bool _compactTable;
@@ -87,10 +90,9 @@ public sealed partial class TaggingPage : UserControl
         Name = "TaggingPage";
         // Every key of the page runs in the "tagging" context, as the commands of its queue list are declared (tagging.remove, media.tile-size.*): a default
         // that a saved binding took away only elsewhere (a partial yield) stays active here (EffectiveShortcutBindings.EnterKeyContext).
-        MeowChan.Desktop.Controls.KeyContextHost.Install(this, _ => "tagging");
+        _keyContext = MeowChan.Desktop.Controls.KeyContextHost.Install(this, _ => "tagging");
         Content = BuildLayout();
         _start.Click += (_, _) => OpenActions.Start(() => StartAsync(null), "tagging.start");
-        _lastShown.Click += (_, _) => OpenActions.Start(() => StartAsync(null), "tagging.start");
         _filter.SelectionChanged += (_, _) => { if (!_localizing) { Render(); RefreshWorkView(); } };
         InitializeGrid();
         InitializeCommands();
@@ -103,8 +105,6 @@ public sealed partial class TaggingPage : UserControl
         _host.StateChanged += OnHostChanged;
         Localize();
         Render();
-        AttachedToVisualTree += (_, _) => UpdateToolbarRows();
-        UpdateToolbarRows();
     }
 
     /// <summary>
@@ -126,7 +126,7 @@ public sealed partial class TaggingPage : UserControl
     internal ComboBox FilterBox => _filter;
     internal TextBlock StatusText => _status;
     internal TextBlock ProgressText => _progressText;
-    internal Button LastShownLink => _lastShown;
+    internal TextBlock LastShownContext => _lastShown;
     internal Border ErrorPanel => _error;
     internal TextBlock ErrorSourceText => _errorSource;
     internal Button RetryLoadButton => _retryLoad;
@@ -140,37 +140,48 @@ public sealed partial class TaggingPage : UserControl
 
     private Control BuildLayout()
     {
-        StackPanel heading = new() { Classes = { "workspace-page-header" }, Children = { _title, _subtitle } };
+        StackPanel heading = new() { Name = "TaggingHeading", Classes = { "workspace-page-header" },
+            [!StackPanel.SpacingProperty] = new DynamicResourceExtension("Workspace.Space.8"), Children = { _title, _subtitle } };
 
-        _error.Child = new StackPanel { Spacing = 8, Children = { _errorText, _errorSource, _retryLoad } };
+        _error.Child = new StackPanel { [!StackPanel.SpacingProperty] = new DynamicResourceExtension("Workspace.Space.8"), Children = { _errorText, _errorSource, _retryLoad } };
         AutomationProperties.SetLiveSetting(_errorText, AutomationLiveSetting.Assertive);
         AutomationProperties.SetLiveSetting(_errorSource, AutomationLiveSetting.Polite);
 
+        foreach (TaggingControlRow row in new[] { _queueActionRow, _listControls })
+        {
+            row[!TaggingControlRow.GroupSpacingProperty] = new DynamicResourceExtension("Workspace.Space.16");
+            row[!TaggingControlRow.LineSpacingProperty] = new DynamicResourceExtension("Workspace.Space.8");
+        }
+        _listControls.Margin = new Thickness(0, 0, 0, 8);
         _bar.VerticalAlignment = VerticalAlignment.Center;
         // Narrow-window sweep (16.11.2026): a horizontal StackPanel measured the counters at their full length, so the wrapping text never wrapped
         // and a long language pushed the bar and the percentage off a narrow page; in a WrapPanel the text gets the row's width.
         WrapPanel counters = new() { ItemSpacing = 12, LineSpacing = 4, Children = { _progressText, _bar, _percent } };
         _progress.Children.Add(counters);
-        _progress.Children.Add(_lastShown);
+        _startContext.Children.Add(_start);
+        _startContext.Children.Add(_lastShown);
+        _queueActionRow.Children.Add(_actions);
+        _queueActionRow.Children.Add(new StackPanel { Name = "TaggingFeedback", Spacing = 4, Children = { _progress, _status } });
 
         _filterPanel.Children.Add(_filterLabel);
         _filterPanel.Children.Add(_filter);
 
         // The title starts where every page title starts (PageHeader.PageTopOffset, LY-03); the page has no margin of its own.
-        StackPanel header = new() { Spacing = 8, Margin = new Thickness(12, PageHeader.PageTopOffset, 12, 8) };
+        StackPanel header = new() { Name = "TaggingSections",
+            [!StackPanel.SpacingProperty] = new DynamicResourceExtension("Workspace.Space.16"),
+            Margin = new Thickness(12, PageHeader.PageTopOffset, 12, 16) };
         header.Children.Add(heading);
         header.Children.Add(_error);
-        header.Children.Add(BuildClearConfirmation());
-        header.Children.Add(_progress);
-        header.Children.Add(_actions);
-        header.Children.Add(_secondaryToolbar);
+        // A confirmation belongs immediately after its trigger row, before the next major section.
+        StackPanel queueControls = new() { Name = "TaggingQueueControls",
+            [!StackPanel.SpacingProperty] = new DynamicResourceExtension("Workspace.Space.8"),
+            Children = { _queueActionRow, BuildClearConfirmation() } };
+        header.Children.Add(queueControls);
         header.Children.Add(BuildStamp());
         SizeChanged += (_, _) =>
         {
-            UpdateToolbarRows();
             UpdateTableLayout();
         };
-        header.Children.Add(_status);
         AutomationProperties.SetLiveSetting(_status, AutomationLiveSetting.Polite);
 
         _list.ItemTemplate = RowTemplate();
@@ -179,7 +190,6 @@ public sealed partial class TaggingPage : UserControl
             TaggingQueueRow? row = e.Container.DataContext as TaggingQueueRow ?? (e.Index >= 0 && e.Index < _rows.Count ? _rows[e.Index] : null);
             if (e.Container is ListBoxItem item && row != null)
             {
-                item.MinHeight = _compactRows ? TaggingQueueRowView.CompactHeight : TaggingQueueRowView.RowHeight;
                 AutomationProperties.SetName(item, row.AccessibleName);
                 AutomationProperties.SetHelpText(item, row.AccessibleDetails(TagCountOf(row.Item)));
             }
@@ -191,6 +201,7 @@ public sealed partial class TaggingPage : UserControl
         _emptyActions.Children.Add(_emptyMedia);
         _emptyActions.Children.Add(_emptyClearDone);
         _emptyActions.Children.Add(_emptyReopen);
+        _emptyActions.Children.Add(_emptyDeleteGroup);
         _emptyState.Children.Add(_emptyActions);
         _emptyState.Children.Add(_emptyHow);
         _emptyHow.HorizontalAlignment = HorizontalAlignment.Center;
@@ -199,22 +210,24 @@ public sealed partial class TaggingPage : UserControl
         body.Children.Add(_grid);
         body.Children.Add(_emptyState);
         // The selection bar (only with a selection) stands above the column header; the toolbar above it never moves.
-        Grid listArea = new() { RowDefinitions = new RowDefinitions("Auto,Auto,*") };
-        listArea.Children.Add(BuildSelectionBar());
-        Grid.SetRow(_columnHeader, 1);
-        listArea.Children.Add(_columnHeader);
-        Border surface = new() { Name = "TaggingListSurface", Child = body, Classes = { "workspace-section-flush" } };
+        Grid listArea = new() { Name = "TaggingListArea", RowDefinitions = new RowDefinitions("Auto,Auto,*"), RowSpacing = 0 };
+        listArea.Children.Add(_listControls);
+        Control selection = BuildSelectionBar();
+        Grid.SetRow(selection, 1);
+        listArea.Children.Add(selection);
+        _columnHeaderSurface.Child = _columnHeader;
+        Grid table = new() { Name = "TaggingTable", RowDefinitions = new RowDefinitions("Auto,*"), Children = { _columnHeaderSurface } };
+        Grid.SetRow(body, 1);
+        table.Children.Add(body);
+        Border surface = new() { Name = "TaggingListSurface", Child = table, Classes = { "workspace-section-flush" } };
         Grid.SetRow(surface, 2);
         listArea.Children.Add(surface);
 
-        Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*,Auto") };
+        Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*") };
         layout.Children.Add(header);
         Border list = new() { Child = listArea, Margin = new Thickness(12, 0, 12, 4) };
         Grid.SetRow(list, 1);
         layout.Children.Add(list);
-        _keysHint.Margin = new Thickness(12, 0, 12, 12);
-        Grid.SetRow(_keysHint, 2);
-        layout.Children.Add(_keysHint);
         return layout;
     }
 
@@ -239,6 +252,7 @@ public sealed partial class TaggingPage : UserControl
         bool compact = WorkViewDensity.Compact(_workView) || CompactDensity?.Invoke() == true;
         if (compact == _compactRows) return;
         _compactRows = compact;
+        _list.Classes.Set("compact", compact);
         _list.ItemTemplate = RowTemplate();
     }
 
@@ -371,6 +385,7 @@ public sealed partial class TaggingPage : UserControl
         _list.IsVisible = !empty && _viewMode == TaggingViewMode.List;
         _grid.IsVisible = !empty && _viewMode == TaggingViewMode.Grid;
         _columnHeader.IsVisible = !empty && _viewMode == TaggingViewMode.List;
+        _columnHeaderSurface.IsVisible = _columnHeader.IsVisible;
         // "Choose columns…" only means something where there are columns: the list view (the work view still decides first, by the
         // toolbar's own omission of the item; a hidden item takes no width and no group line).
         _columnsButton.IsVisible = _viewMode == TaggingViewMode.List;
@@ -385,18 +400,16 @@ public sealed partial class TaggingPage : UserControl
         UpdateSelectionBar();
     }
 
-    // T1: the link follows the queue; it continues like the start button, so it is as enabled as that button. Whether it is shown at all
-    // is the work view's call (WorkViewGate in RefreshWorkView) together with the queue's state.
+    // The work-view gate controls supporting context; the only activation target is Start.
     private void RenderLastShown(TagQueueSnapshot queue)
     {
         string? text = TaggingQueueView.LastShownText(queue, _selectedGroupId, _ungroupedSelected, Scope);
-        _lastShown.Content = text; // its visibility is the work-view gate's (RefreshWorkView)
-        _lastShown.IsEnabled = text != null && CanStart;
+        _lastShown.Text = text; // its visibility is the work-view gate's (RefreshWorkView)
         if (text != null)
         {
             AutomationProperties.SetName(_lastShown, text);
             AutomationProperties.SetHelpText(_lastShown, Texts.T("tagging.page.lastShown.help"));
-            ToolTip.SetTip(_lastShown, Texts.T("tagging.page.lastShown.help"));
+            ToolTip.SetTip(_lastShown, text);
         }
     }
 
@@ -415,6 +428,7 @@ public sealed partial class TaggingPage : UserControl
         if (label == null)
             ToolTip.SetTip(_start, Texts.T(_queueWork.Queue.Count == 0 ? "queue.empty" : "queue.allDone"));
         RenderLastShown(_queueWork.Queue);
+        AutomationProperties.SetHelpText(_start, _lastShown.Text);
         RefreshCommandStates();
     }
 
@@ -474,7 +488,7 @@ public sealed partial class TaggingPage : UserControl
                 Text = column switch { 0 => "#", 1 => string.Empty, _ => Texts.T(keys[column]) }, Classes = { "workspace-meta" },
                 TextAlignment = column is 0 or 6 ? TextAlignment.Right : TextAlignment.Left,
                 VerticalAlignment = VerticalAlignment.Center,
-                Margin = column switch { 0 => TaggingQueueRowView.NumberMargin(ShowPreviewColumn), 7 => TaggingQueueRowView.StateMargin, _ => default }
+                Margin = column == 0 ? TaggingQueueRowView.NumberMargin(ShowPreviewColumn) : default
             };
             header.IsVisible = column != 1 || ShowPreviewColumn;
             Grid.SetColumn(header, column);
@@ -485,10 +499,14 @@ public sealed partial class TaggingPage : UserControl
     }
 
     /// <summary>The window closes: the page stops following the host and the language.</summary>
-    internal void End()
+    internal void End() => Dispose();
+
+    /// <summary>Releases the key-context lease, menus and cancellation lifetime owned by this page.</summary>
+    public void Dispose()
     {
         if (_queueWork.Ended) return;
         _queueWork.End();
+        _keyContext.Dispose();
         EndTagging();
         _menuHost?.Dispose();
         _gridMenuHost?.Dispose();
@@ -497,6 +515,7 @@ public sealed partial class TaggingPage : UserControl
         _groupMenuHost?.Dispose();
         _groupManageHost?.Dispose();
         _lifetime.Cancel();
+        _lifetime.Dispose();
         Texts.Changed -= OnLanguageChanged;
         _host.StateChanged -= OnHostChanged;
     }
