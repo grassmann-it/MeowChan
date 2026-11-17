@@ -195,6 +195,8 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
             RoutingStrategies.Bubble, handledEventsToo: true);
         Activator.Click += (_, e) => { e.Handled = true; OpenActions.Start(() => PlayAsync(), "reader.video.play"); };
         area.Children.Add(Activator);
+        Activator.AttachedToVisualTree += (_, _) => { ShortcutService.Changed += RefreshActivationHelp; RefreshActivationHelp(); };
+        Activator.DetachedFromVisualTree += (_, _) => ShortcutService.Changed -= RefreshActivationHelp;
         _error.Classes.Add("workspace-error");
         AutomationProperties.SetLiveSetting(_error, AutomationLiveSetting.Assertive);
         AutomationProperties.SetLiveSetting(_live, AutomationLiveSetting.Polite);
@@ -206,6 +208,13 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
             target.AddHandler(InputElement.KeyDownEvent, (_, e) => OnKeyDown(e), RoutingStrategies.Bubble);
             target.AddHandler(InputElement.KeyDownEvent, (_, e) => OnNavigationKey(e), RoutingStrategies.Tunnel);
         }
+    }
+
+    private void RefreshActivationHelp()
+    {
+        string help = ReaderShortcutHelp.PlayHint(ShortcutContext);
+        AutomationProperties.SetHelpText(Activator, help);
+        ToolTip.SetTip(Activator, help);
     }
 
     /// <summary>The row under the frame as its type (the owner gives it the frame's width).</summary>
@@ -240,8 +249,7 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
         _openGallery = usable ? openGallery : null;
         string label = Texts.T("reader.video.play", name.Length > 0 ? name : Texts.T("reader.video.unnamed"));
         AutomationProperties.SetName(Activator, label);
-        AutomationProperties.SetHelpText(Activator, Texts.T("reader.video.playHint"));
-        ToolTip.SetTip(Activator, label);
+        RefreshActivationHelp();
         if (!usable) ShowError(null);
         UpdatePresentation();
     }

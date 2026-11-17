@@ -72,6 +72,32 @@ public sealed class PointOfUseDiscoveryTests
         finally { player.DisposeAsync().AsTask().GetAwaiter().GetResult(); }
     });
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ReaderActivationHelpUsesEffectiveBindingsInEveryLanguage(bool unbound) => WithControls(() =>
+    {
+        var section = new ShortcutBindingsSection()
+            .Set("reader.media.activate", unbound ? [] : [ShortcutGesture.Parse("Alt+F8")])
+            .Set("video.play-pause", unbound ? [] : [ShortcutGesture.Parse("Alt+F9")]);
+        ShortcutService.Publish(section);
+        foreach (string language in new[] { "en", "de" }.Concat(Texts.BundledPackCodes()))
+        {
+            Texts.SetLanguage(language);
+            string hint = ReaderShortcutHelp.PlayHint(), note = ReaderShortcutHelp.ActivationNote();
+            Assert.DoesNotContain("{0}", hint); Assert.DoesNotContain("{1}", hint);
+            Assert.DoesNotContain("{0}", note);
+            foreach (string id in new[] { "reader.media.activate", "video.play-pause" })
+                foreach (var gesture in ShortcutService.Current.For(id))
+                {
+                    string key = gesture.Display(OperatingSystem.IsMacOS() ? ShortcutPlatform.MacOS : ShortcutPlatform.Windows);
+                    Assert.Contains(key, hint); Assert.Contains(key, note);
+                }
+            if (!unbound) Assert.DoesNotContain("Space", hint);
+        }
+        Texts.SetLanguage("en");
+    });
+
     private static void AssertHelp(Control control, string context, params string[] commands)
     {
         string tip = Assert.IsType<string>(ToolTip.GetTip(control));

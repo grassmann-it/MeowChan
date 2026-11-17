@@ -121,7 +121,7 @@ public sealed class ShortcutsWindowTests : IDisposable
         var editor = new ShortcutBindingsEditor();
         editor.ApplyContext(ReaderContext());
         string text = editor.PlainText;
-        Assert.StartsWith(Texts.T("help.reader.mediaActivation"), text);
+        Assert.StartsWith(ReaderShortcutHelp.ActivationNote(), text);
         Assert.Contains(Texts.T("help.scope.current"), text);
         Assert.Contains(Texts.T("help.scope.application"), text);
         Assert.Contains(CommandCatalog.Label("navigation.archive") + "   " + CommandCatalog.ShortcutDisplay("navigation.archive"), text);

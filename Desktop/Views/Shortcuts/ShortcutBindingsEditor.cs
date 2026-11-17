@@ -526,7 +526,7 @@ public sealed partial class ShortcutBindingsEditor : UserControl
 
     private void RefreshNotes()
     {
-        List<string> notes = (_context.NoteKeys ?? Array.Empty<string>()).Select(key => Texts.T(key)).ToList();
+        List<string> notes = (_context.NoteKeys ?? Array.Empty<string>()).Select(ReaderShortcutHelp.Note).ToList();
         if (!ShortcutService.Current.SingleKeyShortcuts || !_session.Draft.SingleKeyShortcuts) notes.Add(Texts.T("help.singleKeysOff"));
         _noteLines = notes.Distinct().ToArray();
         _notes.Children.Clear();
@@ -1019,7 +1019,7 @@ public sealed partial class ShortcutBindingsEditor : UserControl
             if (lines.Length > 0) sections.Add(Texts.T(label) + Environment.NewLine + string.Join(Environment.NewLine, lines));
         }
         foreach (string key in context.NoteKeys ?? Array.Empty<string>())
-            if (key != "help.scope.generalNote") sections.Insert(0, Texts.T(key));
+            if (key != "help.scope.generalNote") sections.Insert(0, ReaderShortcutHelp.Note(key));
         // The "outside inputs and overlays" qualifier of the page shortcuts is stated once, not on every line (UX round 3).
         if (ids.Any(CommandCatalog.HasGenericScope)) sections.Add(Texts.T("help.scope.generalNote"));
         return string.Join(Environment.NewLine + Environment.NewLine, sections)
