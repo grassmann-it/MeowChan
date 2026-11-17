@@ -1198,6 +1198,7 @@
     "plugins.changedBuild": "Build modificata",
     "plugins.rollbackPinned": "Ultima build salvata funzionante fissata",
     "plugins.rollbackPinnedHint": "Il rollback salvato resta fissato finché non viene selezionato esplicitamente un candidato.",
+    "plugins.pinnedReleaseUpdatedHint": "Questo avvio ha aggiornato sul posto la versione fissata {0} alla build inclusa attuale della stessa versione. Resta fissata; la build precedente viene conservata per il rollback.",
     "plugins.capability.threadRead": "Leggi thread",
     "plugins.capability.boardCatalog": "Cataloghi delle board",
     "plugins.capability.postCapture": "Acquisisci post",

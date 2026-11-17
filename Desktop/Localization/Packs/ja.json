@@ -1514,6 +1514,7 @@
     "plugins.changedBuild": "変更されたビルド",
     "plugins.rollbackPinned": "最後に正常だった保存済みビルドを固定中",
     "plugins.rollbackPinnedHint": "保存されたロールバックは、候補が明示的に選択されるまで固定されたままです。",
+    "plugins.pinnedReleaseUpdatedHint": "今回の起動で、固定中のリリース {0} を同じバージョンの現在の同梱ビルドにその場で更新しました。固定は維持され、以前のビルドはロールバック用に保持されます。",
     "plugins.capability.threadRead": "スレッドの読み取り",
     "plugins.capability.boardCatalog": "板カタログ",
     "plugins.capability.postCapture": "投稿の取得",

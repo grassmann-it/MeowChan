@@ -1697,6 +1697,7 @@
     "plugins.changedBuild": "Изменённая сборка",
     "plugins.rollbackPinned": "Последняя исправная сохранённая сборка закреплена",
     "plugins.rollbackPinnedHint": "Сохранённый откат остаётся закреплённым до явного выбора кандидата.",
+    "plugins.pinnedReleaseUpdatedHint": "При этом запуске закреплённый выпуск {0} обновлён на месте до текущей встроенной сборки той же версии. Он остаётся закреплённым; предыдущая сборка сохранена для отката.",
     "plugins.capability.threadRead": "Чтение тредов",
     "plugins.capability.boardCatalog": "Каталоги досок",
     "plugins.capability.postCapture": "Захват постов",

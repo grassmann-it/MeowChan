@@ -115,7 +115,9 @@ internal static class PluginContentPresentation
                 PluginPendingKind.Configuration => "plugins.pending.configurationHint",
                 _ => "plugins.pending.unknown"
             }));
-        if (presentation.IsRollbackPinned) hints.Add(Texts.T("plugins.rollbackPinnedHint"));
+        if (presentation.IsPinnedReleaseUpdatedInPlace && presentation.Active is { } updated)
+            hints.Add(Texts.T("plugins.pinnedReleaseUpdatedHint", updated.Description.PluginVersion));
+        else if (presentation.IsRollbackPinned) hints.Add(Texts.T("plugins.rollbackPinnedHint"));
         if (presentation.HasAutomaticSdkTransition && presentation.AutomaticSdkTransition is { } transition)
             hints.Add(Texts.T("plugins.sdkTransition.automaticHint", transition.FromSdkVersion, transition.ToSdkVersion,
                 transition.ExecutionRevision));

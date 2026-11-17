@@ -72,7 +72,15 @@ internal sealed class PluginEntryPresentation
     /// The activation problem worth showing as a problem. The store's own note after a confirmed new bundled selection is the
     /// confirmation receipt, not a problem: the "confirmed for next start" status line says it in the UI language.
     /// </summary>
-    internal string? VisibleActivationProblem => IsConfirmedForNextStart && ActivationProblem == ReselectionConfirmedNote ? null : ActivationProblem;
+    internal string? VisibleActivationProblem => IsConfirmedForNextStart && ActivationProblem == ReselectionConfirmedNote ||
+        IsPinnedReleaseUpdatedInPlace ? null : ActivationProblem;
+    /// <summary>
+    /// This start moved the pinned release to its rebuilt bundled build of the same version (#130): a calm one-start notice,
+    /// not a problem. The store's note is cleared by the next start, so the card says it once.
+    /// </summary>
+    internal bool IsPinnedReleaseUpdatedInPlace =>
+        ActivationProblem == MeowChan.PluginHost.Configuration.PluginActivationProblems.PinnedReleaseUpdatedInPlace &&
+        Pinned is { } pin && Active is { } active && SameBuild(pin, active);
     /// <summary>The exact note <c>PluginProfileStore.ConfirmBundledReselectionAsync</c> leaves (pinned by a source test).</summary>
     internal const string ReselectionConfirmedNote = "New bundled selection confirmed for next start; original state retained in backup.";
     internal bool CanSelectCandidate { get; private init; }

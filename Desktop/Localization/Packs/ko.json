@@ -1514,6 +1514,7 @@
     "plugins.changedBuild": "변경된 빌드",
     "plugins.rollbackPinned": "마지막 정상 저장 빌드 고정됨",
     "plugins.rollbackPinnedHint": "후보를 명시적으로 선택할 때까지 저장된 롤백이 고정된 상태로 유지됩니다.",
+    "plugins.pinnedReleaseUpdatedHint": "이번 시작에서 고정된 릴리스 {0}을(를) 같은 버전의 현재 번들 빌드로 제자리에서 업데이트했습니다. 고정은 유지되며 이전 빌드는 롤백용으로 보관됩니다.",
     "plugins.capability.threadRead": "스레드 읽기",
     "plugins.capability.boardCatalog": "게시판 카탈로그",
     "plugins.capability.postCapture": "게시물 캡처",

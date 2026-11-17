@@ -52,7 +52,8 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
     public IReadOnlyDictionary<string, string> SupersededBundledPlugins { get; init; } = new Dictionary<string, string>(StringComparer.Ordinal);
 
     /// <summary>Optional diagnostics sink. Startup writes one Information line per automatic in-place bundled
-    /// update that carried existing rights or accepted a narrowing-only declaration change without review (#130).</summary>
+    /// update that carried existing rights or accepted a narrowing-only declaration change without review, and one per
+    /// pinned release that was moved to its rebuilt build of the same version (#130).</summary>
     public Serilog.ILogger? Logger { get; init; }
 
     public string StorePath => path;
@@ -109,7 +110,7 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
         if (observations.Select(item => item.CandidateId).Distinct(StringComparer.Ordinal).Count() != observations.Length)
             throw new ArgumentException("Startup inventory contains duplicate candidate identities.");
         // Logged only after the profile write succeeded, so no line claims an update that was not saved.
-        List<(string PluginId, string From, string To, string Path, string Carried)> carryOvers = new();
+        List<(string PluginId, string From, string To, string Path, string Carried, string? PinnedVersion)> carryOvers = new();
         return LogCarryOversAfter(carryOvers, MutateStartupDocumentAsync(expectedRevision, async document =>
         {
             if (proofs is not null)
@@ -176,11 +177,49 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
                 PluginReleaseSnapshot? release = null;
                 BundledRepairBinding? automaticBinding = null;
                 (string From, string Path, string Carried)? carryOver = null;
-                bool sdkUpgrade = false;
+                bool sdkUpgrade = false, pinnedUpdate = false;
                 if (superseded.Contains(pluginId))
                     next = next with { Problem = "Replaced by the bundled plugin '" + SupersededBundledPlugins[pluginId] + "', which serves the same sources." };
                 else if (old.Pinned is not null)
-                    release = old.Pending is not null && SameBuild(old.Pending, old.Pinned) ? old.Pending : old.Pinned;
+                {
+                    release = BundledCandidateMigration.PinnedRelease(old)!;
+                    // #130: a pin means "stay on this release". The same file rebuilt with the same version and
+                    // declaration moves the pin to the new build; anything else keeps the pinned build as it is.
+                    PluginCandidateSnapshot? rebuilt = inventory.FirstOrDefault(item => item.CandidateId == old.Pinned.CandidateId);
+                    PreReplacementBasis pinnedBasis = BundledCandidateMigration.TrustedPreReplacementBasis(document, old);
+                    bool canSerializePinnedPermissions = repairRestrictedSources is null || repairPermissionGate is not null;
+                    if (canSerializePinnedPermissions && rebuilt?.Artifact is not null &&
+                        BundledCandidateMigration.CanAutomaticallyUpdatePinnedRelease(document, old, rebuilt, pinnedBasis, proofs, present.Length))
+                    {
+                        // The exact existing rights this update carries over, frozen before async IO (as on the unpinned path).
+                        string frozenPermissions = BundledRepairPermissionReview.Json(document, old, rebuilt);
+                        bool accepted;
+                        try
+                        {
+                            DeliveredCandidateProvenance proof = proofs!.Single(value => BundledCandidateMigration.Matches(value, rebuilt));
+                            await PluginInstallationInventory.VerifyRepairTargetAsync(proof, rebuilt.Artifact, rebuilt.Description!, cancellationToken)
+                                .ConfigureAwait(false);
+                            string[]? currentLiveRestrictions = repairRestrictedSources?.Invoke()
+                                .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
+                            if (currentLiveRestrictions is not null)
+                                document = document with { RestrictedSourceIds = document.RestrictedSourceIds.Concat(currentLiveRestrictions)
+                                    .Distinct(StringComparer.Ordinal).ToArray() };
+                            // Never carry over a right that appeared or changed during the verification IO.
+                            accepted = BundledCandidateMigration.CanAutomaticallyUpdatePinnedRelease(document, old, rebuilt, pinnedBasis, proofs, present.Length)
+                                && frozenPermissions == BundledRepairPermissionReview.Json(document, old, rebuilt);
+                        }
+                        catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException or JsonException)
+                        { accepted = false; }
+                        // A failed verification keeps today's behavior: the pinned build stays and the review route remains.
+                        if (accepted)
+                        {
+                            carryOver = (pinnedBasis.ExecutionRevision!, rebuilt.CandidatePath ?? "",
+                                BundledCandidateMigration.DescribeInPlaceCarryOver(document, old, rebuilt, pinnedBasis, pinnedRelease: true) ?? "no special rights");
+                            release = new(rebuilt.CandidateId, rebuilt.Artifact, rebuilt.Description!, release.Configuration);
+                            pinnedUpdate = true;
+                        }
+                    }
+                }
                 else if (selected is null)
                     next = next with { Problem = present.Length > 1 ? "Multiple candidates require an explicit selection." : "Plugin is missing." };
                 else
@@ -330,14 +369,17 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
                         next = next with { Active = release, Pending = null, LastGood = lastGood ?? release,
                             Pinned = old.Pinned is null ? null : release, AutomaticSdkTransition = sdkTransition,
                             LifecycleRevision = checked(old.LifecycleRevision + 1),
-                            Problem = present.Length > 1 ? "Multiple candidates exist; the selected candidate is retained." : null };
+                            Problem = present.Length > 1 ? "Multiple candidates exist; the selected candidate is retained."
+                                // Shown once on the plugin's card; the next start clears it (#130).
+                                : pinnedUpdate ? PluginActivationProblems.PinnedReleaseUpdatedInPlace : null };
                         // Advance an established binding only with the accepted activation,
                         // never while a later ownership/conflict check can still reject it.
                         if (automaticBinding is { } acceptedBinding)
                             document = document with { Bindings = document.Bindings
                                 .Select(value => value.PluginId == pluginId ? acceptedBinding : value).ToArray() };
                         if (carryOver is { } accepted && accepted.From != release.ExecutionRevision)
-                            carryOvers.Add((pluginId, accepted.From, release.ExecutionRevision, accepted.Path, accepted.Carried));
+                            carryOvers.Add((pluginId, accepted.From, release.ExecutionRevision, accepted.Path, accepted.Carried,
+                                pinnedUpdate ? release.Description.PluginVersion : null));
                         // Any accepted 1.1.0 build, automatic or explicitly reviewed, uses up the SDK bridge.
                         if (release.Description.SdkVersion == "1.1.0" && document.Provenance.Any(p => p.PluginId == pluginId) &&
                             !document.AcceptedSdkUpgrades.Any(u => u.PluginId == pluginId))
@@ -356,12 +398,15 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
     }
 
     private async Task<PluginProfileSnapshot> LogCarryOversAfter(
-        List<(string PluginId, string From, string To, string Path, string Carried)> carryOvers, Task<PluginProfileSnapshot> write)
+        List<(string PluginId, string From, string To, string Path, string Carried, string? PinnedVersion)> carryOvers, Task<PluginProfileSnapshot> write)
     {
         PluginProfileSnapshot result = await write.ConfigureAwait(false);
         if (Logger is { } logger)
-            foreach ((string pluginId, string from, string to, string candidatePath, string carried) in carryOvers)
-                logger.Information("Plugin {PluginId}: automatic in-place bundled update {FromExecution} -> {ToExecution} carried over {Carried} without a repair review, because it is the same manifest {CandidatePath} in this app's own plugins folder with verified current delivery proof and its declaration adds no host, route, capability, filter, data access or source.",
+            foreach ((string pluginId, string from, string to, string candidatePath, string carried, string? pinnedVersion) in carryOvers)
+                if (pinnedVersion is not null)
+                    logger.Information("Plugin {PluginId}: automatic pinned in-place bundled update {FromExecution} -> {ToExecution} kept the pin on release {PluginVersion}, now on the new build (the previous build stays the last good build for rollback), and carried over {Carried} without a repair review, because it is the same manifest {CandidatePath} in this app's own plugins folder with verified current delivery proof, the same plugin version and a declaration identical apart from the operational post order.",
+                        pluginId, from, to, pinnedVersion, carried, candidatePath);
+                else logger.Information("Plugin {PluginId}: automatic in-place bundled update {FromExecution} -> {ToExecution} carried over {Carried} without a repair review, because it is the same manifest {CandidatePath} in this app's own plugins folder with verified current delivery proof and its declaration adds no host, route, capability, filter, data access or source.",
                     pluginId, from, to, carried, candidatePath);
         return result;
     }

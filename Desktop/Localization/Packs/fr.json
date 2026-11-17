@@ -1693,6 +1693,7 @@
     "plugins.changedBuild": "Version modifiée",
     "plugins.rollbackPinned": "Dernière version fonctionnelle enregistrée épinglée",
     "plugins.rollbackPinnedHint": "La version de retour arrière enregistrée reste épinglée jusqu’à la sélection explicite d’un candidat.",
+    "plugins.pinnedReleaseUpdatedHint": "Ce démarrage a mis à jour sur place la version épinglée {0} vers la version groupée actuelle du même numéro. Elle reste épinglée ; la version précédente est conservée pour un retour arrière.",
     "plugins.capability.threadRead": "Lire les fils",
     "plugins.capability.boardCatalog": "Catalogues de tableaux",
     "plugins.capability.postCapture": "Capturer les messages",

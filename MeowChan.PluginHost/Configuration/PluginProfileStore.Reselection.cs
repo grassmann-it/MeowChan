@@ -74,22 +74,9 @@ public sealed partial class PluginProfileStore
         return new(document.Profile.Revision, rows);
     }
 
-    // A pinned bundle may be rebuilt in place without re-reviewing permissions when only the
-    // source's post ordering changed. This is operational source metadata, not a new host,
-    // route, capability, filter, or source identity. Keep the comparison fail-closed: every
-    // other declaration field, including any future SDK field, must remain byte-identical.
-    private static bool SamePinnedBundleDescription(PluginDescription previous, PluginDescription candidate)
-    {
-        if (previous.Sources.Count != candidate.Sources.Count ||
-            !previous.Sources.Select(source => source.SourceId).SequenceEqual(
-                candidate.Sources.Select(source => source.SourceId), StringComparer.Ordinal)) return false;
-        PluginDescription normalized = candidate with
-        {
-            Sources = candidate.Sources.Select((source, index) =>
-                source with { PostOrder = previous.Sources[index].PostOrder }).ToArray()
-        };
-        return SdkJson.Serialize(previous).AsSpan().SequenceEqual(SdkJson.Serialize(normalized));
-    }
+    // One operational-metadata rule for the explicit recovery here and the automatic pinned-release update (#130).
+    private static bool SamePinnedBundleDescription(PluginDescription previous, PluginDescription candidate) =>
+        BundledCandidateMigration.SamePinnedBundleDescription(previous, candidate);
 
     public async Task<PluginProfileSnapshot> ConfirmBundledReselectionAsync(BundledCandidateReselection selection, long expectedRevision,
         CancellationToken cancellationToken = default)

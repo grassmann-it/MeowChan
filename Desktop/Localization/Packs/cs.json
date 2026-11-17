@@ -1208,6 +1208,7 @@
     "plugins.changedBuild": "Změněný build",
     "plugins.rollbackPinned": "Poslední dobrý uložený build připnut",
     "plugins.rollbackPinnedHint": "Uložená verze pro návrat zůstává připnutá, dokud není výslovně vybrán kandidát.",
+    "plugins.pinnedReleaseUpdatedHint": "Tento start aktualizoval připnutou verzi {0} na místě na aktuální přibalený build stejné verze. Zůstává připnutá; předchozí build je zachován pro návrat.",
     "plugins.capability.threadRead": "Čtení vláken",
     "plugins.capability.boardCatalog": "Katalogy boardů",
     "plugins.capability.postCapture": "Zachytávání příspěvků",

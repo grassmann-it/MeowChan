@@ -1198,6 +1198,7 @@
     "plugins.changedBuild": "Build alterado",
     "plugins.rollbackPinned": "Último build bom salvo fixado",
     "plugins.rollbackPinnedHint": "A reversão salva permanece fixada até que um candidato seja selecionado explicitamente.",
+    "plugins.pinnedReleaseUpdatedHint": "Esta inicialização atualizou no local a versão fixada {0} para o build incluído atual da mesma versão. Ela continua fixada; o build anterior é mantido para reversão.",
     "plugins.capability.threadRead": "Ler tópicos",
     "plugins.capability.boardCatalog": "Catálogos de boards",
     "plugins.capability.postCapture": "Capturar postagens",
