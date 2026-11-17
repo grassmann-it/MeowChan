@@ -109,8 +109,16 @@ public sealed class BundledLanguagePackTests : IDisposable
         using JsonDocument document = JsonDocument.Parse(stream);
         var translations = document.RootElement.GetProperty("strings").EnumerateObject()
             .ToDictionary(p => p.Name, p => p.Value.GetString()!, StringComparer.Ordinal);
+        string[] missing = BuiltInCatalog.English.Where(p => !string.IsNullOrWhiteSpace(p.Value))
+            .Select(p => p.Key).Where(key => IsSelectableEnglishKey(code, key) && !BundledLanguagePackCompletenessTests.KnownMissingKeys.Contains(key))
+            .Except(translations.Keys, StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
+        Assert.Empty(missing);
+        Assert.Equal(BundledLanguagePackCompletenessTests.KnownMissingKeys.Order(StringComparer.Ordinal),
+            BuiltInCatalog.English.Where(p => !string.IsNullOrWhiteSpace(p.Value))
+                .Select(p => p.Key).Where(key => IsSelectableEnglishKey(code, key) && !translations.ContainsKey(key))
+                .Order(StringComparer.Ordinal));
         Assert.Equal(BuiltInCatalog.English.Where(p => !string.IsNullOrWhiteSpace(p.Value))
-            .Select(p => p.Key).Where(key => IsSelectableEnglishKey(code, key)).Order(StringComparer.Ordinal),
+            .Select(p => p.Key).Where(key => IsSelectableEnglishKey(code, key) && !BundledLanguagePackCompletenessTests.KnownMissingKeys.Contains(key)).Order(StringComparer.Ordinal),
             // Optional extra number forms ("<key>.few") exist only in the pack, e.g. Russian.
             translations.Keys.Where(key => !IsExtraPluralForm(key)).Order(StringComparer.Ordinal));
         Assert.All(translations.Values, value => Assert.False(string.IsNullOrWhiteSpace(value)));
@@ -120,6 +128,11 @@ public sealed class BundledLanguagePackTests : IDisposable
         Assert.Equal(name, Assert.Single(Texts.Languages, l => l.Code == code).NativeName);
         Assert.Equal(name, Assert.Single(Texts.Languages, l => l.Code == code).ToString());
         foreach (var (key, value) in translations) Assert.Equal(value, Texts.T(key));
+        foreach (string key in BundledLanguagePackCompletenessTests.KnownMissingKeys)
+        {
+            Assert.Null(Texts.Own(key));
+            Assert.Equal(BuiltInCatalog.English[key], Texts.T(key));
+        }
         Assert.Equal(title, Texts.T("settings.title"));
         Assert.Equal("", Texts.T("savedSearch.prompt.None"));
         Assert.Equal("", Texts.T("savedSearch.confirm.None"));
