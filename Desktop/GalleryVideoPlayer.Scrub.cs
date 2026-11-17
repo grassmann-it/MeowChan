@@ -124,6 +124,12 @@ internal sealed partial class GalleryVideoPlayer
         };
         // The popup must not keep a reference to, or stay open for, a timeline that left the tree.
         _seek.DetachedFromVisualTree += (_, _) => OnScrubTimelineDetached();
+        _ = new TransientHover(_seek, over =>
+        {
+            if (over) return;
+            _scrubGate.OnPointerExited();
+            CancelScrubPreviewRequest();
+        });
         _scrubWatchdog.Tick += (_, _) => EnforceScrubGate();
     }
 

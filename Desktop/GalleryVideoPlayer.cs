@@ -650,7 +650,13 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
     }
 
     private void EndPointerSeek() { _seekPointer = null; _timeline.EndGesture(pointer: true); RenderTime(); }
-    private void OnWindowDeactivated(object? sender, EventArgs e) => CancelSeekGesture();
+    private void OnWindowDeactivated(object? sender, EventArgs e)
+    {
+        CancelSeekGesture();
+        _volumeCloseTimer.Stop();
+        SetVolumePopupVisible(false);
+        CancelScrubPreviewRequest();
+    }
     private void CancelSeekGesture()
     {
         _timeline.Cancel();

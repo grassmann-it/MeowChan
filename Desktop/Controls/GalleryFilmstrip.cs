@@ -122,8 +122,12 @@ internal sealed class GalleryFilmstrip : Border
         PointerWheelChanged += OnWheel;
         // A right-click on a tile asks for that tile's menu (Menu key and Shift+F10 carry no position and stay with the viewer: the shown medium's).
         AddHandler(ContextRequestedEvent, OnContextRequested, Avalonia.Interactivity.RoutingStrategies.Bubble);
-        PointerEntered += (_, _) => { _pointerOver = true; UpdateChevrons(); };
-        PointerExited += (_, _) => { _pointerOver = false; UpdateChevrons(); };
+        _ = new TransientHover(this, hovered =>
+        {
+            _pointerOver = hovered;
+            if (!hovered) SetHovered(-1);
+            UpdateChevrons();
+        });
         GotFocus += (_, e) => { _keyboardFocus = e.NavigationMethod is NavigationMethod.Tab or NavigationMethod.Directional; UpdateFocusVisual(); UpdateChevrons(); };
         LostFocus += (_, _) => { _keyboardFocus = false; UpdateFocusVisual(); UpdateChevrons(); };
         AttachedToVisualTree += (_, _) => { _retired = false; Texts.Changed += OnTextsChanged; Refresh(); };
@@ -294,6 +298,7 @@ internal sealed class GalleryFilmstrip : Border
     /// <summary>Scrolls the strip, clamped; realizes the tiles in view and moves the decode window.</summary>
     internal void ScrollTo(double offset)
     {
+        SetHovered(-1); // scrolling retires the hovered identity even if its container is reused
         _offset = GalleryFilmstripPlan.ClampOffset(offset, Slots, _tile, _viewport, _gap);
         Refresh();
     }
@@ -429,7 +434,7 @@ internal sealed class GalleryFilmstrip : Border
     // GL5e: an arrow shows while that way can scroll and the pointer is over the band or the keyboard is in it.
     private void UpdateChevrons()
     {
-        bool active = _pointerOver || _keyboardFocus;
+        bool active = TransientHover.WindowUsable(this) && (_pointerOver || _keyboardFocus);
         _backShown = active && _back.IsEnabled;
         _forwardShown = active && _forward.IsEnabled;
         ShowChevron(_back, _backShown);

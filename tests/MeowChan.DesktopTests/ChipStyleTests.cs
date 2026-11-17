@@ -112,9 +112,13 @@ public sealed class ChipStyleTests
     public void TileFavouriteStarAppearsByOpacityOnlyWhenSetHoveredOrFocused()
     {
         Assert.Equal("0", Setting("ToggleButton.tile-favorite", "Opacity"));
+        Assert.Equal("False", Setting("ToggleButton.tile-favorite", "IsHitTestVisible"));
         foreach (string shown in new[] { "ToggleButton.tile-favorite:checked", "ToggleButton.tile-favorite:focus-visible",
-            "ListBoxItem:pointerover ToggleButton.tile-favorite", "ListBoxItem:focus-within ToggleButton.tile-favorite" })
+            "ListBoxItem.transient-pointer-over ToggleButton.tile-favorite", "ListBoxItem:focus-within ToggleButton.tile-favorite" })
+        {
             Assert.Equal("1", Setting(shown, "Opacity"));
+            Assert.Equal("True", Setting(shown, "IsHitTestVisible"));
+        }
         // Static frame, no shadow; the star itself is the shared FavoriteStar icon (filled in Workspace.Favorite when set, ≥ 3:1 on the
         // chip surface in both themes: FavoriteTintContrastTests), not a styled path.
         Assert.Equal("{DynamicResource Workspace.ChipBorder}", Setting("ToggleButton.tile-favorite", "BorderBrush"));

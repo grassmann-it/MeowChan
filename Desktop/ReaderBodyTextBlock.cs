@@ -262,6 +262,11 @@ internal sealed class ReaderBodyTextBlock : SelectableTextBlock
     public ReaderBodyTextBlock()
     {
         UpdateReadingMetrics();
+        _ = new TransientHover(this, over =>
+        {
+            SetSpoilerHover(over);
+            if (!over) { SetLinkCursor(false); SetHoverQuote(null); }
+        });
         // The theme gives a selectable text its own "Copy" flyout, which answers a context request before the post card sees it: a right click
         // (or the Menu key) on the text would never reach the post menu. The page's post menu takes its place and offers Copy with a selection.
         ContextFlyout = null;

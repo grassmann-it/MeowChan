@@ -144,8 +144,10 @@ public sealed class GalleryDecisionRowDesignTests : IDisposable
     public void EveryStarWiresItsPointerToThePreviewAndTheRowForgetsItWhenItLeavesTheTree()
     {
         string row = File.ReadAllText(Root("Desktop/Controls/GalleryDecisionRow.cs"));
-        Assert.Contains("star.PointerEntered += (_, _) => Preview(number);", row);
-        Assert.Contains("star.PointerExited += (_, _) => Preview(null);", row);
+        // The lease now owns enter/move admission AND all release paths, including
+        // native-window leaves and focus loss; keep checking both visual transitions.
+        Assert.Contains("new TransientHover(star, over =>", row);
+        Assert.Contains("if (over) Preview(number); else if (_preview == number) Preview(null);", row);
         Assert.Contains("_preview = null; if (!_attached) return;", row);
         Assert.Contains("FavoriteStar.Create(index < shown, StarGlyphSize, tinted: !previewing)", row);
         Assert.Contains("private const int StarGlyphSize = 20;", row);

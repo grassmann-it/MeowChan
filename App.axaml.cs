@@ -29,6 +29,7 @@ public partial class App : Application
         using (MeowChan.Diagnostics.PerformanceDiagnostics.Measure("startup.app.theme-palette")) MeowChan.Desktop.Theming.ThemeRuntime.Install(this);
         MeowChan.Desktop.Controls.HeadingLevels.Install(Styles);
         ThemeLogo.FollowAllWindows();
+        TransientPopupPolicy.Install();
         ApplyControlLanguage();
         Texts.Changed += OnLanguageChanged;
     }

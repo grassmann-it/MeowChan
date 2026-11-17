@@ -222,6 +222,7 @@ internal sealed partial class GalleryVideoPlayer
     private void UpdateVolumePopup()
     {
         if (!_volumeAsPopup) return;
+        if (!TransientHover.WindowUsable(_volumeHost)) { _volumeCloseTimer.Stop(); SetVolumePopupVisible(false); return; }
         if (KeepVolumeOpen) { _volumeCloseTimer.Stop(); SetVolumePopupVisible(true); }
         else if (_volumePopup.IsVisible && !_volumeCloseTimer.IsEnabled) _volumeCloseTimer.Start();
     }
