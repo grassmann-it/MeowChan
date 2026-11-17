@@ -4,6 +4,30 @@
 
 - Draft, not published: no release date, package or verification. See the
   [draft release notes](docs/releases/v1.1.0.md), which mark what is still pending.
+- Keep primary toolbar actions left and presentation controls right in Archive, Downloads
+  and Tagging, with consistent spacing, a compact Archive List/Table pair and no empty
+  overflow button.
+- Align Settings search and More with the content column, including narrow windows;
+  wrap help-popup text and links without sideways scrolling in help or tooltips.
+- Add an always-visible **Media sidebar: On/Off** reader-toolbar toggle, sharing the
+  saved View/shortcut/close choice. Keep the large-reader-only default and retain the
+  choice while a narrow window hides the sidebar; stabilize its header and full-height layout.
+- Sort plugin cards by current/recent request activity (held for ten seconds), then
+  status and name. Give every card the same Sources, Filters, Running and Files footer;
+  inactive plugins show zeros and active counts use the effective release.
+- Browse Booru results in a larger preview-only viewer: Open in gallery, or Enter/double-click
+  on an unsaved card, opens it without downloading an original. Left/Right stays on the
+  current result page without wrapping; Space/Enter on the picture marks it, and Escape
+  closes it and returns focus. Cards and viewer share the selection; **Load original** or
+  Ctrl/Cmd+E queues only the displayed original, never the whole marked set.
+- Right-click Downloads rows, Archive thread/media items and Media tiles with the clicked
+  target selected and focused; keep a multi-selection only when it contains that target.
+  A single click on the Media page's sidebar stays in preview/play-pause; double-click
+  opens the gallery. Clarify the existing local-media gallery gesture: double-click
+  toggles window fullscreen; 0 and 1 select Fit and 1:1 separately.
+- Continue independent desktop smoke modes after failures and keep failed results in the
+  final workflow aggregates and summaries; unsafe cleanup and interruption still block.
+  This hardens CI reporting, not a claim of all-platform release acceptance.
 - Add a Media page over every saved file with filters, duplicate grouping by SHA-256,
   multi-select tagging, gallery and original export, and a way back from the thread.
   Tiles show favorite, rating, own tags and the video poster, and tags can be edited on
@@ -183,8 +207,8 @@
   **D** starts the slideshow and **Shift+P** (was **P**) toggles the post context; **Ctrl+Shift+R**
   is now **Continue reading**. A double-click on an item opens it (a thread opens the reader; an
   Archive media row or tile, a Media page tile and the picture of a media sidebar open the
-  gallery at that item); a double-click on the picture inside the gallery switches Fit and 1:1;
-  window fullscreen is only F11 or the explicit fullscreen button or menu action.
+  gallery at that item); a double-click on the picture inside the gallery toggles window
+  fullscreen, like F11 or the explicit fullscreen action. Use 0 for Fit and 1 for 1:1.
 - Speed up large collections: the saved media index loads in the background with a status
   instead of freezing the window, is written only when it changed, and unchanged threads and
   imported batches are reused without opening their manifests; the own tag store and the import catalog are

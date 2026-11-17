@@ -4,6 +4,40 @@ This is the short backlog for issues found while dogfooding the release candidat
 kept here even when a focused fix lands, so the next visual review can check the whole class
 rather than only one screen.
 
+## UX-LEDGER 01–07 implementation status — 17 November 2026
+
+The seven follow-up PRs are listed below. Their linked descriptions and diffs record
+implementation and validation scope; a PR link is not a release-acceptance verdict.
+The earlier review lists below remain historical snapshots. This section supersedes
+only the specific behavior covered here, not the remaining backlog or release gates.
+
+| Ledger ID | Implementation PR | Delivered scope |
+| --- | --- | --- |
+| UX-LEDGER-01 | [#20](https://github.com/grassmann-it/MeowChan/pull/20) | Shared toolbar end docking and spacing, compact Archive List/Table controls, empty-overflow suppression |
+| UX-LEDGER-02 | [#19](https://github.com/grassmann-it/MeowChan/pull/19) | Settings search/More aligned to the content column; wrapping help links and no horizontal help/tooltip scrolling |
+| UX-LEDGER-03 | [#17](https://github.com/grassmann-it/MeowChan/pull/17) | Persistent reader-toolbar Media sidebar On/Off toggle; stable header/full-height layout; unchanged default scope |
+| UX-LEDGER-04 | [#14](https://github.com/grassmann-it/MeowChan/pull/14) | Activity/status/name plugin-card order, ten-second activity hold, uniform effective Sources/Filters/Running/Files footer including inactive zeros |
+| UX-LEDGER-05 | [#16](https://github.com/grassmann-it/MeowChan/pull/16) | Booru preview viewer, current-page navigation and shared per-image selection, explicit displayed-original download |
+| UX-LEDGER-06 | [#18](https://github.com/grassmann-it/MeowChan/pull/18) | Downloads/Archive/Media pointer-target selection and focus; Media sidebar preview-only single-click; interaction guards with explicit protected-scope skips |
+| UX-LEDGER-07 (CI-LEDGER-07) | [#15](https://github.com/grassmann-it/MeowChan/pull/15) | Independent smoke modes continue after failures; aggregate jobs and summaries retain failures and unsafe-cleanup/interruption blocking; no product behavior changes |
+
+The gallery behavior audited by UX-LEDGER-06 is **double-click toggles window
+fullscreen**, not the older Fit/1:1 description below; **0** selects Fit and **1**
+selects 1:1. Its right-click selection/focus fixes cover Downloads, Archive and
+Media, not the protected Reader activation, Tagging selection or Gallery context
+implementations. The Booru viewer operates on already-fetched previews on the current
+result page: selecting or browsing never downloads originals, and its download
+command targets only the displayed post. This does not close the whole earlier
+Booru pipeline backlog.
+
+User-facing instructions are in [Help](../Help.md#selection-and-shortcuts),
+[reader sidebar help](../Help.md#reader-media-sidebar-and-inline-video),
+[Booru viewer help](../Help.md#browse-result-previews) and the
+[German Booru guide](../user-guide/danbooru.md#treffer-in-der-vorschau-durchsehen).
+The documentation follow-up is intended to merge after all seven implementation PRs.
+Full all-platform release acceptance remains a separate gate; CI orchestration
+hardening does not itself establish a green sweep.
+
 ## Fixed in this release candidate
 
 - **Quick tag input focus (breaking):** when Rate and tag opened with the rating row focused,
