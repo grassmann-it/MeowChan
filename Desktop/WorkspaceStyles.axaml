@@ -981,7 +981,8 @@
 
     <!-- Opt-in composition roles; native templates, selection and automation stay
          with Semi/Ursa and the existing controls. Do not nest sections for decoration. -->
-    <Style Selector="Button, ToggleButton, TextBox, ComboBox, NumericUpDown, CheckBox, RadioButton, Slider, ListBoxItem, SelectableTextBlock">
+    <!-- AX-05 (a11y package): ToggleSwitch and TabItem are listed explicitly; a type selector does not match derived types, so the ToggleButton entry never reached ToggleSwitch, and TabItem was never listed. -->
+    <Style Selector="Button, ToggleButton, ToggleSwitch, TabItem, TextBox, ComboBox, NumericUpDown, CheckBox, RadioButton, Slider, ListBoxItem, SelectableTextBlock">
         <Setter Property="FocusAdorner" Value="{StaticResource Workspace.FocusAdorner}" />
     </Style>
     <!-- An inline link: accent text only, no outline and no fill (the default button outline made About links look like boxes). -->
