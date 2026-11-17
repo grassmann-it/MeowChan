@@ -12,6 +12,7 @@ using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.MediaActions;
 using MeowChan.Favorites;
 using MeowChan.Gallery;
 using MeowChan.Tags;
@@ -319,6 +320,13 @@ public sealed partial class MediaPage
         AutomationProperties.SetHelpText(button, hint);
     }
 
+    // KB-06: unavailable batch shortcuts must acknowledge the selection instead of consuming a key silently.
+    private void ExplainSelectionUnavailable()
+    {
+        if (_grid.Selection.Count > 1 && !_lifetime.IsCancellationRequested)
+            ShowSelectionNote(_building != null ? Texts.T("media.selection.reason.building") : MediaMenuReasons.Unavailable);
+    }
+
     private void ShowSelectionNote(string? text)
     {
         _selectionNote.Text = text;
@@ -328,7 +336,7 @@ public sealed partial class MediaPage
     /// <summary>Opens the gallery with exactly the selected tiles in page order, one file per tile (the file the tile shows).</summary>
     internal async Task OpenSelectionGalleryAsync()
     {
-        if (!_selGallery.IsEnabled || OpenGallery == null) return;
+        if (!_selGallery.IsEnabled || OpenGallery == null) { ExplainSelectionUnavailable(); return; }
         (IReadOnlyList<MediaLibraryEntry> entries, int notSaved) = MediaLibrarySelection.GalleryEntries(SelectedTiles);
         ShowSelectionNote(notSaved == 0 ? null : entries.Count == 0 ? Texts.T("media.selection.note.noneSaved")
             : Texts.Count("media.selection.note.galleryPartial", entries.Count, entries.Count, notSaved));
@@ -340,7 +348,7 @@ public sealed partial class MediaPage
     /// <summary>Exports the originals of the selection: one per tile, never one per duplicate.</summary>
     internal async Task ExportSelectionAsync()
     {
-        if (!_selExport.IsEnabled || ExportOriginals == null) return;
+        if (!_selExport.IsEnabled || ExportOriginals == null) { ExplainSelectionUnavailable(); return; }
         await ExportTilesAsync(SelectedTiles, Texts.T("media.selection.exportScope"));
     }
 
@@ -378,7 +386,7 @@ public sealed partial class MediaPage
     /// </summary>
     internal async Task TagSelectionAsync(Control? anchor = null, QuickTagInitialFocus initialFocus = QuickTagInitialFocus.TagInput)
     {
-        if (!_selTag.IsEnabled || TagServices is not { } services) return;
+        if (!_selTag.IsEnabled || TagServices is not { } services) { ExplainSelectionUnavailable(); return; }
         IReadOnlyList<MediaLibraryTile> tiles = SelectedTiles;
         if (tiles.Count == 0) return;
         static bool Usable(Control? control) => control != null && control.IsAttachedToVisualTree() && control.IsEffectivelyVisible;
@@ -445,7 +453,7 @@ public sealed partial class MediaPage
     /// <summary>Adds or removes an own tag on the occurrences of the selection; the dialog lists them and tags all by default.</summary>
     internal async Task TagSelectionDialogAsync()
     {
-        if (!_selTag.IsEnabled || TagServices is not { } services) return;
+        if (!_selTag.IsEnabled || TagServices is not { } services) { ExplainSelectionUnavailable(); return; }
         if ((_owner ?? TopLevel.GetTopLevel(this) as Window) is not { } owner) return;
         IReadOnlyList<MediaLibraryTile> tiles = SelectedTiles;
         tiles = await WithHashedFolderFilesAsync(tiles);
