@@ -492,11 +492,25 @@ internal sealed class ReaderMediaSidebar : Border
         Close.IsHitTestVisible = shown;
     }
 
-    // The hand shows only where a click does something: a medium that can be opened (a picture, or its loading / error text), not the empty or text-only state.
+    // The hand shows only where a single click does something (MD-03): the host says a click acts (an explicit "open the gallery on click" setting,
+    // or a video it plays here) and there is a medium (a picture, or its loading / error text), not the empty or text-only state. A double click
+    // opens the gallery whatever the cursor says.
     private void UpdateFrameCursor() => _frame.Cursor = FrameClickable ? PointerCursors.Hand : null;
 
-    /// <summary>Whether a click on the picture frame opens something now (what the hand cursor says; tests read it).</summary>
-    internal bool FrameClickable => Open.IsEnabled && (_bitmap != null || _status.IsVisible);
+    private bool _singleClickActs;
+
+    /// <summary>
+    /// Set by the host: whether a single click on the picture does something (<see cref="PictureActivated"/> plays a video or opens the gallery by an
+    /// explicit setting). Off by default: the contract is single click selects, double click opens the gallery.
+    /// </summary>
+    internal bool SingleClickActs
+    {
+        get => _singleClickActs;
+        set { if (_singleClickActs == value) return; _singleClickActs = value; UpdateFrameCursor(); }
+    }
+
+    /// <summary>Whether a single click on the picture frame does something now (what the hand cursor says; tests read it).</summary>
+    internal bool FrameClickable => SingleClickActs && Open.IsEnabled && (_bitmap != null || _status.IsVisible);
 
     /// <summary>
     /// The header line and the controls of the medium in its post; shown at once, before the picture is ready.

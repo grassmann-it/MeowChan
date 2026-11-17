@@ -202,14 +202,17 @@ public sealed class MediaMenuCompositionTests : IDisposable
     {
         MediaMenuModel model = MediaMenuComposition.Compose(Full(MediaMenuSurface.MediaPage) with { SeveralSelected = true, ProviderMedia = true, ProviderPostKnown = true });
         string reason = Texts.T("media.menu.reason.severalSelected");
-        foreach (MediaMenuAction action in new[] { MediaMenuAction.Open, MediaMenuAction.ShowInThread, MediaMenuAction.OpenProviderPost, MediaMenuAction.CopyProviderPost })
+        // MD-01/KB-06: the one-file entries (gallery, thread, provider post, folder, path, details) say that they need a single item.
+        foreach (MediaMenuAction action in new[] { MediaMenuAction.Open, MediaMenuAction.ShowInThread, MediaMenuAction.OpenProviderPost, MediaMenuAction.CopyProviderPost,
+            MediaMenuAction.ShowInFolder, MediaMenuAction.CopyPath, MediaMenuAction.Details })
         {
             MediaMenuItemModel item = model.Items.Single(entry => entry.Action == action);
             Assert.False(item.Available, action.ToString());
             Assert.Equal(reason, item.Reason);
         }
-        // Actions on the clicked file stay on the clicked file.
-        Assert.True(model.Items.Single(item => item.Action == MediaMenuAction.Favorite).Available);
+        // The entries that act on the whole selection stay available (favourite, rate and tag, queue, export).
+        foreach (MediaMenuAction action in new[] { MediaMenuAction.Favorite, MediaMenuAction.RateAndTag, MediaMenuAction.Queue, MediaMenuAction.Export })
+            Assert.True(model.Items.Single(item => item.Action == action).Available, action.ToString());
     }
 
     [Fact]

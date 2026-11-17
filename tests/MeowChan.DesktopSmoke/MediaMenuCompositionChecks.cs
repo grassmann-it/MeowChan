@@ -79,10 +79,9 @@ internal static class MediaMenuCompositionChecks
                 return true;
             });
 
-            // Native right-click keeps the existing selection.  Focus the exact
-            // container for the close/focus contract, then restore A explicitly
-            // before the pointer press so the assertion covers both target and
-            // selection semantics rather than relying on ListBox focus behavior.
+            // MD-01/PT-01: a right-click on a tile outside the selection makes it the selection (as Archive and Downloads do), so the menu acts on
+            // it. Focus the exact container for the close/focus contract, then restore A explicitly before the pointer press so the assertion
+            // covers both target and selection semantics rather than relying on ListBox focus behavior.
             bControl.Focus();
             page.Grid.SelectedItem = a;
             Require(ReferenceEquals(page.Grid.SelectedItem, a), "Preparing the B pointer target changed the existing A selection.");
@@ -100,7 +99,8 @@ internal static class MediaMenuCompositionChecks
             // The fixture intentionally leaves the shell-owned popover unwired; the page's documented fallback
             // forwards the combined Rate-and-tag entry to the legacy host action.
             Require(calls.Count == 1 && calls[0].Id == "media.tags.edit" && ReferenceEquals(calls[0].Entry, b.Entry)
-                && ReferenceEquals(page.Grid.SelectedItem, a), "Right-clicking B while A is selected acted on the selected row.");
+                && ReferenceEquals(page.Grid.SelectedItem, b) && page.Grid.Selection.Count == 1,
+                "Right-clicking B while A is selected must make B the selection and act on it.");
             bMenu.Close();
             await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
             Require(window.FocusManager?.GetFocusedElement() is Control focused

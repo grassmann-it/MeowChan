@@ -197,6 +197,8 @@ public sealed partial class MediaPage
         WorkViewGate.Apply(_selTag, view);
         WorkViewGate.Apply(_selExport, view);
         WorkViewGate.Apply(_selQueue, view);
+        _selectionViewOverflow = Overflowed(_selTag, _selQueue, _selExport); // taken before the width hides more (a hidden control reads as "hidden by view")
+        ApplySelectionLevel(); // what the selection line's width moves under its More as well (MediaPage.Selection.cs)
         UpdateMore(_selMore, SelectionOverflow());
     }
 
@@ -205,7 +207,12 @@ public sealed partial class MediaPage
     private List<Control> HeaderOverflow() => Overflowed(_booruMode, _layoutButton, _focus, _refresh, _shuffle, _exportAll, _manageRatings, _booruOpen, _queueWalk, _taggingPageOpen, _queueAll, _mediaFolders)
         .Where(control => MediaToolbarLayout.IsUnderMore(_toolbarLevel, WorkViewElement.GetId(control), WorkViewPolicy.Resolve(WorkViewElement.GetId(control)!, _workView))).ToList();
 
-    private List<Control> SelectionOverflow() => Overflowed(_selTag, _selQueue, _selExport);
+    // The selection line's More: what the view moved there and what the line's width moved there (FitSelectionLine), in policy order.
+    private List<Control> SelectionOverflow() => _selectionViewOverflow.Union(SelectionMovedByWidth(_selectionLevel))
+        .OrderBy(control => WorkViewPolicy.Get(WorkViewElement.GetId(control)!).OverflowOrder).ToList();
+
+    // What the view itself moved under the selection line's More, as RefreshWorkView found it before the line's width hid more.
+    private List<Control> _selectionViewOverflow = new();
 
     private static List<Control> Overflowed(params Control[] controls) => controls.Where(WorkViewGate.HiddenByView)
         .OrderBy(control => WorkViewPolicy.Get(WorkViewElement.GetId(control)!).OverflowOrder).ToList();

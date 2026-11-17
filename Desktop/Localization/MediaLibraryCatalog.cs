@@ -130,6 +130,7 @@ internal static class MediaLibraryCatalog
         ("media.selection.export.hint", "Copy the originals of the selected files, one per tile", "Die Originale der ausgewählten Dateien kopieren, eines je Kachel"),
         ("media.selection.exportScope", "Selection", "Auswahl"),
         ("media.selection.clear", "Clear selection", "Auswahl aufheben"),
+        ("media.selection.clear.short", "Clear", "Aufheben"),
         ("media.selection.note.noneSaved", "None of the selected tiles has a saved file, so there is nothing to show.", "Keine der ausgewählten Kacheln hat eine gespeicherte Datei, es gibt also nichts anzuzeigen."),
         ("media.selection.note.galleryPartial", "The gallery shows {0} files. Selected tiles that are not saved and left out: {1}.", "Die Galerie zeigt {0} Dateien. Ausgewählte Kacheln, die nicht gespeichert sind und fehlen: {1}."),
         ("media.selection.note.exportFailed", "The originals could not be prepared for export. Nothing was copied.", "Die Originale konnten nicht für den Export vorbereitet werden. Es wurde nichts kopiert."),
