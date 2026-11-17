@@ -727,7 +727,7 @@
                                  the counter's MinWidth are ReaderNavigationLayout.BarMaxWidth and CounterMinWidth (a test pins both). -->
                             <!-- WrapPanel only hit-tests its children. Keep an explicit transparent surface around the capsule so separator/counter gaps
                                  cannot fall through to the reader content; the surface remains inside ReaderNavigation for the overlay contract. -->
-                            <Border x:Name="ReaderNavigationHitSurface" Background="{DynamicResource Workspace.Card}" IsHitTestVisible="True">
+                            <Border x:Name="ReaderNavigationHitSurface" Background="Transparent" IsHitTestVisible="True">
                                 <Border x:Name="ReaderNavigationBar" Classes="workspace-overlay" Padding="3" MaxWidth="320">
                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                     <StackPanel.Styles>
