@@ -47,17 +47,12 @@ internal readonly record struct QuickTagKeyRoute(QuickTagKeyAction Action, int V
 internal enum QuickTagNavigation { Next, Previous, MarkNext, UnmarkPrevious }
 
 /// <summary>
-/// Key routing of the quick tag surface as a pure function, so it can be tested and later fed from the shortcut editor (TP6).
-/// Tom's decisions of 14.11.: Alt+1…9 (macOS ⌘1…9) toggles suggestion n in every focus state; bare digits and badge letters only
-/// while the focus is in the suggestion strip (tag names like <c>2girls</c> stay typeable); Page Down/Up move through the
-/// gallery, Ctrl+Enter adds and moves on, Shift+Page Down marks and moves on. Escape is layered and never needs more than two presses (Tom, 16.11.):
-/// with text in the field the first Esc empties it and closes its list, with an open list over an empty field it closes the list, otherwise (and the
-/// second time) it closes the surface, from any element of it.
+/// Fixed focus navigation and effective command routing of the quick tag surface. Rebindable commands have no local aliases;
+/// only Escape, focus movement, focused-chip activation/removal and letter mnemonics remain structural keys.
 /// </summary>
 internal static class QuickTagKeys
 {
-    /// <summary>The modifier of the numbered suggestions: Alt, ⌘ on macOS.</summary>
-    internal static KeyModifiers ChooseModifier(ShortcutPlatform platform) => platform == ShortcutPlatform.MacOS ? KeyModifiers.Meta : KeyModifiers.Alt;
+    internal static KeyModifiers ChooseModifier(ShortcutPlatform platform) => KeyModifiers.Alt;
     internal static KeyModifiers PrimaryModifier(ShortcutPlatform platform) => platform == ShortcutPlatform.MacOS ? KeyModifiers.Meta : KeyModifiers.Control;
 
     /// <summary>1–9 of the main row or the number pad, else null.</summary>
@@ -70,27 +65,15 @@ internal static class QuickTagKeys
     /// <param name="fieldEmpty">The field holds no text (Ctrl+Z then is the surface's undo, not the editor's).</param>
     /// <param name="navigation">The host moves through media (gallery panel); off in a popover.</param>
     internal static QuickTagKeyRoute Route(Key key, KeyModifiers modifiers, QuickTagFocus focus, bool listOpen, bool fieldEmpty,
-        bool navigation, ShortcutPlatform platform)
+        bool navigation, ShortcutPlatform platform, EffectiveShortcutBindings? bindings = null)
     {
-        KeyModifiers primary = PrimaryModifier(platform);
-        if (modifiers == ChooseModifier(platform) && Digit(key) is { } chosen) return new(QuickTagKeyAction.ToggleSuggestion, chosen - 1);
-        if (modifiers == primary && key == Key.Z)
-            return focus == QuickTagFocus.Field && !fieldEmpty ? QuickTagKeyRoute.None : new(QuickTagKeyAction.Undo);
+        bindings ??= EffectiveShortcutBindings.Build(platform: platform);
+        QuickTagKeyRoute command = RouteCommand(key, modifiers, focus, listOpen, fieldEmpty, navigation, bindings);
+        if (command.Action != QuickTagKeyAction.None) return command;
         if (key == Key.Escape && modifiers == KeyModifiers.None)
             return new(focus != QuickTagFocus.Field ? QuickTagKeyAction.Close
                 : !fieldEmpty ? QuickTagKeyAction.ClearField
                 : listOpen ? QuickTagKeyAction.CloseList : QuickTagKeyAction.Close);
-        // The stamp works on every surface and in every focus state (the typed draft stays in the field).
-        if (key == Key.Enter && modifiers == (primary | KeyModifiers.Shift)) return new(QuickTagKeyAction.ApplyStamp);
-        if (navigation && !(focus == QuickTagFocus.Field && listOpen))
-        {
-            if (key == Key.PageDown && modifiers == KeyModifiers.None) return new(QuickTagKeyAction.Next);
-            if (key == Key.PageUp && modifiers == KeyModifiers.None) return new(QuickTagKeyAction.Previous);
-            if (key == Key.PageDown && modifiers == KeyModifiers.Shift) return new(QuickTagKeyAction.MarkNext);
-            if (key == Key.PageUp && modifiers == KeyModifiers.Shift) return new(QuickTagKeyAction.UnmarkPrevious);
-            if (key == Key.Enter && modifiers == primary) return new(QuickTagKeyAction.CommitAndNext);
-            if (key == Key.T && modifiers == primary) return new(QuickTagKeyAction.ThreadSection);
-        }
         if (modifiers != KeyModifiers.None) return QuickTagKeyRoute.None;
         switch (focus)
         {
@@ -104,7 +87,6 @@ internal static class QuickTagKeys
                     _ => QuickTagKeyRoute.None
                 };
             case QuickTagFocus.Suggestions:
-                if (Digit(key) is { } digit) return new(QuickTagKeyAction.ToggleSuggestion, digit - 1);
                 if (Letter(key) is { } letter) return new(QuickTagKeyAction.ToggleBadge, letter);
                 return key switch
                 {
@@ -133,6 +115,30 @@ internal static class QuickTagKeys
                 return QuickTagKeyRoute.None;
         }
     }
+
+    /// <summary>All rebindable quick-tag actions resolve from the same snapshot as the shortcut table.</summary>
+    internal static QuickTagKeyRoute RouteCommand(Key key, KeyModifiers modifiers, QuickTagFocus focus, bool listOpen,
+        bool fieldEmpty, bool navigation, EffectiveShortcutBindings bindings)
+    {
+        KeyEventArgs press = new() { Key = key, KeyModifiers = modifiers };
+        // A recorded bare character must not steal tag-name typing.
+        if (focus == QuickTagFocus.Field && EffectiveShortcutBindings.IsSingleCharacterKey(
+            new ShortcutGesture(key.ToString(), ModifierNames(modifiers)))) return QuickTagKeyRoute.None;
+        foreach (string id in QuickTagCommands.All)
+        {
+            if (!bindings.Matches(press, id) || GalleryTagPanelCommands.RouteOf(id) is not { } route) continue;
+            if (route.Action == QuickTagKeyAction.Undo && focus == QuickTagFocus.Field && !fieldEmpty) return QuickTagKeyRoute.None;
+            bool moves = route.Action is QuickTagKeyAction.Next or QuickTagKeyAction.Previous or QuickTagKeyAction.MarkNext
+                or QuickTagKeyAction.UnmarkPrevious or QuickTagKeyAction.CommitAndNext or QuickTagKeyAction.ThreadSection;
+            if (moves && (!navigation || focus == QuickTagFocus.Field && listOpen)) return QuickTagKeyRoute.None;
+            return route;
+        }
+        return QuickTagKeyRoute.None;
+    }
+
+    private static IReadOnlyList<string> ModifierNames(KeyModifiers modifiers) =>
+        new[] { (KeyModifiers.Control, "Control"), (KeyModifiers.Meta, "Meta"), (KeyModifiers.Alt, "Alt"), (KeyModifiers.Shift, "Shift") }
+            .Where(part => modifiers.HasFlag(part.Item1)).Select(part => part.Item2).ToArray();
 
     /// <summary>The shortcut text of suggestion <paramref name="index"/> (0-based): "Alt+3", "⌘3"; null beyond the numbered ones.</summary>
     internal static string? SuggestionGesture(int index, ShortcutPlatform platform) =>
@@ -1219,9 +1225,9 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
 
     private void OnKey(object? sender, KeyEventArgs e)
     {
-        if (e.Handled) return;
+        if (e.Handled || ShortcutService.IsCapturing) return;
         QuickTagKeyRoute route = QuickTagKeys.Route(e.Key, e.KeyModifiers, FocusZone(), _input.IsDropDownOpen,
-            string.IsNullOrEmpty(_input.Text), NavigationEnabled, _platform);
+            string.IsNullOrEmpty(_input.Text), NavigationEnabled, _platform, ShortcutService.Current);
         if (Execute(route)) e.Handled = true;
     }
 

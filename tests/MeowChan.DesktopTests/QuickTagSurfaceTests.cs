@@ -382,15 +382,92 @@ public sealed class QuickTagSurfaceTests : IDisposable
 
     // ---- key routing --------------------------------------------------------------------------------------------
 
+    [Fact]
+    public void RebindingRoundTripRoutesOnlyTheNewKeyThroughTheActualSurface()
+    {
+        ShortcutBindingsSection original = ShortcutService.CurrentSection;
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        PrivateTagStore store = new(temp.Path, lease);
+        using QuickTagSession session = new(QuickTagTarget.For(Single(store, Entry("a", 'a'))));
+        using QuickTagSurface surface = new(session) { NavigationEnabled = true };
+        List<QuickTagNavigation> moved = new();
+        surface.NavigationRequested += moved.Add;
+        KeyEventArgs Press(Key key, KeyModifiers modifiers = KeyModifiers.None)
+        {
+            KeyEventArgs press = new() { RoutedEvent = Avalonia.Input.InputElement.KeyDownEvent, Key = key, KeyModifiers = modifiers };
+            surface.RaiseEvent(press);
+            return press;
+        }
+        try
+        {
+            ShortcutService.Publish(new ShortcutBindingsSection());
+            Assert.True(Press(Key.PageDown).Handled);
+            Assert.Equal(new[] { QuickTagNavigation.Next }, moved);
+            moved.Clear();
+
+            ShortcutDraftSession draft = new(new ShortcutBindingsSection());
+            Assert.Equal(ShortcutAddResult.Applied, draft.TryAdd(QuickTagCommands.Next, ShortcutGesture.Parse("Alt+F9"),
+                takeOver: false, replace: true));
+            Assert.False(draft.HasBlockingIssues);
+            string json = JsonSerializer.Serialize(draft.Draft);
+            ShortcutBindingsSection saved = JsonSerializer.Deserialize<ShortcutBindingsSection>(json)!;
+            ShortcutService.ValidateForCommit(saved);
+            ShortcutService.Publish(saved);
+            ShortcutTableRow row = ShortcutTableModel.Build(saved, ShortcutService.Current).Rows.Single(r => r.CommandId == QuickTagCommands.Next);
+            Assert.Equal("F9", Assert.Single(row.Gestures).Key);
+            Assert.False(Press(Key.PageDown).Handled);
+            Assert.Empty(moved);
+            Assert.True(Press(Key.F9, KeyModifiers.Alt).Handled);
+            Assert.Equal(new[] { QuickTagNavigation.Next }, moved);
+
+            moved.Clear();
+            ShortcutService.Publish(saved.Set(QuickTagCommands.Next, Array.Empty<ShortcutGesture>()));
+            Assert.False(Press(Key.PageDown).Handled);
+            Assert.False(Press(Key.F9, KeyModifiers.Alt).Handled);
+            Assert.Empty(moved);
+        }
+        finally { ShortcutService.Publish(original); }
+    }
+
     [Theory]
-    // Alt+n (⌘n on macOS) toggles suggestion n everywhere, even in the field; bare digits there stay text.
+    [InlineData(ShortcutPlatform.Windows)]
+    [InlineData(ShortcutPlatform.Linux)]
+    [InlineData(ShortcutPlatform.MacOS)]
+    public void EveryQuickTagRebindingAndUnbindingRemovesEveryOldDefaultPath(ShortcutPlatform platform)
+    {
+        foreach (string id in QuickTagCommands.All)
+        {
+            ShortcutGesture replacement = ShortcutGesture.Parse("Alt+F9");
+            var changed = new ShortcutBindingsSection().Set(id, new[] { replacement });
+            var rebound = EffectiveShortcutBindings.Build(changed, platform);
+            var unbound = EffectiveShortcutBindings.Build(changed.Set(id, Array.Empty<ShortcutGesture>()), platform);
+            Assert.Empty(rebound.Issues);
+            Assert.Empty(unbound.Issues);
+            foreach (QuickTagFocus focus in Enum.GetValues<QuickTagFocus>())
+            {
+                QuickTagKeyRoute Route(KeyGesture key, EffectiveShortcutBindings snapshot) => QuickTagKeys.Route(key.Key,
+                    key.KeyModifiers, focus, false, true, true, platform, snapshot);
+                foreach (var old in EffectiveShortcutBindings.Defaults(CommandCatalog.Get(id), platform))
+                {
+                    Assert.Equal(QuickTagKeyRoute.None, Route(old.Resolve(platform), rebound));
+                    Assert.Equal(QuickTagKeyRoute.None, Route(old.Resolve(platform), unbound));
+                }
+                Assert.Equal(GalleryTagPanelCommands.RouteOf(id), Route(replacement.Resolve(platform), rebound));
+                Assert.Equal(QuickTagKeyRoute.None, Route(replacement.Resolve(platform), unbound));
+            }
+        }
+    }
+
+    [Theory]
+    // Alt+n (also on macOS) toggles suggestion n everywhere, even in the field; bare digits there stay text.
     [InlineData(Key.D3, KeyModifiers.Alt, QuickTagFocus.Field, false, false, ShortcutPlatform.Linux, QuickTagKeyAction.ToggleSuggestion, 2)]
-    [InlineData(Key.NumPad9, KeyModifiers.Alt, QuickTagFocus.Assigned, false, true, ShortcutPlatform.Windows, QuickTagKeyAction.ToggleSuggestion, 8)]
-    [InlineData(Key.D1, KeyModifiers.Meta, QuickTagFocus.Field, false, true, ShortcutPlatform.MacOS, QuickTagKeyAction.ToggleSuggestion, 0)]
-    [InlineData(Key.D1, KeyModifiers.Alt, QuickTagFocus.Field, false, true, ShortcutPlatform.MacOS, QuickTagKeyAction.None, 0)]
+    [InlineData(Key.NumPad9, KeyModifiers.Alt, QuickTagFocus.Assigned, false, true, ShortcutPlatform.Windows, QuickTagKeyAction.None, 0)]
+    [InlineData(Key.D1, KeyModifiers.Meta, QuickTagFocus.Field, false, true, ShortcutPlatform.MacOS, QuickTagKeyAction.None, 0)]
+    [InlineData(Key.D1, KeyModifiers.Alt, QuickTagFocus.Field, false, true, ShortcutPlatform.MacOS, QuickTagKeyAction.ToggleSuggestion, 0)]
     [InlineData(Key.D2, KeyModifiers.None, QuickTagFocus.Field, false, true, ShortcutPlatform.Linux, QuickTagKeyAction.None, 0)]
-    // In the strip, bare digits and badge letters toggle; arrows move; Up/Down change zones.
-    [InlineData(Key.D2, KeyModifiers.None, QuickTagFocus.Suggestions, false, true, ShortcutPlatform.Linux, QuickTagKeyAction.ToggleSuggestion, 1)]
+    // Undocumented digit aliases are gone; in the strip, badge letters toggle; arrows move; Up/Down change zones.
+    [InlineData(Key.D2, KeyModifiers.None, QuickTagFocus.Suggestions, false, true, ShortcutPlatform.Linux, QuickTagKeyAction.None, 0)]
     [InlineData(Key.K, KeyModifiers.None, QuickTagFocus.Suggestions, false, true, ShortcutPlatform.Linux, QuickTagKeyAction.ToggleBadge, 'K')]
     [InlineData(Key.Right, KeyModifiers.None, QuickTagFocus.Suggestions, false, true, ShortcutPlatform.Linux, QuickTagKeyAction.Move, 1)]
     [InlineData(Key.Home, KeyModifiers.None, QuickTagFocus.Suggestions, false, true, ShortcutPlatform.Linux, QuickTagKeyAction.MoveFirst, 0)]
