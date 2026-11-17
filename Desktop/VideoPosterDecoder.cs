@@ -196,10 +196,12 @@ internal static class VideoPosterDecoder
         }
         public ValueTask DisposeAsync()
         {
-            lock (_disposeLock) return new ValueTask(_dispose ??= Task.Run(DisposeCore));
+            lock (_disposeLock) return new ValueTask(_dispose ??= DisposeCoreAsync());
         }
-        private void DisposeCore()
+
+        private async Task DisposeCoreAsync()
         {
+            await Task.CompletedTask.ConfigureAwait(ConfigureAwaitOptions.ForceYielding);
             _cleanupWatch.Begin(Id);
             _cleanupWatch.Owns("native operation, player, callback buffers/delegates, media/input, verified stream, native file, engine");
             try
@@ -242,6 +244,8 @@ internal static class VideoPosterDecoder
                 _cleanupWatch.Fail();
                 throw new InvalidOperationException("The video poster decoder could not release its native session; ownership is retained.", exception);
             }
+            finally { _cleanupWatch.Dispose(); }
         }
+
     }
 }

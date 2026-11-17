@@ -37,8 +37,8 @@ public sealed class UpdateSimulationTests
         Assert.Equal(value.Trim().TrimStart('v'), (await service.GetStateAsync()).FoundUpdate?.Version.ToString());
         // Nothing reaches a later start without the switch.
         Assert.Null(fixture.Store.Load().FoundUpdate);
-        using UpdateService withoutSimulation = Service(fixture, null);
-        Assert.Null((await withoutSimulation.GetStateAsync()).FoundUpdate);
+        using UpdateService restarted = Service(fixture, null);
+        Assert.Null((await restarted.GetStateAsync()).FoundUpdate);
     }
 
     [Theory]
@@ -109,11 +109,9 @@ public sealed class UpdateSimulationTests
     {
         using UpdateServiceTests.Fixture fixture = new(UpdateServiceTests.Release("0.0.1"));
         fixture.Handler.Body = UpdateServiceTests.Release("1.5.0");
-        using (UpdateService real = Service(fixture, null))
-        {
-            await real.CheckAsync(UpdateCheckKind.Manual);
-            await real.SkipVersionAsync(SemanticVersion.Parse("1.5.0"));
-        }
+        using UpdateService real = Service(fixture, null);
+        await real.CheckAsync(UpdateCheckKind.Manual);
+        await real.SkipVersionAsync(SemanticVersion.Parse("1.5.0"));
         string before = File.ReadAllText(fixture.Store.FilePath);
         using UpdateService simulated = Service(fixture, "9.9.9");
         await simulated.CheckAsync(UpdateCheckKind.Manual);

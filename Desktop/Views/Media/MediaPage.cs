@@ -37,7 +37,6 @@ public sealed partial class MediaPage : UserControl
     private readonly Func<string, CancellationToken, Task<MediaAssetSnapshot>> _openManifest;
     private readonly MediaLibraryIndexCacheFile? _cacheFile;
     private readonly CancellationTokenSource _lifetime = new();
-    private IDisposable? _pageKeyContext;
     // Manifest views of this page (thumbnails, sound check) that the index build may reuse; see MediaManifestCache.
     private readonly MediaManifestCache _manifests;
     private readonly TextBlock _title = new() { Classes = { "page-title" } };
@@ -1423,12 +1422,14 @@ public sealed partial class MediaPage : UserControl
         if (_grid.ItemsSource != null) Present(keepView: true); else UpdateStatus();
     }
 
+    private readonly IDisposable _pageKeyContext;
+
     internal void EndLifetime()
     {
         if (_lifetime.IsCancellationRequested) return;
+        _pageKeyContext.Dispose();
         InvalidateSharedMediaMenu();
         _lifetime.Cancel();
-        _pageKeyContext?.Dispose(); _pageKeyContext = null;
         _nameFilter.CancelPendingQuery();
         _building?.Cancel();
         EndBooruModeLifetime();

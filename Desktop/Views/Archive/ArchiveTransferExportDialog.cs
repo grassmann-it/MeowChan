@@ -52,10 +52,8 @@ internal sealed class ArchiveTransferExportDialog : Window, IDisposable
     private readonly Button _start = new() { Name = "ArchiveTransferExportStart" };
     private readonly Button _folder = new() { Name = "ArchiveTransferExportOpenFolder" };
     private readonly Button _close = new() { Name = "ArchiveTransferExportClose" };
-    // StartAsync owns and disposes the active source through its using declaration.
-#pragma warning disable CA2213
-    private CancellationTokenSource? _operation;
-#pragma warning restore CA2213
+    // Workers own the scoped sources; the window retains cancellation authority only.
+    private Action? _cancelOperation;
     private ArchiveTransferExportCount? _counted;
     private ArchiveTransferExportResult? _last;
     private ArchiveTransferExportProgress? _progress;
@@ -174,7 +172,7 @@ internal sealed class ArchiveTransferExportDialog : Window, IDisposable
         if (_closed) return;
         _closed = true;
         Texts.Changed -= OnLanguageChanged;
-        try { _operation?.Cancel(); }
+        try { _cancelOperation?.Invoke(); }
         finally
         {
             try { _lifetime.Cancel(); }
@@ -194,8 +192,10 @@ internal sealed class ArchiveTransferExportDialog : Window, IDisposable
     {
         if (_closed || _running) return;
         int generation = ++_countGeneration;
-        _operation?.Cancel();
-        using CancellationTokenSource operation = _operation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+        _cancelOperation?.Invoke();
+        using CancellationTokenSource operation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+        Action cancel = operation.Cancel;
+        _cancelOperation = cancel;
         try
         {
             _counting = true; _counted = null; _stateKey = "transfer.export.counting";
@@ -235,7 +235,7 @@ internal sealed class ArchiveTransferExportDialog : Window, IDisposable
         }
         finally
         {
-            if (ReferenceEquals(_operation, operation)) _operation = null;
+            if (ReferenceEquals(_cancelOperation, cancel)) _cancelOperation = null;
         }
     }
 
@@ -267,7 +267,9 @@ internal sealed class ArchiveTransferExportDialog : Window, IDisposable
     private async Task StartAsync()
     {
         if (!CanStart || _target is not { } target) return;
-        using CancellationTokenSource operation = _operation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+        using CancellationTokenSource operation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+        Action cancel = operation.Cancel;
+        _cancelOperation = cancel;
         try
         {
             _running = true; _last = null; _errorKey = null; _progress = null; _stateKey = "transfer.export.reading";
@@ -316,7 +318,7 @@ internal sealed class ArchiveTransferExportDialog : Window, IDisposable
         }
         finally
         {
-            if (ReferenceEquals(_operation, operation)) _operation = null;
+            if (ReferenceEquals(_cancelOperation, cancel)) _cancelOperation = null;
         }
     }
 
@@ -324,7 +326,7 @@ internal sealed class ArchiveTransferExportDialog : Window, IDisposable
     {
         if (_closed) return;
         if (!_counting && !_running) return;
-        try { _operation?.Cancel(); } catch (ObjectDisposedException) { }
+        try { _cancelOperation?.Invoke(); } catch (ObjectDisposedException) { }
         if (_counting) { _countGeneration++; _counting = false; _stateKey = "transfer.export.idle"; Render(); }
     }
 

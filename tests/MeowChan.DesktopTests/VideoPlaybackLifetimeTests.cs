@@ -236,7 +236,7 @@ public sealed class VideoCleanupWatchTests
     public void DeadmanReportsOncePerPhaseAndNeverClaimsResourceRelease()
     {
         long clock = 100;
-        VideoCleanupWatch watch = new("test.video.cleanup", () => clock, deadline: 5, schedule: false);
+        using VideoCleanupWatch watch = new("test.video.cleanup", () => clock, deadline: 5, schedule: false);
         List<VideoCleanupEvidence> reports = new();
         watch.Pending += reports.Add;
         Assert.True(watch.Begin(42));
@@ -261,7 +261,7 @@ public sealed class VideoCleanupWatchTests
     public void FailedReleaseRetainsOwnershipAndAThrowingDiagnosticCannotChangeIt()
     {
         long clock = 0;
-        VideoCleanupWatch watch = new("test.video.cleanup", () => clock, deadline: 5, schedule: false);
+        using VideoCleanupWatch watch = new("test.video.cleanup", () => clock, deadline: 5, schedule: false);
         watch.Pending += _ => throw new InvalidOperationException("diagnostic observer");
         watch.Begin(7); watch.Phase("player-dispose"); clock = 5; watch.CheckDeadman();
         Assert.True(watch.Evidence.Pending);
