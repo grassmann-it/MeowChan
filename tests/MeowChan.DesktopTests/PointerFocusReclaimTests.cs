@@ -1,3 +1,4 @@
+using System;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -17,6 +18,13 @@ namespace MeowChan.DesktopTests;
 [Collection("Avalonia global state")]
 public sealed class PointerFocusReclaimTests
 {
+    private sealed class IconButton : Button
+    {
+        protected override Type StyleKeyOverride => typeof(Button);
+
+        internal void AddIcon(Visual icon) => VisualChildren.Add(icon);
+    }
+
     private sealed class Rig
     {
         internal readonly StackPanel Scope = new();
@@ -68,7 +76,8 @@ public sealed class PointerFocusReclaimTests
         Rig rig = new();
         ToggleButton badge = rig.Add(new ToggleButton { Name = "GalleryFavoriteIndicator" });
         Border icon = new();
-        rig.Add(new Button { Name = "GalleryFit", Content = icon });
+        // Without a window no template is applied, so the icon is made a visual child by hand, as the button's template would.
+        rig.Add(new IconButton { Name = "GalleryFit" }).AddIcon(icon);
         Release(badge, rig.Scope);
         Assert.Equal(1, rig.Settle());
         Release(icon, rig.Scope); // the click lands on the icon inside the button

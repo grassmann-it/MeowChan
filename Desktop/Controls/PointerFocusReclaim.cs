@@ -147,8 +147,9 @@ internal sealed class PointerFocusReclaim : IDisposable
         if (focused.GetSelfAndVisualAncestors().Any(node => ReferenceEquals(node, _scope))) _reclaim();
     }
 
-    // A focus that is not in any tree any more (the closed menu's entry) is no focus.
-    private static bool FocusIsLost(Visual focused) => !focused.IsAttachedToVisualTree();
+    // A focus that is not in any tree any more (the closed menu's entry) is no focus. Only a surface that is itself shown can tell (a detached
+    // surface, as in the windowless tests, has no tree to compare with).
+    private bool FocusIsLost(Visual focused) => !focused.IsAttachedToVisualTree() && _scope.IsAttachedToVisualTree();
 
     private bool FocusRestsOn(Control control) =>
         _focused() is not Visual focused || FocusIsLost(focused) || focused.GetSelfAndVisualAncestors().Any(node => ReferenceEquals(node, control));
