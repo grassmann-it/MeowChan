@@ -200,7 +200,9 @@ internal sealed class GalleryDecisionRow : StackPanel
         Paint();
         _summary.Text = GalleryDecisionText.Caption(view);
         // The group's help is the full sentence (rating and favourite); the caption below the favourite shows the rating alone.
-        AutomationProperties.SetHelpText(_group, GalleryDecisionText.Summary(view));
+        AutomationProperties.SetHelpText(_group, ShortcutHelp.Append(GalleryDecisionText.Summary(view),
+            ShortcutHelp.Commands(_keyContext ?? "gallery", Enumerable.Range(1, 5).Select(number => "media.rating.set-" + number)
+                .Append("media.rating.clear").ToArray())));
         AutomationProperties.SetHelpText(_favorite, GalleryDecisionText.Favorite(view));
     }
 
@@ -257,7 +259,9 @@ internal sealed class GalleryDecisionRow : StackPanel
             string id = "media.rating.set-" + number;
             string label = CommandCatalog.Label(id);
             AutomationProperties.SetName(_stars[number - 1], label);
-            ToolTip.SetTip(_stars[number - 1], CommandCatalog.ShortcutTooltipDisplay(id, _keyContext) is { } gesture ? label + " · " + gesture : label);
+            string tip = CommandCatalog.ShortcutTooltipDisplay(id, _keyContext) is { } gesture ? label + " · " + gesture : label;
+            ToolTip.SetTip(_stars[number - 1], tip);
+            AutomationProperties.SetHelpText(_stars[number - 1], tip);
         }
         string clear = CommandCatalog.Label("media.rating.clear");
         WorkspaceIcons.MakeSquare(_clear, WorkspaceIcons.StarClear, clear,

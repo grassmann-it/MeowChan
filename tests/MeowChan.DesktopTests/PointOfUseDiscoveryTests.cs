@@ -119,6 +119,19 @@ public sealed class PointOfUseDiscoveryTests
         Assert.Null(QuickTagKeys.SuggestionGesture(0, platform));
     });
 
+    [Fact]
+    public void RatingGroupAndStarsExposeAllEffectiveRatingBindings() => WithControls(() =>
+    {
+        ShortcutService.Publish(new ShortcutBindingsSection().Set("media.rating.set-3", [ShortcutGesture.Parse("Alt+F9")]));
+        GalleryDecisionRow row = new("DiscoveryRating") { KeyContext = "reader" };
+        string help = AutomationProperties.GetHelpText(Field<Control>(row, "_group"));
+        foreach (string id in Enumerable.Range(1, 5).Select(n => "media.rating.set-" + n).Append("media.rating.clear"))
+            foreach (var gesture in ShortcutService.Current.For(id))
+                Assert.Contains(gesture.Display(OperatingSystem.IsMacOS() ? ShortcutPlatform.MacOS : ShortcutPlatform.Windows), help);
+        foreach (var star in row.StarButtons)
+            Assert.Equal(ToolTip.GetTip(star), AutomationProperties.GetHelpText(star));
+    });
+
     private static void AssertHelp(Control control, string context, params string[] commands)
     {
         string tip = Assert.IsType<string>(ToolTip.GetTip(control));
