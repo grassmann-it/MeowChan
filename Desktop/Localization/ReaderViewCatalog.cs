@@ -11,6 +11,7 @@ internal static class ReaderViewCatalog
         ("reader.settings.active", "A view filter is on", "Ein Ansichtsfilter ist aktiv"),
         // R2: the "Thread" menu next to "View" (capture, check now, retry media, media rules, details, folder, source, link, watch).
         ("reader.thread.menu", "Thread", "Thread"),
+        ("reader.thread.openFirst", "Open a thread first.", "Zuerst einen Thread öffnen."),
         ("reader.thread.copyLink", "Copy link", "Link kopieren"),
         ("reader.thread.bookmarksUnavailable", "Not available in the large reader.", "Im großen Reader nicht verfügbar."),
         ("command.reader.view.hide-media", "Hide media", "Medien ausblenden"),
@@ -30,6 +31,8 @@ internal static class ReaderViewCatalog
         ("reader.sidebar.position", "{0} of {1}", "{0} von {1}"),
         ("reader.sidebar.empty", "Select a post to see its media here.", "Einen Post markieren, um seine Medien hier zu sehen."),
         ("reader.sidebar.noMedia", "No. {0} has no media", "Nr. {0} hat keine Medien"),
+        ("reader.sidebar.threadNoMedia", "This thread has no media", "Dieser Thread hat keine Medien"),
+        ("reader.sidebar.noPosts", "No posts to show.", "Keine Posts zum Anzeigen."),
         ("reader.sidebar.hidden", "The view hides the media of No. {0}", "Die Ansicht blendet die Medien von Nr. {0} aus"),
         ("reader.sidebar.unavailable", "This media cannot be shown here. Open it in the gallery.", "Dieses Medium kann hier nicht angezeigt werden. In der Galerie öffnen."),
         ("reader.sidebar.region", "Media of post No. {0}, {1} of {2}, {3}", "Medien von Post Nr. {0}, {1} von {2}, {3}"),
