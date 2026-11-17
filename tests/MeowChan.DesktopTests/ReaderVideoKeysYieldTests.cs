@@ -31,6 +31,18 @@ public sealed class ReaderVideoKeysYieldTests
     }
 
     [Fact]
+    public void ASingleSavedReaderBindingDoesNotTurnTheVideoFallbackIntoABlockingProfileConflict()
+    {
+        var section = new ShortcutBindingsSection().Set("reader.sidebar.toggle", [ShortcutGesture.Parse("Space")]);
+        EffectiveShortcutBindings bindings = EffectiveShortcutBindings.Build(section, ShortcutPlatform.Linux);
+
+        Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.Space }, "reader.sidebar.toggle"));
+        Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.Space }, "video.play-pause"));
+        Assert.DoesNotContain(bindings.Issues, issue => issue.BlocksSave &&
+            (issue.CommandId == "video.play-pause" || issue.OtherCommandId == "video.play-pause"));
+    }
+
+    [Fact]
     public void ShiftMSavedForAReaderCommandStaysTheGalleryMuteKeyButTheReaderGivesItToTheCommand()
     {
         // Mute is Shift+M since revision 20 (M adds a favourite).
