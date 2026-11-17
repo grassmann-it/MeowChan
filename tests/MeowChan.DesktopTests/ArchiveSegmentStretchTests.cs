@@ -101,27 +101,27 @@ public sealed class ArchiveSegmentStretchTests
     }
 
     [Fact]
-    public void OnlyTheArchiveListAndTablePairStretchesAndItStaysTheFirstJoinedGroupInTheSameOrder()
+    public void TheArchiveListAndTablePairDocksAtNaturalWidthAndStaysJoinedInTheSameOrder()
     {
         XElement[] items = Toolbar("ArchiveResultActions").Elements().Where(element => !element.Name.LocalName.Contains('.')).ToArray();
         string[] stretching = items.Where(Stretches).Select(item => (string)item.Attribute(X + "Name")!).ToArray();
-        Assert.Equal(["ArchiveLayoutList", "ArchiveLayoutTable"], stretching);
-        // The pair keeps its place (first on the bar, joined, one overflow mode): the stretch changes neither the focus order nor the
-        // atomic overflow of the pair (ActionOverflowLayout.JoinedSegments), and More stays the toolbar's own button.
-        Assert.Equal(["ArchiveLayoutList", "ArchiveLayoutTable"], items.Take(2).Select(item => (string)item.Attribute(X + "Name")!));
-        Assert.All(items.Take(2), item =>
+        Assert.Empty(stretching);
+        // UX-LEDGER-01: compact layout controls dock right rather than filling the toolbar.
+        XElement[] pair = items.TakeLast(2).ToArray();
+        Assert.Equal(["ArchiveLayoutList", "ArchiveLayoutTable"], pair.Select(item => (string)item.Attribute(X + "Name")!));
+        Assert.All(pair, item =>
         {
             Assert.Contains("segment", (string)item.Attribute("Classes")!);
+            Assert.Equal("True", item.Attributes().Single(attribute => attribute.Name.LocalName == "ActionToolBar.End").Value);
             Assert.Equal("AsNeeded", item.Attributes().Single(attribute => attribute.Name.LocalName == "ToolBar.OverflowMode").Value);
         });
-        Assert.DoesNotContain(items.Skip(2), Stretches);
     }
 
     [Fact]
-    public void ArchiveSegmentsStretchTheirVisualControlIntoTheAllocatedToolbarSlot()
+    public void ArchiveSegmentsKeepTheirJoinedAlignmentWithinTheNaturalToolbarSlot()
     {
         XElement[] items = Toolbar("ArchiveResultActions").Elements()
-            .Where(element => !element.Name.LocalName.Contains('.')).Take(2).ToArray();
+            .Where(element => !element.Name.LocalName.Contains('.')).TakeLast(2).ToArray();
 
         // ActionToolBar allocates the spare row width in the control slots. Avalonia otherwise keeps a ToggleButton
         // at its natural width inside that slot, recreating the large empty gap even though the panel is stretched.

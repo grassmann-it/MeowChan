@@ -50,15 +50,11 @@
                     </StackPanel>
                     <!-- 8-dip rhythm: the gaps are margins of what is shown (the empty rows between cost nothing), so the view
                          toggle sits 8 below "Filters and sorting" and 8 above the first card. -->
-                    <!-- Toolbar UX review 15.11.: the panel owns the gaps (8 between items, 16 with a line between groups); the List/Table toggle
-                         is the bar's one joined, outlined element (segments, no gap between them). Groups: the view | what to look at | what to
-                         take away or open, with saved searches beside Export. -->
+                    <!-- Primary result actions lead; Columns and the joined List/Table pair dock right.
+                         The shared panel owns item/group spacing, including when actions move under More. -->
                     <desktop:ActionToolBar x:Name="ArchiveResultActions" Grid.Row="4" Margin="0,8,0,0">
-                        <ToggleButton x:Name="ArchiveLayoutList" desktop:ActionToolBar.Stretch="True" HorizontalAlignment="Stretch" wv:WorkViewElement.Id="archive.results.layout-list" Content="List" Classes="segment segment-first" MinWidth="64" MinHeight="32" ursa:ToolBar.OverflowMode="AsNeeded" />
-                        <ToggleButton x:Name="ArchiveLayoutTable" desktop:ActionToolBar.Stretch="True" HorizontalAlignment="Stretch" wv:WorkViewElement.Id="archive.results.layout-table" Content="Table" Classes="segment segment-last" MinWidth="64" MinHeight="32" ursa:ToolBar.OverflowMode="AsNeeded" />
                         <Button x:Name="ArchiveResultsGallery" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="archive.results.gallery" Tag="gallery.results" Classes="localized" ursa:ToolBar.OverflowMode="AsNeeded" />
                         <Button x:Name="ArchiveResultsOpenInMedia" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="archive.results.open-in-media" ursa:ToolBar.OverflowMode="AsNeeded" />
-                        <Button x:Name="ArchiveThreadColumnsButton" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="archive.results.columns" Content="Columns" ursa:ToolBar.OverflowMode="AsNeeded" IsVisible="False" />
                         <Button x:Name="ArchiveFavoritesOverview" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="archive.results.favorites" Content="Favorites" ursa:ToolBar.OverflowMode="AsNeeded" />
                         <Button x:Name="ArchiveResultsExport" desktop:ActionToolBar.Group="2" wv:WorkViewElement.Id="archive.results.export" ursa:ToolBar.OverflowMode="AsNeeded" />
                         <!-- AP2: saving and opening saved searches are one split button; the arrow holds "Save applied search…". -->
@@ -66,6 +62,9 @@
                             <SplitButton.Flyout><MenuFlyout Placement="BottomEdgeAlignedLeft" /></SplitButton.Flyout>
                         </SplitButton>
                         <Button x:Name="ArchiveReaderGroups" desktop:ActionToolBar.Group="2" wv:WorkViewElement.Id="archive.results.reader-groups" Content="Reader groups" Click="OnReaderGroupsClick" />
+                        <Button x:Name="ArchiveThreadColumnsButton" desktop:ActionToolBar.Group="3" desktop:ActionToolBar.End="True" wv:WorkViewElement.Id="archive.results.columns" Content="Columns" ursa:ToolBar.OverflowMode="AsNeeded" IsVisible="False" />
+                        <ToggleButton x:Name="ArchiveLayoutList" desktop:ActionToolBar.Group="3" desktop:ActionToolBar.End="True" HorizontalAlignment="Stretch" wv:WorkViewElement.Id="archive.results.layout-list" Content="List" Classes="segment segment-first" MinWidth="64" MinHeight="32" ursa:ToolBar.OverflowMode="AsNeeded" />
+                        <ToggleButton x:Name="ArchiveLayoutTable" desktop:ActionToolBar.Group="3" desktop:ActionToolBar.End="True" HorizontalAlignment="Stretch" wv:WorkViewElement.Id="archive.results.layout-table" Content="Table" Classes="segment segment-last" MinWidth="64" MinHeight="32" ursa:ToolBar.OverflowMode="AsNeeded" />
                     </desktop:ActionToolBar>
                 </Grid></ScrollViewer>
                 <!-- P2: local filter surface anchored over the result list. Same controls and

@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Automation;
 using MeowChan.Gallery;
+using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 
@@ -21,6 +22,8 @@ namespace MeowChan;
 // filters). When the row runs short the less important tools move under More first and the order stays visible (MediaToolbarLayout).
 public sealed partial class MediaPage
 {
+    // The one item gap of every toolbar row (design language, UX-LEDGER-01): the ActionToolBar's own 8 dip, not a local literal.
+    private const double ToolbarGap = ActionToolBarPanel.ItemGap;
     private MediaToolbarLayout.Level _toolbarLevel = MediaToolbarLayout.Level.Wide;
     private Grid? _toolbar;
     private Func<bool>? _canOpenBooru;
@@ -77,10 +80,10 @@ public sealed partial class MediaPage
         // The tools under More stay in the tree (hidden): their handlers, names and shortcuts keep working, the menu entries forward to them.
         // The filter toggle is the first tool after the search and never moves. The order (shuffle, criterion, direction) is the group on the right;
         // criterion and direction stand side by side with the group's 8 dip, one unit.
-        StackPanel query = new() { Name = "MediaToolbarQuery", Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) };
-        StackPanel order = new() { Name = "MediaToolbarSort", Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
+        StackPanel query = new() { Name = "MediaToolbarQuery", Orientation = Orientation.Horizontal, Spacing = ToolbarGap, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(ToolbarGap, 0, 0, 0) };
+        StackPanel order = new() { Name = "MediaToolbarSort", Orientation = Orientation.Horizontal, Spacing = ToolbarGap, VerticalAlignment = VerticalAlignment.Center };
         // Right-aligned in its column: the column can be wider than the tools (it keeps the room of the media panel below, MediaPage.ToolbarAlignment.cs).
-        StackPanel right = new() { Name = "MediaToolbarEnd", Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(8, 0, 0, 0) };
+        StackPanel right = new() { Name = "MediaToolbarEnd", Orientation = Orientation.Horizontal, Spacing = ToolbarGap, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(ToolbarGap, 0, 0, 0) };
         // MP4: the Booru mode switch (MP5: "Tag list") sits before the focus mode, MP5's "Layout" button after the switch; MP3: the queue walk and the Tagging page are entries under More only.
         foreach (Control control in new Control[] { _filters, _shuffle, _sort, _sortDirection, _refresh, _booruMode, _layoutButton, _focus, _exportAll, _manageRatings, _booruOpen,
             _queueWalk, _taggingPageOpen, _queueAll, _mediaFolders, _more })

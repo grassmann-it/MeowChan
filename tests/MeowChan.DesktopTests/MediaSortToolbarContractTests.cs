@@ -234,9 +234,14 @@ public sealed class MediaSortToolbarContractTests
         string view = Source("Desktop/Views/Media/MediaPage.WorkView.cs");
         Assert.Contains("MediaToolbarLayout.IsUnderMore(_toolbarLevel,", view);
         Assert.Contains("UpdateMore(_more, HeaderOverflow())", view);
-        Assert.Contains("FillMore((MenuFlyout)_more.Flyout!, HeaderOverflow())", view);
         Assert.Contains("more.IsVisible = items.Count > 0;", view);
-        Assert.Contains("if (((MenuFlyout)_more.Flyout!).Items.Count == 0) Dispatcher.UIThread.Post(() => _more.Flyout?.Hide());", view);
+        foreach (string more in new[] { "_more", "_selMore" })
+        {
+            Assert.Contains($"UpdateMore({more}, items);", view);
+            Assert.Contains($"FillMore((MenuFlyout){more}.Flyout!, items);", view);
+            Assert.Contains($"{more}.IsVisible = false;", view);
+            Assert.Contains($"Dispatcher.UIThread.Post(() => {more}.Flyout?.Hide());", view);
+        }
     }
 
     [Fact]
@@ -284,7 +289,7 @@ public sealed class MediaSortToolbarContractTests
         Assert.DoesNotContain("tools.Children.Add(_filters)", toolbar);
         // No column spacing that the free-space column would double; the order leads with the free-space column, not with a margin of its own.
         Assert.DoesNotMatch("ColumnSpacing\\s*=", toolbar);
-        Assert.Contains("Name = \"MediaToolbarSort\", Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center };", toolbar);
+        Assert.Contains("Name = \"MediaToolbarSort\", Orientation = Orientation.Horizontal, Spacing = ToolbarGap, VerticalAlignment = VerticalAlignment.Center };", toolbar);
     }
 
     // The width arithmetic is pure (MediaToolbarLayout); the real layout is the media header stability smoke (12 languages, 616 to 1896 dip).

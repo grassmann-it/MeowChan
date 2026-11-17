@@ -116,5 +116,85 @@ public sealed class ActionToolBarRenderedStretchTests
         });
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void EndActionsDockWithoutChangingNaturalWidthsAndEmptyOverflowDisappears(bool hidePrimary)
+    {
+        BooruComponentDispatcher.Run(() =>
+        {
+            using IDisposable scope = AvaloniaLocator.EnterScope();
+            AvaloniaLocator.CurrentMutable.Bind<ICursorFactory>().ToConstant(new DeadAffordanceGuard.RecordingCursorFactory());
+            Application app = new() { RequestedThemeVariant = ThemeVariant.Dark };
+            AvaloniaLocator.CurrentMutable.Bind<Application>().ToConstant(app);
+            app.Styles.Add(new SemiTheme());
+            app.Styles.Add(new UrsaSemiTheme());
+            ActionToolBar bar = new();
+            Button primary = new() { Width = 64, Height = 32, IsVisible = !hidePrimary };
+            Button overflowAction = new() { Width = 90, Height = 32 };
+            Button columns = new() { Width = 64, Height = 32 };
+            Button details = new() { Width = 64, Height = 32 };
+            ToolBar.SetOverflowMode(overflowAction, OverflowMode.Always);
+            foreach (Button item in new[] { primary, overflowAction, columns, details }) bar.Items.Add(item);
+            ActionToolBar.SetEnd(columns, true);
+            ActionToolBar.SetEnd(details, true);
+            ActionToolBar.SetGroup(columns, 1);
+            ActionToolBar.SetGroup(details, 1);
+            Root root = new() { Child = bar };
+            bar.Theme = (ControlTheme)app.FindResource(typeof(ToolBar))!;
+            bar.ApplyStyling();
+            bar.ApplyTemplate();
+            for (int pass = 0; pass < 5; pass++)
+                foreach (Control control in bar.GetVisualDescendants().OfType<Control>().ToArray())
+                {
+                    control.ApplyStyling();
+                    if (control is TemplatedControl templated) templated.ApplyTemplate();
+                    if (control is ItemsPresenter presenter) presenter.ApplyTemplate();
+                }
+            void Layout(double width)
+            {
+                for (int pass = 0; pass < 6; pass++)
+                {
+                    // As in the stretch fixture, drive the unattached root's layout explicitly.
+                    root.InvalidateMeasure();
+                    bar.InvalidateMeasure();
+                    foreach (Control control in bar.GetVisualDescendants().OfType<Control>()) control.InvalidateMeasure();
+                    root.Measure(new Size(width, 32));
+                    bar.More?.ApplyStyling();
+                    root.Arrange(new Rect(0, 0, width, 32));
+                }
+            }
+            try
+            {
+                foreach (double width in new double[] { 600, 330, 760, 330 })
+                {
+                    Layout(width);
+                    Assert.Contains(overflowAction, bar.OverflowHost!.Children);
+                    Assert.True(bar.More!.IsVisible);
+                    Assert.Equal(64, columns.Bounds.Width);
+                    Assert.Equal(64, details.Bounds.Width);
+                    Assert.Equal(ActionToolBarPanel.ItemGap, details.Bounds.X - columns.Bounds.Right);
+                    Assert.InRange(Math.Abs(bar.DirectHost!.Bounds.Width - details.Bounds.Right), 0, 1);
+                    Assert.Empty(bar.DirectHost.GroupSeparators);
+                    Rect previous = details.Bounds;
+                    Layout(width);
+                    Assert.Equal(previous, details.Bounds);
+                }
+                // An overflow item is not a visual child of the bar: hiding it must still invalidate the bar.
+                overflowAction.IsVisible = false;
+                Assert.False(bar.DirectHost!.IsMeasureValid);
+                Layout(330);
+                Assert.Empty(bar.OverflowHost!.Children.Where(item => item.IsVisible));
+                Assert.False(bar.More!.IsEffectivelyVisible);
+                Assert.InRange(Math.Abs(bar.DirectHost.Bounds.Width - details.Bounds.Right), 0, 1);
+                ActionToolBar.SetEnd(details, false);
+                Assert.False(bar.DirectHost.IsArrangeValid);
+                Layout(330);
+                Assert.True(details.Bounds.Right < bar.DirectHost.Bounds.Width - 1);
+            }
+            finally { root.Child = null; }
+        });
+    }
+
     private sealed class Root : Decorator, Avalonia.LogicalTree.ILogicalRoot;
 }
