@@ -123,6 +123,7 @@ public sealed class TaggingRowStructureTests
         Assert.Equal(0, Grid.GetRow(header));
         Assert.Equal(1, Grid.GetRow(Assert.IsAssignableFrom<Control>(page.List.Parent)));
         Assert.Contains("workspace-table-header", header.Classes);
+        header.ApplyStyling();
         Assert.True(header.TryFindResource("Workspace.Size.Input", out object? height));
         Assert.Equal(height, header.Height);
         Assert.Equal(32, header.Height);
@@ -176,7 +177,8 @@ public sealed class TaggingRowStructureTests
             Assert.Equal(0, item.Padding.Top + item.Padding.Bottom + item.BorderThickness.Top + item.BorderThickness.Bottom);
             Assert.Equal(new Thickness(3, 0, 0, 0), item.BorderThickness);
             Assert.Equal(new Thickness(9, 0, 12, 0), item.Padding);
-            ContentPresenter presenter = item.GetVisualDescendants().OfType<ContentPresenter>().Single(p => p.Name == "PART_ContentPresenter");
+            ContentPresenter presenter = item.GetVisualDescendants().OfType<ContentPresenter>()
+                .Single(p => p.Name == "PART_ContentPresenter" && ReferenceEquals(p.TemplatedParent, item));
             Assert.Equal(item.Padding, presenter.Padding);
             Assert.Equal(item.BorderThickness, presenter.BorderThickness);
             Assert.Equal(expected, presenter.Bounds.Height);
