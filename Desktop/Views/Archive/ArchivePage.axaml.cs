@@ -120,10 +120,6 @@ public partial class ArchivePage : UserControl
 
     public ArchivePage()
     {
-        // Every key of the page runs in its execution context, as the gallery's keys do: the reader pane is "reader", the rest of the page "archive".
-        // A default that a saved binding took away only elsewhere (a partial yield) stays active here (EffectiveShortcutBindings.EnterKeyContext).
-        MeowChan.Desktop.Controls.KeyContextHost.Install(this, e => e.Source is Visual source && ArchiveReaderPane is { } pane
-            && (ReferenceEquals(source, pane) || pane.IsVisualAncestorOf(source)) ? "reader" : "archive");
         InitializeComponent(); InitializeThreadFind(); InitializeUnifiedSearch(); InitializePostPageKeys(); InitializeTransferPreview(); InitializeArchiveResultActions(); InitializeSuggestions(); InitializeSearchEditors(); InitializeArchiveSelection(); InitializeArchiveMediaCommands(); InitializeRatingCommands(); InitializeMediaPositionInput(); InitializeMediaSelection(); InitializeThreadFavoriteCommands(); InitializePrivateTags(); InitializeArchiveColumnMenus(); InitializeStatusOverlay(); InitializeReaderToolbarIcons();
         // Navigation scrolls explicitly; selection must not re-anchor while media is loading.
         ArchivePosts.AutoScrollToSelectedItem = false;
@@ -139,6 +135,11 @@ public partial class ArchivePage : UserControl
         InitializeReaderView(); AttachPostFilter(); AttachConversationView();
         AttachReaderFontZoom();
         AttachMouseKeyboardQuickWins();
+        // Tunnel handlers on one element run in reverse registration order.
+        // Enter the focus-decided context BEFORE any page-level shortcut route,
+        // including when the reader is embedded (the detached pane has its own host).
+        MeowChan.Desktop.Controls.KeyContextHost.Install(this, e => e.Source is Visual source && ArchiveReaderPane is { } pane
+            && (ReferenceEquals(source, pane) || pane.IsVisualAncestorOf(source)) ? "reader" : "archive");
     }
     internal ArchivePage(Func<CancellationToken, Task<ArchiveReader>> openReader,
         Func<ResourceId, bool, Task> setCapture, Action<string> openFolder,

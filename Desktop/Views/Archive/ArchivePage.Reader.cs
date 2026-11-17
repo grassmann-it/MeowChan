@@ -260,7 +260,13 @@ public partial class ArchivePage
         // Each resolver keeps native editors, text selection, popups and foreign top-levels out of the route.
         posts.AddHandler(KeyDownEvent, (_, e) =>
         {
-            if (!CommandRouter.IsRoutingContextActive(posts, e.Source) || ReaderSelectionOwnsActivationKey(e)) return;
+            if (!CommandRouter.IsRoutingContextActive(posts, e.Source)) return;
+            if (TryOpenFocusedReaderMedium(e)) return;
+            // The embedded reader has no OnReaderKeyDown route. Playback must
+            // precede the post list's typeahead there as it does in the large reader.
+            // Its own native-control guard keeps buttons and media activators local.
+            if (TryRouteReaderVideoKey(e)) return;
+            if (ReaderSelectionOwnsActivationKey(e)) return;
             if (!TryRouteFavoriteKey(posts, e)) TryRouteArchiveMediaShortcut(posts, e);
         }, RoutingStrategies.Tunnel);
         posts.AddHandler(PointerWheelChangedEvent, (_, _) => ++_readerInteractionRevision, RoutingStrategies.Tunnel, handledEventsToo: true);
@@ -900,6 +906,7 @@ public partial class ArchivePage
             if (CanEditThreadRules) EditThreadRulesFromReader(); else Message(Texts.T("archive.command.noWatch"));
             return;
         }
+        if (TryOpenFocusedReaderMedium(e)) return;
         if (CommandBindings.Matches(e, "gallery.open") && _thread != null && OpenGallery != null)
         {
             if (!_available || _busy || _ended || _lifetime.IsCancellationRequested) return;
@@ -1001,7 +1008,7 @@ public partial class ArchivePage
     private void ObserveReaderMediaKeys(Control pane)
     {
         StopObservingReaderMediaKeys();
-        if (!_largeReader || TopLevel.GetTopLevel(pane) is not Window owner) return;
+        if (TopLevel.GetTopLevel(pane) is not Window owner) return;
         _readerMediaKeyOwner = owner;
         // KeyUp may belong to the gallery that just covered the reader. Observe
         // release on this window, not globally, so a held key opens at most once.
@@ -1057,11 +1064,11 @@ public partial class ArchivePage
         return true; // Neither another tab nor the reader toolbar is post content.
     }
 
-    private bool ReaderMediaContextIsCurrent(Control source, ArchivePostRow post, bool needsGallery = true)
+    private bool ReaderMediaContextIsCurrent(Control source, ArchivePostRow post, bool needsGallery = true, bool largeReaderOnly = true)
     {
         ListBox posts = ArchivePosts;
         Control pane = ArchiveReaderPane;
-        return !_ended && !_lifetime.IsCancellationRequested && !_busy && _available && _largeReader
+        return !_ended && !_lifetime.IsCancellationRequested && !_busy && _available && (!largeReaderOnly || _largeReader)
             && ReaderShowsPosts && !_obscuredByGallery && !ArchiveAttachmentView.GetLoadingSuspended(this)
             && !IsReaderDialogOpen && !ShortcutService.IsCapturing && (!needsGallery || OpenGallery != null)
             && pane.IsEffectivelyVisible && pane.IsEffectivelyEnabled
