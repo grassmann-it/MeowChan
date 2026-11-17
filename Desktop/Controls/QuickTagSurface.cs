@@ -1552,9 +1552,11 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         {
             string reason = QuickTagReasons.Text(suggestion.Reason, suggestion.Detail);
             string display = suggestion.Name.Display;
-            ToolTip.SetTip(button, QuickTagKeys.SuggestionGesture(index, platform) is { } gesture
+            string tip = QuickTagKeys.SuggestionGesture(index, platform) is { } gesture
                 ? Texts.T("tags.quick.suggestion.tipShortcut", display, reason, gesture)
-                : Texts.T("tags.quick.suggestion.tip", display, reason));
+                : Texts.T("tags.quick.suggestion.tip", display, reason);
+            ToolTip.SetTip(button, tip);
+            AutomationProperties.SetHelpText(button, tip);
         }
     }
 

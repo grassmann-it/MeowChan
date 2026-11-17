@@ -37,8 +37,10 @@ public sealed class ShiftLetterSchemeTests
     public void TheExceptionListIsExactlyShiftMMuteShiftRRotateAndTheMediaFocusMode(ShortcutPlatform platform)
     {
         SortedDictionary<string, string> found = ShiftLetterDefaults(platform);
-        // The actions on the shown medium (Tom's decision #133): mute and rotate, nothing else.
-        Assert.Equal(new[] { "gallery.rotate", "video.mute" }, GalleryShortcutScheme.ShiftLetterActionIds.Order(StringComparer.Ordinal).ToArray());
+        // Actions on the shown medium (Tom's decisions #133/#22): mute, rotate, snapshot and slideshow.
+        // Snapshot and slideshow were added as intentional Shift-letter media actions; they are not panel switches.
+        Assert.Equal(new[] { "gallery.rotate", "gallery.slideshow-toggle", "video.mute", "video.snapshot" },
+            GalleryShortcutScheme.ShiftLetterActionIds.Order(StringComparer.Ordinal).ToArray());
         Assert.Equal("M", found["video.mute"]);
         Assert.Equal("R", found["gallery.rotate"]);
         // The one switch of another page in the same form: the Media page's focus mode.
