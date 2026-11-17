@@ -18,7 +18,7 @@ internal sealed partial class BooruWorkbenchView
     /// One built result card with what it was built from. The panel keeps the tile of a post while nothing the card shows changed
     /// (<see cref="CanReuse"/>), so a state or preview change of one hit replaces only that hit's card.
     /// </summary>
-    private sealed record ResultTile(Border Card, BooruResultRowView Row, bool ShowInMedia, bool Expanded, string Language, Button[] WorkViewActions);
+    private sealed record ResultTile(Border Card, BooruResultRowView Row, bool ShowInMedia, bool Expanded, string Language, bool Selected, bool BatchRunning, Button[] WorkViewActions);
 
     private readonly Dictionary<string, ResultTile> _tiles = new(StringComparer.Ordinal);
 
@@ -28,7 +28,8 @@ internal sealed partial class BooruWorkbenchView
         && (_isPostSavedInMedia == null || _isPostSavedInMedia(row.Post.PostId));
 
     private bool CanReuse(ResultTile tile, BooruResultRowView row, bool showInMedia) =>
-        tile.ShowInMedia == showInMedia && tile.Language == Texts.Language
+        tile.Selected == _model.Search.Selected.Contains(row.Post.PostId) && tile.BatchRunning == _model.Search.Batch.Running
+        && tile.ShowInMedia == showInMedia && tile.Language == Texts.Language
         && tile.Expanded == _expandedTagPosts.Contains(row.Post.PostId)
         && tile.Row.Load == row.Load && string.Equals(tile.Row.LoadCode, row.LoadCode, StringComparison.Ordinal)
         && tile.Row.Preview == row.Preview && ReferenceEquals(tile.Row.PreviewBytes, row.PreviewBytes)
@@ -66,7 +67,7 @@ internal sealed partial class BooruWorkbenchView
     {
         List<Button> actions = new();
         Border card = CreateResultCard(row, actions);
-        return new ResultTile(card, row, showInMedia, _expandedTagPosts.Contains(row.Post.PostId), Texts.Language, actions.ToArray());
+        return new ResultTile(card, row, showInMedia, _expandedTagPosts.Contains(row.Post.PostId), Texts.Language, _model.Search.Selected.Contains(row.Post.PostId), _model.Search.Batch.Running, actions.ToArray());
     }
 
     private Border CreateResultCard(BooruResultRowView row, List<Button> workViewActions)
@@ -82,6 +83,15 @@ internal sealed partial class BooruWorkbenchView
         StackPanel info = new() { Spacing = 4 };
         info.Children.Add(new TextBlock { Text = Texts.T("booru.ui.post.title", post.PostId), Classes = { "card-title" }, TextWrapping = TextWrapping.Wrap });
         // I8: the post facts as a definition list; the address is no longer a text line, it is the tooltip of the link buttons.
+        CheckBox select = new() { Name = "BooruSelect:" + post.PostId,
+            Content = Texts.T("booru.ui.selection.select", post.PostId),
+            IsChecked = _model.Search.Selected.Contains(post.PostId), IsEnabled = !_model.Search.Batch.Running };
+        select.Click += (_, _) =>
+        {
+            _model.Search.SetSelected(post.PostId, select.IsChecked == true);
+            select.IsChecked = _model.Search.Selected.Contains(post.PostId); // rejected overflow stays visibly unchecked
+        };
+        info.Children.Add(select);
         info.Children.Add(CreateDetails(post));
 
         bool withdrawn = post.IsDeleted || post.IsBanned;
@@ -131,7 +141,7 @@ internal sealed partial class BooruWorkbenchView
         CommandBindings.ShowIconBeforeText(load, "download-cloud");
         RegisterWorkViewAction(load, cancel ? "booru.result.cancel" : retry ? "booru.result.retry" : "booru.result.load",
             workViewActions);
-        load.IsEnabled = cancel || retry || row.CanLoad;
+        load.IsEnabled = !_model.Search.Batch.Running && (cancel || retry || row.CanLoad);
         AutomationProperties.SetName(load, actionName);
         string? why = post.OriginalAccess != BooruOriginalAccess.Available ? BooruText.Original(post.OriginalAccess, withdrawn)
             : BooruText.Load(row);

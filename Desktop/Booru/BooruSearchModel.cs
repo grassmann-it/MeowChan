@@ -59,7 +59,7 @@ internal sealed record BooruSearchView(
 /// <see cref="SubmitAsync"/>, <see cref="GoToPageAsync"/> or <see cref="LoadOriginalAsync"/>; editing the
 /// field, switching the mode, language changes and cooldown expiry never send anything.
 /// </summary>
-internal sealed class BooruSearchModel : IDisposable
+internal sealed partial class BooruSearchModel : IDisposable
 {
     internal const int MaximumPage = BooruHostHttp.MaximumSearchPage;
     internal const int PageSize = BooruHostHttp.MaximumSearchLimit;
@@ -110,7 +110,7 @@ internal sealed class BooruSearchModel : IDisposable
         get
         {
             BooruSearchView view = View;
-            return !_disposed && view.Parsed.IsValid && !view.IsBusy && PauseEnd(view) is null;
+            return !_disposed && view.Parsed.IsValid && !Batch.Running && !view.IsBusy && PauseEnd(view) is null;
         }
     }
 
@@ -185,13 +185,16 @@ internal sealed class BooruSearchModel : IDisposable
         bool refused = false;
         lock (_gate)
         {
-            if (_disposed) return;
+            if (_disposed || _batch.Running) return;
             parsed = _view.Parsed;
             if (!parsed.IsValid)
             {
                 // Invalid input is explained locally; empty input only stays idle. No request.
                 if (parsed.Kind == BooruInputKind.Invalid)
+                {
+                    ResetSelection();
                     _view = _view with { Status = BooruSearchStatus.InvalidInput, Rows = ImmutableArray<BooruResultRowView>.Empty };
+                }
                 refused = true;
             }
             else if (PauseEnd(_view) is not null || _view.IsBusy) refused = true;
@@ -210,7 +213,7 @@ internal sealed class BooruSearchModel : IDisposable
         lock (_gate) return CanGoToPageCore(page);
     }
 
-    private bool CanGoToPageCore(int page) => !_disposed && !_view.IsBusy && PauseEnd(_view) is null
+    private bool CanGoToPageCore(int page) => !_disposed && !_batch.Running && !_view.IsBusy && PauseEnd(_view) is null
         && page >= 1 && page <= MaximumPage && page != _view.Page
         && (page < _view.Page ? _view.HasPreviousPage : _view.HasNextPage);
 
@@ -233,7 +236,7 @@ internal sealed class BooruSearchModel : IDisposable
         int page;
         lock (_gate)
         {
-            if (_disposed || _view.IsBusy || !CanRetry)
+            if (_disposed || _batch.Running || _view.IsBusy || !CanRetry)
                 return Task.CompletedTask;
             (query, postId, page) = (_view.ExecutedQuery, _view.ExecutedPostId, _view.Page);
         }
@@ -354,7 +357,8 @@ internal sealed class BooruSearchModel : IDisposable
     {
         lock (_gate)
         {
-            if (_disposed) return (0, default);
+            if (_disposed || _batch.Running) return (0, default);
+            ResetSelection();
             _request?.Cancel();
             _request = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
             _view = _view with
@@ -516,7 +520,7 @@ internal sealed class BooruSearchModel : IDisposable
         bool blocked = false;
         lock (_gate)
         {
-            if (_disposed) return;
+            if (_disposed || _batch.Running) return;
             int index = _view.Rows.IndexWhere(row => row.Post.PostId == postId);
             if (index < 0) return;
             BooruResultRowView row = _view.Rows[index];
@@ -562,7 +566,7 @@ internal sealed class BooruSearchModel : IDisposable
         long actionVersion = 0;
         lock (_gate)
         {
-            if (_disposed) return;
+            if (_disposed || _batch.Running) return;
             int index = _view.Rows.IndexWhere(row => row.Post.PostId == postId);
             if (index < 0) return;
             BooruResultRowView row = _view.Rows[index];
@@ -589,7 +593,7 @@ internal sealed class BooruSearchModel : IDisposable
         lock (_gate)
         {
             _originalActions.Remove(postId);
-            if (_disposed) return;
+            if (_disposed || _batch.Running) return;
             int index = _view.Rows.IndexWhere(row => row.Post.PostId == postId);
             if (index >= 0 && IsCurrentOriginalAction(postId, actionVersion))
                 SetRow(index, _view.Rows[index] with { Load = BooruRowLoad.Failed, LoadCode = code });
@@ -604,7 +608,7 @@ internal sealed class BooruSearchModel : IDisposable
         long actionVersion = 0;
         lock (_gate)
         {
-            if (_disposed) return;
+            if (_disposed || _batch.Running) return;
             int index = _view.Rows.IndexWhere(row => row.Post.PostId == postId);
             if (index < 0) return;
             BooruResultRowView row = _view.Rows[index];
@@ -622,7 +626,7 @@ internal sealed class BooruSearchModel : IDisposable
         lock (_gate)
         {
             _originalActions.Remove(postId);
-            if (_disposed) return;
+            if (_disposed || _batch.Running) return;
             int index = _view.Rows.IndexWhere(row => row.Post.PostId == postId);
             if (index >= 0 && IsCurrentOriginalAction(postId, actionVersion))
                 SetRow(index, _view.Rows[index] with { Load = MapLoad(result), LoadCode = result.Code });

@@ -24,6 +24,46 @@ integrated base; native UI acceptance remains a separate open gate.
 `tests/test_plugin_packaging.py` checks that cited tests, fixtures and files exist;
 that check cannot establish runtime correctness.
 
+## Branch B9 — bounded selection and queue batches (17.11.2026)
+
+This branch's B9 selection increment is distinct from the historical package-B9
+acceptance inventory below. B10 is not part of this increment.
+
+- Selection is **page-scoped, at most 10 posts**, using explicit checkboxes.
+  Attempting an eleventh selection shows a localized rejection and leaves that
+  checkbox unchecked; no selected subset is silently truncated. Previewing,
+  opening a viewer, editing input and thumbnail recovery select nothing.
+- “Load selected originals” snapshots only checked post IDs, in visible order.
+  There is no page-wide/select-all fallback. New pages, searches and invalid
+  submissions clear selection and its batch recovery; unsent edits do not.
+- Batches serialize queue admissions. Counts are **per attempt**: successful queue
+  handoffs (including already queued/local), failed handoffs, and unprocessed
+  posts. These are not claims that file transfers finished. Downloads and later
+  transfer failures remain in the existing normal queue/row lifecycle.
+- Explicit batch recovery snapshots only failed and unprocessed IDs from that
+  attempt, even if additional checkboxes were subsequently checked. Stored
+  failures use the existing original-retry port; untouched originals use normal
+  admission with the executed query/one-shot provenance. Restricted or missing
+  originals fail locally, without substituting a sample or preview.
+- “Stop batch after current handoff” waits for that atomic handoff to settle,
+  then stops before the next post. Its success/failure is counted truthfully;
+  remaining posts stay unprocessed and explicitly retryable. Already accepted
+  jobs stay in the queue (individual queue cancellation remains separate).
+  Independent admission cancellation also stops the batch and retains recovery.
+- While a batch settles, selection, paging, search submission and conflicting
+  row lifecycle commands are refused; double-clicks cannot launch another batch.
+  Expiry/ticks never auto-retry metadata, images or originals. Batches are
+  session-only; durable accepted jobs still belong to the existing queue.
+- `BooruSelectionContractTests` covers these model contracts, the explicit UI
+  wiring, all ten language packs, duplicate keys and placeholder parity.
+  Scoped execution on 17.11.2026: `BooruSelectionContractTests` (10),
+  `BooruPagingContractTests` (18) and `BooruRecoveryContractTests` (12):
+  **40 passed, 0 failed, 0 skipped** (6.9490 seconds test time), with serialized
+  compilation of the Desktop test target. The selection tests include all-pack
+  duplicate-key and placeholder checks. `git diff --check` and an independent
+  ten-pack JSON/duplicate-key check passed. No solution-wide build, whole-Booru
+  selection, native UI smoke or broad acceptance run was performed.
+
 ## Rules for fixtures and stubs
 
 - Every fixture is synthetic and hand-written. No real post, user, tag history or

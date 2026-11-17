@@ -17,6 +17,12 @@ namespace MeowChan.Desktop.Booru;
 /// <summary>The Search tab: input row, status/notice lines, pager and the render of the model's search view.</summary>
 internal sealed partial class BooruWorkbenchView
 {
+    private readonly Button _loadSelected = new() { Name = "BooruLoadSelected" };
+    private readonly Button _retryBatch = new() { Name = "BooruRetryBatch" };
+    private readonly Button _cancelBatch = new() { Name = "BooruCancelBatch" };
+    private readonly TextBlock _selectionInfo = new() { TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _batchInfo = new() { TextWrapping = TextWrapping.Wrap };
+
     private Control BuildSearchTab()
     {
         _mode.ItemsSource = new[] { new ComboBoxItem { Tag = BooruInputMode.Tags }, new ComboBoxItem { Tag = BooruInputMode.Post } };
@@ -96,6 +102,18 @@ internal sealed partial class BooruWorkbenchView
         tab.Children.Add(_statusHost);
         tab.Children.Add(_pager);
         tab.Children.Add(_resultCount);
+        WrapPanel selectionActions = new() { Classes = { "workspace-toolbar" } };
+        selectionActions.Children.Add(_loadSelected);
+        selectionActions.Children.Add(_retryBatch);
+        selectionActions.Children.Add(_cancelBatch);
+        _loadSelected.Click += async (_, _) => await _model.Search.LoadSelectedAsync();
+        _retryBatch.Click += async (_, _) => await _model.Search.RetryBatchAsync();
+        _cancelBatch.Click += (_, _) => _model.Search.CancelBatch();
+        AutomationProperties.SetLiveSetting(_selectionInfo, AutomationLiveSetting.Polite);
+        AutomationProperties.SetLiveSetting(_batchInfo, AutomationLiveSetting.Polite);
+        tab.Children.Add(_selectionInfo);
+        tab.Children.Add(selectionActions);
+        tab.Children.Add(_batchInfo);
         tab.Children.Add(_results);
         tab.Children.Add(_pageLimit);
         return tab;
@@ -200,20 +218,34 @@ internal sealed partial class BooruWorkbenchView
         _pager.IsVisible = paging || view.HasPreviousPage;
         // The pager is icon-only like the Archive's: the chevron, with the text as tooltip and accessible name.
         IconButtons.Apply(_previous, "chevron-left", Texts.T("booru.ui.page.previous"));
-        _previous.IsEnabled = view.HasPreviousPage && !paused;
+        _previous.IsEnabled = model.CanGoToPage(view.Page - 1);
         IconButtons.Apply(_next, "chevron-right", Texts.T("booru.ui.page.next"));
-        _next.IsEnabled = view.HasNextPage && !paused;
+        _next.IsEnabled = model.CanGoToPage(view.Page + 1);
         _pageInfo.Text = Texts.T("booru.ui.page.info", view.Page, BooruSearchModel.MaximumPage, BooruSearchModel.PageSize);
         _jumpPage.Content = Texts.T("booru.ui.page.jump");
         AutomationProperties.SetName(_pageTarget, Texts.T("booru.ui.page.jump"));
-        _pageTarget.IsEnabled = !view.IsBusy && !paused;
+        _pageTarget.IsEnabled = !view.IsBusy && !model.Batch.Running && !paused;
         _jumpPage.IsEnabled = PageJumpTarget() is { } target && model.CanGoToPage(target);
         _resultCount.IsVisible = view.ResultCountLowerBound is not null;
         _resultCount.Text = view.ResultCountLowerBound is { } count ? Texts.T("booru.ui.page.atLeast", count) : string.Empty;
         _pageLimit.IsVisible = view.PageLimitReached;
         _pageLimit.Text = Texts.T("booru.ui.page.limit", BooruSearchModel.MaximumPage, BooruSearchModel.PageSize);
 
-        string key = string.Join('\n', Texts.Language, view.Status, view.Page, view.ExecutedPostId, string.Join('|',
+        BooruBatchView batch = model.Batch;
+        _selectionInfo.Text = Texts.T("booru.ui.selection.info", model.Selected.Count, BooruSearchModel.MaximumSelection);
+        _selectionInfo.IsVisible = !view.Rows.IsEmpty;
+        _loadSelected.Content = Texts.T("booru.ui.selection.load");
+        _loadSelected.IsEnabled = model.CanLoadSelected;
+        _retryBatch.Content = Texts.T("booru.ui.selection.retry");
+        _retryBatch.IsVisible = model.CanRetryBatch;
+        _cancelBatch.Content = Texts.T("booru.ui.selection.stop");
+        _cancelBatch.IsVisible = batch.Running;
+        _cancelBatch.IsEnabled = !batch.CancelRequested;
+        _batchInfo.IsVisible = batch.Started;
+        _batchInfo.Text = Texts.T("booru.ui.selection.summary", batch.Succeeded, batch.Failed, batch.Pending)
+            + (batch.CancelRequested ? " " + Texts.T("booru.ui.selection.stopped") : string.Empty);
+
+        string key = string.Join('\n', Texts.Language, view.Status, view.Page, view.ExecutedPostId, batch.Running, string.Join(',', model.Selected.Order()), string.Join('|',
             view.Rows.Select(row => $"{row.Post.PostId}:{row.Load}:{row.LoadCode}:{row.Preview}:{row.PreviewBytes?.Length}:{_expandedTagPosts.Contains(row.Post.PostId)}")));
         if (force || key != _resultsKey)
         {
