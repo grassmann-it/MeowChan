@@ -337,7 +337,8 @@ public partial class ArchivePage
     {
         if (e.Handled || !_available || _ended || _lifetime.IsCancellationRequested || _busy || IsReaderDialogOpen || sender is not Control list) return;
         if (TryRouteFavoriteKey(list, e) || TryRouteArchiveMediaShortcut(list, e)) return;
-        if (!MeowChan.Desktop.Commands.CommandBindings.Matches(e, "media.open") || !MainWindow.IsListCommandSource(e.Source, list)) return;
+        if (!MeowChan.Desktop.Commands.CommandBindings.Matches(e, "gallery.open")
+            || !MainWindow.IsListCommandSource(e.Source, list)) return;
         ArchiveAssetRow? row = (e.Source as Visual)?.GetSelfAndVisualAncestors().OfType<Control>()
             .Select(control => control.DataContext).OfType<ArchiveAssetRow>().FirstOrDefault() ?? SelectedMediaRow();
         if (row == null) return;

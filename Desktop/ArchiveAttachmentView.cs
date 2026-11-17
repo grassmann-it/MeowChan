@@ -293,9 +293,21 @@ public sealed class ArchiveAttachmentView : UserControl
     /// expands an image here (a second time puts it back); "In the sidebar" shows it there (the gallery while the sidebar is closed); "In the
     /// gallery" opens the gallery. A double click always opens the gallery.
     /// </summary>
+    private bool _galleryKeyActivation;
+
+    // Preserve the preview's one Click event (including observers), while keyboard
+    // activation opens the gallery instead of applying the mouse preview preference.
+    internal void ActivateGalleryByKey()
+    {
+        _galleryKeyActivation = true;
+        try { _button.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); }
+        finally { _galleryKeyActivation = false; }
+    }
+
     internal void ActivateMedium()
     {
         if (DataContext is not ArchiveAttachmentRow row) return;
+        if (_galleryKeyActivation) { row.OpenPreview?.Invoke(); return; }
         ReaderInlineVideoOptions options = GetValue(InlineVideoProperty)?.Options ?? default;
         // The sidebar is assumed to be shown here; whether it took the tile is answered by the page (TileActivation), else the gallery opens.
         switch (ReaderMediaClickRules.Click(options, InlineVideoOffered, ReaderInlineVideoRules.CanExpand(options, row), sidebarShown: true))

@@ -132,8 +132,7 @@ public static class CommandCatalog
         new("watch.import-clipboard", "command.watch.import-clipboard", "Add URLs from clipboard", "URLs aus Zwischenablage hinzufügen", "clipboard", "Primary+V", CommandScope.Downloads, new[] { "tray", "downloads-list-keyboard", "empty-add" }),
         new("selection.select-all", "command.selection.select-all", "Select all", "Alle auswählen", "check-square", "Primary+A", CommandScope.Downloads, new[] { "downloads-thread-list", "downloads-board-list" }),
         new("thread.read", "command.thread.read", "Read posts", "Posts lesen", "eye", "Enter", CommandScope.Archive | CommandScope.Reader | CommandScope.Gallery | CommandScope.Downloads, new[] { "downloads-thread-menu", "archive-card-menu", "archive-table-menu", "reader-toolbar", "gallery-empty-state", "thread-double-click" }),
-        new("gallery.open", "command.gallery.open", "Open in gallery", "In der Galerie öffnen", "image", "Shift+Enter", CommandScope.Archive | CommandScope.Reader | CommandScope.Media | CommandScope.Downloads, new[] { "downloads-thread-menu", "archive-card-menu", "archive-table-menu", "reader-toolbar", "media-list", "media-tiles", "inline-attachment" }),
-        new("media.open", "command.media.open", "Open selected media", "Ausgewähltes Medium öffnen", "image", "Enter", CommandScope.Media, new[] { "media-list", "media-tiles" }),
+        new("gallery.open", "command.gallery.open", "Open in gallery", "In der Galerie öffnen", "image", "Enter", CommandScope.Archive | CommandScope.Reader | CommandScope.Media | CommandScope.Downloads | CommandScope.Gallery, new[] { "downloads-thread-menu", "archive-card-menu", "archive-table-menu", "reader-toolbar", "media-list", "media-tiles", "inline-attachment" }),
         // The empty Media page opens the read-only folder-source flow; keep its presentation in the shared command catalog.
         // QW-A #1: the empty Media page offers "Link folder…"; the page's More menu offers
         // the settings group that manages all linked folders.
@@ -460,9 +459,12 @@ public static class CommandCatalog
             ? icon : definition.Icon;
     }
 
+    // Compatibility lookup only: one catalog entry, label, icon and editable binding.
+    internal static string CanonicalId(string id) => id == "media.open" ? "gallery.open" : id;
+
     public static IReadOnlyList<CommandDefinition> All { get; } = Array.AsReadOnly(Entries);
-    public static bool TryGet(string id, out CommandDefinition? definition) => ById.TryGetValue(id, out definition);
-    public static CommandDefinition Get(string id) => ById.TryGetValue(id, out CommandDefinition? definition)
+    public static bool TryGet(string id, out CommandDefinition? definition) => ById.TryGetValue(CanonicalId(id), out definition);
+    public static CommandDefinition Get(string id) => ById.TryGetValue(CanonicalId(id), out CommandDefinition? definition)
         ? definition : throw new KeyNotFoundException($"Unknown command: {id}");
 
     public static string Label(string id)

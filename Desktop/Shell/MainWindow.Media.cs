@@ -268,7 +268,8 @@ public partial class MainWindow
             }
             switch (id)
             {
-                case "media.open":
+                case "media.open": // legacy caller
+                case "gallery.open":
                     if (_mediaPage != null)
                     {
                         MediaLibraryEntry[] window = _mediaPage.ShownEntries.ToArray();

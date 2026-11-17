@@ -29,15 +29,14 @@ public sealed partial class MediaPage
         // A focused tile that is not part of the selection (Ctrl+arrow moved the focus only) becomes the selection, like a double click on it.
         if (!_grid.Selection.IsSelected(index)) _grid.SelectedItem = row;
         // Several selected tiles open together; one opens around itself.
-        OpenActions.Start(OpenTileEnterAsync, "media.grid.enter");
+        OpenActions.Start(() => _grid.Selection.Count > 1
+            ? OpenSelectionGalleryAtAsync(row.Tile.Entry) : OpenRowAsync(row), "media.grid.enter");
     }
 
-    // The keys that open the gallery on a tile: "Open selected media" (media.open, Enter) and "Open in gallery" (gallery.open, Shift+Enter), read from the
-    // bindings, so a key the person saved for either works and one they took away stops (a plain Enter test ignored both: Shift+Enter, which the
-    // shortcut list shows for the Media page, did nothing).
-    private static bool IsOpenKey(KeyEventArgs e) => !e.Handled && (CommandBindings.Matches(e, MediaOpenCommandId) || CommandBindings.Matches(e, GalleryOpenCommandId));
+    // A single effective command: removing or rebinding it removes both default keys.
+    private static bool IsOpenKey(KeyEventArgs e) => !e.Handled && CommandBindings.Matches(e, GalleryOpenCommandId);
 
-    internal const string MediaOpenCommandId = "media.open", GalleryOpenCommandId = "gallery.open";
+    internal const string MediaOpenCommandId = "gallery.open", GalleryOpenCommandId = "gallery.open";
 
     private Task OpenTileEnterAsync() => _grid.Selection.Count > 1 ? OpenSelectionGalleryAsync() : OpenSelectedAsync();
 }

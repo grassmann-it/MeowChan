@@ -326,7 +326,10 @@ public sealed partial class MediaPage
     }
 
     /// <summary>Opens the gallery with exactly the selected tiles in page order, one file per tile (the file the tile shows).</summary>
-    internal async Task OpenSelectionGalleryAsync()
+    internal Task OpenSelectionGalleryAsync() => OpenSelectionGalleryAtAsync(null);
+
+    // A focused tile opens the same selection, but starts at that tile, not index zero.
+    private async Task OpenSelectionGalleryAtAsync(MediaLibraryEntry? focused)
     {
         if (!_selGallery.IsEnabled || OpenGallery == null) return;
         (IReadOnlyList<MediaLibraryEntry> entries, int notSaved) = MediaLibrarySelection.GalleryEntries(SelectedTiles);
@@ -334,7 +337,9 @@ public sealed partial class MediaPage
             : Texts.Count("media.selection.note.galleryPartial", entries.Count, entries.Count, notSaved));
         if (entries.Count == 0) return;
         _ = PausePanelVideo();
-        await OpenGallery(entries, 0);
+        int start = focused == null ? 0 : entries.ToList().FindIndex(entry => entry == focused);
+        if (start < 0) return; // Never substitute the first file for an unavailable focused medium.
+        await OpenGallery(entries, start);
     }
 
     /// <summary>Exports the originals of the selection: one per tile, never one per duplicate.</summary>
