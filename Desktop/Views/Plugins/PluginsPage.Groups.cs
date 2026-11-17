@@ -42,7 +42,7 @@ public partial class PluginsPage
     };
 
     private static bool HasProblem(PluginEntryPresentation presentation) => presentation.CandidateMissing || presentation.HasWorkerProblem
-        || !string.IsNullOrEmpty(presentation.CandidateProblem) || !string.IsNullOrEmpty(presentation.ActivationProblem);
+        || presentation.HasSdkMismatch || !string.IsNullOrEmpty(presentation.CandidateProblem) || !string.IsNullOrEmpty(presentation.VisibleActivationProblem);
 
     /// <summary>One entry per plugin, active plugins first, then disabled, then those that are unavailable or not loaded; by name within each.</summary>
     private PluginCatalogEntry[] CardEntries()
@@ -50,7 +50,7 @@ public partial class PluginsPage
         if (_catalog == null) return Array.Empty<PluginCatalogEntry>();
         var productionWorkers = _services?.GetProductionWorkerSnapshots?.Invoke();
         return _catalog.Entries.Where(Included).GroupBy(entry => entry.PluginId ?? entry.Key).Select(group => Representative(group.First()))
-            .Select(entry => (Entry: entry, Rank: AvailabilityRank(PluginEntryPresentation.Create(entry, productionWorkers))))
+            .Select(entry => (Entry: entry, Rank: AvailabilityRank(PluginEntryPresentation.Create(entry, productionWorkers, sdkMismatch: _services?.HasSdkMismatch))))
             .OrderBy(item => item.Rank).Select(item => item.Entry).ToArray();
     }
 
@@ -62,7 +62,7 @@ public partial class PluginsPage
         // another file of the plugin is here: it is listed under Files but does not mark the whole plugin as a problem.
         bool anyPresent = members.Any(member => member.Candidate?.IsPresent == true);
         return members.Where(member => !(anyPresent && member.Candidate is { IsPresent: false } && !IsChosen(member)))
-            .Any(member => HasProblem(PluginEntryPresentation.Create(member, productionWorkers)));
+            .Any(member => HasProblem(PluginEntryPresentation.Create(member, productionWorkers, sdkMismatch: _services?.HasSdkMismatch)));
     }
 
     // The file selected for the next start or the one in use; its absence is a real problem.
@@ -81,7 +81,7 @@ public partial class PluginsPage
         var productionWorkers = _services?.GetProductionWorkerSnapshots?.Invoke();
         var rows = members.Select(member =>
         {
-            PluginEntryPresentation view = PluginEntryPresentation.Create(member, productionWorkers);
+            PluginEntryPresentation view = PluginEntryPresentation.Create(member, productionWorkers, sdkMismatch: _services?.HasSdkMismatch);
             string file = Path.GetFileName(member.LoaderPath) ?? member.CandidateId ?? member.Key;
             string[] facts = new[]
             {

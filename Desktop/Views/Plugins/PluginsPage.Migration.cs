@@ -38,14 +38,27 @@ public partial class PluginsPage
     private async void OnReviewBundledRepairsClick(object? sender, RoutedEventArgs e) =>
         await OpenActions.RunAsync(ReviewBundledBuildsAsync, "plugins.bundled.review");
 
+    /// <summary>
+    /// Why the review dialog cannot open right now, as a text key, or null. Visibility and routing are the caller's
+    /// navigation concern; these are the page's own states, so the Danbooru route can say them instead of doing nothing.
+    /// </summary>
+    internal string? BundledReviewBlockReasonKey() =>
+        _ended || _services is null ? "booru.ui.repair.notReady"
+        : _migrationWindow is not null ? "plugins.repair.reviewOpen"
+        : _busy ? "booru.ui.repair.busy"
+        : _drafts.Values.Any(draft => draft.HasDiscardableChanges) ? "plugins.repair.finishDraft"
+        : null;
+
     // Shared with the Danbooru sdk-mismatch recovery route. Includes explicit reselections
-    // (not only automatic repairs), so a pin remains intact until the review is confirmed.
-    internal async Task ReviewBundledBuildsAsync()
+    // (not only automatic repairs); a pin is released only by confirming its row (shown on that row).
+    /// <returns>True when the review dialog was shown (and has closed again).</returns>
+    internal async Task<bool> ReviewBundledBuildsAsync()
     {
         if (_ended || _busy || _migrationWindow is not null || _services is null || !IsEffectivelyVisible ||
-            !CommandRouter.IsRoutingContextActive(this, this) || TopLevel.GetTopLevel(this) is not Window owner) return;
+            !CommandRouter.IsRoutingContextActive(this, this) || TopLevel.GetTopLevel(this) is not Window owner) return false;
         if (_drafts.Values.Any(draft => draft.HasDiscardableChanges))
-        { ErrorLocalized("plugins.repair.finishDraft"); return; }
+        { ErrorLocalized("plugins.repair.finishDraft"); return false; }
+        bool shown = false;
         var services = _services;
         long catalogEpoch = Interlocked.Read(ref _migrationCatalogEpoch);
         string language = Texts.Language;
@@ -53,11 +66,12 @@ public partial class PluginsPage
         try
         {
             BundledCandidateRepairPreview preview = await services.ProfileStore.PreviewBundledRepairsAsync(token);
-            if (!Current(generation) || !IsEffectivelyVisible || Texts.Language != language || Interlocked.Read(ref _migrationCatalogEpoch) != catalogEpoch) return;
+            if (!Current(generation) || !IsEffectivelyVisible || Texts.Language != language || Interlocked.Read(ref _migrationCatalogEpoch) != catalogEpoch) return false;
             BundledCandidateReselectionPreview selections = await services.ProfileStore.PreviewBundledReselectionsAsync(token);
-            if (!Current(generation) || !IsEffectivelyVisible || Texts.Language != language || Interlocked.Read(ref _migrationCatalogEpoch) != catalogEpoch) return;
+            if (!Current(generation) || !IsEffectivelyVisible || Texts.Language != language || Interlocked.Read(ref _migrationCatalogEpoch) != catalogEpoch) return false;
             // Modals plan MD3: the list step on the dialog factory (fits the owner's screen); the title stands in the title bar only.
-            Window window = DialogWindow.Create(Texts.T("plugins.reselection.reviewTitle"), DialogSize.L, modal: true);
+            // The title is the one name every entry point uses (Plugins header, plugin card, Danbooru page).
+            Window window = DialogWindow.Create(Texts.T("plugins.repair.review"), DialogSize.L, modal: true);
             _migrationWindow = window;
             PluginMultiApproval approval = new(services.ProfileStore);
             _migrationApproval = approval;
@@ -341,6 +355,15 @@ public partial class PluginsPage
                     configurationDetails.Content = configuration;
                     content.Children.Add(configurationDetails);
                     content.Children.Add(RepairText(ReselectionReason(row)));
+                    // A confirmable row of a pinned plugin is the pinned same-bundle rebuild: confirming replaces the pinned
+                    // build. Say so before the choice instead of letting the policy line read as "pins are never changed".
+                    if (ReleasesPin(row))
+                    {
+                        TextBlock pin = RepairText(Texts.T("plugins.reselection.releasesPin"));
+                        pin.FontWeight = FontWeight.SemiBold;
+                        AutomationProperties.SetAutomationId(pin, "BundledReselectionReleasesPin:" + row.PluginId);
+                        content.Children.Add(pin);
+                    }
                     CheckBox acknowledgement = new()
                     {
                         Content = RepairText(Texts.T("plugins.reselection.acknowledge")),
@@ -425,6 +448,7 @@ public partial class PluginsPage
             // Escape closes like ×; a save in flight turns it into a stop request (the Closing guard), never a hard close.
             DialogEscape.Attach(window);
             window.Opened += (_, _) => cancel.Focus();
+            shown = true;
             await window.ShowDialog<object?>(owner);
             if (approval.InFlight is { } inFlight) await inFlight;
             _migrationWindow = null; _migrationApproval = null;
@@ -438,6 +462,7 @@ public partial class PluginsPage
             FinishOperation(generation);
             if (!_ended && IsEffectivelyVisible && generation == _operationGeneration) C<Button>("PluginsReviewRepairs").Focus();
         }
+        return shown;
     }
 
     private static BundledRepairPermissions? ReadBundledRepairPermissions(BundledCandidateRepair row)
@@ -468,6 +493,9 @@ public partial class PluginsPage
         "source-identity-changed" or "proven-history" or "selection-available" => Texts.T("plugins.reselection.blocked." + row.BlockedReason),
         _ => Texts.T("plugins.reselection.blocked.unknown")
     };
+
+    private bool ReleasesPin(BundledCandidateReselection row) => row.CanConfirm &&
+        _catalog?.Profile.Plugins.FirstOrDefault(plugin => string.Equals(plugin.PluginId, row.PluginId, StringComparison.Ordinal))?.Pinned is not null;
 
     private static TextBlock RepairText(string text) => new() { Text = text, TextWrapping = TextWrapping.Wrap };
 

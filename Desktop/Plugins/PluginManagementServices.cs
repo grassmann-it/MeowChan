@@ -39,6 +39,8 @@ internal sealed class PluginManagementServices
     internal Func<IReadOnlyList<PluginWorkerSnapshot>>? GetWorkerSnapshots { get; init; }
     internal Func<IReadOnlyList<PluginProductionWorkerSnapshot>>? GetProductionWorkerSnapshots { get; init; }
     internal Func<IReadOnlyList<MeowChan.Rules.MediaRuleScope>>? GetRuleScopes { get; init; }
+    /// <summary>Session evidence that the plugin's exact running build (plugin ID, execution revision) failed with sdk-mismatch.</summary>
+    internal Func<string, string, bool>? HasSdkMismatch { get; init; }
     internal Func<PluginArtifact, CancellationToken, Task<PluginDescription>> DescribeTestAsync { get; }
     internal Func<PluginArtifact, PluginConfiguration, CancellationToken, Task<IPluginWorkerClient>> StartTestWorkerAsync { get; }
     internal Func<PluginDescription, string, IPluginWorkerClient, PluginOperationContext, CancellationToken, Task<object>> ProbeAsync { get; }

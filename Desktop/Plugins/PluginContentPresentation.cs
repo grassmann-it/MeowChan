@@ -64,7 +64,11 @@ internal static class PluginContentPresentation
 
     internal static string DescribeStatus(PluginEntryPresentation presentation)
     {
-        List<string> labels = new() { Texts.T("plugins.state.plugin", DescribeAvailability(presentation.Availability)) };
+        // A running build that cannot bind to this SDK is not "active" in any useful sense; a confirmed build only waits for a restart.
+        string availability = presentation.HasSdkMismatch ? Texts.T("plugins.state.sdkMismatch")
+            : presentation.IsConfirmedForNextStart ? Texts.T("plugins.state.confirmedNextStart")
+            : DescribeAvailability(presentation.Availability);
+        List<string> labels = new() { Texts.T("plugins.state.plugin", availability) };
         if (presentation.IsActiveCandidate) labels.Add(Texts.T("plugins.candidate.current"));
         else if (presentation.HasChangedCandidateBuild) labels.Add(Texts.T("plugins.changedBuild"));
         else if (presentation.IsSelectedCandidate) labels.Add(Texts.T("plugins.candidate.selected"));
@@ -77,20 +81,22 @@ internal static class PluginContentPresentation
         if (presentation.HasAutomaticSdkTransition) labels.Add(Texts.T("plugins.sdkTransition.automaticStatus"));
         else if (presentation.HasExplicitlyReviewedSdkTransition)
             labels.Add(Texts.T("plugins.sdkTransition.reviewedStatus"));
-        if (presentation.CandidateMissing || presentation.HasWorkerProblem || !string.IsNullOrEmpty(presentation.CandidateProblem) ||
-            !string.IsNullOrEmpty(presentation.ActivationProblem)) labels.Add(Texts.T("plugins.problem"));
+        if (presentation.CandidateMissing || presentation.HasWorkerProblem || presentation.HasSdkMismatch || !string.IsNullOrEmpty(presentation.CandidateProblem) ||
+            !string.IsNullOrEmpty(presentation.VisibleActivationProblem)) labels.Add(Texts.T("plugins.problem"));
         return string.Join(" · ", labels);
     }
 
     internal static string DescribeStatusHint(PluginEntryPresentation presentation)
     {
         List<string> hints = new();
+        if (presentation.HasSdkMismatch) hints.Add(SdkMismatchHint());
+        else if (presentation.IsConfirmedForNextStart) hints.Add(Texts.T("plugins.confirmedNextStartHint"));
         if (presentation.Active is { } active && !presentation.IsActiveCandidate)
             hints.Add(Texts.T("plugins.activeVersionHint", active.Description.PluginVersion));
         if (presentation.Worker is { } worker && worker.State is not ("ready" or "idle"))
             hints.Add(Texts.T("plugins.runtimeState", DescribeWorkerState(worker.State)));
         if (presentation.CandidateMissing) hints.Add(Texts.T("plugins.missing"));
-        if (!string.IsNullOrEmpty(presentation.CandidateProblem) || !string.IsNullOrEmpty(presentation.ActivationProblem))
+        if (!string.IsNullOrEmpty(presentation.CandidateProblem) || !string.IsNullOrEmpty(presentation.VisibleActivationProblem))
             hints.Add(Texts.T("plugins.problemHint"));
         if (presentation.HasCandidateConflict) hints.Add(Texts.T("plugins.candidateConflict"));
         if (presentation.HasChangedCandidateBuild && !presentation.IsPendingCandidateBuild)
@@ -117,6 +123,9 @@ internal static class PluginContentPresentation
             hints.Add(Texts.T("plugins.sdkTransition.reviewedHint", reviewed.ExecutionRevision));
         return string.Join("\n", hints);
     }
+
+    /// <summary>What the sdk-mismatch state means and the whole route out of it (the review dialog's shared name, confirm, restart).</summary>
+    internal static string SdkMismatchHint() => Texts.T("plugins.sdkMismatchHint", Texts.T("plugins.repair.review"));
 
     internal static string DescribeWorkerState(string? state) => Texts.T(state switch
     {

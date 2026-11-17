@@ -34,21 +34,8 @@ public partial class MainWindow
         DisposeBooruPage();
         BooruPage page = new(services);
         ConfigureBooruMediaLinks(page);
-        page.View.ReviewCurrentBuild = async () =>
-        {
-            // A detached/old composition cannot open a review for a replacement session.
-            if (!CanOpenBooru || !ReferenceEquals(_booruPage, page)
-                || !ReferenceEquals(_session.BooruServices, services)
-                || _selectedPage != WorkspacePage.Booru
-                || !BooruText.CanReviewCurrentBuild(page.Model.Search.View)) return;
-            if (!NavigateWorkspace(WorkspacePage.Sources) || _sourcesPage is not { } sources
-                || _pluginsPage is not { } plugins) return;
-            await sources.ActivateAsync(SourcesPluginsFilter.AllPlugins);
-            if (_isClosing || _selectedPage != WorkspacePage.Sources
-                || !ReferenceEquals(_session.BooruServices, services)
-                || !ReferenceEquals(_pluginsPage, plugins)) return;
-            await plugins.ReviewBundledBuildsAsync();
-        };
+        // The sdk-mismatch repair route (MainWindow.BooruRepair): review, confirm, restart.
+        AttachBooruRepair(page, services);
         page.ApplyWorkView(ConfiguredWorkView, viewChanged: true);
         _booruPage = page;
         BooruPageHost.Content = page;
@@ -61,6 +48,7 @@ public partial class MainWindow
         _booruPage = null;
         if (page == null) return;
         if (ReferenceEquals(BooruPageHost.Content, page)) BooruPageHost.Content = null;
+        DetachBooruRepair(page);
         page.Dispose();
     }
 

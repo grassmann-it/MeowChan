@@ -359,6 +359,10 @@ internal static partial class BooruWorkbenchChecks
             await Program.WaitUntilAsync(() => Cards(page, "BooruWatcher:").Count == 4, () => "dark watchers not shown");
             Capture(owner, shots, "watchers-dark");
 
+            // ---- sdk-mismatch repair route: mismatch → review → confirm → restart notice (BooruWorkbenchChecks.Repair) ---------
+            tabs.SelectedIndex = 0;
+            await CheckRepairRouteAsync(owner, page, h, shots);
+
             // ---- the service-composition boundary ends the page lifetime (navigation does not) ------------------------------
             Click(owner.FindControl<Button>("DownloadsNavigationButton")!);
             await Program.WaitUntilAsync(() => owner.SelectedPage == MainWindow.WorkspacePage.Downloads,

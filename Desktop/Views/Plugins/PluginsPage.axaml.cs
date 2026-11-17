@@ -316,7 +316,7 @@ public partial class PluginsPage : UserControl
                 }
                 if (index >= list.Items.Count || !ReferenceEquals(list.Items[index], item))
                 { list.Items.Remove(item); list.Items.Insert(index, item); }
-                PluginEntryPresentation presentation = PluginEntryPresentation.Create(entry, productionWorkers);
+                PluginEntryPresentation presentation = PluginEntryPresentation.Create(entry, productionWorkers, sdkMismatch: _services?.HasSdkMismatch);
                 PluginListContent content = _cardContent[entry.Key];
                 content.Name.Text = presentation.Name;
                 content.Description.Text = PluginContentPresentation.DescribeDescription(presentation);
@@ -440,7 +440,7 @@ public partial class PluginsPage : UserControl
         C<ComboBox>("PluginCategory").IsEnabled = !_busy && !IsDiscardConfirmationOpen;
         if (entry == null) { UpdateTestButtons(); RefreshPluginActions(); PresentationChanged?.Invoke(this, EventArgs.Empty); return; }
         PluginEntryPresentation presentation = PluginEntryPresentation.Create(entry,
-            _services?.GetProductionWorkerSnapshots?.Invoke(), CurrentDraft, _catalog?.Profile.Revision);
+            _services?.GetProductionWorkerSnapshots?.Invoke(), CurrentDraft, _catalog?.Profile.Revision, sdkMismatch: _services?.HasSdkMismatch);
         C<TextBlock>("PluginHeading").Text = presentation.Name;
         RenderTechnicalIdentity(entry);
         C<TextBlock>("PluginDescription").Text = PluginContentPresentation.DescribeDescription(presentation);
@@ -488,7 +488,8 @@ public partial class PluginsPage : UserControl
         RenderFileChoices(entry);
         // Problems belong beside the normal actions. Paths, fingerprints and full
         // compiler diagnostics remain available in the optional developer details.
-        string attention = string.Join("\n", new[] { presentation.CandidateProblem, presentation.ActivationProblem,
+        string attention = string.Join("\n", new[] { presentation.HasSdkMismatch ? PluginContentPresentation.SdkMismatchHint() : null,
+            presentation.CandidateProblem, presentation.VisibleActivationProblem,
             presentation.HasWorkerProblem ? presentation.Worker?.FailureMessage : null }
             .Where(value => !string.IsNullOrWhiteSpace(value)).Distinct(StringComparer.Ordinal));
         C<TextBlock>("PluginAttention").Text = attention;

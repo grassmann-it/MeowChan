@@ -10,7 +10,6 @@ internal static class BuiltInCatalog
     // Keeping both built-ins on each line makes missing translations visible during review.
     private static readonly (string Key, string English, string German)[] Entries =
     {
-        ("plugins.reselection.reviewTitle", "Review bundled repairs and new selections", "Gebündelte Reparaturen und Neuauswahl prüfen"),
         ("plugins.reselection.repairSection", "Proven previous delivery: repair an existing selection", "Belegte frühere Auslieferung: bestehende Auswahl reparieren"),
         ("plugins.reselection.section", "NEW user selection — not a proven move of the old build", "NEUE Nutzerauswahl — kein belegter Umzug des alten Builds"),
         ("plugins.reselection.policy", "This is a new choice of a currently delivered bundled build, not proof that the old candidate was shipped. Review the exact old/new identities and the complete configuration below. Confirmation saves this choice for next app start; no code is activated now. The enabled/disabled choice is preserved. No pins, permission grants or source ownership are transferred.", "Dies ist eine neue Auswahl eines aktuell mitgelieferten gebündelten Builds, kein Nachweis einer früheren Auslieferung des alten Kandidaten. Prüfe die genauen alten/neuen Identitäten und die vollständige Konfiguration unten. Die Bestätigung speichert diese Auswahl für den nächsten Appstart; jetzt wird kein Code aktiviert. Die Aktiviert-/Deaktiviert-Auswahl bleibt erhalten. Pins, Rechtefreigaben und Quelleneigentümerschaft werden nicht übertragen."),

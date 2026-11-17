@@ -105,7 +105,7 @@ site takes over the on/off state of its former single-site plugin; the source ID
 are unchanged, so watches, archives and rules keep working. The old single-site plugins then leave the plugin
 list for good: their state is kept as the site switch and in a backup file `plugin-state/state.pre-retirement-*.json`,
 and their cached builds are removed from `plugin-cache`. A bundled plugin whose build changed and that waits for a
-repair review is not running; its plugin detail and its sources show **Review this repair**, which opens the review. A size/MD5 difference
+repair review is not running; its plugin detail and its sources show **Review bundled repairs**, which opens the review. A size/MD5 difference
 permission belongs to the plugin that owns a source, so after that upgrade a site
 starts strict again until you allow it once more on the Sources page.
 
@@ -279,7 +279,7 @@ saved. See [settings and grants](filters-and-settings.md) before enabling a filt
 
 An app update or rebuild replaces the bytes of bundled plugins. At startup the host
 compares each new bundled build with the last approved one. An **in-place update** is
-taken over automatically, without **Review this repair**: the new build is the same
+taken over automatically, without **Review bundled repairs**: the new build is the same
 manifest file in the running app's own `plugins` folder (same path, so the same
 identity), it matches the app's delivery record (checked again under the profile
 write lock), the plugin already ran there before, it is the only candidate and not

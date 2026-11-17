@@ -116,7 +116,7 @@ public partial class PluginsPage
         Button enabled, Button candidate, Button sdk, string sourceId, Button? review = null)
     {
         if (Selected is not { } entry) return;
-        PluginEntryPresentation presentation = PluginEntryPresentation.Create(entry, _services?.GetProductionWorkerSnapshots?.Invoke(), CurrentDraft, _catalog?.Profile.Revision);
+        PluginEntryPresentation presentation = PluginEntryPresentation.Create(entry, _services?.GetProductionWorkerSnapshots?.Invoke(), CurrentDraft, _catalog?.Profile.Revision, sdkMismatch: _services?.HasSdkMismatch);
         summary.Text = Texts.T("sources.pluginSummary", entry.Name, PluginContentPresentation.DescribeStatus(presentation));
         RenderLifecycleSteps(steps, entry, presentation);
         next.Text = C<TextBlock>("PluginLifecycleNext").Text;
@@ -135,7 +135,7 @@ public partial class PluginsPage
                 : "plugins.select-candidate";
             if (name is "PluginApproveSdkTransition" or "PluginReviewRepair")
             {
-                string label = Texts.T(name == "PluginReviewRepair" ? "plugins.repair.reviewNow" : "plugins.sdkTransition.action");
+                string label = Texts.T(name == "PluginReviewRepair" ? "plugins.repair.review" : "plugins.sdkTransition.action");
                 target.Content = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 8,
                     Children = { CommandBindings.NamedIcon("check"), new TextBlock { Text = label } } };
                 AutomationProperties.SetName(target, label);
