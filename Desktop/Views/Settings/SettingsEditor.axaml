@@ -71,26 +71,25 @@
     </UserControl.Styles>
     <Grid x:Name="SettingsRoot" RowDefinitions="Auto,*,Auto">
         <StackPanel x:Name="SettingsHeader" Classes="workspace-page-header" Margin="16,12,16,12" MaxWidth="1088" HorizontalAlignment="Center">
-            <!-- SP1: one head row. The title and the subtitle at the start; at the end the search field (a flexible 240 to 480 dip wide, Ctrl+F and "/"
-                 focus it) and, right next to it, the single "More" button. Export and "Reset all" are its two entries (Reset all is rare and destructive,
-                 so it is not a button of its own); the reset result line sits right-aligned under the row. In a narrow window the field takes a row of its
-                 own under the title (SettingsHeaderLayout). The ranked hits are an overlay of this page (SettingsSearchPanel), placed under the field. -->
-            <Grid x:Name="SettingsHeaderRow" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.12}" RowSpacing="{StaticResource Workspace.Space.8}">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="2*" MinWidth="240" MaxWidth="480" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <StackPanel x:Name="SettingsTitleBlock" Classes="workspace-page-header">
+            <!-- SP1/UX-LEDGER-02: the head is two rows on the column grid of the form below (SettingsFormLayout: navigation column, then the content column).
+                 Row 0 is the title and the subtitle. Row 1 sits over the content column only: the search field (it takes all the width the "More" button
+                 leaves, Ctrl+F and "/" focus it) and, at the end, the single "More" button. Export and "Reset all" are its two entries (Reset all is rare
+                 and destructive, so it is not a button of its own). The 10 dip inset on both sides is the inset of SettingsContent inside its scroll viewer, so the
+                 field's and the button's outer edges are the left and right edges of the Interface section. The ranked hits are an overlay of this page
+                 (SettingsSearchPanel), placed under the field and as wide as it. -->
+            <Grid x:Name="SettingsHeaderRow" ColumnDefinitions="176,*" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.16}" RowSpacing="{StaticResource Workspace.Space.8}">
+                <StackPanel x:Name="SettingsTitleBlock" Grid.ColumnSpan="2" Classes="workspace-page-header">
                     <TextBlock Text="{Binding SettingsTitle}" Classes="page-title" />
                     <TextBlock Text="{Binding SettingsSubtitle}" Classes="muted" TextWrapping="Wrap" />
                 </StackPanel>
-                <ContentControl x:Name="SettingsSearchHost" Grid.Column="1" VerticalAlignment="Top" HorizontalContentAlignment="Stretch" />
-                <Button x:Name="SettingsMoreButton" Grid.Column="2" Classes="ghost" VerticalAlignment="Top" AutomationProperties.Name="{Binding SettingsMoreLabel}" Click="OnSettingsMoreClick" IsEnabled="{Binding IsEditable}" />
+                <Grid x:Name="SettingsSearchActions" Grid.Row="1" Grid.Column="1" ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource Workspace.Space.12}" Margin="10,0">
+                    <ContentControl x:Name="SettingsSearchHost" VerticalAlignment="Top" HorizontalContentAlignment="Stretch" />
+                    <Button x:Name="SettingsMoreButton" Grid.Column="1" Classes="ghost" VerticalAlignment="Top" AutomationProperties.Name="{Binding SettingsMoreLabel}" Click="OnSettingsMoreClick" IsEnabled="{Binding IsEditable}" />
+                </Grid>
             </Grid>
             <!-- The polite line that reads out a row which appeared under its parent (its own label; see SettingsConditional). -->
             <TextBlock x:Name="SettingsConditionalAnnouncement" Height="0" Opacity="0" IsHitTestVisible="False" Focusable="False" AutomationProperties.LiveSetting="Polite" />
-            <TextBlock x:Name="SettingsResetStatus" IsVisible="False" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" HorizontalAlignment="Right" />
+            <TextBlock x:Name="SettingsResetStatus" IsVisible="False" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" HorizontalAlignment="Right" Margin="0,0,10,0" />
         </StackPanel>
         <Grid x:Name="SettingsFormLayout" Grid.Row="1" ColumnDefinitions="176,*" RowDefinitions="Auto,*" ColumnSpacing="{StaticResource Workspace.Space.16}" Margin="16,0,16,16" MaxWidth="1088" HorizontalAlignment="Center">
             <desktop:SectionNavigationControl x:Name="SettingsSections" Grid.ColumnSpan="2" Margin="0,0,0,12" />

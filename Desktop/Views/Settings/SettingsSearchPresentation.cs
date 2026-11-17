@@ -33,13 +33,20 @@ internal static class SettingsSearchShortcut
         !typingText && keySymbol == "/" && (modifiers & (KeyModifiers.Control | KeyModifiers.Alt | KeyModifiers.Meta)) == KeyModifiers.None;
 }
 
-/// <summary>SP1: the layout of the page header row. The search field has a flexible 240 to 480 dip column at the end of the row; in a narrow window it moves to a row of its own.</summary>
+/// <summary>
+/// SP1 / UX-LEDGER-02: the layout of the page header. The search field and the "More" button lie on a row over the content column (the right-hand
+/// column of the form); the field takes all the width the button leaves, so its edges are the edges of the content column, not of the window or the navigation.
+/// </summary>
 internal static class SettingsHeaderLayout
 {
-    internal const double SearchMinimumWidth = 240;
-    internal const double SearchMaximumWidth = 480;
-    /// <summary>The window width below which the title and the field no longer fit on one row (title 240 + field 240 + "More" + gaps and insets).</summary>
-    internal const double StackBelowWidth = 640;
+    /// <summary>The category navigation column of the form and of the header row (SettingsEditor.axaml: ColumnDefinitions="176,*").</summary>
+    internal const double NavigationWidth = 176;
+    /// <summary>The gap between the navigation column and the content column.</summary>
+    internal const double NavigationGap = 16;
+    /// <summary>The window width from which the category navigation column is shown.</summary>
+    internal const double CategoriesFromWidth = 820;
+    /// <summary>The inset of the settings content inside its scroll viewer on both sides (SettingsContent.Width = column - 20); the header row has the same margin.</summary>
+    internal const double ContentInset = 10;
 
-    internal static bool IsStacked(double editorWidth) => editorWidth < StackBelowWidth;
+    internal static bool ShowsCategories(double editorWidth) => editorWidth >= CategoriesFromWidth;
 }

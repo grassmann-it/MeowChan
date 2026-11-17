@@ -192,14 +192,6 @@ public sealed class SettingsSearchPresentationTests
         Assert.Equal(expected, SettingsSearchShortcut.IsSlash(symbol, modifiers, typing));
 
     [Theory]
-    [InlineData(1100, false)]
-    [InlineData(640, false)]
-    [InlineData(639.5, true)]
-    [InlineData(360, true)]
-    public void TheSearchMovesBelowTheTitleOnlyInANarrowWindow(double width, bool stacked) =>
-        Assert.Equal(stacked, SettingsHeaderLayout.IsStacked(width));
-
-    [Theory]
     [InlineData(300, 100, 24, 8, 108, 100)]
     [InlineData(100, 200, 24, 8, 76, 68)]
     [InlineData(double.PositiveInfinity, 150, 24, 8, 158, 150)]

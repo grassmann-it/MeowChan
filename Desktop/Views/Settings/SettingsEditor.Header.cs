@@ -2,23 +2,19 @@ using Avalonia.Controls;
 
 namespace MeowChan;
 
-// The head row of the settings page (SP1): title at the start, the search field and the "More" button at the end. In a narrow window the field
-// takes a row of its own under the title and the results lie under it, as wide as the page.
+// The head of the settings page (SP1, UX-LEDGER-02): the title row, then the search field and the "More" button on a row over the content column only.
+// The head row has the same two columns as the form below it (navigation column, content column), so the field's left edge and the button's right edge
+// are the edges of the Interface section. Without the category column (narrow window) the first column collapses and the row spans the page.
 public partial class SettingsEditor
 {
-    private bool _headerStacked;
-
-    private void ApplyHeaderLayout(bool stacked)
+    private void ApplyHeaderLayout(bool categories)
     {
-        if (stacked == _headerStacked && SettingsHeaderRow.ColumnDefinitions[1].MinWidth == (stacked ? 0 : SettingsHeaderLayout.SearchMinimumWidth)) return;
-        _headerStacked = stacked;
-        ColumnDefinition search = SettingsHeaderRow.ColumnDefinitions[1];
-        search.MinWidth = stacked ? 0 : SettingsHeaderLayout.SearchMinimumWidth;
-        search.MaxWidth = stacked ? double.PositiveInfinity : SettingsHeaderLayout.SearchMaximumWidth;
-        search.Width = stacked ? new GridLength(0) : new GridLength(2, GridUnitType.Star);
-        Grid.SetRow(SettingsSearchHost, stacked ? 1 : 0);
-        Grid.SetColumn(SettingsSearchHost, stacked ? 0 : 1);
-        Grid.SetColumnSpan(SettingsSearchHost, stacked ? 3 : 1);
+        ColumnDefinition navigation = SettingsHeaderRow.ColumnDefinitions[0];
+        double width = categories ? SettingsHeaderLayout.NavigationWidth : 0;
+        double spacing = categories ? SettingsHeaderLayout.NavigationGap : 0;
+        if (navigation.Width.Value == width && SettingsHeaderRow.ColumnSpacing == spacing) return;
+        navigation.Width = new GridLength(width);
+        SettingsHeaderRow.ColumnSpacing = spacing;
         PositionSearchPanelLater();
     }
 
