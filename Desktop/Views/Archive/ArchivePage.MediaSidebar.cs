@@ -82,7 +82,22 @@ public partial class ArchivePage
         ReaderMediaSidebarToggle.Click += (_, e) => { e.Handled = true; ToggleMediaSidebar(); RefreshMediaSidebarToggle(); };
         // The toolbar travels with the reader. Refresh on layout as well as preference changes:
         // host, dialog, language and shortcut changes must not leave a stale On/Off action.
-        ReaderMediaSidebarToggle.LayoutUpdated += (_, _) => RefreshMediaSidebarToggle();
+        bool subscribed = false;
+        void OnSidebarToggleLayoutUpdated(object? sender, EventArgs e) => RefreshMediaSidebarToggle();
+        void SubscribeLayout(object? sender, Avalonia.VisualTreeAttachmentEventArgs e)
+        {
+            if (subscribed) return;
+            ReaderMediaSidebarToggle.LayoutUpdated += OnSidebarToggleLayoutUpdated;
+            subscribed = true;
+        }
+        void UnsubscribeLayout(object? sender, Avalonia.VisualTreeAttachmentEventArgs e)
+        {
+            if (!subscribed) return;
+            ReaderMediaSidebarToggle.LayoutUpdated -= OnSidebarToggleLayoutUpdated;
+            subscribed = false;
+        }
+        ReaderMediaSidebarToggle.AttachedToVisualTree += SubscribeLayout;
+        ReaderMediaSidebarToggle.DetachedFromVisualTree += UnsubscribeLayout;
         RefreshMediaSidebarToggle();
         ArchivePosts.SelectionChanged += (_, _) => OnMediaSidebarSelectionChanged();
         // The archive view: the reader pane gets the sidebar's columns (posts card, splitter, sidebar). Its header rows (title, toolbar, status)
@@ -168,7 +183,22 @@ public partial class ArchivePage
         sidebar.Frame.SizeChanged += (_, _) => OnMediaSidebarFrameResized();
         // The header line has a fixed height, so the frame's top and bottom follow from the posts box by arithmetic (ArchivePage.MediaSidebarAlignment.cs).
         sidebar.HeaderHeight = ReaderMediaSidebar.HeaderLineHeight;
-        sidebar.LayoutUpdated += (_, _) => AlignMediaSidebarFrame();
+        bool subscribed = false;
+        void OnSidebarFrameLayoutUpdated(object? sender, EventArgs e) => AlignMediaSidebarFrame();
+        void SubscribeLayout(object? sender, Avalonia.VisualTreeAttachmentEventArgs e)
+        {
+            if (subscribed) return;
+            sidebar.LayoutUpdated += OnSidebarFrameLayoutUpdated;
+            subscribed = true;
+        }
+        void UnsubscribeLayout(object? sender, Avalonia.VisualTreeAttachmentEventArgs e)
+        {
+            if (!subscribed) return;
+            sidebar.LayoutUpdated -= OnSidebarFrameLayoutUpdated;
+            subscribed = false;
+        }
+        sidebar.AttachedToVisualTree += SubscribeLayout;
+        sidebar.DetachedFromVisualTree += UnsubscribeLayout;
         sidebar.Open.Click += (_, e) => { e.Handled = true; OpenMediaSidebarMedia(); };
         sidebar.StripSelected += (_, index) => SelectMediaSidebarIndex(index);
         sidebar.StripActivated += (_, index) => { SelectMediaSidebarIndex(index); OpenMediaSidebarMedia(); };

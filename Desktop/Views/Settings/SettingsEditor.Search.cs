@@ -152,10 +152,22 @@ public partial class SettingsEditor
         _searchBox.SizeChanged += (_, _) => PositionSearchPanel();
         SettingsRoot.SizeChanged += (_, _) => PositionSearchPanel();
         // A wrapped title/navigation or a breakpoint can move the field without resizing it.
-        SettingsContentColumn.LayoutUpdated += (_, _) =>
+        bool subscribed = false;
+        void OnSearchPanelLayoutUpdated(object? sender, EventArgs e) { if (_searchPanel.IsVisible) PositionSearchPanel(); }
+        void SubscribeLayout(object? sender, Avalonia.VisualTreeAttachmentEventArgs e)
         {
-            if (_searchPanel.IsVisible) PositionSearchPanel();
-        };
+            if (subscribed) return;
+            SettingsContentColumn.LayoutUpdated += OnSearchPanelLayoutUpdated;
+            subscribed = true;
+        }
+        void UnsubscribeLayout(object? sender, Avalonia.VisualTreeAttachmentEventArgs e)
+        {
+            if (!subscribed) return;
+            SettingsContentColumn.LayoutUpdated -= OnSearchPanelLayoutUpdated;
+            subscribed = false;
+        }
+        SettingsContentColumn.AttachedToVisualTree += SubscribeLayout;
+        SettingsContentColumn.DetachedFromVisualTree += UnsubscribeLayout;
 
         WorkViewElement.SetId(_searchBox, "settings.search");
         SettingsSearchHost.Content = _searchBox;

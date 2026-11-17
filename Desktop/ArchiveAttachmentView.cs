@@ -444,13 +444,27 @@ public sealed class ArchiveAttachmentView : UserControl
         AttachedToVisualTree += (_, _) => Dispatcher.UIThread.Post(RefreshViewport, DispatcherPriority.Loaded);
         SizeChanged += (_, _) => RefreshViewport();
         // Ancestor visibility can change without resizing this reserved slot.
-        LayoutUpdated += (_, _) =>
-        {
+        bool subscribed = false;
+        void OnVisibilityLayoutUpdated(object? sender, EventArgs e) {
             bool visible = VisualRoot != null && IsEffectivelyVisible;
             if (_wasEffectivelyVisible == visible) return;
             _wasEffectivelyVisible = visible;
             RefreshViewport();
-        };
+        }
+        void SubscribeLayout(object? sender, Avalonia.VisualTreeAttachmentEventArgs e)
+        {
+            if (subscribed) return;
+            this.LayoutUpdated += OnVisibilityLayoutUpdated;
+            subscribed = true;
+        }
+        void UnsubscribeLayout(object? sender, Avalonia.VisualTreeAttachmentEventArgs e)
+        {
+            if (!subscribed) return;
+            this.LayoutUpdated -= OnVisibilityLayoutUpdated;
+            subscribed = false;
+        }
+        this.AttachedToVisualTree += SubscribeLayout;
+        this.DetachedFromVisualTree += UnsubscribeLayout;
         DetachedFromVisualTree += (_, _) => { _visible = false; Reset(); _autoplay?.Stop(); _ = _inlineVideo?.ReleaseAsync(); };
     }
 

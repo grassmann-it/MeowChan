@@ -197,9 +197,22 @@ internal sealed class MenuLayout : AvaloniaObject
     {
         if (e.NewValue is not true || States.TryGetValue(menu, out _)) return;
         States.Add(menu, new State());
-        menu.AttachedToVisualTree += (_, _) => Restart(menu);
-        menu.LayoutUpdated += (_, _) => OnLayoutUpdated(menu);
-        if (menu.IsAttachedToVisualTree()) Restart(menu);
+        bool subscribed = false;
+        void OnMenuLayoutUpdated(object? sender, EventArgs args) => OnLayoutUpdated(menu);
+        void OnAttached(object? sender, VisualTreeAttachmentEventArgs args)
+        {
+            if (!subscribed) { menu.LayoutUpdated += OnMenuLayoutUpdated; subscribed = true; }
+            Restart(menu);
+        }
+        void OnDetached(object? sender, VisualTreeAttachmentEventArgs args)
+        {
+            if (!subscribed) return;
+            menu.LayoutUpdated -= OnMenuLayoutUpdated;
+            subscribed = false;
+        }
+        menu.AttachedToVisualTree += OnAttached;
+        menu.DetachedFromVisualTree += OnDetached;
+        if (menu.IsAttachedToVisualTree()) OnAttached(menu, null!);
     }
 
     // Every opening starts over: the same menu object may be filled again (ContextMenuBuilder.Populate), so a width from the last opening is dropped.

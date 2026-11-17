@@ -122,7 +122,11 @@ public sealed class ReaderSidebarAlignmentTests
         string host = Source("Desktop/Views/Archive/ArchivePage.MediaSidebar.cs");
         // The header line has a fixed height (the arithmetic needs it) and the alignment runs after every layout pass of the sidebar.
         Assert.Contains("sidebar.HeaderHeight = ReaderMediaSidebar.HeaderLineHeight;", host);
-        Assert.Contains("sidebar.LayoutUpdated += (_, _) => AlignMediaSidebarFrame();", host);
+        Assert.Contains("void OnSidebarFrameLayoutUpdated(object? sender, EventArgs e) => AlignMediaSidebarFrame();", host);
+        Assert.Contains("sidebar.LayoutUpdated += OnSidebarFrameLayoutUpdated;", host);
+        Assert.Contains("sidebar.LayoutUpdated -= OnSidebarFrameLayoutUpdated;", host);
+        Assert.Contains("sidebar.AttachedToVisualTree += SubscribeLayout;", host);
+        Assert.Contains("sidebar.DetachedFromVisualTree += UnsubscribeLayout;", host);
         // No section card around the sidebar in the archive view, and the header rows no longer span the sidebar's column.
         Assert.DoesNotContain("sidebar.Classes.Add(\"workspace-section-flush\")", host);
         Assert.DoesNotContain("Grid.SetColumnSpan(child, 3)", host);

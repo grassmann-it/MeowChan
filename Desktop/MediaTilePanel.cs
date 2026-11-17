@@ -21,6 +21,7 @@ public sealed class MediaTilePanel : VirtualizingUniformGrid
     public const double CellWidth = 190;
     /// <summary>Default cell height (archive tiles). A page with taller tiles sets <c>ItemHeight</c>; layout, virtualization and paging follow it.</summary>
     public const double CellHeight = 210;
+    private bool _layoutSubscribed;
     private bool _inLayout;
     private bool _scrolling;
     private Rect _viewport;
@@ -37,7 +38,6 @@ public sealed class MediaTilePanel : VirtualizingUniformGrid
         UniformItemHeight = true;
         CacheLength = .5;
         AddHandler(KeyDownEvent, OnPageKeyDown, RoutingStrategies.Bubble);
-        LayoutUpdated += OnLayoutUpdated;
         EffectiveViewportChanged += (_, e) =>
         {
             _viewport = e.EffectiveViewport;
@@ -180,6 +180,7 @@ public sealed class MediaTilePanel : VirtualizingUniformGrid
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
+        if (!_layoutSubscribed) { LayoutUpdated += OnLayoutUpdated; _layoutSubscribed = true; }
         _inputOwner = ItemsControl;
         // The scrollbar is outside the panel but inside its owning ListBox.
         // Cancel queued restoration before fresh user scroll/selection input.
@@ -204,6 +205,7 @@ public sealed class MediaTilePanel : VirtualizingUniformGrid
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
+        if (_layoutSubscribed) { LayoutUpdated -= OnLayoutUpdated; _layoutSubscribed = false; }
         _inputOwner?.RemoveHandler(PointerPressedEvent, OnUserInput);
         _inputOwner?.RemoveHandler(PointerReleasedEvent, OnUserInput);
         _inputOwner?.RemoveHandler(PointerMovedEvent, OnPointerMoved);
