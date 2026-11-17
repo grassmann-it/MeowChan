@@ -118,6 +118,7 @@ public sealed class DefaultShortcutInvariantTests
     [InlineData("video.speed-reset", "Back", "Shift+Back", "media")]
     [InlineData("video.snapshot", "S", "Shift+S", "gallery")]
     [InlineData("gallery.slideshow-toggle", "D", "Shift+D", "gallery")]
+    [InlineData("tags.queue.done-next", "Enter", "Primary+Enter", "gallery-tagging")]
     public void Ledger17MovedGesturesResolveAndTheirOldGesturesDoNot(string id, string oldKey, string newKey, string context)
     {
         foreach (ShortcutPlatform platform in Enum.GetValues<ShortcutPlatform>())
@@ -140,6 +141,19 @@ public sealed class DefaultShortcutInvariantTests
         Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.Space }, "video.play-pause", "gallery"));
         Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.Back }, "tags.queue.back", "gallery-tagging"));
         Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.D }, "tagging.mark-done", "tagging"));
+    }
+
+    [Theory, MemberData(nameof(Platforms))]
+    public void Ledger17PrimaryEnterMeansCommitAndAdvanceInBothTaggingContexts(ShortcutPlatform platform)
+    {
+        var bindings = EffectiveShortcutBindings.Build(platform: platform);
+        var key = ShortcutGesture.Parse("Primary+Enter").Resolve(platform);
+        var press = new KeyEventArgs { Key = key.Key, KeyModifiers = key.KeyModifiers };
+        Assert.True(bindings.Matches(press, "tags.queue.done-next", "gallery-tagging"));
+        Assert.True(bindings.Matches(press, "tags.quick.commit-next", "gallery"));
+        // UX-LEDGER-16 owns open/activate behavior. Pin only their existing Enter defaults here.
+        foreach (string id in new[] { "tagging.continue-here", "thread.read", "media.open", "reader.media.activate" })
+            Assert.Equal("Enter", CommandCatalog.Get(id).Shortcut);
     }
 
     /// <summary>The nine video commands the gallery shares with the reader and the Media page's panel (revision 18).</summary>
