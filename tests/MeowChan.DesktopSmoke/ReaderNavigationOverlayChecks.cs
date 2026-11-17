@@ -202,13 +202,13 @@ internal static class ReaderNavigationOverlayChecks
             if (MotionPolicy.IsOff)
                 Require(bar.Transitions is not { Count: > 0 }, "The bar fades although motion is off.");
             // Idle: hidden, and clicks go to the content below it.
-            page.NotifyReaderPointerMoved(far);
+            await Dispatcher.UIThread.InvokeAsync(() => page.NotifyReaderPointerMoved(far));
             await WaitShownAsync();
             await WaitHiddenAsync();
             Visual? idleHit = window.InputHitTest(onBar) as Visual;
             Require(idleHit == null || !idleHit.GetSelfAndVisualAncestors().Contains(bar), "The hidden bar still takes clicks.");
             // Any pointer movement over the reader shows it again.
-            page.NotifyReaderPointerMoved(far);
+            await Dispatcher.UIThread.InvokeAsync(() => page.NotifyReaderPointerMoved(far));
             await WaitShownAsync();
             Button nextPost = page.FindControl<Button>("ReaderNextPost")!;
             await RequireHitAsync(window, Bounds(nextPost, window).Center, nextPost, () => "The shown bar is not clickable");

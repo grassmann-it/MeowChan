@@ -427,7 +427,10 @@ public partial class MainWindow
     private async Task<bool> RemoveVisibleDownloadWatchAsync(long id, bool boards)
     {
         if (_sessionRowsApplying) return false;
-        if (boards ? !SelectedBoards().Any(row => row.WatchId == id) : !SelectedThreads().Any(row => row.WatchId == id)) return false;
+        // The caller freezes the selection before executing a batch. Do not re-check the live
+        // selection here: removing the first row updates the grid and can clear/coerce the
+        // remaining selected items while the frozen batch is still being processed.
+        if (boards ? !_boardRows.ContainsKey(id) : !_threadRows.ContainsKey(id)) return false;
         await (boards ? _session.RemoveBoardAsync(id) : _session.RemoveThreadAsync(id));
         return true;
     }
