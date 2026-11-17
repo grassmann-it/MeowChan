@@ -25,7 +25,12 @@ remain visible as warnings; they are not hidden by the debt baseline.
 
 ## Baseline: exact diagnostics, not whole files/types/methods
 
-`build/analyzer-baseline-2026-11-17.tsv` is the dated, reviewable snapshot.
+`build/analyzer-baseline-2026-11-17.tsv` is the dated, reviewable snapshot: **1,089 exact diagnostics**
+across 16 assemblies (CA2000: 897; CA2213: 75; CA1001: 66; CA2016: 51). It covers the solution's
+production/test graphs plus the separately built DesktopSmoke harness. Counts are unique diagnostics,
+not the doubled console summary counts from the audit. Most entries are in tests/harnesses.
+
+Build output and verification results: [analyzer-validation-2026-11-17.md](analyzer-validation-2026-11-17.md).
 `Directory.Build.targets` adds the `scripts/AnalyzerBaseline` Roslyn diagnostic suppressor and the
 baseline as an AdditionalFile. The helper references the repository's pinned SDK compiler assemblies;
 it adds no NuGet dependency and is not referenced as runtime application code. Its own build and its
