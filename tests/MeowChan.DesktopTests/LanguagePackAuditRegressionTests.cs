@@ -10,6 +10,25 @@ public sealed class LanguagePackAuditRegressionTests : IDisposable
     public void Dispose() { Texts.Initialize(); Texts.SetLanguage("en"); }
 
     [Theory]
+    [MemberData(nameof(BundledLanguagePackCompletenessTests.BundledCodes), MemberType = typeof(BundledLanguagePackCompletenessTests))]
+    public void CooldownControlsAreTranslatedButProductNamesAreNot(string code)
+    {
+        Texts.SetLanguage(code);
+        foreach (string key in new[]
+        {
+            "settings.unitHours", "budgets.booruRetryAfterCooldown", "budgets.booruRetryAfterCooldownHint",
+            "booru.ui.watchers.resetCooldown", "booru.ui.watchers.resetCooldownHint", "booru.ui.watcher.msg.cooldownReset"
+        })
+        {
+            Assert.False(string.IsNullOrWhiteSpace(Texts.T(key)));
+            Assert.NotEqual(BuiltInCatalog.English[key], Texts.T(key));
+        }
+        foreach (string key in new[] { "nav.booru", "command.navigation.booru", "workview.page.booru", "booru.ui.title", "booru.media.source", "booru.media.badge", "detail.url", "search.scope.hash" })
+            Assert.Equal(BuiltInCatalog.English[key], Texts.T(key));
+        Assert.Empty(Texts.Warnings);
+    }
+
+    [Theory]
     [InlineData("ja")]
     [InlineData("ko")]
     [InlineData("zh-Hans")]

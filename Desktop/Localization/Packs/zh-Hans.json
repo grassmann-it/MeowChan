@@ -3442,7 +3442,7 @@
     "drop.files.detail": "它们会被复制到你的媒体库中；原始文件保留在原处。",
     "drop.empty.title": "没有可添加的内容",
     "drop.empty.detail": "请以文本形式拖放串或版块链接。",
-    "reader.postNumber": "No. {0}",
+    "reader.postNumber": "帖子编号 {0}",
     "reader.copyPostNumber": "复制 >>{0} 以引用此帖子",
     "reader.postNumberCopied": "已将 >>{0} 复制到剪贴板。",
     "reader.copyFailed": "剪贴板不可用；未复制任何内容。",

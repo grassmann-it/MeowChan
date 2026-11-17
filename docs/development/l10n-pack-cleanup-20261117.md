@@ -80,3 +80,52 @@ count 1 does **not** silently fall back to English. No `.one` entries added.
 Updated the pack README's outdated “25 forms in CountCatalog” statement and
 added three regression theories checking **every** English singular's localized
 base at counts 0, 1, 2, 4, 21, 100 (1,710 count comparisons).
+
+## 5. Genuine English leftovers
+
+Translated **50 values** in all ten packs, without changing key sets or metadata:
+
+- The common six-key gap in es/fr/ru/cs/pl/it/pt-BR: hours, the Danbooru
+  Retry-After maximum and its hint, reset-cooldown button/hint/completion notice
+  (**42 translations**). CJK already had these translated. The text preserves
+  the 60-second floor, 1–168-hour range, 24-hour default, Danbooru-only scope,
+  and the promise not to start a check/download or remove the user's pause.
+- Three CJK post-number labels (`reader.postNumber`), four remaining English
+  theme-preview chip labels (es/it/pl/pt-BR), and the Polish transfer column label.
+- Added ten common-core regression cases that require actual localized values
+  while preserving the exact product and identifier names.
+
+**Deliberately unchanged:** Booru, Danbooru, MeowChan, URL, hash identifiers
+(SHA-256/MD5), GIF and binary units; physical keycap names (Ctrl/Shift/Home/etc.);
+format-only strings; protocol name `Retry-After`; provider-owned rating/category
+vocabulary (see the existing pack README); established community/computing loans
+such as board/thread/tag/plugin, Italian media/file/video/layout, Portuguese
+downloads/status/tags, and the existing French focus-mode name. A same-spelling
+local word is not untranslated English: e.g. Spanish Error/No/Manual/Original,
+French Source/Action/Version/Volume/Notification, Czech Text/Disk/Export, Polish
+Folder/Format. No brands were replaced, and no attempt was made to force these
+legitimate matches below an arbitrary “untranslated” threshold. Previews remain
+Untested and require qualified human review.
+
+### Counts before → after (same current-base key set)
+
+| Pack | Entries before → after | Exact English matches before → after | Valid extra plural forms | Raw missing keys |
+| --- | ---: | ---: | ---: | ---: |
+| cs | 5,229 → 5,229 | 99 → 93 | 49 | 2 |
+| es | 5,180 → 5,180 | 91 → 84 | 0 | 2 |
+| fr | 5,180 → 5,180 | 126 → 120 | 0 | 2 |
+| it | 5,186 → 5,186 | 134 → 127 | 6 | 2 |
+| ja | 5,085 → 5,085 | 59 → 58 | 0 | 97 |
+| ko | 5,085 → 5,085 | 54 → 53 | 0 | 97 |
+| pl | 5,232 → 5,232 | 101 → 93 | 52 | 2 |
+| pt-BR | 5,186 → 5,186 | 148 → 141 | 6 | 2 |
+| ru | 5,206 → 5,206 | 66 → 60 | 26 | 2 |
+| zh-Hans | 5,085 → 5,085 | 49 → 48 | 0 | 97 |
+
+Exact matches total **927 → 877** (all entries, including format-only strings).
+The two raw missing keys are the empty saved-search sentinels; CJK additionally
+omits 95 intentionally unselectable singulars. **Actionable missing keys: 0 → 0;
+unknown/stale keys: 0 → 0; duplicate keys: 0 → 0; placeholder mismatches: 0 → 0.**
+The audit's “256–308 stale keys” and “three universally missing keys” are not
+valid descriptions of the runtime catalogs. Deleting/inserting them mechanically
+would break localization rather than clean it up.

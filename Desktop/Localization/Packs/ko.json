@@ -3439,7 +3439,7 @@
     "drop.files.detail": "미디어 라이브러리로 복사되며 원본은 그대로 남습니다.",
     "drop.empty.title": "추가할 항목 없음",
     "drop.empty.detail": "스레드나 게시판 링크를 텍스트로 놓으세요.",
-    "reader.postNumber": "No. {0}",
+    "reader.postNumber": "게시물 번호 {0}",
     "reader.copyPostNumber": "이 게시물을 인용하려면 >>{0} 복사",
     "reader.postNumberCopied": ">>{0}을(를) 클립보드에 복사했습니다.",
     "reader.copyFailed": "클립보드를 사용할 수 없어 아무것도 복사하지 않았습니다.",
