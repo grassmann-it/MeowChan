@@ -100,9 +100,9 @@ public partial class ArchivePage
         ReaderMediaSidebarToggle.DetachedFromVisualTree += UnsubscribeLayout;
         RefreshMediaSidebarToggle();
         ArchivePosts.SelectionChanged += (_, _) => OnMediaSidebarSelectionChanged();
-        // The archive view: the reader pane gets the sidebar's columns (posts card, splitter, sidebar). Its header rows (title, toolbar, status)
-        // stand over the posts card's column only: the sidebar's own header line sits in the strip above its frame, on the side of the card
-        // (ReaderSidebarAlignment). A hidden sidebar leaves the posts card and its header rows alone in the first, star column.
+        // The archive view: the pane gets posts, splitter and sidebar columns.
+        // Reader chrome stays over the posts only; the sidebar owns its full-height
+        // column with a stable title line. Hidden, it returns the column to the posts.
         Grid pane = ArchiveReaderPane;
         // The shell's generic native-input guard reserves arrows for ListBox. These two reader-owned
         // commands must run before the post list/strip, in both the embedded and detached hosts.
@@ -181,24 +181,9 @@ public partial class ArchivePage
         splitter.DragCompleted += (_, _) => SaveMediaSidebarWidth();
         splitter.KeyUp += (_, _) => SaveMediaSidebarWidth();
         sidebar.Frame.SizeChanged += (_, _) => OnMediaSidebarFrameResized();
-        // The header line has a fixed height, so the frame's top and bottom follow from the posts box by arithmetic (ArchivePage.MediaSidebarAlignment.cs).
+        // UX-LEDGER-26 / protocol 1.9e: only the stable title consumes height;
+        // the media gets the remainder of its host, independently of the posts box.
         sidebar.HeaderHeight = ReaderMediaSidebar.HeaderLineHeight;
-        bool subscribed = false;
-        void OnSidebarFrameLayoutUpdated(object? sender, EventArgs e) => AlignMediaSidebarFrame();
-        void SubscribeLayout(object? sender, Avalonia.VisualTreeAttachmentEventArgs e)
-        {
-            if (subscribed) return;
-            sidebar.LayoutUpdated += OnSidebarFrameLayoutUpdated;
-            subscribed = true;
-        }
-        void UnsubscribeLayout(object? sender, Avalonia.VisualTreeAttachmentEventArgs e)
-        {
-            if (!subscribed) return;
-            sidebar.LayoutUpdated -= OnSidebarFrameLayoutUpdated;
-            subscribed = false;
-        }
-        sidebar.AttachedToVisualTree += SubscribeLayout;
-        sidebar.DetachedFromVisualTree += UnsubscribeLayout;
         sidebar.Open.Click += (_, e) => { e.Handled = true; OpenMediaSidebarMedia(); };
         sidebar.StripSelected += (_, index) => SelectMediaSidebarIndex(index);
         sidebar.StripActivated += (_, index) => { SelectMediaSidebarIndex(index); OpenMediaSidebarMedia(); };
@@ -289,8 +274,8 @@ public partial class ArchivePage
         return e.Handled;
     }
 
-    // Puts the (hidden) sidebar and its splitter into the large reader's frame or the archive view's pane. The archive view shows it as a
-    // card beside the posts card, below the header row; in the large reader it runs the full height and one edge faces the posts.
+    // Puts the hidden sidebar and splitter into either host. Both fill their host's
+    // height; the neighbouring posts and reader chrome cannot cap the media column.
     private void MoveMediaSidebarTo(Grid host)
     {
         ReaderMediaSidebar sidebar = EnsureMediaSidebar();
@@ -321,12 +306,14 @@ public partial class ArchivePage
             if (_largeReader) ReaderHostingStep("sidebar.09");
             sidebar.IsVisible = splitter.IsVisible = false;
             if (_largeReader) ReaderHostingStep("sidebar.10");
-            Grid.SetRow(sidebar, archiveView ? 1 : 0);
+            Grid.SetRow(sidebar, 0);
+            Grid.SetRowSpan(sidebar, archiveView ? 2 : 1);
             if (_largeReader) ReaderHostingStep("sidebar.11");
-            Grid.SetRow(splitter, archiveView ? 1 : 0);
+            Grid.SetRow(splitter, 0);
+            Grid.SetRowSpan(splitter, archiveView ? 2 : 1);
             if (_largeReader) ReaderHostingStep("sidebar.12");
-            // Tom (16.11.2026): the sidebar's media frame has the posts box's top and bottom. The archive view therefore has no section card around
-            // the sidebar any more (its frame has its own edge); the header line is lifted into the strip above the box (MediaPage's panel does the same).
+            // Span the embedded reader's header and content rows, just as the large
+            // reader spans its frame. No negative lift or padding tied to the posts.
             ApplyMediaSidebarInsets(sidebar, archiveView);
             if (_largeReader) ReaderHostingStep("sidebar.13");
             if (archiveView) sidebar.BorderThickness = new Thickness(0);

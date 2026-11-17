@@ -62,6 +62,7 @@ internal static class ReaderMediaSidebarChecks
             Require(KeyboardNavigation.GetTabNavigation(frame) == KeyboardNavigationMode.Cycle
                 && KeyboardNavigation.GetTabNavigation(pane) == KeyboardNavigationMode.Continue, "Tab does not reach the sidebar.");
             Require(Grid.GetColumn(sidebar) == 0 && Grid.GetColumn(pane) == 2, "The default side is not left.");
+            await CheckFullHeightAsync(sidebar, frame);
             // The column takes its width in the next layout pass after the sidebar is shown.
             await Program.WaitUntilAsync(() => Math.Abs(frame.ColumnDefinitions[0].ActualWidth - page.ReaderMedia.SidebarWidth) <= 1,
                 () => "The sidebar does not have its configured width: column " + frame.ColumnDefinitions[0].ActualWidth + " (" + frame.ColumnDefinitions[0].Width
@@ -142,6 +143,7 @@ internal static class ReaderMediaSidebarChecks
             page.ApplyReaderMediaPreferences(page.ReaderMedia with { SidebarRight = true });
             await Flush();
             Require(Grid.GetColumn(sidebar) == 2 && Grid.GetColumn(pane) == 0, "The sidebar did not move to the right.");
+            await CheckFullHeightAsync(sidebar, frame);
             page.ApplyReaderMediaPreferences(page.ReaderMedia with { SidebarRight = false });
 
             // A reader narrower than the setting hides the sidebar; it stays chosen and returns.
@@ -183,7 +185,7 @@ internal static class ReaderMediaSidebarChecks
         Console.WriteLine("SMOKE reader media sidebar: on by default, compact header with the gallery button, no overlay arrows or counter (strip for several media), framed large reader, View-menu switch, follow with throttle, live region, several-file strip with counter, grid layout, discovery hint, right side, width collapse, Escape and return, archive view (Always) passed.");
     }
 
-    // "Always": the archive view shows the sidebar beside the posts card (below the header row) with the same following and width rules;
+    // "Always": the archive view shows the full-height sidebar beside the posts and their header, with the same following and width rules;
     // its switch there chooses Always or Large reader only, and a reader narrower than the setting hides it again.
     private static async Task CheckArchiveViewAsync(ArchivePage page, Grid pane, ListBox posts)
     {
@@ -198,8 +200,16 @@ internal static class ReaderMediaSidebarChecks
             await Program.WaitUntilAsync(() => page.IsMediaSidebarShown && page.IsMediaSidebarInArchiveView && page.MediaSidebar!.IsEffectivelyVisible);
             ReaderMediaSidebar sidebar = page.MediaSidebar!;
             Require(page.ReaderMedia.Sidebar && page.ReaderMedia.SidebarAlways, "The archive view's switch did not choose Always.");
-            Require(sidebar.Parent == pane && Grid.GetRow(sidebar) == 1 && Grid.GetColumn(sidebar) == (page.ReaderMedia.SidebarRight ? 2 : 0)
-                && Grid.GetColumn(content) == (page.ReaderMedia.SidebarRight ? 0 : 2), "The sidebar does not sit beside the posts card of the archive view.");
+            Require(sidebar.Parent == pane && Grid.GetRow(sidebar) == 0 && Grid.GetRowSpan(sidebar) == 2
+                && Grid.GetColumn(sidebar) == (page.ReaderMedia.SidebarRight ? 2 : 0)
+                && Grid.GetColumn(content) == (page.ReaderMedia.SidebarRight ? 0 : 2), "The sidebar does not span the archive reader beside its posts column.");
+            foreach (bool right in new[] { false, true })
+            {
+                page.ApplyReaderMediaPreferences(page.ReaderMedia with { SidebarRight = right });
+                await CheckFullHeightAsync(sidebar, pane);
+                Require(Grid.GetColumn(sidebar) == (right ? 2 : 0) && Grid.GetColumn(content) == (right ? 0 : 2),
+                    "The archive sidebar did not preserve its side columns.");
+            }
             Require(page.FocusedMediaPresentedElsewhere, "The inline enlargement did not step back for the archive view's sidebar.");
             if (posts.Items.OfType<ArchivePostRow>().FirstOrDefault(row => row.ShowsMedia) is { } withMedia)
             {
@@ -218,7 +228,22 @@ internal static class ReaderMediaSidebarChecks
             await Program.WaitUntilAsync(() => !page.IsMediaSidebarShown);
             Require(page.ReaderMedia.Sidebar && !page.ReaderMedia.SidebarAlways, "Hiding the archive view's sidebar took it from the large reader.");
         }
-        finally { page.ApplyReaderMediaPreferences(page.ReaderMedia with { SidebarMinimumReaderWidth = before.SidebarMinimumReaderWidth }); }
+        finally { page.ApplyReaderMediaPreferences(page.ReaderMedia with { SidebarMinimumReaderWidth = before.SidebarMinimumReaderWidth, SidebarRight = before.SidebarRight }); }
+    }
+
+    private static async Task CheckFullHeightAsync(ReaderMediaSidebar sidebar, Grid host)
+    {
+        await Program.WaitUntilAsync(() => host.Bounds.Height > 0 && sidebar.Frame.Bounds.Height > 0
+            && Math.Abs(sidebar.Bounds.Height - host.Bounds.Height) <= 1);
+        await Flush();
+        Require(sidebar.TranslatePoint(default, host) is { Y: >= -1 and <= 1 }, "The sidebar does not start at the host's top.");
+        Require(sidebar.HeaderRow.Bounds.Height == ReaderMediaSidebar.HeaderLineHeight, "The media title lost its stable height.");
+        Require(sidebar.Padding.Top == 0 && sidebar.Padding.Bottom == 0, "Neighbour alignment reclaimed media height as padding.");
+        Require(Math.Abs(sidebar.Card.TranslatePoint(default, sidebar)!.Value.Y + sidebar.Card.Bounds.Height - sidebar.Bounds.Height) <= 1,
+            "There is unused height below the media card.");
+        Console.WriteLine($"SMOKE sidebar full-height: host={host.Name}, side={Grid.GetColumn(sidebar)}, hostHeight={host.Bounds.Height}, paneHeight={sidebar.Bounds.Height}, mediaHeight={sidebar.Frame.Bounds.Height}");
+        if (TopLevel.GetTopLevel(sidebar) is Window window)
+            Program.CaptureWindow(window, $"smoke-reader-full-height-{host.Name}-{Grid.GetColumn(sidebar)}.png");
     }
 
     // The sidebar has no arrows and no counter over the medium (named controls of the old overlay).

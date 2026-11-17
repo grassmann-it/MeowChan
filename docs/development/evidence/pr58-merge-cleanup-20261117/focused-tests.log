@@ -1,0 +1,50 @@
+Test run for tests/MeowChan.DesktopTests/bin/Debug/net10.0/MeowChan.DesktopTests.dll (.NETCoreApp,Version=v10.0)
+VSTest version 18.0.2-dev (x64)
+
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v2.8.2+699d445a1a (64-bit .NET 10.0.11)
+[xUnit.net 00:00:00.21]   Discovering: MeowChan.DesktopTests
+[xUnit.net 00:00:02.46]   Discovered:  MeowChan.DesktopTests
+[xUnit.net 00:00:02.50]   Starting:    MeowChan.DesktopTests
+  Passed MeowChan.DesktopTests.ReaderSidebarAlignmentTests.FullHeightSidebarKeepsTheStableHeaderAndPostsColumnIsolation [15 ms]
+  Passed MeowChan.DesktopTests.ReaderMediaSidebarLayoutTests.HeaderIsFixedAndCardFillsTheAvailableHeightAcrossImageAspects(pixelWidth: 64, pixelHeight: 64, width: 500, height: 900) [955 ms]
+  Passed MeowChan.DesktopTests.ReaderMediaSidebarLayoutTests.HeaderIsFixedAndCardFillsTheAvailableHeightAcrossImageAspects(pixelWidth: 8, pixelHeight: 512, width: 360, height: 720) [263 ms]
+HEIGHT large=False right=False chrome=False size=1440, 720 host=654 sidebar=654 frame=614 ratio=0.938838
+HEIGHT large=False right=False chrome=False size=1440, 900 host=834 sidebar=834 frame=794 ratio=0.952038
+HEIGHT large=False right=False chrome=False size=1920, 1080 host=1014 sidebar=1014 frame=974 ratio=0.960552
+HEIGHT large=False right=False chrome=True size=1440, 720 host=654 sidebar=654 frame=573 ratio=0.876147
+HEIGHT large=False right=False chrome=True size=1440, 900 host=834 sidebar=834 frame=753 ratio=0.902878
+HEIGHT large=False right=False chrome=True size=1920, 1080 host=1014 sidebar=1014 frame=933 ratio=0.920118
+  Passed MeowChan.DesktopTests.ReaderMediaSidebarLayoutTests.HeaderIsFixedAndCardFillsTheAvailableHeightAcrossImageAspects(pixelWidth: 512, pixelHeight: 8, width: 360, height: 720) [303 ms]
+  Passed MeowChan.DesktopTests.ReaderMediaSidebarLayoutTests.ToolbarShortcutAndCloseShareThePersistedPerHostToggle(largeReader: True) [641 ms]
+  Passed MeowChan.DesktopTests.ReaderMediaSidebarLayoutTests.ToolbarShortcutAndCloseShareThePersistedPerHostToggle(largeReader: False) [289 ms]
+  Passed MeowChan.DesktopTests.ReaderMediaSidebarLayoutTests.SidebarUsesItsHostHeightIndependentlyOfPosts(largeReader: False, right: False) [313 ms]
+HEIGHT large=False right=True chrome=False size=1440, 720 host=654 sidebar=654 frame=614 ratio=0.938838
+HEIGHT large=False right=True chrome=False size=1440, 900 host=834 sidebar=834 frame=794 ratio=0.952038
+HEIGHT large=False right=True chrome=False size=1920, 1080 host=1014 sidebar=1014 frame=974 ratio=0.960552
+HEIGHT large=False right=True chrome=True size=1440, 720 host=654 sidebar=654 frame=573 ratio=0.876147
+HEIGHT large=False right=True chrome=True size=1440, 900 host=834 sidebar=834 frame=753 ratio=0.902878
+HEIGHT large=False right=True chrome=True size=1920, 1080 host=1014 sidebar=1014 frame=933 ratio=0.920118
+HEIGHT large=True right=False chrome=False size=1440, 720 host=720 sidebar=720 frame=680 ratio=0.879514
+HEIGHT large=True right=False chrome=False size=1440, 900 host=900 sidebar=900 frame=860 ratio=0.889861
+HEIGHT large=True right=False chrome=False size=1920, 1080 host=1080 sidebar=1080 frame=1040 ratio=0.896759
+HEIGHT large=True right=False chrome=True size=1440, 720 host=720 sidebar=720 frame=639 ratio=0.826484
+HEIGHT large=True right=False chrome=True size=1440, 900 host=900 sidebar=900 frame=819 ratio=0.847437
+HEIGHT large=True right=False chrome=True size=1920, 1080 host=1080 sidebar=1080 frame=999 ratio=0.861406
+HEIGHT large=True right=True chrome=False size=1440, 720 host=720 sidebar=720 frame=680 ratio=0.879514
+HEIGHT large=True right=True chrome=False size=1440, 900 host=900 sidebar=900 frame=860 ratio=0.889861
+HEIGHT large=True right=True chrome=False size=1920, 1080 host=1080 sidebar=1080 frame=1040 ratio=0.896759
+HEIGHT large=True right=True chrome=True size=1440, 720 host=720 sidebar=720 frame=639 ratio=0.826484
+HEIGHT large=True right=True chrome=True size=1440, 900 host=900 sidebar=900 frame=819 ratio=0.847437
+HEIGHT large=True right=True chrome=True size=1920, 1080 host=1080 sidebar=1080 frame=999 ratio=0.861406
+[xUnit.net 00:00:06.50]   Finished:    MeowChan.DesktopTests
+  Passed MeowChan.DesktopTests.ReaderMediaSidebarLayoutTests.SidebarUsesItsHostHeightIndependentlyOfPosts(largeReader: False, right: True) [312 ms]
+  Passed MeowChan.DesktopTests.ReaderMediaSidebarLayoutTests.SidebarUsesItsHostHeightIndependentlyOfPosts(largeReader: True, right: False) [292 ms]
+  Passed MeowChan.DesktopTests.ReaderMediaSidebarLayoutTests.SidebarUsesItsHostHeightIndependentlyOfPosts(largeReader: True, right: True) [271 ms]
+  Passed MeowChan.DesktopTests.ReaderMediaSidebarLayoutTests.DefaultToolbarStateMatchesTheDefaultScopeWithoutChangingPreferences [308 ms]
+
+Test Run Successful.
+Total tests: 11
+     Passed: 11
+ Total time: 6.8486 Seconds
