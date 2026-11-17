@@ -719,8 +719,8 @@
                                 </StackPanel>
                             </Border>
                         </Popup>
-                        <Border x:Name="ReaderNavigationHitHost" Background="#01000000" IsVisible="{Binding #ReaderNavigation.IsVisible}"
-                                IsHitTestVisible="{Binding #ReaderNavigation.IsHitTestVisible}" HorizontalAlignment="Right" VerticalAlignment="Bottom" ZIndex="1000">
+                        <Border x:Name="ReaderNavigationHitHost" Background="#01000000" IsVisible="{Binding #ReaderNavigation.IsHitTestVisible}"
+                                IsHitTestVisible="True" HorizontalAlignment="Right" VerticalAlignment="Bottom" ZIndex="1000">
                         <WrapPanel x:Name="ReaderNavigation" Classes="reader-cross" Background="{DynamicResource Workspace.Card}" IsVisible="False" HorizontalAlignment="Right"
                                    VerticalAlignment="Bottom" Margin="0,0,24,32">
                             <!-- The navigation bar is an overlay above the content, one capsule of 40 dip: [thread arrow, counter, thread arrow | post arrow,
