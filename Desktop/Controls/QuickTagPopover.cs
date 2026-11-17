@@ -534,28 +534,35 @@ internal sealed class QuickTagPopover
     {
         if (_closed || !_shown || _keyGuardRoot == null) return;
         TopLevel root = _keyGuardRoot;
-        if (GuardedRootKey(e, visual => ReferenceEquals(TopLevel.GetTopLevel(visual), root), _frame) is not { } action) return;
+        if (GuardedRootKey(e, visual => ReferenceEquals(TopLevel.GetTopLevel(visual), root), _frame, Surface != null) is not { } action) return;
         e.Handled = true;
         if (action == GuardedKeyAction.Close) Close(QuickTagPopoverCloseReason.Closed);
         else if (action == GuardedKeyAction.FocusInside) FocusInside();
+        else if (action == GuardedKeyAction.TypeIntoField) Surface?.TypeIntoField(TextEntryKeys.TextOf(e)!);
     }
 
     /// <summary>What the window's tunnel does with a key while the popover is open.</summary>
-    internal enum GuardedKeyAction { Consume, Close, FocusInside }
+    internal enum GuardedKeyAction { Consume, Close, FocusInside, TypeIntoField }
 
     /// <summary>
     /// The key guard as a pure decision: null leaves the key alone (it was already handled, it is the popover's own key on a route that reaches the
-    /// window, it comes from another popup or window, or it is a lone modifier); otherwise Esc closes, Tab moves the focus into the popover and every
-    /// other key is consumed.
+    /// window, it comes from another popup or window, it is a lone modifier, or it types into a text box of the window); otherwise Esc closes, Tab moves
+    /// the focus into the popover, printable text goes into the popover's field (when it has one) and every other key is consumed.
     /// </summary>
     /// <param name="fromGuardedWindow">True for a source in the window the guard sits on (its own top level).</param>
-    internal static GuardedKeyAction? GuardedRootKey(KeyEventArgs e, Func<Visual, bool> fromGuardedWindow, Control frame)
+    internal static GuardedKeyAction? GuardedRootKey(KeyEventArgs e, Func<Visual, bool> fromGuardedWindow, Control frame, bool hasField = false)
     {
         if (e.Handled || IsModifierKey(e.Key)) return null;
         if (e.Source is Visual source)
         {
             if (source.GetSelfAndVisualAncestors().Any(visual => ReferenceEquals(visual, frame))) return null;
             if (!fromGuardedWindow(source)) return null;
+        }
+        if (TextEntryKeys.TypesText(e))
+        {
+            // A text box keeps what is typed into it (consuming the KeyDown would swallow the character); other text goes into the popover's field.
+            if (TextEntryKeys.IsTextEditor(e.Source)) return null;
+            if (hasField && TextEntryKeys.TextOf(e) != null) return GuardedKeyAction.TypeIntoField;
         }
         if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None) return GuardedKeyAction.Close;
         if (e.Key == Key.Tab) return GuardedKeyAction.FocusInside;
@@ -575,16 +582,51 @@ internal sealed class QuickTagPopover
     }
 
     // The last stop of a key inside the popover: a plain Esc that nothing inside took (a control outside the surface's own routing) still closes it, so
-    // Esc closes from every element; any other key nothing took is consumed here.
+    // Esc closes from every element; text typed into the field passes (the platform makes text only of an unhandled KeyDown), text typed on the stars or
+    // another part goes into the field; any other key nothing took is consumed here.
     private void OnFrameKeyUnhandled(object? sender, KeyEventArgs e)
     {
-        if (!ConsumesUnhandledKey(e)) return;
-        e.Handled = true;
-        if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None) Close(QuickTagPopoverCloseReason.Closed);
+        switch (UnhandledKey(e, Surface != null))
+        {
+            case UnhandledKeyAction.Pass:
+                return;
+            case UnhandledKeyAction.TypeIntoField:
+                e.Handled = true;
+                Surface!.TypeIntoField(TextEntryKeys.TextOf(e)!);
+                return;
+            case UnhandledKeyAction.Close:
+                e.Handled = true;
+                Close(QuickTagPopoverCloseReason.Closed);
+                return;
+            default:
+                e.Handled = true;
+                return;
+        }
     }
 
-    /// <summary>True for a key that bubbled out of the popover's content unhandled and must stop at its frame (everything but Tab and a lone modifier).</summary>
-    internal static bool ConsumesUnhandledKey(KeyEventArgs e) => !e.Handled && e.Key != Key.Tab && !IsModifierKey(e.Key);
+    /// <summary>What the frame does with a key that bubbled out of the popover's content.</summary>
+    internal enum UnhandledKeyAction { Pass, Consume, Close, TypeIntoField }
+
+    /// <summary>
+    /// The frame's decision for a key that bubbled out of the content: an already handled key, Tab (the cycle) and a lone modifier pass; a key that types
+    /// text into the text box it came from passes UNHANDLED (marking it handled would swallow the character: the platform raises TextInput only for an
+    /// unhandled KeyDown, Tom 17.11.2026); printable text from any other part (the stars after R, a chip, a button) goes into the field when there is one
+    /// (TG-02); a plain Esc closes; everything else is consumed, so it never reaches the page behind the popover.
+    /// </summary>
+    internal static UnhandledKeyAction UnhandledKey(KeyEventArgs e, bool hasField)
+    {
+        if (e.Handled || e.Key == Key.Tab || IsModifierKey(e.Key)) return UnhandledKeyAction.Pass;
+        if (TextEntryKeys.TypesText(e))
+        {
+            if (TextEntryKeys.IsTextEditor(e.Source)) return UnhandledKeyAction.Pass;
+            if (hasField && TextEntryKeys.TextOf(e) != null) return UnhandledKeyAction.TypeIntoField;
+        }
+        if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None) return UnhandledKeyAction.Close;
+        return UnhandledKeyAction.Consume;
+    }
+
+    /// <summary>True for a key that bubbled out of the popover's content unhandled and must stop at its frame (everything but Tab, a lone modifier and text typed into a text box).</summary>
+    internal static bool ConsumesUnhandledKey(KeyEventArgs e) => UnhandledKey(e, hasField: false) != UnhandledKeyAction.Pass;
 
     // ---- keys ---------------------------------------------------------------------------------------------------------
 
