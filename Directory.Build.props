@@ -1,7 +1,7 @@
 <Project>
   <PropertyGroup>
     <Version>1.1.0</Version>
-    <MeowChanUsesReleaseLock Condition="'$(Configuration)' == 'Release' and ('$(MSBuildProjectName)' == 'MeowChan' or '$(MSBuildProjectName)' == 'libmeowchan' or '$(MSBuildProjectName)' == 'MeowChan.Tests' or '$(MSBuildProjectName)' == 'MeowChan.DesktopTests' or '$(MSBuildProjectName)' == 'MeowChan.DesktopSmoke' or '$(MSBuildProjectName)' == 'MeowChan.PluginSdk' or '$(MSBuildProjectName)' == 'MeowChan.PluginSdk.Tests')">true</MeowChanUsesReleaseLock>
+    <MeowChanUsesReleaseLock Condition="('$(Configuration)' == 'Release' or ('$(Configuration)' == 'Debug' and '$(MeowChanAcceptancePublish)' == 'true')) and ('$(MSBuildProjectName)' == 'MeowChan' or '$(MSBuildProjectName)' == 'libmeowchan' or '$(MSBuildProjectName)' == 'MeowChan.Tests' or '$(MSBuildProjectName)' == 'MeowChan.DesktopTests' or '$(MSBuildProjectName)' == 'MeowChan.DesktopSmoke' or '$(MSBuildProjectName)' == 'MeowChan.PluginSdk' or '$(MSBuildProjectName)' == 'MeowChan.PluginSdk.Tests')">true</MeowChanUsesReleaseLock>
   </PropertyGroup>
   <PropertyGroup Condition="'$(MeowChanUsesReleaseLock)' == 'true'">
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>

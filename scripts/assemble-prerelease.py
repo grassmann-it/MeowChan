@@ -73,6 +73,8 @@ def workflow_identity(report: dict, version: str, source: str, rid: str) -> None
     require(report.get('passed') is True and report.get('completed') is True
             and report.get('declaredSourceCommit') == source and report.get('declaredRuntime') == rid,
             'Native workflow source/runtime mismatch: ' + rid)
+    require(report.get('acceptanceConfiguration') == 'Debug' and report.get('shippingArtifactExecuted') is False,
+            'Native workflow must identify non-shipping Debug acceptance: ' + rid)
     scales = report.get('scales')
     require(isinstance(scales, list) and bool(scales), 'Native workflow has no executed scales: ' + rid)
     for scale in scales:
@@ -85,11 +87,13 @@ def workflow_identity(report: dict, version: str, source: str, rid: str) -> None
 
 def check_windows(root: Path, source: str, version: str, legal: dict) -> None:
     candidate = root / 'native-media-candidate-win-x64'
-    workflow = read_json(candidate / 'media-evidence/workflow/workflow.json')
+    workflow = read_json(candidate / 'acceptance-media-evidence/workflow/workflow.json')
     workflow_identity(workflow, version, source, 'win-x64')
     archive = candidate / 'media-packages/MeowChan-win-x64.zip'
     binding = workflow['archiveBinding']
-    with zipfile.ZipFile(archive) as package:
+    execution_archive = candidate / 'acceptance-media-packages/MeowChan-win-x64.zip'
+    retained.check_hash(execution_archive, binding.get('sha256'), 'Windows Debug acceptance ZIP')
+    with zipfile.ZipFile(execution_archive) as package:
         apphost = hashlib.sha256(package.read('MeowChan.exe')).hexdigest()
     require(binding.get('memberSha256') == apphost == workflow.get('apphostSha256'),
             'Executed Windows apphost differs from ZIP')
@@ -115,7 +119,39 @@ def check_linux(root: Path, source: str, version: str, legal: dict, rid: str) ->
         require(native.isfile() and native.size <= 16 * 1024 * 1024
                 and hashlib.sha256(archive.extractfile(native).read()).hexdigest() == runtime_hash,
                 'Linux source archive lacks its exact native runtime manifest')
+    acceptance_packages = candidate / 'acceptance-linux-packages'
+    acceptance_manifest = acceptance_packages / (rid + '-package-manifest.json')
+    acceptance = read_json(acceptance_manifest)
+    require(acceptance.get('source_commit') == source and acceptance.get('runtime') == rid
+            and acceptance.get('version') == version and acceptance.get('runtime_manifest_sha256') == runtime_hash,
+            'Linux Debug acceptance source/runtime/native inventory mismatch: ' + rid)
+    artifacts = acceptance.get('artifacts')
+    require(acceptance.get('schema') == 'meowchan.linux-packages.v1'
+            and isinstance(artifacts, list) and len(artifacts) == 3
+            and {item.get('flavor') for item in artifacts} == {'bundled-vlc', 'system-vlc', 'appimage'},
+            'Linux Debug acceptance formats incomplete: ' + rid)
+    for artifact in artifacts:
+        name = artifact.get('file')
+        require(isinstance(name, str) and Path(name).name == name and name not in ('.', '..'),
+                'Unsafe Linux Debug acceptance filename')
+        path = retained.file(acceptance_packages / name)
+        require(type(artifact.get('bytes')) is int and path.stat().st_size == artifact['bytes'],
+                'Linux Debug acceptance asset length mismatch: ' + name)
+        retained.check_hash(path, artifact.get('sha256'), 'Linux Debug acceptance ' + name)
+    layouts_dir = candidate / 'linux-evidence/release-layouts'
+    layouts = read_json(layouts_dir / 'linux-distribution-gates.json')
+    for row in layouts['scenarios']:
+        path = layouts_dir / row['scenario'] / 'scenario.json'
+        retained.check_hash(path, row.get('reportSha256'), 'Linux Release layout scenario')
+        proof = read_json(path)
+        require(proof.get('passed') is True and proof.get('completed') is True
+                and proof.get('configuration') == 'Release' and proof.get('layoutOnly') is True
+                and proof.get('sourceCommit') == source and proof.get('runtime') == rid
+                and proof.get('manifestSha256') == digest(packages / (rid + '-package-manifest.json')),
+                'Linux Release layout scenario binding mismatch: ' + row['scenario'])
     gates = read_json(evidence / 'linux-distribution-gates.json')
+    require(gates.get('configuration') == 'Debug' and gates.get('layoutOnly') is False,
+            'Linux execution evidence must be Debug acceptance')
     for row in gates['scenarios']:
         scenario = row['scenario']
         proof_path = evidence / scenario / 'scenario.json'
@@ -123,7 +159,7 @@ def check_linux(root: Path, source: str, version: str, legal: dict, rid: str) ->
         proof = read_json(proof_path)
         require(proof.get('passed') is True and proof.get('completed') is True
                 and proof.get('sourceCommit') == source and proof.get('runtime') == rid
-                and proof.get('manifestSha256') == digest(packages / (rid + '-package-manifest.json')),
+                and proof.get('manifestSha256') == digest(acceptance_manifest),
                 'Linux native scenario binding mismatch: ' + scenario)
         if scenario == 'missing-system-vlc':
             continue
@@ -146,7 +182,10 @@ def check_mac(root: Path, source: str, version: str, legal: dict) -> None:
         workflow_identity(report['workflow'], version, source, rid)
         archive = candidate / 'evidence' / rid / f'MeowChan-{version}-{rid}.zip'
         retained.check_hash(archive, report.get('inventory_zip_sha256'), 'Mac inventory ZIP')
-        require(report['workflow'].get('archiveBinding', {}).get('sha256') == digest(archive),
+        debug_archive = candidate / 'evidence' / rid / 'debug-acceptance' / archive.name
+        retained.check_hash(debug_archive, report.get('debugAcceptance', {}).get('inventory_zip_sha256'), 'Mac Debug acceptance ZIP')
+        require(report.get('acceptanceConfiguration') == 'Debug'
+                and report['workflow'].get('archiveBinding', {}).get('sha256') == digest(debug_archive),
                 'Mac native workflow differs from inventory ZIP')
         check_legal_zip(archive, 'MeowChan.app/Contents/Resources/application/', legal)
         with zipfile.ZipFile(archive) as package:
@@ -212,7 +251,8 @@ def assemble(root: Path, source: str, version: str, source_base: Path, output: P
         require(len(records) == 16, 'Expected 13 desktop/source and three developer package assets')
         inventory = {'schema': f'meowchan.{channel}-candidate.v1', 'channel': channel, 'version': version,
                      'source_commit': source, 'actions_run_id': run_id, 'assets': records,
-                     'scope': 'Current-source CI candidate inventory. No publication or complete R10-12/native user acceptance claim.',
+                     'acceptance_configuration': 'Debug', 'shipping_binary_execution_claim': False,
+                      'scope': 'Release packages plus same-source non-shipping Debug acceptance. Current-source CI candidate inventory. No publication or complete R10-12/native user acceptance claim.',
                      'native_signing': 'macOS ad-hoc; no Developer ID, notarization or Gatekeeper acceptance claim',
                      'source_base': {'file': retained.BASE_NAME, 'bytes': retained.BASE_BYTES, 'sha256': retained.BASE_SHA},
                      'public_api_review': api_review,

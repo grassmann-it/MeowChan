@@ -221,7 +221,7 @@ def run_check(apphost, kind, destination, timeout):
 
 
 def parse_args(argv=None):
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description=__doc__ + '\nRequires a NON-SHIPPING Debug apphost. Use APPHOST --dry-run for a routing-only check.')
     parser.add_argument('apphost', type=Path)
     parser.add_argument('--expected-kind', choices=KINDS, required=True)
     parser.add_argument('--runtime', choices=('linux-x64', 'linux-arm64'), required=True)
@@ -254,8 +254,11 @@ def parse_args(argv=None):
 
 
 def main(argv=None):
+    if workflow.playback.boundary.dry_run(argv, __file__):
+        return 0
     args = parse_args(argv)
     apphost = args.apphost.resolve(strict=True)
+    workflow.playback.boundary.require_debug(apphost, __file__)
     observed_hash = workflow.sha256(apphost)
     if observed_hash != args.expected_apphost_sha256.lower():
         raise ValueError('Supplied apphost does not match its expected SHA256')
@@ -265,7 +268,7 @@ def main(argv=None):
     args.evidence_dir.mkdir(parents=True, exist_ok=False)
     destination = args.evidence_dir.resolve(strict=True)
     reserve(destination)
-    report = {'schemaVersion': 1, 'passed': False, 'completed': False, 'apphost': str(apphost),
+    report = {'acceptanceConfiguration': 'Debug', 'shippingArtifactExecuted': False, 'schemaVersion': 1, 'passed': False, 'completed': False, 'apphost': str(apphost),
               'expectedKind': args.expected_kind, 'expectedApphostSha256': args.expected_apphost_sha256.lower(),
               'observedApphostSha256': observed_hash, 'declaredSourceCommit': args.source_commit.lower(),
               'declaredRuntime': args.runtime, 'observedRuntime': observed_runtime,

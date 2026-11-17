@@ -60,7 +60,7 @@ class PluginWorkflowRunnerTests(unittest.TestCase):
                         if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == 'expected_ids' for target in node.targets))
         self.assertEqual(20, len(expected))
         self.assertEqual(set(expected.values()), runner.PLUGIN_IDS)
-        smoke = (repository / 'Desktop/Shell/MainWindow.ApphostPluginWorkflowSmoke.cs').read_text()
+        smoke = (repository / 'tests/Shared/Apphost/ApphostAcceptanceAssertions.cs').read_text()
         def cs_array(name):
             body = smoke.split(name + ' =', 1)[1].split('{', 1)[1].split('}', 1)[0]
             values = re.findall(r'"([^"\n]+)"', body)
