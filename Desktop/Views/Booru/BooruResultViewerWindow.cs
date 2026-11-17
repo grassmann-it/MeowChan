@@ -66,10 +66,7 @@ internal sealed class BooruResultViewerWindow : Window
         // This host supplies its own Booru chrome, rather than changing shared gallery behavior.
         // A higher-priority presentation value keeps the gallery's own layout refresh from exposing
         // local-file actions on an unsaved provider preview. No controls are detached or reparented.
-        foreach (Control control in _viewer.GetGalleryVisualDescendants().OfType<Control>().Where(control =>
-            control.Name is "GalleryDock" or "GalleryOverlayControls" or "GalleryOverlayInfo" or "GalleryClose"
-                or "GalleryFavoriteIndicator" or "GalleryNativeFavoriteIndicator" or "GalleryControlsEdgeIndicator" or "GalleryPostEdgeIndicator"))
-            control.SetValue(IsVisibleProperty, false, BindingPriority.Animation);
+        _viewer.TemplateApplied += (_, _) => SuppressGalleryChrome();
         _viewer.AddHandler(ContextRequestedEvent, (_, e) => e.Handled = true, RoutingStrategies.Tunnel);
         _viewer.CloseRequested += Close;
         _viewer.MoveRequested += Move;
@@ -91,7 +88,7 @@ internal sealed class BooruResultViewerWindow : Window
         AutomationProperties.SetLiveSetting(_status, AutomationLiveSetting.Polite);
         AutomationProperties.SetLiveSetting(_caption, AutomationLiveSetting.Polite);
         AddHandler(KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel);
-        Opened += (_, _) => { Refresh(); _viewer.Focus(); };
+        Opened += (_, _) => { _viewer.ApplyTemplate(); SuppressGalleryChrome(); Refresh(); _viewer.Focus(); };
         _search.Changed += OnChanged;
         Texts.Changed += OnLanguageChanged;
         Closed += (_, _) =>
@@ -101,6 +98,16 @@ internal sealed class BooruResultViewerWindow : Window
             Texts.Changed -= OnLanguageChanged;
             Cleanup = _viewer.StopAsync();
         };
+    }
+
+    private void SuppressGalleryChrome()
+    {
+        // A UserControl has no visual descendants before its template is applied. Install the
+        // presentation overrides on template admission, not while constructing an unattached host.
+        foreach (Control control in _viewer.GetGalleryVisualDescendants().OfType<Control>().Where(control =>
+            control.Name is "GalleryDock" or "GalleryOverlayControls" or "GalleryOverlayInfo" or "GalleryClose"
+                or "GalleryFavoriteIndicator" or "GalleryNativeFavoriteIndicator" or "GalleryControlsEdgeIndicator" or "GalleryPostEdgeIndicator"))
+            control.SetValue(IsVisibleProperty, false, BindingPriority.Animation);
     }
 
     private void OnChanged() => Dispatcher.UIThread.Post(() => { if (!_ended) Refresh(); });
