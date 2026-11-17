@@ -237,7 +237,7 @@ internal sealed partial class GalleryViewer
     {
         bool was = _pointerInFilmstrip || _filmstripTopHot;
         _pointerInFilmstrip = _filmstripTopHot = false;
-        if (_lastPointerScreen is PixelPoint pixel && !_viewerInteractionStopped)
+        if (HasCurrentGalleryPointer && _lastPointerScreen is PixelPoint pixel && !_viewerInteractionStopped)
         {
             Control surface = _nativeOverlayActive ? _nativeVideoOverlay : _body;
             if (surface.IsAttachedToVisualTree())
