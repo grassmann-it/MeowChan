@@ -2205,6 +2205,7 @@
     "command.reader.close.compact": "Chiudi",
     "command.reader.expand.compact": "Lettore grande",
     "command.scope.reader.expand": "Nell’elenco dei thread: Enter",
+    "command.scope.reader.find": "Con il focus nel lettore",
     "command.gallery.open.compact": "Galleria",
     "command.window.fullscreen.compact": "Schermo intero",
     "command.scope.gallery-open.reader": "Area grande dei post del lettore · thread attuale",

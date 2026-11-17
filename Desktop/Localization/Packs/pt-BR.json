@@ -2205,6 +2205,7 @@
     "command.reader.close.compact": "Fechar",
     "command.reader.expand.compact": "Leitor grande",
     "command.scope.reader.expand": "Na lista de tópicos: Enter",
+    "command.scope.reader.find": "Com o foco no leitor",
     "command.gallery.open.compact": "Galeria",
     "command.window.fullscreen.compact": "Tela cheia",
     "command.scope.gallery-open.reader": "Área grande de postagens do leitor · tópico atual",

@@ -534,6 +534,7 @@ public static class CommandCatalog
             "input.focus-diagnostics-search" => Texts.T("command.scope.input.focus-diagnostics-search"),
             "export.open-all-results-html-dialog" => Texts.T("command.scope.export.open-all-results-html-dialog"),
             "reader.expand" => Texts.T("command.scope.reader.expand"),
+            "reader.find" => Texts.T("command.scope.reader.find"),
             _ when HasGenericScope(id) => Texts.T("command.scope.navigation.generic"),
             _ => null
         };

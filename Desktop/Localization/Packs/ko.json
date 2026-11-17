@@ -2444,6 +2444,7 @@
     "command.reader.close.compact": "닫기",
     "command.reader.expand.compact": "큰 리더",
     "command.scope.reader.expand": "스레드 목록에서: Enter",
+    "command.scope.reader.find": "리더에 포커스가 있을 때",
     "command.gallery.open.compact": "갤러리",
     "command.window.fullscreen.compact": "전체 화면",
     "media.rating.label": "평가",

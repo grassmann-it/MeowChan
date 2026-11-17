@@ -2584,6 +2584,7 @@
     "command.reader.close.compact": "Fermer",
     "command.reader.expand.compact": "Grand lecteur",
     "command.scope.reader.expand": "Dans la liste des fils : Enter",
+    "command.scope.reader.find": "Avec le focus dans le lecteur",
     "command.reader.quick-settings": "Paramètres du lecteur…",
     "quicksettings.reader.title": "Paramètres du lecteur",
     "quicksettings.reader.all": "Tous les paramètres du lecteur",

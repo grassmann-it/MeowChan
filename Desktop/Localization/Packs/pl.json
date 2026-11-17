@@ -2215,6 +2215,7 @@
     "command.reader.close.compact": "Zamknij",
     "command.reader.expand.compact": "Duży czytnik",
     "command.scope.reader.expand": "Na liście wątków: Enter",
+    "command.scope.reader.find": "Gdy fokus jest w czytniku",
     "command.gallery.open.compact": "Galeria",
     "command.window.fullscreen.compact": "Pełny ekran",
     "command.scope.gallery-open.reader": "Duży obszar postów czytnika · bieżący wątek",

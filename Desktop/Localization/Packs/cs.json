@@ -2215,6 +2215,7 @@
     "command.reader.close.compact": "Zavřít",
     "command.reader.expand.compact": "Velká čtečka",
     "command.scope.reader.expand": "V seznamu vláken: Enter",
+    "command.scope.reader.find": "Když je fokus ve čtečce",
     "command.gallery.open.compact": "Galerie",
     "command.window.fullscreen.compact": "Celá obrazovka",
     "command.scope.gallery-open.reader": "Velká oblast příspěvků čtečky · aktuální vlákno",

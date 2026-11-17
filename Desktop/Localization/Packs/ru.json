@@ -2588,6 +2588,7 @@
     "command.reader.close.compact": "Закрыть",
     "command.reader.expand.compact": "Развёрнутая читалка",
     "command.scope.reader.expand": "В списке тредов: Enter",
+    "command.scope.reader.find": "Когда фокус в читалке",
     "command.reader.quick-settings": "Настройки читалки…",
     "quicksettings.reader.title": "Настройки читалки",
     "quicksettings.reader.all": "Все настройки читалки",

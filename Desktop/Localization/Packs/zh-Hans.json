@@ -2444,6 +2444,7 @@
     "command.reader.close.compact": "关闭",
     "command.reader.expand.compact": "大阅读器",
     "command.scope.reader.expand": "在串列表中：Enter",
+    "command.scope.reader.find": "焦点在阅读器内时",
     "command.gallery.open.compact": "图库",
     "command.window.fullscreen.compact": "全屏",
     "media.rating.label": "评分",
