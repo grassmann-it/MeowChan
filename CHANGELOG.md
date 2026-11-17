@@ -9,8 +9,8 @@
   Tiles show favorite, rating, own tags and the video poster, and tags can be edited on
   the tile.
 - Add the Media page's **Media sidebar**: the selected medium is shown large beside the
-  grid, with previous/next arrows for the current selection and the gallery's video keys.
-  It is on by default, can be switched in **Layout** or with Ctrl/Cmd+Shift+M, and hides
+  grid, with the gallery's video keys; it has no previous/next buttons (Up/Down in the grid
+  moves the shown medium). It is on by default, can be switched in **Layout** or with Ctrl/Cmd+Shift+M, and hides
   below a configurable page width without losing the choice. Its width defaults to 360 dip
   (240–900), and the hide threshold to 1000 dip (600–3000).
 - Share one right-click menu across the Media page, Archive table, tiles, inline
@@ -90,10 +90,12 @@
   search or a watcher checks): tag search with restricted previews, single posts, watchers
   that continue below a post id cursor without a page limit, a one-time check of a paused
   watcher, readable errors in all twelve languages, provenance and offline use. It is
-  reachable from the Workspace menu and bundled with the plugin package. Downloaded
+  a main page (**Booru**) that is not in the default footer: open it from **More**, the ⋯ app
+  menu (**Danbooru search and watchers…**), **Media → More → Open Booru** or Ctrl/Cmd+Shift+B. The
+  source is bundled with the plugin package. Downloaded
   Danbooru originals show in the Media page, gallery and favorites; own tags on them are
   not available.
-- Danbooru window: a search shows at most 5 pages of 20 results; every result and watcher
+- Danbooru page: a search shows at most 5 pages of 20 results; every result and watcher
   card offers **Open post in browser** and **Copy link**; a **Danbooru watcher**
   notification reports originals that a check added to the download queue; the detail
   dialog copies source tags and uses up to two of them as a search; pending originals
@@ -101,7 +103,7 @@
   date and original file as facts with the same rating and tag-category names as the detail
   dialog, and every source tag is a button that adds it to the search (up to two; nothing is
   requested until you press Search). Several Danbooru search addresses in one Add input open the
-  window with the last one and report the unused ones once; words after a space stay part of
+  Booru page with the last one and report the unused ones once; words after a space stay part of
   an address; a dropped board name such as `/g/` counts as a link, not as a file. Any text
   that mentions a Danbooru host is redacted from logs and feedback context.
 - Add the settings **Danbooru catalog limit (MiB)** (default 32, 8 to 128), **Own tag
@@ -159,12 +161,15 @@
 - Return focus to the export button or **More** after closing export, scroll the settings
   validation error into view in small windows, and keep secondary windows at normal size
   after a title-bar restore on Linux/X11.
-- Rework the default keyboard shortcuts. **Media** is **Ctrl/Cmd+3** in footer order, with
-  **Rules 4**, **Sources 5**, **Plugins 6** and **Diagnostics 7**, then **Statistics 8**; footer,
-  menus and the F1 help list the pages in the same order. New defaults: **Ctrl+T** thread tags, **Ctrl+Shift+T** media tags, **Ctrl+D** thread favorite,
+- Rework the default keyboard shortcuts. **Downloads, Archive, Media and Tagging** are
+  **Ctrl/Cmd+1 to 4**; the other page digits follow the footer buttons of your work view (default
+  footer, Booru hidden: Simple has **Status 5, Rules 6, Plugins 7, Booru 8**, Barebones and
+  Advanced **Rules 5, Plugins 6, Status 7, Booru 8**), and every page has a fixed
+  **Ctrl/Cmd+Shift+letter** (D, A, E, K, U, X, S, B). The Help has one table for them; the footer,
+  More and the F1 help list the pages in the same order. New defaults: **Ctrl+T** thread tags, **Ctrl+Shift+T** media tags, **Ctrl+D** thread favorite,
   **Ctrl+Shift+F** filters (also for board filters, which moved from Ctrl+Shift+R), **F3** and
   **Ctrl+G** for find next and **Shift+F3** and **Ctrl+Shift+G** for find previous in the large Reader,
-  **S** slideshow, **I** details, **R** rating, **Ctrl+E** export original and **Ctrl+O** show in folder
+  **D** slideshow, **I** details, **R** rating, **Ctrl+E** export original and **Ctrl+O** show in folder
   in the gallery and Media page, **Ctrl+A** select all media, the Menu key for the context menu, one
   **Alt+Left** Back and one **Alt+PageUp/PageDown** page gesture for the commands that never apply
   together. macOS gets its own defaults (Cmd for Ctrl, no Fn-only keys, Cmd+Delete, Cmd+Left, Option+Cmd+R
@@ -172,6 +177,14 @@
   Keyboard shortcuts** can turn the single-character shortcuts off. Saved shortcuts are never changed:
   a new default yields to a saved binding of another command instead of silencing it, and the startup
   warning appears only for bindings that are really blocked.
+- Use one set of keys and pointer rules across the gallery, the reader and its media sidebar,
+  the Archive's media and the Media page: **M** adds a favorite, **U** removes it and **F** toggles
+  it (the gallery asks before **F** removes a saved favorite), **Shift+M** mutes a video,
+  **D** starts the slideshow and **Shift+P** (was **P**) toggles the post context; **Ctrl+Shift+R**
+  is now **Continue reading**. A double-click on an item opens it (a thread opens the reader; an
+  Archive media row or tile, a Media page tile and the picture of a media sidebar open the
+  gallery at that item); a double-click on the picture inside the gallery switches Fit and 1:1;
+  window fullscreen is only F11 or the explicit fullscreen button or menu action.
 - Speed up large collections: the saved media index loads in the background with a status
   instead of freezing the window, is written only when it changed, and unchanged threads and
   imported batches are reused without opening their manifests; the own tag store and the import catalog are
@@ -233,7 +246,7 @@
   failed write in its tooltip; the board wizard shows one count line per board; Diagnostics turns
   off watch actions for a removed result; the Plugins page header moves under the title in narrow
   windows and a failed plugin step shows a sentence with the next step; the URL-format example for
-  a mistyped link uses a neutral 4chan address; the German texts say Strg and Umschalt in shortcuts,
+  a mistyped link uses a neutral 4chan address; the German tooltips and F1 window say Strg and Umschalt in shortcuts,
   "experimentell" and "Anker"; the empty Downloads boards state offers the clipboard import; saved
   searches, the date field (which shows its pattern in your language) and the SHA-256 search
   explain themselves in plain words; the cleanup, board admission, filename search, import and
@@ -254,7 +267,7 @@
   and keeps its place when you return while the list is still being filled, post lookup in an
   archived thread uses a cached index, and a verified file is remembered by its full file identity,
   so a swapped file of the same size and date is checked again.
-- Add a **Statistics** page (**Ctrl/Cmd+8**) that counts the network and disk traffic of
+- Add a **Statistics** view (a segment of the **Status** page, opened with the Status shortcut) that counts the network and disk traffic of
   MeowChan's own media: a history graph, a table per source (network now, this session, today
   and the kept days, disk read and written, requests, errors) and a **Reset** that asks first.
   Network counts the response data MeowChan receives and, as upload, the request payload that the
@@ -397,13 +410,14 @@
   again, in the muted italic style between the brand and the header graph, translated in all 12
   languages. It disappears when its column is narrower than 200 dip and never pushes the graph or
   the window controls.
-- Group the footer into work, set-up and observe pages: **Downloads, Archive, Media**, then
-  **Rules, Sources, Plugins**, then **Diagnostics, Statistics**, then **More** and **Settings**,
-  with a separator only between two groups that both show a button. The former **Tools** menu is
-  **More** in all 12 languages, and the header menu lists every page, Downloads included. Sources
-  and Plugins stay separate pages that point at each other: the Sources detail offers **Show
-  plugin**, Plugins offers **Show in Sources**, and both page headers say what the page is for
-  and where the other half lives.
+- Group the footer into work, set-up and observe pages: **Downloads, Archive, Media, Tagging**
+  (and **Booru**, which the default footer hides), then **Rules, Plugins**, then **Status**,
+  then **More** and **Settings**, with a separator only between two groups that both show a
+  button. The former **Tools** menu is **More** in all 12 languages; the ⋯ app menu no longer lists
+  the pages, and Settings → **Interface → Footer** chooses, hides and orders the footer pages
+  (and holds **Show Booru actions**). The former Sources and Plugins pages are one page, **Plugins**,
+  with a selector for sources, image filters and all plugins; Diagnostics and Statistics are
+  segments of one **Status** page.
 - Make the work views reduce each page for real. **Barebones**, **Simple** and **Advanced** decide
   which tools stay on a page and which sit under a page-local **More** (⋯) button, with their
   label, shortcut and disabled reason; the shortcut of a tool under More keeps working. Data,
@@ -527,7 +541,7 @@
   **Random** returns to **By thread** on the next start.
 - Complete quick tagging across the gallery and the other media surfaces. **Tags** in the
   gallery (also **Ctrl/Cmd+Shift+T**) opens a quick tag panel in the slot of the post panel instead
-  of the tag dialog; the two panels exclude each other (**P** returns to the post panel) and the
+  of the tag dialog; the two panels exclude each other (**Shift+P** returns to the post panel) and the
   placement rules of the post panel apply. The panel follows the gallery from medium to medium with
   a fresh target frozen to exactly the shown file ("Medium 4 of 27", announced politely), keeps its
   undo steps and the text of the field, and says why a medium cannot be tagged instead of keeping
