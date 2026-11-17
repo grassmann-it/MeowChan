@@ -802,6 +802,10 @@ public partial class ArchivePage
             _readerNavigationIdleTimer = new DispatcherTimer();
             _readerNavigationIdleTimer.Tick += (_, _) => OnReaderNavigationIdleTick();
         }
+        // A tab/layout update can hide the capsule while activity is still valid.
+        // Pointer/keyboard activity is an explicit request to show it again; do not
+        // leave the overlay collapsed until a later layout pass happens to restore it.
+        if (!ReaderNavigation.IsVisible) ReaderNavigation.IsVisible = true;
         // Keep a changed delay effective even when the existing timer is already running.
         // This matters for settings/smoke transitions that re-arm Auto without recreating it.
         _readerNavigationIdleTimer.Interval = TimeSpan.FromMilliseconds(_readerNavigationIdleDelayMs);
