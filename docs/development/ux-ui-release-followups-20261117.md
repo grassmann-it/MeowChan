@@ -4,32 +4,41 @@ This is the short backlog for issues found while dogfooding the release candidat
 kept here even when a focused fix lands, so the next visual review can check the whole class
 rather than only one screen.
 
-## UX-LEDGER 01–07 implementation status — 17 November 2026
+## Merged implementation status — 17 November 2026
 
-The seven follow-up PRs are listed below. Their linked descriptions and diffs record
-implementation and validation scope; a PR link is not a release-acceptance verdict.
+Truth-sync base: `f48ccf8b1` on `origin/goal/gesamtprogramm-profile-a`. The merged
+first-parent diffs and test sources establish the delivered scopes below, not a fresh
+test run or release-acceptance verdict. Earlier validation counts are historical only.
+Ledger IDs were reused across work streams; use the scope and PR/commit together.
 The earlier review lists below remain historical snapshots. This section supersedes
 only the specific behavior covered here, not the remaining backlog or release gates.
 
 | Ledger ID | Implementation PR | Delivered scope |
 | --- | --- | --- |
 | UX-LEDGER-01 | [#20](https://github.com/grassmann-it/MeowChan/pull/20) | Shared toolbar end docking and spacing, compact Archive List/Table controls, empty-overflow suppression |
-| UX-LEDGER-02 | [#19](https://github.com/grassmann-it/MeowChan/pull/19) | Settings search/More aligned to the content column; wrapping help links and no horizontal help/tooltip scrolling |
+| UX-LEDGER-02 | [#19](https://github.com/grassmann-it/MeowChan/pull/19), [#24](https://github.com/grassmann-it/MeowChan/pull/24) (`8187f6a16`) | Wrapping help links and no horizontal help/tooltip scrolling; #24 places search and More in the actual shared content column above the scrolling form, replacing #19's separate header grid |
 | UX-LEDGER-03 | [#17](https://github.com/grassmann-it/MeowChan/pull/17) | Persistent reader-toolbar Media sidebar On/Off toggle; stable header/full-height layout; unchanged default scope |
 | UX-LEDGER-04 | [#14](https://github.com/grassmann-it/MeowChan/pull/14) | Activity/status/name plugin-card order, ten-second activity hold, uniform effective Sources/Filters/Running/Files footer including inactive zeros |
 | UX-LEDGER-05 | [#16](https://github.com/grassmann-it/MeowChan/pull/16) | Booru preview viewer, current-page navigation and shared per-image selection, explicit displayed-original download |
-| UX-LEDGER-06 | [#18](https://github.com/grassmann-it/MeowChan/pull/18) | Downloads/Archive/Media pointer-target selection and focus; Media sidebar preview-only single-click; interaction guards with explicit protected-scope skips |
+| UX-LEDGER-06 | [#18](https://github.com/grassmann-it/MeowChan/pull/18) | Downloads/Archive/Media pointer-target selection and focus; Media sidebar preview-only single-click; source/wiring contracts (remaining skips tracked below) |
 | UX-LEDGER-07 (CI-LEDGER-07) | [#15](https://github.com/grassmann-it/MeowChan/pull/15) | Independent smoke modes continue after failures; aggregate jobs and summaries retain failures and unsafe-cleanup/interruption blocking; no product behavior changes |
-| UX-LEDGER-08 | `d00eb27f9`, `3c946ef77` | Continue Reading is reachable over Gallery and opening a thread restores its valid saved post/anchor, with deterministic first-visible fallback; targeted Shell/Reader entry tests pass |
+| UX-LEDGER-08 | `d00eb27f9`, `3c946ef77` | Continue Reading is reachable over Gallery and opening a thread restores its valid saved post/anchor, with deterministic first-visible fallback; Shell/Reader entry coverage added |
 | UX-LEDGER-09 | `f4378faa3` | Header network/disk statistics activation closes Gallery/large Reader before opening Statistics; contract coverage added |
 | UX-LEDGER-10 | `d00eb27f9` | Continue Reading remains enabled and usable while Gallery/large Reader covers the workspace; Gallery closes before resume is applied |
-| UX-LEDGER-11 | `740d0d565` | Media selection context targets, multi-selection shortcut feedback/rating, hand-cursor click contract, and 1099/1100 selection-line fitting; local targeted tests pass, native GUI validation pending |
+| UX-LEDGER-11 | `740d0d565` | Media selection context targets, multi-selection shortcut feedback/rating, hand-cursor click contract, and 1099/1100 selection-line fitting; test coverage present; native GUI validation pending |
+
+| Rating-row favorite layout | [#22](https://github.com/grassmann-it/MeowChan/pull/22) (`603125d76`) | Favorite spans the five-star row width (excluding the clear gutter), with a larger glyph/hit area and caption below; shared Gallery/Rate and tag control |
+| Tagging selection revisit (also called UX-LEDGER-08) | [#23](https://github.com/grassmann-it/MeowChan/pull/23) (`7a313b2e0`, `9a80fc07f`) | Adds twenty list/grid single/multi-selection revisit cycles plus work-view, scope, group, filter and clear checks in `TaggingPageChecks.cs`; retains the inherited clear-before-bind fix, not a new product fix or right-click closeout |
+| UX-LEDGER-14 medium counter | [#25](https://github.com/grassmann-it/MeowChan/pull/25) (`21c0d5cb7`), [#27](https://github.com/grassmann-it/MeowChan/pull/27) (`7ffeab1ce`) | Moves the same live counter beside Post/Tags; adds localized text, accessible-name and polite-live-region assertions before and after navigation in `GalleryMediaTagChecks.cs` |
+| Focus-click closeout | [#26](https://github.com/grassmann-it/MeowChan/pull/26) (`f159827dd`); `cde745dfc` | Enables/fixes Reader single-click and Gallery viewport focus ordering; later Media fix restores inline target selection/focus before pointer/keyboard menus. FC-02 and FC-04 remain skipped, not closed |
+| Autocomplete click acceptance (also called UX-LEDGER-11) | [#28](https://github.com/grassmann-it/MeowChan/pull/28) (`bb4c131ca`), [#30](https://github.com/grassmann-it/MeowChan/pull/30) (`b849f94fd`) | Restricts quick-tag pointer focus repair to editor visuals so captured popup clicks commit the chosen suggestion; adds `TagAutocompleteCommitChecks.cs` and editor-only focus-repair assertions in `QuickTagSurfaceTests.cs` |
+| Help/changelog | [#21](https://github.com/grassmann-it/MeowChan/pull/21) (`0198ed884`) | User instructions and release notes for toolbar, Settings/help, Reader sidebar, plugin cards, Booru preview and click contracts; later merged changes need the follow-up documentation sync |
 
 The gallery behavior audited by UX-LEDGER-06 is **double-click toggles window
 fullscreen**, not the older Fit/1:1 description below; **0** selects Fit and **1**
 selects 1:1. Its right-click selection/focus fixes cover Downloads, Archive and
-Media, not the protected Reader activation, Tagging selection or Gallery context
-implementations. The Booru viewer operates on already-fetched previews on the current
+Media. #26 subsequently fixes Reader activation and Gallery viewport focus;
+Tagging right-click and Gallery filmstrip targeting remain open below. The Booru viewer operates on already-fetched previews on the current
 result page: selecting or browsing never downloads originals, and its download
 command targets only the displayed post. This does not close the whole earlier
 Booru pipeline backlog.
@@ -38,14 +47,14 @@ User-facing instructions are in [Help](../Help.md#selection-and-shortcuts),
 [reader sidebar help](../Help.md#reader-media-sidebar-and-inline-video),
 [Booru viewer help](../Help.md#browse-result-previews) and the
 [German Booru guide](../user-guide/danbooru.md#treffer-in-der-vorschau-durchsehen).
-The documentation follow-up is intended to merge after all seven implementation PRs.
+The original documentation follow-up merged as #21 after the seven implementation PRs.
 Full all-platform release acceptance remains a separate gate; CI orchestration
 hardening does not itself establish a green sweep.
 
 ## Focus-click contract skip closeout
 
-Audit base: `740d0d565b9c68a0db90c579d6df45a27dbd3823` (the requested
-`origin/goal/gesamtprogramm-profile-a` at worktree creation). This section supersedes
+Original audit base: `740d0d565b9c68a0db90c579d6df45a27dbd3823`; current
+status checked against `f48ccf8b1`. #26 closed two skips, **not all four**. This section supersedes
 the protected-scope status above for the four skipped declarations in
 `tests/MeowChan.DesktopTests/FocusClickContractTests.cs`. These are source/wiring
 contracts, **not native pointer acceptance**. Skipped remains blocked, not passing.
@@ -53,11 +62,11 @@ contracts, **not native pointer acceptance**. Skipped remains blocked, not passi
 | Follow-up | Contract / verdict | Evidence and ownership |
 | --- | --- | --- |
 | FC-01 — Reader-Media-Activation | **Enabled, fixed:** sidebar single-click must not open Gallery for any Reader preference. | With the skip removed, `ReaderSidebarSingleClickMustNotOpenGalleryForAnyReaderPreference` failed because `ArchivePage.InlineVideo.cs:OnMediaSidebarPictureActivated` called `OpenMediaSidebarMedia()` for the Gallery preference. Removed that branch; offered inline video still toggles, and `ArchivePage.MediaSidebar.cs` still wires `GalleryRequested` to the explicit Gallery open. Cursor now reflects only inline-video activation. Reader owner: native single/double-click, video and Open-button recheck remains required. |
-| FC-02 — TaggingPage-Selection | **Blocked on the concurrent UX-LEDGER-08 tagging-selection PR**, not fixed here. | Both `Commands/_list` and `Grid/_grid` cases fail the required `AddHandler(PointerPressedEvent, OnContextPointerPressed...)` assertion. `TaggingPage.Commands.cs:InitializeCommands` and `TaggingPage.Grid.cs` construct `ContextMenuHost(..., ComposeRowMenu, ...)` without a page-local right-click target/focus handler; `ComposeRowMenu` uses `Lead` and `Selected` via `CommandContext()`. No files under `Desktop/Views/Tagging/` were changed. The selection-count fix alone is not evidence of right-click correctness: the Tagging owner must select an outside target, preserve an inside multi-selection, focus its container, then compose, in both views, and remove this skip after validation. The concurrent PR was not yet published/discoverable during this audit (worker branch `ux/ledger-08-tagging-selection-revisit-20261117b`); attach its PR link when available. |
+| FC-02 — TaggingPage-Selection | **Open / still skipped**, despite merged #23. | `TaggingRightClickMustSelectAndFocusTargetBeforeComposingMenu` remains a skipped two-case theory in `FocusClickContractTests.cs`. [#23](https://github.com/grassmann-it/MeowChan/pull/23) adds lifecycle coverage only; its diff changes no Tagging implementation or focus-click skip. The required page-local target/focus wiring is not established. Selection revisit success does not prove right-click correctness; select an outside target, preserve an inside multi-selection and focus before composing in both views, then enable/validate this contract. |
 | FC-03 — Gallery-Context-Core / viewport | **Enabled, fixed:** reclaim surface focus before opening the menu. | `GalleryViewportRightClickMustFocusSurfaceBeforeOpeningMenu` failed its ordering assertion: `GalleryViewer.MediaMenu.cs:OnMediaContextRequested` went straight to `ShowMediaMenu()`. It now calls `FocusGallerySurface()` first, after the existing handled/entry/native-text guards, so the presenter captures surface return focus rather than unrelated toolbar focus. Gallery owner: native image/video and menu-dismissal focus acceptance still required. |
 | FC-04 — Gallery-Context-Core / filmstrip | **Blocked:** right-click must select/navigate to the target, not merely retarget its menu. | `GalleryFilmstripRightClickMustSelectTargetNotOnlyRetargetTheMenu` fails: `GalleryViewer.Filmstrip.cs:OnFilmstripTileContextRequested` calls `ShowMediaMenu(entry)` for an unselected tile, never `OnFilmstripTileActivated(index)`. Activation raises `MoveRequested`; `Desktop/Shell/MainWindow.Gallery.cs` starts asynchronous `MoveGalleryAsync`. `GalleryViewer.cs:ShowMediaAsync` changes `_navigationId` and calls `InvalidateMediaMenu()`, while `ShowMediaMenu` binds validity to that navigation ID. Merely adding the activation call can immediately invalidate the menu or open it before the new medium is committed. Gallery context/navigation owner must arrange a completion-bound target menu, cancel stale requests on rapid navigation/close/failure, preserve current-tile behavior and reject non-media/more tiles; then remove the skip and add navigation/menu-lifetime coverage. |
 
-### Validation of this closeout
+### Historical validation of #26 (not rerun for this truth-sync)
 
 - An isolated run of the two newly enabled tests completed: **2 passed / 0 failed /
   0 skipped**. `git diff --check` also passed.
@@ -71,12 +80,14 @@ contracts, **not native pointer acceptance**. Skipped remains blocked, not passi
   **78 passed / 2 failed / 2 skipped, 82 total**. The newly enabled Reader and Gallery
   viewport tests pass; both remaining skip declarations have explicit blockers above
   (xUnit reports the skipped theory as one result, not its two data cases).
-- The two failures are the already-enabled
+- At that audit base, the two failures were the already-enabled
   `MediaRightClickPreservesOnlyASelectionContainingTheTargetAndFocusesBeforeMenu`
   cases. They reproduce before these fixes: the base moved selection into
   `MediaPage.cs:TargetForMenu` and no longer contains the asserted inline
   selection/focus sequence. Media owner must reconcile the helper and the focus
-  contract; no Media implementation or assertions were changed to mask this failure.
+  contract. **Subsequently delivered:** `cde745dfc` adds the asserted inline
+  selection/focus sequence before Media pointer and keyboard menus. The old failures
+  are not a current-head verdict; no fresh run is claimed here.
 - Full affected project command:
   `dotnet test tests/MeowChan.DesktopTests/MeowChan.DesktopTests.csproj --no-restore -m:1 --blame-hang-timeout 3m`.
   The runner did not finish within the outer **600-second limit** and was terminated;
@@ -135,8 +146,9 @@ contracts, **not native pointer acceptance**. Skipped remains blocked, not passi
   `or`, `not`, tag/title/source fields, and a compact combined search interface.
 - **Header View menu icon:** the View/work-view menu entry should carry the same eye icon as
   `workspace.view-cycle`, so the menu is scannable and consistent with the header affordance.
-- **Settings search alignment:** the settings search field should align with the content column
-  (same left/right edges as the Interface section), not float narrower in the header.
+- **Settings search alignment — delivered #24 (`8187f6a16`), following #19:** search and
+  the three-dot More menu now share the actual content column above the form. Native
+  width/language acceptance remains in the GUI sweep, not an unimplemented layout item.
 - **Inner-gallery video overlay/focus class:** verify overlay auto-hide/show, hover and pointer
   re-entry, focus loss/return, Escape, fullscreen/fit, play/pause continuity, duration/buffering
   states, and reader/gallery/favorite/rating/tagging shortcuts while a video is focused. A focus
@@ -147,14 +159,16 @@ contracts, **not native pointer acceptance**. Skipped remains blocked, not passi
   sidebars, and dialogs. Single-click selects, double-click opens only where intended, and
   right-click preserves the target selection; differences must be intentional and localized.
   Current gallery contract: double-clicking an archive/media item opens the gallery; double-clicking
-  the already-open gallery surface toggles Fit/1:1 (including video), while F11/the explicit
-  fullscreen command changes window fullscreen. Do not silently conflate zoom and window fullscreen;
-  if dogfooding prefers double-click-to-fullscreen, evaluate it as an explicit design change with a
-  replacement gesture for Fit/1:1.
-- **Tag autocomplete acceptance (breaking):** pressing Enter on a single matching suggestion must
-  accept the complete value (not commit only the typed prefix); with multiple entries, completion
-  must replace only the current word and preserve earlier tags. Existing tags with spaces require
-  quoted completion and must remain parseable alongside other tags.
+  the already-open gallery surface toggles window fullscreen (including video), as guarded
+  by `GalleryImageAndVideoDoubleClickRequestFullscreenWithoutChangingFitOrZoom`.
+  F11/the explicit fullscreen command also change window fullscreen; **0** selects Fit
+  and **1** selects 1:1. The broader surface-by-surface activation sweep remains open.
+- **Tag autocomplete acceptance — implementation and coverage delivered:** the earlier Enter
+  fix is recorded below; #28 (`bb4c131ca`) fixes clicked suggestions being lost during
+  focus reclaim and #30 (`b849f94fd`) guards editor-only repair. The new smoke covers
+  click/highlight-click/Enter, middle/quoted tokens, Tab then Enter, comma behavior and
+  a composition guard. Native Windows/macOS and real IME acceptance remain open: the
+  smoke uses Linux XTest clicks, routed keys and simulated preedit, not that certification.
 - **Video transport focus ownership:** mouse-clicking mute/loop/speed/transport buttons must not
   strand the next gallery shortcut on the clicked toggle; keyboard Tab/Enter activation remains
   native and accessible. Recheck Enter/Space playback immediately after mouse transport actions.
@@ -221,10 +235,15 @@ in order of appearance. Review reports, screenshots and runtime evidence stay ou
 ### Open
 
 - **UX-LEDGER-11 native validation:** implementation is now on the release branch in
-  `740d0d565` and 83 targeted Desktop tests pass locally. The Ubuntu GUI sweep and native
+  `740d0d565`; its 83-test claim is a prior hand-over report, not revalidated here.
+  `cde745dfc` subsequently restores Media menu focus ordering. The Ubuntu GUI sweep and native
   1099/1100 evidence still have to pass before this item is fully closed.
 - **O2-04** `OpenLargeReader` detaches before wrapping; any throw leaves the page half-detached.
 - Smokes red at hand-over: `settings-category` ("accessible category selection disagrees with
   page"), `quick-tag-native-typing` (one repeat under load), `reader-ux` (auto-hide; upstream
   fixes merged, not rerun). `private-tags` fails at an old thread-menu check.
-- Release gate: no complete all-platform CI run exists for the current head.
+- Release gate: no complete all-platform CI result was verified in this diff/test-source
+  audit. #15 hardens orchestration but cannot establish a green current-head release sweep.
+- Historical review claims and red smoke reports above are retained as hand-over evidence,
+  not fresh verdicts. Unchanged native routing, loading, Booru pipeline, video/focus and
+  `O2-04` follow-ups remain open where no closing diff/test evidence was verified.
