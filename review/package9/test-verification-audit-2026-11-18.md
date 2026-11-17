@@ -150,3 +150,31 @@ Erlaubt sind nur:
 
 Nicht geändert werden: `tests/MeowChan.DesktopSmoke/`, `.github/workflows/`, Baselines,
 Lockfiles, Build-Infra und Produktcode. Kein Merge, kein Release- oder Plattformclaim.
+
+## Final canonical-set retest — 18 November 2026
+
+After all 20 worker lanes completed, the canonical current package PR set was rechecked
+against `origin/goal/gesamtprogramm-profile-a` at `866ad8ea2`:
+
+```text
+Package 1: #90 #91 #97
+Package 2: #93 #86
+Package 3: #76 #81
+Package 4: #87 #95 #88
+Package 5: #89 #92
+Package 6: #94 #84 #80 #96
+Package 7: #78 #82 #85
+Package 8: #79
+Package 9: #83
+```
+
+The local central preflight found all 20 worker worktrees clean, all worker diffs free of
+the forbidden DesktopSmoke/workflow/baseline/lockfile/build-infrastructure paths, and all
+current PRs reported GitHub merge state `CLEAN`. A targeted CI retest was then attempted
+with `gh pr checks` for PRs #86–#97 and #79. Every query returned **`no checks reported`**;
+there is therefore no green CI receipt to claim. Duplicate historical Package-6A and
+Package-9 PRs (#71/#73 and #72/#74) remain open and must be canonicalized separately.
+
+**Final verification outcome:** audit artifacts and local package evidence are complete;
+native/platform acceptance and PR-bound CI acceptance remain open. This is a gate record,
+not a merge or release approval.
