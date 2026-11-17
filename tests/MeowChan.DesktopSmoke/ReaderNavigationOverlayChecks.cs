@@ -237,10 +237,9 @@ internal static class ReaderNavigationOverlayChecks
                 // Disabled edge buttons are not keyboard focus targets; focus the capsule itself for the
                 // keep-visible contract so the assertion does not depend on which edge is selected.
                 // WrapPanel is a layout container and is not a reliable keyboard focus target
-                // on every Avalonia backend. Focus the explicit hit surface instead; focus within
-                // this child still satisfies the bar's IsKeyboardFocusWithin contract.
-                Border focusSurface = page.FindControl<Border>("ReaderNavigationHitSurface")!;
-                focusSurface.Focusable = true;
+                // on every Avalonia backend. Focus the explicitly focusable capsule instead;
+                // focus within this child satisfies the bar's IsKeyboardFocusWithin contract.
+                Border focusSurface = page.FindControl<Border>("ReaderNavigationBar")!;
                 Require(focusSurface.Focus(), "Reader navigation focus could not be assigned.");
                 Require(page.ReaderNavigationShown && bar.Opacity == 1 && bar.IsHitTestVisible,
                     "Keyboard focus did not reveal the reader navigation capsule.");
