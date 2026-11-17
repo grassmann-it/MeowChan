@@ -14,8 +14,8 @@ internal static class ShutdownOrderingChecks
 {
     internal static async Task RunAsync(MainWindow window)
     {
-        DownloadSessionSmokeApp fixture = Application.Current as DownloadSessionSmokeApp
-            ?? throw new InvalidOperationException("Shutdown ordering needs the offline download application.");
+        DownloadSessionSmokeApp fixture = DownloadSessionSmokeApp.Fixture
+            ?? throw new InvalidOperationException("Shutdown ordering needs the offline download fixture.");
         TimeSpan deadline = TimeSpan.FromSeconds(15);
         TaskCompletionSource releaseCleanup = new(TaskCreationOptions.RunContinuationsAsynchronously);
         TaskCompletionSource closed = new(TaskCreationOptions.RunContinuationsAsynchronously);

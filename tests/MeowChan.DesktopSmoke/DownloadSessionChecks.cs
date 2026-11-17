@@ -23,6 +23,7 @@ namespace MeowChan.DesktopSmoke;
 /// <summary>The normal application with a caller-owned offline transport, selected only by the smoke executable.</summary>
 internal sealed class DownloadSessionSmokeApp : App
 {
+    internal static DownloadSessionSmokeApp? Fixture { get; private set; }
     private readonly HttpClient _client;
     internal DownloadSessionTransport Transport { get; } = new DownloadSessionTransport();
 
@@ -36,6 +37,18 @@ internal sealed class DownloadSessionSmokeApp : App
     }
 
     internal MainWindow CreateRestoredWindow() => CreateMainWindow();
+    internal MainWindow CreateFixtureWindow() => CreateMainWindow();
+    internal static void Install()
+    {
+        Fixture = new DownloadSessionSmokeApp();
+        App.SmokeMainWindowFactory = Fixture.CreateFixtureWindow;
+    }
+    internal static void Uninstall()
+    {
+        Fixture?.DisposeFixture();
+        Fixture = null;
+        App.SmokeMainWindowFactory = null;
+    }
     internal void DisposeFixture()
     {
         Transport.AllowMedia();
@@ -49,8 +62,8 @@ internal static class DownloadSessionChecks
 
     internal static async Task RunAsync(MainWindow initial, IClassicDesktopStyleApplicationLifetime desktop)
     {
-        DownloadSessionSmokeApp app = Application.Current as DownloadSessionSmokeApp
-            ?? throw new InvalidOperationException("The offline download fixture application was not selected.");
+        DownloadSessionSmokeApp app = DownloadSessionSmokeApp.Fixture
+            ?? throw new InvalidOperationException("The offline download fixture was not installed.");
         MainWindow current = initial;
         int geometryChanges = 0;
         void TraceGeometryChange(object? sender, AvaloniaPropertyChangedEventArgs change)

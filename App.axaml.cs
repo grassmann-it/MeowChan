@@ -3,7 +3,6 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
-using Avalonia.Styling;
 using Semi.Avalonia;
 using Ursa.Themes.Semi;
 using MeowChan.Desktop;
@@ -17,46 +16,21 @@ namespace MeowChan;
 
 public partial class App : Application
 {
+    // Test-only injection point used by the source-built offline session fixture. Keeping the
+    // actual Application type as App preserves the compiled App.axaml loader.
+    internal static Func<MainWindow>? SmokeMainWindowFactory { get; set; }
+
     public override void Initialize()
     {
         LinuxVideoPreflight.Begin();
         using (MeowChan.Diagnostics.PerformanceDiagnostics.Measure("startup.app.harfbuzz")) LinuxHarfBuzzBootstrap.EnsureLoaded();
-        using (MeowChan.Diagnostics.PerformanceDiagnostics.Measure("startup.app.xaml")) LoadApplicationXaml();
+        using (MeowChan.Diagnostics.PerformanceDiagnostics.Measure("startup.app.xaml")) AvaloniaXamlLoader.Load(this);
         // TH1: the theme dictionaries come from the runtime palette (no overrides yet, so exactly the XAML colours).
         using (MeowChan.Diagnostics.PerformanceDiagnostics.Measure("startup.app.theme-palette")) MeowChan.Desktop.Theming.ThemeRuntime.Install(this);
         MeowChan.Desktop.Controls.HeadingLevels.Install(Styles);
         ThemeLogo.FollowAllWindows();
         ApplyControlLanguage();
         Texts.Changed += OnLanguageChanged;
-    }
-
-    // Avalonia resolves compiled XAML by the concrete runtime type. Smoke fixtures derive from App to
-    // inject offline sessions, so loading `this` there would look for a nonexistent fixture XAML class.
-    // Load the production resource through an exact App instance and transfer its application styles.
-    private void LoadApplicationXaml()
-    {
-        if (GetType() == typeof(App))
-        {
-            try
-            {
-                AvaloniaXamlLoader.Load(this);
-                return;
-            }
-            catch (Avalonia.Markup.Xaml.XamlLoadException)
-            {
-                // A source-built smoke harness can be invoked from an output graph where the
-                // referenced application's compiled-loader metadata was not copied. Fall back to
-                // the embedded resource instead of starting with an unstyled application.
-            }
-        }
-
-        App template = (App)AvaloniaXamlLoader.Load(
-            new Uri("avares://MeowChan/App.axaml"), new Uri("avares://MeowChan/"));
-        RequestedThemeVariant = template.RequestedThemeVariant;
-        foreach (IStyle style in template.Styles)
-            Styles.Add(style);
-        foreach (var resource in template.Resources)
-            Resources[resource.Key] = resource.Value;
     }
 
     private void OnLanguageChanged(object? sender, EventArgs args)
@@ -92,12 +66,16 @@ public partial class App : Application
     internal static string VendorLocale(string language, (string Language, string Locale)[] locales) =>
         locales.FirstOrDefault(entry => entry.Language == language).Locale ?? "en-US";
 
-    protected virtual MainWindow CreateMainWindow() => Program.StartupSmoke?.IntegrityProcess is ApphostIntegrityProcessSmoke policy
+    protected virtual MainWindow CreateMainWindow()
+    {
+        if (SmokeMainWindowFactory is { } factory) return factory();
+        return Program.StartupSmoke?.IntegrityProcess is ApphostIntegrityProcessSmoke policy
         ? new MainWindow(policy.CreateSession())
         : Program.StartupSmoke?.Workflow is ApphostWorkflowSmoke workflow
         ? new MainWindow(workflow.CreateSession())
         : Program.StartupSmoke?.PluginWorkflow is ApphostPluginWorkflowSmoke plugins
         ? new MainWindow(plugins.CreateSession()) : new MainWindow();
+    }
 
     public override void OnFrameworkInitializationCompleted()
     {

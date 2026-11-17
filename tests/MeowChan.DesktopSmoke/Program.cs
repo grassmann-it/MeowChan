@@ -247,8 +247,8 @@ internal static class Program
             using ProfileLease? conflictingLease = _lockedProfileMode && !_damagedSettingsCause ? ProfileLease.Acquire(profile) : null;
             Avalonia.Logging.Logger.Sink = sink;
             Console.WriteLine("SMOKE isolated profile: " + profile);
+            if (_downloadSessionMode) DownloadSessionSmokeApp.Install();
             AppBuilder appBuilder = (_run?.App != null ? _run.App()
-                : _downloadSessionMode ? AppBuilder.Configure<DownloadSessionSmokeApp>()
                 : _shellLoadMode ? AppBuilder.Configure<ShellLoadSmokeApp>()
                 : _visualMode ? AppBuilder.Configure<ShowcaseSmokeApp>() : AppBuilder.Configure<App>())
                 .UsePlatformDetect()
@@ -317,8 +317,7 @@ internal static class Program
         }
         finally
         {
-            if (Application.Current is DownloadSessionSmokeApp fixtureApp)
-                fixtureApp.DisposeFixture();
+            if (_downloadSessionMode) DownloadSessionSmokeApp.Uninstall();
             if (Application.Current is ShellLoadSmokeApp shellLoadApp)
                 shellLoadApp.DisposeFixture();
             Log.CloseAndFlush();
