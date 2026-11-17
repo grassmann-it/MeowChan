@@ -133,6 +133,8 @@ class FullSweepTests(unittest.TestCase):
         desktop = (ROOT / ".github/workflows/dotnet-desktop.yml").read_text()
         self.assertIn("      only:\n", registry)
         self.assertIn("ONLY: ${{ inputs.only }}", registry)
+        self.assertIn("group: desktop-smoke-registry-${{ github.ref }}-${{ inputs.only || 'all' }}", registry)
+        self.assertIn("inputs.mode == 'smoke-retest' && inputs.smoke", desktop)
         self.assertIn('only+=(--only "$id")', registry)
         self.assertIn("      offline_lane:\n", desktop)
         self.assertIn("- offline-retest", desktop)

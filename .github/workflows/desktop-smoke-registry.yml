@@ -36,7 +36,8 @@ env:
   MEOWCHAN_DISABLE_UPDATE_CHECK: '1'
 
 concurrency:
-  group: desktop-smoke-registry-${{ github.ref }}
+  # Different individual retests must not replace one another's pending job.
+  group: desktop-smoke-registry-${{ github.ref }}-${{ inputs.only || 'all' }}
   cancel-in-progress: false
 
 jobs:
