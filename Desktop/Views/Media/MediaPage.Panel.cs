@@ -449,7 +449,7 @@ public sealed partial class MediaPage
         slot.Offer(offered ? _panelVideoController : null, offered ? PanelVideoKey(entry!) : null,
             offered ? token => ResolvePanelEntryAsync(entry!, token) : null, row?.Name ?? string.Empty, offered ? StartOpenPanelMedia : null);
         // MD-03: the hand over the picture only where a single click acts (OnPanelPictureActivated); a double click opens the gallery anyway.
-        if (_panel is { } panel) panel.SingleClickActs = slot.IsOffered || ReaderMediaSidebarRules.OpensGalleryOnPictureClick(_panelVideoController.Options);
+        if (_panel is { } panel) panel.SingleClickActs = slot.IsOffered;
         SchedulePanelVideoAutoplay(offered ? PanelVideoKey(entry!) : null);
     }
 

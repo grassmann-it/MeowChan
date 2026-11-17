@@ -236,20 +236,32 @@ public sealed class InteractionAuditTests
     }
 
     [Fact]
-    public void MediaSidebarSingleClickStaysInPreviewAndDoubleClickStillOpensGallery()
+    public void MediaSidebarSingleClickStaysInPreviewAndDoubleClickStillOpensGallery() => MediaPanelClickTestSupport.Run((fixture, panel) =>
     {
-        string sidebar = Read("Desktop/Views/Archive/ReaderMediaSidebar.cs");
-        Assert.Contains("_frame.PointerReleased", sidebar);
-        Assert.Contains("_frame.DoubleTapped", sidebar);
-        Assert.Contains("GalleryRequested?.Invoke(this, EventArgs.Empty);", sidebar);
+        // UX-LEDGER-06 deliberately supersedes preference-dependent opening.
+        // Drive the real frame and observe the page's gallery callback in every mode.
+        foreach (string mode in new[] { "Gallery", "Sidebar", "Post" })
+        {
+            MediaPanelClickTestSupport.Offer(fixture, mode, fixture.Rows[1]);
+            fixture.Opened.Clear();
+            MediaPanelClickTestSupport.Release(panel, MouseButton.Right);
+            Assert.Empty(fixture.Opened);
+            MediaPanelClickTestSupport.Release(panel);
+            Assert.True(panel.Frame.Focusable); // the page handler ran; preview owns keyboard input
+            Assert.Empty(fixture.Opened);
+            Assert.False(panel.SingleClickActs);
+            Assert.False(panel.FrameClickable);
+            Assert.Null(panel.Frame.Cursor);
 
-        // UX-LEDGER-06 supersedes the old preference-dependent sidebar contract.
-        // Reader activation is protected; its remaining gap is an explicit skipped
-        // FocusClickContractTests test rather than an assertion blessing the old behavior.
-        string media = Read("Desktop/Views/Media/MediaPage.Panel.cs");
-        Assert.DoesNotContain("OpensGalleryOnPictureClick(_panelVideoController.Options)", media);
-        Assert.Contains("panel.GalleryRequested += (_, _) => StartOpenPanelMedia();", media);
-    }
+            MediaPanelClickTestSupport.DoubleClick(panel);
+            var opened = Assert.Single(fixture.Opened);
+            Assert.Same(fixture.Entries[1], opened.Window[opened.Start]);
+            fixture.Opened.Clear();
+            panel.Open.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+            opened = Assert.Single(fixture.Opened);
+            Assert.Same(fixture.Entries[1], opened.Window[opened.Start]);
+        }
+    });
 
     [Fact]
     public void GalleryDoubleClickEntersWindowFullscreen()
