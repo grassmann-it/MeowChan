@@ -168,6 +168,37 @@ public sealed class TaggingLayoutRhythmTests
         }
     });
     [Fact]
+    public void IconOnlyControlsUseTheSquareTokenButLabelledPresentationsDoNot() => WithPage(page =>
+    {
+        // Include returns to earlier policies: switching back must restore, not just add, the class.
+        foreach (WorkView view in WorkViewSetting.All.Concat(WorkViewSetting.All.Reverse()))
+        {
+            page.ApplyWorkView(view);
+            foreach (Button button in new[] { page.ClearButton, page.ClearDoneButton })
+            {
+                bool iconOnly = ToolBar.GetOverflowMode(button) != OverflowMode.Always;
+                Assert.Equal(iconOnly, button.Classes.Contains(WorkspaceIcons.SquareClass));
+                Assert.False(string.IsNullOrWhiteSpace(AutomationProperties.GetName(button)));
+                Assert.NotNull(ToolTip.GetTip(button));
+            }
+            Assert.Contains(WorkspaceIcons.SquareClass, page.SelectionClearButton.Classes);
+            Assert.False(string.IsNullOrWhiteSpace(AutomationProperties.GetName(page.SelectionClearButton)));
+            Assert.Contains("Esc", ToolTip.GetTip(page.SelectionClearButton)!.ToString());
+            Assert.DoesNotContain(WorkspaceIcons.SquareClass, page.AddButton.Classes);
+            Assert.DoesNotContain(WorkspaceIcons.SquareClass, page.StartButton.Classes);
+        }
+        // Pin the shared class to its actual geometry tokens, not a duplicate hard-coded size.
+        System.Xml.Linq.XNamespace x = "https://github.com/avaloniaui";
+        string root = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(Source())!, "../.."));
+        var square = System.Xml.Linq.XDocument.Load(Path.Combine(root, "Desktop/WorkspaceStyles.axaml"))
+            .Descendants(x + "Style").Single(e => (string?)e.Attribute("Selector") == "Button.icon-square");
+        var setters = square.Elements(x + "Setter").ToDictionary(e => (string)e.Attribute("Property")!, e => (string)e.Attribute("Value")!);
+        Assert.Equal("{StaticResource Workspace.Size.Input}", setters["Width"]);
+        Assert.Equal(setters["Width"], setters["Height"]);
+    });
+
+    private static string Source([System.Runtime.CompilerServices.CallerFilePath] string path = "") => path;
+    [Fact]
     public void EnabledStartYieldsToTheEmptyRecommendationAndReclaimsPrimaryWithRows() => WithPage(page =>
     {
         DesktopSessionHost host = (DesktopSessionHost)typeof(TaggingPage).GetField("_host", Private)!.GetValue(page)!;
