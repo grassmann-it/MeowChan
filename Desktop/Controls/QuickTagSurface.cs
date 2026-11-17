@@ -452,6 +452,17 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     internal TextBlock Status => _status;
     internal TextBlock Title => _title;
     internal Grid Header { get; }
+
+    /// <summary>Moves the live counter to a containing header; this surface still owns its text, visibility and updates.</summary>
+    internal Border DetachCounter()
+    {
+        Header.Children.Remove(_counter);
+        _counter.Margin = default;
+        _counterLabel.TextWrapping = TextWrapping.Wrap;
+        _counterLabel.TextTrimming = TextTrimming.CharacterEllipsis;
+        _counterLabel.MaxLines = 2;
+        return _counter;
+    }
     /// <summary>The footer: undo, stamp and the tag editor, in a row (wide host) or stacked (narrow host).</summary>
     internal Grid Footer { get; }
     /// <summary>True while the footer buttons are stacked, one per line at full width.</summary>
@@ -879,6 +890,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         _counter.IsVisible = !string.IsNullOrEmpty(counter);
         _counterLabel.Text = counter ?? string.Empty;
         AutomationProperties.SetName(_counter, counter ?? string.Empty);
+        ToolTip.SetTip(_counter, counter);
 
         _stripEmpty.IsVisible = _shown.Count == 0;
         _strip.IsVisible = _shown.Count > 0;
@@ -1370,11 +1382,15 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
 
     private void OnInputPointerPressed(object? sender, PointerPressedEventArgs e)
     {
+        // Popup rows route through the input as logical children, but are not part of its editor's visual tree.
+        // Refocusing the input during their captured press/release closes the popup on LostFocus, cancels the
+        // candidate gesture and lets the adapter accept the old search text (the exact "New tag" row) instead.
         if (!_input.IsEffectivelyEnabled || e.Pointer.Type != PointerType.Mouse
-            || e.GetCurrentPoint(_input).Properties.PointerUpdateKind != PointerUpdateKind.LeftButtonPressed) return;
+            || e.GetCurrentPoint(_input).Properties.PointerUpdateKind != PointerUpdateKind.LeftButtonPressed
+            || e.Source is not Visual source || (source != _input && !_input.IsVisualAncestorOf(source))) return;
         Dispatcher.UIThread.Post(() =>
         {
-            if (!_disposed && _input.IsEffectivelyEnabled) _input.Focus();
+            if (!_disposed && _input.IsEffectivelyEnabled && !_input.IsKeyboardFocusWithin) _input.Focus();
         }, DispatcherPriority.Input);
     }
 

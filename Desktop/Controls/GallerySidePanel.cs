@@ -18,7 +18,8 @@ internal enum GallerySidePanelSegment { Post, Tags }
 
 /// <summary>
 /// V2 (PLAN-MEDIEN-VIEWER-UND-SEITE §1.1): the host of the gallery side panel. Header: the segment "Post | Tags" on the left (two
-/// toggle buttons, ←/→ switch while one has the focus), at least 24 dip of space, the close button (×) alone at the right edge. Below
+/// toggle buttons, ←/→ switch while one has the focus), the live medium counter immediately beside it, then at least 24 dip of space
+/// before the close button (×) alone at the right edge. Below
 /// it the two content slots <see cref="PostContent"/> and <see cref="TagContent"/>; only the one of <see cref="Segment"/> is visible.
 /// A 6-dip grip on the left edge drags the width (<see cref="Config.GalleryPanelWidthMinimum"/>–<see cref="Config.GalleryPanelWidthMaximum"/>).
 /// The host only shows state and raises requests: which segment may be shown, what closing does and where the width is kept is
@@ -35,6 +36,9 @@ internal sealed class GallerySidePanel : Grid
     private readonly ToggleButton _tags = new() { Name = "GalleryPanelTags", Classes = { "media-control" } };
     private readonly StackPanel _segment = new() { Name = "GalleryPanelSegment", Orientation = Orientation.Horizontal, Spacing = 4,
         VerticalAlignment = VerticalAlignment.Center };
+    private readonly ContentControl _headerCounter = new() { Name = "GalleryPanelHeaderCounter", Focusable = false,
+        Margin = new Thickness(8, 0, 24, 0), VerticalAlignment = VerticalAlignment.Center,
+        HorizontalContentAlignment = HorizontalAlignment.Left };
     private readonly ContentControl _postSlot = new() { Name = "GalleryPanelPostContent", Focusable = false };
     private readonly ContentControl _tagSlot = new() { Name = "GalleryPanelTagContent", Focusable = false, IsVisible = false };
     private readonly Border _grip = new() { Name = "GalleryPanelResize", Width = GripWidth, Background = Brushes.Transparent, Focusable = false,
@@ -57,6 +61,7 @@ internal sealed class GallerySidePanel : Grid
         close.VerticalAlignment = VerticalAlignment.Center;
         // Child order is the focus order: segment, the shown content, then the close button.
         Children.Add(_segment);
+        Children.Add(_headerCounter); SetColumn(_headerCounter, 1);
         Children.Add(_postSlot); SetRow(_postSlot, 1); SetColumnSpan(_postSlot, 3);
         Children.Add(_tagSlot); SetRow(_tagSlot, 1); SetColumnSpan(_tagSlot, 3);
         Children.Add(close); SetColumn(close, 2);
@@ -80,6 +85,9 @@ internal sealed class GallerySidePanel : Grid
     internal Control Grip => _grip;
     internal ContentControl PostSlot => _postSlot;
     internal ContentControl TagSlot => _tagSlot;
+
+    /// <summary>The tag surface's live medium counter, immediately after Post/Tags; null after that surface is released.</summary>
+    internal Control? HeaderCounter { get => _headerCounter.Content as Control; set => _headerCounter.Content = value; }
 
     /// <summary>The post card (built and kept by the viewer).</summary>
     internal Control? PostContent { get => _postSlot.Content as Control; set => _postSlot.Content = value; }

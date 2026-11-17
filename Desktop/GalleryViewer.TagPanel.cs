@@ -74,6 +74,8 @@ internal sealed partial class GalleryViewer
         surface.CounterText = PanelCounter(controller.CounterFor(entry));
         surface.MarkedCount = _marks.Count;
         AnnounceCounter(surface);
+        // UX-LEDGER-14: keep the same live badge, but beside Post/Tags in the host header, not beside the file title below it.
+        _sidePanel.HeaderCounter = surface.DetachCounter();
         _tagExtra = new StackPanel { Spacing = 8, Name = TagPanelName + "Sections" };
         _tagReason = new TextBlock { Name = TagPanelName + "Reason", Classes = { "workspace-help" }, TextWrapping = Avalonia.Media.TextWrapping.Wrap, IsVisible = false };
         _threadSection = new GalleryThreadTagSection(TagPanelName + "Thread") { IsVisible = false };
@@ -152,6 +154,7 @@ internal sealed partial class GalleryViewer
             if (surface != null) { surface.ExtraUndo = null; surface.DecisionContent = null; }
             _decisionRow = null;
         }
+        _sidePanel.HeaderCounter = null;
         if (ReferenceEquals(_sidePanel.TagContent, surface)) _sidePanel.TagContent = null;
         _sidePanel.Segment = GallerySidePanelSegment.Post;
         _threadSection?.Dispose();

@@ -54,6 +54,54 @@ public sealed class QuickTagSurfaceTests : IDisposable
         return name!;
     }
 
+    [Fact]
+    public void GalleryCounterMovesBesidePostTagsAndKeepsLiveTextVisibilityAndAccessibleName()
+    {
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        PrivateTagStore store = new(temp.Path, lease);
+        using QuickTagSession session = new(QuickTagTarget.For(Single(store, Entry("a", 'a'))));
+        using QuickTagSurface surface = new(session);
+        surface.CounterText = "Medium 4 of 27";
+        Border counter = surface.DetachCounter();
+        GallerySidePanel panel = new(new Button()) { HeaderCounter = counter };
+        Assert.DoesNotContain(counter, surface.Header.Children);
+        Assert.Same(counter, panel.HeaderCounter);
+        Control slot = (Control)counter.Parent!;
+        Assert.Same(panel, slot.Parent);
+        Assert.Equal(0, Grid.GetRow(slot));
+        Assert.Equal(Grid.GetRow((Control)panel.PostButton.Parent!), Grid.GetRow(slot));
+        Assert.Equal(1, Grid.GetColumn(slot));
+        Assert.Equal(2, Grid.GetColumn(panel.CloseButton));
+        Assert.False(slot.Focusable);
+        Assert.Equal(24, slot.Margin.Right);
+        TextBlock label = Assert.IsType<TextBlock>(counter.Child);
+        Assert.Equal("Medium 4 of 27", label.Text);
+        Assert.Equal(Avalonia.Media.TextWrapping.Wrap, label.TextWrapping);
+        Assert.Equal(2, label.MaxLines);
+        Assert.Equal(Avalonia.Media.TextTrimming.CharacterEllipsis, label.TextTrimming);
+        surface.CounterText = "Medium 5 von mindestens 12345 · markiert";
+        Assert.Equal(surface.CounterText, label.Text);
+        Assert.Equal(surface.CounterText, AutomationProperties.GetName(counter));
+        Assert.Equal(surface.CounterText, ToolTip.GetTip(counter));
+        surface.CounterText = null; // tagging mode suppresses this counter in either header
+        Assert.False(counter.IsVisible);
+        surface.CounterText = "Medium 5 of 27";
+        Assert.True(counter.IsVisible);
+        panel.HeaderCounter = null;
+        Assert.Null(counter.Parent);
+    }
+
+    [Fact]
+    public void GalleryMovesTheBadgeAfterPoliteAnnouncementsAreEnabledAndClearsItOnRelease()
+    {
+        string source = File.ReadAllText(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
+            "../../../../../Desktop/GalleryViewer.TagPanel.cs")));
+        Assert.True(source.IndexOf("AnnounceCounter(surface);", StringComparison.Ordinal)
+            < source.IndexOf("_sidePanel.HeaderCounter = surface.DetachCounter();", StringComparison.Ordinal));
+        Assert.Contains("_sidePanel.HeaderCounter = null;", source);
+    }
+
     // ---- session: add, create, remove, status -------------------------------------------------------------------
 
     [Fact]
@@ -440,7 +488,9 @@ public sealed class QuickTagSurfaceTests : IDisposable
         string source = File.ReadAllText(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(ThisFile())!, "../../Desktop/Controls/QuickTagSurface.cs")));
         Assert.Contains("_input.AddHandler(PointerPressedEvent, OnInputPointerPressed, RoutingStrategies.Tunnel);", source);
         Assert.Contains("e.Pointer.Type != PointerType.Mouse", source);
-        Assert.Contains("if (!_disposed && _input.IsEffectivelyEnabled) _input.Focus();", source);
+        // Popup suggestions are logical descendants, not editor visuals: their captured gestures must not reclaim focus.
+        Assert.Contains("e.Source is not Visual source || (source != _input && !_input.IsVisualAncestorOf(source))", source);
+        Assert.Contains("if (!_disposed && _input.IsEffectivelyEnabled && !_input.IsKeyboardFocusWithin) _input.Focus();", source);
     }
 
     // ---- the control (built without an application: names, layout, chips) --------------------------------------
