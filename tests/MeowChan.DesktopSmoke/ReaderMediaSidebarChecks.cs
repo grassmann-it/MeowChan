@@ -161,8 +161,14 @@ internal static class ReaderMediaSidebarChecks
             await Flush();
             Require(escape.Handled && host.IsVisible && page.ReaderMedia.Sidebar && page.IsMediaSidebarShown,
                 "Escape in the sidebar closed the reader or switched the sidebar off.");
-            Require(!sidebar.IsKeyboardFocusWithin, "Escape in the sidebar did not take the focus out of it.");
-            Require(KeyboardNavigation.GetTabNavigation(pane) == KeyboardNavigationMode.Cycle, "The pane did not get its Tab cycle back.");
+            Require(!sidebar.IsKeyboardFocusWithin && pane.IsKeyboardFocusWithin, "Escape in the sidebar did not take the focus back to the posts.");
+            // RD-01: the sidebar stays shown, so pane and sidebar keep their one shared Tab cycle (the frame cycles, the pane continues into it).
+            Require(KeyboardNavigation.GetTabNavigation(frame) == KeyboardNavigationMode.Cycle
+                && KeyboardNavigation.GetTabNavigation(pane) == KeyboardNavigationMode.Continue, "After Escape in the sidebar Tab no longer reaches the sidebar.");
+            // Only switching the sidebar off gives the pane its own Tab cycle back.
+            page.ToggleMediaSidebar();
+            await Program.WaitUntilAsync(() => !page.IsMediaSidebarShown);
+            Require(KeyboardNavigation.GetTabNavigation(pane) == KeyboardNavigationMode.Cycle, "The pane did not get its Tab cycle back when the sidebar was switched off.");
         }
         finally
         {
