@@ -79,6 +79,11 @@ public partial class MainWindow
         _readerGroupReturn = request;
         ArchivePage page = ArchivePage;
         OpenLargeReader(_readerGroupsOrigin, request.Threads);
+        if (!_largeReaderOpen)
+        {
+            ReturnToReaderGroups(restoreOrigin: true);
+            return;
+        }
         page.BeginReaderGroupScope(request.Threads);
         int scopeGeneration = page.ReaderGroupScopeGeneration;
         bool loaded = await page.LoadReaderGroupThreadAsync(request.Threads[0]);

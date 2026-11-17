@@ -404,6 +404,7 @@ public partial class MainWindow
         if (!await ArchiveHoldsJumpTargetAsync(thread, () => request == _galleryRequest && _gallery != null && !_isClosing)) return;
         if (!NavigateWorkspace(WorkspacePage.Archive, activateArchive: false)) return;
         OpenGalleryReader();
+        if (!_largeReaderOpen) return;
         SuspendGallery();
         await ArchivePage.LoadThreadAsync(thread);
     }
@@ -468,6 +469,7 @@ public partial class MainWindow
         if (!NavigateWorkspace(WorkspacePage.Archive, activateArchive: false)) return;
         request = _galleryRequest;
         OpenGalleryReader();
+        if (!_largeReaderOpen) return;
         SuspendGallery();
         await ArchivePage.LoadThreadAsync(entry.Key.Thread);
         if (request == _galleryRequest && _gallerySuspended && _gallery != null)
@@ -478,6 +480,7 @@ public partial class MainWindow
     {
         if (!NavigateWorkspace(WorkspacePage.Archive, activateArchive: false)) return;
         OpenGalleryReader();
+        if (!_largeReaderOpen) return;
         SuspendGallery();
         await ArchivePage.NavigateQuoteAsync(new ArchiveQuoteRow(quote));
     }
@@ -486,6 +489,7 @@ public partial class MainWindow
     {
         if (_largeReaderOpen) return;
         OpenLargeReader();
+        if (!_largeReaderOpen) return;
         ArchivePage.SetReaderScope(_galleryThreads.Count > 0 ? _galleryThreads
             : _galleryEntries.Select(entry => entry.Key.Thread).Distinct().ToArray());
     }
