@@ -9,6 +9,7 @@ using MeowChan.Booru;
 using MeowChan.Desktop.Localization;
 using MeowChan.PluginHost.Http;
 using MeowChan.PluginHost.Sources.Booru;
+using MeowChan.PluginSdk;
 using Serilog;
 
 namespace MeowChan.Desktop.Booru;
@@ -180,13 +181,30 @@ internal sealed class BooruOriginalQueuePort : IBooruQueuePort, IDisposable
             foreach (BooruPostRecord record in _catalog.Read().Posts)
             {
                 if (record.SourceId != _sourceId || !wanted.Contains(record.PostId)) continue;
-                bool queued = record.HasPendingOriginal || outcomes.TryGetValue(record.PostId, out BooruOriginalDownloadOutcome? outcome)
-                    && outcome.State == BooruOriginalDownloadState.Queued;
-                states[record.PostId] = record.LocalAssetId is not null ? BooruLocalState.Loaded
-                    : queued ? BooruLocalState.Queued : BooruLocalState.NotLoaded;
+                outcomes.TryGetValue(record.PostId, out BooruOriginalDownloadOutcome? outcome);
+                states[record.PostId] = LocalState(record.LocalAssetId is not null, record.HasPendingOriginal, outcome);
             }
             return states;
         }, cancellationToken);
+
+    /// <summary>
+    /// One post's local state from the catalog (a committed asset link, a stored pending request) and the queue's in-process
+    /// outcome. A committed asset wins. A failed outcome (download, link, admission) beats the stored pending request, which a
+    /// failed download leaves in place for restart recovery: the user sees the failure and may retry, not a false "queued".
+    /// An interrupted request (the queue stopped) is still pending and counts as queued. A cancelled or unavailable outcome
+    /// is decided by the stored request alone.
+    /// </summary>
+    internal static BooruLocalState LocalState(bool hasLocalAsset, bool hasPendingOriginal, BooruOriginalDownloadOutcome? outcome)
+    {
+        if (hasLocalAsset) return BooruLocalState.Loaded;
+        return outcome?.State switch
+        {
+            BooruOriginalDownloadState.DownloadFailed or BooruOriginalDownloadState.LinkFailed
+                or BooruOriginalDownloadState.NotAdmitted => BooruLocalState.Failed,
+            BooruOriginalDownloadState.Queued or BooruOriginalDownloadState.Interrupted => BooruLocalState.Queued,
+            _ => hasPendingOriginal ? BooruLocalState.Queued : BooruLocalState.NotLoaded
+        };
+    }
 
     private void OnOutcomeChanged(BooruOriginalDownloadOutcome outcome) => RaiseLocalStatesChanged();
 
@@ -524,6 +542,63 @@ internal sealed class BooruHostPreviewPort : IBooruPreviewPort
         try
         {
             if (!operation.TryStart(() => _http().LoadAsync(post.PreviewUrl, operation.Token), out Task<byte[]?> pending))
+                return null;
+            byte[]? bytes = await pending.ConfigureAwait(false);
+            return operation.IsCurrent ? bytes : null;
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && !operation.IsCurrent)
+        { return null; }
+    }
+}
+
+/// <summary>
+/// Sample bytes only through the host's remote-image path (<see cref="BooruPreviewHttp.Images"/>, Sample role): the same
+/// declared preview-media hosts, GET, no redirects, no credentials, signature check, shared gate and media fence as
+/// previews, with the sample size limit from the image limits. A post without a sample address (including a sample that
+/// equals the original, which the plugin drops) answers null without any request: the original is never fetched here.
+/// A declared non-image sample (a video or ugoira sample) is not requested either.
+/// </summary>
+internal sealed class BooruHostSamplePort : IBooruSamplePort
+{
+    private static readonly HashSet<string> ImageExtensions = new(StringComparer.OrdinalIgnoreCase)
+    { "jpg", "jpeg", "png", "gif", "webp" };
+
+    private readonly Func<BooruPreviewHttp> _http;
+    private readonly string _sourceId;
+    private readonly BooruPortAvailabilityGate _availability;
+
+    internal BooruHostSamplePort(BooruPreviewHttp http, string sourceId, BooruPortAvailabilityGate? availability = null,
+        Func<BooruPreviewHttp>? currentHttp = null)
+    {
+        ArgumentNullException.ThrowIfNull(http);
+        _http = currentHttp ?? (() => http);
+        _sourceId = sourceId;
+        _availability = availability ?? new BooruPortAvailabilityGate();
+    }
+
+    /// <summary>True when the post declares a sample address that may hold a still image.</summary>
+    internal static bool HasImageSample(BooruPostView post)
+    {
+        if (post.SampleUrl is null) return false;
+        string? extension = post.SampleExtension?.Trim().TrimStart('.');
+        return string.IsNullOrEmpty(extension) || ImageExtensions.Contains(extension);
+    }
+
+    public async Task<byte[]?> LoadSampleAsync(BooruPostView post, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (post is null || !HasImageSample(post) || !string.Equals(post.SourceId, _sourceId, StringComparison.Ordinal))
+            return null;
+        using BooruPortAvailabilityGate.Lease? operation = _availability.TryEnter(cancellationToken);
+        if (operation == null) return null;
+        try
+        {
+            if (!operation.TryStart(async () =>
+                {
+                    BooruRemoteImageResult result = await _http().Images.LoadAsync(BooruMediaRole.Sample, post.SampleUrl, operation.Token)
+                        .ConfigureAwait(false);
+                    return result.Status == BooruRemoteImageStatus.Loaded ? result.Bytes : null;
+                }, out Task<byte[]?> pending))
                 return null;
             byte[]? bytes = await pending.ConfigureAwait(false);
             return operation.IsCurrent ? bytes : null;

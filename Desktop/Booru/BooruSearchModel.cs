@@ -422,16 +422,23 @@ internal sealed class BooruSearchModel : IDisposable
             for (int index = 0; index < rows.Count; index++)
             {
                 BooruResultRowView row = rows[index];
-                if (row.Load is not (BooruRowLoad.Idle or BooruRowLoad.Queued or BooruRowLoad.AlreadyQueued or BooruRowLoad.AlreadyLoaded)
-                    || !states.TryGetValue(row.Post.PostId, out BooruLocalState state)) continue;
+                if (!states.TryGetValue(row.Post.PostId, out BooruLocalState state)) continue;
+                // A failed row only ever follows a committed file (the original arrived by another path); every other
+                // change of state belongs to the explicit retry.
+                if (row.Load == BooruRowLoad.Failed ? state != BooruLocalState.Loaded
+                    : row.Load is not (BooruRowLoad.Idle or BooruRowLoad.Queued or BooruRowLoad.AlreadyQueued or BooruRowLoad.AlreadyLoaded))
+                    continue;
                 BooruRowLoad load = state switch
                 {
                     BooruLocalState.Loaded => BooruRowLoad.AlreadyLoaded,
                     BooruLocalState.Queued => row.Load == BooruRowLoad.Queued ? BooruRowLoad.Queued : BooruRowLoad.AlreadyQueued,
+                    // A download, link or admission that failed in the queue: shown as a failed row with the explicit retry.
+                    BooruLocalState.Failed => row.Post.OriginalAccess == BooruOriginalAccess.Available ? BooruRowLoad.Failed : row.Load,
                     _ => row.Load is BooruRowLoad.AlreadyLoaded or BooruRowLoad.AlreadyQueued ? BooruRowLoad.Idle : row.Load
                 };
                 if (load == row.Load) continue;
-                rows[index] = row with { Load = load };
+                rows[index] = load == BooruRowLoad.Failed ? row with { Load = load, LoadCode = BooruCodes.NotAdmitted }
+                    : row with { Load = load };
                 changed = true;
             }
             if (changed) _view = _view with { Rows = rows.ToImmutable() };

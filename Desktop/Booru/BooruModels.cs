@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Immutable;
+using System.IO;
 using System.Linq;
 using MeowChan.PluginSdk;
 
@@ -20,6 +21,22 @@ internal enum BooruOriginalAccess
 }
 
 /// <summary>
+/// What the provider offers between the thumbnail and the original. <see cref="OriginalOnly"/> is the case the plugin
+/// reports as "no sample": it drops the sample address when it equals the original (small images), so the only
+/// full-size picture is the original. The viewer must not stretch the preview in its place without saying so, and the
+/// sample path never fetches the original (originals go through the download queue only).
+/// </summary>
+internal enum BooruSampleAvailability
+{
+    /// <summary>A sample address is declared; <see cref="IBooruSamplePort"/> may fetch it.</summary>
+    Provided,
+    /// <summary>No separate sample, but an original with an address exists (the sample is the original).</summary>
+    OriginalOnly,
+    /// <summary>Neither a sample nor a usable original address (withdrawn, restricted, or no file).</summary>
+    None
+}
+
+/// <summary>
 /// UI-facing, immutable projection of one validated provider post. <see cref="Post"/> keeps the
 /// host-validated SDK post so the queue port can admit it without a second provider read.
 /// Everything shown here is a provider claim: the rating is the provider's, never the user's.
@@ -33,6 +50,13 @@ internal sealed record BooruPostView
     internal string PostId => Post.Id.PostId;
     internal Uri? PostUrl { get; private init; }
     internal Uri? PreviewUrl { get; private init; }
+    /// <summary>The declared sample address (preview-media host, same path as previews), or null when none is offered.</summary>
+    internal Uri? SampleUrl { get; private init; }
+    /// <summary>The sample's file extension: the declared one, else the address path's (the plugin declares none); the dot is not guaranteed.</summary>
+    internal string? SampleExtension { get; private init; }
+    internal BooruSampleAvailability SampleAvailability { get; private init; }
+    /// <summary>The provider's free-text "source" claim: inert text, never a fetch target or a link.</summary>
+    internal string? SourceClaim { get; private init; }
     internal BooruRating Rating { get; private init; }
     internal string? RawRating { get; private init; }
     internal int? Score { get; private init; }
@@ -50,6 +74,7 @@ internal sealed record BooruPostView
         BooruFieldPresence fields = post.Fields;
         BooruMediaVariant? original = post.Media?.FirstOrDefault(media => media.Role == BooruMediaRole.Original);
         BooruMediaVariant? preview = post.Media?.FirstOrDefault(media => media.Role == BooruMediaRole.Preview);
+        BooruMediaVariant? sample = post.Media?.FirstOrDefault(media => media.Role == BooruMediaRole.Sample);
         bool withdrawn = post.IsDeleted || post.IsBanned;
         BooruOriginalAccess access = withdrawn ? BooruOriginalAccess.Restricted
             : original is null ? BooruOriginalAccess.NotOffered
@@ -59,6 +84,13 @@ internal sealed record BooruPostView
         {
             PostUrl = post.PostUrl,
             PreviewUrl = preview?.Url,
+            SampleUrl = sample?.Url,
+            SampleExtension = sample?.Url is null ? null : sample.Extension ?? Path.GetExtension(sample.Url.AbsolutePath),
+            SampleAvailability = sample?.Url is not null ? BooruSampleAvailability.Provided
+                : original?.Url is not null && !withdrawn ? BooruSampleAvailability.OriginalOnly
+                : BooruSampleAvailability.None,
+            SourceClaim = fields.HasFlag(BooruFieldPresence.SourceClaim) && !string.IsNullOrWhiteSpace(post.SourceClaim)
+                ? post.SourceClaim : null,
             Rating = fields.HasFlag(BooruFieldPresence.Rating) ? post.Rating : BooruRating.Unknown,
             RawRating = fields.HasFlag(BooruFieldPresence.Rating) ? post.RawRating : null,
             Score = fields.HasFlag(BooruFieldPresence.Score) ? post.Score : null,
@@ -84,7 +116,12 @@ internal enum BooruRowLoad
 }
 
 /// <summary>What the local library/queue already knows about a provider post.</summary>
-internal enum BooruLocalState { Unknown, NotLoaded, Queued, Loaded }
+internal enum BooruLocalState
+{
+    Unknown, NotLoaded, Queued, Loaded,
+    /// <summary>The queue's last outcome for this post was a failure (download, link or admission); an explicit retry may re-admit it.</summary>
+    Failed
+}
 
 internal enum BooruPreviewState { None, Loading, Ready, Unavailable }
 

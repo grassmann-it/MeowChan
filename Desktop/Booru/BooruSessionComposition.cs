@@ -135,14 +135,15 @@ internal sealed class BooruSessionComposition : IAsyncDisposable
             Originals = new BooruOriginalQueue(queue, catalog, outputRoot, _mediaClient, timeProvider: clock);
             SearchPort = new BooruWatcherSearchPort(Search, binding.Services, binding.GetWorkerAsync, clock);
             _watcherHost = CreateWatcherHost();
-            _previewHttp = new BooruPreviewHttp(binding.Transport, binding.Source, timeProvider: clock);
+            _previewHttp = CreateImageHttp(binding, clock);
             _queuePort = new BooruOriginalQueuePort(Originals, catalog, binding.Source.SourceId, _availability);
             _watcherPort = new BooruSchedulerWatcherPort(WatcherHost.Scheduler, catalog, binding.Source.SourceId, _availability,
                 () => binding.Services.BeginCooldownReset(binding.Source.SourceId));
             Services = new BooruWorkbenchServices(
                 new BooruHostSearchAdapter(
                     Search, binding.GetWorkerAsync, binding.Source.SourceId, binding.Source.Name, _availability),
-                _queuePort, _watcherPort, new BooruHostPreviewPort(_previewHttp, binding.Source.SourceId, _availability, () => _previewHttp), clock);
+                _queuePort, _watcherPort, new BooruHostPreviewPort(_previewHttp, binding.Source.SourceId, _availability, () => _previewHttp), clock,
+                samples: new BooruHostSamplePort(_previewHttp, binding.Source.SourceId, _availability, () => _previewHttp));
             _binding.AvailabilityChanged += OnAvailabilityChanged;
         }
         catch
@@ -152,6 +153,14 @@ internal sealed class BooruSessionComposition : IAsyncDisposable
             throw;
         }
     }
+
+    /// <summary>
+    /// The preview and sample path of one generation. Default limits until the settings arrive (B5); the fence is capped by
+    /// the same provider cooldown maximum the metadata path uses.
+    /// </summary>
+    private static BooruPreviewHttp CreateImageHttp(BooruProviderBinding binding, TimeProvider? clock) =>
+        new(binding.Transport, binding.Source, limits: null, timeProvider: clock,
+            maximumCooldownProvider: () => binding.Services.GetMaximumCooldown());
 
     internal BooruCatalogStore Catalog { get; }
     internal BooruSearchService Search { get; }
@@ -256,7 +265,7 @@ internal sealed class BooruSessionComposition : IAsyncDisposable
             SyncSessionPause();
             _watcherPort.ReplaceScheduler(WatcherHost.Scheduler);
             _watcherStopped = false;
-            _previewHttp = new BooruPreviewHttp(_binding.Transport, _binding.Source, timeProvider: _clock);
+            _previewHttp = CreateImageHttp(_binding, _clock);
             _availability.Open();
             if (_started)
             {

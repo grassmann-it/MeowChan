@@ -97,6 +97,30 @@ internal interface IBooruPreviewPort
     Task<byte[]?> LoadPreviewAsync(BooruPostView post, CancellationToken cancellationToken);
 }
 
+/// <summary>
+/// Sample bytes of an opened post through the same safe media path as previews (host allowlist, bounded body, shared
+/// concurrency gate and 429/503 fence, memory-only cache). A null result means "no sample image": the post offers no
+/// sample address (including <see cref="BooruSampleAvailability.OriginalOnly"/>, where the original is the sample and is
+/// never fetched here), the address is not an image, or the host refused or failed it; the viewer then keeps the preview
+/// and shows why. Cancellation is the caller's only exception.
+/// </summary>
+internal interface IBooruSamplePort
+{
+    Task<byte[]?> LoadSampleAsync(BooruPostView post, CancellationToken cancellationToken);
+}
+
+/// <summary>The sample port of a bundle built without one: every post answers "no sample", nothing is requested.</summary>
+internal sealed class BooruNoSamplePort : IBooruSamplePort
+{
+    internal static BooruNoSamplePort Instance { get; } = new();
+
+    public Task<byte[]?> LoadSampleAsync(BooruPostView post, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult<byte[]?>(null);
+    }
+}
+
 internal enum BooruWatcherCommandStatus
 {
     Done,
@@ -166,7 +190,7 @@ internal sealed class BooruPortException(string code) : Exception("Booru port fa
 internal sealed class BooruWorkbenchServices
 {
     internal BooruWorkbenchServices(IBooruSearchPort search, IBooruQueuePort queue, IBooruWatcherPort watchers,
-        IBooruPreviewPort previews, TimeProvider? clock = null, BooruLinkActions? links = null)
+        IBooruPreviewPort previews, TimeProvider? clock = null, BooruLinkActions? links = null, IBooruSamplePort? samples = null)
     {
         Search = search ?? throw new ArgumentNullException(nameof(search));
         Queue = queue ?? throw new ArgumentNullException(nameof(queue));
@@ -174,12 +198,14 @@ internal sealed class BooruWorkbenchServices
         Previews = previews ?? throw new ArgumentNullException(nameof(previews));
         Clock = clock ?? TimeProvider.System;
         Links = links ?? BooruLinkActions.System;
+        Samples = samples ?? BooruNoSamplePort.Instance;
     }
 
     internal IBooruSearchPort Search { get; }
     internal IBooruQueuePort Queue { get; }
     internal IBooruWatcherPort Watchers { get; }
     internal IBooruPreviewPort Previews { get; }
+    internal IBooruSamplePort Samples { get; }
     internal TimeProvider Clock { get; }
     internal BooruLinkActions Links { get; }
 }
