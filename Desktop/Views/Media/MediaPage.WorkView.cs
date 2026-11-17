@@ -96,9 +96,16 @@ public sealed partial class MediaPage
         {
             // Availability may change without a view switch. Keep the count and menu in the same projection.
             RefreshWorkView();
-            FillMore((MenuFlyout)_more.Flyout!, HeaderOverflow());
-            // Never an empty menu (a bare 10 dip frame under the button): with nothing under More the button is gone and the menu closes again.
-            if (((MenuFlyout)_more.Flyout!).Items.Count == 0) Dispatcher.UIThread.Post(() => _more.Flyout?.Hide());
+            List<Control> items = HeaderOverflow();
+            UpdateMore(_more, items);
+            FillMore((MenuFlyout)_more.Flyout!, items);
+            // Never leave an empty overflow button or a bare flyout frame behind when
+            // availability changed between layout and opening.
+            if (items.Count == 0)
+            {
+                _more.IsVisible = false;
+                Dispatcher.UIThread.Post(() => _more.Flyout?.Hide());
+            }
         };
         ((MenuFlyout)_selMore.Flyout!).Opening += (_, _) => FillMore((MenuFlyout)_selMore.Flyout!, SelectionOverflow());
         _moreFilters.IsCheckedChanged += (_, _) => { if (!_localizing) RefreshWorkView(); };
