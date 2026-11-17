@@ -40,7 +40,12 @@ internal static class ReaderInlineVideoChecks
                 source.Focusable = true;
                 try
                 {
+                    host.Activate();
+                    await Program.WaitUntilAsync(() => host.IsActive);
                     Require(source.Focus() && ReferenceEquals(host.FocusManager?.GetFocusedElement(), source), scene + ": focus unavailable");
+                    ReaderGalleryShortcutParityChecks.LogRoutingState(host, page, source, scene);
+                    if (key == Key.M)
+                        await Program.WaitUntilAsync(() => player.MinimalBar?.Mute.IsEffectivelyEnabled == true);
                     bool before = key == Key.Space ? slot.IsPlaying : key == Key.M ? player.Muted : player.LoopEnabled;
                     var e = new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = key, KeyModifiers = mods };
                     source.RaiseEvent(e);

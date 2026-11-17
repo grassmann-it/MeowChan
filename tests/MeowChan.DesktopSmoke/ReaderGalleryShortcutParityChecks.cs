@@ -42,6 +42,9 @@ internal static class ReaderGalleryShortcutParityChecks
             await page.ApplySearchAsync();
             page.FindControl<ListBox>("ArchiveThreads")!.SelectedIndex = 0;
             await Program.WaitUntilAsync(() => !page.IsBusy && page.CurrentThread?.Summary.Id == Fixture);
+            // The same thread id can survive a list refresh with its old, empty
+            // media snapshot. Load explicitly before capturing a reader origin.
+            await page.LoadThreadAsync(Fixture);
             await page.MediaLoadTask;
             page.ApplyReaderMediaPreferences(mediaBefore with { Sidebar = true, SidebarAlways = true,
                 SidebarMinimumReaderWidth = ReaderDisplayPreferences.MediaSidebarReaderWidthMinimum });
@@ -52,6 +55,7 @@ internal static class ReaderGalleryShortcutParityChecks
             await page.MediaSidebarTask;
             await page.MediaSidebarStripTask;
             await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+            LogRoutingState(window, page, page.FindControl<ListBox>("ArchivePosts")!, large ? "large" : "embedded");
         }
         Control Post() => (Control)page.FindControl<ListBox>("ArchivePosts")!.ContainerFromItem(
             page.FindControl<ListBox>("ArchivePosts")!.SelectedItem!)!;
@@ -176,6 +180,19 @@ internal static class ReaderGalleryShortcutParityChecks
         }
         finally { page.ApplyReaderMediaPreferences(mediaBefore); }
         if (failures.Count > 0) throw new InvalidOperationException("Shortcut parity failures (all scenes ran): " + string.Join("; ", failures));
+    }
+    internal static void LogRoutingState(Window window, ArchivePage page, Control source, string scene)
+    {
+        object? Field(string name) => typeof(ArchivePage).GetField(name, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?.GetValue(page);
+        Control pane = page.FindControl<Control>("ArchiveReaderPane")!;
+        Console.WriteLine("SMOKE reader-key-state " + System.Text.Json.JsonSerializer.Serialize(new {
+            scene, window.IsActive, source.IsEffectivelyVisible, PaneVisible = pane.IsEffectivelyVisible,
+            RoutingActive = MeowChan.Desktop.Commands.CommandRouter.IsRoutingContextActive(pane, source),
+            NativeMedium = ArchivePage.ReaderMediaBelongsToNativeControl(source, page.FindControl<ListBox>("ArchivePosts")!),
+            Large = Field("_largeReader"), Available = Field("_available"), Busy = Field("_busy"),
+            Obscured = Field("_obscuredByGallery"), Thread = Field("_selectedThread")?.ToString(),
+            Assets = (Field("_assets") as System.Collections.ICollection)?.Count,
+            LoadingSuspended = ArchiveAttachmentView.GetLoadingSuspended(page) }));
     }
     private static void Require(bool ok, string message) { if (!ok) throw new InvalidOperationException(message); }
     private static void Focus(MainWindow window, Control source) => Require(source.Focus() && ReferenceEquals(window.FocusManager?.GetFocusedElement(), source), "actual focus unavailable: " + source.GetType().Name);

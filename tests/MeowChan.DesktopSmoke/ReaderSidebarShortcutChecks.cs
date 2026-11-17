@@ -69,6 +69,7 @@ internal static class ReaderSidebarShortcutChecks
             await page.ApplySearchAsync();
             page.FindControl<ListBox>("ArchiveThreads")!.SelectedIndex = 0;
             await Program.WaitUntilAsync(() => !page.IsBusy && page.CurrentThread?.Summary.Id == Fixture);
+            await page.LoadThreadAsync(Fixture); // A retained id alone does not prove a fresh media snapshot.
             // Opening the large reader snapshots the embedded origin, including its assets.
             // Finish that origin's scan before detaching, so close restores usable media.
             await page.MediaLoadTask;
