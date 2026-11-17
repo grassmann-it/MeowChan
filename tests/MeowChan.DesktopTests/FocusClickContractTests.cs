@@ -139,14 +139,18 @@ public sealed class FocusClickContractTests
         Assert.DoesNotContain(list + ".Tapped +=", body);
     }
 
-    [Fact(Skip = "UX-LEDGER-06: Reader media activation is explicitly forbidden. ArchivePage.InlineVideo.OnMediaSidebarPictureActivated still opens gallery for Gallery preference; requires reader owner's fix.")]
+    [Fact]
     public void ReaderSidebarSingleClickMustNotOpenGalleryForAnyReaderPreference()
     {
         string body = Method("Desktop/Views/Archive/ArchivePage.InlineVideo.cs", "OnMediaSidebarPictureActivated");
         Assert.DoesNotContain("OpenMediaSidebarMedia()", body);
+        Assert.DoesNotContain("OpensGalleryOnPictureClick", body);
+        Assert.Contains("slot.ToggleAsync()", body);
+        Assert.Contains("sidebar.SingleClickActs = slot.IsOffered;", Read("Desktop/Views/Archive/ArchivePage.InlineVideo.cs"));
+        Assert.Contains("sidebar.GalleryRequested += (_, _) => OpenMediaSidebarMedia();", Read("Desktop/Views/Archive/ArchivePage.MediaSidebar.cs"));
     }
 
-    [Theory(Skip = "UX-LEDGER-06: TaggingPage selection fix logic is explicitly tests-only. ContextMenuHost composes from Lead/Selected without resolving the right-click target; add page-local target selection/focus in a separately owned change.")]
+    [Theory(Skip = "FC-02 / TaggingPage-Selection: at 740d0d565 both TaggingPage.Commands.InitializeCommands and TaggingPage.Grid wire ContextMenuHost directly to ComposeRowMenu (Lead/Selected), with no OnContextPointerPressed target/focus handler. Both InlineData cases fail Assert.Contains. Blocked on the concurrent UX-LEDGER-08 tagging-selection PR; see docs/development/ux-ui-release-followups-20261117.md#focus-click-contract-skip-closeout.")]
     [InlineData("Commands", "_list")]
     [InlineData("Grid", "_grid")]
     public void TaggingRightClickMustSelectAndFocusTargetBeforeComposingMenu(string file, string list)
@@ -155,14 +159,14 @@ public sealed class FocusClickContractTests
         Assert.Contains(list + ".AddHandler(PointerPressedEvent, OnContextPointerPressed", body);
     }
 
-    [Fact(Skip = "UX-LEDGER-06: Gallery context core is forbidden. Viewport right-click does not reclaim surface focus before ShowMediaMenu; closing can restore unrelated toolbar focus. Requires Gallery context owner.")]
+    [Fact]
     public void GalleryViewportRightClickMustFocusSurfaceBeforeOpeningMenu()
     {
         string body = Method("Desktop/GalleryViewer.MediaMenu.cs", "OnMediaContextRequested");
         Before(body, "FocusGallerySurface()", "ShowMediaMenu()");
     }
 
-    [Fact(Skip = "UX-LEDGER-06: Gallery context core is forbidden. OnFilmstripTileContextRequested opens a menu for an unselected entry without navigating/selecting it; requires Gallery context owner and async navigation/menu lifetime design.")]
+    [Fact(Skip = "FC-04 / Gallery-Context-Core: at 740d0d565 GalleryViewer.Filmstrip.OnFilmstripTileContextRequested calls ShowMediaMenu(entry) for an unselected tile and never OnFilmstripTileActivated(index), so Assert.Contains fails. Activation dispatches asynchronous shell MoveGalleryAsync; navigation invalidates the menu in GalleryViewer.ShowMediaAsync. Needs navigation-completion/cancellation ownership before opening the selected target's menu; see docs/development/ux-ui-release-followups-20261117.md#focus-click-contract-skip-closeout.")]
     public void GalleryFilmstripRightClickMustSelectTargetNotOnlyRetargetTheMenu()
     {
         string body = Method("Desktop/GalleryViewer.Filmstrip.cs", "OnFilmstripTileContextRequested");

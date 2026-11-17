@@ -41,6 +41,52 @@ The documentation follow-up is intended to merge after all seven implementation 
 Full all-platform release acceptance remains a separate gate; CI orchestration
 hardening does not itself establish a green sweep.
 
+## Focus-click contract skip closeout
+
+Audit base: `740d0d565b9c68a0db90c579d6df45a27dbd3823` (the requested
+`origin/goal/gesamtprogramm-profile-a` at worktree creation). This section supersedes
+the protected-scope status above for the four skipped declarations in
+`tests/MeowChan.DesktopTests/FocusClickContractTests.cs`. These are source/wiring
+contracts, **not native pointer acceptance**. Skipped remains blocked, not passing.
+
+| Follow-up | Contract / verdict | Evidence and ownership |
+| --- | --- | --- |
+| FC-01 — Reader-Media-Activation | **Enabled, fixed:** sidebar single-click must not open Gallery for any Reader preference. | With the skip removed, `ReaderSidebarSingleClickMustNotOpenGalleryForAnyReaderPreference` failed because `ArchivePage.InlineVideo.cs:OnMediaSidebarPictureActivated` called `OpenMediaSidebarMedia()` for the Gallery preference. Removed that branch; offered inline video still toggles, and `ArchivePage.MediaSidebar.cs` still wires `GalleryRequested` to the explicit Gallery open. Cursor now reflects only inline-video activation. Reader owner: native single/double-click, video and Open-button recheck remains required. |
+| FC-02 — TaggingPage-Selection | **Blocked on the concurrent UX-LEDGER-08 tagging-selection PR**, not fixed here. | Both `Commands/_list` and `Grid/_grid` cases fail the required `AddHandler(PointerPressedEvent, OnContextPointerPressed...)` assertion. `TaggingPage.Commands.cs:InitializeCommands` and `TaggingPage.Grid.cs` construct `ContextMenuHost(..., ComposeRowMenu, ...)` without a page-local right-click target/focus handler; `ComposeRowMenu` uses `Lead` and `Selected` via `CommandContext()`. No files under `Desktop/Views/Tagging/` were changed. The selection-count fix alone is not evidence of right-click correctness: the Tagging owner must select an outside target, preserve an inside multi-selection, focus its container, then compose, in both views, and remove this skip after validation. The concurrent PR was not yet published/discoverable during this audit (worker branch `ux/ledger-08-tagging-selection-revisit-20261117b`); attach its PR link when available. |
+| FC-03 — Gallery-Context-Core / viewport | **Enabled, fixed:** reclaim surface focus before opening the menu. | `GalleryViewportRightClickMustFocusSurfaceBeforeOpeningMenu` failed its ordering assertion: `GalleryViewer.MediaMenu.cs:OnMediaContextRequested` went straight to `ShowMediaMenu()`. It now calls `FocusGallerySurface()` first, after the existing handled/entry/native-text guards, so the presenter captures surface return focus rather than unrelated toolbar focus. Gallery owner: native image/video and menu-dismissal focus acceptance still required. |
+| FC-04 — Gallery-Context-Core / filmstrip | **Blocked:** right-click must select/navigate to the target, not merely retarget its menu. | `GalleryFilmstripRightClickMustSelectTargetNotOnlyRetargetTheMenu` fails: `GalleryViewer.Filmstrip.cs:OnFilmstripTileContextRequested` calls `ShowMediaMenu(entry)` for an unselected tile, never `OnFilmstripTileActivated(index)`. Activation raises `MoveRequested`; `Desktop/Shell/MainWindow.Gallery.cs` starts asynchronous `MoveGalleryAsync`. `GalleryViewer.cs:ShowMediaAsync` changes `_navigationId` and calls `InvalidateMediaMenu()`, while `ShowMediaMenu` binds validity to that navigation ID. Merely adding the activation call can immediately invalidate the menu or open it before the new medium is committed. Gallery context/navigation owner must arrange a completion-bound target menu, cancel stale requests on rapid navigation/close/failure, preserve current-tile behavior and reject non-media/more tiles; then remove the skip and add navigation/menu-lifetime coverage. |
+
+### Validation of this closeout
+
+- An isolated run of the two newly enabled tests completed: **2 passed / 0 failed /
+  0 skipped**. `git diff --check` also passed.
+- Removing all four skip attributes produced **13 passed / 7 failed / 0 skipped**
+  in `FocusClickContractTests`: the four declarations contributed five failures
+  (Tagging is a two-case theory); two already-enabled Media right-click cases
+  also failed. The Reader cursor-only adjustment was already present for this
+  diagnostic run; neither the Reader click handler nor Gallery handler had been fixed.
+- After the fixes, the combined `FocusClickContractTests`,
+  `MediaViewsDeadAffordanceTests` and `ReaderMediaSidebarTests` run completed:
+  **78 passed / 2 failed / 2 skipped, 82 total**. The newly enabled Reader and Gallery
+  viewport tests pass; both remaining skip declarations have explicit blockers above
+  (xUnit reports the skipped theory as one result, not its two data cases).
+- The two failures are the already-enabled
+  `MediaRightClickPreservesOnlyASelectionContainingTheTargetAndFocusesBeforeMenu`
+  cases. They reproduce before these fixes: the base moved selection into
+  `MediaPage.cs:TargetForMenu` and no longer contains the asserted inline
+  selection/focus sequence. Media owner must reconcile the helper and the focus
+  contract; no Media implementation or assertions were changed to mask this failure.
+- Full affected project command:
+  `dotnet test tests/MeowChan.DesktopTests/MeowChan.DesktopTests.csproj --no-restore -m:1 --blame-hang-timeout 3m`.
+  The runner did not finish within the outer **600-second limit** and was terminated;
+  no green full-project verdict is claimed. Before timeout it reported nine failures:
+  the two Media cases above, two `ReaderWorkViewTests`,
+  `ArchiveSegmentStretchTests`, `MediaBooruOverflowRegistrationTests`,
+  `Hygiene.FireAndForgetHygieneTests.NoNewDiscardedTasks`, and two DesignLint rules
+  (`spacing-off-grid`, `color-code`). These other failures reference untouched files.
+- Targeted reproduction command:
+  `dotnet test tests/MeowChan.DesktopTests/MeowChan.DesktopTests.csproj --no-build --no-restore --filter 'FullyQualifiedName~FocusClickContractTests|FullyQualifiedName~MediaViewsDeadAffordanceTests|FullyQualifiedName~ReaderMediaSidebarTests'`.
+
 ## Fixed in this release candidate
 
 - **Quick tag input focus (breaking):** when Rate and tag opened with the rating row focused,
