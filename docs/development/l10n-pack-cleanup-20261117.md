@@ -129,3 +129,50 @@ unknown/stale keys: 0 → 0; duplicate keys: 0 → 0; placeholder mismatches: 0 
 The audit's “256–308 stale keys” and “three universally missing keys” are not
 valid descriptions of the runtime catalogs. Deleting/inserting them mechanically
 would break localization rather than clean it up.
+
+## Validation and delivery
+
+Only localization/pack coverage tests were run; no full-solution build command
+and no GUI smoke. The test project built its normal references. Existing compiler
+CS0419 and Avalonia private-API/resource-constructor warnings were nonfatal.
+
+Broad localization run:
+
+```sh
+dotnet test tests/MeowChan.DesktopTests/MeowChan.DesktopTests.csproj \
+  --filter 'FullyQualifiedName~LocalizationTests|FullyQualifiedName~BundledLanguagePack|FullyQualifiedName~PluralCountTextTests|FullyQualifiedName~PreviewLanguagePackTests|FullyQualifiedName~LocalSearchPackTranslationContractTests' \
+  -m:1 -p:UseSharedCompilation=false --logger 'console;verbosity=normal'
+```
+
+```text
+Test Run Successful.
+Total tests: 508
+     Passed: 508
+ Total time: 4.5712 Minutes
+```
+
+Final focused run against translation commit `d35a0ceb5`, including all 23 new
+regression cases and all ten pack completeness cases:
+
+```sh
+dotnet test tests/MeowChan.DesktopTests/MeowChan.DesktopTests.csproj --no-restore \
+  --filter 'FullyQualifiedName~LanguagePackAuditRegressionTests|FullyQualifiedName~BundledLanguagePackCompletenessTests|FullyQualifiedName~BundledLanguagePackTests|FullyQualifiedName~PluralCountTextTests|FullyQualifiedName~LocalSearchPackTranslationContractTests' \
+  -m:1 -p:UseSharedCompilation=false --logger 'console;verbosity=normal'
+```
+
+```text
+Test Run Successful.
+Total tests: 120
+     Passed: 120
+ Total time: 43.8493 Seconds
+```
+
+Logs: session scratchpad `l10n-tests-initial.log` and `l10n-tests-final.log`.
+Independent before/after JSON checks also found no duplicate/unknown keys or
+placeholder-contract differences; every one of the 50 changed values was
+previously byte-identical to its English source. `git diff --check` passed.
+
+Steps 1–5 were committed and pushed individually in order (`65356c835`,
+`fe48ca051`, `9e44b219e`, `9860cb6ff`, `d35a0ceb5`).
+[PR #37](https://github.com/grassmann-it/MeowChan/pull/37) was opened after step 2
+against `goal/gesamtprogramm-profile-a`. No force push or assertion weakening.
