@@ -110,7 +110,7 @@ public partial class ArchivePage
 
     private void OnPostFilterKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Handled || ShortcutService.IsCapturing || !CommandRouter.IsRoutingContextActive(ArchiveReaderPane, e.Source)
+        if (e.Handled || ShortcutService.IsCapturing || !CommandRouter.IsRoutingContextActive(sender as Control ?? ArchiveReaderPane, e.Source)
             || ReaderSelectionOwnsActivationKey(e) || IsReaderDialogOpen || !CanChangePostFilters || _thread == null
             || ArchivePosts.SelectedItem is not ArchivePostRow row || _thread.FindPostIndex(row.Id) < 0) return;
         ResourceId thread = _thread.Summary.Id;

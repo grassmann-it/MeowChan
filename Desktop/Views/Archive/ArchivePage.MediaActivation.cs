@@ -18,6 +18,23 @@ public partial class ArchivePage
 {
     internal const string ActivateMediumCommandId = "reader.media.activate";
 
+    // An explicit gallery request on a medium is not the thread toolbar's
+    // whole-thread request. In particular its preview is a Button: Shift+Enter
+    // must reach this route while unmodified Enter remains native activation.
+    private bool TryOpenFocusedReaderMedium(KeyEventArgs e)
+    {
+        if (e.Handled || ShortcutService.IsCapturing || _ended || _busy || !_available || _obscuredByGallery
+            || IsReaderDialogOpen || OpenGallery == null || e.Source is not Control source
+            || !CommandRouter.IsRoutingContextActive(ArchivePosts, source)
+            || !CommandBindings.Matches(e, "gallery.open")) return false;
+        ArchiveAttachmentView? view = source.GetSelfAndVisualAncestors().OfType<ArchiveAttachmentView>().FirstOrDefault();
+        if (view?.DataContext is not ArchiveAttachmentRow row || row.OpenPreview == null
+            || !source.GetVisualAncestors().Contains(ArchivePosts)) return false;
+        e.Handled = true;
+        row.OpenPreview(); // The same exact association and guarded manifest wait as native activation.
+        return true;
+    }
+
     /// <summary>The facts of the selected post's media for the keys (rows in position order, with their realized views).</summary>
     private sealed record PostMediaSnapshot(List<ArchiveAttachmentRow> Rows, List<ReaderPostMedium> Media, ArchiveAttachmentView?[] Views,
         int? SidebarIndex, bool SidebarLive, bool SidebarPlaying, int? FocusedIndex);
