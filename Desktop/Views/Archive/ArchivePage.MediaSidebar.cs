@@ -31,6 +31,7 @@ public partial class ArchivePage
 {
     private Grid? _largeReaderFrame;
     private ReaderMediaSidebar? _mediaSidebar;
+    private IDisposable? _sidebarKeyContext;
     private GridSplitter? _mediaSidebarSplitter;
     // Where the sidebar sits now: the large reader's frame or the archive view's reader pane (null until it was first needed).
     private Grid? _mediaSidebarHost;
@@ -229,9 +230,13 @@ public partial class ArchivePage
         // Its keys run in the reader's context in either host: in the large reader the sidebar sits beside the pane, outside the pane's own host, and its
         // keys (M / U / F, the media keys) asked without a context, so a default yielded elsewhere went dead there. Installed after its tunnel handlers
         // (Avalonia runs one element's tunnel handlers in reverse order), like the pane's (WireReaderSurface).
-        IDisposable sidebarKeyContext = MeowChan.Desktop.Controls.KeyContextHost.Install(sidebar, _ => "reader");
+        _sidebarKeyContext = MeowChan.Desktop.Controls.KeyContextHost.Install(sidebar, _ => "reader");
         // Moving between reader hosts must retain the context; ending the page must not.
-        _lifetime.Token.Register(() => sidebarKeyContext.Dispose());
+        _lifetime.Token.Register(() =>
+        {
+            _sidebarKeyContext?.Dispose();
+            _sidebarKeyContext = null;
+        });
         // The sidebar can be materialized after the pane has already attached.
         // Give the reader's rating router an owner on this sibling as well; the
         // large-reader frame is not the pane's visual subtree.
