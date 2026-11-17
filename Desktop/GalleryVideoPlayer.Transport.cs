@@ -229,8 +229,13 @@ internal sealed partial class GalleryVideoPlayer
     private void SetVolumePopupVisible(bool visible)
     {
         if (_volumePopup.IsVisible == visible) return;
-        // A hidden slider cannot keep the focus: hand it back to the speaker, so gallery keys keep their owner.
-        if (!visible && _volume.IsFocused) _mute.Focus(NavigationMethod.Pointer);
+        // A hidden slider cannot keep the focus. One the pointer focused goes back to the owner of the keys (never to the speaker, whose
+        // Space and Enter would toggle mute); one reached by keyboard hands it to the speaker beside it, so the Tab order is kept.
+        if (!visible && _volume.IsFocused)
+        {
+            if (!_volumeKeyboardFocus && ShortcutFocusRequested != null) ShortcutFocusRequested();
+            else _mute.Focus(NavigationMethod.Pointer);
+        }
         _volumePopup.IsVisible = visible;
     }
 

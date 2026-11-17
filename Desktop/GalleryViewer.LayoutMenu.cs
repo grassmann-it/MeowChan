@@ -131,8 +131,9 @@ internal sealed partial class GalleryViewer
             RevealOverlayControls();
             if (!_layoutMenuHadFocus || _terminalRetirement || !_layoutButton.IsEffectivelyVisible) return;
             _layoutMenuHadFocus = false;
-            // The focus returns to the button the menu came from, never to a block that may have left the screen.
-            _layoutButton.Focus(_keyboardInteraction ? NavigationMethod.Tab : NavigationMethod.Pointer);
+            // A keyboard user returns to the button the menu came from, never to a block that may have left the screen; a menu opened with the pointer hands the keys to the picture.
+            if (_keyboardInteraction) _layoutButton.Focus(NavigationMethod.Tab);
+            else ReclaimGallerySurface();
         };
         // The same rows on a right click of free dock area; the host also opens them for the Menu key and Shift+F10 on the button.
         _layoutContextHost = new ContextMenuHost(_layoutButton,

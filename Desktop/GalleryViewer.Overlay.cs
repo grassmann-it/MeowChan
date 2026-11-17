@@ -14,6 +14,7 @@ using Avalonia.Media;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 
@@ -322,6 +323,8 @@ internal sealed partial class GalleryViewer
             surface.AddHandler(PointerPressedEvent, OnOverlayPointerPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
             surface.AddHandler(PointerReleasedEvent, OnOverlayPointerReleased, RoutingStrategies.Tunnel, handledEventsToo: true);
             surface.AddHandler(PointerCaptureLostEvent, OnOverlayPointerCaptureLost, RoutingStrategies.Bubble, handledEventsToo: true);
+            // A click on any chrome control (toolbar, badges, fit and zoom, layout and "More") gives the keys back to the picture, never to the button.
+            PointerFocusReclaim.Attach(surface, ReclaimGallerySurface);
             surface.AddHandler(PointerWheelChangedEvent, OnOverlayPointerWheel, RoutingStrategies.Tunnel, handledEventsToo: true);
             surface.AddHandler(TappedEvent, OnOverlayTap, RoutingStrategies.Tunnel, handledEventsToo: true);
             surface.AddHandler(DoubleTappedEvent, OnOverlayTap, RoutingStrategies.Tunnel, handledEventsToo: true);
@@ -501,6 +504,19 @@ internal sealed partial class GalleryViewer
         Control target = _nativeOverlayActive ? _nativeVideoOverlay : this;
         if (TopLevel.GetTopLevel(target) is Window { IsActive: true, IsEnabled: true })
             target.Focus(NavigationMethod.Tab);
+    }
+
+    /// <summary>
+    /// The keys go back to the picture after a pointer action on the chrome (<see cref="PointerFocusReclaim"/>): the next Space, Enter, arrow or letter
+    /// reaches playback and the gallery's shortcuts instead of pressing the control that was clicked. The pointer's focus (no keyboard cue), and nothing
+    /// for a viewer that is stopping, hidden or in an inactive window.
+    /// </summary>
+    internal void ReclaimGallerySurface()
+    {
+        if (_terminalRetirement || _viewerInteractionStopped) return;
+        Control target = _nativeOverlayActive ? _nativeVideoOverlay : this;
+        if (target.IsEffectivelyVisible && TopLevel.GetTopLevel(target) is Window { IsActive: true, IsEnabled: true })
+            target.Focus(NavigationMethod.Pointer);
     }
 
     private void RevealOverlayControls()
