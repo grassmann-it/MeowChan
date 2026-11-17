@@ -64,7 +64,7 @@ public sealed partial class TaggingPage : UserControl
         // A right-click between the header words has to find the header too (it carries the column menu), so it takes a transparent fill.
         Background = Brushes.Transparent };
     private readonly Border _columnHeaderSurface = new() { Name = "TaggingColumnHeaderSurface", Classes = { "workspace-table-header" } };
-    private readonly ListBox _list = new() { Name = "TaggingList", SelectionMode = SelectionMode.Multiple };
+    private readonly ListBox _list = new() { Name = "TaggingList", Classes = { "tagging-table" }, SelectionMode = SelectionMode.Multiple };
     private readonly TextBlock _empty = new() { Name = "TaggingEmpty" };
     private readonly WorkspaceEmptyState _emptyState = new() { Name = "TaggingEmptyState", IsVisible = false };
     // Empty-state actions side by side, centred; they wrap to a second line on a narrow page instead of running off both edges (like the Media page's).
@@ -187,7 +187,6 @@ public sealed partial class TaggingPage : UserControl
             TaggingQueueRow? row = e.Container.DataContext as TaggingQueueRow ?? (e.Index >= 0 && e.Index < _rows.Count ? _rows[e.Index] : null);
             if (e.Container is ListBoxItem item && row != null)
             {
-                item.MinHeight = _compactRows ? TaggingQueueRowView.CompactHeight : TaggingQueueRowView.RowHeight;
                 AutomationProperties.SetName(item, row.AccessibleName);
                 AutomationProperties.SetHelpText(item, row.AccessibleDetails(TagCountOf(row.Item)));
             }
@@ -250,6 +249,7 @@ public sealed partial class TaggingPage : UserControl
         bool compact = WorkViewDensity.Compact(_workView) || CompactDensity?.Invoke() == true;
         if (compact == _compactRows) return;
         _compactRows = compact;
+        _list.Classes.Set("compact", compact);
         _list.ItemTemplate = RowTemplate();
     }
 

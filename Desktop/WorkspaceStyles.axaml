@@ -972,17 +972,36 @@
         <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Caption}" /><Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="Padding" Value="15,6,15,2" /><Setter Property="MinHeight" Value="0" /><Setter Property="Focusable" Value="False" />
     </Style>
-    <Style Selector="ComboBoxItem, ListBox:not(.workspace-selection-bar):not(.reader-fit-width):not(.reader-column-width) > ListBoxItem:not(.chip-item)">
+    <Style Selector="ComboBoxItem, ListBox:not(.workspace-selection-bar):not(.reader-fit-width):not(.reader-column-width):not(.tagging-table) > ListBoxItem:not(.chip-item)">
         <Setter Property="BorderBrush" Value="Transparent" /><Setter Property="BorderThickness" Value="1" /><Setter Property="Padding" Value="11,7" />
     </Style>
-    <Style Selector="ComboBoxItem:pointerover, ListBox:not(.workspace-selection-bar):not(.reader-fit-width):not(.reader-column-width) > ListBoxItem:not(.chip-item):pointerover">
+    <Style Selector="ComboBoxItem:pointerover, ListBox:not(.workspace-selection-bar):not(.reader-fit-width):not(.reader-column-width):not(.tagging-table) > ListBoxItem:not(.chip-item):pointerover">
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
     </Style>
-    <Style Selector="ComboBoxItem:pressed, ListBox:not(.workspace-selection-bar):not(.reader-fit-width):not(.reader-column-width) > ListBoxItem:not(.chip-item):pressed">
+    <Style Selector="ComboBoxItem:pressed, ListBox:not(.workspace-selection-bar):not(.reader-fit-width):not(.reader-column-width):not(.tagging-table) > ListBoxItem:not(.chip-item):pressed">
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
     </Style>
-    <Style Selector="ComboBoxItem:selected, ListBox:not(.workspace-selection-bar):not(.reader-fit-width):not(.reader-column-width) > ListBoxItem:not(.chip-item):selected">
+    <Style Selector="ComboBoxItem:selected, ListBox:not(.workspace-selection-bar):not(.reader-fit-width):not(.reader-column-width):not(.tagging-table) > ListBoxItem:not(.chip-item):selected">
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" /><Setter Property="BorderThickness" Value="3,0,0,0" /><Setter Property="Padding" Value="9,8,12,8" />
+    </Style>
+
+    <!-- Tagging table heights are COMPLETE container heights, including the invariant selection edge.
+         Zero vertical padding/border leaves 44/32 for the row content; the 3-px edge never changes the inset. -->
+    <Style Selector="ListBox.tagging-table > ListBoxItem">
+        <Setter Property="Height" Value="{x:Static desktop:WorkspaceMetrics.NormalRowHeight}" />
+        <Setter Property="MinHeight" Value="0" /><Setter Property="Margin" Value="0" />
+        <Setter Property="Padding" Value="9,0,12,0" /><Setter Property="BorderThickness" Value="3,0,0,0" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" /><Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="ListBox.tagging-table.compact > ListBoxItem">
+        <Setter Property="Height" Value="{x:Static desktop:WorkspaceMetrics.CompactRowHeight}" />
+    </Style>
+    <Style Selector="ListBox.tagging-table > ListBoxItem:pointerover">
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
+    </Style>
+    <Style Selector="ListBox.tagging-table > ListBoxItem:pressed, ListBox.tagging-table > ListBoxItem:selected">
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
     </Style>
 
     <!-- Opt-in composition roles; native templates, selection and automation stay
