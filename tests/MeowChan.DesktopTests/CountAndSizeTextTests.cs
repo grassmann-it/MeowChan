@@ -77,13 +77,16 @@ public sealed class CountAndSizeTextTests : IDisposable
     }
 
     [Fact]
-    public void CountFormatsEveryArgumentAndKeepsTheOtherCountsPlural()
+    public void CountPhrasesFormatEveryCounterIndependently()
     {
-        Assert.Equal("12 media in 1 thread", Texts.Count("media.count", 1, 12, 1));
-        Assert.Equal("12 media in 3 threads", Texts.Count("media.count", 3, 12, 3));
-        Assert.Equal("12 media in 1 thread, 2 missing", Texts.Count("media.countMissing", 1, 12, 1, 2));
+        Assert.Equal("Last capture: today · 1 post", Texts.Count("archive.captured", 1, "today", 1));
+        Assert.Equal("1 medium in 12 threads", CountPhrases.MediaSummary(1, 12));
+        Assert.Equal("12 media in 1 thread", CountPhrases.MediaSummary(12, 1));
+        Assert.Equal("12 media in 3 threads", CountPhrases.MediaSummary(12, 3));
+        Assert.Equal("12 media in 1 thread, 2 missing", CountPhrases.MediaSummary(12, 1, 2));
         Texts.SetLanguage("de");
-        Assert.Equal("12 Medien in 1 Thread", Texts.Count("media.count", 1, 12, 1));
+        Assert.Equal("12 Medien in 1 Thread", CountPhrases.MediaSummary(12, 1));
+        Assert.Equal("1 Medium in 12 Threads", CountPhrases.MediaSummary(1, 12));
     }
 
     [Fact]
