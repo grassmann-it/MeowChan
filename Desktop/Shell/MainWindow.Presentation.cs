@@ -601,7 +601,9 @@ public partial class MainWindow
             // Reserve tabs, the column header and one complete data row. Extra-long
             // repair/report content scrolls in intake instead of reducing the table to zero.
             double rowHeight = barebones || _config.CompactDensity ? 32 : 44;
-            double tableMinimum = Math.Max(38, DownloadsTabs.Bounds.Height) + 32 + rowHeight + 4;
+            // The grid's actual header+first-row footprint includes the row spacing already; the extra
+            // four-DIP gap used here previously let the intake child overlap the content grid by two DIP at 640×480.
+            double tableMinimum = Math.Max(38, DownloadsTabs.Bounds.Height) + 32 + rowHeight + 2;
             bool reserveTable = retainedErrorLayout || compactIntake;
             content.MinHeight = reserveTable ? tableMinimum : 0;
             WorkspaceIntakeScroll.MaxHeight = reserveTable

@@ -178,7 +178,9 @@ internal static class ReaderNavigationOverlayChecks
             Require(page.ReaderNavigationIdleDelayMs == ReaderNavigationLayout.IdleHideDelayMsMinimum, "The idle delay was not clamped to its minimum.");
             page.ReaderNavigationIdleDelayMs = int.MaxValue;
             Require(page.ReaderNavigationIdleDelayMs == ReaderNavigationLayout.IdleHideDelayMsMaximum, "The idle delay was not clamped to its maximum.");
-            page.ReaderNavigationIdleDelayMs = 600;
+            // Keep the first reveal observable on a loaded shared runner; the hide assertion below still
+            // verifies the normal short idle interval after the capsule has been observed.
+            page.ReaderNavigationIdleDelayMs = 1500;
             // Re-arm after changing the delay. The fixture may have shown the bar during startup,
             // so an already-running timer would otherwise retain the old interval.
             page.ReaderNavigationMode = Config.ReaderNavigationModeOff;
