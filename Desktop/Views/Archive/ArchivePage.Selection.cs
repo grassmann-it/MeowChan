@@ -236,8 +236,10 @@ public partial class ArchivePage
             _selectedThread = row.Summary.Id;
             SynchronizeArchiveSelection(ArchiveVisibleRows);
             // This press is handled here, so native ListBox/DataGrid focus will
-            // not run. The menu must return to the clicked row, not the old one.
-            if (hit?.Focus() != true) list.Focus();
+            // not run. DataGridRow is not itself focusable: use its clicked cell.
+            DataGridCell? cell = (e.Source as Visual)?.GetSelfAndVisualAncestors().OfType<DataGridCell>().FirstOrDefault()
+                ?? hit?.GetVisualDescendants().OfType<DataGridCell>().FirstOrDefault(candidate => candidate.IsEffectivelyVisible);
+            if (cell?.Focus(NavigationMethod.Pointer) != true && hit?.Focus() != true) list.Focus();
             Control? owner = list.ContextMenu != null ? list : hit?.GetVisualDescendants().OfType<Control>().FirstOrDefault(control => control.ContextMenu != null);
             if (owner != null) OpenArchiveSelectionMenu(owner, e.GetPosition(owner));
         }

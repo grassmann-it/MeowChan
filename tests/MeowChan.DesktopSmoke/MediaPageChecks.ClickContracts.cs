@@ -22,6 +22,9 @@ internal static partial class MediaPageChecks
         Texts.SetLanguage("en");
         try
         {
+            // A real DataGridRow is not focusable. Exercise the Downloads view
+            // handler against actual native cells, including a row-sourced click.
+            await DownloadRowFocusContractAsync(owner);
             new Config().SaveConfig(profile);
             await SeedAsync(profile);
             await using DesktopSessionHost host = new(profile, Array.Empty<IImageBoard>());
@@ -88,6 +91,52 @@ internal static partial class MediaPageChecks
             finally { page.EndLifetime(); window.Close(); }
         }
         finally { Texts.SetLanguage(language); }
+    }
+
+    private static async Task DownloadRowFocusContractAsync(MainWindow owner)
+    {
+        // Real view handler, inert row identities: no download/admission/network
+        // operation. No menu is assigned; Media below checks the real menu route.
+        DataGrid grid = new()
+        {
+            AutoGenerateColumns = false, IsReadOnly = true,
+            ItemsSource = new[] { "first", "second", "third" }, SelectionMode = DataGridSelectionMode.Extended
+        };
+        grid.Columns.Add(new DataGridTextColumn { Header = "Target", Binding = new Avalonia.Data.Binding(".") });
+        var method = typeof(MainWindow).GetMethod("SelectDownloadContextRow",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("Downloads right-click handler is missing.");
+        var handler = method.CreateDelegate<EventHandler<PointerPressedEventArgs>>(owner);
+        grid.AddHandler(InputElement.PointerPressedEvent, handler, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+        Window window = new() { Width = 700, Height = 350, Content = grid, ShowInTaskbar = false };
+        try
+        {
+            window.Show(owner);
+            DataGridRow? first = null, third = null;
+            await UntilAsync(() =>
+            {
+                DataGridRow[] rows = grid.GetVisualDescendants().OfType<DataGridRow>().ToArray();
+                first = rows.FirstOrDefault(row => Equals(row.DataContext, "first"));
+                third = rows.FirstOrDefault(row => Equals(row.DataContext, "third"));
+                return first is { IsArrangeValid: true, Bounds.Width: > 0 }
+                    && third is { IsArrangeValid: true, Bounds.Width: > 0 };
+            });
+            grid.SelectedIndex = 0;
+            grid.Focus();
+            await RightContractClickAsync(third!, window);
+            Require(grid.SelectedIndex == 2 && third!.IsKeyboardFocusWithin,
+                "Downloads handler must select and focus a cell of the clicked row, not the table/old row.");
+            grid.SelectedItems.Add("first");
+            await RightContractClickAsync(first!, window);
+            Require(grid.SelectedItems.Count == 2 && first!.IsKeyboardFocusWithin,
+                "Downloads right-click inside selection must preserve the group and focus its clicked row.");
+            Console.WriteLine("SMOKE focus-click-contracts: Downloads view handler focuses native DataGrid cells for row-sourced right-clicks; outside/inside multi-selection contracts passed.");
+        }
+        finally
+        {
+            grid.RemoveHandler(InputElement.PointerPressedEvent, handler);
+            window.Close();
+        }
     }
 
     private static async Task<Control> ClickContractTileAsync(MediaPage page, int index)

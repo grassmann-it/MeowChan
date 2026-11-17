@@ -500,7 +500,7 @@ public sealed partial class MediaPage
 
     // ---- opening, closing ------------------------------------------------------------------------------------------------------
 
-    /// <summary>"Open in gallery" (and a click on an image in the panel): the gallery at the panel's medium, the same path as Enter on the tile.</summary>
+    /// <summary>"Open in gallery" (or a double-click in the panel): the gallery at the panel's medium, the same path as Enter on the tile.</summary>
     internal Task OpenPanelMediaAsync() => _panelRow is { } row ? OpenRowAsync(row) : Task.CompletedTask;
 
     // Every click, key and menu entry starts the open through the shared safe path: a failure is shown in the error banner, never lost in a discarded task.

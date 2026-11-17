@@ -220,7 +220,10 @@ public partial class ArchivePage
         {
             if (!SelectedMediaRows().Contains(asset)) SetMediaSelection(new[] { asset });
             _mediaLead = asset;
-            ancestors.FirstOrDefault(control => control is ListBoxItem or DataGridRow)?.Focus();
+            Control? item = ancestors.FirstOrDefault(control => control is ListBoxItem or DataGridRow);
+            DataGridCell? cell = ancestors.OfType<DataGridCell>().FirstOrDefault()
+                ?? item?.GetVisualDescendants().OfType<DataGridCell>().FirstOrDefault(candidate => candidate.IsEffectivelyVisible);
+            if (cell?.Focus(NavigationMethod.Pointer) != true) item?.Focus();
             UpdateActions();
         }
         (ContextMenu menu, MediaMenuSession session) = BuildArchiveMediaMenu(asset, attachment, origin, postId, ArchiveMenuSurface(ancestors, attachment),

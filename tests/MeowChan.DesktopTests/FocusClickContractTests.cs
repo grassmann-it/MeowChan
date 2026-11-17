@@ -16,7 +16,8 @@ public sealed class FocusClickContractTests
         Assert.DoesNotContain("OpenDownloadReaderAsync", press);
         Assert.DoesNotContain("OpenGalleryAsync", press);
         Before(press, "if (!grid.SelectedItems.Contains(item)) grid.SelectedItem = item;", "hit?.Focus()");
-        Before(press, "hit?.Focus()", "OpenDownloadContextMenu(grid, contextItem)");
+        Before(press, "cell?.Focus(NavigationMethod.Pointer)", "OpenDownloadContextMenu(grid, contextItem)");
+        Assert.Contains("GetVisualDescendants().OfType<DataGridCell>()", press);
         string open = Method("Desktop/Shell/MainWindow.Selection.cs", "OpenDownloadContextMenu");
         Before(open, "if (!grid.SelectedItems.Contains(contextItem))", "BuildDownloadMenu(grid, menu)");
     }
@@ -63,7 +64,8 @@ public sealed class FocusClickContractTests
         Assert.Contains("!keyboard && attachment == null && asset != null", body);
         Assert.Contains("ReferenceEquals(control, VisibleMediaList)", body);
         Before(body, "if (!SelectedMediaRows().Contains(asset)) SetMediaSelection(new[] { asset });", "BuildArchiveMediaMenu(asset");
-        Before(body, "control is ListBoxItem or DataGridRow)?.Focus()", "BuildArchiveMediaMenu(asset");
+        Before(body, "cell?.Focus(NavigationMethod.Pointer)", "BuildArchiveMediaMenu(asset");
+        Assert.Contains("item?.Focus()", body);
     }
 
     [Fact]
