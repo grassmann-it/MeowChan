@@ -233,20 +233,11 @@ internal static class ReaderNavigationOverlayChecks
             // Keyboard focus keeps it shown; losing focus lets it hide.
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
-                // The fixture can legitimately be at either edge after the preceding navigation checks.
-                // Disabled edge buttons are not keyboard focus targets; focus the capsule itself for the
-                // keep-visible contract so the assertion does not depend on which edge is selected.
-                // WrapPanel is a layout container and is not a reliable keyboard focus target
-                // on every Avalonia backend. Focus the explicitly focusable capsule instead;
-                // focus within this child satisfies the bar's IsKeyboardFocusWithin contract.
+                // Focus cannot be assigned to a hidden overlay. Re-arm the capsule first, then
+                // verify that keyboard focus keeps it visible independent of edge-button state.
+                page.ShowReaderNavigation();
                 Border focusSurface = page.FindControl<Border>("ReaderNavigationBar")!;
-                bool focusAssigned = focusSurface.Focus();
-                Require(focusAssigned, "Reader navigation focus could not be assigned. "
-                    + $"visible={focusSurface.IsEffectivelyVisible} enabled={focusSurface.IsEffectivelyEnabled} "
-                    + $"focusable={focusSurface.Focusable} tab={focusSurface.IsTabStop} "
-                    + $"attached={focusSurface.IsAttachedToVisualTree()} "
-                    + $"barVisible={bar.IsEffectivelyVisible} barHit={bar.IsHitTestVisible} "
-                    + $"buttons={string.Join(',', bar.GetVisualDescendants().OfType<Button>().Select(button => button.Name + ':' + button.IsEffectivelyEnabled))}");
+                Require(focusSurface.Focus(), "Reader navigation focus could not be assigned.");
                 Require(page.ReaderNavigationShown && bar.Opacity == 1 && bar.IsHitTestVisible,
                     "Keyboard focus did not reveal the reader navigation capsule.");
             });
