@@ -217,9 +217,12 @@ public partial class MainWindow
             // The handler is registered in the tunnel phase. Avalonia's DataGrid applies the
             // selection in its later class/bubble handling, so composing the menu here reads
             // the previous selection and can disable the single-thread Read command. Open it
-            // after the pointer route has finished, once SelectedItems is authoritative.
+            // after the pointer route has finished, once SelectedItems and the
+            // search reconciliation are authoritative. Background is deliberate:
+            // DataGrid commits selection at Input and the row projection follows
+            // it on the next UI turn.
             object contextItem = item;
-            Dispatcher.UIThread.Post(() => OpenDownloadContextMenu(grid, contextItem), DispatcherPriority.Input);
+            Dispatcher.UIThread.Post(() => OpenDownloadContextMenu(grid, contextItem), DispatcherPriority.Background);
         }
         e.Handled = true;
         RefreshWorkspace();
