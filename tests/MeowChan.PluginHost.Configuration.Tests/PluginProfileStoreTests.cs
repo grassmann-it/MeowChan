@@ -1458,12 +1458,13 @@ public sealed partial class PluginProfileStoreTests : IDisposable
     }
 
     private async Task<(PluginCandidateObservation Candidate, DeliveredCandidateProvenance Proof)> Delivered(string installation, string build,
-        string fileName = "fixture.plugin.json", bool source = false, bool requiredSetting = false, SettingsSchema? settings = null)
+        string fileName = "fixture.plugin.json", bool source = false, bool requiredSetting = false, SettingsSchema? settings = null,
+        string? sdkFingerprint = null)
     {
         string root = Path.Combine(profile, installation, "plugins"); Directory.CreateDirectory(root);
         byte[] assembly = Encoding.UTF8.GetBytes("synthetic offline assembly " + build);
         string sha = Convert.ToHexStringLower(SHA256.HashData(assembly));
-        string sdk = new('b', 64), compiler = new('c', 64);
+        string sdk = sdkFingerprint ?? new('b', 64), compiler = new('c', 64);
         string compilation = FixtureHashParts("prebuilt-v1", sha, sdk, compiler);
         string execution = FixtureHashParts("artifact-v1", compilation);
         string cache = Path.Combine(profile, "test-artifacts", execution); Directory.CreateDirectory(cache);
