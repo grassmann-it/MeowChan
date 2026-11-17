@@ -177,21 +177,34 @@ public partial class SettingsEditor
             SettingsCategoryLinks.Children.OfType<Button>().FirstOrDefault(button => Equals(button.Tag, focused))?.Focus();
     }
 
+    // Scroll to the complete section header, not the title TextBlock. This keeps
+    // adjacent actions (especially Reset) visible after a category jump.
+    private static Control SectionHeaderTarget(Control target)
+    {
+        Grid? visualHeader = target.GetVisualAncestors().OfType<Grid>()
+            .FirstOrDefault(grid => grid.Classes.Contains("settings-section-header"));
+        if (visualHeader != null) return visualHeader;
+
+        Grid? logicalHeader = target.GetLogicalAncestors().OfType<Grid>()
+            .FirstOrDefault(grid => grid.Classes.Contains("settings-section-header"));
+        return logicalHeader ?? target;
+    }
+
     private void RefreshSectionNavigation()
     {
         if (_sectionNavigation == null || _isClosed) return;
         var sections = new List<SectionDescriptor>
         {
-            new("settings.interface", InterfaceTitle, () => SettingsInterfaceHeading, () => SelectCategory("settings.interface")),
-            new("settings.reading-media", ReadingMediaTitle, () => SettingsReadingMediaHeading, () => SelectCategory("settings.reading-media")),
-            new("settings.downloads", DownloadsTitle, () => SettingsDownloadsHeading, () => SelectCategory("settings.downloads")),
-            new("settings.worker-budgets", StorageLimitsLabel, () => SettingsWorkerBudgetsPageTitle,
+            new("settings.interface", InterfaceTitle, () => SectionHeaderTarget(SettingsInterfaceHeading), () => SelectCategory("settings.interface")),
+            new("settings.reading-media", ReadingMediaTitle, () => SectionHeaderTarget(SettingsReadingMediaHeading), () => SelectCategory("settings.reading-media")),
+            new("settings.downloads", DownloadsTitle, () => SectionHeaderTarget(SettingsDownloadsHeading), () => SelectCategory("settings.downloads")),
+            new("settings.worker-budgets", StorageLimitsLabel, () => SectionHeaderTarget(SettingsWorkerBudgetsPageTitle),
                 () => { SelectCategory("settings.worker-budgets"); SettingsLimitsGroup.IsExpanded = true; SettingsWorkerBudgetsHeading.IsExpanded = true; }),
-            new("settings.updates", UpdatesTitle, () => SettingsUpdatesHeading, () => SelectCategory("settings.updates"))
+            new("settings.updates", UpdatesTitle, () => SectionHeaderTarget(SettingsUpdatesHeading), () => SelectCategory("settings.updates"))
         };
         AddOptional("settings.notifications", "SettingsNotificationsHeading");
-        sections.Add(new("settings.behavior", BehaviorTitle, () => SettingsBehaviorHeading, () => SelectCategory("settings.behavior")));
-        sections.Add(new("settings.workviews", WorkViewsTitle, () => SettingsWorkViewsHeading, () => SelectCategory("settings.workviews")));
+        sections.Add(new("settings.behavior", BehaviorTitle, () => SectionHeaderTarget(SettingsBehaviorHeading), () => SelectCategory("settings.behavior")));
+        sections.Add(new("settings.workviews", WorkViewsTitle, () => SectionHeaderTarget(SettingsWorkViewsHeading), () => SelectCategory("settings.workviews")));
         AddOptional("settings.shortcuts", "ShortcutsEditor");
         _sectionNavigation.SetSections(sections);
         SettingsSections.Refresh();
@@ -209,8 +222,8 @@ public partial class SettingsEditor
             {
                 Control? current = this.FindControl<Control>(name);
                 return name == "ShortcutsEditor"
-                    ? (current as MeowChan.Desktop.Commands.ShortcutEditor)?.SectionHeading ?? current
-                    : current;
+                    ? SectionHeaderTarget((current as MeowChan.Desktop.Commands.ShortcutEditor)?.SectionHeading ?? current)
+                    : SectionHeaderTarget(current);
             }, () => SelectCategory(id)));
         }
     }
