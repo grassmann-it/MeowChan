@@ -8,4 +8,13 @@
     <NuGetLockFilePath Condition="'$(MeowChanReleaseLockRuntime)' != ''">$(MSBuildProjectDirectory)/packages.release.$(MeowChanReleaseLockRuntime).lock.json</NuGetLockFilePath>
     <RestoreLockedMode Condition="'$(RestoreLockedMode)' == ''">true</RestoreLockedMode>
   </PropertyGroup>
+  <!-- Frozen, diagnostic-specific debt only; never disable the four rules by file or symbol. -->
+  <ItemGroup Condition="'$(MSBuildProjectName)' != 'AnalyzerBaseline' and '$(MSBuildProjectName)' != 'AnalyzerBaseline.Tests' and '$(DisableAnalyzerBaseline)' != 'true'">
+    <ProjectReference Include="$(MSBuildThisFileDirectory)scripts/AnalyzerBaseline/AnalyzerBaseline.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <AdditionalFiles Include="$(MSBuildThisFileDirectory)build/analyzer-baseline-2026-11-17.tsv" />
+  </ItemGroup>
+  <!-- Opt-in unsuppressed SARIF capture for reviewing/pruning debt; normal builds keep errors. -->
+  <PropertyGroup Condition="'$(AnalyzerBaselineCaptureDirectory)' != ''">
+    <ErrorLog>$(AnalyzerBaselineCaptureDirectory)/$(MSBuildProjectName).sarif,version=2.1</ErrorLog>
+  </PropertyGroup>
 </Project>

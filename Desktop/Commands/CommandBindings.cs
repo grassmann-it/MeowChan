@@ -383,22 +383,6 @@ public static class CommandBindings
         }
     }
 
-    internal static void BindShortcutHelp(Control control, IReadOnlyList<string> ids, Func<string> fixedHelp)
-    {
-        void RefreshHint()
-        {
-            string help = fixedHelp();
-            var bound = ids.Where(id => CommandCatalog.ShortcutDisplay(id) != null).Select(TooltipFor);
-            string dynamicHelp = string.Join(Environment.NewLine, bound);
-            if (dynamicHelp.Length > 0) help += Environment.NewLine + dynamicHelp;
-            ToolTip.SetTip(control, help);
-            AutomationProperties.SetHelpText(control, help);
-            Observe(control, RefreshHint);
-        }
-        static string TooltipFor(string id) => Tooltip(id);
-        RefreshHint();
-    }
-
     internal static void BindExisting(Control control, string id, bool preserveHelp = false)
     {
         if (Actions.TryGetValue(control, out var current) && current.Id == id)
