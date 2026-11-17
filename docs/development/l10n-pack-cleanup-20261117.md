@@ -69,3 +69,14 @@ no loader/schema/assertion was weakened. Added ten regression cases in
 `LanguagePackAuditRegressionTests.NoEditSentinelsRemainEmptyInEveryLanguageWithoutInvalidPackEntries`
 to verify the actual localized lookup, with and without the unused editor-name
 argument, plus absence of invalid empty entries and loader warnings.
+
+## 4. CJK number forms: intentionally absent; keep packs unchanged
+
+`PluralRules.cs:42-49` always returns `other` for ja/ko/zh.
+`Texts.Count` first selects the current catalog when the base key exists
+(`Texts.cs:214-216`), then returns its base text for `other` (`219-220`).
+All 95 English singulars on this base have translated CJK base texts. Thus
+count 1 does **not** silently fall back to English. No `.one` entries added.
+Updated the pack README's outdated “25 forms in CountCatalog” statement and
+added three regression theories checking **every** English singular's localized
+base at counts 0, 1, 2, 4, 21, 100 (1,710 count comparisons).
