@@ -5,6 +5,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.VisualTree;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 
 namespace MeowChan.Desktop;
 
@@ -33,8 +34,8 @@ internal static class ReaderSidebarStepKeys
         foreach (Visual node in source.GetSelfAndVisualAncestors())
         {
             if (ReferenceEquals(node, posts) || ReferenceEquals(node, strip)) return true;
-            if (node is TextBox or ComboBox or NumericUpDown or Slider or ScrollBar or MenuItem
-                or Ursa.Controls.AutoCompleteBox or SelectingItemsControl or DataGrid or TabItem
+            if (PointerFocusReclaim.IsTextInput(node) || node is Slider or ScrollBar or MenuItem
+                or SelectingItemsControl or DataGrid or TabItem
                 || node is SelectableTextBlock text && text.SelectionStart != text.SelectionEnd) return false;
         }
         return false;

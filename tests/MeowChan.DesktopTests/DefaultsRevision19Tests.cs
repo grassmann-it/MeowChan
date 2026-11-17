@@ -25,7 +25,7 @@ public sealed class DefaultsRevision19Tests : IDisposable
         ("post.hide", "H", "H", "H", "post.copy-text"),
         ("post.copy-link", "Primary+Shift+C", "Ctrl+Shift+C", "⇧⌘C", "post.copy-number"),
         ("media.copy-path", "Primary+Shift+C", "Ctrl+Shift+C", "⇧⌘C", "media.folders"),
-        ("reader.expand", "Primary+Enter", "Ctrl+Enter", "⌘↩", "reader.quick-settings"),
+        ("reader.expand", "Primary+Alt+Enter", "Ctrl+Alt+Enter", "⌥⌘↩", "reader.quick-settings"),
         ("media.open-external", "Primary+Shift+O", "Ctrl+Shift+O", "⇧⌘O", "gallery.layout-menu"),
     };
 

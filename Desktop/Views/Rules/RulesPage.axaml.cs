@@ -12,6 +12,7 @@ using Avalonia.VisualTree;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Commands;
 using MeowChan.Rules;
+using MeowChan.Desktop.Controls;
 
 namespace MeowChan;
 
@@ -74,8 +75,7 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
         {
             if (e.Handled || e.Key != Avalonia.Input.Key.Escape || e.KeyModifiers != Avalonia.Input.KeyModifiers.None
                 || Desktop.Commands.ShortcutService.IsCapturing) return;
-            if (e.Source is Avalonia.Visual source && source.GetSelfAndVisualAncestors().Any(v =>
-                v is ComboBox { IsDropDownOpen: true } or Ursa.Controls.AutoCompleteBox)) return;
+            if (EscapeBelongsToSuggestions(e.Source)) return;
             if (TryDismissRuleDecision()) e.Handled = true;
             // Esc leaves the wizard for the overview (the draft stays); open decisions above are dismissed first.
             else if (_wizard.IsOpen && IsEditable) { CloseWizard(); e.Handled = true; }
@@ -87,6 +87,12 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
         SynchronizeModeSelections();
         Texts.Changed += OnLanguageChanged;
     }
+
+    // Escape dismisses a suggestion surface, not an ordinary editor. Preserve wizard Escape
+    // from text/number fields and closed selectors rather than treating every text input alike.
+    internal static bool EscapeBelongsToSuggestions(object? source) => source is Visual visual
+        && visual.GetSelfAndVisualAncestors().Any(node => PointerFocusReclaim.IsTextInput(node)
+            && node is not (TextBox or NumericUpDown or ComboBox { IsDropDownOpen: false }));
 
     public bool IsAvailable
     {

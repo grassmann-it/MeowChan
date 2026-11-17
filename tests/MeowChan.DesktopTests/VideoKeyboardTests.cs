@@ -47,9 +47,9 @@ public sealed class VideoKeyboardTests : IDisposable
         Assert.DoesNotContain(Owners(bindings, "Right"), id => id.StartsWith("video.", StringComparison.Ordinal));
         foreach (string digit in new[] { "D1", "D2", "D3", "D4", "D5", "D0" })
             Assert.DoesNotContain(Owners(bindings, digit, "Shift"), id => id.StartsWith("video.", StringComparison.Ordinal));
-        // The Ctrl+arrow seeks stay, with their far variants.
-        Assert.Contains("video.seek-back", Owners(bindings, "Left", "Primary"));
-        Assert.Contains("video.seek-forward", Owners(bindings, "Right", "Primary"));
+        // Alt+arrows seek five seconds; far seeks stay on Primary+Shift+arrows.
+        Assert.Contains("video.seek-back", Owners(bindings, "Left", "Alt"));
+        Assert.Contains("video.seek-forward", Owners(bindings, "Right", "Alt"));
         Assert.Contains("video.seek-back-far", Owners(bindings, "Left", "Primary", "Shift"));
         Assert.Contains("video.seek-forward-far", Owners(bindings, "Right", "Primary", "Shift"));
         // Speed: [ and ] plus X and C (revision 14), Backspace resets.

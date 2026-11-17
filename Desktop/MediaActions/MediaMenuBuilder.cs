@@ -10,6 +10,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.Controls;
 
 namespace MeowChan.Desktop.MediaActions;
 
@@ -314,8 +315,7 @@ internal sealed class MediaMenuPresenter
     /// replace it.
     /// </summary>
     internal static bool IsNativeTextSource(object? source) => source is Visual visual
-        && visual.GetSelfAndVisualAncestors().Any(control => control is TextBox or ComboBox or Slider or SelectableTextBlock
-            or Ursa.Controls.AutoCompleteBox);
+        && visual.GetSelfAndVisualAncestors().Any(control => PointerFocusReclaim.IsTextInput(control) || control is Slider or SelectableTextBlock);
 
     /// <summary>The keyboard gestures that open a context menu: the Menu key, Shift+F10 and the configurable context-open command.</summary>
     internal static bool IsContextKey(KeyEventArgs e) => !e.Handled && !CommandRouter.IsNativeInput(e.Source, e.Key)

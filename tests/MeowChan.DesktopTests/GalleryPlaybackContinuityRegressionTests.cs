@@ -132,7 +132,7 @@ public sealed class GalleryPlaybackContinuityRegressionTests
         var volume = new VolumeHost(volumeChild) { Minimum = 0, Maximum = 100, Value = 29 };
         foreach (Control source in new[] { seekChild, volumeChild })
         {
-            var press = new KeyEventArgs { Source = source, Key = key };
+            var press = new KeyEventArgs { Source = source, Key = key, KeyModifiers = KeyModifiers.Shift };
             Assert.True(EffectiveShortcutBindings.Build().Matches(press, id));
             Assert.False(CommandBindings.Matches(press, id)); // Generic native-input guard.
             Assert.True(CommandBindings.MatchesGalleryTransport(press, id, seek, volume));

@@ -44,6 +44,7 @@ internal sealed partial class GalleryViewer
     private readonly StackPanel _overlayFooter = new() { Name = "GalleryOverlayFooter", VerticalAlignment = VerticalAlignment.Bottom,
         HorizontalAlignment = HorizontalAlignment.Stretch, IsVisible = false };
     private readonly StackPanel _overlayTransportHost = new() { Name = "GalleryOverlayTransportHost", Margin = new Thickness(8, 4, 8, 4) };
+    private readonly List<PointerFocusReclaim> _pointerFocusReclaims = new();
     private readonly HashSet<IPointer> _pressedPointers = new();
     private IPointer? _lastPointer;
     private long _lastOverlayActivity = Stopwatch.GetTimestamp();
@@ -304,8 +305,6 @@ internal sealed partial class GalleryViewer
         ToolTip.SetTip(indicator, label);
     }
 
-    private readonly List<IDisposable> _overlayPointerFocusReclaims = new();
-
     private void InitializeOverlayInteraction()
     {
         // Install once, on both managed roots. No OS hook and no duplicate control handlers.
@@ -323,7 +322,7 @@ internal sealed partial class GalleryViewer
             surface.AddHandler(PointerReleasedEvent, OnOverlayPointerReleased, RoutingStrategies.Tunnel, handledEventsToo: true);
             surface.AddHandler(PointerCaptureLostEvent, OnOverlayPointerCaptureLost, RoutingStrategies.Bubble, handledEventsToo: true);
             // A click on any chrome control (toolbar, badges, fit and zoom, layout and "More") gives the keys back to the picture, never to the button.
-            _overlayPointerFocusReclaims.Add(PointerFocusReclaim.Attach(surface, ReclaimGallerySurface));
+            _pointerFocusReclaims.Add(PointerFocusReclaim.Attach(surface, ReclaimGallerySurface));
             surface.AddHandler(PointerWheelChangedEvent, OnOverlayPointerWheel, RoutingStrategies.Tunnel, handledEventsToo: true);
             surface.AddHandler(TappedEvent, OnOverlayTap, RoutingStrategies.Tunnel, handledEventsToo: true);
             surface.AddHandler(DoubleTappedEvent, OnOverlayTap, RoutingStrategies.Tunnel, handledEventsToo: true);

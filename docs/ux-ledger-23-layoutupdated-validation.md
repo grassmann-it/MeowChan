@@ -1,12 +1,49 @@
 # UX-LEDGER-23: LayoutUpdated lifetime regression
 
-Scope: LayoutUpdated listeners and the two PointerFocusReclaim owners only; no CancellationTokenSource disposal changes.
+## Integration with PRs #52 and #56
 
-## Regression
+Merged `origin/goal/gesamtprogramm-profile-a` at `84a710b8b` into the published branch (no rebase).
+Conflicts were in `GalleryVideoPlayer.cs`, `GalleryViewer.Overlay.cs` and `GalleryViewer.cs`.
+PR #52 (`9f816faaf`) already owns the reclaim handles, disposes the viewer's list at terminal `StopAsync`, and disposes the player's handle on the UI thread alongside transport retirement. The branch's equivalent `_overlayPointerFocusReclaims` / `_transportPointerFocusReclaim` mechanism is redundant and was dropped in favor of #52's implementation, not layered on top. All three files and `PointerFocusReclaim.cs` match the target exactly. `PointerFocusReclaim.IsTextInput` remains the shared text-input predicate, including #52's popup-unsubscription and deferred-callback guards. The owner-lifetime regression tests are retained to verify the consolidated mechanism.
 
-`tests/MeowChan.DesktopTests/LayoutSubscriptionLifetimeTests.cs` delivers the actual virtual attach/detach callbacks on a `MediaTilePanel` 100 times (with double-detach), and reads Avalonia's actual LayoutUpdated delegate invocation list. It requires exactly one listener while attached and zero after detaching, relative to an empty Layoutable's baseline. This is a windowless lifecycle unit test, not a GUI smoke test; it neither pumps the dispatcher nor fabricates a separate subscription counter.
+PR #56's command catalog and gallery shortcut scheme are unchanged from the target.
 
-Command (affected desktop project and its test project, plus project-reference prerequisites only):
+## Layout subscription audit
+
+Each listener uses a named handler, a guarded subscription flag, and idempotent removal on its **own visual owner's** detach, following `ReaderUnreadLineHost`. Reattachment subscribes once again.
+
+| Original audit site | Visual owner | Handler |
+| --- | --- | --- |
+| `SettingsEditor.Search.cs:155` | `SettingsContentColumn` | `OnSearchPanelLayoutUpdated` |
+| `ArchivePage.Feedback.cs:35` | `ArchiveSplit` | `OnStatusOverlayLayoutUpdated` |
+| `ArchivePage.MediaCounts.cs:69` | archive page | `OnMediaCountLayoutUpdated` |
+| `ArchivePage.MediaSidebar.cs:85` | `ReaderMediaSidebarToggle` | `OnSidebarToggleLayoutUpdated` |
+| `ArchivePage.MediaSidebar.cs:161` (shifted on current target) | `ReaderMediaSidebar` | `OnSidebarFrameLayoutUpdated` |
+| `ArchivePage.Reader.cs:229` | `ReaderContentSurface` | `OnReaderNavigationLayoutUpdated` |
+| `MenuLayout.cs:201` | menu | `OnMenuLayoutUpdated` |
+| `ArchiveAttachmentView.cs:447` | attachment view | `OnVisibilityLayoutUpdated` |
+| `MediaTilePanel.cs:40` | tile panel | `OnLayoutUpdated` |
+
+## Sidebar verdict: both subscriptions remain live
+
+They are **not on the same control** and neither is dead:
+
+- `InitializeMediaSidebar` observes the live toolbar toggle (`ReaderMediaSidebarToggle`, still declared in `ArchivePage.axaml`). `RefreshMediaSidebarToggle` updates checked/enabled state, localized label, shortcut tooltip and responsive-width hint. It observes filename-search/dialog and host state which is not all covered by the preference-change refresh.
+- `EnsureMediaSidebar` observes the sidebar itself. `AlignMediaSidebarFrame` in `ArchivePage.MediaSidebarAlignment.cs:34` translates the posts box and sidebar into the shared host and adjusts top/bottom insets after layout. A fixed header height does not determine the posts box's changing position and height. The alignment was introduced by `f2312c0e9` and remains the sole caller path to that alignment method.
+
+PRs #19 (`39bc0c6e6`) and #24 (`afc35bc4e`) restructured **Settings** headers/search anchoring; neither merge changed `Desktop/Views/Archive`. They did not remove either sidebar owner or responsibility. Both subscriptions are retained and detached with their respective controls when the reader moves between embedded and large-reader hosts.
+
+The previously dirty `ReaderSidebarAlignmentTests.cs` change belongs: it replaces the old anonymous-handler source assertion with stronger assertions for the named alignment handler, subscription, unsubscription, and attach/detach wiring. It is retained without weakening assertions.
+
+## Leak regression methodology
+
+`tests/MeowChan.DesktopTests/LayoutSubscriptionLifetimeTests.cs` delivers the actual virtual attach/detach lifecycle callbacks to a `MediaTilePanel` 100 times, double-detaching each cycle. It checks Avalonia's actual `LayoutUpdated` delegate list against an empty control's baseline. Deterministic layout pulses invoke those real delegates and count completed invocations, both attached and detached, followed by 100 extra detached pulses. No production counter or simulated subscription is used. This is windowless lifecycle testing, not a GUI smoke suite or a managed-heap collectability claim.
+
+The original code retains **one** listener after detach; it does not accumulate one new listener per reattachment. The leak evidence is continuing handler invocation on detached controls (and the retained subscription), not a fabricated linear increase in delegate count.
+
+Before/after use the identical regression and assertions. For the before run only `Desktop/MediaTilePanel.cs` is temporarily replaced by the unmodified target version at `84a710b8b` (pre-fix for layout lifetimes); the fixed file is restored before the after build.
+
+Command (desktop test project, desktop application and project-reference prerequisites only):
 
 ```sh
 dotnet test tests/MeowChan.DesktopTests/MeowChan.DesktopTests.csproj \
@@ -15,67 +52,37 @@ dotnet test tests/MeowChan.DesktopTests/MeowChan.DesktopTests.csproj \
   --logger 'console;verbosity=detailed'
 ```
 
-### Before (production code at e2ee324ef, regression added)
+### Before: pre-fix `MediaTilePanel` at `84a710b8b`
 
 ```text
-MediaTilePanelReturnsLayoutSubscriptionsToBaselineAfter100Reattachments [FAIL]
+Failed MeowChan.DesktopTests.LayoutSubscriptionLifetimeTests.MediaTilePanelReturnsLayoutSubscriptionsToBaselineAfter100Reattachments
 Assert.Equal() Failure: Values differ
-Expected: 0
-Actual:   1
-cycles=100; baseline=0; maximum detached subscriptions=1; final=1
+Expected: 100
+Actual:   200
+Standard Output Messages:
+ cycles=100; baseline=0; maximum detached subscriptions=1; final=1
+ attached invocations=100; detached invocations after cycles=100; after 100 more layout pulses=200
 Test Run Failed.
 Total tests: 1
      Failed: 1
 ```
 
-### After (same regression and assertions)
+### After: fixed `MediaTilePanel`, identical test
 
 ```text
 Passed MeowChan.DesktopTests.LayoutSubscriptionLifetimeTests.MediaTilePanelReturnsLayoutSubscriptionsToBaselineAfter100Reattachments
 Standard Output Messages:
  cycles=100; baseline=0; maximum detached subscriptions=0; final=0
+ attached invocations=100; detached invocations after cycles=0; after 100 more layout pulses=0
 Test Run Successful.
 Total tests: 1
      Passed: 1
 ```
 
-The original defect retains one subscription; it does not add another delegate every time this particular control attaches. The test deliberately checks return to baseline rather than falsely claiming linear delegate growth.
+### Affected regression selection
 
-## PointerFocusReclaim owner regressions
+The affected desktop application and test project build successfully (existing compiler/analyzer warnings). No full solution build or GUI smoke suite was run.
 
-`PointerFocusReclaimOwnerLifetimeTests` inspects the actual `PointerReleasedEvent` subscriptions, filtering by delegate target so unrelated pointer handlers are not counted. Both real owner controls are constructed without showing windows; no native media is opened. Each terminal cleanup is called twice.
+A broader desktop-only selection covering layout lifetimes, reclaim owners, text-input classification, sidebar/alignment, menus, settings search, navigation and #56 shortcut invariants produced **365 passed, 1 failed (366 total)**. The failure is `ReaderMediaSidebarLayoutTests.DefaultToolbarStateMatchesTheDefaultScopeWithoutChangingPreferences`, line 50: toolbar overflow mode expected `Never`, actual `AsNeeded`.
 
-Before retaining handles:
-
-```text
-StoppingTheViewerRemovesReclaimFromBothOverlayRoots [FAIL]
-Expected: 0
-Actual:   1
-DisposingThePlayerRemovesReclaimFromItsTransport [FAIL]
-Expected: 0
-Actual:   1
-Test Run Failed.
-Total tests: 2
-     Failed: 2
-```
-
-After retaining and disposing handles, the combined filter `FullyQualifiedName~PointerFocusReclaim|FullyQualifiedName~LayoutSubscriptionLifetimeTests` passes:
-
-```text
-Passed ...StoppingTheViewerRemovesReclaimFromBothOverlayRoots
-Passed ...DisposingThePlayerRemovesReclaimFromItsTransport
-Test Run Successful.
-Total tests: 15
-     Passed: 15
-```
-
-The viewer retains both roots' handles until terminal `StopAsync`; the player retains its transport's handle until `DisposeAsync` (removed on the UI thread alongside transport retirement). The predicate implementation in `PointerFocusReclaim.cs` is unchanged, avoiding conflict with the text-input consolidation worker.
-
-## Sidebar investigation
-
-Neither subscription is dead on this base, and they are **not on the same control**:
-
-- `InitializeMediaSidebar`: the listener on `ReaderMediaSidebarToggle` refreshes its live action, including `CanToggleMediaSidebar` (filename search/dialog state), localized label, shortcut tooltip and responsive-width hint.
-- `EnsureMediaSidebar`: the listener on the `ReaderMediaSidebar` instance runs `AlignMediaSidebarFrame`, which still translates the posts box and sidebar into their shared host and adjusts vertical insets in `ArchivePage.MediaSidebarAlignment.cs`. The fixed header height does not determine the posts box's changing position and height.
-
-Both are retained, subscribed once on their own control's attach and removed on its detach. This matters when the reader pane/sidebar moves to the large-reader host independently of the page.
+This failure reproduces in isolation and with **all Desktop production sources restored to exact target `84a710b8b`**, using the unchanged test assertion. It is a pre-existing toolbar policy mismatch, not introduced by layout detachment. No assertion was weakened or skipped and no unrelated toolbar behavior was changed.

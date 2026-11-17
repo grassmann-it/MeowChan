@@ -27,8 +27,8 @@ internal static class ItemActivation
         foreach (Visual node in visual.GetSelfAndVisualAncestors())
         {
             if (surface != null && ReferenceEquals(node, surface)) return false;
-            if (node is Button or TextBox or SelectableTextBlock or ComboBox or Slider or ScrollBar or MenuItem or NumericUpDown
-                or ToggleSwitch or CalendarDatePicker or Ursa.Controls.AutoCompleteBox or DataGridColumnHeader or GridSplitter
+            if (PointerFocusReclaim.IsTextInput(node) || node is Button or SelectableTextBlock or Slider or ScrollBar or MenuItem
+                or ToggleSwitch or CalendarDatePicker or DataGridColumnHeader or GridSplitter
                 or Thumb) return true;
         }
         return false;

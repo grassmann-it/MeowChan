@@ -193,11 +193,16 @@ public partial class SettingsEditor
     private void OnSlashFocusesSearch(object? sender, KeyEventArgs e)
     {
         if (e.Handled || _isClosed || _searchBox == null) return;
-        bool typing = e.Source is TextBox or NumericUpDown || e.Source is Visual visual && visual.GetSelfAndVisualAncestors().Any(node => node is TextBox or NumericUpDown or ComboBox { IsDropDownOpen: true });
+        bool typing = SlashBelongsToEditor(e.Source);
         if (!SettingsSearchShortcut.IsSlash(e.KeySymbol, e.KeyModifiers, typing)) return;
         e.Handled = true;
         FocusSearch();
     }
+
+    // Closed selectors historically yield slash to search; open selectors and all other editors keep it.
+    internal static bool SlashBelongsToEditor(object? source) => source is Visual visual
+        && visual.GetSelfAndVisualAncestors().Any(node => PointerFocusReclaim.IsTextInput(node)
+            && node is not ComboBox { IsDropDownOpen: false });
 
     // The row that appeared under its parent is read out by the page's polite line (its own label; no new text).
     private void OnConditionalRowAppeared(Control row)
