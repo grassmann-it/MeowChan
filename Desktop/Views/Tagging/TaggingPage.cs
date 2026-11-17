@@ -168,11 +168,10 @@ public sealed partial class TaggingPage : UserControl
             Margin = new Thickness(12, PageHeader.PageTopOffset, 12, 16) };
         header.Children.Add(heading);
         header.Children.Add(_error);
-        header.Children.Add(BuildClearConfirmation());
         // Preserve the existing rows; only distinguish the queue controls from other major sections.
         StackPanel queueControls = new() { Name = "TaggingQueueControls",
             [!StackPanel.SpacingProperty] = new DynamicResourceExtension("Workspace.Space.8"),
-            Children = { _queueActionRow } };
+            Children = { _queueActionRow, BuildClearConfirmation() } };
         header.Children.Add(queueControls);
         header.Children.Add(BuildStamp());
         SizeChanged += (_, _) =>
