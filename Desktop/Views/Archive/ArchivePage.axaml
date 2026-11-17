@@ -719,8 +719,10 @@
                                 </StackPanel>
                             </Border>
                         </Popup>
-                        <WrapPanel x:Name="ReaderNavigation" Classes="reader-cross" Background="#01000000" IsVisible="False" HorizontalAlignment="Right"
-                                   VerticalAlignment="Bottom" Margin="0,0,24,32" Panel.ZIndex="1000">
+                        <Border x:Name="ReaderNavigationHitHost" Background="#01000000" IsVisible="{Binding #ReaderNavigation.IsVisible}"
+                                IsHitTestVisible="{Binding #ReaderNavigation.IsHitTestVisible}" HorizontalAlignment="Right" VerticalAlignment="Bottom" ZIndex="1000">
+                        <WrapPanel x:Name="ReaderNavigation" Classes="reader-cross" Background="{DynamicResource Workspace.Card}" IsVisible="False" HorizontalAlignment="Right"
+                                   VerticalAlignment="Bottom" Margin="0,0,24,32">
                             <!-- The navigation bar is an overlay above the content, one capsule of 40 dip: [thread arrow, counter, thread arrow | post arrow,
                                  counter, post arrow]. The whole capsule takes the pointer (a click in a gap never reaches the post below); below
                                  ReaderNavigationLayout.CompactBelowSurfaceWidth (or with the position switched off) the two counters are hidden. MaxWidth and
@@ -752,6 +754,7 @@
                                 </Border>
                             </Border>
                         </WrapPanel>
+                        </Border>
                     </Grid>
                 </Border>
             </Grid>
