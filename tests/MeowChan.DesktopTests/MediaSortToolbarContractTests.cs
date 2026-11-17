@@ -1,5 +1,6 @@
 using System.Text.Json;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.WorkViews;
 using MeowChan.Gallery;
@@ -151,7 +152,7 @@ public sealed class MediaSortToolbarContractTests
     public void ANarrowRowMovesTheLessImportantToolsUnderMoreAndNeverTheOrderTheSearchOrTheFilterToggle()
     {
         Assert.Empty(MediaToolbarLayout.MovedUnderMore(MediaToolbarLayout.Level.Wide));
-        // N6: Reduced moves the three first tools; Compact adds the tag list switch (MP5, formerly "Booru mode") and the Layout menu and drops the "Sort" label.
+        // N6: Reduced moves the three first tools; Compact adds the tag list switch (MP5, formerly "Booru mode") and the Layout menu and drops the "Sort" prefix.
         Assert.Equal(["media.toolbar.focus", "media.toolbar.refresh", "media.toolbar.shuffle"], MediaToolbarLayout.MovedUnderMore(MediaToolbarLayout.Level.Reduced));
         Assert.Equal(["media.toolbar.focus", "media.toolbar.refresh", "media.toolbar.shuffle", "media.toolbar.tag-list", "media.toolbar.layout"], MediaToolbarLayout.MovedUnderMore(MediaToolbarLayout.Level.Compact));
         foreach (string layoutTool in new[] { "media.toolbar.tag-list", "media.toolbar.layout" })
@@ -253,15 +254,16 @@ public sealed class MediaSortToolbarContractTests
     }
 
     // Tom (15.11.2026): the search used to stop at 480 dip and left a hole between "Filters" and the order on a wide window. It fills the free
-    // width from 240 to 640 dip; the filter toggle and the order follow it as one query group on the left, and a wide row leaves its free width as the
-    // spacer between that group and the view tools (UX review of the media header).
+    // width from 240 dip up to a fixed cap; UX review 17.11.2026: the cap no longer follows the selection line under it (690 dip, the search and the
+    // filter toggle then stand as one deliberate group at 1920 dip), and the free-space column keeps the group gap before the order.
     [Fact]
-    public void TheSearchFillsTheFreeWidthFrom240To640DipAndTheFilterToggleAndTheOrderFollowItInOneQueryGroup()
+    public void TheSearchFillsTheFreeWidthFrom240To690DipAndTheSpacerKeepsTheGroupGap()
     {
         Assert.Equal(240, MediaToolbarLayout.SearchMinWidth);
-        Assert.Equal(640, MediaToolbarLayout.SearchMaxWidth);
+        Assert.Equal(690, MediaToolbarLayout.SearchMaxWidth);
+        Assert.Equal(24, MediaToolbarLayout.GroupGap);
         string toolbar = Source("Desktop/Views/Media/MediaPage.Toolbar.cs");
-        // Search column (star, capped at the selection line's width) | filter toggle | free space | the order | view tools; no fixed width for the search.
+        // Search column (star, fixed cap) | filter toggle | free space (at least the group gap) | the order | view tools; no fixed width for the search.
         Assert.Matches("ColumnDefinitions\\(\"\\d+\\*,Auto,\\*,Auto,Auto\"\\)", toolbar);
         Assert.Contains("Name = \"MediaToolbarQuery\"", toolbar);
         Assert.Contains("Name = \"MediaToolbarSort\"", toolbar);
@@ -269,55 +271,44 @@ public sealed class MediaSortToolbarContractTests
         Assert.Contains("Avalonia.Controls.Grid.SetColumn(right, 4)", toolbar);
         Assert.Contains("Name = \"MediaToolbarEnd\"", toolbar);
         Assert.Contains("tools.ColumnDefinitions[0].MaxWidth = MediaToolbarLayout.SearchMaxWidth;", toolbar);
+        Assert.Contains("tools.ColumnDefinitions[2].MinWidth = MediaToolbarLayout.GroupGap;", toolbar);
         Assert.Contains("ColumnDefinitions[0].MinWidth = _nameFilter.MinWidth", toolbar);
-        // The tools in visual order: the filter toggle first (the query group takes it and the order), then the shuffle, the Sort label and the criterion, the direction, and More last.
+        // The tools in visual order: the filter toggle first, then the shuffle, the criterion (its "Sort" is a prefix inside it), the direction, and More last.
         var group = System.Text.RegularExpressions.Regex.Match(toolbar, "foreach \\(Control control in new Control\\[\\] \\{([^}]*)\\}\\)");
         Assert.True(group.Success, "BuildToolbar changed shape.");
         string[] order = group.Groups[1].Value.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
         Assert.Equal("_filters", order[0]);
-        Assert.Equal(["_filters", "_shuffle", "_sortLabel", "_sort", "_sortDirection", "_refresh"], order[..6]);
+        Assert.Equal(["_filters", "_shuffle", "_sort", "_sortDirection", "_refresh"], order[..5]);
         Assert.Equal("_more", order[^1]);
+        Assert.DoesNotContain("_sortLabel", toolbar);
         Assert.DoesNotContain("tools.Children.Add(_filters)", toolbar);
-        // The gap in front of the right group is one 8 dip step; there is no column spacing that the free-space column would double.
+        // No column spacing that the free-space column would double; the order leads with the free-space column, not with a margin of its own.
         Assert.DoesNotMatch("ColumnSpacing\\s*=", toolbar);
+        Assert.Contains("Name = \"MediaToolbarSort\", Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center };", toolbar);
     }
 
-    // Tom (16.11.2026): the search ends where the selection actions line ends, the order stands at the right above the grid (left of the media panel).
-    // The width arithmetic is pure (MediaToolbarLayout); the real layout is the media-sort-toolbar smoke (measured over 12 languages).
+    // The width arithmetic is pure (MediaToolbarLayout); the real layout is the media header stability smoke (12 languages, 616 to 1896 dip).
     private const double Filters = 118, Order = 330, ViewTools = 300;
 
     [Theory]
     [InlineData(1896, 0)] // a 1920 window without the panel
     [InlineData(1896, 414)] // with the panel open on the right (400 dip panel)
-    [InlineData(1560, 0)] // a mid width that still has room for the whole line
-    public void TheSearchEndsExactlyWhereTheSelectionLineEndsWhileTheRowHasRoomForIt(double row, double reserve)
+    [InlineData(1560, 0)]
+    public void TheSearchStopsAtItsFixedCapOnAWideRowWhateverTheSelectionLineShows(double row, double reserve)
     {
-        double selection = MediaToolbarLayout.SelectionRowWidth([90, 170, 130, 160, 75, 120], 8); // "1 selected" and the five actions
-        Assert.Equal(90 + 170 + 130 + 160 + 75 + 120 + 5 * 8, selection);
-        MediaToolbarLayout.Alignment aligned = MediaToolbarLayout.Align(row, 0, selection, reserve, Filters, Order, ViewTools);
-        Assert.Equal(selection, aligned.SearchRight, 0.5);
+        MediaToolbarLayout.Alignment aligned = MediaToolbarLayout.Align(row, reserve, Filters, Order, ViewTools);
+        Assert.Equal(MediaToolbarLayout.SearchMaxWidth, aligned.SearchRight, 0.5);
+        Assert.True(aligned.Gap >= MediaToolbarLayout.GroupGap, "gap " + aligned.Gap);
     }
 
     [Fact]
-    public void TheSearchLeavesRoomForTheOtherGroupsWhenTheRowCannotHoldTheWholeSelectionLine()
+    public void TheSearchGivesUpWidthBeforeTheGroupGapDoes()
     {
-        double selection = MediaToolbarLayout.SelectionRowWidth([90, 170, 130, 160, 75, 120], 8);
-        // 1280 with the panel open: the search gives way (to what is left, never below its minimum) instead of pushing the order into the view tools.
-        MediaToolbarLayout.Alignment aligned = MediaToolbarLayout.Align(1256, 0, selection, 414, Filters, Order, ViewTools);
-        Assert.InRange(aligned.SearchRight, MediaToolbarLayout.SearchMinWidth, selection - 1);
-        Assert.True(aligned.SearchRight + Filters + Order <= aligned.OrderRight + 0.5);
-    }
-
-    [Fact]
-    public void TheSelectionLineIsMeasuredFromWhatItShowsAndANotMeasuredLineKeepsTheOldCap()
-    {
-        // A hidden button (under More by a work view) and a zero width add nothing, not even a gap.
-        Assert.Equal(100 + 8 + 50, MediaToolbarLayout.SelectionRowWidth([100, 0, 50], 8));
-        Assert.Equal(0, MediaToolbarLayout.SelectionRowWidth([], 8));
-        Assert.Equal(MediaToolbarLayout.SearchMaxWidth, MediaToolbarLayout.SearchTargetWidth(0, 0));
-        // The panel header room on the left (the line starts after it) belongs to the search; a very short line never goes below the minimum.
-        Assert.Equal(300 + 500, MediaToolbarLayout.SearchTargetWidth(300, 500));
-        Assert.Equal(MediaToolbarLayout.SearchMinWidth, MediaToolbarLayout.SearchTargetWidth(0, 100));
+        // 1280 with the panel open: the search gives way (to what is left, never below its minimum), the gap stays exactly the group gap.
+        MediaToolbarLayout.Alignment aligned = MediaToolbarLayout.Align(1256, 414, Filters, Order, ViewTools);
+        Assert.InRange(aligned.SearchRight, MediaToolbarLayout.SearchMinWidth, MediaToolbarLayout.SearchMaxWidth - 1);
+        Assert.Equal(MediaToolbarLayout.GroupGap, aligned.Gap, 0.5);
+        Assert.True(aligned.SearchRight + Filters + MediaToolbarLayout.GroupGap + Order <= aligned.OrderRight + 0.5);
     }
 
     [Theory]
@@ -325,7 +316,7 @@ public sealed class MediaSortToolbarContractTests
     [InlineData(520)]
     public void TheOrderEndsAtTheGridsRightEdgeWhenTheMediaPanelIsWiderThanTheViewTools(double reserve)
     {
-        MediaToolbarLayout.Alignment aligned = MediaToolbarLayout.Align(1896, 0, 785, reserve, Filters, Order, ViewTools);
+        MediaToolbarLayout.Alignment aligned = MediaToolbarLayout.Align(1896, reserve, Filters, Order, ViewTools);
         Assert.Equal(1896 - reserve, aligned.OrderRight, 0.5);
         Assert.True(aligned.OrderRight <= aligned.ViewToolsLeft + 0.5);
     }
@@ -335,26 +326,48 @@ public sealed class MediaSortToolbarContractTests
     {
         foreach (double reserve in new[] { 0, 120, ViewTools - 1 })
         {
-            MediaToolbarLayout.Alignment aligned = MediaToolbarLayout.Align(1896, 0, 785, reserve, Filters, Order, ViewTools);
+            MediaToolbarLayout.Alignment aligned = MediaToolbarLayout.Align(1896, reserve, Filters, Order, ViewTools);
             Assert.Equal(aligned.ViewToolsLeft, aligned.OrderRight, 0.5);
         }
     }
 
     // Every row from the narrowest page to a wide one, with every panel room: nothing of the row overlaps another group while the row can hold
-    // the three groups at all (the width stages decide below that), and the order never passes the view tools.
+    // the three groups and the gap at all (the width stages decide below that), the filter toggle keeps the group gap from the order, and the order
+    // never passes the view tools.
     [Fact]
-    public void NoGroupOverlapsAnotherAtAnyRowWidthOrPanelRoom()
+    public void NoGroupOverlapsAnotherAndTheGroupGapHoldsAtAnyRowWidthOrPanelRoom()
     {
-        double minimum = MediaToolbarLayout.SearchMinWidth + Filters + Order + ViewTools;
+        double minimum = MediaToolbarLayout.SearchMinWidth + Filters + MediaToolbarLayout.GroupGap + Order + ViewTools;
         for (double row = MediaToolbarLayout.NarrowestRowWidth; row <= 2000; row += 7)
             for (double reserve = 0; reserve <= 900; reserve += 25)
             {
-                MediaToolbarLayout.Alignment aligned = MediaToolbarLayout.Align(row, 0, 785, reserve, Filters, Order, ViewTools);
+                MediaToolbarLayout.Alignment aligned = MediaToolbarLayout.Align(row, reserve, Filters, Order, ViewTools);
                 Assert.True(aligned.OrderRight <= aligned.ViewToolsLeft + 0.01, $"row {row}, reserve {reserve}: the order passes the view tools.");
                 if (row >= minimum)
-                    Assert.True(aligned.SearchRight + Filters + Order <= aligned.OrderRight + 0.01, $"row {row}, reserve {reserve}: the search reaches the order.");
-                Assert.True(aligned.SearchRight >= MediaToolbarLayout.SearchMinWidth);
+                    Assert.True(aligned.Gap >= MediaToolbarLayout.GroupGap - 0.01, $"row {row}, reserve {reserve}: the gap is {aligned.Gap}.");
+                Assert.True(aligned.SearchRight >= MediaToolbarLayout.SearchMinWidth && aligned.SearchRight <= MediaToolbarLayout.SearchMaxWidth);
             }
+    }
+
+    // The "Sort" prefix inside the criterion yields first: the stage allows it (not Compact) and the row has room for it beside everything else.
+    [Fact]
+    public void TheSortPrefixShowsOnlyWhereTheStageAllowsItAndTheRowHasRoomForIt()
+    {
+        const double prefix = 40;
+        double needed = MediaToolbarLayout.SearchMinWidth + Filters + MediaToolbarLayout.GroupGap + Order + prefix + ViewTools;
+        Assert.True(MediaToolbarLayout.ShowsSortPrefix(MediaToolbarLayout.Level.Wide, needed, Filters, Order, ViewTools, prefix));
+        Assert.False(MediaToolbarLayout.ShowsSortPrefix(MediaToolbarLayout.Level.Wide, needed - 1, Filters, Order, ViewTools, prefix));
+        Assert.True(MediaToolbarLayout.ShowsSortPrefix(MediaToolbarLayout.Level.Reduced, 2000, Filters, Order, ViewTools, prefix));
+        Assert.False(MediaToolbarLayout.ShowsSortPrefix(MediaToolbarLayout.Level.Compact, 2000, Filters, Order, ViewTools, prefix));
+        // A row that is not measured yet follows the stage.
+        Assert.True(MediaToolbarLayout.ShowsSortPrefix(MediaToolbarLayout.Level.Wide, 0, Filters, Order, ViewTools, prefix));
+        // The box keeps its value area's minimum; the prefix's room comes on top while it shows.
+        Assert.Equal(MediaToolbarLayout.SortMinWidth + prefix, PrefixedComboBox.MinWidthFor(MediaToolbarLayout.SortMinWidth, true, prefix));
+        Assert.Equal(MediaToolbarLayout.NarrowSortMinWidth, PrefixedComboBox.MinWidthFor(MediaToolbarLayout.NarrowSortMinWidth, false, prefix));
+        // Inside the box: the prefix needs room for itself, the gap and the whole value; an open (unmeasured) width always has it.
+        Assert.True(PrefixedComboBox.PrefixFits(40 + PrefixedComboBox.PrefixGap + 100, 40, 100));
+        Assert.False(PrefixedComboBox.PrefixFits(40 + PrefixedComboBox.PrefixGap + 98, 40, 100));
+        Assert.True(PrefixedComboBox.PrefixFits(double.PositiveInfinity, 40, 100));
     }
 
     [Fact]
@@ -368,22 +381,23 @@ public sealed class MediaSortToolbarContractTests
         Assert.Equal(0, MediaToolbarLayout.GridRightReserve(0, 12, 12));
     }
 
+    // UX review 17.11.2026: the row depends on its width and stage only. Nothing measures the selection actions line any more (its counter and the
+    // "index is being built" reason made the search and the filter toggle jump); the tools' column minimum still comes from the pure rules.
     [Fact]
-    public void TheAlignmentIsWiredWithoutAFixedWidthAndFromTheSameRoomsAsThePanelHeader()
+    public void TheAlignmentIsWiredWithoutAFixedWidthAndWithoutTheSelectionLine()
     {
         string alignment = Source("Desktop/Views/Media/MediaPage.ToolbarAlignment.cs");
-        // Measured, not a number: the search cap is the selection line's width, the tools' column minimum comes from the pure rules.
-        Assert.Contains("MediaToolbarLayout.SearchTargetWidth(_headerRoomLeft, _selectionRowWidth)", alignment);
         Assert.Contains("MediaToolbarLayout.ViewToolsColumnMin(_gridRightReserve, tools, MediaToolbarLayout.Slack(", alignment);
-        Assert.Contains("child.Measure(Size.Infinity)", alignment); // a hidden line is measured as if it were shown
-        Assert.Contains("DispatcherPriority.Loaded", alignment);
-        // Everything that changes the line asks for a new measurement: a selection change (counter text, localized buttons) and a button the view brings in or out.
-        Assert.Contains("ScheduleSelectionRowMeasure();", Source("Desktop/Views/Media/MediaPage.Selection.cs"));
-        Assert.Contains("e.Property == Visual.IsVisibleProperty", alignment);
+        Assert.Contains("ApplySortPrefix();", alignment);
+        Assert.DoesNotContain("_selectionRow", alignment);
+        Assert.DoesNotContain("SearchTargetWidth", alignment);
+        Assert.DoesNotContain("columns[0].MaxWidth", alignment);
+        Assert.DoesNotContain("ScheduleSelectionRowMeasure", Source("Desktop/Views/Media/MediaPage.Selection.cs"));
+        Assert.DoesNotContain("_headerRoomLeft", Source("Desktop/Views/Media/MediaPage.PanelAlignment.cs"));
         string layout = Source("Desktop/Views/Media/MediaPage.Layout.cs");
         Assert.Contains("_gridRightReserve = MediaToolbarLayout.GridRightReserve(", layout);
         Assert.Contains("ApplyToolbarAlignment();", layout);
-        Assert.Contains("_headerRoomLeft = lift && !panelRight ? reserve : 0;", Source("Desktop/Views/Media/MediaPage.PanelAlignment.cs"));
+        Assert.DoesNotContain("_headerRoomLeft", layout);
         // The view tools stay at the page edge above the panel while their column grows.
         Assert.Contains("HorizontalAlignment = HorizontalAlignment.Right", Source("Desktop/Views/Media/MediaPage.Toolbar.cs"));
     }
