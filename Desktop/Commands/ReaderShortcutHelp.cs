@@ -1,3 +1,4 @@
+using System.Linq;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan.Desktop.Commands;
@@ -8,7 +9,7 @@ internal static class ReaderShortcutHelp
         CommandCatalog.ShortcutTooltipDisplay(id, context) ?? CommandCatalog.Label(id);
 
     internal static string PlayHint(string context = "reader") => Texts.T("reader.video.playHint",
-        GestureOrLabel("reader.media.activate", context), GestureOrLabel("video.play-pause", context));
+        GestureOrLabel(context == "media" ? "media.open" : "reader.media.activate", context), GestureOrLabel("video.play-pause", context));
 
     internal static string ActivationNote()
     {

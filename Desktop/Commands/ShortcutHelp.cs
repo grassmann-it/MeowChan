@@ -1,3 +1,6 @@
+using System;
+using System.Linq;
+
 namespace MeowChan.Desktop.Commands;
 
 /// <summary>Point-of-use help from the same snapshot and execution context as routing.</summary>
