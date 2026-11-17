@@ -8,9 +8,11 @@ Provider-Credentials in MeowChan. Die beschriebene 1.1.0-Entwicklungslinie ist n
 nicht als fertiges Release abgenommen.
 
 Das Danbooru-Plugin muss unter **Plugins → Alle Plugins** aktiviert und
-für das Profil verfügbar sein. Öffne die Hauptseite **Booru** über Fußleiste oder
-**Mehr**; **Danbooru-Suche und Suchbeobachtungen…** im Appmenü führt auf dieselbe
-Seite, nicht in ein separates Fenster. Das Erkennen einer Danbooru-Adresse und
+für das Profil verfügbar sein. Die Standard-Fußleiste zeigt **keinen** Booru-Knopf.
+Öffne die Hauptseite **Booru** über **Mehr**, über **Danbooru-Suche und
+Suchbeobachtungen…** im ⋯-Appmenü (dieselbe Seite, kein separates Fenster), über
+**Medien → Mehr → Booru öffnen** oder per Tastenkürzel (Tabelle unten). Das
+Erkennen einer Danbooru-Adresse und
 das Öffnen der Booru-Seite fragt noch nichts ab. Auf der Seite senden erst
 **Suchen** oder **Post abrufen** eine begrenzte Anfrage; bereits aktive Suchbeobachtungen laufen unabhängig davon nach
 ihrem Zeitplan. Eine Post-Adresse über **Downloads → Hinzufügen** lädt Metadaten
@@ -18,24 +20,48 @@ und reiht das Original in einem Schritt als One-Shot ein.
 
 ## Booru-Seite, Anzeige und Tastenkürzel
 
-Die Fußleiste und das Appmenü ordnen die Hauptseiten als **Downloads, Archiv,
-Medien, Taggen, Booru | Regeln, Plugins | Status**. Die kontextbezogene F1-Hilfe
-folgt derselben Reihenfolge. Booru liegt unter Minimal in **Mehr**, ab Einfach
-bei ausreichender Breite direkt in der Fußleiste; bei Platzmangel wandern Ziele
-nach Mehr. Nach den Gruppen folgen **Mehr** und **Einstellungen**. Mehr enthält
-nur aus der Fußleiste ausgelagerte Ziele, keine doppelten Einträge für Downloads
-oder Einstellungen; das Appmenü bietet weiterhin die verfügbaren Hauptseiten an.
-Booru hat als Hauptseite keinen eigenen Zurück-/Schließen-Knopf.
+Die Fußleiste und das Mehr-Menü ordnen die Hauptseiten als **Downloads, Archiv,
+Medien, Taggen, Booru | Regeln, Plugins | Status**; die kontextbezogene F1-Hilfe
+folgt derselben Reihenfolge. Die Standard-Fußleiste blendet Booru aus; wer einen
+Booru-Knopf möchte, schaltet ihn unter **Einstellungen → Oberfläche → Fußleiste**
+in der Fußleistenliste ein. Der Knopf erscheint nur, solange **Booru-Aktionen anzeigen**
+(derselbe Einstellungsbereich) eingeschaltet ist. Unter Minimal bleibt Booru auch dann
+unter **Mehr**; ab Einfach steht der Knopf bei ausreichender Breite direkt in der
+Fußleiste, bei Platzmangel wandert er nach Mehr. Mehr enthält nur aus der Fußleiste
+ausgelagerte Ziele, keine doppelten Einträge für Downloads oder Einstellungen. Das
+⋯-Appmenü enthält keine Seitenliste, nur den Eintrag **Danbooru-Suche und
+Suchbeobachtungen…**. Booru hat als Hauptseite keinen eigenen Zurück-/Schließen-Knopf.
 
-Strg+6 (⌘+6 auf macOS) öffnet standardmäßig Booru. Plugins bleibt auf
-Strg+5, Status auf Strg+7; nur Strg/⌘+8 ist standardmäßig frei. Eine gespeicherte
-Plugins-Belegung auf Primary+6 hat Vorrang vor dem neuen Booru-Standard und öffnet
+Die Seitentasten folgen der Fußleiste: Strg/⌘+1 bis 9 zählen die direkt gezeigten
+Knöpfe von links, danach die von der Arbeitsansicht nach Mehr verlagerten und zuletzt
+die ausgeblendeten Seiten. Daneben hat jede Seite einen festen Buchstaben mit
+Strg+Umschalt (⌘⇧ auf macOS), der sich nie ändert; Booru hat Strg+Umschalt+B. Mit der
+Standard-Fußleiste gilt:
+
+| Seite | Buchstabe | Ziffer in Einfach (Startansicht eines neuen Profils) | Ziffer in Minimal und Erweitert |
+| --- | --- | --- | --- |
+| Downloads | Strg+Umschalt+D | Strg+1 | Strg+1 |
+| Archiv | Strg+Umschalt+A | Strg+2 | Strg+2 |
+| Medien | Strg+Umschalt+E | Strg+3 | Strg+3 |
+| Taggen | Strg+Umschalt+K | Strg+4 | Strg+4 |
+| Status | Strg+Umschalt+S | Strg+5 | Strg+7 |
+| Regeln | Strg+Umschalt+U | Strg+6 | Strg+5 |
+| Plugins | Strg+Umschalt+X | Strg+7 | Strg+6 |
+| Booru | Strg+Umschalt+B | Strg+8 | Strg+8 |
+
+Weil die Standard-Fußleiste Booru ausblendet, hat Booru die letzte Ziffer, **Strg+8**
+(⌘+8 auf macOS). Zeigst du Booru in der Fußleiste, belegt es in Einfach und Erweitert
+**Strg+5** und die Seiten dahinter rücken um eins nach oben; unter Minimal bleibt der
+Knopf unter Mehr, die Ziffern behalten ihre Werte. Die Tabelle steht auch in der
+[Hilfe](../Help.md#page-shortcuts-and-footer-numbering). Eine gespeicherte Belegung
+eines anderen Befehls, etwa Plugins auf Strg+6 oder Strg+8, hat Vorrang vor dem
+Booru-Standard und behält ihre Bedeutung; eine gespeicherte Plugins-Belegung öffnet
 **Alle Plugins** auf der Seite Plugins. Vorhandene Bereichskürzel für Statistik
-und Diagnose bleiben erhalten; Strg+7 öffnet den zuletzt benutzten Status-Bereich.
-F1 und die Fußleisten-Tooltips zeigen die wirksamen Belegungen, nicht einen zweiten
-Standard über deiner gespeicherten Wahl. Fußleiste und Menü folgen der aktuellen
-Verfügbarkeit. F1 kann auch ein ausgeblendetes oder nicht verfügbares Seitenkürzel
-weiter auflisten; das schaltet die Seite nicht frei.
+und Diagnose bleiben erhalten; die Status-Ziffer öffnet den zuletzt benutzten
+Status-Bereich. F1 und die Fußleisten-Tooltips zeigen die wirksamen Belegungen, nicht
+einen zweiten Standard über deiner gespeicherten Wahl. Fußleiste und Menü folgen der
+aktuellen Verfügbarkeit. F1 kann auch ein ausgeblendetes oder nicht verfügbares
+Seitenkürzel weiter auflisten; das schaltet die Seite nicht frei.
 
 Mit F1 öffnest du das gemeinsame Fenster **Tastenkürzel** beim aktuellen Bereich.
 Es bleibt offen, während du die Hauptseite weiter bedienst. Du kannst die
@@ -44,11 +70,12 @@ gelten erst nach **Speichern**, Kollisionen verhindern das Speichern. F1 oder Es
 schließt das Fenster wieder; Esc beendet zuerst eine laufende Aufnahme, und bei
 ungespeicherten Änderungen fragt das Fenster nach.
 
-**Booru anzeigen** in Fußleiste und Appmenü ist ein gespeicherter, profilweiter
-Anzeigeschalter, standardmäßig an. Ohne eingebundene Booru-Dienste fehlen Schalter
-und Seitenziel. Ausschalten blendet die Booru-Ziele in Fußleiste, Mehr und Appmenü
-sowie Medien → Mehr → **Booru öffnen** aus; das Seitenkürzel öffnet keine ausgeblendete
-Seite. Von der gewählten Booru-Seite geht es zu Downloads zurück. Wiederanzeigen
+**Booru-Aktionen anzeigen** (Einstellungen → **Oberfläche → Fußleiste**) ist ein
+gespeicherter, profilweiter Anzeigeschalter, standardmäßig an. Ohne eingebundene
+Booru-Dienste fehlen Schalter und Seitenziel; einen Fußleisten-Haken und eine
+Appmenü-Entsprechung gibt es nicht mehr. Ausschalten blendet die Booru-Einträge in
+Fußleiste, Mehr und Appmenü sowie Medien → Mehr → **Booru öffnen** aus; das
+Seitenkürzel öffnet keine ausgeblendete Seite. Von der gewählten Booru-Seite geht es zu Downloads zurück. Wiederanzeigen
 macht sie erneut erreichbar und bewahrt den ungesendeten Entwurf, solange dieselbe
 Quelleneinbindung besteht. Das ist nur Anzeige, keine Quellenautorisierung,
 Plugin-Aktivierung oder Suchbeobachtungspause. Quellen, Suchbeobachtungen und
