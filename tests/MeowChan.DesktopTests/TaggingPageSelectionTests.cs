@@ -63,6 +63,21 @@ public sealed class TaggingPageSelectionTests : IDisposable
     }
 
     [Fact]
+    public void RenderClearsNativeSelectionsBeforeRehydratingCarriedKeys()
+    {
+        string page = Read("Desktop/Views/Tagging/TaggingPage.cs");
+        int clearHidden = page.IndexOf("hidden.SelectedItems?.Clear();", StringComparison.Ordinal);
+        int clearActive = page.IndexOf("ActiveList.SelectedItems?.Clear();", StringComparison.Ordinal);
+        int bindHidden = page.IndexOf("hidden.ItemsSource = null;", StringComparison.Ordinal);
+        int bindActive = page.IndexOf("ActiveList.ItemsSource = _rows;", StringComparison.Ordinal);
+        int restoreSelection = page.IndexOf("ActiveList.SelectedItems?.Add", StringComparison.Ordinal);
+        Assert.True(clearHidden >= 0 && clearActive >= 0, "Render must clear both native selection collections.");
+        Assert.True(clearHidden < bindHidden && clearActive < bindActive && bindActive < restoreSelection,
+            "Render must clear stale selections before binding and rehydrating the carried selection.");
+        Assert.Contains("stale row beside it", page, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void TheViewChoiceIsSavedPerProfileAndRestoredWhenThePageIsBuilt()
     {
         string shell = Read("Desktop/Shell/MainWindow.TaggingPage.cs");

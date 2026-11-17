@@ -340,7 +340,14 @@ public sealed partial class TaggingPage : UserControl
         {
             _rows = TaggingQueueView.Rows(queue, Filter, EffectiveScope, _selectedGroupId, _ungroupedSelected);
             // Only the shown list is bound: the other one holds no rows (no tiles or rows built behind the scenes).
+            // Clear both native selection collections before replacing ItemsSource. Avalonia can retain the old
+            // selected item until the new containers are materialized; adding the carried row then used to leave
+            // the stale row beside it, making the counter grow every time the work view was revisited.
             ListBox hidden = _viewMode == TaggingViewMode.Grid ? _list : _grid;
+            hidden.SelectedItems?.Clear();
+            hidden.SelectedItem = null;
+            ActiveList.SelectedItems?.Clear();
+            ActiveList.SelectedItem = null;
             hidden.ItemsSource = null;
             ActiveList.ItemsSource = _rows;
             if (selected.Length > 0)
