@@ -44,8 +44,8 @@ internal static class ProfileSwitchChecks
 
     private static async Task RunShellAsync(MainWindow owner, string root, string profile)
     {
-        DesktopSessionHost host = new(profile, Array.Empty<IImageBoard>());
-        MainWindow shell = new(host) { Width = 1200, Height = 860 };
+        await using DesktopSessionHost host = new(profile, Array.Empty<IImageBoard>());
+        await using MainWindow shell = new(host) { Width = 1200, Height = 860 };
         RecordingLauncher launcher = new();
         shell.ProfileLauncher = launcher;
         shell.ProfileRegistryPath = Path.Combine(root, "config", "MeowChan", ProfileRegistry.FileName);

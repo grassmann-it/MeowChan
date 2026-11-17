@@ -14,7 +14,7 @@ using MeowChan.Persistence;
 
 namespace MeowChan.DesktopSmoke;
 
-internal sealed class StartupPreviewSmokeApp : App
+internal sealed class StartupPreviewSmokeApp : App, IDisposable
 {
     internal StartupPreviewBarrier Barrier { get; } = new();
     internal StartupPreviewBarrier ReadableBarrier { get; } = new();
@@ -23,6 +23,7 @@ internal sealed class StartupPreviewSmokeApp : App
     private readonly HttpClient _client;
 
     public StartupPreviewSmokeApp() => _client = new HttpClient(Transport);
+    public void Dispose() => _client.Dispose();
 
     internal DesktopSessionHost CreateHost(string profile, StartupPreviewBarrier? barrier,
         bool failRestore, out StartupPreviewObservedStore observed)
@@ -306,7 +307,7 @@ internal static class StartupPreviewChecks
         byte[] before = File.ReadAllBytes(CachePath(profile));
         StartupPreviewBarrier barrier = new() { HoldCancellationDrain = !failRestore };
         DesktopSessionHost host = app.CreateHost(profile, barrier, failRestore, out var store);
-        MainWindow window = new(host);
+        await using MainWindow window = new(host);
         window.Show(owner);
         try
         {
@@ -390,7 +391,7 @@ internal static class StartupPreviewChecks
         byte[] before = File.ReadAllBytes(CachePath(profile));
         StartupPreviewBarrier barrier = new();
         DesktopSessionHost host = app.CreateHost(profile, barrier, false, out var store);
-        MainWindow window = new(host);
+        await using MainWindow window = new(host);
         window.Show(owner);
         try
         {

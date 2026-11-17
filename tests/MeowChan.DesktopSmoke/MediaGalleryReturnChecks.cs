@@ -24,8 +24,8 @@ internal static partial class MediaPageChecks
     {
         new Config { DownloadsPaused = true, SaveUrlsOnExit = false, CloseToTray = false, MinimizeToTray = false, WorkspaceMode = "Simple" }.SaveConfig(profile);
         await SeedReturnAsync(profile);
-        DesktopSessionHost session = new(profile, Array.Empty<IImageBoard>());
-        MainWindow shell = new(session) { Width = 1400, Height = 900 };
+        await using DesktopSessionHost session = new(profile, Array.Empty<IImageBoard>());
+        await using MainWindow shell = new(session) { Width = 1400, Height = 900 };
         Exception? failureBeforeCleanup = null;
         try
         {

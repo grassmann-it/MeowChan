@@ -330,12 +330,13 @@ internal static class ReaderThreadFindChecks
                 "https://boards.4chan.org/g/thread/3000", "Offline shell routing",
                 ThreadSourceState.NotFound, DateTimeOffset.UnixEpoch, profile, data));
         }
-        DesktopSessionHost host = new(profile, Array.Empty<IImageBoard>());
+        await using DesktopSessionHost host = new(profile, Array.Empty<IImageBoard>());
         MainWindow? shell = null;
         Exception? failureBeforeCleanup = null;
         try
         {
-            shell = new MainWindow(host);
+            await using MainWindow ownedShell = new(host);
+            shell = ownedShell;
             shell.Show(owner);
             shell.Activate();
             await host.StartAsync().WaitAsync(Deadline);
@@ -513,7 +514,7 @@ internal static class ReaderThreadFindChecks
                 {
                     shell.Close();
                     await UntilAsync(() => !shell.IsVisible);
-                    await shell.GalleryCleanupTask.WaitAsync(Deadline);
+                    await shell.GalleryCleanupTask.WaitAsync(Deadline); await shell.DisposeAsync();
                 }
                 await host.DisposeAsync();
             }, exception => Console.Error.WriteLine("SMOKE cleanup failed in ReaderThreadFindChecks: " + exception));

@@ -102,7 +102,7 @@ internal static class DownloadSearchStartupTruthChecks
             StartupPreviewBarrier barrier = new(), readable = new();
             DesktopSessionHost host = app.CreateHost(profile, barrier, false, out var store);
             host.AfterCatalogReadableForTests = readable.HoldAsync;
-            MainWindow child = new(host);
+            await using MainWindow child = new(host);
             try
             {
                 child.Show(main);
@@ -113,7 +113,7 @@ internal static class DownloadSearchStartupTruthChecks
             {
                 barrier.Release.TrySetResult(); readable.Release.TrySetResult();
                 await CloseAsync(child);
-                child.Dispose();
+                await child.DisposeAsync();
             }
             Console.WriteLine("CX03 cache " + cache + " PASS: awaiting both lists, retained query/focus, authoritative zero only at Ready.");
         }
@@ -294,7 +294,7 @@ internal static class DownloadSearchStartupTruthChecks
         Seed(profile, "truncated");
         StartupPreviewBarrier barrier = new() { HoldCancellationDrain = !fail };
         DesktopSessionHost host = app.CreateHost(profile, barrier, fail, out var store);
-        MainWindow child = new(host);
+        await using MainWindow child = new(host);
         try
         {
             child.Show(owner);
@@ -319,7 +319,7 @@ internal static class DownloadSearchStartupTruthChecks
         {
             barrier.Release.TrySetResult(); barrier.CancellationDrain.TrySetResult();
             await CloseAsync(child);
-            child.Dispose();
+            await child.DisposeAsync();
         }
         Console.WriteLine("CX03 terminal " + (fail ? "failure" : "stop") + " PASS: no empty-success claim; real close/profile release.");
     }

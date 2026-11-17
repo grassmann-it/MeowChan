@@ -254,7 +254,7 @@ internal static class ShellProjectionReconciliationChecks
             if (shell != null)
             {
                 close ??= (Task)Call(shell, "CloseApplicationAsync")!;
-                await close.WaitAsync(Deadline);
+                await close.WaitAsync(Deadline); await shell.DisposeAsync();
             }
             if (host != null) await host.DisposeAsync().AsTask().WaitAsync(Deadline);
             Texts.SetLanguage(language);

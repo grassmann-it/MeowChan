@@ -38,7 +38,7 @@ internal static class SourceFilterWaveChecks
             Language = "en", Theme = "Dark" }.SaveConfig(profile);
         using BlockedHttp http = new();
         await using DesktopSessionHost host = CreateHost(profile, http);
-        MainWindow window = new(host);
+        await using MainWindow window = new(host);
         window.Show(parent);
         try
         {

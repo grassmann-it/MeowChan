@@ -48,8 +48,8 @@ internal static class FolderSourceChecks
 
     private static async Task RunShellAsync(MainWindow owner, string profile, string downloads, string media)
     {
-        DesktopSessionHost host = new(profile, Array.Empty<IImageBoard>());
-        MainWindow shell = new(host) { Width = 1300, Height = 900 };
+        await using DesktopSessionHost host = new(profile, Array.Empty<IImageBoard>());
+        await using MainWindow shell = new(host) { Width = 1300, Height = 900 };
         shell.Show(owner);
         Exception? failure = null;
         try

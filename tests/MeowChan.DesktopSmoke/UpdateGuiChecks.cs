@@ -25,11 +25,12 @@ internal static class UpdateGuiChecks
         // Saving a changed reserve re-checks the destination, which never creates folders; the fixture must provide it
         // (after the first save, because settings are only written into an empty or already valid profile).
         Directory.CreateDirectory(config.DownloadPath);
-        Handler handler = new();
+        using Handler handler = new();
         string? disabled = null;
+        using HttpClient updateClient = new(handler);
         await using DesktopSessionHost host = new(profile, [], updateSessionFactory: (path, settings) =>
-            new UpdateSession(path, settings, new HttpClient(handler), disableEnvironment: () => disabled));
-        MainWindow window = new(host);
+            new UpdateSession(path, settings, updateClient, disableEnvironment: () => disabled));
+        await using MainWindow window = new(host);
         AboutWindow? about = null;
         window.Show(owner);
         Exception? failureBeforeCleanup = null;

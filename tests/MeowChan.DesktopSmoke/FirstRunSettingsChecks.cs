@@ -51,7 +51,8 @@ internal static class FirstRunSettingsChecks
         Exception? failureBeforeCleanup = null;
         try
         {
-            host = new DesktopSessionHost(profile, Array.Empty<IImageBoard>());
+            await using DesktopSessionHost ownedHost = new(profile, Array.Empty<IImageBoard>());
+            host = ownedHost;
             Require(host.Config.Origin == ProfileOrigin.ConfirmedNew, "Fixture must start from a genuinely empty new profile.");
             // No environment/profile redirection: only this explicit private host is used.
             // No providers, watches, media, update checks, tray or audio in these journeys.
@@ -62,7 +63,8 @@ internal static class FirstRunSettingsChecks
             host.Config.MinimizeToTray = false;
             host.Config.WorkspaceMode = "Advanced";
             Directory.CreateDirectory(host.Config.DownloadPath);
-            shell = new MainWindow(host);
+            await using MainWindow ownedShell = new(host);
+            shell = ownedShell;
             SettingsEditor eager = shell.SettingsEditor;
             bool unrelatedDraft = !eager.ShowWarningNotifications;
             if (action == "accept")
@@ -71,6 +73,7 @@ internal static class FirstRunSettingsChecks
                 eager.ParallelDownloadsSafetyLimit = 64; // setup does not own this unrelated draft
             }
             shell.Show(owner);
+            host = ownedHost;
             await host.StartAsync().WaitAsync(TimeSpan.FromSeconds(15));
             await Program.WaitUntilAsync(() => shell.OwnedWindows.OfType<FirstRunSetupWindow>().Any(w => w.IsVisible));
             FirstRunSetupWindow dialog = shell.OwnedWindows.OfType<FirstRunSetupWindow>().Single(w => w.IsVisible);
@@ -134,14 +137,16 @@ internal static class FirstRunSettingsChecks
                 await CheckEditorAsync(shell, expected);
             }
             await CloseAsync(shell);
-            shell.Dispose();
+            await shell.DisposeAsync();
             await host.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(15));
             Require(!shell.IsVisible && host.IsProfileReleased, "Shell/host did not release the private profile.");
             shell = null;
             host = null;
             if (action != "accept") return;
-            host = new DesktopSessionHost(profile, Array.Empty<IImageBoard>());
-            shell = new MainWindow(host);
+            await using DesktopSessionHost ownedHostSecond = new(profile, Array.Empty<IImageBoard>());
+            host = ownedHostSecond;
+            await using MainWindow ownedShellSecond = new(host);
+            shell = ownedShellSecond;
             shell.Show(owner);
             await host.StartAsync().WaitAsync(TimeSpan.FromSeconds(15));
             await Program.WaitUntilAsync(() => shell.FindControl<Button>("AddUrlButton")!.IsEnabled);
@@ -163,7 +168,7 @@ internal static class FirstRunSettingsChecks
                         modal.Close();
                     }
                     await CloseAsync(shell);
-                    shell.Dispose();
+                    await shell.DisposeAsync();
                 }
                 if (host != null) await host.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(15));
             }, exception => Console.Error.WriteLine("SMOKE cleanup failed in FirstRunSettingsChecks: " + exception));

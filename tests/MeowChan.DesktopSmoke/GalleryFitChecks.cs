@@ -35,7 +35,8 @@ internal static class GalleryFitChecks
         string directory = Path.Combine(TemporaryWorkspacePaths.TempRoot, "meowchan-fit-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
         object? previousContent = window.Content;
-        GalleryViewer viewer = new();
+        await using GalleryViewer initialViewer = new();
+        GalleryViewer viewer = initialViewer;
         DecodeProbe probe = new();
         viewer.DecodeImageAsync = probe.DecodeAsync;
         Image image = null!;
@@ -45,6 +46,7 @@ internal static class GalleryFitChecks
         async Task ReplaceViewerAsync()
         {
             await viewer.StopAsync();
+            await viewer.DisposeAsync();
             viewer = new GalleryViewer { DecodeImageAsync = probe.DecodeAsync };
             window.Content = viewer;
             await Program.WaitUntilAsync(() => viewer.GetGalleryVisualDescendants().Any(control => control is Image { Name: "GalleryImage" }));
@@ -297,7 +299,7 @@ internal static class GalleryFitChecks
         {
             await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
             {
-                probe.ReleaseAll(); await viewer.StopAsync();
+                probe.ReleaseAll(); await viewer.StopAsync(); await viewer.DisposeAsync();
                 await Program.WaitUntilAsync(() => probe.Active == 0);
                 window.Content = previousContent;
                 Directory.Delete(directory, true);

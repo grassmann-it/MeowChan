@@ -70,8 +70,10 @@ internal static class StatusDeepLinkChecks
         MainWindow? shell = null;
         try
         {
-            host = new DesktopSessionHost(profile, Array.Empty<IImageBoard>(), (_, _) => new FailedStore());
-            shell = new MainWindow(host);
+            await using DesktopSessionHost ownedHost = new(profile, Array.Empty<IImageBoard>(), (_, _) => new FailedStore());
+            host = ownedHost;
+            await using MainWindow ownedShell = new(host);
+            shell = ownedShell;
             shell.Show(owner);
             await host.StartAsync().WaitAsync(TimeSpan.FromSeconds(15));
             Require(host.State == DesktopSessionState.RecoveryFailed, "The fixture session did not fail to restore: " + host.State);
@@ -90,7 +92,7 @@ internal static class StatusDeepLinkChecks
         }
         finally
         {
-            if (shell != null) await CloseAsync(shell);
+            if (shell != null) { await CloseAsync(shell); await shell.DisposeAsync(); }
             if (host != null)
             {
                 // The failed restore refuses the final preference writes by contract; the host reports that once more on dispose.

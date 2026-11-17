@@ -623,7 +623,7 @@ internal static partial class GalleryPlaybackFeatureChecks
             {
                 ShellErrorStopTimers(shell);
                 try { await ((Task)ShellErrorCall(shell, "FlushGalleryPreferencesAsync")!).WaitAsync(Deadline); }
-                finally { await ((Task)ShellErrorCall(shell, "CloseApplicationAsync")!).WaitAsync(Deadline); }
+                finally { await ((Task)ShellErrorCall(shell, "CloseApplicationAsync")!).WaitAsync(Deadline); await shell.DisposeAsync(); }
             }
             if (host != null) await host.DisposeAsync().AsTask().WaitAsync(Deadline);
             Texts.SetLanguage(language);

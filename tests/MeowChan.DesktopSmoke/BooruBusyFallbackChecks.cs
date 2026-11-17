@@ -65,7 +65,7 @@ internal static class BooruBusyFallbackChecks
             source = new PauseFixtureSource(pauseFailure);
             stub = new DanbooruStub();
             binding = new DanbooruTestBinding(stub);
-            host = new DesktopSessionHost(profile, new IImageBoard[] { source },
+            await using DesktopSessionHost ownedHost = new(profile, new IImageBoard[] { source },
                 sessionStoreFactory: (_, _) => new FixtureSessionStore(ThreadUrl))
             {
                 BooruBindingForTests = () => binding!.Binding
@@ -133,7 +133,7 @@ internal static class BooruBusyFallbackChecks
             // before closing, otherwise fixture cleanup would hide the original failure in a timeout.
             source?.Thread.ReleasePause();
             if (shell != null && shell.IsVisible) await CloseAsync(shell);
-            shell?.Dispose(); shell = null;
+            if (shell != null) { await shell.DisposeAsync(); shell = null; }
             if (host != null && !host.IsProfileReleased) await host.DisposeAsync().AsTask().WaitAsync(Wait);
             binding?.Dispose();
             stub?.Dispose();
@@ -172,7 +172,7 @@ internal static class BooruBusyFallbackChecks
             source = new PauseFixtureSource(failStopOnce: false);
             stub = new DanbooruStub();
             binding = new DanbooruTestBinding(stub);
-            host = new DesktopSessionHost(profile, new IImageBoard[] { source },
+            await using DesktopSessionHost ownedHost = new(profile, new IImageBoard[] { source },
                 sessionStoreFactory: (_, _) => new FixtureSessionStore(ThreadUrl))
             {
                 BooruBindingForTests = () => binding!.Binding
@@ -222,7 +222,7 @@ internal static class BooruBusyFallbackChecks
             // before closing, otherwise fixture cleanup would hide the original failure in a timeout.
             source?.Thread.ReleasePause();
             if (shell != null && shell.IsVisible) await CloseAsync(shell);
-            shell?.Dispose(); shell = null;
+            if (shell != null) { await shell.DisposeAsync(); shell = null; }
             if (host != null && !host.IsProfileReleased) await host.DisposeAsync().AsTask().WaitAsync(Wait);
             binding?.Dispose();
             stub?.Dispose();

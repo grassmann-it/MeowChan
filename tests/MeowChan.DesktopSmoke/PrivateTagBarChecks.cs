@@ -66,12 +66,25 @@ internal static partial class PrivateTagBarChecks
         }
     }
 
-    private sealed class Fixture(Window window, ArchivePage page, DesktopSessionHost host) : IAsyncDisposable
+    private sealed class Fixture : IAsyncDisposable
     {
-        internal ArchivePage Page => page;
-        internal DesktopSessionHost Host => host;
-        internal Window Window => window;
-        internal T C<T>(string name) where T : Control => page.FindControl<T>(name)
+        private readonly Window _window;
+        private readonly ArchivePage _page;
+        private readonly DesktopSessionHost _host;
+        internal Fixture(string profile)
+        {
+            _host = new DesktopSessionHost(profile, Array.Empty<IImageBoard>());
+            _page = new ArchivePage(_host.OpenArchiveReaderAsync,
+                (_, _) => throw new InvalidOperationException("No capture mutation permitted."),
+                _ => throw new InvalidOperationException("No external launch permitted."));
+            _page.AttachPrivateTags(_host);
+            _window = new Window { Width = 1120, Height = 820, Content = _page,
+                Title = "Synthetic offline private tags", ShowInTaskbar = false };
+        }
+        internal ArchivePage Page => _page;
+        internal DesktopSessionHost Host => _host;
+        internal Window Window => _window;
+        internal T C<T>(string name) where T : Control => _page.FindControl<T>(name)
             ?? throw new InvalidOperationException("Missing actual control " + name);
         internal void Click(string name) => Click(C<Button>(name));
         internal void Click(Button button)
@@ -86,20 +99,20 @@ internal static partial class PrivateTagBarChecks
         internal Button[] Suggestions() => C<WrapPanel>("ReaderTagSuggestions").Children.OfType<Button>().ToArray();
         internal async Task SettleAsync()
         {
-            await page.PrivateTagTask.WaitAsync(Deadline);
+            await _page.PrivateTagTask.WaitAsync(Deadline);
             await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
         }
         internal PrivateTagStoreSnapshot Stored()
         {
-            PrivateTagLoadSnapshot loaded = host.GetPrivateTagSnapshot();
+            PrivateTagLoadSnapshot loaded = _host.GetPrivateTagSnapshot();
             Require(loaded.State == PrivateTagLoadState.Ready, "Tag index is not readable: " + loaded.Error);
             return loaded.Snapshot!;
         }
         public async ValueTask DisposeAsync()
         {
-            page.EndLifetime();
-            window.Close();
-            await host.DisposeAsync();
+            _page.EndLifetime();
+            _window.Close();
+            await _host.DisposeAsync();
         }
     }
 
@@ -136,21 +149,15 @@ internal static partial class PrivateTagBarChecks
 
     private static async Task<Fixture> OpenAsync(MainWindow owner, string profile, ResourceId thread)
     {
-        DesktopSessionHost host = new(profile, Array.Empty<IImageBoard>());
-        await host.StartAsync().WaitAsync(Deadline);
-        ArchivePage page = new(host.OpenArchiveReaderAsync,
-            (_, _) => throw new InvalidOperationException("No capture mutation permitted."),
-            _ => throw new InvalidOperationException("No external launch permitted."));
-        page.AttachPrivateTags(host);
-        Window window = new() { Width = 1120, Height = 820, Content = page,
-            Title = "Synthetic offline private tags", ShowInTaskbar = false };
-        window.Show(owner);
-        Require(window.TryGetPlatformHandle()?.Handle is nint h && h != 0, "Missing native fixture owner.");
-        page.IsAvailable = true;
-        await page.LoadThreadAsync(thread).WaitAsync(Deadline);
-        await page.MediaLoadTask.WaitAsync(Deadline);
-        Require(page.CurrentThread?.Summary.Id == thread, "Offline snapshot was not loaded through the catalog.");
-        return new Fixture(window, page, host);
+        Fixture fixture = new(profile);
+        await fixture.Host.StartAsync().WaitAsync(Deadline);
+        fixture.Window.Show(owner);
+        Require(fixture.Window.TryGetPlatformHandle()?.Handle is nint h && h != 0, "Missing native fixture owner.");
+        fixture.Page.IsAvailable = true;
+        await fixture.Page.LoadThreadAsync(thread).WaitAsync(Deadline);
+        await fixture.Page.MediaLoadTask.WaitAsync(Deadline);
+        Require(fixture.Page.CurrentThread?.Summary.Id == thread, "Offline snapshot was not loaded through the catalog.");
+        return fixture;
     }
 
     private static async Task JourneyAsync(MainWindow owner, string profile)

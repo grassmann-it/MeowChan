@@ -329,7 +329,7 @@ internal static class SuggestionsPresentationChecks
         }
         finally
         {
-            archive?.EndLifetime(); rules?.EndLifetime(); host?.Close();
+            archive?.EndLifetime(); rules?.EndLifetime(); if (rules != null) await rules.DisposeAsync(); host?.Close();
             await PresentationChecks.SwitchModeAsync(owner, original.WorkspaceMode);
             await PersistAppearance(owner, original.Language, original.Theme);
             try { Directory.Delete(profile, true); } catch (IOException) { }

@@ -26,10 +26,10 @@ internal static class TrayLifecycleChecks
             {
                 Stopwatch phase = Stopwatch.StartNew();
                 Console.WriteLine($"SMOKE tray cycle {iteration + 1}/16 begin; shortcut observers={CommandBindings.ObserverCount}.");
-                DesktopSessionHost host = new(profile, Array.Empty<IImageBoard>());
+                await using DesktopSessionHost host = new(profile, Array.Empty<IImageBoard>());
                 Console.WriteLine($"SMOKE tray cycle {iteration + 1}/16 host construction={phase.Elapsed.TotalMilliseconds:F1}ms.");
                 phase.Restart();
-                MainWindow window = new MainWindow(host);
+                await using MainWindow window = new MainWindow(host);
                 Console.WriteLine($"SMOKE tray cycle {iteration + 1}/16 window construction={phase.Elapsed.TotalMilliseconds:F1}ms; shortcut observers={CommandBindings.ObserverCount}.");
                 bool closed = false;
                 window.Closed += (_, _) => closed = true;

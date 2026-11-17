@@ -43,8 +43,8 @@ internal static class MediaMenuSurfacesChecks
             MinimizeToTray = false, WorkspaceMode = "Simple" }.SaveConfig(profile);
         Texts.SetLanguage("en");
         await MediaPageChecks.SeedAsync(profile);
-        DesktopSessionHost session = new(profile, Array.Empty<IImageBoard>());
-        MainWindow shell = new(session) { Width = 1400, Height = 950 };
+        await using DesktopSessionHost session = new(profile, Array.Empty<IImageBoard>());
+        await using MainWindow shell = new(session) { Width = 1400, Height = 950 };
         Exception? failure = null;
         try
         {

@@ -35,12 +35,11 @@ internal static class PreferenceStartupChecks
             foreach (string code in new[] { "en", "de" })
             foreach (ThemeVariant variant in new[] { ThemeVariant.Light, ThemeVariant.Dark })
             {
-                using var budget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                budget.CancelAfter(TimeSpan.FromSeconds(90));
-                await RunCellAsync(owner, code, variant, budget.Token);
-                await RunCloseFailureCellAsync(owner, code, variant, "shutdown-wins", budget.Token);
-                await RunCloseFailureCellAsync(owner, code, variant, "restore-fails", budget.Token);
-                await RunCloseFailureCellAsync(owner, code, variant, "ready-io", budget.Token);
+                // Each cell has its own bounded deadline; propagate the caller cancellation directly.
+                await RunCellAsync(owner, code, variant, cancellationToken);
+                await RunCloseFailureCellAsync(owner, code, variant, "shutdown-wins", cancellationToken);
+                await RunCloseFailureCellAsync(owner, code, variant, "restore-fails", cancellationToken);
+                await RunCloseFailureCellAsync(owner, code, variant, "ready-io", cancellationToken);
             }
         }
         finally
@@ -74,14 +73,16 @@ internal static class PreferenceStartupChecks
             string settings = Path.Combine(directory, "settings.json");
             byte[] before = await File.ReadAllBytesAsync(settings, token);
             Config initial = Config.LoadConfig(directory);
-            host = new DesktopSessionHost(directory, Array.Empty<IImageBoard>(), sessionStoreFactory: (_, _) => restore);
+            await using DesktopSessionHost ownedHost = new(directory, Array.Empty<IImageBoard>(), sessionStoreFactory: (_, _) => restore);
+            host = ownedHost;
             Require(host.Config.Origin == ProfileOrigin.ExistingValid, "Fixture did not bind a valid existing origin.");
-            shell = new MainWindow(host); // Real shell owns StartAsync, event wiring and debounced saves.
+            await using MainWindow ownedShell = new(host); // Real shell owns StartAsync, event wiring and debounced saves.
+            shell = ownedShell;
             shell.Show(owner);
             await restore.Entered.Task.WaitAsync(Deadline, token);
             await UntilAsync(() => shell.IsVisible && Get<bool>(shell, "_windowPreferencesReady")
                 && shell.ClientSize.Width > 0, "native layout readiness while restore held", token);
-            await Dispatcher.UIThread.InvokeAsync(shell.UpdateLayout, DispatcherPriority.Background);
+            await Dispatcher.UIThread.InvokeAsync(shell.UpdateLayout, DispatcherPriority.Background, token);
             Require(host.State == DesktopSessionState.Starting && !host.StartAsync().IsCompleted
                 && !shell.FindControl<Button>("AddUrlButton")!.IsEnabled,
                 "Held restoration was mistaken for a ready session.");
@@ -147,8 +148,10 @@ internal static class PreferenceStartupChecks
             await host.DisposeAsync().AsTask().WaitAsync(Deadline, token);
             Require(!shell.IsVisible && host.State == DesktopSessionState.Stopped, "First shell did not close cleanly.");
             using (ProfileLease released = ProfileLease.Acquire(directory)) { }
-            host = new DesktopSessionHost(directory, Array.Empty<IImageBoard>());
-            shell = new MainWindow(host);
+            await using DesktopSessionHost reopenedHost = new(directory, Array.Empty<IImageBoard>());
+            host = reopenedHost;
+            await using MainWindow reopenedShell = new(host);
+            shell = reopenedShell;
             shell.Show(owner);
             await host.StartAsync().WaitAsync(Deadline, token);
             await UntilAsync(() => shell.IsVisible && Get<bool>(shell, "_windowPreferencesReady")
@@ -172,9 +175,9 @@ internal static class PreferenceStartupChecks
             // Always release the fixture hold, even on timeout/cancellation, before asking the shell to drain.
             restore.Release.TrySetResult(new(new SessionSnapshot(), null, false));
             if (shell != null)
-                try { await CloseAsync(shell).WaitAsync(Deadline); } catch (Exception error) { cleanupFailures.Add(error); }
+                try { await CloseAsync(shell).WaitAsync(Deadline, token); } catch (Exception error) { cleanupFailures.Add(error); }
             if (host != null)
-                try { await host.DisposeAsync().AsTask().WaitAsync(Deadline); } catch (Exception error) { cleanupFailures.Add(error); }
+                try { await host.DisposeAsync().AsTask().WaitAsync(Deadline, CancellationToken.None); } catch (Exception error) { cleanupFailures.Add(error); }
             if ((host == null || host.IsProfileReleased) && (shell == null || !shell.IsVisible))
             {
                 try
@@ -201,7 +204,7 @@ internal static class PreferenceStartupChecks
     /// </summary>
     internal static async Task RunRetainedNativeDrainBoundaryAsync(MainWindow shell, CancellationToken cancellationToken = default)
     {
-        using var budget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        using CancellationTokenSource budget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         budget.CancelAfter(TimeSpan.FromSeconds(45));
         CancellationToken token = budget.Token;
         DesktopSessionHost host = shell.SessionHost;
@@ -241,7 +244,7 @@ internal static class PreferenceStartupChecks
             "Faulted native drain detached/disposed workspace or offered an unsafe close.");
         RequireLeaseHeld(host.ProfileDirectory);
         shell.Close();
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background, CancellationToken.None);
         Require(shell.IsVisible && !Get<bool>(shell, "_allowClose") && !host.IsProfileReleased,
             "Second Close bypassed retained native ownership.");
         RequireLeaseHeld(host.ProfileDirectory);
@@ -282,7 +285,8 @@ internal static class PreferenceStartupChecks
                 ShowErrorNotifications = true
             };
             if (readyIo) FixtureConfig().SaveConfig(directory);
-            host = new DesktopSessionHost(directory, Array.Empty<IImageBoard>(), sessionStoreFactory: (_, _) => restore);
+            await using DesktopSessionHost ownedHost = new(directory, Array.Empty<IImageBoard>(), sessionStoreFactory: (_, _) => restore);
+            host = ownedHost;
             if (!readyIo)
             {
                 Require(host.Config.Origin == ProfileOrigin.ConfirmedNew, "Failed-start fixture was not genuinely empty at acquisition.");
@@ -399,7 +403,7 @@ internal static class PreferenceStartupChecks
             byte[]? restoredBytes = readyIo ? await File.ReadAllBytesAsync(settings, token) : null;
             shell.Close(); // _allowClose permits the SECOND request directly; no persistence retry against a released owner.
             await UntilAsync(() => closed, scenario + " second close exits", token);
-            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background, CancellationToken.None);
             await Task.Delay(600, token); // Past the shell's 500ms debounce; supplement terminal-task/sealed-writer proof.
             Require(host.IsProfileReleased && host.PreferenceWriteCounts == counts
                 && ReferenceEquals(lastRaw, Get<Task>(shell, "_windowPreferenceWrite"))
@@ -424,14 +428,15 @@ internal static class PreferenceStartupChecks
                 {
                     if (Get<bool>(shell, "_shutdownRunning"))
                         await UntilAsync(() => !Get<bool>(shell, "_shutdownRunning"), "negative fixture cleanup close", CancellationToken.None);
-                    else if (!Get<bool>(shell, "_allowClose")) await CloseAsync(shell).WaitAsync(Deadline);
+                    else if (!Get<bool>(shell, "_allowClose")) await CloseAsync(shell).WaitAsync(Deadline, CancellationToken.None);
                     if (Get<bool>(shell, "_allowClose")) shell.Close();
                 }
                 catch (Exception error) { cleanupFailures.Add(error); }
             }
+            if (shell != null) await shell.DisposeAsync();
             if (host != null && !host.IsProfileReleased)
             {
-                try { await host.DisposeAsync().AsTask().WaitAsync(Deadline); }
+                try { await host.DisposeAsync().AsTask().WaitAsync(Deadline, CancellationToken.None); }
                 catch (Exception error)
                 {
                     if (host.State != DesktopSessionState.Stopped || !host.IsProfileReleased) cleanupFailures.Add(error);
@@ -485,7 +490,7 @@ internal static class PreferenceStartupChecks
     private static async Task ResizeColumnAsync(MediaNativeInput native, MainWindow shell, DataGrid grid,
         DataGridColumn column, CancellationToken token)
     {
-        await Dispatcher.UIThread.InvokeAsync(shell.UpdateLayout, DispatcherPriority.Background);
+        await Dispatcher.UIThread.InvokeAsync(shell.UpdateLayout, DispatcherPriority.Background, token);
         DataGridColumnHeader header = grid.GetVisualDescendants().OfType<DataGridColumnHeader>()
             .Single(h => h.IsEffectivelyVisible && Equals(h.Content, column.Header));
         Require(header.IsEffectivelyEnabled && header.Bounds.Width > 16 && header.Bounds.Height > 0,

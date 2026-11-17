@@ -22,7 +22,7 @@ internal static class VideoLifecycleChecks
         TaskCompletionSource heartbeat = new(TaskCreationOptions.RunContinuationsAsynchronously);
         using ManualResetEventSlim nativeReturn = new(false);
         // Only this fixture shortens the diagnostic threshold; production remains five seconds.
-        VideoCleanupWatch watch = new("smoke.video.cleanup", deadline: Stopwatch.Frequency / 10);
+        using VideoCleanupWatch watch = new("smoke.video.cleanup", deadline: Stopwatch.Frequency / 10);
         watch.Pending += _ => diagnosed.TrySetResult();
         int streamsReleased = 0, enginesReleased = 0;
         VideoPlaybackLifetime lifetime = new(_ =>

@@ -391,9 +391,9 @@ internal static class SettingsPageChecks
         string profile = Path.Combine(TemporaryWorkspacePaths.TempRoot, "meowchan-page-save-" + Guid.NewGuid().ToString("N"));
         SeedProfile(profile);
         GateStore? store = null;
-        DesktopSessionHost host = new DesktopSessionHost(profile, Array.Empty<IImageBoard>(), (directory, lease) =>
+        await using DesktopSessionHost host = new DesktopSessionHost(profile, Array.Empty<IImageBoard>(), (directory, lease) =>
             store = new GateStore(new SessionStore(directory, lease)));
-        MainWindow window = new MainWindow(host);
+        await using MainWindow window = new MainWindow(host);
         bool closed = false;
         window.Closed += (_, _) => closed = true;
         window.Show(owner);
@@ -503,8 +503,8 @@ internal static class SettingsPageChecks
         AvaloniaLocator.CurrentMutable.Bind<IStorageProviderFactory>().ToConstant(new SettingsChecks.FixtureStorageProviderFactory(provider));
         TaskCompletionSource<IReadOnlyList<Avalonia.Platform.Storage.IStorageFolder>> pending = new TaskCompletionSource<IReadOnlyList<Avalonia.Platform.Storage.IStorageFolder>>(TaskCreationOptions.RunContinuationsAsynchronously);
         provider.Result = pending.Task;
-        DesktopSessionHost host = new DesktopSessionHost(profile, Array.Empty<IImageBoard>());
-        MainWindow window = new MainWindow(host);
+        await using DesktopSessionHost host = new DesktopSessionHost(profile, Array.Empty<IImageBoard>());
+        await using MainWindow window = new MainWindow(host);
         bool closed = false;
         window.Closed += (_, _) => closed = true;
         window.Show(owner);

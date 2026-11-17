@@ -124,7 +124,7 @@ internal static class BooruPreviewDecodeChecks
             release.Set();
             viewer.Close();
             await viewer.Cleanup;
-            viewer.Dispose();
+            await viewer.DisposeAsync();
         }
     }
 

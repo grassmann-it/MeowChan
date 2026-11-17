@@ -190,7 +190,7 @@ internal static class ShellPreferenceCoalescingChecks
             {
                 StopTimers(shell);
                 close ??= (Task)Call(shell, "CloseApplicationAsync")!;
-                await close.WaitAsync(Deadline);
+                await close.WaitAsync(Deadline); await shell.DisposeAsync();
             }
             if (host != null) await host.DisposeAsync().AsTask().WaitAsync(Deadline);
             diagnostics?.Dispose();

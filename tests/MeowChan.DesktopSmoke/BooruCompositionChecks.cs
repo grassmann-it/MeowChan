@@ -59,12 +59,14 @@ internal static class BooruCompositionChecks
         try
         {
             Texts.SetLanguage("en");
-            host = new DesktopSessionHost(profile, Array.Empty<IImageBoard>())
+            await using DesktopSessionHost ownedHost = new(profile, Array.Empty<IImageBoard>())
             {
                 BooruBindingForTests = () => binding.Binding,
                 BooruSchedulerOptionsForTests = new DanbooruWatcherSchedulerOptions { Interval = TimeSpan.FromMinutes(30), CheckStartSpacing = TimeSpan.Zero }
             };
-            shell = new MainWindow(host);
+            host = ownedHost;
+            await using MainWindow ownedShell = new(host);
+            shell = ownedShell;
             shell.Show(owner);
             await host.StartAsync().WaitAsync(Wait);
             await Program.WaitUntilAsync(() => shell.FindControl<Button>("AddUrlButton")!.IsEnabled);
@@ -311,7 +313,7 @@ internal static class BooruCompositionChecks
         finally
         {
             if (shell != null) await CloseAsync(shell);
-            shell?.Dispose(); shell = null;
+            if (shell != null) { await shell.DisposeAsync(); shell = null; }
             if (host != null) await host.DisposeAsync().AsTask().WaitAsync(Wait);
             stub.ReleaseOriginals();
             Application.Current!.RequestedThemeVariant = originalTheme;

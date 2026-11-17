@@ -273,8 +273,8 @@ internal static class GalleryMediaTagChecks
                 ThreadSourceState.Archived, DateTimeOffset.UnixEpoch, loose.Manifest.Directory,
                 [new CapturedPost("99", 0, PostFieldPresence.All, Html: "No bound attachment.")]));
         }
-        DesktopSessionHost session = new(profile, Array.Empty<IImageBoard>());
-        MainWindow shell = new(session) { Width = 1300, Height = 900 };
+        await using DesktopSessionHost session = new(profile, Array.Empty<IImageBoard>());
+        await using MainWindow shell = new(session) { Width = 1300, Height = 900 };
         Exception? failureBeforeCleanup = null;
         try
         {

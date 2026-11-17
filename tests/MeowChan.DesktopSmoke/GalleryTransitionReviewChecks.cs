@@ -91,6 +91,7 @@ internal static class GalleryTransitionReviewChecks
             if (held) operations.Release();
             if (showing != null) await showing.WaitAsync(TimeSpan.FromSeconds(15));
             await viewer.StopAsync();
+            await viewer.DisposeAsync();
             await video.DisposeAsync();
             window.Content = content;
             Directory.Delete(directory, true);
