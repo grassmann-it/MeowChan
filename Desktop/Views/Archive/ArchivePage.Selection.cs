@@ -11,6 +11,7 @@ using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.Controls;
 
 namespace MeowChan;
 
@@ -88,7 +89,7 @@ public partial class ArchivePage
         foreach (object? node in selfAndAncestors)
         {
             if (ReferenceEquals(node, list)) return button && row;
-            if (node is TextBox or SelectableTextBlock or Ursa.Controls.AutoCompleteBox or ComboBox or Slider or MenuItem or TabItem
+            if (node is Visual input && PointerFocusReclaim.IsTextInput(input) || node is SelectableTextBlock or Slider or MenuItem or TabItem
                 or DataGridColumnHeader or Avalonia.Controls.Primitives.ScrollBar) return false;
             if (node is Button) button = true;
             if (node is DataGridRow or ListBoxItem) row = true;

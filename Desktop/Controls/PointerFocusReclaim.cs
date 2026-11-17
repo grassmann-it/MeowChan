@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
@@ -46,6 +47,8 @@ internal sealed class PointerFocusReclaim : IDisposable
     internal static bool GetReclaims(Control control) => control.GetValue(ReclaimsProperty);
     internal static void SetReclaims(Control control, bool value) => control.SetValue(ReclaimsProperty, value);
 
+    private bool _disposed;
+    private readonly List<Action> _popupUnsubscribers = new();
     private readonly Control _scope;
     private readonly Action _reclaim;
     private readonly Action<Action> _defer;
@@ -76,7 +79,14 @@ internal sealed class PointerFocusReclaim : IDisposable
         return item;
     }
 
-    public void Dispose() => _scope.RemoveHandler(InputElement.PointerReleasedEvent, _released);
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        _scope.RemoveHandler(InputElement.PointerReleasedEvent, _released);
+        foreach (Action unsubscribe in _popupUnsubscribers) unsubscribe();
+        _popupUnsubscribers.Clear();
+    }
 
     /// <summary>
     /// The control a pointer release at <paramref name="source"/> activated, as far as this rule is concerned: the outermost Button (or control that
@@ -100,11 +110,14 @@ internal sealed class PointerFocusReclaim : IDisposable
         return inside ? candidate : null; // a release that reached the scope through a popup's own tree is not this surface's
     }
 
+    /// <summary>The shared text-entry classification, not a general native-key or interactive-control policy.
+    /// Callers walk their own scope and explicitly add any non-text controls whose input they must preserve.</summary>
     internal static bool IsTextInput(Visual visual) =>
         visual is TextBox or NumericUpDown or ComboBox or Ursa.Controls.AutoCompleteBox;
 
     private void OnReleased(object? sender, PointerReleasedEventArgs e)
     {
+        if (_disposed) return;
         // The left button is the activation (a finger and a pen report it too); the right one only matters when it opens a context menu.
         MouseButton button = e.InitialPressMouseButton;
         if (button is not (MouseButton.Left or MouseButton.Right) || e.Source is not Visual source) return;
@@ -115,7 +128,7 @@ internal sealed class PointerFocusReclaim : IDisposable
 
     private void Complete(Control control, bool activation)
     {
-        if (WaitForPopup(control)) return;
+        if (_disposed || WaitForPopup(control)) return;
         if (activation && FocusRestsOn(control)) _reclaim();
     }
 
@@ -125,14 +138,18 @@ internal sealed class PointerFocusReclaim : IDisposable
         if (control is Button { Flyout: { IsOpen: true } flyout })
         {
             EventHandler? closed = null;
-            closed = (_, _) => { flyout.Closed -= closed; _defer(AfterPopup); };
+            Action unsubscribe = () => flyout.Closed -= closed;
+            closed = (_, _) => { unsubscribe(); _popupUnsubscribers.Remove(unsubscribe); _defer(AfterPopup); };
+            _popupUnsubscribers.Add(unsubscribe);
             flyout.Closed += closed;
             return true;
         }
         if (control.ContextMenu is { IsOpen: true } menu)
         {
             EventHandler<RoutedEventArgs>? closed = null;
-            closed = (_, _) => { menu.Closed -= closed; _defer(AfterPopup); };
+            Action unsubscribe = () => menu.Closed -= closed;
+            closed = (_, _) => { unsubscribe(); _popupUnsubscribers.Remove(unsubscribe); _defer(AfterPopup); };
+            _popupUnsubscribers.Add(unsubscribe);
             menu.Closed += closed;
             return true;
         }
@@ -142,6 +159,7 @@ internal sealed class PointerFocusReclaim : IDisposable
     // The menu is gone: back to the owner unless something took the focus on purpose meanwhile (a field the menu entry opened, another surface).
     private void AfterPopup()
     {
+        if (_disposed) return;
         if (_focused() is not Visual focused || FocusIsLost(focused)) { _reclaim(); return; }
         if (IsTextInput(focused) || focused.GetVisualAncestors().Any(IsTextInput)) return;
         if (focused.GetSelfAndVisualAncestors().Any(node => ReferenceEquals(node, _scope))) _reclaim();

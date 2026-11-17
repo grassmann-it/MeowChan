@@ -20,6 +20,7 @@ using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 
 namespace MeowChan;
 
@@ -1037,8 +1038,8 @@ public partial class ArchivePage
         }, RoutingStrategies.Tunnel);
 
     // Native editors and menus keep their keys in every reader: a key from a text box, a combo box, a number field, a menu item, a slider or a scroll bar.
-    private static bool KeyBelongsToNativeEditor(KeyEventArgs e) =>
-        e.Source is Visual source && source.GetSelfAndVisualAncestors().Any(control => control is TextBox or ComboBox or NumericUpDown or MenuItem or Slider or ScrollBar);
+    internal static bool KeyBelongsToNativeEditor(KeyEventArgs e) =>
+        e.Source is Visual source && source.GetSelfAndVisualAncestors().Any(control => PointerFocusReclaim.IsTextInput(control) || control is MenuItem or Slider or ScrollBar);
 
     private void CancelReaderMediaActivation() => _readerMediaActivationCancellation?.Cancel();
 
@@ -1093,9 +1094,9 @@ public partial class ArchivePage
             if (ReferenceEquals(node, posts)) return false;
             if (node is SelectableTextBlock text
                 && (text is not ReaderBodyTextBlock || text.SelectionStart != text.SelectionEnd)) return true;
-            if (node is Button or TextBox or ComboBox or NumericUpDown or MenuItem or Menu
+            if (PointerFocusReclaim.IsTextInput(node) || node is Button or MenuItem or Menu
                 or Slider or ScrollBar or TabItem or TabStrip or DataGrid or Expander
-                or Ursa.Controls.AutoCompleteBox or Ursa.Controls.ClosableTag or Ursa.Controls.Rating
+                or Ursa.Controls.ClosableTag or Ursa.Controls.Rating
                 || node is SelectingItemsControl and not TabControl) return true;
         }
         return true; // Neither another tab nor the reader toolbar is post content.
@@ -1256,16 +1257,19 @@ public partial class ArchivePage
         return null;
     }
 
-    internal bool ReaderArrowBelongsToNativeControl(object? source, Key key = Key.Down)
+    internal bool ReaderArrowBelongsToNativeControl(object? source, Key key = Key.Down) =>
+        ReaderArrowBelongsToNativeControl(source, key, ArchivePosts);
+
+    internal static bool ReaderArrowBelongsToNativeControl(object? source, Key key, ListBox posts)
     {
         if (source is not Visual visual) return false;
         foreach (Visual node in visual.GetSelfAndVisualAncestors())
         {
-            if (ReferenceEquals(node, ArchivePosts))
+            if (ReferenceEquals(node, posts))
                 return key is Key.Home or Key.End or Key.PageUp or Key.PageDown;
             if (node is TabControl && ReferenceEquals(node, visual)) return true;
-            if (node is TabItem or TabStrip or DataGrid or DataGridColumnHeader or Slider or ScrollBar
-                or TextBox or ComboBox or NumericUpDown or MenuItem or Ursa.Controls.AutoCompleteBox
+            if (PointerFocusReclaim.IsTextInput(node) || node is TabItem or TabStrip or DataGrid or DataGridColumnHeader or Slider or ScrollBar
+                or MenuItem
                 || node is SelectingItemsControl and not TabControl) return true;
         }
         return false;

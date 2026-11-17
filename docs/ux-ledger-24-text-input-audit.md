@@ -36,3 +36,51 @@ Confirmed discarded `Attach` results at GalleryViewer.Overlay.cs:324 (two roots:
 ## Proving validation plan
 
 Add a control-type table covering the four text classes, subclasses/read-only inputs and the intentional non-text widgets. Exercise actual routing/activation/menu/list/reader guards on direct sources and descendants where feasible; assert per-site deliberate exceptions separately, not false equality between 'native input' and 'text input'. Cover restricted slash/Escape semantics, lease disposal and deferred callbacks. Run affected DesktopTests input/focus/routing tests and only the `tag-autocomplete-commit` desktop smoke scene. No solution build or full smoke suite.
+
+## Implemented result and validation
+
+Analysis was committed and pushed independently as `cd9659410` before production changes.
+All twelve requested expressions plus the current-base reader paging expression now delegate the core to `PointerFocusReclaim.IsTextInput`; the four-type core and `Resolve` policy remain unchanged. Explicit local extras/narrowings are as tabulated above. `KeyBelongsToNativeEditor` and the reader-arrow scope overload are internal test seams; the production arrow wrapper still supplies the real posts list.
+
+Viewer leases are retained for both managed roots in `_pointerFocusReclaims`, disposed/cleared at the start of terminal `StopAsync`. The player's `_pointerFocusReclaim` is disposed alongside transport retirement in `DisposeAsync`, marshalled to the UI thread when necessary. Suspension/reparenting does not dispose either owner. Disposing a watcher is idempotent, removes its routed release handler and any outstanding popup-close subscriptions, and invalidates already deferred callbacks.
+
+`tests/MeowChan.DesktopTests/TextInputPredicateTests.cs` exercises a 22-control table against the real guards (including numeric roots, autocomplete subclasses, read-only fields, sliders and non-text widgets), plus template-child ancestry and owned-list/transport boundaries. Slash and Escape are asserted as deliberate semantic exceptions, not mislabeled as text classification. ToggleSwitch inherits Button and therefore retains the existing button policy while still being non-text. `PointerFocusReclaimTests` additionally proves disposal cancels a queued reclaim; the existing disposed-watcher test proves handler removal.
+
+Final validation (Linux, .NET SDK 10.0.111):
+
+```text
+DesktopTests project build: succeeded, 0 errors (existing warnings).
+Matrix + PointerFocusReclaimTests:
+  Test Run Successful. Total tests: 37; Passed: 37.
+Serialized affected input/focus/routing/settings-search regressions:
+  Test Run Successful. Total tests: 305; Passed: 303; Skipped: 2; Failed: 0.
+  Total time: 57.4579 Seconds.
+DesktopSmoke project final build: 35 warnings, 0 errors; 18.30 seconds.
+Registry tag-autocomplete-commit: passed (normal+MEOWCHAN_TAG_AUTOCOMPLETE_COMMIT_ONLY)
+Registry summary: passed 1, failed 0, skipped 0.
+git diff --check: clean.
+```
+
+The two skips are existing `FocusClickContractTests` annotations (`TaggingRightClickMustSelectAndFocusTargetBeforeComposingMenu`, `GalleryFilmstripRightClickMustSelectTargetNotOnlyRetargetTheMenu`); no assertions or skips were changed. An initial broader, default-parallel Input/Focus filter exceeded a 200-second command deadline without a verdict. The bounded focused run above completed with xUnit collection parallelism disabled, without changing production/test assertions. That timeout is not claimed as a pass.
+
+The successful focused selection was:
+
+```text
+PointerFocusReclaimTests | FocusClickContractTests | ArchiveExportOriginFocusTests |
+GalleryEdgeHandleFocusTests | FocusSelectionStyleTests | AddInputTests |
+TextInputPredicateTests | CommandRouterTests | ItemActivationTests |
+ReaderSidebarShortcutTests | GallerySeekNavigationPolicyTests |
+GalleryPlaybackContinuityRegressionTests | ReaderVideoKeysAndMenuTests |
+ReaderVideoKeysYieldTests | GalleryVolumeShortcutContextBoundaryTests | SettingsSearch*
+```
+
+Commands used `dotnet test tests/MeowChan.DesktopTests/MeowChan.DesktopTests.csproj` with the corresponding `FullyQualifiedName~...` filter, `--no-build` for the final regression run, `--blame-hang-timeout 45s`, and a temporary runsettings file setting xUnit `ParallelizeTestCollections=false`, `MaxParallelThreads=1`. Final smoke command:
+
+```sh
+python3 scripts/run-desktop-smoke.py \
+  --assembly tests/MeowChan.DesktopSmoke/bin/Debug/net10.0/MeowChan.DesktopSmoke.dll \
+  --output "$COMMANDCODE_SCRATCHPAD/ledger24-smoke-final" \
+  --registry --only tag-autocomplete-commit --timeout 120
+```
+
+Only DesktopTests and DesktopSmoke project builds (and their required project dependencies) were invoked. No solution build or full smoke suite was run.

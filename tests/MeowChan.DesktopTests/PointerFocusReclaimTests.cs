@@ -197,6 +197,17 @@ public sealed class PointerFocusReclaimTests
     }
 
     [Fact]
+    public void DisposingAlsoCancelsAReclaimAlreadyQueuedByTheRelease()
+    {
+        Rig rig = new();
+        Release(rig.Add(new Button()), rig.Scope);
+        Assert.Single(rig.Deferred);
+        rig.Reclaim.Dispose();
+        rig.Reclaim.Dispose(); // terminal cleanup can be repeated
+        Assert.Equal(0, rig.Settle());
+    }
+
+    [Fact]
     public void AHandledReleaseStillCountsBecauseAButtonHandlesItsOwn()
     {
         Rig rig = new();

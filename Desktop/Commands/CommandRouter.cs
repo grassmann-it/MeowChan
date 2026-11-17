@@ -7,6 +7,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.LogicalTree;
 using Avalonia.VisualTree;
+using MeowChan.Desktop.Controls;
 
 namespace MeowChan.Desktop.Commands;
 
@@ -88,7 +89,7 @@ public sealed class CommandRouter : IDisposable
         if (source is not Visual visual) return false;
         foreach (var v in visual.GetSelfAndVisualAncestors())
         {
-            if (v is TextBox or ComboBox or NumericUpDown or ScrollBar or MenuItem or Ursa.Controls.AutoCompleteBox) return true;
+            if (PointerFocusReclaim.IsTextInput(v) || v is ScrollBar or MenuItem) return true;
             // Slider owns seek/navigation, not every possible effective gallery gesture.
             // Reserve arrows even with modifiers: this key-only policy is also used by
             // shell fallbacks and must never reinterpret a local seek as navigation.

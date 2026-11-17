@@ -19,7 +19,7 @@ namespace MeowChan;
 public partial class MainWindow
 {
     internal static bool IsNativeShortcutSource(object? source) => source is Visual visual && visual.GetSelfAndVisualAncestors()
-        .Any(node => node is TextBox or SelectableTextBlock or Ursa.Controls.AutoCompleteBox or ComboBox or Button or MenuItem or Slider or TabItem);
+        .Any(node => PointerFocusReclaim.IsTextInput(node) || node is SelectableTextBlock or Button or MenuItem or Slider or TabItem);
 
     // Keep row identities through the asynchronous batch; host admission still
     // checks the exact watch/generation rather than inferring it from a URL.
@@ -99,7 +99,7 @@ public partial class MainWindow
         foreach (Visual node in visual.GetSelfAndVisualAncestors())
         {
             if (ReferenceEquals(node, list)) return true;
-            if (node is TextBox or SelectableTextBlock or Ursa.Controls.AutoCompleteBox or ComboBox or Button or MenuItem or Slider or TabItem
+            if (PointerFocusReclaim.IsTextInput(node) || node is SelectableTextBlock or Button or MenuItem or Slider or TabItem
                 or DataGridColumnHeader) return false;
         }
         return false;
