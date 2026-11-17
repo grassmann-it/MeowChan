@@ -114,6 +114,13 @@ internal static class GalleryFavoriteChecks
             Require(errors.Count == 1 && errors[0].Operation == "favorite", "Failure did not produce exactly one diagnostic.");
             Press(Key.U); await latest; viewer.SetFavoriteError(null); RequireBadge(false);
 
+            // GA-01: a mouse click on the star or the badge gives the keys back to the picture; Space then never un-favourites by pressing it again.
+            await GalleryPointerFocusChecks.CheckFavoriteControlsAsync(window, viewer, () => window.SessionHost.IsFavorite(entry), () => latest);
+            Refresh();
+            viewer.FocusGallerySurface();
+            if (window.SessionHost.IsFavorite(entry)) { Press(Key.U); await latest; }
+            HideControls(); RequireBadge(false);
+
             await window.SessionHost.SetFavoriteAsync(entry, true);
             Refresh();
             GalleryEntry other = entry with { Key = new GalleryAssetKey(new("4chan", "g", "125"), entry.Key.Directory, entry.Asset.AssetId) };

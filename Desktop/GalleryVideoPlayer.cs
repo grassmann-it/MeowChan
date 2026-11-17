@@ -20,6 +20,7 @@ using Avalonia.VisualTree;
 using LibVLCSharp.Avalonia;
 using LibVLCSharp.Shared;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Gallery;
 using MeowChan.Diagnostics;
 using Texts = MeowChan.Desktop.Localization.Texts;
@@ -103,9 +104,10 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
     internal event Action<string>? DiagnosticNotice;
     internal event Action<string>? CleanupDiagnostic;
     internal event Action<bool>? UserPlaybackRequested;
-    /// <summary>Raised after a mouse activation of transport chrome so the gallery can reclaim shortcut focus.
-    /// Keyboard activation intentionally keeps native control focus for accessibility.</summary>
-    internal event Action? MouseTransportActionCompleted;
+    /// <summary>Raised after a pointer (mouse, pen, touch) activation of the transport, once its own action ran and no menu of it is open, so the
+    /// owner returns the keyboard to the surface its keys belong to (the gallery, the reader's medium): the next Space or Enter then plays or pauses
+    /// instead of pressing the control again. Keyboard activation never raises it: the focus stays on the control (<see cref="PointerFocusReclaim"/>).</summary>
+    internal event Action? ShortcutFocusRequested;
     internal event Action? SeekInteractionStarted;
     internal bool LoopEnabled => _intent.LoopEnabled;
     /// <summary>The playback speed chosen for the current medium (1 after every new medium).</summary>
@@ -573,16 +575,11 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
         _mute.Click += async (_, _) => await ToggleMuteAsync();
         _loop.Click += (_, _) => ToggleLoop();
         _speed.Click += (_, _) => CycleRate();
-        // A pointer activation is an action, not a request to move keyboard ownership
-        // into the transport. Restore the gallery surface after the native Button has
-        // completed its click so the next Enter/Space reaches gallery playback. Tab and
-        // keyboard activation retain the control's native focus for accessibility.
-        foreach (Control control in new Control[] { _playPause, _mute, _loop, _speed, _abLoopButton, _frameStep, _fullscreen, _playerMenuButton })
-            control.AddHandler(PointerReleasedEvent, (_, e) =>
-            {
-                if (e.Pointer.Type == PointerType.Mouse && e.InitialPressMouseButton == MouseButton.Left)
-                    Dispatcher.UIThread.Post(() => MouseTransportActionCompleted?.Invoke(), DispatcherPriority.Input);
-            }, RoutingStrategies.Bubble, handledEventsToo: true);
+        // A pointer activation is an action, not a request to move keyboard ownership into the transport (every button, the volume slider
+        // once released, the speed and player menus once closed): the owner gets the keyboard back so the next Enter/Space reaches playback.
+        // The timeline keeps its focus (its arrows seek); Tab and keyboard activation keep the control's native focus for accessibility.
+        PointerFocusReclaim.SetReclaims(_volume, true);
+        PointerFocusReclaim.Attach(_transportPanel, () => ShortcutFocusRequested?.Invoke());
         _volume.PropertyChanged += (_, args) =>
         {
             if (args.Property != Slider.ValueProperty || _settingVolume) return;
