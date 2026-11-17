@@ -28,6 +28,10 @@ Do not silently fix or dismiss a finding. For every finding, classify it as **re
      navigation, playback, reader, and gallery commands must reach the intended owner.
    - TextBox, ComboBox, numeric input, popup, and IME input must retain priority; shortcuts must
      not steal normal typing, caret movement, or quick-tag entry.
+   - Define and test shortcut scope parity: media-sidebar/reader focus must expose the same
+     media actions as Gallery through an explicit modifier such as `Alt+<gallery shortcut>`, while
+     unmodified keys remain owned by the reader and text-entry controls. Check discoverability and
+     localized help text for every modifier route.
    - Test quick tags with number/letter shortcuts and mouse click, including repeated use,
      keyboard-only operation, focus restoration, and screen-reader names.
 
