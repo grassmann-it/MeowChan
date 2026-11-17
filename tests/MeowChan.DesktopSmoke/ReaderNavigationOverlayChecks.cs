@@ -239,23 +239,27 @@ internal static class ReaderNavigationOverlayChecks
                 + $"enabled={focusSurface.IsEffectivelyEnabled} focusable={focusSurface.Focusable} "
                 + $"hostVisible={page.FindControl<Border>("ReaderNavigationHitHost")!.IsVisible} "
                 + $"focused={focusSurface.IsFocused} within={bar.IsKeyboardFocusWithin}; {page.ReaderNavigationDebugState}";
-            await Dispatcher.UIThread.InvokeAsync(() =>
+            await ReviewArtifacts.GestureAsync(window, "reader-navigation-focus-retention", async () =>
             {
-                page.ShowReaderNavigation();
-                Require(focusSurface.IsEffectivelyVisible && focusSurface.IsEffectivelyEnabled && focusSurface.Focusable,
-                    "Reader navigation focus precondition failed: " + FocusState());
-                Require(focusSurface.Focus() && focusSurface.IsFocused && bar.IsKeyboardFocusWithin,
-                    "Reader navigation focus could not be assigned: " + FocusState());
-                Require(page.ReaderNavigationShown && bar.Opacity == 1 && bar.IsHitTestVisible,
-                    "Keyboard focus did not keep the revealed reader navigation capsule shown.");
+                await Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    page.ShowReaderNavigation();
+                    Require(focusSurface.IsEffectivelyVisible && focusSurface.IsEffectivelyEnabled && focusSurface.Focusable,
+                        "Reader navigation focus precondition failed: " + FocusState());
+                    Require(focusSurface.Focus() && focusSurface.IsFocused && bar.IsKeyboardFocusWithin,
+                        "Reader navigation focus could not be assigned: " + FocusState());
+                    Require(page.ReaderNavigationShown && bar.Opacity == 1 && bar.IsHitTestVisible,
+                        "Keyboard focus did not keep the revealed reader navigation capsule shown.");
+                });
+            }, () => focusSurface.IsFocused && page.ReaderNavigationShown, async () =>
+            {
+                // Exceed the configured idle delay: recent activity alone must not satisfy retention.
+                await Task.Delay(page.ReaderNavigationIdleDelayMs * 2);
+                Require(focusSurface.IsFocused && bar.IsKeyboardFocusWithin
+                    && page.ReaderNavigationShown && bar.Opacity == 1 && bar.IsHitTestVisible,
+                    "The bar lost keyboard focus or hid after the idle delay: " + FocusState());
+                Console.WriteLine("SMOKE reader navigation focus retained beyond idle delay: " + FocusState());
             });
-            // 1400 ms was shorter than the configured 1500 ms: it could pass on
-            // recent activity alone, without ever exercising the focus keep condition.
-            await Task.Delay(page.ReaderNavigationIdleDelayMs * 2);
-            Require(focusSurface.IsFocused && bar.IsKeyboardFocusWithin
-                && page.ReaderNavigationShown && bar.Opacity == 1 && bar.IsHitTestVisible,
-                "The bar lost keyboard focus or hid after the idle delay: " + FocusState());
-            Console.WriteLine("SMOKE reader navigation focus retained beyond idle delay: " + FocusState());
             Require(page.FindControl<Button>("ArchiveCloseReader")!.Focus() && !bar.IsKeyboardFocusWithin, "Focus did not leave the bar.");
             await WaitHiddenAsync();
             // A navigation shortcut shows it briefly.
