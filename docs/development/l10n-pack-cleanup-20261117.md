@@ -23,3 +23,35 @@ line-anchored tuple scan finds 4,926 actual keys, not the reported 4,922;
 CJK lacks 95 selectable-in-English `.one` keys, not 98. Empty sentinel
 keys and locale-specific plural variants need semantic handling, not deletion
 or insertion based solely on set difference.
+
+## 2. Allegedly stale keys: retain all; no deletion is safe or needed
+
+The supplied audit omitted **real catalogs outside `Desktop/Localization`**:
+`Desktop/Booru/BooruUiCatalog.cs` and `BooruCodes.cs` (`BooruCodeCatalog`,
+constant-prefixed keys). It also omitted the `QuickTagSettingsCatalog.GroupKey`
+constant and misclassified locale-specific number forms. Including these yields
+**5,182 built-in keys** (including two empty sentinels), with **zero unknown
+pack keys** once supported number variants of real base keys are recognized.
+
+Evidence from code-name searches:
+
+- `booru.ui.add.*`: `Desktop/Booru/MainWindow.BooruAdd.cs:40-66` and
+  `BooruAddUrl.cs:68` request them; defined in `BooruUiCatalog.cs:133-138`.
+- `booru.ui.cancel`: `Views/Booru/BooruWorkbenchView.cs:529,815,818,1345`.
+- Remaining `booru.ui.*`: `BooruUiCatalog` is concatenated into `BuiltInCatalog`;
+  `BooruText.RequiredKeys` lists UI contracts; `BooruText` also constructs keys
+  for query issues and watcher rejections, so literal-call grep alone is insufficient.
+- `booru.watcher.problem.*`: defined with `P + code` in `BooruCodes.cs:116-188`,
+  dynamically requested by `Localization/BooruMessages.cs:81-86` and
+  `BooruProductionPorts.cs:542`.
+- `budgets.group.quickTag`: defined by `GroupKey`, used in settings.
+- `.few` and extra `.one`: `Texts.Count` selects these dynamically through
+  `PluralRules.Category/Variant`. For example `archive.postsCount.few` is reached
+  by `ArchivePresentation.cs:25` for Czech/Polish/Russian counts 2–4, and
+  `limit.savedSearches.one` by `StoreLimitText.cs:24` for selecting languages.
+  A key need not have an English variant to be valid (`Texts.cs:365-368`).
+
+The complete 312-name retained candidate inventory is in
+[`l10n-pack-retained-keys-20261117.tsv`](l10n-pack-retained-keys-20261117.tsv).
+No keys removed; all ten pack entry counts stay unchanged. Existing coverage
+assertions already reject truly unknown or unselectable variants; none weakened.
