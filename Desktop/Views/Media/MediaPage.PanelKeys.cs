@@ -19,7 +19,14 @@ public sealed partial class MediaPage
     private bool TryRoutePanelPageKey(KeyEventArgs e)
     {
         if (e.Handled || ShortcutService.IsCapturing || _lifetime.IsCancellationRequested || !_panelShown || _panel is not { } panel || _panelRow is not { } row
-            || CommandRouter.IsNativeInput(e.Source, e.Key) || e.Key is Key.Enter or Key.Space or Key.Escape or Key.Tab) return false;
+            || CommandRouter.IsNativeInput(e.Source, e.Key)) return false;
+        if (CommandBindings.Matches(e, "gallery.open"))
+        {
+            e.Handled = true;
+            StartOpenPanelMedia();
+            return true;
+        }
+        if (e.Key is Key.Enter or Key.Space or Key.Escape or Key.Tab) return false;
         MediaLibraryEntry entry = row.Entry;
         if (CommandBindings.Matches(e, "gallery.show-in-thread"))
         {

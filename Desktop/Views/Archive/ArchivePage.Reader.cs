@@ -224,7 +224,7 @@ public partial class ArchivePage
         InitializeReaderThreadKeys();
         foreach (Control media in new Control[] { ArchiveMediaTiles, ArchiveMediaGrid })
         {
-            CommandBindings.BindExisting(media, "media.open");
+            CommandBindings.BindExisting(media, "gallery.open");
             media.AddHandler(KeyDownEvent, OnMediaKeyDown, RoutingStrategies.Tunnel);
         }
         bool subscribed = false;
@@ -960,7 +960,8 @@ public partial class ArchivePage
             return;
         }
         if (TryOpenFocusedReaderMedium(e)) return;
-        if (CommandBindings.Matches(e, "gallery.open") && _thread != null && OpenGallery != null)
+        if (!(e.Key == Key.Enter && e.KeyModifiers == KeyModifiers.None)
+            && CommandBindings.Matches(e, "gallery.open") && _thread != null && OpenGallery != null)
         {
             if (!_available || _busy || _ended || _lifetime.IsCancellationRequested) return;
             // Buttons and native editors retain their activation gestures.

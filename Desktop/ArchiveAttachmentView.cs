@@ -88,6 +88,25 @@ public sealed class ArchiveAttachmentView : UserControl
     // A quiet slot surface only while no thumbnail is shown (loading, missing, unsupported).
     private readonly Border _placeholder = new() { CornerRadius = new CornerRadius(5), IsHitTestVisible = false };
     private readonly TextBlock _provenance = new TextBlock { TextWrapping = TextWrapping.Wrap, IsVisible = false }.MetaText();
+    // Let Avalonia produce the native Enter Click. Only its action changes; pointer
+    // clicks continue to obey the preview preference, and observers see one Click.
+    private sealed class MediumButton(ArchiveAttachmentView owner) : Button
+    {
+        protected override Type StyleKeyOverride => typeof(Button);
+
+        protected override void OnKeyDown(Avalonia.Input.KeyEventArgs e)
+        {
+            owner._galleryKeyActivation = ArchivePage.IsMediumGalleryKey(e);
+            try { base.OnKeyDown(e); }
+            finally { owner._galleryKeyActivation = false; }
+        }
+        protected override void OnKeyUp(Avalonia.Input.KeyEventArgs e)
+        {
+            owner._galleryKeyActivation = ArchivePage.IsMediumGalleryKey(e);
+            try { base.OnKeyUp(e); }
+            finally { owner._galleryKeyActivation = false; }
+        }
+    }
     private readonly Button _button;
     // The accent edge of an enlarged (focused) picture: the look the media sidebar shares (ReaderFocusedMedia).
     private readonly Border _edge = ReaderFocusedMedia.CreateFrameEdge();
@@ -293,9 +312,21 @@ public sealed class ArchiveAttachmentView : UserControl
     /// expands an image here (a second time puts it back); "In the sidebar" shows it there (the gallery while the sidebar is closed); "In the
     /// gallery" opens the gallery. A double click always opens the gallery.
     /// </summary>
+    private bool _galleryKeyActivation;
+
+    // Preserve the preview's one Click event (including observers), while keyboard
+    // activation opens the gallery instead of applying the mouse preview preference.
+    internal void ActivateGalleryByKey()
+    {
+        _galleryKeyActivation = true;
+        try { _button.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); }
+        finally { _galleryKeyActivation = false; }
+    }
+
     internal void ActivateMedium()
     {
         if (DataContext is not ArchiveAttachmentRow row) return;
+        if (_galleryKeyActivation) { row.OpenPreview?.Invoke(); return; }
         ReaderInlineVideoOptions options = GetValue(InlineVideoProperty)?.Options ?? default;
         // The sidebar is assumed to be shown here; whether it took the tile is answered by the page (TileActivation), else the gallery opens.
         switch (ReaderMediaClickRules.Click(options, InlineVideoOffered, ReaderInlineVideoRules.CanExpand(options, row), sidebarShown: true))
@@ -397,7 +428,7 @@ public sealed class ArchiveAttachmentView : UserControl
         // feedback of the native button; the button is the frame, so both run around the drawn picture and nothing else.
         Grid surface = new();
         surface.Children.Add(_placeholder); surface.Children.Add(_image); surface.Children.Add(_status);
-        _button = new Button { Content = surface, Padding = new Thickness(0), Background = Brushes.Transparent,
+        _button = new MediumButton(this) { Content = surface, Padding = new Thickness(0), Background = Brushes.Transparent,
             BorderThickness = new Thickness(0), HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Stretch,
             HorizontalContentAlignment = HorizontalAlignment.Stretch, VerticalContentAlignment = VerticalAlignment.Stretch };
         _button.Click += (_, _) => ActivateMedium();
