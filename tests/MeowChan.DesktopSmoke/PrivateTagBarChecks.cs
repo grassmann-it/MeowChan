@@ -312,10 +312,11 @@ internal static partial class PrivateTagBarChecks
             // Tags smoke reject an otherwise valid menu.
             if (menu.Items.OfType<MenuItem>().Any(entry => Equals(entry.Tag, "navigation.continue-reading")))
                 expectedBeforeTags = new object?[] { "thread.favorite-toggle", "thread.read", "navigation.continue-reading", "gallery.open", "thread.details" };
-            Require(item.Command?.CanExecute(null) == true && item.Header?.ToString()?.StartsWith(Texts.T("command.thread.tags"), StringComparison.Ordinal) == true
+            bool menuContract = item.Command?.CanExecute(null) == true && item.Header?.ToString()?.StartsWith(Texts.T("command.thread.tags"), StringComparison.Ordinal) == true
                 && menu.Items.OfType<MenuItem>().Select(entry => entry.Tag).TakeWhile(tag => !Equals(tag, "thread.tags"))
-                    .SequenceEqual(expectedBeforeTags),
-                "The Tags… entry is disabled, mislabeled or misplaced: " + item.Header);
+                    .SequenceEqual(expectedBeforeTags);
+            string actualMenu = string.Join(", ", menu.Items.OfType<MenuItem>().Select(entry => $"{entry.Tag}:{entry.Header}:enabled={entry.Command?.CanExecute(null)}"));
+            Require(menuContract, "The Tags… entry is disabled, mislabeled or misplaced: " + item.Header + "; menu=" + actualMenu);
             item.Command!.Execute(null);
             menu.Close();
             await UntilAsync(() => f.Page.CurrentThread?.Summary.Id == thread && bar.IsVisible && input.IsKeyboardFocusWithin);
