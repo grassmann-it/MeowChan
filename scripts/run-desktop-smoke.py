@@ -44,6 +44,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--assembly", required=True)
     parser.add_argument("--output", required=True)
     parser.add_argument("--timeout", type=float, default=60)
+    parser.add_argument("--review-artifacts", action="store_true",
+                        help="Emit screenshot/tree/state/timing bundles below each scene's review-artifacts directory.")
     parser.add_argument("--mode", action="append", choices=(*STANDARD_MODES, "visual", "reader-ux", "selection", "tray-host", "about-links", "board-admission", "reading-position", "window-geometry", "video-contrast", "plugins", "archive-cleanup", "shell-load", STRESS_MODE),
                         help="Select a scenario; repeat for a serial sequence. Default excludes stress.")
     parser.add_argument("--native-display", action="store_true",
@@ -329,6 +331,8 @@ def run_mode_staged(mode: str, assembly: Path, destination: Path, environment: d
     with private_working_directory(isolated) as working_directory:
         child_environment = prepare_environment(environment, isolated, Path(working_directory))
         scenario = expected_scenario or derived_scenario(mode, child_environment)
+        if environment.get("MEOWCHAN_REVIEW_ARTIFACTS"):
+            child_environment["MEOWCHAN_REVIEW_ARTIFACTS"] = str(destination / "review-artifacts")
         if not isolated:
             child_environment["MEOWCHAN_DESKTOP_SMOKE_NATIVE_ALLOWED"] = "1"
         if mode == "shell-load":
@@ -595,6 +599,8 @@ def child_result(destination: Path, mode: object) -> dict[str, object]:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
+    if args.review_artifacts:
+        os.environ["MEOWCHAN_REVIEW_ARTIFACTS"] = "1"
     if args.registry:
         return run_registry(args)
     isolated = sys.platform.startswith("linux") and not args.native_display

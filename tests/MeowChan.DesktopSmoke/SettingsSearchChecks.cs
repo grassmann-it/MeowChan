@@ -63,13 +63,14 @@ internal static class SettingsSearchChecks
                 Control settingsContent = editor.FindControl<Control>("SettingsContent")!;
                 Control categories = editor.FindControl<Control>("SettingsCategories")!;
                 box.Focus();
-                box.Text = "cache";
-                await Wait(() => panel.IsVisible && list.ItemCount > 0);
+                await ReviewArtifacts.GestureAsync(window, "settings-search-cache", () => box.Text = "cache",
+                    () => panel.IsVisible && list.ItemCount > 0,
+                    () => Wait(() => panel.IsVisible && list.ItemCount > 0));
                 foreach (double width in new[] { 640d, 1100d, 1600d, 819d, 820d, 1100d })
                 {
-                    window.Width = width;
-                    await Task.Delay(200);
-                    window.UpdateLayout();
+                    await ReviewArtifacts.GestureAsync(window, $"settings-resize-{width}", () => window.Width = width,
+                        () => Math.Abs(window.Bounds.Width - width) < 1.5,
+                        async () => { await Task.Delay(200); window.UpdateLayout(); });
                     Point searchLeft = searchHost.TranslatePoint(new Point(0, 0), editor)!.Value;
                     Point moreRight = moreButton.TranslatePoint(new Point(moreButton.Bounds.Width, 0), editor)!.Value;
                     Point contentLeft = settingsContent.TranslatePoint(new Point(0, 0), editor)!.Value;
