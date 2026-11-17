@@ -148,7 +148,7 @@ internal sealed class PointerFocusReclaim : IDisposable
     }
 
     // A focus that is not in any tree any more (the closed menu's entry) is no focus.
-    private static bool FocusIsLost(Visual focused) => focused.GetVisualRoot() == null;
+    private static bool FocusIsLost(Visual focused) => !focused.IsAttachedToVisualTree();
 
     private bool FocusRestsOn(Control control) =>
         _focused() is not Visual focused || FocusIsLost(focused) || focused.GetSelfAndVisualAncestors().Any(node => ReferenceEquals(node, control));
