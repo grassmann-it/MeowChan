@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform;
@@ -136,6 +137,95 @@ public sealed class RateAndTagPopoverCloseTests : IDisposable
             Assert.False(popover.IsClosed);
         }
         finally { popover.Close(); }
+    }
+
+    // ---- typing: text keys reach the field (Tom 17.11.2026, "typing in the input field in tagging does not work") ----------------------------
+    // A real keyboard turns a key into text only when its KeyDown comes back UNHANDLED; the frame used to consume every key nothing inside had taken,
+    // letters included, so the field showed the caret and got no character. Real keys carry their KeySymbol; the earlier tests built keys without it.
+
+    private static KeyEventArgs Typed(Key key, string? symbol, KeyModifiers modifiers = KeyModifiers.None, object? source = null) =>
+        new() { RoutedEvent = InputElement.KeyDownEvent, Key = key, KeySymbol = symbol, KeyModifiers = modifiers, Source = source };
+
+    [Theory]
+    [InlineData(Avalonia.Input.Key.M, "m", KeyModifiers.None)]
+    [InlineData(Avalonia.Input.Key.R, "R", KeyModifiers.Shift)]
+    [InlineData(Avalonia.Input.Key.D1, "1", KeyModifiers.None)]
+    [InlineData(Avalonia.Input.Key.Space, " ", KeyModifiers.None)]
+    [InlineData(Avalonia.Input.Key.OemComma, ",", KeyModifiers.None)]
+    [InlineData(Avalonia.Input.Key.ImeProcessed, null, KeyModifiers.None)]
+    [InlineData(Avalonia.Input.Key.DeadCharProcessed, null, KeyModifiers.None)]
+    public void TextTypedIntoTheFieldLeavesTheFrameUnhandledSoThePlatformMakesItText(Key key, string? symbol, KeyModifiers modifiers)
+    {
+        using Fixture fixture = new();
+        QuickTagPopover popover = QuickTagPopover.Create(new Border(), fixture.Session(), "x",
+            new QuickTagPopoverOptions { RestoreFocus = false, Decision = Decision() });
+        try
+        {
+            // A text box and a star inside the frame (the surface's own field needs a template, which needs an application): the key bubbles from
+            // them to the frame's handlers as a real key does.
+            TextBox field = new();
+            ToggleButton star = new();
+            popover.Frame.Child = new StackPanel { Children = { star, field } };
+            KeyEventArgs press = Typed(key, symbol, modifiers);
+            Assert.Equal(QuickTagPopover.UnhandledKeyAction.Pass, QuickTagPopover.UnhandledKey(Typed(key, symbol, modifiers, field), hasField: true));
+            field.RaiseEvent(press);
+            Assert.False(press.Handled, key + " typed into the field was marked handled: the platform would raise no TextInput for it");
+            // The same key on the star stops at the frame (it goes into the field there, or is consumed when it types nothing).
+            KeyEventArgs onStar = Typed(key, symbol, modifiers);
+            star.RaiseEvent(onStar);
+            Assert.True(onStar.Handled, key + " typed on the stars left the popover");
+            Assert.False(popover.IsClosed);
+        }
+        finally { popover.Close(); }
+    }
+
+    [Theory]
+    [InlineData(Avalonia.Input.Key.Up, null, KeyModifiers.None)]
+    [InlineData(Avalonia.Input.Key.PageDown, null, KeyModifiers.None)]
+    [InlineData(Avalonia.Input.Key.Enter, "\r", KeyModifiers.None)]
+    [InlineData(Avalonia.Input.Key.M, "m", KeyModifiers.Control)]
+    [InlineData(Avalonia.Input.Key.M, "m", KeyModifiers.Meta)]
+    [InlineData(Avalonia.Input.Key.F5, null, KeyModifiers.None)]
+    public void ACommandKeyFromTheFieldStillStopsAtTheFrame(Key key, string? symbol, KeyModifiers modifiers)
+    {
+        Assert.Equal(QuickTagPopover.UnhandledKeyAction.Consume, QuickTagPopover.UnhandledKey(Typed(key, symbol, modifiers, new TextBox()), hasField: true));
+        Assert.True(QuickTagPopover.ConsumesUnhandledKey(Typed(key, symbol, modifiers, new TextBox())));
+    }
+
+    [Fact]
+    public void AltWithALetterTypesNothingOutsideMacOs()
+    {
+        if (OperatingSystem.IsMacOS()) return; // Option makes characters there (@ on a German layout)
+        Assert.Null(TextEntryKeys.TextOf(Typed(Avalonia.Input.Key.Q, "q", KeyModifiers.Alt)));
+        Assert.Equal(QuickTagPopover.UnhandledKeyAction.Consume, QuickTagPopover.UnhandledKey(Typed(Avalonia.Input.Key.Q, "q", KeyModifiers.Alt, new TextBox()), hasField: true));
+    }
+
+    [Fact]
+    public void TextTypedOnTheStarsOrAnotherPartGoesIntoTheFieldAndNeverLeavesThePopover()
+    {
+        ToggleButton star = new();
+        // TG-02: R puts the keyboard on the stars; the letter is handled at the frame and typed into the field.
+        Assert.Equal(QuickTagPopover.UnhandledKeyAction.TypeIntoField, QuickTagPopover.UnhandledKey(Typed(Avalonia.Input.Key.Q, "q", source: star), hasField: true));
+        Assert.Equal(QuickTagPopover.UnhandledKeyAction.TypeIntoField, QuickTagPopover.UnhandledKey(Typed(Avalonia.Input.Key.D7, "7", source: new Button()), hasField: true));
+        // A read-only text is no editor: its text goes into the field as well. A popover without a field (blocked) keeps consuming it; a composition
+        // key without text has nothing to type.
+        Assert.Equal(QuickTagPopover.UnhandledKeyAction.TypeIntoField, QuickTagPopover.UnhandledKey(Typed(Avalonia.Input.Key.Q, "q", source: new TextBox { IsReadOnly = true }), hasField: true));
+        Assert.Equal(QuickTagPopover.UnhandledKeyAction.Consume, QuickTagPopover.UnhandledKey(Typed(Avalonia.Input.Key.Q, "q", source: star), hasField: false));
+        Assert.Equal(QuickTagPopover.UnhandledKeyAction.Consume, QuickTagPopover.UnhandledKey(Typed(Avalonia.Input.Key.ImeProcessed, null, source: star), hasField: true));
+        Assert.Equal(QuickTagPopover.UnhandledKeyAction.Close, QuickTagPopover.UnhandledKey(Typed(Avalonia.Input.Key.Escape, null, source: star), hasField: true));
+    }
+
+    [Fact]
+    public void TheWindowsKeyGuardLeavesTextToATextBoxAndSendsOtherTextToTheField()
+    {
+        Border frame = new();
+        Button page = new();
+        TextBox search = new();
+        bool FromWindow(Visual _) => true;
+        Assert.Null(QuickTagPopover.GuardedRootKey(Typed(Avalonia.Input.Key.Q, "q", source: search), FromWindow, frame, hasField: true));
+        Assert.Equal(QuickTagPopover.GuardedKeyAction.TypeIntoField, QuickTagPopover.GuardedRootKey(Typed(Avalonia.Input.Key.Q, "q", source: page), FromWindow, frame, hasField: true));
+        Assert.Equal(QuickTagPopover.GuardedKeyAction.Consume, QuickTagPopover.GuardedRootKey(Typed(Avalonia.Input.Key.Q, "q", source: page), FromWindow, frame, hasField: false));
+        Assert.Equal(QuickTagPopover.GuardedKeyAction.Consume, QuickTagPopover.GuardedRootKey(Typed(Avalonia.Input.Key.Down, null, source: search), FromWindow, frame, hasField: true));
     }
 
     [Fact]

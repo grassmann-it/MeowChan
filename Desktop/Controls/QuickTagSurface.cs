@@ -12,6 +12,7 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Tags;
@@ -603,6 +604,20 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
 
     /// <summary>Puts the focus into the tag field (opening the surface, after a medium switch).</summary>
     internal void FocusField() => _input.Focus();
+
+    /// <summary>
+    /// Text typed while another part of the host holds the keyboard (the stars after R, a chip, a footer button): the field takes the focus and the text,
+    /// at its caret, as if it had been typed there (TG-02: the letters went nowhere). The host marks the key handled, so the platform raises no TextInput
+    /// of its own. False when the field cannot take it (disabled, disposed, not realized).
+    /// </summary>
+    internal bool TypeIntoField(string text)
+    {
+        if (_disposed || string.IsNullOrEmpty(text) || !_input.IsEffectivelyEnabled || !_input.IsEffectivelyVisible) return false;
+        _input.Focus(NavigationMethod.Unspecified);
+        if (_input.GetVisualDescendants().OfType<TextBox>().FirstOrDefault(box => box.IsFocused) is not { IsReadOnly: false } box) return false;
+        box.RaiseEvent(new TextInputEventArgs { RoutedEvent = TextInputEvent, Text = text });
+        return true;
+    }
 
     /// <summary>Switches to another target (the next medium, a marked set) and its label; the undo stack stays.</summary>
     internal void Retarget(IQuickTagTarget target, string label)
