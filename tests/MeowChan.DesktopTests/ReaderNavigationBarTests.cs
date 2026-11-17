@@ -185,6 +185,7 @@ public sealed class ReaderNavigationBarTests : IDisposable
         XElement bar = Named(markup, "ReaderNavigationBar");
         Assert.Same(root, bar.Parent);
         Assert.Contains("workspace-overlay", (string?)bar.Attribute("Classes"));
+        Assert.Equal("Transparent", (string?)root.Attribute("Background"));
         Assert.Equal("3", (string?)bar.Attribute("Padding"));
         // Not transparent to the pointer: the whole capsule takes clicks (a click in a gap must not reach the post below).
         Assert.Null(bar.Attribute("IsHitTestVisible"));
