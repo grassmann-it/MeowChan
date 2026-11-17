@@ -29,7 +29,7 @@ public sealed class PointOfUseDiscoveryTests
             Refresh(player);
             AssertHelp(Field<Control>(player, "_seek"), "gallery", commands);
         }
-        finally { player.DisposeAsync().AsTask().GetAwaiter().GetResult(); }
+        finally { DisposePlayer(player); }
     });
 
     [Theory]
@@ -47,7 +47,7 @@ public sealed class PointOfUseDiscoveryTests
             Refresh(player);
             AssertHelp(Field<Control>(player, "_volume"), "gallery", "video.volume-down", "video.volume-up");
         }
-        finally { player.DisposeAsync().AsTask().GetAwaiter().GetResult(); }
+        finally { DisposePlayer(player); }
     });
 
     [Theory]
@@ -57,8 +57,8 @@ public sealed class PointOfUseDiscoveryTests
     {
         // A page binding shadows video without removing its gesture in the gallery.
         Assert.True(CommandCatalog.TryGet(owner, out _));
-        var gesture = ShortcutService.Current.For("video.loop").First();
-        ShortcutService.Publish(new ShortcutBindingsSection().Set(owner, [gesture]));
+        var gesture = ShortcutGesture.Parse("Alt+F9");
+        ShortcutService.Publish(new ShortcutBindingsSection().Set("video.loop", [gesture]).Set(owner, [gesture]));
         GalleryVideoPlayer player = new();
         try
         {
@@ -70,7 +70,7 @@ public sealed class PointOfUseDiscoveryTests
             player.ShortcutContext = "gallery";
             Assert.Contains(key, Assert.IsType<string>(ToolTip.GetTip(loop)));
         }
-        finally { player.DisposeAsync().AsTask().GetAwaiter().GetResult(); }
+        finally { DisposePlayer(player); }
     });
 
     [Theory]
@@ -132,6 +132,46 @@ public sealed class PointOfUseDiscoveryTests
             Assert.Equal(ToolTip.GetTip(star), AutomationProperties.GetHelpText(star));
     });
 
+    [Fact]
+    public void ArchiveRatingCaptionFiltersReaderYieldsAndUsesItsRebinding() => WithControls(() =>
+    {
+        var tile = new ArchiveMediaTileView();
+        ShortcutService.Publish(new ShortcutBindingsSection().Set("media.rating.edit", [ShortcutGesture.Parse("Alt+F9")]));
+        tile.RefreshRating();
+        AssertHelp(tile.RatingCaption, "reader", "media.rating.edit");
+        // Restoring the default then claiming it only in Reader must remove it here.
+        var defaultGesture = EffectiveShortcutBindings.Build().For("media.rating.edit").First();
+        ShortcutService.Publish(new ShortcutBindingsSection().Set("reader.next-post", [defaultGesture]));
+        tile.RefreshRating();
+        Assert.Equal(CommandCatalog.Label("media.rating.edit"), Assert.IsType<string>(ToolTip.GetTip(tile.RatingCaption)));
+    });
+
+    [Theory]
+    [InlineData(ShortcutPlatform.MacOS)]
+    [InlineData(ShortcutPlatform.Linux)]
+    [InlineData(ShortcutPlatform.Windows)]
+    public void SuggestionChipTooltipAndAccessibleHelpContainTheEffectiveBinding(ShortcutPlatform platform) => WithControls(() =>
+    {
+        Assert.True(MeowChan.Tags.PrivateTagName.TryCreate("discovery", out var name, out _));
+        var suggestion = new QuickTagSuggestion(name!, null, 1, QuickTagReason.Frequent, 3);
+        string command = QuickTagCommands.Suggestion(1);
+        ShortcutService.Publish(new ShortcutBindingsSection().Set(command, [ShortcutGesture.Parse("Alt+F9")]));
+        Button CreateChip()
+        {
+            Type type = typeof(QuickTagSurface).GetNestedType("SuggestionChip", BindingFlags.NonPublic)!;
+            object chip = type.GetMethod("Create", BindingFlags.Static | BindingFlags.NonPublic)!
+                .Invoke(null, ["DiscoveryChip", suggestion, 0, null, platform])!;
+            return (Button)type.GetProperty("Button", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(chip)!;
+        }
+        var chip = CreateChip();
+        string help = AutomationProperties.GetHelpText(chip);
+        Assert.Equal(ToolTip.GetTip(chip), help);
+        Assert.Contains(QuickTagKeys.SuggestionGesture(0, platform)!, help);
+        ShortcutService.Publish(new ShortcutBindingsSection().Set(command, []));
+        var noKey = CreateChip();
+        Assert.DoesNotContain(ShortcutGesture.Parse("Alt+F9").Display(platform), AutomationProperties.GetHelpText(noKey));
+    });
+
     private static void AssertHelp(Control control, string context, params string[] commands)
     {
         string tip = Assert.IsType<string>(ToolTip.GetTip(control));
@@ -148,6 +188,18 @@ public sealed class PointOfUseDiscoveryTests
                 else Assert.Contains(key, tip);
             }
         }
+    }
+
+    private static void DisposePlayer(GalleryVideoPlayer player)
+    {
+        Task task = player.DisposeAsync().AsTask();
+        if (!task.IsCompleted)
+        {
+            Avalonia.Threading.DispatcherFrame frame = new();
+            task.GetAwaiter().OnCompleted(() => Avalonia.Threading.Dispatcher.UIThread.Post(() => frame.Continue = false));
+            Avalonia.Threading.Dispatcher.UIThread.PushFrame(frame);
+        }
+        task.GetAwaiter().GetResult();
     }
 
     private static void Refresh(GalleryVideoPlayer player) => typeof(GalleryVideoPlayer)

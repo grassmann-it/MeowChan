@@ -464,6 +464,8 @@ public sealed class ArchiveAttachmentView : UserControl
             subscribed = false;
         }
         this.AttachedToVisualTree += SubscribeLayout;
+        AttachedToVisualTree += (_, _) => { MeowChan.Desktop.Commands.ShortcutService.Changed += UpdateLabel; UpdateLabel(); };
+        DetachedFromVisualTree += (_, _) => MeowChan.Desktop.Commands.ShortcutService.Changed -= UpdateLabel;
         this.DetachedFromVisualTree += UnsubscribeLayout;
         DetachedFromVisualTree += (_, _) => { _visible = false; Reset(); _autoplay?.Stop(); _ = _inlineVideo?.ReleaseAsync(); };
     }

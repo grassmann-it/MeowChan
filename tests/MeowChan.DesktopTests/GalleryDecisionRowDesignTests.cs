@@ -271,7 +271,9 @@ public sealed class GalleryDecisionRowDesignTests : IDisposable
         row.Show(rated);
         Assert.Equal(MediaRatingText.Value(4), row.Summary.Text);
         Assert.DoesNotContain("·", row.Summary.Text);
-        Assert.Equal(GalleryDecisionText.Summary(rated), AutomationProperties.GetHelpText(row.RatingGroup));
+        Assert.Equal(ShortcutHelp.Append(GalleryDecisionText.Summary(rated), ShortcutHelp.Commands("gallery",
+            Enumerable.Range(1, 5).Select(n => "media.rating.set-" + n).Append("media.rating.clear").ToArray())),
+            AutomationProperties.GetHelpText(row.RatingGroup));
         Assert.Contains("·", AutomationProperties.GetHelpText(row.RatingGroup));
         Assert.Equal(1, row.Summary.MaxLines);
         Assert.Equal(Avalonia.Media.TextTrimming.CharacterEllipsis, row.Summary.TextTrimming);

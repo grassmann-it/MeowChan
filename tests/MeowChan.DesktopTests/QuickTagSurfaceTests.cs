@@ -54,27 +54,38 @@ public sealed class QuickTagSurfaceTests : IDisposable
         return name!;
     }
 
-    [Fact]
-    public void NavigationAndSuggestionHelpFollowTheEffectiveBindings()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void NavigationAndSuggestionHelpFollowTheEffectiveBindings(bool rebound) => BooruComponentDispatcher.Run(() =>
     {
-        using TempDirectory temp = new();
-        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
-        PrivateTagStore store = new(temp.Path, lease);
-        using QuickTagSession session = new(QuickTagTarget.For(Single(store, Entry("discovery", 'a'))));
-        using QuickTagSurface surface = new(session) { NavigationEnabled = true };
-        string help = AutomationProperties.GetHelpText(surface.Input);
-        foreach (string command in new[] { QuickTagCommands.Next, QuickTagCommands.Previous, QuickTagCommands.CommitNext,
-            QuickTagCommands.MarkNext, QuickTagCommands.MarkPrevious, QuickTagCommands.ThreadSection })
+        string[] commands = [QuickTagCommands.Next, QuickTagCommands.Previous, QuickTagCommands.CommitNext,
+            QuickTagCommands.MarkNext, QuickTagCommands.MarkPrevious, QuickTagCommands.ThreadSection];
+        var previous = ShortcutService.CurrentSection;
+        var section = new ShortcutBindingsSection();
+        if (rebound)
+            for (int i = 0; i < commands.Length; i++) section = section.Set(commands[i], [ShortcutGesture.Parse("Alt+F" + (i + 1))]);
+        ShortcutService.Publish(section);
+        try
         {
-            var gestures = ShortcutService.Current.For(command);
-            Assert.NotEmpty(gestures);
-            foreach (var gesture in gestures)
-                Assert.Contains(gesture.Display(ShortcutService.Current.Platform), help);
+            using TempDirectory temp = new();
+            using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+            PrivateTagStore store = new(temp.Path, lease);
+            using QuickTagSession session = new(QuickTagTarget.For(Single(store, Entry("discovery", 'a'))));
+            using QuickTagSurface surface = new(session) { NavigationEnabled = true };
+            string help = AutomationProperties.GetHelpText(surface.Input);
+            foreach (string command in commands)
+            {
+                var gestures = ShortcutService.Current.For(command);
+                Assert.NotEmpty(gestures);
+                foreach (var gesture in gestures) Assert.Contains(gesture.Display(ShortcutService.Current.Platform), help);
+            }
+            surface.NavigationEnabled = false;
+            string localOnly = AutomationProperties.GetHelpText(surface.Input);
+            Assert.DoesNotContain(CommandCatalog.Label(QuickTagCommands.Next), localOnly);
         }
-        surface.NavigationEnabled = false;
-        string localOnly = AutomationProperties.GetHelpText(surface.Input);
-        Assert.DoesNotContain(CommandCatalog.Label(QuickTagCommands.Next), localOnly);
-    }
+        finally { ShortcutService.Publish(previous); }
+    });
 
     [Fact]
     public void GalleryCounterMovesBesidePostTagsAndKeepsLiveTextVisibilityAndAccessibleName()

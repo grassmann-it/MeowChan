@@ -136,6 +136,8 @@ public sealed class ArchiveMediaTileView : UserControl
         };
         AttachedToVisualTree += (_, _) =>
         {
+            MeowChan.Desktop.Commands.ShortcutService.Changed += RefreshRating;
+            RefreshRating();
             _selection?.Dispose();
             _selection = MeowChan.Desktop.Controls.WorkspaceChips.ObserveSelection(this, _selectedMark);
             foreach (Visual ancestor in this.GetSelfAndVisualAncestors())
@@ -148,6 +150,7 @@ public sealed class ArchiveMediaTileView : UserControl
         DetachedFromVisualTree += (_, _) =>
         {
             foreach (Visual ancestor in _visibilityAncestors) ancestor.PropertyChanged -= OnAncestorVisibilityChanged;
+            MeowChan.Desktop.Commands.ShortcutService.Changed -= RefreshRating;
             _visibilityAncestors.Clear();
             _visible = false; Reset();
             _selection?.Dispose(); _selection = null; _selectedMark.IsVisible = false;
@@ -263,7 +266,9 @@ public sealed class ArchiveMediaTileView : UserControl
         _rating.Text = DataContext is ArchiveAssetRow row ? MediaRatingText.AccessibleValue(row.RatingLabel) : string.Empty;
         AutomationProperties.SetName(_rating, _rating.Text);
         string label = MeowChan.Desktop.Commands.CommandCatalog.Label("media.rating.edit");
-        ToolTip.SetTip(_rating, MeowChan.Desktop.Commands.CommandCatalog.ShortcutTooltipDisplay("media.rating.edit", "reader") is { } gesture ? label + " · " + gesture : label);
+        string help = MeowChan.Desktop.Commands.CommandCatalog.ShortcutTooltipDisplay("media.rating.edit", "reader") is { } gesture ? label + " · " + gesture : label;
+        ToolTip.SetTip(_rating, help);
+        AutomationProperties.SetHelpText(_rating, help);
         UpdateDescription();
     }
 
