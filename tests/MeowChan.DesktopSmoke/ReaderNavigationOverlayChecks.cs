@@ -240,7 +240,13 @@ internal static class ReaderNavigationOverlayChecks
                 // on every Avalonia backend. Focus the explicitly focusable capsule instead;
                 // focus within this child satisfies the bar's IsKeyboardFocusWithin contract.
                 Border focusSurface = page.FindControl<Border>("ReaderNavigationBar")!;
-                Require(focusSurface.Focus(), "Reader navigation focus could not be assigned.");
+                bool focusAssigned = focusSurface.Focus();
+                Require(focusAssigned, "Reader navigation focus could not be assigned. "
+                    + $"visible={focusSurface.IsEffectivelyVisible} enabled={focusSurface.IsEffectivelyEnabled} "
+                    + $"focusable={focusSurface.Focusable} tab={focusSurface.IsTabStop} "
+                    + $"attached={focusSurface.IsAttachedToVisualTree()} root={focusSurface.VisualRoot is not null} "
+                    + $"barVisible={bar.IsEffectivelyVisible} barHit={bar.IsHitTestVisible} "
+                    + $"buttons={string.Join(',', bar.GetVisualDescendants().OfType<Button>().Select(button => button.Name + ':' + button.IsEffectivelyEnabled))}");
                 Require(page.ReaderNavigationShown && bar.Opacity == 1 && bar.IsHitTestVisible,
                     "Keyboard focus did not reveal the reader navigation capsule.");
             });
