@@ -802,6 +802,7 @@ public partial class MainWindow
         if (_sourcesPage != null) { _sourcesPage.BusyChanged -= OnSettingsBusyChanged; _sourcesPage.EndLifetime(); }
         _archivePage?.EndLifetime();
         _mediaPage?.EndLifetime();
+        _taggingPage?.Dispose();
         if (_rulesPage != null) { _rulesPage.BusyChanged -= OnSettingsBusyChanged; _rulesPage.EndLifetime(); }
         DisposeBooruPage();
         if (_settingsEditor == null) return;
