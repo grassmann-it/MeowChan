@@ -88,7 +88,12 @@ internal static class ReaderShortcutContextChecks
             page.FindControl<TextBox>("ArchiveSearchText")!.Text = "Reader mixed navigation";
             await page.ApplySearchAsync();
             page.FindControl<ListBox>("ArchiveThreads")!.SelectedIndex = 0;
-            Click(page.FindControl<Button>("ArchiveReadPosts")!);
+            Button readPosts = page.FindControl<Button>("ArchiveReadPosts")!;
+            await Program.WaitUntilAsync(() => !page.IsBusy
+                && page.CurrentThread?.Summary.Id.Thread == "9998"
+                && readPosts.IsEffectivelyEnabled,
+                () => $"Reader shortcut fixture was not ready: busy={page.IsBusy}, thread={page.CurrentThread?.Summary.Id.Thread ?? "<null>"}, enabled={readPosts.IsEffectivelyEnabled}.");
+            Click(readPosts);
             await Program.WaitUntilAsync(() => window.FindControl<ContentControl>("ReaderHost")!.IsVisible
                 && !page.IsBusy && page.CurrentThread?.Summary.Id.Thread == "9998");
             await page.MediaLoadTask;

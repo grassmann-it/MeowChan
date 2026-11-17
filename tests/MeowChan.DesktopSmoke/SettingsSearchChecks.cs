@@ -41,7 +41,7 @@ internal static class SettingsSearchChecks
             decimal? timer = editor.RecheckTimer;
 
             // SP1: the search sits in the page header, to the right of the title, 240-480 dip wide, and Ctrl+F and "/" focus it.
-            TextBlock title = editor.FindControl<TextBlock>("SettingsTitleBlock")!;
+            Control title = editor.FindControl<Control>("SettingsTitleBlock")!;
             Control searchHost = editor.FindControl<Control>("SettingsSearchHost")!;
             Control moreButton = editor.FindControl<Control>("SettingsMoreButton")!;
             Require(searchHost.Bounds.Width is >= 240 and <= 480.5 && searchHost.Bounds.Left > title.Bounds.Left && searchHost.Bounds.Right <= moreButton.Bounds.Left + 0.5

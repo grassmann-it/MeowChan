@@ -210,15 +210,17 @@ class DesktopFourLaneTests(unittest.TestCase):
             return runner.ProjectResult(project, Path(project).stem, 'passed', 0, .001,
                 kwargs['timeout_seconds'], str(directory), str(directory / 'project.log'), kwargs['command_override'])
         fake = mock.Mock(run_project=project, build_test_command=runner.build_test_command, ShardResult=runner.ShardResult)
+        ticks = iter((0.0, 5.0))
         with mock.patch.object(cells, 'architecture', return_value='x64'), \
              mock.patch.object(cells.platform, 'system', return_value='Windows'), \
              mock.patch.object(cells.subprocess, 'check_output', return_value=SOURCE), \
-             mock.patch.object(cells.planner, 'discovery_inventory', return_value=cells.planner.validate_inventory(CASES)):
+             mock.patch.object(cells.planner, 'discovery_inventory', return_value=cells.planner.validate_inventory(CASES)), \
+             mock.patch.object(cells.time, 'monotonic', side_effect=lambda: next(ticks, 5.0)):
             result = cells.run_cell(fake, 'lane-a', 'windows-2022', SOURCE, self.root/'out', repo, 'dotnet', 1800, 30)
         self.assertEqual('passed', result.status)
         self.assertEqual(2, len(calls))
         self.assertLessEqual(calls[0]['timeout_seconds'], 60)
-        self.assertLess(calls[1]['timeout_seconds'], 1800)
+        self.assertEqual(1795.0, calls[1]['timeout_seconds'])
         self.assertIn('--ListTests', calls[0]['command_override'])
         self.assertIn('--settings', calls[1]['command_override'])
         settings = self.root/'out/lane-a/desktop.runsettings'
