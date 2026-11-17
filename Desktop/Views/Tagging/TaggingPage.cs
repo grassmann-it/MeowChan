@@ -219,14 +219,11 @@ public sealed partial class TaggingPage : UserControl
         Grid.SetRow(surface, 3);
         listArea.Children.Add(surface);
 
-        Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*,Auto") };
+        Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*") };
         layout.Children.Add(header);
         Border list = new() { Child = listArea, Margin = new Thickness(12, 0, 12, 4) };
         Grid.SetRow(list, 1);
         layout.Children.Add(list);
-        _keysHint.Margin = new Thickness(12, 0, 12, 12);
-        Grid.SetRow(_keysHint, 2);
-        layout.Children.Add(_keysHint);
         return layout;
     }
 

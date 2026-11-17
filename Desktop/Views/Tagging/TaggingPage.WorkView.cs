@@ -31,7 +31,6 @@ public sealed partial class TaggingPage
         WorkViewElement.SetId(_selState, "tagging.selection.state");
         WorkViewElement.SetId(_selRemove, "tagging.selection.remove");
         WorkViewElement.SetId(_selClear, "tagging.selection.clear");
-        WorkViewElement.SetId(_keysHint, "tagging.keys-hint");
         WorkViewElement.SetId(_add, "tagging.toolbar.add");
         WorkViewElement.SetId(_clearDone, "tagging.toolbar.clear-done");
         WorkViewElement.SetId(_clear, "tagging.toolbar.clear");
@@ -61,6 +60,5 @@ public sealed partial class TaggingPage
         WorkViewGate.Apply(_error, _workView, stateVisible: !string.IsNullOrEmpty(_errorText.Text));
         WorkViewGate.Apply(_clearConfirm, _workView, stateVisible: _clearConfirm.IsVisible);
         WorkViewGate.Apply(_stampPanel, _workView);
-        WorkViewGate.Apply(_keysHint, _workView, stateVisible: _rows.Count > 0);
     }
 }

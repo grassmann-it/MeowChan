@@ -165,8 +165,13 @@ public sealed partial class TaggingPage
         _clearYes.Content = Texts.T("tagging.page.clear.yes");
         _clearNo.Content = Texts.T("queue.ask.no");
         if (_clearConfirm.IsVisible) _clearQuestion.Text = Texts.T("tagging.page.clear.ask", _queueWork.Queue.Count);
-        _keysHint.Text = Texts.T("tagging.page.keys", Shortcut("tagging.continue-here"), Shortcut("tagging.remove"),
-            Shortcut("tagging.move-up"), Shortcut("tagging.move-down"));
+        _help.Source = () =>
+        {
+            HelpContent content = HelpContent.FromKeys("help.taggingPage");
+            return content with { Paragraphs = content.Paragraphs.Append(Texts.T("tagging.page.keys",
+                Shortcut("tagging.continue-here"), Shortcut("tagging.remove"),
+                Shortcut("tagging.move-up"), Shortcut("tagging.move-down"))).ToArray() };
+        };
         _actions.RefreshOverflowLabel();
         _listPresentation.RefreshOverflowLabel();
     }
