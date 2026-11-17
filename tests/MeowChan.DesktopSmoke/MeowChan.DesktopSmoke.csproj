@@ -15,6 +15,7 @@
   <ItemGroup>
     <Compile Include="../../Shared/TemporaryWorkspacePaths.cs" Link="TestSupport/TemporaryWorkspacePaths.cs" />
     <Compile Include="../Shared/BooruCompositionFixture.cs" Link="TestSupport/BooruCompositionFixture.cs" />
+    <Compile Include="../Shared/BooruCdnFixtures.cs" Link="TestSupport/BooruCdnFixtures.cs" />
     <Compile Include="../Shared/MediaScaleFixture.cs" Link="TestSupport/MediaScaleFixture.cs" />
     <Compile Include="../../Shared/DiagnosticAdapters/ShellLoadConditionalStoreAdapter.cs" Link="TestSupport/ShellLoadConditionalStoreAdapter.cs" />
   </ItemGroup>

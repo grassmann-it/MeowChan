@@ -26,6 +26,8 @@ internal sealed record DanbooruStubPost(long Id, string Rating = "g", string Gen
     internal string PostId => Id.ToString(System.Globalization.CultureInfo.InvariantCulture);
     internal byte[] Original { get; } = DanbooruStub.Png(64, 48, Color, Id);
     internal byte[] Preview { get; } = DanbooruStub.Png(150, 150, Color, Id + 1);
+    /// <summary>The sample the CDN serves at <see cref="SampleUrl"/>: larger than the preview and distinct from it (synthetic, not sized like the original).</summary>
+    internal byte[] Sample { get; } = DanbooruStub.Png(240, 180, Color, Id + 2);
     internal string Md5Hex => Convert.ToHexString(MD5.HashData(Original)).ToLowerInvariant();
     internal string OriginalUrl => $"https://cdn.donmai.us/original/{Md5Hex[..2]}/{Md5Hex[2..4]}/{Md5Hex}.png";
     internal string SampleUrl => $"https://cdn.donmai.us/sample/{Md5Hex[..2]}/{Md5Hex[2..4]}/sample-{Md5Hex}.jpg";
@@ -66,6 +68,12 @@ internal sealed class DanbooruStub : HttpMessageHandler
     internal ConcurrentQueue<string> Violations { get; } = new();
     internal bool Offline { get; set; }
 
+    /// <summary>
+    /// Scripted CDN cases (429/503 with Retry-After, oversized, wrong type, redirect, held answers) for single addresses:
+    /// an address with a rule is answered by the script, every other CDN address behaves as before.
+    /// </summary>
+    internal BooruCdnScript Cdn { get; } = new();
+
     internal int MetadataRequests => Requests.Count(url => url.StartsWith("https://danbooru.donmai.us/", StringComparison.Ordinal));
     internal int OriginalRequests => Requests.Count(url => url.StartsWith("https://cdn.donmai.us/original/", StringComparison.Ordinal));
     internal int PreviewRequests => Requests.Count(url => url.StartsWith("https://cdn.donmai.us/180x180/", StringComparison.Ordinal));
@@ -80,7 +88,7 @@ internal sealed class DanbooruStub : HttpMessageHandler
             _posts[post.Id] = post;
             _cdn[post.OriginalUrl] = post.Original;
             _cdn[post.PreviewUrl] = post.Preview;
-            _cdn[post.SampleUrl] = post.Preview;
+            _cdn[post.SampleUrl] = post.Sample;
         }
         return post;
     }
@@ -140,6 +148,7 @@ internal sealed class DanbooruStub : HttpMessageHandler
         await Task.Yield();
         if (url.Host == "cdn.donmai.us")
         {
+            if (Cdn.TryRespondAsync(request, cancellationToken) is { } scripted) return await scripted.ConfigureAwait(false);
             TaskCompletionSource? hold;
             byte[]? body;
             lock (_gate)
