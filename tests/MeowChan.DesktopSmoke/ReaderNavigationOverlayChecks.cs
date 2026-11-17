@@ -567,8 +567,9 @@ internal static class ReaderNavigationOverlayChecks
             "ArchiveMediaSort", "ArchiveVersionScope", "ArchiveEditRatingButton", "PreviewArchiveMediaButton" };
         // A control the bar moved under "More" is detached while the popup is closed (and keeps a stale IsEffectivelyVisible); only
         // the controls on the bar take part in the viewport geometry, the others are checked as "on the bar or under More" below.
-        var controls = controlNames.Select(name => page.FindControl<Control>(name)!)
-            .Where(control => control.IsAttachedToVisualTree() && control.IsEffectivelyVisible)
+        var controls = controlNames.Select(name => page.FindControl<Control>(name))
+            .Where(SmokeVisualTree.IsAttachedAndEffectivelyVisible)
+            .OfType<Control>()
             .Select(control => (Control: control, Box: Bounds(control, window))).ToArray();
         Console.WriteLine("SMOKE reader navigation media viewport: " + System.Text.Json.JsonSerializer.Serialize(new
         {

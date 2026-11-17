@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Xml.Linq;
+using Avalonia.Controls;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 
@@ -22,6 +23,13 @@ public sealed class ReaderNavigationBarTests : IDisposable
     private static XDocument Markup(string relative) => XDocument.Parse(Source(relative));
 
     private static readonly XNamespace X = "http://schemas.microsoft.com/winfx/2006/xaml";
+
+    [Fact]
+    public void SecondaryMediaGeometryTreatsMissingOrDetachedControlsAsNotVisible()
+    {
+        Assert.False(MeowChan.DesktopSmoke.SmokeVisualTree.IsAttachedAndEffectivelyVisible(null));
+        Assert.False(MeowChan.DesktopSmoke.SmokeVisualTree.IsAttachedAndEffectivelyVisible(new Control()));
+    }
 
     private static XElement Named(XDocument markup, string name) =>
         Assert.Single(markup.Descendants(), element => (string?)element.Attribute(X + "Name") == name);
