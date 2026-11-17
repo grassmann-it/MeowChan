@@ -58,3 +58,10 @@ rather than only one screen.
   Enter/Space, and context-menu first-action behavior for threads, posts, rows, tiles, thumbnails,
   sidebars, and dialogs. Single-click selects, double-click opens only where intended, and
   right-click preserves the target selection; differences must be intentional and localized.
+- **Tag autocomplete acceptance (breaking):** pressing Enter on a single matching suggestion must
+  accept the complete value (not commit only the typed prefix); with multiple entries, completion
+  must replace only the current word and preserve earlier tags. Existing tags with spaces require
+  quoted completion and must remain parseable alongside other tags.
+- **Video transport focus ownership:** mouse-clicking mute/loop/speed/transport buttons must not
+  strand the next gallery shortcut on the clicked toggle; keyboard Tab/Enter activation remains
+  native and accessible. Recheck Enter/Space playback immediately after mouse transport actions.
