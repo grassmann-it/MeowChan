@@ -103,7 +103,7 @@ public static class SettingsConditional
 /// </summary>
 internal sealed class SettingsConditionalReveal
 {
-    private readonly List<Control> _revealed = new();
+    private readonly HashSet<Control> _revealed = new();
     private readonly HashSet<Control> _edited = new();
 
     internal int Count => _revealed.Count;
@@ -126,10 +126,11 @@ internal sealed class SettingsConditionalReveal
             if (_revealed.Contains(row)) _edited.Add(row);
     }
 
-    internal void Release()
+    internal void Release(bool keepEdited = true)
     {
         foreach (Control row in _revealed)
-            if (!_edited.Contains(row)) SettingsConditional.SetRevealed(row, false);
-        _revealed.RemoveAll(row => !_edited.Contains(row));
+            if (!keepEdited || !_edited.Contains(row)) SettingsConditional.SetRevealed(row, false);
+        _revealed.RemoveWhere(row => !keepEdited || !_edited.Contains(row));
+        if (!keepEdited) _edited.Clear();
     }
 }

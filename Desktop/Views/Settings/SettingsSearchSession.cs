@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Avalonia;
 using Avalonia.Controls;
 using MeowChan.Desktop.Controls;
 
@@ -107,29 +108,44 @@ internal sealed class SettingsSearchGroups
         {
             var needed = new HashSet<Expander>(groups);
             foreach (Expander group in _opened.ToArray())
-                if (!needed.Contains(group)) { group.IsExpanded = false; _opened.Remove(group); }
+                if (!needed.Contains(group)) { Forget(group); group.IsExpanded = false; }
         }
         foreach (Expander group in groups)
         {
             if (group.IsExpanded) continue;
             group.IsExpanded = true;
             _opened.Add(group);
+            group.PropertyChanged += OnGroupChanged;
         }
+    }
+
+    // After the search opens a group, an explicit toggle gives ownership back to
+    // the person. Closing and reopening it must not leave it in the search ledger.
+    private void OnGroupChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.Property == Expander.IsExpandedProperty && sender is Expander group) Forget(group);
+    }
+
+    private void Forget(Expander group)
+    {
+        _opened.Remove(group);
+        group.PropertyChanged -= OnGroupChanged;
     }
 
     /// <summary>The user changed a value inside these groups (the source's expander ancestors): they stay open for good.</summary>
     internal void NoteEdited(IEnumerable<Expander> containing)
     {
         if (_opened.Count == 0) return;
-        foreach (Expander group in containing) _opened.Remove(group);
+        foreach (Expander group in containing) Forget(group);
     }
 
     /// <summary>The end of the search: every group it opened and the user did not edit folds again. Returns how many closed.</summary>
     internal int Release()
     {
         int closed = 0;
-        foreach (Expander group in _opened)
+        foreach (Expander group in _opened.ToArray())
         {
+            Forget(group);
             if (!group.IsExpanded) continue;
             group.IsExpanded = false;
             closed++;
