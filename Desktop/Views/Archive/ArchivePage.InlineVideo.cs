@@ -209,17 +209,16 @@ public partial class ArchivePage
         slot.Offer(offered ? _inlineVideo : null, key, row?.ResolveEntry, row?.Attachment.OriginalFileName ?? row?.Attachment.MediaId ?? string.Empty,
             row?.OpenPreview);
         // MD-03: the hand over the picture only where a single click acts (OnMediaSidebarPictureActivated); a double click opens the gallery anyway.
-        if (_mediaSidebar is { } sidebar) sidebar.SingleClickActs = slot.IsOffered || ReaderMediaSidebarRules.OpensGalleryOnPictureClick(_inlineVideo.Options);
+        if (_mediaSidebar is { } sidebar) sidebar.SingleClickActs = slot.IsOffered;
         if (!offered) { _sidebarVideoAutoplay?.Stop(); _sidebarVideoAutoplayKey = null; }
         // A click on a video tile of the post asked for it to play here (the sidebar presents it now).
         if (_sidebarPlayRequested) { _sidebarPlayRequested = false; if (offered) _ = slot.PlayAsync(); }
     }
 
-    /// <summary>A click on the sidebar's picture: plays or pauses an inline video; an image opens the gallery only when explicitly configured to do so.</summary>
+    /// <summary>A single click keeps the reader open; an offered inline video plays or pauses. Double-click or Open requests the gallery.</summary>
     private void OnMediaSidebarPictureActivated()
     {
-        if (_sidebarVideo is { IsOffered: true } slot) { _ = slot.ToggleAsync(); return; }
-        if (ReaderMediaSidebarRules.OpensGalleryOnPictureClick(_inlineVideo.Options)) OpenMediaSidebarMedia();
+        if (_sidebarVideo is { IsOffered: true } slot) _ = slot.ToggleAsync();
     }
 
     // The sidebar's own autoplay (default on; sound as its start-muted switch says) of the shown video, once the selection rested (holding ↑/↓ starts nothing).

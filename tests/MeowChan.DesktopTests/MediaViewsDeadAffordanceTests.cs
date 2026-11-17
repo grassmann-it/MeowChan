@@ -93,7 +93,8 @@ public sealed class MediaViewsDeadAffordanceTests : IDisposable
     {
         string panel = Source("Desktop/Views/Media/MediaPage.Panel.cs"), reader = Source("Desktop/Views/Archive/ArchivePage.InlineVideo.cs");
         Assert.Contains("panel.SingleClickActs = slot.IsOffered || ReaderMediaSidebarRules.OpensGalleryOnPictureClick(_panelVideoController.Options);", panel);
-        Assert.Contains("sidebar.SingleClickActs = slot.IsOffered || ReaderMediaSidebarRules.OpensGalleryOnPictureClick(_inlineVideo.Options);", reader);
+        Assert.Contains("sidebar.SingleClickActs = slot.IsOffered;", reader);
+        Assert.DoesNotContain("ReaderMediaSidebarRules.OpensGalleryOnPictureClick", reader);
         // The double click keeps opening the gallery in every click mode.
         Assert.Contains("panel.GalleryRequested += (_, _) => StartOpenPanelMedia();", panel);
     }
