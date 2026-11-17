@@ -26,8 +26,18 @@ namespace MeowChan.Desktop.Views.Shortcuts;
 /// count, Undo, Reset all, Discard and Save. It edits a <see cref="ShortcutDraftSession"/> that the Settings card shares;
 /// recording never persists or publishes, only Save does (through <see cref="SaveHandler"/>).
 /// </summary>
-public sealed partial class ShortcutBindingsEditor : UserControl
+public sealed partial class ShortcutBindingsEditor : UserControl, IDisposable
 {
+    /// <summary>Release an active recorder even when a detached editor is retired.</summary>
+    public void Dispose()
+    {
+        _validationFocusRequest++;
+        CancelValidationViewportReveal();
+        StopCapture();
+        Texts.Changed -= OnLanguageChanged;
+        GC.SuppressFinalize(this);
+    }
+
     internal const string SearchName = "ShortcutsSearch";
     internal const string ListName = "ShortcutsList";
     internal const string SaveName = "ShortcutsSave";
