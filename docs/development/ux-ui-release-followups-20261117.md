@@ -26,20 +26,19 @@ only the specific behavior covered here, not the remaining backlog or release ga
 | UX-LEDGER-09 | `f4378faa3` | Header network/disk statistics activation closes Gallery/large Reader before opening Statistics; contract coverage added |
 | UX-LEDGER-10 | `d00eb27f9` | Continue Reading remains enabled and usable while Gallery/large Reader covers the workspace; Gallery closes before resume is applied |
 | UX-LEDGER-11 | `740d0d565` | Media selection context targets, multi-selection shortcut feedback/rating, hand-cursor click contract, and 1099/1100 selection-line fitting; test coverage present; native GUI validation pending |
-
 | Rating-row favorite layout | [#22](https://github.com/grassmann-it/MeowChan/pull/22) (`603125d76`) | Favorite spans the five-star row width (excluding the clear gutter), with a larger glyph/hit area and caption below; shared Gallery/Rate and tag control |
 | Tagging selection revisit (also called UX-LEDGER-08) | [#23](https://github.com/grassmann-it/MeowChan/pull/23) (`7a313b2e0`, `9a80fc07f`) | Adds twenty list/grid single/multi-selection revisit cycles plus work-view, scope, group, filter and clear checks in `TaggingPageChecks.cs`; retains the inherited clear-before-bind fix, not a new product fix or right-click closeout |
 | UX-LEDGER-14 medium counter | [#25](https://github.com/grassmann-it/MeowChan/pull/25) (`21c0d5cb7`), [#27](https://github.com/grassmann-it/MeowChan/pull/27) (`7ffeab1ce`) | Moves the same live counter beside Post/Tags; adds localized text, accessible-name and polite-live-region assertions before and after navigation in `GalleryMediaTagChecks.cs` |
 | Focus-click closeout | [#26](https://github.com/grassmann-it/MeowChan/pull/26) (`f159827dd`); `cde745dfc` | Enables/fixes Reader single-click and Gallery viewport focus ordering; later Media fix restores inline target selection/focus before pointer/keyboard menus. FC-02 and FC-04 remain skipped, not closed |
 | Autocomplete click acceptance (also called UX-LEDGER-11) | [#28](https://github.com/grassmann-it/MeowChan/pull/28) (`bb4c131ca`), [#30](https://github.com/grassmann-it/MeowChan/pull/30) (`b849f94fd`) | Restricts quick-tag pointer focus repair to editor visuals so captured popup clicks commit the chosen suggestion; adds `TagAutocompleteCommitChecks.cs` and editor-only focus-repair assertions in `QuickTagSurfaceTests.cs` |
-| Help/changelog | [#21](https://github.com/grassmann-it/MeowChan/pull/21) (`0198ed884`) | User instructions and release notes for toolbar, Settings/help, Reader sidebar, plugin cards, Booru preview and click contracts; later merged changes need the follow-up documentation sync |
+| Help/changelog | [#21](https://github.com/grassmann-it/MeowChan/pull/21) (`0198ed884`) | User instructions and release notes for toolbar, Settings/help, Reader sidebar, plugin cards, Booru preview and click contracts; later merged changes are documented by this truth-sync |
 
 The gallery behavior audited by UX-LEDGER-06 is **double-click toggles window
-fullscreen**, not the older Fit/1:1 description below; **0** selects Fit and **1**
+fullscreen**, not the superseded Fit/1:1 description; **0** selects Fit and **1**
 selects 1:1. Its right-click selection/focus fixes cover Downloads, Archive and
 Media. #26 subsequently fixes Reader activation and Gallery viewport focus;
-Tagging right-click and Gallery filmstrip targeting remain open below. The Booru viewer operates on already-fetched previews on the current
-result page: selecting or browsing never downloads originals, and its download
+Tagging right-click and Gallery filmstrip targeting remain open below. The Booru
+viewer operates on already-fetched previews on the current result page: selecting or browsing never downloads originals, and its download
 command targets only the displayed post. This does not close the whole earlier
 Booru pipeline backlog.
 
