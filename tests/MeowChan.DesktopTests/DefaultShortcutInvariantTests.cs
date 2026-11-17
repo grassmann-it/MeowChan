@@ -59,12 +59,16 @@ public sealed class DefaultShortcutInvariantTests
     [Theory]
     [InlineData(ShortcutPlatform.Windows)]
     [InlineData(ShortcutPlatform.Linux)]
-    public void NoDefaultUsesCtrlWithAltBecauseThatIsAltGrOnManyKeyboardLayouts(ShortcutPlatform platform)
+    public void OnlyReaderExpandUsesTheExactNonTextCtrlAltEnterChord(ShortcutPlatform platform)
     {
         foreach (var command in CommandCatalog.All)
             foreach (var gesture in EffectiveShortcutBindings.Defaults(command, platform))
-                Assert.False(gesture.Modifiers.Contains("Alt") && gesture.Modifiers.Any(m => m is "Primary" or "Control" or "Ctrl"),
-                    command.Id + " " + gesture.Display(platform));
+                if (gesture.Modifiers.Contains("Alt") && gesture.Modifiers.Any(m => m is "Primary" or "Control" or "Ctrl"))
+                {
+                    Assert.Equal("reader.expand", command.Id);
+                    Assert.Equal(Key.Enter, gesture.Resolve(platform).Key);
+                    Assert.Equal(KeyModifiers.Control | KeyModifiers.Alt, gesture.Resolve(platform).KeyModifiers);
+                }
     }
 
     [Theory, MemberData(nameof(Platforms))]
@@ -119,6 +123,7 @@ public sealed class DefaultShortcutInvariantTests
     [InlineData("video.snapshot", "S", "Shift+S", "gallery")]
     [InlineData("gallery.slideshow-toggle", "D", "Shift+D", "gallery")]
     [InlineData("tags.queue.done-next", "Enter", "Primary+Enter", "gallery-tagging")]
+    [InlineData("reader.expand", "Primary+Enter", "Primary+Alt+Enter", "reader")]
     public void Ledger17MovedGesturesResolveAndTheirOldGesturesDoNot(string id, string oldKey, string newKey, string context)
     {
         foreach (ShortcutPlatform platform in Enum.GetValues<ShortcutPlatform>())

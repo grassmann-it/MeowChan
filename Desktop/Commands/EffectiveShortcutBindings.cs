@@ -248,7 +248,7 @@ public sealed class EffectiveShortcutBindings
         // reader; Primary+Shift+O opens the gallery's medium with the default program (next to Primary+O, the folder). All of them yield to a saved binding of
         // another command, like every new default.
         ["tagging.mark-done"] = 19, ["tagging.mark-skipped"] = 19, ["post.hide"] = 19, ["post.copy-link"] = 19, ["media.copy-path"] = 19,
-        ["thread.show-in-media"] = 19, ["tagging.show-in-media"] = 19, ["reader.expand"] = 19, ["media.open-external"] = 19,
+        ["thread.show-in-media"] = 19, ["tagging.show-in-media"] = 19, ["reader.expand"] = 22, ["media.open-external"] = 19,
         // Revision 20 (one revision for the quick-win packages of 15.11.2026; each entry yields to a saved binding of another command like every new default):
         // - "menus, delete, Esc": Delete (and Primary+Back on macOS) also acts on the media page, where it removes the selected media that are in the
         //   tagging queue from it (the same command as the tagging list's, now also in the context "media"; introduced in revision 9). It never deletes a file.
@@ -484,7 +484,10 @@ public sealed class EffectiveShortcutBindings
             var g = gesture.Resolve(platform);
             if (gesture.Modifiers.Contains("Primary") && gesture.Modifiers.Contains(platform == ShortcutPlatform.MacOS ? "Meta" : "Control")) return new("repeatedPlatformModifier", "Repeated platform modifier / Doppelte Plattformtaste");
             if (g.Key is Key.Tab or Key.Escape) return new("fixedNavigation", "Tab and Escape are fixed navigation / Tab und Escape bleiben feste Navigation");
-            if ((g.KeyModifiers & (KeyModifiers.Control | KeyModifiers.Alt)) == (KeyModifiers.Control | KeyModifiers.Alt)) return new("altGrText", "Ctrl+Alt can produce AltGr text / Strg+Alt kann AltGr-Text erzeugen");
+            // UX-LEDGER-17: Ctrl+Alt+Enter expands the reader. Enter cannot type AltGr text;
+            // this exact non-text chord is the only exception (not Ctrl+Alt+letters or shifted variants).
+            bool readerExpandChord = g.Key == Key.Enter && g.KeyModifiers == (KeyModifiers.Control | KeyModifiers.Alt);
+            if (!readerExpandChord && (g.KeyModifiers & (KeyModifiers.Control | KeyModifiers.Alt)) == (KeyModifiers.Control | KeyModifiers.Alt)) return new("altGrText", "Ctrl+Alt can produce AltGr text / Strg+Alt kann AltGr-Text erzeugen");
             if (platform != ShortcutPlatform.MacOS && g.KeyModifiers.HasFlag(KeyModifiers.Meta) ||
                 platform == ShortcutPlatform.MacOS && g.KeyModifiers.HasFlag(KeyModifiers.Meta) && g.Key == Key.Space ||
                 g.KeyModifiers.HasFlag(KeyModifiers.Alt) && g.Key == Key.F4)
