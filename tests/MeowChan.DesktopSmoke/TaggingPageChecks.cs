@@ -67,8 +67,9 @@ internal static class TaggingPageChecks
             await SettleAsync(window);
             Control row = (Control)tagging.List.ContainerFromIndex(1)!;
             row.Focus();
-            Press(row, Key.Delete);
-            await Program.WaitUntilAsync(() => window.SessionHost.GetTagQueue()!.Count == 2 && tagging.Rows.Count == 2 && !tagging.IsBusy);
+            await ReviewArtifacts.GestureAsync(window, "tagging-delete-row", () => Press(row, Key.Delete),
+                () => tagging.StatusText.Text == "Removed from the queue: 1.",
+                () => Program.WaitUntilAsync(() => window.SessionHost.GetTagQueue()!.Count == 2 && tagging.Rows.Count == 2 && !tagging.IsBusy));
             await SettleAsync(window);
             Require(tagging.StatusText.Text == "Removed from the queue: 1.", "Status after Delete: " + tagging.StatusText.Text);
             SelectOnly(tagging, tagging.Rows[0]);
@@ -109,11 +110,11 @@ internal static class TaggingPageChecks
             Require(model.OversizedSections.Count == 0 && model.Entries.Where(item => !item.Available).All(item => !string.IsNullOrEmpty(item.Reason)),
                 "A disabled entry of the tagging menu has no reason, or a section is too long.");
             Require(!model.Entries.Single(item => item.Id == "tagging.tag-together").Available, "Tag together is on for a single entry.");
-            tagging.ShowListMenu();
-            await SettleAsync(window);
+            await ReviewArtifacts.GestureAsync(window, "tagging-open-list-menu", () => tagging.ShowListMenu(),
+                () => tagging.OpenListMenu is { IsOpen: true }, () => SettleAsync(window));
             Require(tagging.OpenListMenu is { IsOpen: true }, "The context menu did not open on the list.");
-            tagging.OpenListMenu!.Close();
-            await SettleAsync(window);
+            await ReviewArtifacts.GestureAsync(window, "tagging-close-list-menu", () => tagging.OpenListMenu!.Close(),
+                () => tagging.OpenListMenu is not { IsOpen: true }, () => SettleAsync(window));
 
             // TG1: the selection bar above the list. Hidden without a selection; one entry offers "Tag…", two "Tag together…"; the state menu
             // lists the three marks; Esc clears. The grid then shows the same entries and keeps the selection (and the saved view follows).
@@ -265,9 +266,12 @@ internal static class TaggingPageChecks
                 foreach (TaggingQueueRow row in tagging.Rows.Skip(1).Take(count)) tagging.ShownList.SelectedItems!.Add(row);
                 for (int visit = 0; visit < 5; visit++)
                 {
-                    SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Downloads);
-                    await SettleAsync(window);
-                    await ReopenAsync(window, tagging);
+                    await ReviewArtifacts.GestureAsync(window, $"tagging-{view}-{count}-visit-{visit}-away",
+                        () => SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Downloads),
+                        () => window.SelectedPage == MainWindow.WorkspacePage.Downloads, () => SettleAsync(window));
+                    await ReviewArtifacts.GestureAsync(window, $"tagging-{view}-{count}-visit-{visit}-back",
+                        () => ReopenAsync(window, tagging),
+                        () => tagging.IsEffectivelyVisible && tagging.SelectedCount == count, () => SettleAsync(window));
                     CheckSelection(tagging, expected, $"Revisit {visit} in {view}");
                 }
                 if (count == 2) Program.CaptureWindow(window, $"smoke-tagging-revisit-{view.ToString().ToLowerInvariant()}.png");

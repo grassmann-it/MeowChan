@@ -14,7 +14,7 @@ internal static partial class ReviewArtifacts
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
     internal static string? Output => Environment.GetEnvironmentVariable("MEOWCHAN_REVIEW_ARTIFACTS");
 
-    internal static void Capture(Window window, string label, object? timing = null)
+    internal static void Capture(Window window, string label, object? timing = null, string? existingScreenshot = null)
     {
         if (_writing || (timing == null && _gestureDepth > 0) || string.IsNullOrWhiteSpace(Output)) return;
         _writing = true;
@@ -22,12 +22,20 @@ internal static partial class ReviewArtifacts
         {
             string safe = string.Concat(Path.GetFileNameWithoutExtension(label).Select(c => char.IsAsciiLetterOrDigit(c) || c == '-' ? c : '-'));
             string directory = Path.Combine(Output!, (++_sequence).ToString("D4") + "-" + safe);
+            if (Directory.Exists(directory)) throw new IOException("Review evidence already exists: " + directory);
             Directory.CreateDirectory(directory);
-            Program.CaptureWindow(window, "screenshot.png", directory);
+            if (existingScreenshot != null) File.Copy(existingScreenshot, Path.Combine(directory, "screenshot.png"));
+            else Program.CaptureWindow(window, "screenshot.png", directory);
+            Grayscale(directory);
             Write(directory, "control-tree.json", new
             {
                 schema_version = 1, coordinate_space = "window-client-dip", render_scaling = window.RenderScaling,
-                elements = Tree(window).ToArray()
+                elements = Tree(window).ToArray(),
+                detached_roots = DetachedRoots(window).Select(c => new
+                {
+                    name = c.Name, type = c.GetType().Name, coordinate_space = "popup-local-dip",
+                    elements = Tree(c).ToArray()
+                }).ToArray()
             });
             Write(directory, "state.json", Snapshot(window));
             Write(directory, "timing.json", timing ?? new
@@ -41,7 +49,9 @@ internal static partial class ReviewArtifacts
             Write(directory, "bundle.json", new
             {
                 schema_version = 1, label, complete = true,
-                files = new[] { "screenshot.png", "control-tree.json", "state.json", "timing.json" }
+                files = new[] { "screenshot.png", "grayscale.png", "control-tree.json", "state.json", "timing.json" },
+                render_kind = "Avalonia window-client bitmap; detached native popup pixels are not composited",
+                grayscale_kind = "Rec.709 weighted sRGB-channel grayscale; not OS forced-colors"
             });
         }
         finally { _writing = false; }

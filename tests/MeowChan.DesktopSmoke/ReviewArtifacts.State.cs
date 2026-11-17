@@ -46,12 +46,19 @@ internal static partial class ReviewArtifacts
                 control = Identity(g), current_entry = g.CurrentEntry?.Key.ToString(), panel_width = g.PanelWidth,
                 tag_panel_open = g.IsTagPanelOpen, favorite_confirm_open = g.IsFavoriteConfirmOpen
             }).ToArray(),
-            filters = controls.Where(c => c is TextBox or ComboBox or ToggleButton &&
-                (c.Name?.Contains("Filter", StringComparison.OrdinalIgnoreCase) == true || c.Name?.Contains("Search", StringComparison.OrdinalIgnoreCase) == true))
+            media = controls.OfType<MediaPage>().Select(p => new
+            {
+                control = Identity(p), sort = p.Sort.ToString(), panel_shown = p.IsPanelShown,
+                saved_panel_width = p.PageLayout.PanelWidth,
+                selected_keys = p.SelectedTiles.Select(t => t.Entry.Sha256 ?? t.Entry.AssetId).Order(StringComparer.Ordinal).ToArray(),
+                overflow_membership = p.SelectionActionsMovedByWidth.Select(Identity).ToArray()
+            }).ToArray(),
+            filters = controls.Where(c => c is TextBox or ComboBox or ToggleButton)
                 .Select(c => new { control = Identity(c), text = c is TextBox text ? text.Text : null,
                     selected_index = c is ComboBox box ? (int?)box.SelectedIndex : null, is_checked = (c as ToggleButton)?.IsChecked }).ToArray(),
             panel_widths = controls.Where(c => c.Name?.Contains("Panel", StringComparison.OrdinalIgnoreCase) == true || c.Name?.Contains("Sidebar", StringComparison.OrdinalIgnoreCase) == true)
                 .Select(c => new { control = Identity(c), width = c.Bounds.Width, visible = c.IsEffectivelyVisible }).ToArray(),
+            detached_popups = DetachedRoots(window).Select(c => new { control = Identity(c), type = c.GetType().Name, visible = c.IsEffectivelyVisible }).ToArray(),
             open_popovers_overlays = controls.Where(c => c is Popup { IsOpen: true } || c.IsEffectivelyVisible &&
                 (c.Name?.Contains("Overlay", StringComparison.OrdinalIgnoreCase) == true || c.Name?.Contains("Popover", StringComparison.OrdinalIgnoreCase) == true))
                 .Select(c => new { control = Identity(c), type = c.GetType().Name, opacity = c.Opacity, hit_test_visible = c.IsHitTestVisible }).ToArray(),
@@ -59,6 +66,22 @@ internal static partial class ReviewArtifacts
             background_work_tokens = WorkTokens(controls).ToArray(),
             coverage = "Realized controls and direct product-owned Task/CTS/busy/pending fields (plus one helper level); CTS existence is not proof of running work. Unexposed jobs are not inferred idle."
         };
+    }
+
+    private static IEnumerable<Control> DetachedRoots(Window window)
+    {
+        var roots = new HashSet<Control>();
+        if (Program.OwningMainWindow(window)?.TaggingPage is { } tagging)
+        {
+            if (tagging.OpenListMenu is { IsOpen: true } list) roots.Add(list);
+            if (tagging.OpenStateMenu is { IsOpen: true } state) roots.Add(state);
+        }
+        foreach (Control c in window.GetVisualDescendants().OfType<Control>())
+        {
+            if (c.ContextMenu is { IsOpen: true } menu) roots.Add(menu);
+            if (c is Popup { IsOpen: true, Child: { } child }) roots.Add(child);
+        }
+        return roots.OrderBy(Identity, StringComparer.Ordinal);
     }
 
     private static string Identity(Control control)
