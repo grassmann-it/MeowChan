@@ -2,6 +2,7 @@ using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.MediaActions;
 using MeowChan.Gallery;
+using Avalonia.Input;
 
 namespace MeowChan.DesktopTests;
 
@@ -46,6 +47,27 @@ public sealed class MediaMultiSelectionCommandTests
     });
 
     [Fact]
+    public void RatingEveryFrozenTargetSurvivesThePassiveRowReplacementCausedByItsFirstWrite() => MediaTileEnterTests.Run(fixture =>
+    {
+        MediaLibraryEntryState known = new(MediaLibraryFlag.No, true, null, false, [], [], null);
+        MediaLibraryTileRow[] rows = fixture.Rows.Select(row => row with { StateOf = _ => known }).ToArray();
+        fixture.Grid.ItemsSource = rows;
+        fixture.Grid.Selection.Select(2);
+        fixture.Grid.Selection.Select(0);
+        List<MediaLibraryEntry> rated = new();
+        fixture.Page.ExecuteMediaMenuActionAsync = (_, entry, current) =>
+        {
+            Assert.True(current());
+            rated.Add(entry);
+            fixture.Grid.ItemsSource = rows.Select(row => row with { }).ToArray();
+            Assert.True(current());
+            return Task.CompletedTask;
+        };
+        fixture.Page.RunMediaCommandByShortcutAsync("media.rating.set-4").GetAwaiter().GetResult();
+        Assert.Equal(new[] { fixture.Entries[0], fixture.Entries[2] }, rated);
+    });
+
+    [Fact]
     public void ARatingKeyWithSeveralSelectedThatNoneCanTakeSaysSo() => MediaTileEnterTests.Run(fixture =>
     {
         var calls = RecordActions(fixture);
@@ -71,6 +93,52 @@ public sealed class MediaMultiSelectionCommandTests
         // Empty grid space keeps whatever is selected.
         Assert.Null(target.Invoke(fixture.Page, [null]));
         Assert.Equal(new[] { 1 }, fixture.Grid.Selection.SelectedIndexes.ToArray());
+    });
+
+    [Theory]
+    [InlineData(Key.T, KeyModifiers.None)]
+    [InlineData(Key.R, KeyModifiers.Control)]
+    [InlineData(Key.I, KeyModifiers.None)]
+    [InlineData(Key.O, KeyModifiers.Control)]
+    [InlineData(Key.C, KeyModifiers.Control | KeyModifiers.Shift)]
+    public void RoutedSingleTargetShortcutsExplainTheMultiSelection(Key key, KeyModifiers modifiers) => MediaTileEnterTests.Run(fixture =>
+    {
+        var calls = RecordActions(fixture);
+        fixture.Grid.Selection.Select(0);
+        fixture.Grid.Selection.Select(2);
+        fixture.Press(fixture.Container(0), key, modifiers);
+        Assert.True(fixture.LastHandled);
+        Assert.Empty(calls);
+        Assert.Equal(MediaMenuReasons.SeveralSelected, fixture.SelectionNote);
+        Assert.Equal(2, fixture.Grid.Selection.Count);
+    });
+
+    [Theory]
+    [InlineData(Key.Q, KeyModifiers.None)]
+    [InlineData(Key.Delete, KeyModifiers.None)]
+    [InlineData(Key.R, KeyModifiers.None)]
+    [InlineData(Key.T, KeyModifiers.Control | KeyModifiers.Shift)]
+    [InlineData(Key.F, KeyModifiers.None)]
+    public void UnavailableBatchShortcutsGiveAVisibleHint(Key key, KeyModifiers modifiers) => MediaTileEnterTests.Run(fixture =>
+    {
+        fixture.Grid.Selection.Select(0);
+        fixture.Grid.Selection.Select(2);
+        fixture.Press(fixture.Container(0), key, modifiers);
+        Assert.True(fixture.LastHandled);
+        Assert.Equal(MediaMenuReasons.Unavailable, fixture.SelectionNote);
+        Assert.Equal(2, fixture.Grid.Selection.Count);
+    });
+
+    [Theory]
+    [InlineData("media.details")]
+    [InlineData("media.export-original")]
+    [InlineData("media.rating.set-4")]
+    public void MissingHostActionsStillExplainRatherThanSwallowTheShortcut(string id) => MediaTileEnterTests.Run(fixture =>
+    {
+        fixture.Grid.Selection.Select(0);
+        fixture.Grid.Selection.Select(2);
+        fixture.Page.RunMediaCommandByShortcutAsync(id).GetAwaiter().GetResult();
+        Assert.Equal(id == "media.details" ? MediaMenuReasons.SeveralSelected : MediaMenuReasons.Unavailable, fixture.SelectionNote);
     });
 
     [Fact]

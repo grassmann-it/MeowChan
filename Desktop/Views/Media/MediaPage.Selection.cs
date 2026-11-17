@@ -12,6 +12,7 @@ using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.MediaActions;
 using MeowChan.Favorites;
 using MeowChan.Gallery;
 using MeowChan.Tags;
@@ -24,14 +25,16 @@ namespace MeowChan;
 // selected (identified by their bytes) and the others drop out, so nothing hidden is ever acted on.
 public sealed partial class MediaPage
 {
-    // Selection commands lead; the way out and the reserved live counter form the trailing state group.
-    // FitSelectionLine keeps both groups on one 32 dip line, moving commands under More when needed.
+    // UX review 17.11.2026: the line reads "N selected", the actions, then (only while the index is being built) the muted reason after the last
+    // action. The counter keeps room for as many digits as the shown tile count has (at most four, tabular figures), so the actions keep their x
+    // whether the reason shows or the count grows. The line never wraps (a second line at the first selection moved the grid): where the actions do
+    // not fit with "Clear selection", that button says "Clear" (full text as tooltip and accessible name), then actions move under its More
+    // (FitSelectionLine).
     private readonly ReservedTextBlock _selectionText = new() { Name = "MediaSelectionStatus", Classes = { "tnum" }, TextWrapping = Avalonia.Media.TextWrapping.NoWrap, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
     private readonly TextBlock _selectionReason = new() { Name = "MediaSelectionReason", Classes = { "muted" }, IsVisible = false, TextWrapping = Avalonia.Media.TextWrapping.NoWrap,
         TextTrimming = Avalonia.Media.TextTrimming.CharacterEllipsis, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) };
-    // The reason stays after the actions in the fill area, before the trailing state group.
+    // A horizontal stack cannot wrap, including the first layout pass before overflow has been measured.
     private readonly StackPanel _selectionActions = new() { Name = "MediaSelectionActions", Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 8 };
-    private readonly StackPanel _selectionState = new() { Name = "MediaSelectionState", Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 8, Margin = new Thickness(8, 0, 0, 0) };
     private readonly DockPanel _selectionRow = new() { Name = "MediaSelectionRow", LastChildFill = true };
     private readonly Button _selTag = new() { Name = "MediaSelectionTag" };
     private readonly Button _selGallery = new() { Name = "MediaSelectionGallery" };
@@ -67,21 +70,15 @@ public sealed partial class MediaPage
         _selectionRow.IsVisible = false;
         _selectionRow[!Avalonia.Layout.Layoutable.MinHeightProperty] = new Avalonia.Markup.Xaml.MarkupExtensions.DynamicResourceExtension("Workspace.Size.Control");
         _selectionText.FontWeight = Avalonia.Media.FontWeight.SemiBold; // the anchor of the line
-        _selClear.Classes.Add("subtle"); // the way out weighs less than the actions
-        _selClear.VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center;
+        _selClear.Classes.Add("subtle"); // the way out weighs less than the actions (last in the row, as before)
         // MP2: "Add to tagging queue" comes before "Tag together": choosing and queueing is the way into the Tagging page.
-        foreach (Control control in new Control[] { _selQueue, _selTag, _selGallery, _selExport, _selMore })
+        foreach (Control control in new Control[] { _selectionText, _selQueue, _selTag, _selGallery, _selExport, _selMore, _selClear })
         { control.VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center; _selectionActions.Children.Add(control); }
-        _selectionState.Children.Add(_selClear);
-        _selectionState.Children.Add(_selectionText);
-        DockPanel.SetDock(_selectionState, Dock.Right);
-        _selectionRow.Children.Add(_selectionState);
         DockPanel.SetDock(_selectionActions, Dock.Left);
         _selectionRow.Children.Add(_selectionActions);
         _selectionRow.Children.Add(_selectionReason);
         _selectionRow.SizeChanged += (_, e) => { if (e.WidthChanged) FitSelectionLine(); };
         _selectionActions.SizeChanged += (_, _) => FitSelectionLine();
-        _selectionState.SizeChanged += (_, _) => FitSelectionLine();
         _selTag.Click += async (_, _) => await TagSelectionAsync();
         _selGallery.Click += (_, _) => OpenActions.Start(OpenSelectionGalleryAsync, "media.selection.gallery");
         _selExport.Click += async (_, _) => await ExportSelectionAsync();
@@ -255,7 +252,7 @@ public sealed partial class MediaPage
         if (_lifetime.IsCancellationRequested || !_selectionRow.IsVisible || TopLevel.GetTopLevel(_selectionRow) == null) return;
         double available = _selectionRow.Bounds.Width;
         if (available <= 0) return;
-        foreach (Control child in _selectionActions.Children.Concat(_selectionState.Children))
+        foreach (Control child in _selectionActions.Children)
             if (child.IsVisible && child.IsMeasureValid && child.DesiredSize.Width > 0 && !(ReferenceEquals(child, _selClear) && _selectionLevel >= 1))
                 _selectionWidths[child] = child.DesiredSize.Width;
         if (!_selectionWidths.TryGetValue(_selClear, out double clearFull)) return; // not laid out with its full label yet
@@ -319,6 +316,13 @@ public sealed partial class MediaPage
         AutomationProperties.SetHelpText(button, hint);
     }
 
+    // KB-06: unavailable batch shortcuts must acknowledge the selection instead of consuming a key silently.
+    private void ExplainSelectionUnavailable()
+    {
+        if (_grid.Selection.Count > 1 && !_lifetime.IsCancellationRequested)
+            ShowSelectionNote(_building != null ? Texts.T("media.selection.reason.building") : MediaMenuReasons.Unavailable);
+    }
+
     private void ShowSelectionNote(string? text)
     {
         _selectionNote.Text = text;
@@ -328,7 +332,7 @@ public sealed partial class MediaPage
     /// <summary>Opens the gallery with exactly the selected tiles in page order, one file per tile (the file the tile shows).</summary>
     internal async Task OpenSelectionGalleryAsync()
     {
-        if (!_selGallery.IsEnabled || OpenGallery == null) return;
+        if (!_selGallery.IsEnabled || OpenGallery == null) { ExplainSelectionUnavailable(); return; }
         (IReadOnlyList<MediaLibraryEntry> entries, int notSaved) = MediaLibrarySelection.GalleryEntries(SelectedTiles);
         ShowSelectionNote(notSaved == 0 ? null : entries.Count == 0 ? Texts.T("media.selection.note.noneSaved")
             : Texts.Count("media.selection.note.galleryPartial", entries.Count, entries.Count, notSaved));
@@ -340,7 +344,7 @@ public sealed partial class MediaPage
     /// <summary>Exports the originals of the selection: one per tile, never one per duplicate.</summary>
     internal async Task ExportSelectionAsync()
     {
-        if (!_selExport.IsEnabled || ExportOriginals == null) return;
+        if (!_selExport.IsEnabled || ExportOriginals == null) { ExplainSelectionUnavailable(); return; }
         await ExportTilesAsync(SelectedTiles, Texts.T("media.selection.exportScope"));
     }
 
@@ -376,9 +380,9 @@ public sealed partial class MediaPage
     /// It opens on <paramref name="anchor"/> (the tile of the menu), by default on the selection bar's button. "Advanced…" opens the
     /// full dialog (<see cref="TagSelectionDialogAsync"/>) to pick occurrences.
     /// </summary>
-    internal async Task TagSelectionAsync(Control? anchor = null, QuickTagInitialFocus initialFocus = QuickTagInitialFocus.TagInput)
+    internal async Task TagSelectionAsync(Control? anchor = null, bool focusRating = false)
     {
-        if (!_selTag.IsEnabled || TagServices is not { } services) return;
+        if (!_selTag.IsEnabled || TagServices is not { } services) { ExplainSelectionUnavailable(); return; }
         IReadOnlyList<MediaLibraryTile> tiles = SelectedTiles;
         if (tiles.Count == 0) return;
         static bool Usable(Control? control) => control != null && control.IsAttachedToVisualTree() && control.IsEffectivelyVisible;
@@ -388,7 +392,7 @@ public sealed partial class MediaPage
         TagContext context = QuickTagPopoverContext.ContextOf(lead?.Entry ?? tiles[0].Entry, _shown, lead?.Index ?? -1, selection: true);
         // The shell's saved limits, ranking and shared stamp (unbound: the defaults); the session takes the undo depth and the stamp.
         QuickTagPopoverOptions options = TagPopoverOptions?.Invoke(context) ?? QuickTagPopoverOptions.Defaults(context);
-        using QuickTagSession quick = options.NewSession(QuickTagTarget.For(session));
+        QuickTagSession quick = options.NewSession(QuickTagTarget.For(session));
         _selectionBusy = true;
         UpdateSelectionBar();
         QuickTagPopoverCloseReason reason = QuickTagPopoverCloseReason.Stale;
@@ -415,7 +419,7 @@ public sealed partial class MediaPage
                 FocusFallback = () => FocusGridNow(),
                 TooltipKeyContext = "media",
                 // The rating (and favourite where the shell offers it) of every selected tile rides on top of the tag field.
-                Decision = DecisionForEntries?.Invoke(tiles.Select(tile => tile.Entry).ToArray(), initialFocus)
+                Decision = DecisionForEntries?.Invoke(tiles.Select(tile => tile.Entry).ToArray(), focusRating)
             });
             origin = popover.Origin;
             shown = popover;
@@ -445,7 +449,7 @@ public sealed partial class MediaPage
     /// <summary>Adds or removes an own tag on the occurrences of the selection; the dialog lists them and tags all by default.</summary>
     internal async Task TagSelectionDialogAsync()
     {
-        if (!_selTag.IsEnabled || TagServices is not { } services) return;
+        if (!_selTag.IsEnabled || TagServices is not { } services) { ExplainSelectionUnavailable(); return; }
         if ((_owner ?? TopLevel.GetTopLevel(this) as Window) is not { } owner) return;
         IReadOnlyList<MediaLibraryTile> tiles = SelectedTiles;
         tiles = await WithHashedFolderFilesAsync(tiles);

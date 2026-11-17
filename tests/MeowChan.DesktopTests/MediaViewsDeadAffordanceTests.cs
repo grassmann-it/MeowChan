@@ -91,58 +91,31 @@ public sealed class MediaViewsDeadAffordanceTests : IDisposable
     [Fact]
     public void BothHostsSayWhetherASingleClickOnThePictureActs()
     {
-        MediaPanelClickTestSupport.Run((fixture, panel) =>
-        {
-            foreach (string mode in new[] { "Gallery", "Sidebar", "Post" })
-            {
-                MediaPanelClickTestSupport.Offer(fixture, mode, fixture.Rows[1]);
-                Assert.False(panel.SingleClickActs);
-                Assert.False(panel.FrameClickable);
-                Assert.Null(panel.Frame.Cursor);
-                fixture.Opened.Clear();
-                MediaPanelClickTestSupport.Release(panel);
-                Assert.Empty(fixture.Opened);
-                MediaPanelClickTestSupport.DoubleClick(panel);
-                var opened = Assert.Single(fixture.Opened);
-                Assert.Same(fixture.Entries[1], opened.Window[opened.Start]);
-            }
-
-            // The hand remains for an offered video's real single-click action,
-            // and is retired when the slot stops being offered (including missing media).
-            MediaLibraryEntry video = fixture.Entries[1] with { Kind = SavedMediaKind.Video };
-            MediaLibraryTileRow videoRow = new(new MediaLibraryTile(video, [video]), 1);
-            MediaPanelClickTestSupport.Offer(fixture, "Sidebar", videoRow);
-            Assert.True(fixture.Page.PanelVideo!.IsOffered);
-            Assert.True(panel.SingleClickActs);
-            Assert.True(panel.FrameClickable);
-            Assert.Same(PointerCursors.Hand, panel.Frame.Cursor);
-            // Stub only media resolution: observe the real click -> ToggleAsync ->
-            // playback request without starting a native video backend or opening files.
-            int playRequests = 0;
-            fixture.Page.PanelVideo.Offer(fixture.Page.PanelVideoController, "cursor-contract-video", _ =>
-            {
-                playRequests++;
-                return Task.FromResult<GalleryEntry?>(null);
-            }, "video.webm");
-            fixture.Opened.Clear();
-            MediaPanelClickTestSupport.Release(panel);
-            fixture.Page.PanelVideo.ActivationTask.GetAwaiter().GetResult();
-            Assert.Equal(1, playRequests);
-            Assert.Empty(fixture.Opened);
-            foreach (MediaLibraryTileRow? row in new MediaLibraryTileRow?[] { fixture.Rows[MediaTileEnterTests.Fixture.MissingIndex], null, fixture.Rows[1] })
-            {
-                MediaPanelClickTestSupport.Offer(fixture, "Sidebar", row);
-                Assert.False(fixture.Page.PanelVideo.IsOffered);
-                Assert.False(panel.SingleClickActs);
-                Assert.False(panel.FrameClickable);
-                Assert.Null(panel.Frame.Cursor);
-            }
-        });
-        // The reader's separate host keeps the same video-only affordance contract.
-        string reader = Source("Desktop/Views/Archive/ArchivePage.InlineVideo.cs");
+        string panel = Source("Desktop/Views/Media/MediaPage.Panel.cs"), reader = Source("Desktop/Views/Archive/ArchivePage.InlineVideo.cs");
+        Assert.Contains("panel.SingleClickActs = slot.IsOffered;", panel);
+        Assert.Contains("UseGalleryCursor = true", panel);
         Assert.Contains("sidebar.SingleClickActs = slot.IsOffered;", reader);
         Assert.DoesNotContain("ReaderMediaSidebarRules.OpensGalleryOnPictureClick", reader);
+        // The double click keeps opening the gallery in every click mode.
+        Assert.Contains("panel.GalleryRequested += (_, _) => StartOpenPanelMedia();", panel);
     }
+
+    [Fact]
+    public void OnlyTheMediaPreviewOptsIntoAHandForDoubleClickGalleryActivation() => OnOwnDispatcher(() =>
+    {
+        ReaderMediaSidebar sidebar = new();
+        sidebar.Describe("No. 7", "cat.png", "1 KiB", canOpen: true);
+        sidebar.ShowPlaceholder("Loading");
+        Assert.False(sidebar.SingleClickActs);
+        Assert.False(sidebar.UseGalleryCursor);
+        Assert.Null(sidebar.Frame.Cursor); // Reader keeps its existing cursor contract.
+        sidebar.UseGalleryCursor = true;
+        Assert.True(sidebar.FrameClickable);
+        Assert.Same(PointerCursors.Hand, sidebar.Frame.Cursor);
+        Assert.False(sidebar.SingleClickActs); // The hand is not permission for single-click gallery activation.
+        sidebar.UseGalleryCursor = false;
+        Assert.Null(sidebar.Frame.Cursor);
+    });
 
     [Fact]
     public void TheSidebarsCrossIsNoClickTargetWhileItIsInvisible() => OnOwnDispatcher(() =>
@@ -355,7 +328,7 @@ public sealed class MediaViewsDeadAffordanceTests : IDisposable
         Assert.Contains("EditTags = EditTagsOfTile, OpenTagging = () => OpenTaggingPage?.Invoke(), CanOpenTagging = () => OpenTaggingPage != null", page);
         string affordances = Source("Desktop/Views/Media/MediaPage.TileAffordances.cs");
         // The same "Tag…" as the menu entry and the shortcut: the popover on the tile, or the reason as text for a medium that cannot be tagged.
-        Assert.Contains("await OpenRateAndTagAsync(row.Entry, row, anchor, Current, initialFocus: QuickTagInitialFocus.TagInput);", affordances);
+        Assert.Contains("await OpenRateAndTagAsync(row.Entry, row, anchor, Current, focusRating: false);", affordances);
     }
 
     [Fact]
