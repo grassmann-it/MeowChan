@@ -519,6 +519,11 @@ internal static class ReaderNavigationOverlayChecks
         // NAVBAR-05: the whole capsule takes the pointer. A point on a counter (full form) or in the gap beside the separator (every form)
         // hits the bar, not the content below it; a click in a gap would otherwise reach a post.
         page.ShowReaderNavigation();
+        // Showing the auto-hidden bar invalidates the overlay layout. Re-measure before deriving
+        // the probe point; otherwise the first InputHitTest can settle the bar and the second
+        // query tests the stale pre-layout coordinate.
+        window.UpdateLayout();
+        pad = Bounds(navigation, window);
         Rect separator = Bounds(page.FindControl<Border>("ReaderNavigationSeparator")!, window);
         Point gap = new(separator.Center.X, pad.Top + 5);
         Visual? gapHit = window.InputHitTest(gap) as Visual;
