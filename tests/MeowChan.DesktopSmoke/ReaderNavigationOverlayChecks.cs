@@ -187,7 +187,7 @@ internal static class ReaderNavigationOverlayChecks
             // check may leave keyboard focus on a navigation button; focus is intentionally
             // a keep-visible condition and must not make this idle assertion flaky.
             tabs.Focus();
-            await Dispatcher.UIThread.Yield();
+            await Dispatcher.Yield();
             Point far = new(60, 60);
             Point onBar = Bounds(bar, window) is Rect box ? new Point(box.Center.X, box.Center.Y) : default;
             Point barInSurface = bar.Bounds.Center;
