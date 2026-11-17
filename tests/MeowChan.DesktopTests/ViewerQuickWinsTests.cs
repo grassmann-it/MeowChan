@@ -294,8 +294,8 @@ public sealed class ViewerQuickWinsTests : IDisposable
     // ---- shortcuts ----
 
     [Theory]
-    [InlineData("video.seek-back", "Primary+Left")]
-    [InlineData("video.seek-forward", "Primary+Right")]
+    [InlineData("video.seek-back", "Alt+Left")]
+    [InlineData("video.seek-forward", "Alt+Right")]
     [InlineData("video.seek-back-far", "Primary+Shift+Left")]
     [InlineData("video.seek-forward-far", "Primary+Shift+Right")]
     [InlineData("video.mute", "Shift+M")]
@@ -356,11 +356,11 @@ public sealed class ViewerQuickWinsTests : IDisposable
     [Fact]
     public void ASavedBindingOfAnotherGalleryCommandWinsOverANewSeekDefault()
     {
-        // A profile that bound Ctrl+Left to "previous medium" before the seek default existed keeps it.
+        // A profile that bound Alt+Left to "previous medium" before the seek default existed keeps it.
         ShortcutBindingsSection section = new ShortcutBindingsSection().Set("gallery.previous",
-            new[] { ShortcutGesture.Parse("Primary+Left") });
+            new[] { ShortcutGesture.Parse("Alt+Left") });
         EffectiveShortcutBindings bindings = EffectiveShortcutBindings.Build(section, ShortcutPlatform.Linux);
-        Assert.Contains(bindings.For("gallery.previous"), gesture => gesture.Key == "Left" && gesture.Modifiers.SequenceEqual(new[] { "Primary" }));
+        Assert.Contains(bindings.For("gallery.previous"), gesture => gesture.Key == "Left" && gesture.Modifiers.SequenceEqual(new[] { "Alt" }));
         Assert.Empty(bindings.For("video.seek-back"));
         Assert.DoesNotContain(bindings.Issues, issue => issue.BlocksSave);
     }

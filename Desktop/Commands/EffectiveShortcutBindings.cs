@@ -155,7 +155,7 @@ public sealed class EffectiveShortcutBindings
         ["navigation.plugins"] = 4, ["navigation.diagnostics"] = 4, ["media.tags.edit"] = 4,
         // New in revision 5: viewer quick wins (seek, mute, speed, frame snapshot).
         // (video.mute: revision 5, now listed with revision 20 below.)
-        ["video.seek-back"] = 5, ["video.seek-forward"] = 5, ["video.seek-back-far"] = 5,
+        ["video.seek-back"] = 22, ["video.seek-forward"] = 22, ["video.seek-back-far"] = 5,
         ["video.seek-forward-far"] = 5, ["video.speed-reset"] = 22,
         ["video.snapshot"] = 22,
         // New in revision 6: quick tagging in the gallery tag panel and the tag popover (QuickTagCommands). Not yet wired

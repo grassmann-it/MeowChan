@@ -378,9 +378,10 @@ public static class CommandCatalog
         new("video.mute", "command.video.mute", "Mute / unmute", "Ton aus / an", "volume-2", "Shift+M", CommandScope.Gallery | CommandScope.Reader | CommandScope.Media, new[] { "gallery-video-controls", "reader-video-keys", "media-video-keys" }),
         // L repeats the shown video (the filmstrip toggle moved to Shift+L for it; both are gallery commands, so they may not share a key).
         new("video.loop", "command.video.loop", "Repeat video", "Video wiederholen", "repeat", "L", CommandScope.Gallery | CommandScope.Reader | CommandScope.Media, new[] { "gallery-video-controls", "gallery-keyboard", "reader-video-keys", "media-video-keys" }),
-        // Left/Right stay previous/next medium; seeking takes Ctrl (⌘) with the arrows, far seeking adds Shift.
-        new("video.seek-back", "command.video.seek-back", "Back 5 seconds", "5 Sekunden zurück", "rotate-ccw", "Primary+Left", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
-        new("video.seek-forward", "command.video.seek-forward", "Forward 5 seconds", "5 Sekunden vor", "rotate-cw", "Primary+Right", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
+        // Left/Right stay previous/next medium; 5-second seeking takes Alt. Far seeking stays Primary+Shift
+        // (Alt+Shift+arrows belongs to the reader sidebar; macOS Primary+Left stays back navigation).
+        new("video.seek-back", "command.video.seek-back", "Back 5 seconds", "5 Sekunden zurück", "rotate-ccw", "Alt+Left", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
+        new("video.seek-forward", "command.video.seek-forward", "Forward 5 seconds", "5 Sekunden vor", "rotate-cw", "Alt+Right", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
         new("video.seek-back-far", "command.video.seek-back-far", "Back 30 seconds", "30 Sekunden zurück", "chevron-left", "Primary+Shift+Left", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
         new("video.seek-forward-far", "command.video.seek-forward-far", "Forward 30 seconds", "30 Sekunden vor", "chevron-right", "Primary+Shift+Right", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
         // "," and "." jump back and forward by the seek step setting (5 seconds by default, 1 to 60); they act only while a video is shown.

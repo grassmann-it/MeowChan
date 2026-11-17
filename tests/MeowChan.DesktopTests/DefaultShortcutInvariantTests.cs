@@ -126,6 +126,8 @@ public sealed class DefaultShortcutInvariantTests
     [InlineData("reader.expand", "Primary+Enter", "Primary+Alt+Enter", "reader")]
     [InlineData("video.volume-up", "Up", "Shift+Up", "gallery")]
     [InlineData("video.volume-down", "Down", "Shift+Down", "gallery")]
+    [InlineData("video.seek-back", "Primary+Left", "Alt+Left", "gallery")]
+    [InlineData("video.seek-forward", "Primary+Right", "Alt+Right", "gallery")]
     public void Ledger17MovedGesturesResolveAndTheirOldGesturesDoNot(string id, string oldKey, string newKey, string context)
     {
         foreach (ShortcutPlatform platform in Enum.GetValues<ShortcutPlatform>())
@@ -169,6 +171,27 @@ public sealed class DefaultShortcutInvariantTests
         var bindings = EffectiveShortcutBindings.Build(platform: platform);
         Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.Up }, "reader.previous-post", "reader"));
         Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.Down }, "reader.next-post", "reader"));
+    }
+
+    [Theory, MemberData(nameof(Platforms))]
+    public void Ledger17FarSeekingAndSidebarArrowsStayDistinct(ShortcutPlatform platform)
+    {
+        var bindings = EffectiveShortcutBindings.Build(platform: platform);
+        foreach ((string id, string gesture, string context) in new[]
+        {
+            ("video.seek-back-far", "Primary+Shift+Left", "gallery"),
+            ("video.seek-forward-far", "Primary+Shift+Right", "gallery"),
+            ("reader.sidebar.previous-media", "Alt+Shift+Left", "reader"),
+            ("reader.sidebar.next-media", "Alt+Shift+Right", "reader")
+        })
+        {
+            var key = ShortcutGesture.Parse(gesture).Resolve(platform);
+            Assert.True(bindings.Matches(new KeyEventArgs { Key = key.Key, KeyModifiers = key.KeyModifiers }, id, context));
+            Assert.Single(bindings.For(id));
+        }
+        if (platform == ShortcutPlatform.MacOS)
+            foreach (string id in new[] { "media.return", "reader.history-back", "gallery.return" })
+                Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.Left, KeyModifiers = KeyModifiers.Meta }, id, "reader"));
     }
 
     /// <summary>The nine video commands the gallery shares with the reader and the Media page's panel (revision 18).</summary>
