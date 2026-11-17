@@ -86,7 +86,10 @@ internal static class GalleryMediaTagChecks
                     Border counter = viewer.SidePanel.HeaderCounter as Border ?? throw new InvalidOperationException("Missing header counter.");
                     Require(counter.IsEffectivelyVisible && !viewer.TagSurface!.Header.Children.Contains(counter), "Counter was duplicated or hidden.");
                     Require(Avalonia.Automation.AutomationProperties.GetName(counter) == Texts.T("tags.quick.gallery.position", 1, 2)
-                        && Avalonia.Automation.AutomationProperties.GetLiveSetting(counter) == Avalonia.Automation.AutomationLiveSetting.Polite,
+                        && Avalonia.Automation.AutomationProperties.GetLiveSetting(counter) == Avalonia.Automation.AutomationLiveSetting.Polite
+                        && counter.Child is TextBlock liveLabel
+                        && Avalonia.Automation.AutomationProperties.GetLiveSetting(liveLabel) == Avalonia.Automation.AutomationLiveSetting.Polite
+                        && liveLabel.Text == Texts.T("tags.quick.gallery.position", 1, 2),
                         "The moved counter lost localization or polite announcements.");
                     var origin = counter.TranslatePoint(default, viewer.SidePanel)!.Value;
                     var segment = (Control)viewer.SidePanel.PostButton.Parent!;
@@ -127,6 +130,12 @@ internal static class GalleryMediaTagChecks
             await UntilAsync(() => viewer.TagPanelController!.Entry.EntryKey == unbound.EntryKey && marking.MarkBar.IsVisible);
             marking.MarkedClearButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Require(viewer.Marks.Count == 0 && !marking.MarkBar.IsVisible && !marking.Session.IsSelection, "The clear button left marks.");
+            Border movedCounter = viewer.SidePanel.HeaderCounter as Border ?? throw new InvalidOperationException("Navigation lost the header counter.");
+            Require(movedCounter.Child is TextBlock movedLabel && movedLabel.Text == Texts.T("tags.quick.gallery.position", 2, 2)
+                && Avalonia.Automation.AutomationProperties.GetName(movedCounter) == movedLabel.Text
+                && Avalonia.Automation.AutomationProperties.GetLiveSetting(movedCounter) == Avalonia.Automation.AutomationLiveSetting.Polite
+                && Avalonia.Automation.AutomationProperties.GetLiveSetting(movedLabel) == Avalonia.Automation.AutomationLiveSetting.Polite,
+                "Navigation did not update the reparented polite live region's text and accessible name.");
             // PT6: the favorite and rating row sits above the field; Shift+4 in the empty field rates the shown medium, the row and the status line
             // say so, and the panel's undo key takes the rating back (the newest step of the tag and decision stacks goes first).
             // The clear button leaves the gallery on the unbound next medium, whose tag field is disabled (it has no tag target), so the
