@@ -782,11 +782,12 @@ space keep their own behavior. Unsaved Booru cards instead open the
 On Downloads rows, Archive thread/media items and Media tiles, right-clicking an
 item outside the current selection selects that item before opening its menu;
 right-clicking inside a multi-selection preserves the group. Keyboard focus is
-placed on the clicked item or table cell before the menu opens. On the Media
-page, a single click on the sidebar picture stays in the preview (play/pause for
-video); use a double-click or **Open in gallery** to open the gallery. This
-preview-only single-click rule does not change the reader's configurable
-[media click action](#reader-media-sidebar-and-inline-video).
+placed on the clicked item or table cell before the menu opens. The gallery
+viewport also takes focus before its context menu opens. On both the Reader and
+Media page, a single click on the sidebar picture stays in the preview (play/pause
+for an offered inline video); use a double-click or **Open in gallery** to open
+the gallery. The reader's configurable [media click action](#reader-media-sidebar-and-inline-video)
+applies to media in posts, not to single-clicks on the sidebar picture.
 
 A double-click on the picture or video **inside the local-media gallery** toggles
 window fullscreen, as do F11 and the explicit fullscreen action. Use **0** for
@@ -1103,8 +1104,9 @@ Switching categories keeps all drafts, including invalid text. **Save** applies
 changes across every category; **Discard draft** reverts all unapplied edits.
 Saving with an invalid field opens its category so you can correct it.
 
-The search is above the settings content column, with **More** beside it; their
-combined row aligns with the form below, not with the category navigation. When
+The search and the three-dot **More** menu sit above the actual settings content
+column, outside the scrolling form. Their combined row aligns with the form below,
+not with the title or category navigation. When
 the category sidebar collapses in a narrow window, the row follows the content.
 Ctrl+F (Command+F on macOS) focuses the search. It finds settings by name, hint or
 key, including English terms in other languages. Results update as you type.
@@ -1911,8 +1913,10 @@ decides what a click on a picture or video in a post does:
   normal playback checks.
 - **Open in the gallery** opens the gallery at that medium.
 
-A double-click on a medium and the sidebar's **Open in gallery** button always open the
-gallery, whatever the choice is.
+A single click on the sidebar picture never opens the gallery, whatever this
+preference is; it only plays or pauses an offered inline video. A double-click on
+a medium (including the sidebar picture) and the sidebar's **Open in gallery**
+button always open the gallery, whatever the choice is.
 
 **Autoplay videos muted** is another opt-in, also off by default. It works with
 **Open in the post** and starts the selected post's video without sound after
@@ -2127,8 +2131,10 @@ in the gallery's context menu and Ctrl+Shift+T (Command+Shift+T on macOS) open t
 tag panel for the shown medium; a running slideshow pauses. The panel takes the
 slot of the post panel and stays open while you page through the gallery. The same
 command, **Esc** or its close button closes it; **Shift+P** switches to the post panel.
-The side panel has **Post | Tags** at the top left and × alone at the right. When
-the switch has focus, Left/Right selects the segment. Closing returns focus to
+The side panel has **Post | Tags** at the top left, the live medium counter
+immediately beside it, and × alone at the right. The counter updates as you navigate,
+with localized position text and polite accessibility announcements. When the
+switch has focus, Left/Right selects the segment. Closing returns focus to
 the picture. Drag its left edge to resize it (280–480 DIP); the width is kept per
 layout profile. Below 900 DIP it overlays the picture.
 
@@ -2140,6 +2146,13 @@ media, same file elsewhere, from the file name, from the thread title or source 
 Choosing a chip, or the number on it, gives or takes off that tag at once. Each
 change is written to the tag store immediately, for the shown medium or the
 explicitly marked media described below.
+
+**Autocomplete.** Clicking a dropdown suggestion accepts the chosen suggestion,
+not just the typed prefix or another “New tag” row. Enter accepts a highlighted
+suggestion too. Completion follows the token under the caret and preserves earlier
+tags and quoted names with spaces; a middle-token completion edits that token in
+place. Tab completes without writing, then Enter commits the completed draft.
+
 **On this media file** lists what a single target carries; select a tag and press Delete
 to remove it. A medium that cannot be tagged, for example without a bound version
 or while the tag index is unavailable, shows the reason with a disabled field
@@ -2165,7 +2178,9 @@ and drops older steps. The stack stays while you page, so an undo can reach a ch
 made on an earlier medium; it reverses exactly the media changed by that step
 and the status line names it. A tag created by a step stays in your own tag list after its
 undo. Closing the panel ends the stack. The favorite/rating row above the field
-acts on the shown medium or all marked media. **Shift+1** through **Shift+5** set
+acts on the shown medium or all marked media. In both this panel and **Rate and tag**,
+the larger **Favorite** control spans the width of the five rating stars (not the
+remove-rating gutter), with the rating caption on its own line below. **Shift+1** through **Shift+5** set
 a rating, **Shift+0** removes it; **R** still opens the rating dialog. The shifted
 digits also work in an empty tag field with its suggestion list closed; with text
 present they type normally.

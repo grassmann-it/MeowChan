@@ -488,7 +488,9 @@ public sealed class QuickTagSurfaceTests : IDisposable
         string source = File.ReadAllText(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(ThisFile())!, "../../Desktop/Controls/QuickTagSurface.cs")));
         Assert.Contains("_input.AddHandler(PointerPressedEvent, OnInputPointerPressed, RoutingStrategies.Tunnel);", source);
         Assert.Contains("e.Pointer.Type != PointerType.Mouse", source);
-        Assert.Contains("if (!_disposed && _input.IsEffectivelyEnabled) _input.Focus();", source);
+        // Popup suggestions are logical descendants, not editor visuals: their captured gestures must not reclaim focus.
+        Assert.Contains("e.Source is not Visual source || (source != _input && !_input.IsVisualAncestorOf(source))", source);
+        Assert.Contains("if (!_disposed && _input.IsEffectivelyEnabled && !_input.IsKeyboardFocusWithin) _input.Focus();", source);
     }
 
     // ---- the control (built without an application: names, layout, chips) --------------------------------------
