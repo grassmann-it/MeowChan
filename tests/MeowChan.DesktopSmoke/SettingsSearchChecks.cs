@@ -193,7 +193,14 @@ internal static class SettingsSearchChecks
         }
     }
 
-    private static string HitLabel(ListBox list, int index) => Row(list, index)?.GetVisualDescendants().OfType<TextBlock>().FirstOrDefault()?.Text ?? string.Empty;
+    private static string HitLabel(ListBox list, int index)
+    {
+        TextBlock? label = Row(list, index)?.GetVisualDescendants().OfType<TextBlock>().FirstOrDefault();
+        // Highlighted labels are Run inlines, not TextBlock.Text (which is empty in Avalonia 12).
+        return label?.Inlines is { Count: > 0 } inlines
+            ? string.Concat(inlines.OfType<Avalonia.Controls.Documents.Run>().Select(run => run.Text))
+            : label?.Text ?? string.Empty;
+    }
 
     private static IEnumerable<string> Groups(ListBox list) => Enumerable.Range(0, list.ItemCount)
         .Select(i => Row(list, i)?.GetVisualDescendants().OfType<Border>().FirstOrDefault(b => b.Classes.Contains(SettingsSearchChip.ChipClass))?.GetVisualDescendants().OfType<TextBlock>().FirstOrDefault()?.Text ?? string.Empty);
