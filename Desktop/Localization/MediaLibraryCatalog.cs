@@ -209,7 +209,7 @@ internal static class MediaLibraryCatalog
         ("media.layout.reset", "Reset layout", "Layout zurücksetzen"),
         ("media.layout.resetHelp", "Back to the default layout.", "Zurück zum Standardlayout."),
         ("media.layout.resize", "Drag to change the width of the tag list, or use the arrow keys while this edge has the focus", "Ziehen, um die Breite der Tag-Liste zu ändern, oder bei Fokus auf dieser Kante die Pfeiltasten benutzen"),
-        ("media.tags.title", "Tags in the results", "Tags in den Treffern"),
+        ("media.tags.title", "Tags", "Tags"),
         ("media.tags.search", "Find a tag", "Tag suchen"),
         ("media.tags.sort", "Order of the tags", "Reihenfolge der Tags"),
         ("media.tags.sort.count", "Count", "Anzahl"),
