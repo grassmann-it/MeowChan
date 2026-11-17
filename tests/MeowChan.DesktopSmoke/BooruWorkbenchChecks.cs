@@ -41,6 +41,7 @@ internal static partial class BooruWorkbenchChecks
         {
             Texts.SetLanguage("en");
             Application.Current.RequestedThemeVariant = ThemeVariant.Light;
+            await BooruResultViewerChecks.RunAsync(owner);
             MenuItem menu = owner.FindControl<MenuItem>("WorkspaceMenuItem")!;
             await CheckMenuHiddenWithoutPortsAsync(owner, menu);
 
