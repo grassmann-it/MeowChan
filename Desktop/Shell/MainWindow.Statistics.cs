@@ -34,7 +34,15 @@ public partial class MainWindow
         _session.GetProviderDescriptors().FirstOrDefault(provider => provider.SourceId == sourceId)?.DisplayName;
 
     /// <summary>The statistics segment of the Status page. False while the window cannot navigate (no restored session, busy editors).</summary>
-    internal bool ShowStatistics() => ShowStatus(StatusSegment.Statistics);
+    internal bool ShowStatistics()
+    {
+        // The shell header remains available while Gallery or the detached large Reader covers the workspace.
+        // Remove that covering surface first; otherwise StatusPageHost changes underneath it and the click
+        // appears to do nothing. The ordinary close path still preserves the originating context.
+        if (_gallery != null) CloseGallery(restoreOrigin: false);
+        if (_largeReaderOpen) CloseLargeReader(restoreOrigin: false);
+        return ShowStatus(StatusSegment.Statistics);
+    }
 
     private void ShowStatisticsPage(bool focusContent = true)
     {

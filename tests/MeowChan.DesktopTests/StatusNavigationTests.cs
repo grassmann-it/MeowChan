@@ -241,6 +241,18 @@ public sealed class StatusNavigationTests : IDisposable
     }
 
     [Fact]
+    public void HeaderStatisticsNavigationDismissesCoveringReaderSurfacesBeforeStatusNavigation()
+    {
+        string source = File.ReadAllText(Source("Desktop/Shell/MainWindow.Statistics.cs"));
+        int galleryClose = source.IndexOf("if (_gallery != null) CloseGallery(restoreOrigin: false);", StringComparison.Ordinal);
+        int readerClose = source.IndexOf("if (_largeReaderOpen) CloseLargeReader(restoreOrigin: false);", StringComparison.Ordinal);
+        int navigate = source.IndexOf("return ShowStatus(StatusSegment.Statistics);", StringComparison.Ordinal);
+        Assert.True(galleryClose >= 0);
+        Assert.True(readerClose > galleryClose);
+        Assert.True(navigate > readerClose);
+    }
+
+    [Fact]
     public void TheDiagnosticsSegmentNamesTheNumberOfProblems()
     {
         Assert.Equal("Diagnostics", StatusPage.DiagnosticsHeader(0));

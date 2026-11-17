@@ -160,6 +160,20 @@ in order of appearance. Review reports, screenshots and runtime evidence stay ou
   `feature/booru-browse-20261117` (+ `feature/booru-b4-ports-20261117`); B5–B10 open; comments and
   pools need SDK 1.2.
 
+### Newly captured follow-ups (17 November 2026)
+
+- **UX-LEDGER-09 Header statistics routing:** clicking the network/disk graph in the persistent
+  shell header must always open the Statistics segment, including while Gallery or the large
+  Reader covers the workspace. The route must close or suspend the covering surface first, so
+  navigation is visible rather than changing a hidden page underneath it. Verify mouse, keyboard
+  activation and screen-reader name from Gallery, large Reader, every workspace page, and
+  Barebones/Simple/Advanced work-view layouts; preserve the originating reader/gallery state for
+  the normal back/close path.
+- **Ledger audit rule:** every newly reported click/focus/routing failure gets a stable ledger ID
+  before implementation, with its reproduction surface, expected behavior, fallback behavior and
+  a native smoke or contract test. Before release, compare the conversation handover against this
+  ledger and explicitly mark each item fixed, deferred or rejected; do not rely on memory.
+
 ### Open
 
 - **MD-01/PT-01** Media right-click outside a multi-selection acts on the selection; **MD-03** hand
