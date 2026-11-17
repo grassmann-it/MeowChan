@@ -35,6 +35,7 @@ public partial class ArchivePage : UserControl
     private readonly Action<string>? _openFolder;
     private readonly Func<string, CancellationToken, Task<MediaAssetSnapshot>> _openMedia = MediaAssetReader.OpenAsync;
     private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
+    private IDisposable? _pageKeyContext;
     private readonly ThumbnailDecodeGate _thumbnailGate = new ThumbnailDecodeGate(ThumbnailDecodeGate.ArchiveSlots);
     private TaskCompletionSource<IReadOnlyList<ArchiveAssetRow>> _mediaReady = NewMediaReady();
     private static TaskCompletionSource<IReadOnlyList<ArchiveAssetRow>> NewMediaReady() => new TaskCompletionSource<IReadOnlyList<ArchiveAssetRow>>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -138,7 +139,7 @@ public partial class ArchivePage : UserControl
         // Tunnel handlers on one element run in reverse registration order.
         // Enter the focus-decided context BEFORE any page-level shortcut route,
         // including when the reader is embedded (the detached pane has its own host).
-        MeowChan.Desktop.Controls.KeyContextHost.Install(this, e => e.Source is Visual source && ArchiveReaderPane is { } pane
+        _pageKeyContext = MeowChan.Desktop.Controls.KeyContextHost.Install(this, e => e.Source is Visual source && ArchiveReaderPane is { } pane
             && (ReferenceEquals(source, pane) || pane.IsVisualAncestorOf(source)) ? "reader" : "archive");
     }
     internal ArchivePage(Func<CancellationToken, Task<ArchiveReader>> openReader,
@@ -942,7 +943,8 @@ public partial class ArchivePage : UserControl
         PerformanceDiagnostics.Record("gallery.thumbnail.verified-bytes", request: request, asset: row.Asset.AssetId, value: row.Asset.Length);
         await using Stream stream = verified;
         using var decode = PerformanceDiagnostics.Measure("gallery.thumbnail.decode", request, asset: row.Asset.AssetId);
-        using SKCodec? codec = SKCodec.Create(new SKManagedStream(stream, disposeManagedStream: false));
+        using SKManagedStream managedStream = new SKManagedStream(stream, disposeManagedStream: false);
+        using SKCodec? codec = SKCodec.Create(managedStream);
         if (codec == null) throw new InvalidDataException(Texts.T("archive.invalidImage"));
         PixelSize shown = ImageOrientation.DisplaySize(codec); // as displayed: a rotated photo has its width and height exchanged
         if (shown.Width <= 0 || shown.Height <= 0 || (long)shown.Width * shown.Height > 40_000_000
@@ -1250,6 +1252,8 @@ public partial class ArchivePage : UserControl
         CancelReferences();
         _exportCancellation?.Cancel();
         _lifetime.Cancel();
+        _pageKeyContext?.Dispose(); _pageKeyContext = null;
+        _sidebarKeyContext?.Dispose(); _sidebarKeyContext = null;
         Texts.Changed -= OnLanguageChanged;
         ClosePreview();
     }

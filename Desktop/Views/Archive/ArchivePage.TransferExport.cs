@@ -16,6 +16,7 @@ public partial class ArchivePage
     private DesktopSessionHost? _transferExportHost;
     private ArchiveTransferExportDialog? _transferExportDialog;
     private CommandRouter? _transferExportRouter;
+    private IDisposable? _transferExportRegistration;
 
     internal Func<ArchiveTransferExportDialog, Window, Task>? TransferExportShowForTests { get; set; }
     internal Func<string, Task<string?>>? TransferExportChooseFileForTests { get; set; }
@@ -27,7 +28,7 @@ public partial class ArchivePage
         if (_transferExportRouter == null)
         {
             _transferExportRouter = new(this);
-            _transferExportRouter.Register(new("archive.transfer-export", this,
+            _transferExportRegistration = _transferExportRouter.Register(new("archive.transfer-export", this,
                 // The page, not the button: a view may keep the button under the header's More.
                 () => !_ended && IsEffectivelyVisible, CanOpenTransferExport, () => OpenActions.Start(OpenTransferExportAsync, "archive.transfer-export"), Priority: 100));
             AddHandler(KeyDownEvent, RouteTransferExportCommand, RoutingStrategies.Bubble);
@@ -114,6 +115,7 @@ public partial class ArchivePage
     private void EndTransferExportLifetime()
     {
         if (_transferExportDialog is { } dialog) { dialog.Terminate(); dialog.Close(); }
+        _transferExportRegistration?.Dispose(); _transferExportRegistration = null;
         _transferExportRouter?.Dispose(); _transferExportRouter = null;
         RemoveHandler(KeyDownEvent, RouteTransferExportCommand);
     }

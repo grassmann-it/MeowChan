@@ -55,7 +55,9 @@ internal enum GalleryReturnTarget { None, Media, Thread, Archive, Downloads, Tag
 internal sealed record GalleryDiagnosticNotice(string Operation, GalleryEntry? Entry, long Revision,
     string Message, bool MediaUnavailable);
 
+#pragma warning disable CA1001 // Lifetime is drained by the owning viewer/player.
 internal sealed partial class GalleryViewer : UserControl
+#pragma warning restore CA1001
 {
     private readonly TranslateTransform _imageTranslation = new();
     private readonly RotateTransform _imageRotation = new();
@@ -181,6 +183,7 @@ internal sealed partial class GalleryViewer : UserControl
     internal event Action<GalleryEntry, Control>? RateAndTagTileRequested;
     private CommandRouter? _ratingRouter;
     private CommandRouter? _nativeRatingRouter;
+    #pragma warning disable CA2000 // CommandRouter owns all registration leases and disposes them with the router.
     private CommandRouter CreateRatingRouter(Control owner)
     {
         CommandRouter router = new(owner);
@@ -202,6 +205,7 @@ internal sealed partial class GalleryViewer : UserControl
         }
         return router;
     }
+    #pragma warning restore CA2000
     private int? _ratingValue;
     private string? _ratingError;
     private bool _ratingAvailable;

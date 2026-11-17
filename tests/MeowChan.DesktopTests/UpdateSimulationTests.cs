@@ -24,7 +24,7 @@ public sealed class UpdateSimulationTests
     public async Task ASimulatedNewerVersionIsAvailableWithoutNetworkOrState(string value)
     {
         using UpdateServiceTests.Fixture fixture = new(UpdateServiceTests.Release("0.0.1"));
-        UpdateService service = Service(fixture, value);
+        using UpdateService service = Service(fixture, value);
         foreach (UpdateCheckKind kind in Enum.GetValues<UpdateCheckKind>())
         {
             UpdateCheckResult result = await service.CheckAsync(kind);
@@ -37,7 +37,8 @@ public sealed class UpdateSimulationTests
         Assert.Equal(value.Trim().TrimStart('v'), (await service.GetStateAsync()).FoundUpdate?.Version.ToString());
         // Nothing reaches a later start without the switch.
         Assert.Null(fixture.Store.Load().FoundUpdate);
-        Assert.Null((await Service(fixture, null).GetStateAsync()).FoundUpdate);
+        using UpdateService withoutSimulation = Service(fixture, null);
+        Assert.Null((await withoutSimulation.GetStateAsync()).FoundUpdate);
     }
 
     [Theory]
@@ -47,7 +48,8 @@ public sealed class UpdateSimulationTests
     public async Task ASimulatedVersionThatIsNotNewerIsUpToDate(string value)
     {
         using UpdateServiceTests.Fixture fixture = new(UpdateServiceTests.Release("0.0.1"));
-        UpdateCheckResult result = await Service(fixture, value).CheckAsync(UpdateCheckKind.Manual);
+        using UpdateService service = Service(fixture, value);
+        UpdateCheckResult result = await service.CheckAsync(UpdateCheckKind.Manual);
         Assert.Equal(UpdateCheckStatus.UpToDate, result.Status);
         Assert.Equal(0, fixture.Handler.Requests);
         Assert.False(File.Exists(fixture.Store.FilePath));
@@ -57,7 +59,8 @@ public sealed class UpdateSimulationTests
     public async Task ASimulatedPrereleaseIsOfferedWhenPrereleasesAreOn()
     {
         using UpdateServiceTests.Fixture fixture = new(UpdateServiceTests.Release("0.0.1"));
-        UpdateCheckResult result = await Service(fixture, "1.2.0-beta.1", prereleases: true).CheckAsync(UpdateCheckKind.Manual);
+        using UpdateService service = Service(fixture, "1.2.0-beta.1", prereleases: true);
+        UpdateCheckResult result = await service.CheckAsync(UpdateCheckKind.Manual);
         Assert.Equal(UpdateCheckStatus.Available, result.Status);
     }
 
@@ -78,7 +81,8 @@ public sealed class UpdateSimulationTests
         Assert.Null(UpdateService.ParseSimulated(value));
         using UpdateServiceTests.Fixture fixture = new(UpdateServiceTests.Release("0.0.1"));
         fixture.Handler.Body = UpdateServiceTests.Release("1.5.0");
-        UpdateCheckResult result = await Service(fixture, value).CheckAsync(UpdateCheckKind.Manual);
+        using UpdateService service = Service(fixture, value);
+        UpdateCheckResult result = await service.CheckAsync(UpdateCheckKind.Manual);
         Assert.Equal(UpdateCheckStatus.Available, result.Status);
         Assert.Equal("1.5.0", result.Update?.Version.ToString());
         Assert.Equal(1, fixture.Handler.Requests);
@@ -91,7 +95,7 @@ public sealed class UpdateSimulationTests
     public async Task SkippingASimulatedVersionStaysInMemoryAndOnlyHidesAutomaticAnnouncements()
     {
         using UpdateServiceTests.Fixture fixture = new(UpdateServiceTests.Release("0.0.1"));
-        UpdateService service = Service(fixture, "9.9.9");
+        using UpdateService service = Service(fixture, "9.9.9");
         Assert.Equal(UpdateCheckStatus.Available, (await service.CheckAsync(UpdateCheckKind.Automatic)).Status);
         await service.SkipVersionAsync(SemanticVersion.Parse("9.9.9"));
         Assert.Equal(UpdateCheckStatus.Skipped, (await service.CheckAsync(UpdateCheckKind.Automatic)).Status);
@@ -105,10 +109,13 @@ public sealed class UpdateSimulationTests
     {
         using UpdateServiceTests.Fixture fixture = new(UpdateServiceTests.Release("0.0.1"));
         fixture.Handler.Body = UpdateServiceTests.Release("1.5.0");
-        await Service(fixture, null).CheckAsync(UpdateCheckKind.Manual);
-        await Service(fixture, null).SkipVersionAsync(SemanticVersion.Parse("1.5.0"));
+        using (UpdateService real = Service(fixture, null))
+        {
+            await real.CheckAsync(UpdateCheckKind.Manual);
+            await real.SkipVersionAsync(SemanticVersion.Parse("1.5.0"));
+        }
         string before = File.ReadAllText(fixture.Store.FilePath);
-        UpdateService simulated = Service(fixture, "9.9.9");
+        using UpdateService simulated = Service(fixture, "9.9.9");
         await simulated.CheckAsync(UpdateCheckKind.Manual);
         await simulated.SkipVersionAsync(SemanticVersion.Parse("9.9.9"));
         Assert.Equal(before, File.ReadAllText(fixture.Store.FilePath));
@@ -119,8 +126,9 @@ public sealed class UpdateSimulationTests
     public async Task TheDisableSwitchStillWinsAndAutomaticChecksOffStillApply()
     {
         using UpdateServiceTests.Fixture fixture = new(UpdateServiceTests.Release("0.0.1"));
-        Assert.Equal(UpdateCheckStatus.Disabled, (await Service(fixture, "9.9.9", disable: "1").CheckAsync(UpdateCheckKind.Manual)).Status);
-        UpdateService off = new(fixture.Client, fixture.Store, Options() with { AutomaticChecksEnabled = false }, fixture.Time,
+        using UpdateService disabled = Service(fixture, "9.9.9", disable: "1");
+        Assert.Equal(UpdateCheckStatus.Disabled, (await disabled.CheckAsync(UpdateCheckKind.Manual)).Status);
+        using UpdateService off = new(fixture.Client, fixture.Store, Options() with { AutomaticChecksEnabled = false }, fixture.Time,
             () => null, (_, _) => { }, () => "9.9.9");
         Assert.Equal(UpdateCheckStatus.Disabled, (await off.CheckAsync(UpdateCheckKind.Automatic)).Status);
         Assert.Equal(UpdateCheckStatus.Available, (await off.CheckAsync(UpdateCheckKind.Manual)).Status);
@@ -131,7 +139,8 @@ public sealed class UpdateSimulationTests
     public async Task TheSimulatedUpdateReachesTheToastDecisionLikeARealOne()
     {
         using UpdateServiceTests.Fixture fixture = new(UpdateServiceTests.Release("0.0.1"));
-        UpdateCheckResult result = await Service(fixture, "9.9.9").CheckAsync(UpdateCheckKind.Automatic);
+        using UpdateService service = Service(fixture, "9.9.9");
+        UpdateCheckResult result = await service.CheckAsync(UpdateCheckKind.Automatic);
         UpdateNotifier notifier = new();
         UpdateView view = new(Update: result.Update);
         Assert.Equal("9.9.9", notifier.Evaluate(view, automaticChecks: true, informationAllowed: true)?.Version.ToString());

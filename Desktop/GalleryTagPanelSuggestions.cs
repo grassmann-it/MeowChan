@@ -30,7 +30,10 @@ internal sealed class GalleryTagPanelSuggestions : IQuickTagSuggestionSource, ID
     private Func<IReadOnlyList<TagId>>? _recent;
     private WeakReference<PrivateTagStoreSnapshot>? _warm;
     private WeakReference<PrivateTagStoreSnapshot>? _pending;
+    // Ownership is transferred to the async pump; it disposes the source after the operation exits.
+#pragma warning disable CA2213
     private CancellationTokenSource? _warming;
+#pragma warning restore CA2213
     private IReadOnlyList<QuickTagSuggestion> _last = Array.Empty<QuickTagSuggestion>();
     private bool _disposed;
 

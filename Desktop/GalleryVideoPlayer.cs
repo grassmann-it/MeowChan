@@ -31,7 +31,9 @@ namespace MeowChan.Desktop;
 /// Owns one local, verified media handle. Native calls are serialized off the UI thread;
 /// the video surface and the Avalonia transport toolbar occupy separate rows.
 /// </summary>
+#pragma warning disable CA2213 // Lifetime is drained by the owning viewer/player.
 internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
+#pragma warning restore CA2213
 {
     private readonly VideoView _video = new() { Name = "GalleryNativeVideo", MinHeight = 100 };
     private readonly Image _softwareVideo = new() { Name = "GallerySoftwareVideo", MinHeight = 100, Stretch = Avalonia.Media.Stretch.Uniform };
@@ -54,6 +56,7 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
     private bool _transportPlacementRetired;
     private Window? _transportWindow;
     private static bool UsesSoftwareVideo => OperatingSystem.IsMacOS() || OperatingSystem.IsLinux();
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Reliability", "CA2213", Justification = "The semaphore remains valid until all late native commands have observed disposal.")]
     private readonly SemaphoreSlim _operations = new(1, 1);
     private readonly VideoPlaybackLifetime _lifetime;
     private GCHandle _failedCleanupRoot;
@@ -1751,7 +1754,9 @@ internal sealed record VideoCleanupEvidence(long Request, long Generation, strin
 /// the ThreadPool; pool-starvation detection belongs to the external PF00 watchdog.
 /// It observes pending work and never releases or cancels resources.
 /// </summary>
+#pragma warning disable CA1001 // Lifetime is drained by the owning viewer/player.
 internal sealed class VideoCleanupWatch
+#pragma warning restore CA1001
 {
     private readonly object _state = new();
     private readonly string _prefix;

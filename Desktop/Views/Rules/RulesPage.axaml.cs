@@ -18,6 +18,7 @@ namespace MeowChan;
 
 public sealed record RuleScopeChoice(MediaRuleScope Scope, string Label);
 
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1001", Justification = "The shell calls EndLifetime to drain the page-owned lifetime.")]
 public partial class RulesPage : UserControl, INotifyPropertyChanged
 {
     // The limit is typed in MiB, like every other size of the app (1 MiB = 1024 * 1024 bytes); the rule stores whole bytes.
@@ -39,6 +40,7 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
     private bool _available;
     private bool _busy;
     private bool _ended;
+    private IDisposable? _pageKeyContext;
     private string? _validationKey;
     private string? _saveRejectedKey;
     private string? _operationErrorKey;
@@ -61,7 +63,7 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
         _saveRules = saveRules ?? throw new ArgumentNullException(nameof(saveRules));
         // Every key of the page runs in the "rules" context (S3 P2-4): a default that a saved binding took away only elsewhere (a partial yield) stays
         // active here (EffectiveShortcutBindings.EnterKeyContext).
-        MeowChan.Desktop.Controls.KeyContextHost.Install(this, _ => "rules");
+        _pageKeyContext = MeowChan.Desktop.Controls.KeyContextHost.Install(this, _ => "rules");
         InitializeComponent();
         InitializeWorkViewPresentation();
         InitializeRuleSuggestions();
@@ -310,6 +312,7 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
         _available = false;
         Texts.Changed -= OnLanguageChanged;
         _filterLifetime.Cancel(); _filterLifetime.Dispose();
+        _pageKeyContext?.Dispose(); _pageKeyContext = null;
     }
 
     /// <summary>Refreshes confirmed values while preserving dirty drafts and detecting conflicting edits.</summary>

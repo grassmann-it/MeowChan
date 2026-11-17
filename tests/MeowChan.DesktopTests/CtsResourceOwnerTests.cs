@@ -43,7 +43,7 @@ public sealed class CtsResourceOwnerTests
         {
             token = value;
             entered.SetResult();
-            released = release.Wait(TimeSpan.FromSeconds(30));
+            released = release.Wait(TimeSpan.FromSeconds(30), CancellationToken.None);
             handleUsable = token.WaitHandle.WaitOne(0);
             if (fail) throw new IOException("controlled build failure");
         });
@@ -124,7 +124,8 @@ public sealed class CtsResourceOwnerTests
     public async Task UpdateSessionDisposesItsLifetimeAfterDraining()
     {
         using RecordingHandler handler = new();
-        await using UpdateSession session = new(Environment.CurrentDirectory, new Config(), new HttpClient(handler),
+        using HttpClient client = new(handler);
+        await using UpdateSession session = new(Environment.CurrentDirectory, new Config(), client,
             disableEnvironment: () => "1", currentVersion: SemanticVersion.Parse("1.0.0"));
         var lifetime = (CancellationTokenSource)typeof(UpdateSession).GetField("_lifetime", Fields)!.GetValue(session)!;
         await session.DisposeAsync();

@@ -388,7 +388,9 @@ public sealed partial class MediaPage
         TagContext context = QuickTagPopoverContext.ContextOf(lead?.Entry ?? tiles[0].Entry, _shown, lead?.Index ?? -1, selection: true);
         // The shell's saved limits, ranking and shared stamp (unbound: the defaults); the session takes the undo depth and the stamp.
         QuickTagPopoverOptions options = TagPopoverOptions?.Invoke(context) ?? QuickTagPopoverOptions.Defaults(context);
+#pragma warning disable CA2000 // QuickTagPopover owns the session passed to Open until the popover closes.
         QuickTagSession quick = options.NewSession(QuickTagTarget.For(session));
+#pragma warning restore CA2000
         _selectionBusy = true;
         UpdateSelectionBar();
         QuickTagPopoverCloseReason reason = QuickTagPopoverCloseReason.Stale;

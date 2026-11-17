@@ -61,12 +61,14 @@ public sealed class UpdateService : IDisposable
     }
 
     /// <summary>Creates the dedicated production transport: no redirects, cookies, credentials or default headers.</summary>
+#pragma warning disable CA2000 // HttpClient owns the handler passed to its constructor.
     public static HttpClient CreateHttpClient() => new(new HttpClientHandler
     {
         AllowAutoRedirect = false,
         UseCookies = false,
         UseDefaultCredentials = false
     }) { Timeout = Timeout.InfiniteTimeSpan };
+#pragma warning restore CA2000
 
     public async Task<UpdateCheckResult> CheckAfterStartupAsync(CancellationToken cancellationToken = default)
     {

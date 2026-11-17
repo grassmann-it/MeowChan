@@ -11,7 +11,10 @@ internal sealed class GalleryDecodeQueue : IDisposable
     private sealed record Work(Func<CancellationToken, Task> Run, bool Debounce,
         TaskCompletionSource Completion);
     private Work? _desired;
+    // Ownership is transferred to the async pump; it disposes the source after the operation exits.
+#pragma warning disable CA2213
     private CancellationTokenSource? _active;
+#pragma warning restore CA2213
     private bool _running, _disposed;
     internal Task Completion { get; private set; } = Task.CompletedTask;
     private readonly Func<CancellationToken, Task> _delay;

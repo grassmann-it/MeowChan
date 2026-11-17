@@ -37,6 +37,7 @@ public sealed partial class MediaPage : UserControl
     private readonly Func<string, CancellationToken, Task<MediaAssetSnapshot>> _openManifest;
     private readonly MediaLibraryIndexCacheFile? _cacheFile;
     private readonly CancellationTokenSource _lifetime = new();
+    private IDisposable? _pageKeyContext;
     // Manifest views of this page (thumbnails, sound check) that the index build may reuse; see MediaManifestCache.
     private readonly MediaManifestCache _manifests;
     private readonly TextBlock _title = new() { Classes = { "page-title" } };
@@ -179,7 +180,7 @@ public sealed partial class MediaPage : UserControl
         _openReader = openReader ?? throw new ArgumentNullException(nameof(openReader));
         // Every key of the page runs in the "media" context, as the gallery's keys do in theirs: a default that a saved binding took away only elsewhere
         // (a partial yield) stays active here (EffectiveShortcutBindings.EnterKeyContext).
-        KeyContextHost.Install(this, _ => "media");
+        _pageKeyContext = KeyContextHost.Install(this, _ => "media");
         _openManifest = openManifest ?? MediaAssetReader.OpenAsync;
         // Only the real manifest reader is checked by file identity; a supplied opener keeps the per-build behavior.
         _manifests = new MediaManifestCache(openManifest, _lifetime.Token);
@@ -1427,6 +1428,7 @@ public sealed partial class MediaPage : UserControl
         if (_lifetime.IsCancellationRequested) return;
         InvalidateSharedMediaMenu();
         _lifetime.Cancel();
+        _pageKeyContext?.Dispose(); _pageKeyContext = null;
         _nameFilter.CancelPendingQuery();
         _building?.Cancel();
         EndBooruModeLifetime();

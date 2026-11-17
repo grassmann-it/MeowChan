@@ -52,7 +52,10 @@ internal sealed class ArchiveTransferExportDialog : Window, IDisposable
     private readonly Button _start = new() { Name = "ArchiveTransferExportStart" };
     private readonly Button _folder = new() { Name = "ArchiveTransferExportOpenFolder" };
     private readonly Button _close = new() { Name = "ArchiveTransferExportClose" };
+    // StartAsync owns and disposes the active source through its using declaration.
+#pragma warning disable CA2213
     private CancellationTokenSource? _operation;
+#pragma warning restore CA2213
     private ArchiveTransferExportCount? _counted;
     private ArchiveTransferExportResult? _last;
     private ArchiveTransferExportProgress? _progress;

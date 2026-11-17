@@ -91,7 +91,7 @@ public sealed class UpdateServiceTests
     {
         using Fixture fixture = new(Release("2.0.0"));
         Assert.Equal(UpdateCheckStatus.Available, (await fixture.Service.CheckAsync(UpdateCheckKind.Automatic)).Status);
-        UpdateService restarted = fixture.NewService();
+        using UpdateService restarted = fixture.NewService();
         fixture.Time.Advance(TimeSpan.FromHours(24) - TimeSpan.FromTicks(1));
         Assert.Equal(UpdateCheckStatus.Throttled, (await restarted.CheckAsync(UpdateCheckKind.Automatic)).Status);
         fixture.Time.Advance(TimeSpan.FromTicks(1));
@@ -106,7 +106,8 @@ public sealed class UpdateServiceTests
     {
         using Fixture fixture = new(Release("2.0.0"));
         await fixture.Service.SkipVersionAsync(SemanticVersion.Parse("2.0.0"));
-        Assert.Equal(UpdateCheckStatus.Skipped, (await fixture.NewService().CheckAsync(UpdateCheckKind.Automatic)).Status);
+        using UpdateService restarted = fixture.NewService();
+        Assert.Equal(UpdateCheckStatus.Skipped, (await restarted.CheckAsync(UpdateCheckKind.Automatic)).Status);
         Assert.Equal(UpdateCheckStatus.Available, (await fixture.Service.CheckAsync(UpdateCheckKind.Manual)).Status);
         fixture.Time.Advance(TimeSpan.FromHours(24));
         fixture.Handler.Body = Release("2.0.1");

@@ -35,7 +35,7 @@ public sealed class CtsDisposalTests
     public async Task CancelledNonCooperativeWorkOwnsSourceUntilCompletion(string outcome)
     {
         using CancellationTokenSource parent = new();
-        CancellationTokenSource child = CancellationTokenSource.CreateLinkedTokenSource(parent.Token);
+        using CancellationTokenSource child = CancellationTokenSource.CreateLinkedTokenSource(parent.Token);
         TaskCompletionSource pending = new(TaskCreationOptions.RunContinuationsAsynchronously);
         CancellationToken token = default;
         bool released = false;
