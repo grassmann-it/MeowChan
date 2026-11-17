@@ -46,8 +46,9 @@ public sealed class BooruPreviewLifetimeTests
         finally { handler.Release.TrySetResult(); }
     }
 
+    // B3: disposal aborts queued and running previews (null, no exception); only the caller's own cancellation is thrown.
     [Fact]
-    public async Task CancellingAQueuedPreviewAfterDisposeStillThrowsOnlyTheCallersCancellation()
+    public async Task CancellingAQueuedPreviewThrowsOnlyTheCallersCancellationAndDisposeAbortsTheRest()
     {
         using HeldPreviews handler = new();
         using HttpClient transport = new(handler);
@@ -59,11 +60,13 @@ public sealed class BooruPreviewLifetimeTests
             Task<byte[]?> first = previews.LoadAsync(new("https://cdn.example.test/a.png"), deadline.Token);
             Task<byte[]?> second = previews.LoadAsync(new("https://cdn.example.test/b.png"), deadline.Token);
             Task<byte[]?> queued = previews.LoadAsync(new("https://cdn.example.test/c.png"), caller.Token);
-            previews.Dispose();
+            Task<byte[]?> alsoQueued = previews.LoadAsync(new("https://cdn.example.test/d.png"), deadline.Token);
             caller.Cancel();
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() => queued.WaitAsync(deadline.Token));
-            handler.Release.TrySetResult();
-            await Task.WhenAll(first, second).WaitAsync(deadline.Token);
+
+            previews.Dispose();
+            byte[]?[] aborted = await Task.WhenAll(first, second, alsoQueued).WaitAsync(deadline.Token);
+            Assert.All(aborted, item => Assert.Null(item));
             Assert.Equal(BooruPreviewHttp.MaximumConcurrentRequests, handler.Requests);
         }
         finally { handler.Release.TrySetResult(); }
