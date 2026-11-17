@@ -20,6 +20,8 @@ public partial class App : Application
     // actual Application type as App preserves the compiled App.axaml loader.
     internal static Func<MainWindow>? SmokeMainWindowFactory { get; set; }
 
+    internal static Action<IClassicDesktopStyleApplicationLifetime, Window, LinuxVideoPreflightResult?>? StartupWindowReady { get; set; }
+
     public override void Initialize()
     {
         LinuxVideoPreflight.Begin();
@@ -69,12 +71,7 @@ public partial class App : Application
     protected virtual MainWindow CreateMainWindow()
     {
         if (SmokeMainWindowFactory is { } factory) return factory();
-        return Program.StartupSmoke?.IntegrityProcess is ApphostIntegrityProcessSmoke policy
-        ? new MainWindow(policy.CreateSession())
-        : Program.StartupSmoke?.Workflow is ApphostWorkflowSmoke workflow
-        ? new MainWindow(workflow.CreateSession())
-        : Program.StartupSmoke?.PluginWorkflow is ApphostPluginWorkflowSmoke plugins
-        ? new MainWindow(plugins.CreateSession()) : new MainWindow();
+        return new MainWindow();
     }
 
     public override void OnFrameworkInitializationCompleted()
@@ -121,7 +118,7 @@ public partial class App : Application
                 ShowStartupFailure(desktop, exception.Message);
             }
             if (desktop.MainWindow is Window window)
-                Program.StartupSmoke?.Attach(desktop, window, video);
+                StartupWindowReady?.Invoke(desktop, window, video);
         }
 
         base.OnFrameworkInitializationCompleted();

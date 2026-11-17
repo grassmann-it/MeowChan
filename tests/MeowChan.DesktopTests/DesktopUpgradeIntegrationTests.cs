@@ -42,11 +42,11 @@ public sealed class DesktopUpgradeIntegrationTests
             Assert.NotNull(host.Plugins);
             Assert.Empty(host.Plugins.Warnings);
             var installed = await host.Plugins.ProfileStore.ReadAsync();
-            MainWindow.RequireApphostBundledInventory(host.Plugins, installed);
+            MeowChan.Desktop.ApphostAcceptanceAssertions.RequireApphostBundledInventory(host.Plugins, installed);
             // 0.9 has no plugin identities: current defaults apply on discovery.
             Assert.All(installed.Plugins, plugin =>
             {
-                Assert.Equal(!MainWindow.ApphostDefaultOffPluginIds.Contains(plugin.PluginId, StringComparer.Ordinal), plugin.Enabled);
+                Assert.Equal(!MeowChan.Desktop.ApphostAcceptanceAssertions.ApphostDefaultOffPluginIds.Contains(plugin.PluginId, StringComparer.Ordinal), plugin.Enabled);
                 Assert.NotNull(plugin.Active); Assert.Null(plugin.Problem);
             });
             Dictionary<string, string> current = installed.Plugins.ToDictionary(plugin => plugin.PluginId, plugin => plugin.Active!.ExecutionRevision);

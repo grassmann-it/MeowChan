@@ -73,7 +73,9 @@ class PlaybackRunnerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary)
             fixture = ROOT / 'tests/Fixtures/release102/playback-h264-audio.mp4'
-            with mock.patch.object(runner.sys, 'platform', 'darwin'), \
+            with mock.patch.object(runner.boundary, 'managed_payload', return_value=
+                     b'RunDevelopmentHost\x01\x00\x05Debug\x00\x00' + '--smoke-playback-webm'.encode('utf-16-le')), \
+                 mock.patch.object(runner.sys, 'platform', 'darwin'), \
                  mock.patch.object(runner, 'run_fixture', return_value={'passed': False}) as run:
                 result = runner.main([sys.executable, '--fixture', str(fixture), '--allow-native-desktop',
                                       '--evidence-dir', str(base / 'evidence')])

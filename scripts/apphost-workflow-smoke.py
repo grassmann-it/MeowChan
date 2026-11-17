@@ -642,7 +642,7 @@ def run_scale(apphost, scale, destination, timeout, isolated, closure=None):
 
 
 def parse_args(argv=None):
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description=__doc__ + '\nRequires a NON-SHIPPING Debug apphost. Use APPHOST --dry-run for a routing-only check.')
     parser.add_argument('apphost', type=Path, help='Executable from an extracted candidate package')
     parser.add_argument('--evidence-dir', type=Path, required=True)
     parser.add_argument('--source-commit', required=True, help='Full source SHA declared by the candidate packaging job')
@@ -681,14 +681,17 @@ def parse_args(argv=None):
 
 
 def main(argv=None):
+    if playback.boundary.dry_run(argv, __file__):
+        return 0
     args = parse_args(argv)
     apphost = args.apphost.resolve(strict=True)
+    playback.boundary.require_debug(apphost, __file__)
     if not apphost.is_file():
         raise ValueError('Apphost must be a regular file')
     args.evidence_dir.mkdir(parents=True, exist_ok=False)
     destination = args.evidence_dir.resolve(strict=True)
     ensure_disk_reserve(destination, tempfile.gettempdir())
-    report = {'schemaVersion': 1, 'apphost': str(apphost), 'apphostSha256': sha256(apphost),
+    report = {'acceptanceConfiguration': 'Debug', 'shippingArtifactExecuted': False, 'schemaVersion': 1, 'apphost': str(apphost), 'apphostSha256': sha256(apphost),
               'declaredSourceCommit': args.source_commit.lower(), 'declaredRuntime': args.runtime,
               'host': platform.platform(), 'machine': platform.machine(), 'isolatedDesktop': args.isolated,
               'nativeDesktopOptIn': args.allow_native_desktop and not args.isolated,

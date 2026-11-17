@@ -136,7 +136,9 @@ public sealed class BoundedShutdownTests
         string acknowledge = source[source.IndexOf("private void AcknowledgeShutdownFailure()", StringComparison.Ordinal)..];
         Assert.Contains("_allowClose = true;", acknowledge[..acknowledge.IndexOf('}')]);
         Assert.Contains("ShutdownExit.Terminate(ShutdownExit.IncompleteExitCode)", source);
-        Assert.Contains("ShutdownExit.ProcessExitAllowed = StartupSmoke == null;", Source("Program.cs"));
+        Assert.DoesNotContain("ShutdownExit.ProcessExitAllowed", Source("Program.cs"));
+        Assert.Contains("ShutdownExit.ProcessExitAllowed = false;", Source("Program.Development.cs"));
+        Assert.Contains("Assembly.GetEntryAssembly() == typeof(ShutdownExit).Assembly", Source("Desktop/BoundedShutdown.cs"));
         // The tray cannot bring the hidden window back while the shutdown runs.
         string window = Source("Desktop/Shell/MainWindow.axaml.cs");
         string restore = window[window.IndexOf("private void RestoreWindow()", StringComparison.Ordinal)..];

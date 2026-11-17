@@ -78,14 +78,24 @@ def windows(root: Path, source: str) -> dict[str, Path]:
     line = file(evidence / 'archive.sha256').read_text(encoding='utf-8-sig').strip().split()
     require(len(line) == 2 and line[1] == archive.name, 'Windows checksum record is invalid')
     check_hash(archive, line[0].lower(), 'Windows ZIP')
-    playback = read_json(evidence / 'playback/playback.json')
-    workflow = read_json(evidence / 'workflow/workflow.json')
+    # Retained 0.9 inputs keep their original contract. New source candidates
+    # must provide split evidence (enforced by assemble-prerelease.py).
+    execution_evidence = candidate / 'acceptance-media-evidence'
+    execution_archive = candidate / 'acceptance-media-packages/MeowChan-win-x64.zip'
+    split = execution_evidence.is_dir()
+    if not split:
+        execution_evidence, execution_archive = evidence, archive
+    playback = read_json(execution_evidence / 'playback/playback.json')
+    workflow = read_json(execution_evidence / 'workflow/workflow.json')
     require(playback.get('passed') is True and workflow.get('passed') is True
             and workflow.get('completed') is True and workflow.get('declaredSourceCommit') == source
             and workflow.get('declaredRuntime') == 'win-x64', 'Windows native playback/workflow proof failed')
     binding = workflow.get('archiveBinding')
     require(isinstance(binding, dict) and binding.get('member') == 'MeowChan.exe'
-            and binding.get('sha256') == digest(archive), 'Windows workflow does not bind the ZIP')
+            and binding.get('sha256') == digest(execution_archive), 'Windows workflow does not bind the ZIP')
+    if split:
+        require(all(report.get('acceptanceConfiguration') == 'Debug' and report.get('shippingArtifactExecuted') is False
+                    for report in (playback, workflow)), 'Windows Debug acceptance boundary mismatch')
     return {f'MeowChan-{VERSION}-win-x64.zip': archive}
 
 
@@ -99,10 +109,26 @@ def linux(root: Path, source: str, rid: str) -> dict[str, Path]:
     require(manifest.get('schema') == 'meowchan.linux-packages.v1'
             and manifest.get('source_commit') == source and manifest.get('runtime') == rid
             and manifest.get('version') == VERSION, f'Linux package manifest mismatch: {rid}')
+    acceptance_manifest = candidate / 'acceptance-linux-packages' / manifest_path.name
+    split = acceptance_manifest.is_file()
+    if split:
+        layouts = read_json(evidence / 'release-layouts/linux-distribution-gates.json')
+        require(layouts.get('passed') is True and layouts.get('completed') is True
+                and layouts.get('configuration') == 'Release' and layouts.get('layoutOnly') is True
+                and layouts.get('sourceCommit') == source and layouts.get('runtime') == rid
+                and layouts.get('manifestSha256') == digest(manifest_path)
+                and len(layouts.get('scenarios', [])) == 4
+                and {row.get('scenario') for row in layouts['scenarios']}
+                    == {'bundled-vlc', 'system-vlc', 'missing-system-vlc', 'appimage'}
+                and all(row.get('passed') is True for row in layouts['scenarios']),
+                'Linux Release layout gates mismatch: ' + rid)
     gates = read_json(evidence / 'distributions/linux-distribution-gates.json')
     require(gates.get('passed') is True and gates.get('completed') is True
             and gates.get('sourceCommit') == source and gates.get('runtime') == rid
-            and gates.get('manifestSha256') == digest(manifest_path), f'Linux native gates mismatch: {rid}')
+            and gates.get('manifestSha256') == digest(acceptance_manifest if split else manifest_path), f'Linux native gates mismatch: {rid}')
+    if split:
+        require(gates.get('configuration') == 'Debug' and gates.get('layoutOnly') is False,
+                'Linux Debug acceptance boundary mismatch: ' + rid)
     scenarios = gates.get('scenarios')
     require(isinstance(scenarios, list) and len(scenarios) == 4
             and {row.get('scenario') for row in scenarios if isinstance(row, dict)}

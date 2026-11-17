@@ -19,6 +19,9 @@ import zlib
 spec = importlib.util.spec_from_file_location('desktop_runner', Path(__file__).with_name('run-desktop-smoke.py'))
 desktop = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(desktop)
+boundary_spec = importlib.util.spec_from_file_location('apphost_acceptance_boundary', Path(__file__).with_name('apphost-acceptance-boundary.py'))
+boundary = importlib.util.module_from_spec(boundary_spec)
+boundary_spec.loader.exec_module(boundary)
 CHECKS = {'video-poster-cache', 'initial-image', 'native-time-and-frame-progress', 'native-output-snapshot', 'pause-clock-held', 'play-resumed',
           'video-image-stream-released', 'back-to-video', 'gallery-close-disposed', 'playing-shutdown-disposed',
           'single-stateful-playback-button', 'audio-controls-availability', 'repeat-default-off', 'repeat-ended-restarted',
@@ -223,7 +226,9 @@ def run_fixture(apphost, fixture, destination, timeout, isolated):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description=__doc__)
+    if boundary.dry_run(argv, __file__):
+        return 0
+    parser = argparse.ArgumentParser(description=__doc__ + '\nRequires a NON-SHIPPING Debug apphost. Use APPHOST --dry-run for a routing-only check.')
     parser.add_argument('apphost', type=Path)
     parser.add_argument('--evidence-dir', type=Path, required=True)
     parser.add_argument('--fixture', type=Path, action='append')
@@ -240,13 +245,14 @@ def main(argv=None):
         if missing:
             parser.error('Private desktop dependencies missing: ' + ', '.join(missing))
     apphost = args.apphost.resolve(strict=True)
+    boundary.require_debug(apphost, __file__)
     fixtures = [path.resolve(strict=True) for path in (args.fixture or default_fixtures())]
     if not fixtures:
         parser.error('No playback fixtures')
     args.evidence_dir.mkdir(parents=True, exist_ok=False)
     results = [run_fixture(apphost, fixture, args.evidence_dir / (str(index) + '-' + fixture.stem), args.timeout, isolated)
                for index, fixture in enumerate(fixtures)]
-    report = {'schemaVersion': 1, 'apphost': str(apphost), 'apphostSha256': sha256(apphost),
+    report = {'acceptanceConfiguration': 'Debug', 'shippingArtifactExecuted': False, 'schemaVersion': 1, 'apphost': str(apphost), 'apphostSha256': sha256(apphost),
               'host': platform.platform(), 'machine': platform.machine(), 'isolatedDesktop': isolated,
               'scope': 'Actual apphost, native VLC decoded/displayed frames and snapshot; pinned VP8/VP9/H264 and optional audio tracks; no physical audio/hardware claim.',
               'passed': all(item['passed'] for item in results), 'fixtures': results}

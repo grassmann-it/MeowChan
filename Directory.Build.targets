@@ -1,6 +1,7 @@
 <Project>
-  <!-- All opted-in projects share one Release lock convention, including external helpers. -->
-  <PropertyGroup Condition="'$(Configuration)' == 'Release' and '$(RestorePackagesWithLockFile)' == 'true'">
+  <!-- Non-shipping Debug acceptance uses the same reviewed RID dependency graph as Release.
+       This changes only lock selection, never Configuration/DefineConstants or shipping contents. -->
+  <PropertyGroup Condition="('$(Configuration)' == 'Release' or ('$(Configuration)' == 'Debug' and '$(MeowChanAcceptancePublish)' == 'true')) and '$(RestorePackagesWithLockFile)' == 'true'">
     <MeowChanReleaseLockRuntime>$(RuntimeIdentifier)</MeowChanReleaseLockRuntime>
     <MeowChanReleaseLockRuntime Condition="'$(MeowChanReleaseLockRuntime)' == ''">$(RuntimeIdentifiers)</MeowChanReleaseLockRuntime>
     <NuGetLockFilePath Condition="'$(MeowChanReleaseLockRuntime)' == ''">$(MSBuildProjectDirectory)/packages.release.lock.json</NuGetLockFilePath>

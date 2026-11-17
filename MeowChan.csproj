@@ -69,6 +69,10 @@
 
   <ItemGroup>
     <Compile Remove="scripts/**/*.cs" />
+    <!-- Apphost acceptance shares private MainWindow partial state. Never ship it or its fixtures. -->
+    <Compile Remove="Desktop/Apphost*.cs;Desktop/Shell/MainWindow.Apphost*Smoke.cs;Program.Development.cs"
+             Condition="'$(Configuration)' != 'Debug'" />
+    <Compile Include="tests/Shared/Apphost/*.cs" Condition="'$(Configuration)' == 'Debug'" />
     <Compile Include="Shared/UiResponsivenessProbe.cs" Link="Diagnostics/UiResponsivenessProbe.cs" />
     <ProjectReference Include="libmeowchan/libmeowchan.csproj" />
     <ProjectReference Include="MeowChan.PluginHost/MeowChan.PluginHost.csproj" />
