@@ -1382,11 +1382,15 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
 
     private void OnInputPointerPressed(object? sender, PointerPressedEventArgs e)
     {
+        // Popup rows route through the input as logical children, but are not part of its editor's visual tree.
+        // Refocusing the input during their captured press/release closes the popup on LostFocus, cancels the
+        // candidate gesture and lets the adapter accept the old search text (the exact "New tag" row) instead.
         if (!_input.IsEffectivelyEnabled || e.Pointer.Type != PointerType.Mouse
-            || e.GetCurrentPoint(_input).Properties.PointerUpdateKind != PointerUpdateKind.LeftButtonPressed) return;
+            || e.GetCurrentPoint(_input).Properties.PointerUpdateKind != PointerUpdateKind.LeftButtonPressed
+            || e.Source is not Visual source || (source != _input && !_input.IsVisualAncestorOf(source))) return;
         Dispatcher.UIThread.Post(() =>
         {
-            if (!_disposed && _input.IsEffectivelyEnabled) _input.Focus();
+            if (!_disposed && _input.IsEffectivelyEnabled && !_input.IsKeyboardFocusWithin) _input.Focus();
         }, DispatcherPriority.Input);
     }
 
