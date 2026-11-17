@@ -61,6 +61,8 @@ internal static class ReviewFixtureScenes
             await Program.WaitUntilAsync(() => w.IsVisible);
             await w.SessionHost.StartAsync();
             if (w.SessionHost.State != DesktopSessionState.Ready) throw new InvalidOperationException("Synthetic session startup failed");
+            await Program.WaitUntilAsync(() => w.SessionHost.GetPublishedPrivateTagSnapshot().State == PrivateTagLoadState.Ready,
+                () => "Synthetic tags not ready: " + w.SessionHost.GetPublishedPrivateTagSnapshot().Error);
             if (_media > 0)
             {
                 await SmokeNavigation.GoToAsync(w, MainWindow.WorkspacePage.Media);
@@ -68,7 +70,7 @@ internal static class ReviewFixtureScenes
                 var queue = w.MediaPageForTests.ShownEntries.Take(100).Select(e => MeowChan.Tags.TagQueueItem.From(e, ReviewFixtureData.Epoch)).Where(e => e != null).Cast<MeowChan.Tags.TagQueueItem>().ToArray();
                 await w.SessionHost.EnqueueTagQueueAsync(queue);
             }
-            await using WorkViewBooruChecks booru = new(w);
+            await using WorkViewBooruChecks booru = new(w, empty: _media == 0);
             await booru.InitializeAsync();
             await using SyntheticShellRows rows = await SyntheticShellRows.CreateAsync(w, Enumerable.Range(0, _media == 0 ? 0 : 6).Select(i =>
                 SnapshotFixtures.Thread(990000000 + i, (800000000 + i).ToString(), $"Synthetic download {i} 合成試験 Arbeitsplatzdarstellungsgrößenüberprüfung", i, i + 2, 0, 0, "synthetic")).ToArray());
@@ -143,7 +145,8 @@ internal static class ReviewFixtureScenes
         if (surface.StartsWith("booru"))
         {
             await WorkViewBooruChecks.EnterAsync(w);
-            await booru.MaterializeAsync();
+            if (_media == 0) await w.BooruPageForTests!.ActivateAsync();
+            else await booru.MaterializeAsync();
             // Search workspace versus the watch/rule workbench tab, both actual retained controls.
             w.BooruPageForTests!.GetVisualDescendants().OfType<TabControl>().First(t => t.Name == BooruWorkbenchView.TabsName).SelectedIndex = surface == "booru" ? 0 : 1;
             return;

@@ -66,7 +66,7 @@ internal static class ReviewFixtureData
                     bool isVideo = video != null && global % 97 == 96;
                     // Append a deterministic PNG trailer so each medium is distinct without expensive re-encoding.
                     byte[] bytes = isVideo ? video! : [.. images[global % images.Length], .. Encoding.UTF8.GetBytes($"review:{seed}:{global}")];
-                    string name = $"synthetic-{global:D5}" + (isVideo ? ".webm" : ".png");
+                    string name = $"synthetic-{global:D5}" + (global % 211 == 210 ? "-" + new string('x', 180) : "") + (isVideo ? ".webm" : ".png");
                     string mediaId = $"synthetic-{global:D5}", postId = (10000000 + global).ToString();
                     string sha = Hex(bytes), md5 = Convert.ToBase64String(MD5.HashData(bytes));
                     await File.WriteAllBytesAsync(Path.Combine(directory, name), bytes);
