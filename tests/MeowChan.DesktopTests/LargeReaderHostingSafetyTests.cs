@@ -91,6 +91,58 @@ public sealed class LargeReaderHostingSafetyTests
     });
 
     [Fact]
+    public void NormalSidebarAndReaderTransfersStayInTheShellPresentation() => WithPage((page, root, host) =>
+    {
+        Grid pane = page.FindControl<Grid>("ArchiveReaderPane")!;
+        typeof(ArchivePage).GetMethod("MoveMediaSidebarTo", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(page, [pane]);
+        ReaderMediaSidebar sidebar = Assert.IsType<ReaderMediaSidebar>(page.MediaSidebar);
+        GridSplitter splitter = Assert.Single(pane.Children.OfType<GridSplitter>());
+        for (int cycle = 0; cycle < 3; cycle++)
+        {
+            pane.InvalidateMeasure();
+            sidebar.InvalidateMeasure();
+            Assert.Contains(root, pane.GetLogicalAncestors());
+            page.HostLargeReader(host, () => { }, () => { });
+            Assert.Contains(root, pane.GetLogicalAncestors());
+            Assert.Contains(root, sidebar.GetLogicalAncestors());
+            Assert.Same(pane.Parent, sidebar.Parent);
+            Assert.Same(sidebar.Parent, splitter.Parent);
+            Control content = Assert.IsAssignableFrom<Control>(host.Content);
+            host.Content = null;
+            host.IsVisible = false;
+            page.AttachReader(content);
+            // The normal sidebar return is deferred until layout asks to show it.
+            typeof(ArchivePage).GetMethod("MoveMediaSidebarTo", BindingFlags.Instance | BindingFlags.NonPublic)!
+                .Invoke(page, [pane]);
+            Assert.Contains(root, pane.GetLogicalAncestors());
+            Assert.Same(pane, sidebar.Parent);
+            Assert.Same(pane, splitter.Parent);
+            AssertOneOwner(root, sidebar);
+            AssertOneOwner(root, pane);
+        }
+        // The production host is a ContentControl in MainWindow, not another Window.
+        string shell = Source("Desktop/Shell/MainWindow.axaml");
+        Assert.Contains("x:Name=\"ReaderHost\"", shell);
+        Assert.DoesNotContain("new Window", Source("Desktop/Shell/MainWindow.Reader.cs"));
+    });
+
+    [Fact]
+    public void GalleryPlacementAlreadyUsesTheOriginalDetachDrainTransaction()
+    {
+        string overlay = Source("Desktop/GalleryViewer.Overlay.cs");
+        Assert.Contains("MoveOverlayControl(_contextPanel, overlay ? OverlayHost : _body)", overlay);
+        Assert.Contains("MoveOverlayControl(_chrome,", overlay);
+        Assert.Contains("GalleryControlTransfer.Move(control, target,", overlay);
+        string transfer = Source("Desktop/GalleryControlTransfer.cs");
+        int detach = transfer.IndexOf("parent.Children.Remove(_control);", transfer.IndexOf("private void Execute", StringComparison.Ordinal), StringComparison.Ordinal);
+        int drain = transfer.IndexOf("root.UpdateLayout();", detach, StringComparison.Ordinal);
+        int attach = transfer.IndexOf("target.Children.Add(_control)", drain, StringComparison.Ordinal);
+        Assert.True(detach >= 0 && drain > detach && attach > drain, "Detach, real source-root drain, then attach must retain their order.");
+        Assert.Contains("bool sameRoot =", transfer); // same-presentation moves intentionally need no cross-root drain
+    }
+
+    [Fact]
     public void RecoveryContinuesAfterARepairThrowsAndRetainsBothFailures()
     {
         var original = new InvalidOperationException("open");
