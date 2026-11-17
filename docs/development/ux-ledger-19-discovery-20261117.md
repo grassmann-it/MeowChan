@@ -1,6 +1,8 @@
 # UX-LEDGER-19 — point-of-use shortcut discovery
 
-Base: `origin/goal/gesamtprogramm-profile-a` at `209caadf6`.
+Initial base: `origin/goal/gesamtprogramm-profile-a` at `209caadf6`.
+Merged current goal `fffa5c0e7` (PR #63 analyzer cleanup) without rewriting pushed commits.
+PR: https://github.com/grassmann-it/MeowChan/pull/65.
 Branch: `fix/ledger-19-point-of-use-discovery-20261117`.
 
 ## Before / after
@@ -38,18 +40,34 @@ On macOS the same effective gestures use the catalogue's platform renderer.
 
 `ShortcutBindingsEditor.cs` had a baselined CA1001 for its capture lease. The editor now implements
 `IDisposable`, releases capture, cancels queued validation reveal and detaches its shared session.
-Direct test owners dispose editors. No analyzer suppression or baseline addition is introduced.
-The existing `VideoCleanupWatch` pragma in the base was not introduced by this change.
+Direct test owners dispose editors. Its one obsolete CA1001 baseline row is deleted;
+no analyzer suppression or baseline addition is introduced. The landed PR #63 supplies the
+shared video-watch/fixture ownership cleanup and is preserved by the merge.
 
 ## Validation
 
-Pending final targeted validation receipts. Only DesktopTests and its project-reference graph are
-built; no solution build or GUI smoke suite is requested or claimed.
+Final validation **passes with normal analyzers enabled**, after merging current goal's PR #63:
 
-The first normal targeted run stalled for more than 18 minutes behind the shared compiler server
-while host load was 63–75 and swap usage exceeded 16 GB. Only that run's processes were cancelled.
-A single-node, non-shared functional run uses command-line `RunAnalyzers=false`; this is **not** an
-analyzer-gate pass and does not change repository settings.
+- `MeowChan.csproj` Debug build: **0 errors**, 275 advisory/compiler warnings.
+- `MeowChan.DesktopTests`: **261 passed, 0 failed, 0 skipped**, 1 m 42 s.
+- Normal SARIF: **0 unsuppressed CA1001/CA2000/CA2213/CA2016 diagnostics** in both projects.
+- Tests include default/rebound/unbound controls, all three platform models, all twelve
+  languages for activation help, context shadowing, full aliases and editor disposal.
+- `git diff --check` passes.
+
+Only the application and DesktopTests (plus their initial required reference outputs) were built;
+no solution build or GUI smoke suite was run. The final commands use `BuildProjectReferences=false`
+to reuse those dependencies and `UseSharedCompilation=false` to avoid the overloaded server.
+No analyzer-disabling override is used in the final pass.
+
+[Exact test output, commands, family counts and receipt hashes](evidence/ux-ledger-19-validation-20261117.txt).
+Raw TRX, build logs and SARIF are under the session scratchpad's `ledger19-*` paths.
+
+Earlier validation is not hidden: the first shared-compiler run stalled >18 minutes under load
+63–75 with >16 GB swap in use and was cancelled. A functional-only pass was followed by the final
+normal-analyzer pass above. Reserved-key and cross-context test fixtures were corrected without
+removing assertions; binding-validity assertions were added. Before merging PR #63, application
+analysis reported two unchanged Apphost Parse ownership errors; the landed goal fix removes both.
 
 ## Neighbouring defects deliberately not fixed
 
