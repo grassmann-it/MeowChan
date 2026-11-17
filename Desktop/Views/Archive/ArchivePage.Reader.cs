@@ -226,7 +226,22 @@ public partial class ArchivePage
             CommandBindings.BindExisting(media, "media.open");
             media.AddHandler(KeyDownEvent, OnMediaKeyDown, RoutingStrategies.Tunnel);
         }
-        ReaderContentSurface.LayoutUpdated += (_, _) => UpdateReaderNavigationLayout();
+        bool subscribed = false;
+        void OnReaderNavigationLayoutUpdated(object? sender, EventArgs e) => UpdateReaderNavigationLayout();
+        void SubscribeLayout(object? sender, Avalonia.VisualTreeAttachmentEventArgs e)
+        {
+            if (subscribed) return;
+            ReaderContentSurface.LayoutUpdated += OnReaderNavigationLayoutUpdated;
+            subscribed = true;
+        }
+        void UnsubscribeLayout(object? sender, Avalonia.VisualTreeAttachmentEventArgs e)
+        {
+            if (!subscribed) return;
+            ReaderContentSurface.LayoutUpdated -= OnReaderNavigationLayoutUpdated;
+            subscribed = false;
+        }
+        ReaderContentSurface.AttachedToVisualTree += SubscribeLayout;
+        ReaderContentSurface.DetachedFromVisualTree += UnsubscribeLayout;
         // The navigation bar floats over the content and (mode "Auto") hides while the pointer is idle (see ReaderNavigationLayout).
         ReaderContentSurface.AddHandler(PointerMovedEvent, OnReaderSurfacePointerMoved, RoutingStrategies.Tunnel | RoutingStrategies.Bubble, handledEventsToo: true);
         ReaderNavigation.PointerEntered += (_, _) => { _readerNavigationPointerOver = true; UpdateReaderNavigationShown(); };

@@ -66,7 +66,22 @@ public partial class ArchivePage
             if (change.Property == IsVisibleProperty) ObserveArchiveMediaCountVisibility();
         };
         // Layout catches effective ancestor visibility. The edge check avoids ordinary layout work.
-        LayoutUpdated += (_, _) => ObserveArchiveMediaCountVisibility();
+        bool subscribed = false;
+        void OnMediaCountLayoutUpdated(object? sender, EventArgs e) => ObserveArchiveMediaCountVisibility();
+        void SubscribeLayout(object? sender, Avalonia.VisualTreeAttachmentEventArgs e)
+        {
+            if (subscribed) return;
+            this.LayoutUpdated += OnMediaCountLayoutUpdated;
+            subscribed = true;
+        }
+        void UnsubscribeLayout(object? sender, Avalonia.VisualTreeAttachmentEventArgs e)
+        {
+            if (!subscribed) return;
+            this.LayoutUpdated -= OnMediaCountLayoutUpdated;
+            subscribed = false;
+        }
+        this.AttachedToVisualTree += SubscribeLayout;
+        this.DetachedFromVisualTree += UnsubscribeLayout;
     }
     private void ObserveArchiveMediaCountVisibility()
     {
