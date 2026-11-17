@@ -156,7 +156,7 @@ internal sealed class BooruResultViewerWindow : Window
         if (!_ids.SequenceEqual(_search.View.Rows.Select(value => value.Post.PostId)) || Row is not { } row)
         { Close(); return; }
         Title = Texts.T("booru.ui.post.title", CurrentPostId);
-        _caption.Text = $"{Title} · {_index + 1}/{_ids.Length} · {Texts.T("booru.ui.post.rating", BooruText.Rating(row.Post.Rating))}";
+        _caption.Text = $"{Title} · {_index + 1}/{_ids.Length} · {Texts.T("booru.mediaRole.Preview")} · {Texts.T("booru.ui.post.rating", BooruText.Rating(row.Post.Rating))}";
         _previous.Content = Texts.T("gallery.viewer1") + " · ←";
         _next.Content = Texts.T("gallery.viewer2") + " · →";
         _previous.IsEnabled = _index > 0;
@@ -166,7 +166,15 @@ internal sealed class BooruResultViewerWindow : Window
         _download.Content = Texts.T("booru.ui.load") + " · " + CommandCatalog.ShortcutDisplay("media.export-original");
         AutomationProperties.SetName(_download, Texts.T("booru.ui.loadFor", CurrentPostId));
         _download.IsEnabled = row.CanLoad || row.CanRetry;
-        _status.Text = BooruText.Load(row) ?? BooruText.Original(row.Post.OriginalAccess, row.Post.IsDeleted || row.Post.IsBanned);
+        string? previewNote = row.Preview switch
+        {
+            BooruPreviewState.Loading => Texts.T("booru.ui.post.previewLoading"),
+            BooruPreviewState.None => Texts.T("booru.ui.post.noPreview"),
+            BooruPreviewState.Ready => null,
+            _ => Texts.T("booru.ui.post.previewUnavailable")
+        };
+        _status.Text = (previewNote is null ? string.Empty : previewNote + " · ")
+            + (BooruText.Load(row) ?? BooruText.Original(row.Post.OriginalAccess, row.Post.IsDeleted || row.Post.IsBanned));
         ToolTip.SetTip(_download, _status.Text);
         ToolTip.SetShowOnDisabled(_download, true);
         if (_shownId == CurrentPostId && _shownPreview == row.Preview && ReferenceEquals(_shownBytes, row.PreviewBytes)) return;
