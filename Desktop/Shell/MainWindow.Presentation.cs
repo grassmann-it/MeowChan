@@ -93,8 +93,21 @@ public partial class MainWindow
     {
         if (e.Property == IsVisibleProperty) UpdateWorkspaceLayout();
     }
-    // A persistent shell error changes the page allocation without resizing the window.
-    private void OnWorkspaceBodySizeChanged(object? sender, SizeChangedEventArgs e) => UpdateWorkspaceLayout();
+    // A persistent shell error or an expanded result report changes the page allocation without resizing the window.
+    private void OnWorkspaceBodySizeChanged(object? sender, SizeChangedEventArgs e)
+    {
+        UpdateWorkspaceLayout();
+        KeepSelectedDownloadVisible();
+    }
+
+    private void KeepSelectedDownloadVisible()
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (_isClosing || _selectedPage != WorkspacePage.Downloads || DownloadsTabs.SelectedIndex != 0) return;
+            if (ThreadsDataGrid.SelectedItem is { } selected) ThreadsDataGrid.ScrollIntoView(selected, null);
+        }, DispatcherPriority.Background);
+    }
     private void OnWorkspaceSizeChanged(object? sender, SizeChangedEventArgs e)
     {
         RefreshWorkspaceMinimumAfterResize();
@@ -106,6 +119,10 @@ public partial class MainWindow
         QueueWindowPreferences();
         UpdateWorkspaceLayout();
         UpdateDownloadsHeaderLayout();
+        // A compact intake/results panel can change the grid viewport without changing
+        // the selected item. Keep that item reachable after a resize or an expanded
+        // admission report instead of leaving selection below the clipped viewport.
+        KeepSelectedDownloadVisible();
     }
 
     private void OnWorkspaceKeyDown(object? sender, KeyEventArgs e)
