@@ -21,8 +21,9 @@ public sealed class PointOfUseDiscoveryTests
         string[] commands = ["video.step-back", "video.step-forward", "video.seek-back", "video.seek-forward", "video.seek-back-far", "video.seek-forward-far"];
         var section = new ShortcutBindingsSection();
         if (rebound)
-            for (int i = 0; i < commands.Length; i++) section = section.Set(commands[i], [ShortcutGesture.Parse("Alt+F" + (i + 1))]);
+            for (int i = 0; i < commands.Length; i++) section = section.Set(commands[i], [ShortcutGesture.Parse("Alt+F" + (i + 13))]);
         ShortcutService.Publish(section);
+        Assert.DoesNotContain(ShortcutService.Current.Issues, issue => issue.BlocksSave);
         GalleryVideoPlayer player = new();
         try
         {
@@ -41,6 +42,7 @@ public sealed class PointOfUseDiscoveryTests
         if (rebound) section = section.Set("video.volume-down", [ShortcutGesture.Parse("Alt+F7")])
             .Set("video.volume-up", [ShortcutGesture.Parse("Alt+F8")]);
         ShortcutService.Publish(section);
+        Assert.DoesNotContain(ShortcutService.Current.Issues, issue => issue.BlocksSave);
         GalleryVideoPlayer player = new();
         try
         {
@@ -52,7 +54,7 @@ public sealed class PointOfUseDiscoveryTests
 
     [Theory]
     [InlineData("reader", "reader.next-post")]
-    [InlineData("media", "media.rating.edit")]
+    [InlineData("media", "media.open")]
     public void VideoHelpOmitsGesturesClaimedByItsHost(string context, string owner) => WithControls(() =>
     {
         // A page binding shadows video without removing its gesture in the gallery.
@@ -130,7 +132,7 @@ public sealed class PointOfUseDiscoveryTests
     {
         ShortcutService.Publish(new ShortcutBindingsSection().Set("media.rating.set-3", [ShortcutGesture.Parse("Alt+F9")]));
         GalleryDecisionRow row = new("DiscoveryRating") { KeyContext = "reader" };
-        string help = AutomationProperties.GetHelpText(Field<Control>(row, "_group"));
+        string help = Assert.IsType<string>(AutomationProperties.GetHelpText(Field<Control>(row, "_group")));
         foreach (string id in Enumerable.Range(1, 5).Select(n => "media.rating.set-" + n).Append("media.rating.clear"))
             foreach (var gesture in ShortcutService.Current.For(id))
                 Assert.Contains(gesture.Display(OperatingSystem.IsMacOS() ? ShortcutPlatform.MacOS : ShortcutPlatform.Windows), help);
@@ -170,7 +172,7 @@ public sealed class PointOfUseDiscoveryTests
             return (Button)type.GetProperty("Button", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(chip)!;
         }
         var chip = CreateChip();
-        string help = AutomationProperties.GetHelpText(chip);
+        string help = Assert.IsType<string>(AutomationProperties.GetHelpText(chip));
         Assert.Equal(ToolTip.GetTip(chip), help);
         Assert.Contains(QuickTagKeys.SuggestionGesture(0, platform)!, help);
         ShortcutService.Publish(new ShortcutBindingsSection().Set(command, []));

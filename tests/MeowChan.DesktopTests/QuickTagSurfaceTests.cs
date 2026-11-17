@@ -64,8 +64,9 @@ public sealed class QuickTagSurfaceTests : IDisposable
         var previous = ShortcutService.CurrentSection;
         var section = new ShortcutBindingsSection();
         if (rebound)
-            for (int i = 0; i < commands.Length; i++) section = section.Set(commands[i], [ShortcutGesture.Parse("Alt+F" + (i + 1))]);
+            for (int i = 0; i < commands.Length; i++) section = section.Set(commands[i], [ShortcutGesture.Parse("Alt+F" + (i + 13))]);
         ShortcutService.Publish(section);
+        Assert.DoesNotContain(ShortcutService.Current.Issues, issue => issue.BlocksSave);
         try
         {
             using TempDirectory temp = new();
@@ -73,7 +74,7 @@ public sealed class QuickTagSurfaceTests : IDisposable
             PrivateTagStore store = new(temp.Path, lease);
             using QuickTagSession session = new(QuickTagTarget.For(Single(store, Entry("discovery", 'a'))));
             using QuickTagSurface surface = new(session) { NavigationEnabled = true };
-            string help = AutomationProperties.GetHelpText(surface.Input);
+            string help = Assert.IsType<string>(AutomationProperties.GetHelpText(surface.Input));
             foreach (string command in commands)
             {
                 var gestures = ShortcutService.Current.For(command);
@@ -81,7 +82,7 @@ public sealed class QuickTagSurfaceTests : IDisposable
                 foreach (var gesture in gestures) Assert.Contains(gesture.Display(ShortcutService.Current.Platform), help);
             }
             surface.NavigationEnabled = false;
-            string localOnly = AutomationProperties.GetHelpText(surface.Input);
+            string localOnly = Assert.IsType<string>(AutomationProperties.GetHelpText(surface.Input));
             Assert.DoesNotContain(CommandCatalog.Label(QuickTagCommands.Next), localOnly);
         }
         finally { ShortcutService.Publish(previous); }
