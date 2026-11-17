@@ -74,6 +74,15 @@ hardening does not itself establish a green sweep.
   leave a permanent grey loading surface.
 - **Booru/plugin diagnostics:** current bundled plugin repair must be reachable and actionable;
   stale pinned builds should explain the repair path without silently changing the user pin.
+- **Continue-reading entry point (new UX-LEDGER-08):** when a thread has a persisted reading
+  position, opening it from Archive/Downloads/Reader entry points must select and reveal the
+  corresponding post and its applicable medium instead of always selecting post one. A valid
+  saved position on the final post remains on that final post; it must not wrap to the first
+  post. If the position is missing, stale, filtered out, or no longer maps to a captured post,
+  fall back deterministically to the first visible post. The restore must not steal focus from
+  an active text field, overwrite a newer live reading position, or let a stale async load paint
+  a previous thread. Add native entry-path coverage for first/middle/final, invalid and empty
+  positions, plus rapid thread switching and sidebar-open media selection.
 
 ## Later (1.2+ candidate)
 
