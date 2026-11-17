@@ -19,6 +19,7 @@ using Avalonia.Styling;
 using Avalonia.VisualTree;
 using Avalonia.Interactivity;
 using SkiaSharp;
+using MeowChan.Desktop.Controls;
 
 namespace MeowChan.Desktop.Commands;
 
@@ -515,7 +516,7 @@ public static class CommandBindings
                     return ShortcutService.Current.Matches(e, id);
                 // Check each nearer node, not IsNativeInput(source): that predicate also
                 // sees the owned slider above decorative template children.
-                if (parent is TextBox or ComboBox or NumericUpDown or ScrollBar or MenuItem or Ursa.Controls.AutoCompleteBox)
+                if (PointerFocusReclaim.IsTextInput(parent) || parent is ScrollBar or MenuItem)
                     return false;
                 if (parent is Slider && (e.Key is Key.Left or Key.Right or Key.Up or Key.Down
                     or Key.Home or Key.End or Key.PageUp or Key.PageDown or Key.Enter or Key.Escape))
