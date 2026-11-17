@@ -25,7 +25,7 @@ namespace MeowChan.Desktop.Booru;
 /// already fetched by Search are decoded; opening, marking and navigation never request originals.
 /// The synthetic entries below are display identities, never published assets or library entries.
 /// </summary>
-internal sealed class BooruResultViewerWindow : Window
+internal sealed class BooruResultViewerWindow : Window, IAsyncDisposable
 {
     private readonly BooruSearchModel _search;
     private readonly string[] _ids;
@@ -97,13 +97,19 @@ internal sealed class BooruResultViewerWindow : Window
         Opened += (_, _) => { _viewer.ApplyTemplate(); SuppressGalleryChrome(); Refresh(); _viewer.Focus(); };
         _search.Changed += OnChanged;
         Texts.Changed += OnLanguageChanged;
-        Closed += (_, _) =>
+        Closed += (_, _) => { _ = DisposeAsync(); };
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        if (!_ended)
         {
             _ended = true;
             _search.Changed -= OnChanged;
             Texts.Changed -= OnLanguageChanged;
-            Cleanup = _viewer.StopAsync();
-        };
+            Cleanup = _viewer.DisposeAsync().AsTask();
+        }
+        return new(Cleanup);
     }
 
     private void SuppressGalleryChrome()

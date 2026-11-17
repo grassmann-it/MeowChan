@@ -30,7 +30,8 @@ internal sealed class GalleryTagPanelSuggestions : IQuickTagSuggestionSource, ID
     private Func<IReadOnlyList<TagId>>? _recent;
     private WeakReference<PrivateTagStoreSnapshot>? _warm;
     private WeakReference<PrivateTagStoreSnapshot>? _pending;
-    private CancellationTokenSource? _warming;
+    // Cancellation authority only. Each worker owns and disposes its source.
+    private Action? _cancelWarming;
     private IReadOnlyList<QuickTagSuggestion> _last = Array.Empty<QuickTagSuggestion>();
     private bool _disposed;
 
@@ -81,29 +82,31 @@ internal sealed class GalleryTagPanelSuggestions : IQuickTagSuggestionSource, ID
     internal void Warm(PrivateTagStoreSnapshot snapshot)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
-        CancellationToken token;
         lock (_gate)
         {
             if (_disposed) return;
             if (_warm != null && _warm.TryGetTarget(out PrivateTagStoreSnapshot? done) && ReferenceEquals(done, snapshot)) return;
             if (_pending != null && _pending.TryGetTarget(out PrivateTagStoreSnapshot? running) && ReferenceEquals(running, snapshot)) return;
-            _warming?.Cancel();
-            CancellationTokenSource warming = new();
-            _warming = warming;
-            _pending = new WeakReference<PrivateTagStoreSnapshot>(snapshot);
-            token = warming.Token;
-            WarmTask = Task.Run(() =>
+            _cancelWarming?.Invoke();
+            WarmTask = WarmAsync(snapshot);
+        }
+    }
+
+    // Called under _gate; admission runs synchronously, disposal spans the actual worker.
+    private async Task WarmAsync(PrivateTagStoreSnapshot snapshot)
+    {
+        using CancellationTokenSource warming = new();
+        Action cancel = warming.Cancel;
+        _cancelWarming = cancel;
+        _pending = new WeakReference<PrivateTagStoreSnapshot>(snapshot);
+        CancellationToken token = warming.Token;
+        try { await Task.Run(() => RunWarm(snapshot, token), CancellationToken.None).ConfigureAwait(false); }
+        finally
+        {
+            lock (_gate)
             {
-                try { RunWarm(snapshot, token); }
-                finally
-                {
-                    lock (_gate)
-                    {
-                        if (ReferenceEquals(_warming, warming)) _warming = null;
-                        warming.Dispose();
-                    }
-                }
-            }, CancellationToken.None);
+                if (ReferenceEquals(_cancelWarming, cancel)) _cancelWarming = null;
+            }
         }
     }
 
@@ -205,8 +208,8 @@ internal sealed class GalleryTagPanelSuggestions : IQuickTagSuggestionSource, ID
             if (_disposed) return;
             _disposed = true;
             // Serialize cancellation with the worker's final disposal; never dispose while _build still uses the token.
-            _warming?.Cancel();
-            _warming = null;
+            _cancelWarming?.Invoke();
+            _cancelWarming = null;
             _pending = null;
         }
         Ready = null;

@@ -15,6 +15,7 @@ namespace MeowChan;
 public partial class MainWindow
 {
     private readonly CancellationTokenSource _booruAddLifetime = new();
+    private readonly HashSet<Task> _booruAdmissionWork = new();
     private bool _admissionBooruOpened;
 
     /// <summary>The entries that are Danbooru addresses, by index. Pure text reading; nothing is requested.</summary>
@@ -33,6 +34,15 @@ public partial class MainWindow
     /// the one toast of the search that is used names them.
     /// </summary>
     private async Task<bool> AdmitBooruAddressAsync(string entry, DanbooruAddress address, int ignoredSearches = 0)
+    {
+        if (_isClosing) return false;
+        Task<bool> work = AdmitBooruAddressCoreAsync(entry, address, ignoredSearches);
+        _booruAdmissionWork.Add(work);
+        try { return await work; }
+        finally { _booruAdmissionWork.Remove(work); }
+    }
+
+    private async Task<bool> AdmitBooruAddressCoreAsync(string entry, DanbooruAddress address, int ignoredSearches)
     {
         BooruWorkbenchServices? services = CanOpenBooru ? _session.BooruServices : null;
         if (services is null)

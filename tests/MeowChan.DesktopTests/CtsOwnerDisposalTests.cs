@@ -77,7 +77,7 @@ public sealed class CtsOwnerDisposalTests
     {
         TaskCompletionSource<ArchiveTransferExportCount> pending = new();
         using ArchiveTransferExportDialog dialog = Dialog(count: (_, _) => pending.Task);
-        CancellationTokenSource Current() => (CancellationTokenSource)typeof(ArchiveTransferExportDialog).GetField("_operation", Fields)!.GetValue(dialog)!;
+        CancellationTokenSource Current() => (CancellationTokenSource)((Action)typeof(ArchiveTransferExportDialog).GetField("_cancelOperation", Fields)!.GetValue(dialog)!).Target!;
         CancellationTokenSource first = Current();
         Task second = dialog.RecountForTestsAsync();
         CancellationTokenSource middle = Current();
@@ -103,7 +103,7 @@ public sealed class CtsOwnerDisposalTests
         TaskCompletionSource<ArchiveTransferExportCount> pending = new();
         CancellationToken token = default;
         ArchiveTransferExportDialog dialog = Dialog(parent.Token, (_, value) => { token = value; return pending.Task; });
-        var operation = (CancellationTokenSource)typeof(ArchiveTransferExportDialog).GetField("_operation", Fields)!.GetValue(dialog)!;
+        var operation = (CancellationTokenSource)((Action)typeof(ArchiveTransferExportDialog).GetField("_cancelOperation", Fields)!.GetValue(dialog)!).Target!;
         dialog.Terminate();
         Assert.True(token.IsCancellationRequested);
         Assert.True(token.WaitHandle.WaitOne(0));

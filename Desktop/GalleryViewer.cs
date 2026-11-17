@@ -55,7 +55,7 @@ internal enum GalleryReturnTarget { None, Media, Thread, Archive, Downloads, Tag
 internal sealed record GalleryDiagnosticNotice(string Operation, GalleryEntry? Entry, long Revision,
     string Message, bool MediaUnavailable);
 
-internal sealed partial class GalleryViewer : UserControl
+internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
 {
     private readonly TranslateTransform _imageTranslation = new();
     private readonly RotateTransform _imageRotation = new();
@@ -188,16 +188,16 @@ internal sealed partial class GalleryViewer : UserControl
         // R "Rate and tag" (Tom's decision of 15.11.: no rating menu, no dialog): the Tags segment opens with its stars focused.
         // Executable whenever a medium is shown: RequestRateAndTag says why when neither half can open (never a key consumed in silence).
         // A text selection in the post panel does not keep R (a bare letter does nothing to it; Ctrl+C stays the selection's).
-        router.Register(new("media.rating.edit", owner, () => owner.IsEffectivelyVisible, () => _entry != null && !_terminalRetirement,
+        router.RegisterOwned(new("media.rating.edit", owner, () => owner.IsEffectivelyVisible, () => _entry != null && !_terminalRetirement,
             RequestRateAndTag, Priority: 200, AllowInTextSelection: true));
-        router.Register(new("media.rating.manage", owner, () => owner.IsEffectivelyVisible, () => ManageRatingsRequested != null,
+        router.RegisterOwned(new("media.rating.manage", owner, () => owner.IsEffectivelyVisible, () => ManageRatingsRequested != null,
             () => ManageRatingsRequested?.Invoke(), Priority: 200));
-        router.Register(new("media.rating.clear", owner, () => owner.IsEffectivelyVisible, Ready,
+        router.RegisterOwned(new("media.rating.clear", owner, () => owner.IsEffectivelyVisible, Ready,
             () => RequestRating(null), Priority: 200));
         for (int value = 1; value <= 5; value++)
         {
             int selected = value;
-            router.Register(new("media.rating.set-" + value, owner, () => owner.IsEffectivelyVisible, Ready,
+            router.RegisterOwned(new("media.rating.set-" + value, owner, () => owner.IsEffectivelyVisible, Ready,
                 () => RequestRating(selected), Priority: 200));
         }
         return router;
@@ -1894,6 +1894,8 @@ internal sealed partial class GalleryViewer : UserControl
         _videoSuspended = false;
         return ShowMediaAsync(_entry, _sessionCancellation, _suspendedPlaybackMode == VideoPlaybackMode.Playing);
     }
+    public ValueTask DisposeAsync() => new(StopAsync());
+
     internal async Task StopAsync()
     {
         _terminalRetirement = true;

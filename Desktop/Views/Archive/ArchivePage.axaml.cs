@@ -138,7 +138,7 @@ public partial class ArchivePage : UserControl
         // Tunnel handlers on one element run in reverse registration order.
         // Enter the focus-decided context BEFORE any page-level shortcut route,
         // including when the reader is embedded (the detached pane has its own host).
-        MeowChan.Desktop.Controls.KeyContextHost.Install(this, e => e.Source is Visual source && ArchiveReaderPane is { } pane
+        _pageKeyContext = MeowChan.Desktop.Controls.KeyContextHost.Install(this, e => e.Source is Visual source && ArchiveReaderPane is { } pane
             && (ReferenceEquals(source, pane) || pane.IsVisualAncestorOf(source)) ? "reader" : "archive");
     }
     internal ArchivePage(Func<CancellationToken, Task<ArchiveReader>> openReader,
@@ -942,7 +942,8 @@ public partial class ArchivePage : UserControl
         PerformanceDiagnostics.Record("gallery.thumbnail.verified-bytes", request: request, asset: row.Asset.AssetId, value: row.Asset.Length);
         await using Stream stream = verified;
         using var decode = PerformanceDiagnostics.Measure("gallery.thumbnail.decode", request, asset: row.Asset.AssetId);
-        using SKCodec? codec = SKCodec.Create(new SKManagedStream(stream, disposeManagedStream: false));
+        using SKManagedStream managed = new(stream, disposeManagedStream: false);
+        using SKCodec? codec = SKCodec.Create(managed);
         if (codec == null) throw new InvalidDataException(Texts.T("archive.invalidImage"));
         PixelSize shown = ImageOrientation.DisplaySize(codec); // as displayed: a rotated photo has its width and height exchanged
         if (shown.Width <= 0 || shown.Height <= 0 || (long)shown.Width * shown.Height > 40_000_000
@@ -1218,6 +1219,9 @@ public partial class ArchivePage : UserControl
     }
     private void Message(string text, bool error = false) => OperationMessage("action", text, error);
     private T Control<T>(string name) where T : Control => this.FindControl<T>(name)!;
+    private readonly IDisposable _pageKeyContext;
+    private IDisposable? _sidebarKeyContext;
+
     internal void EndLifetime()
     {
         if (_ended) return;
@@ -1226,6 +1230,9 @@ public partial class ArchivePage : UserControl
         CloseQuotePreview();
         CloseQuickSettings();
         _ended = true;
+        _pageKeyContext.Dispose();
+        _sidebarKeyContext?.Dispose();
+        _sidebarKeyContext = null;
         _ = ReleaseInlineVideos();
         _mediaMenuPresenter.Invalidate();
         EndMediaSelectionLifetime();

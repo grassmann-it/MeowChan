@@ -39,7 +39,7 @@ public sealed class GalleryFitDecodeTests
     [Fact]
     public async Task LatestDesiredDecodeWaitsForCanceledCodecToActuallyExit()
     {
-        GalleryDecodeQueue queue = new();
+        using GalleryDecodeQueue queue = new();
         TaskCompletionSource entered = new(), release = new();
         int active = 0, maximumActive = 0, secondRuns = 0, finalRuns = 0;
         CancellationToken obsolete = default;
@@ -73,7 +73,7 @@ public sealed class GalleryFitDecodeTests
     {
         List<TaskCompletionSource> delays = new();
         TaskCompletionSource replacementDelay = new();
-        GalleryDecodeQueue queue = new(token =>
+        using GalleryDecodeQueue queue = new(token =>
         {
             TaskCompletionSource delay = new();
             delays.Add(delay);
@@ -98,7 +98,7 @@ public sealed class GalleryFitDecodeTests
     [Fact]
     public async Task OriginalCanReplacePendingFitWithoutWaitingForDebounce()
     {
-        GalleryDecodeQueue queue = new(token => Task.Delay(Timeout.Infinite, token));
+        using GalleryDecodeQueue queue = new(token => Task.Delay(Timeout.Infinite, token));
         int fitRuns = 0, originalRuns = 0;
         Task fit = queue.Replace(_ => { fitRuns++; return Task.CompletedTask; }, debounce: true);
         Task original = queue.Replace(_ => { originalRuns++; return Task.CompletedTask; }, debounce: false);
