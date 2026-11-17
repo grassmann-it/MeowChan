@@ -20,7 +20,7 @@ using ArchiveCatalog = MeowChan.Archive.ArchiveCatalog;
 namespace MeowChan.DesktopSmoke;
 
 // Inside the registered "media-page" journey (MEOWCHAN_MEDIA_PAGE_ONLY), Tom's screencast 17.11.2026 ("switching to the Media page is buggy; at
-// full width Filters is too close to Sort; things must not jump around"). Over a library of 144 tiles in a private window:
+// full width Filters is too close to Sort; things must not jump around"). Over a library of 1100 tiles in a private window:
 //  (a) the search, the filter toggle and the order keep their bounds whatever the selection line says (nothing, 1, 12 selected, the index
 //      being built), (b) the filter toggle keeps at least MediaToolbarLayout's group gap (24 dip) from the order at every row width from 616
 //      to 1920 in all 12 languages, (c) the buttons of the selection line keep their x with and without the "index is being built" reason,
@@ -30,13 +30,13 @@ namespace MeowChan.DesktopSmoke;
 // bounds table there (evidence for the review); without it the check runs in the journey with its assertions only.
 internal static partial class MediaPageChecks
 {
-    private const int StabilityThreads = 12, StabilityFilesPerThread = 12;
+    private const int StabilityThreads = 20, StabilityFilesPerThread = 55;
     private static readonly double[] CaptureWidths = [760, 920, 1099, 1100, 1440, 1920];
     private static readonly double[] SweepRowWidths = [616, 640, 700, 760, 800, 869, 870, 900, 949, 950, 1000, 1075, 1099, 1100, 1200, 1416, 1680, 1896];
 
     internal static string? HeaderCaptureDirectory => Environment.GetEnvironmentVariable("MEOWCHAN_MEDIA_HEADER_CAPTURES") is { Length: > 0 } directory ? directory : null;
 
-    // The 12 threads of 12 files, and a newer thread of 7 files whose media folder is moved aside until part (d) brings it back: the next
+    // The 20 threads of 55 files, and a newer thread of 7 files whose media folder is moved aside until part (d) brings it back: the next
     // rebuild then puts 7 new tiles in front of everything (by thread, newest first), as an archive that captured more since the last visit.
     private static async Task<(string Hidden, string Shown)> SeedStabilityAsync(string profile)
     {
@@ -91,7 +91,7 @@ internal static partial class MediaPageChecks
             window.Show(owner);
             page.IsAvailable = true;
             await page.ActivateAsync().WaitAsync(Deadline);
-            Require(page.Tiles.Count == StabilityThreads * StabilityFilesPerThread, "The stability fixture must give 144 tiles: " + page.Tiles.Count);
+            Require(page.Tiles.Count == StabilityThreads * StabilityFilesPerThread, "The stability fixture must give 1100 tiles: " + page.Tiles.Count);
             Control row = page.ToolbarRow;
             Control header = row.GetVisualAncestors().OfType<StackPanel>().First(panel => panel.Classes.Contains("workspace-page-header"));
             Control search = C<Control>(page, "MediaNameFilter"), filters = C<Control>(page, "MediaFilters"), direction = C<Control>(page, "MediaSortDirection");
@@ -141,7 +141,7 @@ internal static partial class MediaPageChecks
             void RequireOneLine(string cell, string state, double gridTopNone)
             {
                 page.UpdateLayout();
-                double[] ys = actions.Children.Where(child => child.IsVisible).Select(child => Math.Round(child.TranslatePoint(new Point(0, child.Bounds.Height / 2), page)!.Value.Y)).Distinct().ToArray();
+                double[] ys = actions.Children.Concat(C<Panel>(page, "MediaSelectionState").Children).Where(child => child.IsVisible).Select(child => Math.Round(child.TranslatePoint(new Point(0, child.Bounds.Height / 2), page)!.Value.Y)).Distinct().ToArray();
                 if (ys.Length != 1)
                     failures.Add("(e) " + cell + " " + state + ": the selection line wrapped onto " + ys.Length + " lines (Clear short: " + page.ClearLabelShortened + ", under More: "
                         + string.Join(",", page.SelectionActionsMovedByWidth.Select(control => control.Name)) + ")");
@@ -233,6 +233,47 @@ internal static partial class MediaPageChecks
             }
             Texts.SetLanguage("en");
             await UntilAsync(() => AutomationName(C<Control>(page, "MediaSort")) == Texts.T("media.sort"));
+
+            // PKG-A evidence: selection counts are independent of window widths. The minimum
+            // supported shell client width is 760 dip (MainWindow.axaml), not the 640-dip stress width.
+            List<string> counterTable = new() { "language,width,count,actualCount,lines,gridX,gridY,gridWidth,gridHeight,gridDelta,clearShort,accessibleName" };
+            foreach (string code in new[] { "en", "de" })
+            {
+                Texts.SetLanguage(code);
+                foreach (double width in new double[] { 760, 1099, 1100 })
+                {
+                    await SetWindowWidthAsync(width);
+                    Require(Math.Abs(window.ClientSize.Width - width) < 0.5, "Counter capture client width differs from requested dip width");
+                    await SelectAsync(0);
+                    Rect GridBounds() => new(gridCard.TranslatePoint(default, page)!.Value, gridCard.Bounds.Size);
+                    Rect baseline = GridBounds();
+                    foreach (int count in new[] { 1, 9, 10, 99, 100, 999, 1000, 1099, 1100 })
+                    {
+                        await SelectAsync(count);
+                        string cell = code + "-counter-" + count + "-width-" + width;
+                        Require(page.Grid.Selection.Count == count, cell + ": selection fixture did not select the requested count");
+                        RequireOneLine(cell, count.ToString(CultureInfo.InvariantCulture), baseline.Y);
+                        Panel state = C<Panel>(page, "MediaSelectionState");
+                        Control[] visible = actions.Children.Concat(state.Children).Where(child => child.IsVisible).ToArray();
+                        int lines = visible.Select(child => Math.Round(child.TranslatePoint(new Point(0, child.Bounds.Height / 2), page)!.Value.Y)).Distinct().Count();
+                        if (lines != 1) failures.Add(cell + ": actions and trailing state do not share one line");
+                        Rect actual = GridBounds();
+                        double delta = new[] { Math.Abs(actual.X - baseline.X), Math.Abs(actual.Y - baseline.Y), Math.Abs(actual.Width - baseline.Width), Math.Abs(actual.Height - baseline.Height) }.Max();
+                        if (delta > 0.5) failures.Add(cell + ": grid bounds shifted from " + baseline + " to " + actual);
+                        if (AutomationName(buttons[^1]) != Texts.T("media.selection.clear"))
+                            failures.Add(cell + ": Clear selection lost its full accessible name");
+                        Control selectionRow = C<Control>(page, "MediaSelectionRow");
+                        if (visible.Any(control => control.TranslatePoint(default, selectionRow) is not { } at || at.X < -0.5 || at.X + control.Bounds.Width > selectionRow.Bounds.Width + 0.5))
+                            failures.Add(cell + ": selection controls overflow the available width");
+                        counterTable.Add(string.Join(",", code, F(width), count, page.Grid.Selection.Count, lines, F(actual.X), F(actual.Y), F(actual.Width), F(actual.Height), F(delta), page.ClearLabelShortened, AutomationName(buttons[^1])));
+                        if (captures != null && count is 1099 or 1100)
+                            SaveRegion(page, Path.Combine(captures, cell + ".png"));
+                    }
+                }
+            }
+            if (captures != null) File.WriteAllLines(Path.Combine(captures, "counter-bounds.csv"), counterTable);
+            Texts.SetLanguage("en");
+            await SelectAsync(0);
 
             // (d): a data re-present with the grid scrolled deep and a tile selected.
             await SetWindowWidthAsync(1440);
