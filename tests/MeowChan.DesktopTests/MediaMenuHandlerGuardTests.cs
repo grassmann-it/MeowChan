@@ -157,6 +157,63 @@ public sealed class MediaMenuHandlerGuardTests
         Assert.Equal(new[] { Thread }, shown);
     });
 
+    // ---- KB-04 of the final review (17.11.2026): the menu's Q hint is a key that acts on every archive media surface -------------------------------
+
+    public static IEnumerable<object[]> QueueKeySurfaces() => new[] { "Inline", "Tiles", "Table" }.Select(surface => new object[] { surface });
+
+    [Theory, MemberData(nameof(QueueKeySurfaces))]
+    public void QOnEveryArchiveMediaSurfaceQueuesTheMediumTheFocusStandsFor(string surface) => Run(fixture =>
+    {
+        Control source = fixture.Surface(surface);
+        KeyEventArgs key = fixture.Q(source);
+        Assert.True(fixture.Route(source, key), "Q on the archive's " + surface + " surface did nothing.");
+        Assert.True(key.Handled);
+        // The same single target the media menu's "Add to tagging queue" takes: the focused / selected medium, nothing else.
+        Assert.Equal(new[] { fixture.Second.Asset.AssetId }, fixture.Queued.Select(entry => entry.Asset.AssetId));
+    });
+
+    [Fact]
+    public void QWithSeveralFilesSelectedInTheMediaTabQueuesTheWholeSelectionLikeTheMediaPage() => Run(fixture =>
+    {
+        ListBox tiles = (ListBox)fixture.Surface("Tiles");
+        fixture.Select(tiles, fixture.Assets);
+        KeyEventArgs key = fixture.Q(tiles);
+        Assert.True(fixture.Route(tiles, key));
+        Assert.True(key.Handled);
+        Assert.Equal(fixture.Assets.Select(row => row.Asset.AssetId).OrderBy(id => id), fixture.Queued.Select(entry => entry.Asset.AssetId).OrderBy(id => id));
+    });
+
+    [Fact]
+    public void QWithNoMediumToResolveIsLeftToThePost() => Run(fixture =>
+    {
+        ListBox posts = fixture.Page.FindControl<ListBox>("ArchivePosts")!;
+        posts.ItemsSource = new[] { new ArchivePostRow("p2", string.Empty, "b", new[] { fixture.Attachment }) };
+        posts.SelectedItem = null;
+        KeyEventArgs key = fixture.Q(posts);
+        Assert.False(fixture.Route(posts, key));
+        Assert.False(key.Handled);
+        Assert.Empty(fixture.Queued);
+    });
+
+    [Fact]
+    public void TheQHintIsShownOnTheMenusOfASavedMediumAndLeftOutWhereNoMediumResolves() => Run(fixture =>
+    {
+        foreach (MediaMenuSurface surface in new[] { MediaMenuSurface.ArchiveInline, MediaMenuSurface.ArchiveTiles, MediaMenuSurface.ArchiveTable })
+        {
+            (ContextMenu saved, _) = fixture.Menu(surface);
+            Assert.NotNull(Common(saved).Single(item => (string?)item.Tag == "media.queue.add").InputGesture);
+        }
+        // An attachment whose file is not saved has no medium for the key to resolve (ReaderMediumAt gives null): its menu shows no Q.
+        MethodInfo build = typeof(ArchivePage).GetMethod("BuildArchiveMediaMenu", Instance)!;
+        var unsaved = ((ContextMenu Menu, MediaMenuSession Session))build.Invoke(fixture.Page,
+            new object?[] { null, fixture.Attachment, new Border(), "p2", MediaMenuSurface.ArchiveInline, null, null })!;
+        MenuItem queue = Common(unsaved.Menu).Single(item => (string?)item.Tag == "media.queue.add");
+        Assert.False(queue.IsEnabled);
+        Assert.Null(queue.InputGesture);
+        // The hint stays where the key acts: the other entries of the same menu keep theirs.
+        Assert.NotNull(Common(unsaved.Menu).Single(item => (string?)item.Tag == "media.rating.edit").InputGesture);
+    });
+
     // ---- the fixture ---------------------------------------------------------------------------------------------------------------------------------
 
     private static IEnumerable<MenuItem> Common(ContextMenu menu) =>
@@ -229,6 +286,57 @@ public sealed class MediaMenuHandlerGuardTests
         }
 
         internal void Set(string name, object? value) => typeof(ArchivePage).GetField(name, Instance)!.SetValue(Page, value);
+
+        /// <summary>A key press of Q (no modifier) with <paramref name="source"/> as its source.</summary>
+        internal KeyEventArgs Q(Control source) => new() { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Q, KeyModifiers = KeyModifiers.None, Source = source };
+
+        /// <summary>The page's own route for the media menu's keys (what every media surface's key handler calls).</summary>
+        internal bool Route(Control owner, KeyEventArgs key) =>
+            (bool)typeof(ArchivePage).GetMethod("TryRouteArchiveMediaShortcut", Instance)!.Invoke(Page, new object[] { owner, key })!;
+
+        /// <summary>The control of a media surface with the second file focused or selected: a post card ("Inline"), the Media tab's tiles or its table.</summary>
+        internal Control Surface(string name)
+        {
+            if (name == "Inline")
+            {
+                ListBox posts = Page.FindControl<ListBox>("ArchivePosts")!;
+                ArchivePostRow post = new("p2", string.Empty, "b", new[] { Attachment });
+                posts.ItemsSource = new[] { post };
+                posts.SelectedItem = post;
+                return posts;
+            }
+            bool tiles = name == "Tiles";
+            Set("_mediaTiles", tiles);
+            Set("_shownMedia", Assets);
+            Control list = tiles ? Page.FindControl<ListBox>("ArchiveMediaTiles")! : Page.FindControl<DataGrid>("ArchiveMediaGrid")!;
+            Select(list, new[] { Assets.Single(row => row.Asset.AssetId == Second.Asset.AssetId) });
+            return list;
+        }
+
+        /// <summary>Selects exactly these rows of a media list without the page reacting to the selection change (it is not on a window).</summary>
+        internal void Select(Control list, IReadOnlyList<ArchiveAssetRow> rows)
+        {
+            Set("_rebindingMedia", true);
+            try
+            {
+                if (list is ListBox tiles)
+                {
+                    tiles.ItemsSource = Assets;
+                    tiles.SelectedItems!.Clear();
+                    foreach (ArchiveAssetRow row in rows) tiles.SelectedItems.Add(row);
+                }
+                else
+                {
+                    DataGrid grid = (DataGrid)list;
+                    grid.ItemsSource = Assets;
+                    grid.SelectedItems.Clear();
+                    // One file: the grid's primary selection too (the page reads SelectedItem for a single file).
+                    if (rows.Count == 1) grid.SelectedItem = rows[0];
+                    else foreach (ArchiveAssetRow row in rows) grid.SelectedItems.Add(row);
+                }
+            }
+            finally { Set("_rebindingMedia", false); }
+        }
 
         /// <summary>The real archive media menu of the second post's medium on <paramref name="surface"/>, with the guard's seam listening while it is built and run.</summary>
         internal (ContextMenu Menu, List<(MediaMenuSurface, MediaMenuAction)> NoOps) Menu(MediaMenuSurface surface)
