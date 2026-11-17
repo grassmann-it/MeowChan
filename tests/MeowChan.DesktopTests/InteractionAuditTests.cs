@@ -236,6 +236,21 @@ public sealed class InteractionAuditTests
     }
 
     [Fact]
+    public void SidebarSingleClickDoesNotOpenGalleryUnlessConfiguredAndDoubleClickStillDoes()
+    {
+        string sidebar = Read("Desktop/Views/Archive/ReaderMediaSidebar.cs");
+        Assert.Contains("_frame.PointerReleased", sidebar);
+        Assert.Contains("_frame.DoubleTapped", sidebar);
+        Assert.Contains("GalleryRequested?.Invoke(this, EventArgs.Empty);", sidebar);
+
+        string archive = Read("Desktop/Views/Archive/ArchivePage.InlineVideo.cs");
+        Assert.Contains("if (ReaderMediaSidebarRules.OpensGalleryOnPictureClick(_inlineVideo.Options)) OpenMediaSidebarMedia();", archive);
+
+        string media = Read("Desktop/Views/Media/MediaPage.Panel.cs");
+        Assert.Contains("if (ReaderMediaSidebarRules.OpensGalleryOnPictureClick(_panelVideoController.Options)) StartOpenPanelMedia();", media);
+    }
+
+    [Fact]
     public void CardsRunTheirFirstButtonOnADoubleClick()
     {
         string rules = Read("Desktop/Views/Rules/RulesPage.Overview.cs");

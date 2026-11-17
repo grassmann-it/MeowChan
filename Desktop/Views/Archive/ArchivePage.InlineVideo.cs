@@ -213,11 +213,11 @@ public partial class ArchivePage
         if (_sidebarPlayRequested) { _sidebarPlayRequested = false; if (offered) _ = slot.PlayAsync(); }
     }
 
-    /// <summary>A click on the sidebar's picture: plays or pauses an inline video; anything else opens the gallery as before.</summary>
+    /// <summary>A click on the sidebar's picture: plays or pauses an inline video; an image opens the gallery only when explicitly configured to do so.</summary>
     private void OnMediaSidebarPictureActivated()
     {
         if (_sidebarVideo is { IsOffered: true } slot) { _ = slot.ToggleAsync(); return; }
-        OpenMediaSidebarMedia();
+        if (ReaderMediaSidebarRules.OpensGalleryOnPictureClick(_inlineVideo.Options)) OpenMediaSidebarMedia();
     }
 
     // The sidebar's own autoplay (default on; sound as its start-muted switch says) of the shown video, once the selection rested (holding ↑/↓ starts nothing).

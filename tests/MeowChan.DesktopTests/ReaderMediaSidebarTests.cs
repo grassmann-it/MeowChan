@@ -133,6 +133,18 @@ public sealed class ReaderMediaSidebarTests : IDisposable
         Assert.Throws<ArgumentOutOfRangeException>(() => new Config { ReaderMediaSidebarMinimumWidth = 3841 }.Validate());
     }
 
+    [Theory]
+    [InlineData("Sidebar", false)]
+    [InlineData("Post", false)]
+    [InlineData("Gallery", true)]
+    public void ASinglePictureClickOpensGalleryOnlyForTheExplicitGalleryChoice(string modeName, bool expected)
+    {
+        Config config = new();
+        config.ChooseReaderMediaClick(Enum.Parse<ReaderMediaClickMode>(modeName));
+
+        Assert.Equal(expected, ReaderMediaSidebarRules.OpensGalleryOnPictureClick(ReaderInlineVideoOptions.From(config)));
+    }
+
     [Fact]
     public void TheSidebarIsTheFocusedMediaSurfaceWhileItIsShown()
     {

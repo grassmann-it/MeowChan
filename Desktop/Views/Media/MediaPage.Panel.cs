@@ -486,11 +486,11 @@ public sealed partial class MediaPage
     /// <summary>Every panel player is given back (the panel hides, the page ends).</summary>
     internal Task ReleasePanelVideos() => _panelVideoController.ReleaseAllAsync();
 
-    // A click on the panel's picture: plays or pauses a video here; an image opens the gallery, as in the reader's sidebar.
+    // A click on the panel's picture: plays or pauses a video here; an image opens the gallery only when explicitly configured to do so.
     private void OnPanelPictureActivated()
     {
         if (_panelVideo is { IsOffered: true } slot) { _ = slot.ToggleAsync(); return; }
-        StartOpenPanelMedia();
+        if (ReaderMediaSidebarRules.OpensGalleryOnPictureClick(_panelVideoController.Options)) StartOpenPanelMedia();
     }
 
     // ---- opening, closing ------------------------------------------------------------------------------------------------------

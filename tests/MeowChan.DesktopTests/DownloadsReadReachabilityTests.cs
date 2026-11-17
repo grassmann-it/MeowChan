@@ -27,6 +27,31 @@ public sealed class DownloadsReadReachabilityTests
     }
 
     [Fact]
+    public void AThreadDoubleClickUsesTheReaderAndTheThreadReadMenuIsItsFirstPrimaryAction()
+    {
+        string xaml = Source("Desktop/Shell/MainWindow.axaml");
+        int threads = xaml.IndexOf("x:Name=\"ThreadsDataGrid\"", StringComparison.Ordinal);
+        int boards = xaml.IndexOf("x:Name=\"BoardsDataGrid\"", StringComparison.Ordinal);
+        Assert.True(threads >= 0 && boards > threads);
+        string threadGrid = xaml[threads..boards];
+        Assert.Contains("DoubleTapped=\"OnThreadDoubleTapped\"", threadGrid, StringComparison.Ordinal);
+
+        string window = Source("Desktop/Shell/MainWindow.axaml.cs");
+        int handler = window.IndexOf("private async void OnThreadDoubleTapped", StringComparison.Ordinal);
+        int boardHandler = window.IndexOf("private void OnBoardDoubleTapped", handler, StringComparison.Ordinal);
+        Assert.True(handler >= 0 && boardHandler > handler);
+        string doubleClick = window[handler..boardHandler];
+        Assert.Contains("OpenDownloadReaderAsync(row.Snapshot.Id, target)", doubleClick, StringComparison.Ordinal);
+        Assert.Contains("SelectedThreads().Length != 1", doubleClick, StringComparison.Ordinal);
+        Assert.Contains("target?.DataContext is not ThreadRow", doubleClick, StringComparison.Ordinal);
+
+        string menu = Source("Desktop/Shell/MainWindow.Menus.cs");
+        int read = menu.IndexOf("Add(\"thread.read\"", StringComparison.Ordinal);
+        int gallery = menu.IndexOf("Add(\"gallery.open\"", read, StringComparison.Ordinal);
+        Assert.True(read >= 0 && gallery > read, "Read must precede Gallery in the thread context menu.");
+    }
+
+    [Fact]
     public void ReadUsesTheValidatedThreadSelectionInsteadOfAStaleRawDataGridCount()
     {
         string menu = Source("Desktop/Shell/MainWindow.Menus.cs");

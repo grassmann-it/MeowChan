@@ -49,6 +49,10 @@ internal static class ReaderMediaSidebarRules
     /// </summary>
     internal static bool IsOn(ReaderMediaPreferences media, bool largeReader) => media.Sidebar && (largeReader || media.SidebarAlways);
 
+    /// <summary>Whether a single click on an image in the sidebar is explicitly configured to open the gallery.</summary>
+    internal static bool OpensGalleryOnPictureClick(ReaderInlineVideoOptions options) =>
+        options.Mode == ReaderMediaClickMode.Gallery;
+
     /// <summary>
     /// Shown when switched on for this view (<see cref="IsOn"/>) and only while the reader is at least the configured width. An unknown
     /// width (not laid out yet) counts as wide enough, so opening the reader does not lay the posts out twice.
@@ -326,7 +330,7 @@ internal sealed class ReaderMediaSidebar : Border
     internal string StatusText => _status.IsVisible ? _status.Text ?? string.Empty : string.Empty;
     internal bool IsDimmed => _image.Opacity < 1;
 
-    /// <summary>Raised by a click on the picture (the page opens the gallery, as "Open").</summary>
+    /// <summary>Raised by a single click on the picture (the host toggles video playback or honours an explicit gallery setting).</summary>
     internal event EventHandler? PictureActivated;
     /// <summary>A double click on the picture: the gallery opens, whatever "Clicking a medium" is set to.</summary>
     internal event EventHandler? GalleryRequested;
