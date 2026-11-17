@@ -155,9 +155,9 @@ public sealed class ToolbarGapPatternTests
     public void TheTaggingBarDocksColumnsViewSwitchAndHelpAtTheRight()
     {
         string commands = File.ReadAllText(Root("Desktop/Views/Tagging/TaggingPage.Commands.cs"));
-        Assert.Contains("new Control[] { _columnsButton, _viewToggle, _help }) ActionToolBar.SetEnd(item, true);", commands);
-        // The three stay the last items of the bar, in this order.
-        Assert.Contains("(_columnsButton, 3), (_viewToggle, 3), (_help, 4)", commands);
+        Assert.Contains("ActionToolBar.SetEnd(_help, true);", commands);
+        // Columns and list/grid remain grouped in the list presentation row.
+        Assert.Contains("new Control[] { _columnsButton, _viewToggle }", commands);
     }
 
     [Fact]

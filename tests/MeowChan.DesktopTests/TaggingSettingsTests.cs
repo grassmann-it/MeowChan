@@ -283,7 +283,7 @@ public sealed class TaggingSettingsTests : IDisposable
     {
         CommandDefinition command = CommandCatalog.Get("media.queue.add");
         Assert.Equal("Q", command.Shortcut);
-        Assert.Equal(new[] { "media", "gallery" }, command.ExecutionContexts);
+        Assert.Equal(new[] { "media", "reader", "gallery" }, command.ExecutionContexts);
         ShortcutGesture q = Assert.Single(EffectiveShortcutBindings.Defaults(command, platform));
         foreach (CommandDefinition other in CommandCatalog.All.Where(item => item.Id != command.Id))
             Assert.DoesNotContain(EffectiveShortcutBindings.Defaults(other, platform), gesture => gesture.Key == q.Key && gesture.Modifiers.Count == 0);

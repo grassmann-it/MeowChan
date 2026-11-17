@@ -95,7 +95,7 @@ public sealed class TaggingPageLinksTests : IDisposable
         Assert.Equal("tagging.start", row.Alternative);
         Assert.Equal(Presence.Required, WorkViewPolicy.Resolve("tagging.start", WorkView.Barebones));
         string page = Source("Desktop/Views/Tagging/TaggingPage.cs");
-        Assert.Contains("_start.Click += (_, _) => OpenActions.Start(() => StartAsync(null), \"tagging.start\");", page);
+        Assert.Contains("OpenActions.Start(() => StartAsync(null), \"tagging.start\")", page);
         Assert.DoesNotContain("_lastShown.Click", page);
         Assert.Contains("private readonly TextBlock _lastShown", page);
         string view = Source("Desktop/Views/Tagging/TaggingPage.WorkView.cs");

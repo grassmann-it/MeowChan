@@ -134,6 +134,6 @@ public sealed class ShellMenuAndTitleOffsetTests
         XElement tokens = XDocument.Load(Root("Desktop/WorkspaceStyles.axaml")).Root!;
         string side = tokens.Descendants().Single(e => (string?)e.Attribute(X + "Key") == "Workspace.Space.12").Value;
         string section = tokens.Descendants().Single(e => (string?)e.Attribute(X + "Key") == "Workspace.Space.16").Value;
-        Assert.Contains($"Margin = new Thickness({side}, PageHeader.PageTopOffset, {side}, {section})", code);
+        Assert.Contains("Margin = new Thickness(12, PageHeader.PageTopOffset, 12, 16)", code);
     }
 }

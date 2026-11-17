@@ -99,7 +99,7 @@ public sealed class MediaBooruModeTests : IDisposable
         // MP2: the queue before tagging together, in the bar from Simple on and under the bar's More.
         Assert.True(WorkViewPolicy.Get("media.selection.queue").OverflowOrder < WorkViewPolicy.Get("media.selection.tag").OverflowOrder);
         Assert.Equal(Presence.Direct, WorkViewPolicy.Resolve("media.selection.queue", WorkView.Simple));
-        Assert.Contains("{ _selectionText, _selQueue, _selTag, _selGallery, _selExport, _selMore, _selClear }", Read("Desktop/Views/Media/MediaPage.Selection.cs"));
+        Assert.Contains("new Control[] { _selQueue, _selTag, _selGallery, _selExport, _selMore }", Read("Desktop/Views/Media/MediaPage.Selection.cs"));
         // A switch under More keeps its state as a checked entry.
         Assert.Contains("if (control is ToggleButton check)", Read("Desktop/Views/Media/MediaPage.WorkView.cs"));
     }

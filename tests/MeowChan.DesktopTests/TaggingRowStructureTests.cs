@@ -84,7 +84,7 @@ public sealed class TaggingRowStructureTests
         Assert.Same(Find<TaggingControlRow>(page, "TaggingQueueActionRow"), queue.Children[0]);
         page.ExecuteRowCommandAsync("tagging.mark-done", explain: true).GetAwaiter().GetResult();
         Assert.True(page.StatusText.IsVisible);
-        Assert.True(page.StatusText.Parent!.IsVisible);
+        Assert.True(page.StatusText.Parent is Control { IsVisible: true });
         Assert.Same(Find<StackPanel>(page, "TaggingFeedback"), page.StatusText.Parent);
     });
 
