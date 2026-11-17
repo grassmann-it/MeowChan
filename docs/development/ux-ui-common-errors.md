@@ -52,6 +52,13 @@ turns out to be an instance of a pattern; dated backlogs such as
   coverage does not close them. See the [current closeout](ux-ui-release-followups-20261117.md#focus-click-contract-skip-closeout).
 - **Shortcut routing by focus:** rating, favorite, tag, navigation and video keys must reach the
   right surface when a sidebar, thumbnail, post or video has focus, without stealing text keys.
+- **Shortcut discovery disagrees with routing (UX-LEDGER-19):** point-of-use tooltips and
+  accessible help must enumerate effective bindings, including aliases, and filter the real
+  execution context and Reader/Media video ownership. Never construct platform suggestion
+  chords or a first/last gesture range. Regression coverage:
+  [`PointOfUseDiscoveryTests.cs`](../../tests/MeowChan.DesktopTests/PointOfUseDiscoveryTests.cs),
+  `TooltipAliasLimitTests` (now all aliases) and the quick-tag navigation contracts.
+  See [before/after and limits](ux-ledger-19-discovery-20261117.md).
 - **Focus not restored on close:** closing a popover, dialog, sidebar or enlarged view returns
   focus to the element that opened it. Esc closes only the topmost layer.
 - **Held keys auto-repeat** the opening action into the newly opened surface.

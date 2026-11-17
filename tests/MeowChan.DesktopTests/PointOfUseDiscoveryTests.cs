@@ -94,7 +94,13 @@ public sealed class PointOfUseDiscoveryTests
                     string key = gesture.Display(OperatingSystem.IsMacOS() ? ShortcutPlatform.MacOS : ShortcutPlatform.Windows);
                     Assert.Contains(key, hint); Assert.Contains(key, note);
                 }
-            if (!unbound) Assert.DoesNotContain("Space", hint);
+            foreach (string id in new[] { "reader.media.activate", "video.play-pause" })
+                foreach (var old in EffectiveShortcutBindings.Build().For(id))
+                {
+                    string oldKey = old.Display(ShortcutService.Current.Platform);
+                    Assert.DoesNotContain(oldKey, hint);
+                    Assert.DoesNotContain(oldKey, note);
+                }
         }
         Texts.SetLanguage("en");
     });
@@ -170,6 +176,18 @@ public sealed class PointOfUseDiscoveryTests
         ShortcutService.Publish(new ShortcutBindingsSection().Set(command, []));
         var noKey = CreateChip();
         Assert.DoesNotContain(ShortcutGesture.Parse("Alt+F9").Display(platform), AutomationProperties.GetHelpText(noKey));
+    });
+
+    [Fact]
+    public void RetiringDetachedShortcutEditorReleasesItsCaptureLease() => WithControls(() =>
+    {
+        using var editor = new MeowChan.Desktop.Views.Shortcuts.ShortcutBindingsEditor();
+        typeof(MeowChan.Desktop.Views.Shortcuts.ShortcutBindingsEditor).GetField("_captureLease", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .SetValue(editor, ShortcutService.BeginCapture());
+        Assert.True(ShortcutService.IsCapturing);
+        editor.Dispose();
+        editor.Dispose();
+        Assert.False(ShortcutService.IsCapturing);
     });
 
     private static void AssertHelp(Control control, string context, params string[] commands)
