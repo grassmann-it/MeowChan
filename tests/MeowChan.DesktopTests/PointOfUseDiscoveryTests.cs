@@ -29,7 +29,7 @@ public sealed class PointOfUseDiscoveryTests
             Refresh(player);
             AssertHelp(Field<Control>(player, "_seek"), "gallery", commands);
         }
-        finally { DisposePlayer(player); }
+        finally { Settle(player.DisposeAsync().AsTask()); }
     });
 
     [Theory]
@@ -47,7 +47,7 @@ public sealed class PointOfUseDiscoveryTests
             Refresh(player);
             AssertHelp(Field<Control>(player, "_volume"), "gallery", "video.volume-down", "video.volume-up");
         }
-        finally { DisposePlayer(player); }
+        finally { Settle(player.DisposeAsync().AsTask()); }
     });
 
     [Theory]
@@ -70,7 +70,7 @@ public sealed class PointOfUseDiscoveryTests
             player.ShortcutContext = "gallery";
             Assert.Contains(key, Assert.IsType<string>(ToolTip.GetTip(loop)));
         }
-        finally { DisposePlayer(player); }
+        finally { Settle(player.DisposeAsync().AsTask()); }
     });
 
     [Theory]
@@ -208,9 +208,8 @@ public sealed class PointOfUseDiscoveryTests
         }
     }
 
-    private static void DisposePlayer(GalleryVideoPlayer player)
+    private static void Settle(Task task)
     {
-        Task task = player.DisposeAsync().AsTask();
         if (!task.IsCompleted)
         {
             Avalonia.Threading.DispatcherFrame frame = new();
