@@ -306,9 +306,15 @@ internal static partial class PrivateTagBarChecks
         async Task ChooseTagsAsync(ContextMenu menu, ResourceId thread)
         {
             MenuItem item = TagsItem(menu) ?? throw new InvalidOperationException("The thread menu offers no Tags… entry.");
+            object?[] expectedBeforeTags = { "thread.favorite-toggle", "thread.read", "gallery.open", "thread.details" };
+            // Continue Reading is an optional action inserted after Read when this thread has a saved
+            // reading position. It is part of the current menu contract and must not make the older
+            // Tags smoke reject an otherwise valid menu.
+            if (menu.Items.OfType<MenuItem>().Any(entry => Equals(entry.Tag, "navigation.continue-reading")))
+                expectedBeforeTags = new object?[] { "thread.favorite-toggle", "thread.read", "navigation.continue-reading", "gallery.open", "thread.details" };
             Require(item.Command?.CanExecute(null) == true && item.Header?.ToString()?.StartsWith(Texts.T("command.thread.tags"), StringComparison.Ordinal) == true
                 && menu.Items.OfType<MenuItem>().Select(entry => entry.Tag).TakeWhile(tag => !Equals(tag, "thread.tags"))
-                    .SequenceEqual(new object?[] { "thread.favorite-toggle", "thread.read", "gallery.open", "thread.details" }),
+                    .SequenceEqual(expectedBeforeTags),
                 "The Tags… entry is disabled, mislabeled or misplaced: " + item.Header);
             item.Command!.Execute(null);
             menu.Close();
