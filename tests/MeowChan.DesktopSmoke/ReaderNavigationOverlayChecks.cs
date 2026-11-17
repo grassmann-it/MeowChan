@@ -459,6 +459,11 @@ internal static class ReaderNavigationOverlayChecks
     private static void CheckGeometry(MainWindow window, ArchivePage page)
     {
         WrapPanel navigation = page.FindControl<WrapPanel>("ReaderNavigation")!;
+        // CheckModes deliberately leaves Auto hidden. Geometry is a visible-overlay contract, so
+        // reveal it before settling the two layout passes; otherwise a valid 40-dip layout is
+        // rejected solely because the idle timer won the race.
+        if (!navigation.IsEffectivelyVisible || navigation.Opacity < 1 || !navigation.IsHitTestVisible)
+            page.ShowReaderNavigation();
         // The compact form follows the surface width from a layout pass of its own: settle both passes before measuring.
         window.UpdateLayout(); window.UpdateLayout();
         Rect pad = Bounds(navigation, window);
