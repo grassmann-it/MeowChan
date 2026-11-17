@@ -95,14 +95,13 @@ internal sealed partial class BooruWorkbenchView
         AutomationProperties.SetControlTypeOverride(card, AutomationControlType.ListItem);
         AutomationProperties.SetName(card, Texts.T("booru.ui.result.hitName", postId, BooruText.Rating(row.Post.Rating),
             Texts.T(showInMedia != null ? "booru.ui.result.localYes" : "booru.ui.result.localNo")));
-        // Interaction audit 1.1.0: a double click on the card (not on a button, a tag or selectable text) and Enter on it are the primary
-        // action. Nothing is loaded without a local copy (decision 95).
+        // Saved originals keep their Show in Media route. Unsaved hits open the preview-only
+        // Booru viewer instead; neither Enter nor double-click implicitly downloads an original.
         card.DoubleTapped += (_, e) =>
         {
             if (_closed || !ItemActivation.IsCardDoubleClick(e, card)) return;
-            if (BooruHitKeys.Primary(showInMedia) is not { } primary) return;
-            e.Handled = true;
-            Click(primary);
+            if (BooruHitKeys.Primary(showInMedia) is { } primary) { e.Handled = true; Click(primary); }
+            else e.Handled = OpenResultViewer(postId);
         };
         ConfigureMiddleClick(card, postId);
         card.KeyDown += (_, e) =>
@@ -112,9 +111,8 @@ internal sealed partial class BooruWorkbenchView
             switch (key)
             {
                 case BooruHitKey.Activate:
-                    if (BooruHitKeys.Primary(showInMedia) is not { } primary) return;
-                    e.Handled = true;
-                    Click(primary);
+                    if (BooruHitKeys.Primary(showInMedia) is { } primary) { e.Handled = true; Click(primary); }
+                    else e.Handled = OpenResultViewer(postId);
                     break;
                 case BooruHitKey.None:
                     break;
