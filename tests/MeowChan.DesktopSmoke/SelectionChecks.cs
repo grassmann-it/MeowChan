@@ -260,7 +260,7 @@ internal static class SelectionChecks
         // slot too instead of silently ignoring extra commands or sorting tags.
         var expected = new List<string>
         {
-            "thread.favorite-toggle", "thread.read", "gallery.open", "thread.details", "thread.show-in-media", "export.open-html-dialog",
+            "thread.favorite-toggle", "thread.read", "gallery.open", "thread.details", "thread.show-in-media", "post-bookmarks.open-manager", "export.open-html-dialog",
             "selection.copy-links", "location.open-folder", "location.open-source", "watch.check", "watch.retry-media",
             "rules.edit-scope", "watch.remove", "archive.delete-permanently"
         };

@@ -48,7 +48,7 @@ internal static class ArchiveCommandChecks
             Require(items.Select(item => (string)item.Tag!).SequenceEqual(new[]
             {
                 "thread.favorite-toggle", "thread.read", "gallery.open", "thread.details", "thread.show-in-media",
-                "export.open-html-dialog", "selection.copy-links",
+                "post-bookmarks.open-manager", "export.open-html-dialog", "selection.copy-links",
                 "location.open-folder", "location.open-source", "watch.check", "watch.retry-media", "rules.edit-scope", "watch.remove", "archive.delete-permanently"
             }), "Archive context menu action order differs from the common thread menu: " + string.Join(", ", items.Select(item => item.Tag)));
             MenuItem Find(string id) => items.Single(item => (string)item.Tag! == id);
