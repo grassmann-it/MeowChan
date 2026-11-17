@@ -42,9 +42,39 @@ No registry entry is deleted or relaxed.
 The in-app `--smoke-*` apphost acceptance switches are **Debug-only**. For those probes, publish
 with `dotnet publish MeowChan.csproj -c Debug ...` to a separate, non-shipping acceptance directory.
 Never enable DEBUG or re-include harness sources in a shipping Release build. A Debug apphost
-acceptance result is not proof of executing the shipping Release archive. Packaging workflows
-which previously invoked these private switches against Release archives need a distinct Debug
-acceptance artifact; keep the actual Release archive's package/signature checks separate.
+acceptance result is not proof of executing the shipping Release archive. The packaging workflow
+now builds separate same-source, same-RID Debug acceptance archives and keeps the shipping
+Release archive's package/signature/layout checks separate. Neither half substitutes for the other.
+
+### Final platform routing
+
+| Job | Before | After |
+| --- | --- | --- |
+| `macos-package` (`osx-arm64`, `osx-x64`) | Startup, playback and workflow switches on the Release DMG-installed app | Release publish boundary, package, signature/closure, ZIP round-trip and mounted/copied DMG checks; all original startup/playback/workflow probes on a separately signed, packaged and mounted **Debug** app under `artifacts/acceptance-macos-*` |
+| `package-media` (`win-x64`) | Playback/workflow switches on the extracted Release ZIP | Original Release distribution/native-video/plugin checks and ZIP round-trip retained; identical playback/workflow scenes use a separate **Debug** ZIP under `artifacts/acceptance-media-*` |
+| `linux-distribution` (`linux-x64`, `linux-arm64`) | Playback/workflow/error switches on Release bundled-VLC, system-VLC and AppImage distributions | All four Release distribution layout scenarios run with `--layout-only`; all original positive scenes, missing-system-VLC and damaged-bundle negatives, AppRun and extract-and-run execute separate **Debug** distributions under `artifacts/acceptance-linux-*` |
+| `macos-source-candidate` | One archive binding for both package inventory and UI execution | Independent Release DMG/ZIP/signature binding and Debug startup/playback/workflow archive binding; source overlay and promotable DMGs bind only to Release |
+| `current-source-inventory` / `release-candidate-gate` | Native workflow hashes implicitly referred to shipping archives | Require split evidence at the same source/version/RID, verify executed Debug archive hashes, retain Release layout evidence and stage **only Release** desktop assets |
+
+`scripts/apphost-acceptance-boundary.py` is a fail-closed configuration/capability preflight,
+not a replacement for the PE metadata tests or any acceptance scene. Every in-app runner rejects
+a Release input before launching a scene; `APPHOST --dry-run` checks routing without a UI or
+acceptance claim. It inspects the actual managed payload in thin hosts, macOS bundles, uncompressed
+single-file hosts and AppImages (extraction only). Release validation rejects the development hook
+and any embedded `--smoke-` user string. Debug validation requires the Debug configuration,
+development hook and the runner's switch. CI checks both publishes before packaging.
+
+`MeowChanAcceptancePublish=true` only selects the reviewed Release RID lock graph for a **Debug**
+acceptance restore/publish. It does not change `Configuration`, `DefineConstants` or the Release
+source exclusion. Separate `--artifacts-path` directories avoid cross-configuration restore reuse;
+macOS explicitly enables the same single-file analyzer dependency while keeping runtime libraries
+visible for signing. Current-source assembly requires split evidence; retained v0.9 assembly inputs
+keep their historical contract, not a fallback for new source candidates.
+
+Reports identify `acceptanceConfiguration: Debug` and `shippingArtifactExecuted: false`;
+Linux also distinguishes `configuration` and `layoutOnly`. Candidate inventories explicitly record
+`acceptance_configuration: Debug` and `shipping_binary_execution_claim: false`. Debug archives
+are retained solely as non-shipping evidence, never promoted as public release assets.
 
 Focused validation (no solution build or full smoke suite):
 
@@ -72,6 +102,42 @@ At code commit `d708440d436ffb63e0282e8b40cad1514207131b`:
   actual main window/session ready, dwell and normal shutdown completed, exit 0.
 - No full solution build or full smoke suite was run. Existing compiler/analyzer warnings remain.
 
-The legacy Release-archive in-app packaging probes were not migrated or executed here. They cannot
-keep their old claim that an embedded harness executed inside the shipping Release binary once
-that harness is absent. Keep this distinct from the successfully validated external Release registry.
+### Packaging migration validation (2026-11-17)
+
+The migration is implemented in `41afb5ac4`. All 19 inherited uncommitted entries belonged to
+this migration and were retained. Completion also repaired the renamed macOS workflow-step
+contract, pointed the plugin inventory contract at its relocated shared oracle, and corrected a
+stale selector expectation to **require** the always-running full-sweep aggregate while keeping
+all unrelated workload exclusions asserted. No scene assertions or acceptance coverage were removed.
+Linux Debug package bytes and individual Release layout reports now have independent hash checks;
+negative tests reject substitution of Release hashes for executed Debug ZIPs on Windows/macOS.
+
+Locally reverified using .NET SDK 10.0.111 on Linux (no solution build, no GUI suite):
+
+- `dotnet build MeowChan.csproj -c Release --no-restore -m:1 -p:UseSharedCompilation=false -nodeReuse:false`:
+  succeeded, zero errors; existing warnings remain.
+- The same product-only build with `-c Debug`: succeeded, zero errors.
+- The resulting `bin/Release/net10.0/MeowChan.dll` contains **zero of the seven switches**, no
+  `--smoke-` user-string prefix and no development hook; the Debug assembly contains **all seven**
+  and the hook. Both configuration markers were checked by the boundary preflight.
+- All seven runners' `--dry-run` entry points accepted the actual Debug output and rejected the
+  actual Release output. No UI, playback, scene or shipping-binary execution claim is made.
+- `python3 scripts/test-apphost-acceptance-boundary.py -v`: **8 passed**.
+- `python3 -m unittest discover -s tests -p 'test_apphost_*_runner.py' -v`: **58 passed**.
+- `python3 -m unittest discover -s tests -p test_prerelease.py -v`: **57 passed**.
+- Supplemental packaging contracts: macOS **95 passed, 1 skipped** (native Apple signing tools),
+  Linux **42 passed, 1 skipped** (explicit local Docker image required), retained stable release
+  **6 passed**. Auxiliary integrity/plugin/source-activation script contracts: **13/25/14 passed**.
+- Debug acceptance locked `linux-x64` self-contained/single-file restore with
+  `MeowChanAcceptancePublish=true` succeeded against the reviewed RID locks. No lockfile changes
+  were retained. This was a restore check, not a native archive publish/acceptance run.
+- Workflow YAML and migrated embedded Python parsed; `git diff --check` passed.
+
+**Open native CI gate:** run the final source through both macOS RIDs, Windows x64 and both Linux
+RIDs, including actual self-contained publishing, signing/mounting/ZIP round trips, Docker/native
+VLC positive and error scenarios, AppImage AppRun/extract-and-run, and downstream candidate/source
+assembly. Those platform executions and final-source archive/evidence hashes were not proven
+locally. The implementation no longer has an unmigrated Release-switch caller, but release
+acceptance still requires green native CI evidence. Debug execution is deliberately not proof of
+executing a shipping Release binary; physical audio, Developer ID/notarization and Gatekeeper
+remain outside the pre-existing acceptance claim.
