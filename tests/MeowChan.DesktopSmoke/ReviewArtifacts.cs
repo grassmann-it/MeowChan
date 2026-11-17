@@ -14,9 +14,9 @@ internal static partial class ReviewArtifacts
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
     internal static string? Output => Environment.GetEnvironmentVariable("MEOWCHAN_REVIEW_ARTIFACTS");
 
-    internal static void Capture(Window window, string label)
+    internal static void Capture(Window window, string label, object? timing = null)
     {
-        if (_writing || string.IsNullOrWhiteSpace(Output)) return;
+        if (_writing || (timing == null && _gestureDepth > 0) || string.IsNullOrWhiteSpace(Output)) return;
         _writing = true;
         try
         {
@@ -30,6 +30,19 @@ internal static partial class ReviewArtifacts
                 elements = Tree(window).ToArray()
             });
             Write(directory, "state.json", Snapshot(window));
+            Write(directory, "timing.json", timing ?? new
+            {
+                schema_version = 1, kind = "checkpoint", gesture = label,
+                clock = "monotonic-ms-process-epoch", t_input = (double?)null,
+                t_first_visual_ack = (double?)null, t_final = Now,
+                unverified = "Screenshot checkpoint only: no scripted input boundary or heartbeat. Use GestureAsync for latency evidence."
+            });
+            // Written last: consumers must reject partial directories without this marker.
+            Write(directory, "bundle.json", new
+            {
+                schema_version = 1, label, complete = true,
+                files = new[] { "screenshot.png", "control-tree.json", "state.json", "timing.json" }
+            });
         }
         finally { _writing = false; }
     }
