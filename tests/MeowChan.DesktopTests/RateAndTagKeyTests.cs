@@ -229,6 +229,56 @@ public sealed class RateAndTagPopoverCloseTests : IDisposable
     }
 
     [Fact]
+    public void TheRepeatsOfTheKeyThatOpenedThePopoverAreSwallowedUntilItsKeyUpAndANewPressTypes()
+    {
+        // The key events travel a real route (root -> field) through the application-wide class handlers, as a keyboard's do; a handled KeyDown means
+        // the platform raises no TextInput for it (X11, Win32).
+        QuickTagPopover.TrackHeldKeys();
+        using Fixture fixture = new();
+        TextBox field = new();
+        Border root = new() { Child = field };
+        KeyEventArgs Down() => Typed(Avalonia.Input.Key.R, "r");
+        KeyEventArgs Up() => new() { RoutedEvent = InputElement.KeyUpEvent, Key = Avalonia.Input.Key.R, KeyModifiers = KeyModifiers.None };
+        QuickTagPopover popover = QuickTagPopover.Create(new Border(), fixture.Session(), "x",
+            new QuickTagPopoverOptions { RestoreFocus = false, Decision = Decision() });
+        try
+        {
+            // R goes down (it opens the popover) and is still held when the popover latches the keys that are down.
+            KeyEventArgs press = Down();
+            field.RaiseEvent(press);
+            Assert.False(press.Handled);
+            popover.LatchOpeningKeys();
+            Assert.Contains(Avalonia.Input.Key.R, popover.OpeningKeys);
+            // Held past the repeat delay: KeyDowns without a KeyUp, swallowed (no "rrr" in the field), and a TextInput right after one too.
+            for (int repeat = 0; repeat < 3; repeat++)
+            {
+                KeyEventArgs again = Down();
+                field.RaiseEvent(again);
+                Assert.True(again.Handled, "repeat " + repeat + " of the opening R reached the field");
+            }
+            TextInputEventArgs text = new() { RoutedEvent = InputElement.TextInputEvent, Text = "r" };
+            field.RaiseEvent(text);
+            Assert.True(text.Handled);
+            // Released, then pressed again on purpose: that R types.
+            field.RaiseEvent(Up());
+            Assert.Empty(popover.OpeningKeys);
+            KeyEventArgs fresh = Down();
+            field.RaiseEvent(fresh);
+            Assert.False(fresh.Handled, "a new R after the release was swallowed");
+            TextInputEventArgs typed = new() { RoutedEvent = InputElement.TextInputEvent, Text = "r" };
+            field.RaiseEvent(typed);
+            Assert.Equal("r", field.Text);
+            field.RaiseEvent(Up());
+        }
+        finally { popover.Close(); }
+        // Closed: no latch any more.
+        KeyEventArgs after = Down();
+        field.RaiseEvent(after);
+        Assert.False(after.Handled);
+        field.RaiseEvent(Up());
+    }
+
+    [Fact]
     public void TabAndALoneModifierStayWithTheKeyboardNavigationOfThePopover()
     {
         Assert.False(QuickTagPopover.ConsumesUnhandledKey(Key(Avalonia.Input.Key.Tab)));

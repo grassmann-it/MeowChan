@@ -71,6 +71,8 @@ public partial class MainWindow : Window
     internal MainWindow(DesktopSessionHost? session)
     {
         RecordStartupTiming(StartupTimingPoint.ConstructorBegin);
+        // The quick tag popover swallows the repeats of the key that opened it (R held a little long), so it must know which keys are down.
+        MeowChan.Desktop.Controls.QuickTagPopover.TrackHeldKeys();
         try { using (MeowChan.Diagnostics.PerformanceDiagnostics.Measure("startup.ctor.xaml")) InitializeComponent(); }
         catch
         {
