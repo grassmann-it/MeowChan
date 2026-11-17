@@ -154,3 +154,46 @@ gh pr list --repo grassmann-it/MeowChan --state open --limit 100
 ```
 
 The audit deliberately records blockers instead of modifying package code, CI, baselines, or other branches to make the graph appear mergeable.
+
+## Addendum — final worker snapshot and central preflight
+
+**Recorded:** 2026-11-18, after all 20 worker lanes reported completion.
+
+The earlier observations about unpublished worker state and missing current PRs are superseded by the following evidence. All 20 assigned lanes now have a clean worktree, a pushed commit, and a corresponding branch; the current PR set is still deliberately **not merged**.
+
+### Current package PR map
+
+| Package | Current PRs | Local evidence |
+|---|---|---|
+| 1 — Media | #90, #91, #97 | local focused suites green: #90 `61 passed, 2 skipped`; #91 `94 passed`; #97 `133 passed, 2 skipped` |
+| 2 — Tagging | #93, #86 | #93 `46 passed`; #86 `37 passed` |
+| 3 — CountFor(null) | #76, #81 | regression `1/1`; TaggingPageMenu `15/15` |
+| 4 — Reader/Gallery | #87, #95, #88 | #87 `42 passed`; #95 `134 passed`; #88 `36 + 10 passed`, broader run `236 passed / 1 unrelated failure` |
+| 5 — Booru | #89, #92 | #89 audit evidence; #92 `101 passed`, build `0 errors` |
+| 6 — Localization | #94, #84, #80, #96 | #94 `182 + 23 passed`; #84 `42 passed`; #80 JSON/whitespace audit; #96 `34/34 passed` |
+| 7 — UX/UI | #78, #82, #85 | #82 `139 passed`; #85 `12 + 100 passed`; #78 ledger/gate audit |
+| 8 — Coordination | #79 | this audit |
+| 9 — Verification | #83 | Python audit `4/4`, compile pass; .NET timeout documented |
+
+### Central local preflight
+
+The following checks were run against the 19 worker worktrees:
+
+- every worker worktree is clean;
+- `git diff --check` passes for every worker branch;
+- no worker diff touches `DesktopSmoke`, `.github/workflows`, analyzer baselines, lockfiles, or restore/build infrastructure;
+- every retained PR targets `goal/gesamtprogramm-profile-a` and reports GitHub merge state `CLEAN`;
+- all current PRs report `statusCheckRollup: []` — no GitHub CI checks were published for these branches.
+
+This proves branch/worktree hygiene, not product-wide acceptance. The local package reports remain the authoritative focused evidence; native GUI, platform, and central CI acceptance remain unproven.
+
+### Remaining gate blockers
+
+1. Duplicate/superseded PRs remain open: #71/#73 for 6A, #72/#74 for 9, and the older reader PR #66 overlaps the current reader lanes. They must be explicitly canonicalized before any merge batch.
+2. Package 6A still has an authorized-translation blocker; the missing preview keys are intentionally not filled with invented text.
+3. The broader localization completeness suite remains red for the two known missing preview keys; this is documented in #84/#94/#96.
+4. Package 4B has one unrelated existing slideshow-key audit failure (`D` versus current `Shift+D` default); Package 4C has one unrelated gallery-help assertion failure.
+5. No targeted CI retest can be called green because GitHub reports no checks for the current PRs. Workflow changes are explicitly out of scope.
+6. Package-9 native/platform acceptance and DesktopSmoke evidence are unavailable from the current local environment.
+
+**Updated central outcome:** still **BLOCKED / NOT READY TO MERGE**. The worker phase is complete; merge readiness is not.
