@@ -55,3 +55,17 @@ The complete 312-name retained candidate inventory is in
 [`l10n-pack-retained-keys-20261117.tsv`](l10n-pack-retained-keys-20261117.tsv).
 No keys removed; all ten pack entry counts stay unchanged. Existing coverage
 assertions already reject truly unknown or unselectable variants; none weakened.
+
+## 3. `savedSearch.*.None`: intentionally empty sentinels, not untranslated text
+
+Do **not** insert nonempty translations of “None”. Both English and German
+values in `ArchiveCatalog.cs:72,80` are `""`. The dialog constructs these keys
+from `EditKind.None` while hiding its editor (`SavedArchiveSearchesDialog.axaml.cs:340-347`).
+The correct translation in every language is no text. Missing pack entries
+already return that exact empty built-in value. Adding empty strings instead
+would reject the **entire pack** (`Texts.cs:362-363`), and adding the word “None”
+would change the sentinel's meaning. Therefore no pack entries were added and
+no loader/schema/assertion was weakened. Added ten regression cases in
+`LanguagePackAuditRegressionTests.NoEditSentinelsRemainEmptyInEveryLanguageWithoutInvalidPackEntries`
+to verify the actual localized lookup, with and without the unused editor-name
+argument, plus absence of invalid empty entries and loader warnings.
