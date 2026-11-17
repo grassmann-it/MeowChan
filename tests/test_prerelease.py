@@ -527,7 +527,7 @@ class CandidateWorkflowFixtures(unittest.TestCase):
             for job in required:
                 with self.subTest(mode=mode, job=job):
                     self.assertTrue(self.condition(job, mode))
-        self.assertIn('needs: [validate, library-package, macos-source-candidate]',
+        self.assertIn('needs: [validate, library-package, linux-distribution, macos-source-candidate]',
                       self.jobs['current-source-inventory'])
         self.assertIn('needs: [macos-package, package-media, linux-distribution]',
                       self.jobs['macos-source-candidate'])

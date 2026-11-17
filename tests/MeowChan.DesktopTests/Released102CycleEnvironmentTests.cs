@@ -12,12 +12,17 @@ public sealed class Released102CycleEnvironmentTests
         IReadOnlyDictionary<string, string> first = Released102CycleEnvironment.Create(result);
         IReadOnlyDictionary<string, string> next = Released102CycleEnvironment.Create(Path.Combine(temp.Path, "cycle-1.json"));
         Assert.Equal(6, first.Count);
-        Assert.NotEqual(first["HOME"], next["HOME"]);
+        Assert.Equal(first["HOME"], next["HOME"]);
+        Assert.EndsWith(Path.Combine(temp.Path, "replay-home"), first["HOME"]);
+        Assert.NotEqual(first["DOTNET_CLI_HOME"], next["DOTNET_CLI_HOME"]);
+        Assert.NotEqual(first["TMPDIR"], next["TMPDIR"]);
+        Assert.NotEqual(first["XDG_CONFIG_HOME"], next["XDG_CONFIG_HOME"]);
+        Assert.NotEqual(first["XDG_STATE_HOME"], next["XDG_STATE_HOME"]);
+        Assert.NotEqual(first["XDG_CACHE_HOME"], next["XDG_CACHE_HOME"]);
         foreach (string directory in first.Values)
-        {
             Assert.True(Directory.Exists(directory));
-            Assert.StartsWith(result + ".environment" + Path.DirectorySeparatorChar, directory);
-        }
+        Assert.True(Directory.Exists(first["HOME"]));
+        Assert.StartsWith(result + ".environment" + Path.DirectorySeparatorChar, first["DOTNET_CLI_HOME"]);
         Assert.Throws<IOException>(() => Released102CycleEnvironment.Create(result));
     }
 
