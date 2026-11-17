@@ -273,7 +273,14 @@ internal static class QuickTagNativeTypingChecks
             listState = $"root={TopLevel.GetTopLevel(suggestion)?.GetType().Name} visible={TopLevel.GetTopLevel(suggestion)?.IsVisible} at={suggestion.PointToScreen(default)}";
             await input.ClickAsync(suggestion);
             await WaitQuietly(() => surface.Session.UndoSteps.Count == steps + 1 || surface.Input.Text == "innocent");
-            if (surface.Session.UndoSteps.Count == steps + 1) { await input.ChordAsync('z', MediaNativeInput.ControlLeft); await WaitQuietly(() => surface.Session.UndoSteps.Count == steps); }
+            if (surface.Session.UndoSteps.Count == steps + 1)
+            {
+                await WaitQuietly(() => !surface.Session.Busy && string.IsNullOrEmpty(surface.Input.Text));
+                if (!string.IsNullOrEmpty(surface.Input.Text)) problems.Add("the clicked tag did not clear its committed draft");
+                await input.ChordAsync('z', MediaNativeInput.ControlLeft);
+                await WaitQuietly(() => surface.Session.UndoSteps.Count == steps);
+                if (surface.Session.UndoSteps.Count != steps) problems.Add("Ctrl+Z did not undo the clicked suggestion");
+            }
             else if (surface.Input.Text != "innocent") problems.Add("a click on the suggestion row took nothing (" + listState + ", field '" + surface.Input.Text + "')");
         }
         catch (TimeoutException) { problems.Add("typing 'inn' showed no suggestion row (open=" + surface.Input.IsDropDownOpen + ")"); }
@@ -284,8 +291,11 @@ internal static class QuickTagNativeTypingChecks
         await Settle(window);
         await TypeAsync(input, "innocent");
         await input.KeyAsync(MediaNativeInput.Enter);
-        await WaitQuietly(() => surface.Session.UndoSteps.Count == steps + 1);
+        // The session publishes its undo step before AddTypedAsync's UI continuation clears the draft.
+        // Ctrl+Z belongs to the editor until that continuation finishes; wait for the actual empty-field precondition.
+        await WaitQuietly(() => surface.Session.UndoSteps.Count == steps + 1 && !surface.Session.Busy && string.IsNullOrEmpty(surface.Input.Text));
         if (surface.Session.UndoSteps.Count != steps + 1) problems.Add("typing 'innocent' and Enter assigned nothing (field '" + surface.Input.Text + "')");
+        if (!string.IsNullOrEmpty(surface.Input.Text)) problems.Add("the committed tag did not clear its draft before surface undo: '" + surface.Input.Text + "'");
         trace.Begin();
         await input.ChordAsync('z', MediaNativeInput.ControlLeft);
         await WaitQuietly(() => surface.Session.UndoSteps.Count == steps);
