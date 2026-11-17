@@ -1,4 +1,5 @@
 #if DEBUG
+using static MeowChan.Desktop.ApphostAcceptanceAssertions;
 using System;
 using System.IO;
 using System.Linq;

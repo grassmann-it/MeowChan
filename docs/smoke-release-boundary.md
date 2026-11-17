@@ -14,9 +14,10 @@ Neither is an appropriate release-blocking infrastructure fix. Assertions and sc
 
 `MeowChan.csproj` excludes all apphost partials, the startup harness and the development entry
 point in every non-Debug configuration; `#if DEBUG` is a second fence around their sources.
-Six standalone fixtures/diagnostics now live under `tests/Shared/Apphost`. Debug apphost builds
+Seven standalone fixtures/diagnostics/assertion helpers now live under `tests/Shared/Apphost`. Debug apphost builds
 link those fixtures; non-Debug DesktopSmoke builds link them into the runner, not the product.
-Harness-specific unit tests run in Debug because their subject deliberately does not exist in
+Shared inventory/startup oracles are linked into the Release test executable as well, so product
+integration tests keep all their existing assertions. Harness-specific unit tests run in Debug because their subject deliberately does not exist in
 Release. Product tests and the new assembly-boundary test still build/run in Release.
 
 ## Startup

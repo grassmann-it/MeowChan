@@ -14,7 +14,7 @@ public sealed class ApphostSourceActivationStartupTests
     {
         using Fixture fixture = new();
         var (state, warnings) = await fixture.SelectedAsync();
-        MainWindow.RequireAuthorStartupState(state, warnings, true, phase);
+        MeowChan.Desktop.ApphostAcceptanceAssertions.RequireAuthorStartupState(state, warnings, true, phase);
         Assert.Equal(2, state.Plugins.Count(plugin => plugin.Problem != null));
         Assert.All(state.Plugins, plugin => Assert.Null(plugin.Pending));
     }
@@ -51,7 +51,7 @@ public sealed class ApphostSourceActivationStartupTests
         }
         if (fault == "fixture-source-disabled") plugins[target] = plugins[target] with { Enabled = false };
         state = state with { Plugins = plugins };
-        Assert.Throws<InvalidOperationException>(() => MainWindow.RequireAuthorStartupState(state, warnings, fault != "unpaused", "acquire"));
+        Assert.Throws<InvalidOperationException>(() => MeowChan.Desktop.ApphostAcceptanceAssertions.RequireAuthorStartupState(state, warnings, fault != "unpaused", "acquire"));
     }
 
     [Fact]
@@ -59,8 +59,8 @@ public sealed class ApphostSourceActivationStartupTests
     {
         using Fixture fixture = new();
         var state = await fixture.Store.ApplyStartupAsync(fixture.Prebuilt, 0);
-        MainWindow.RequireAuthorStartupState(state, [], true, "install");
-        Assert.Throws<InvalidOperationException>(() => MainWindow.RequireAuthorStartupState(state, ["unrelated warning"], true, "install"));
+        MeowChan.Desktop.ApphostAcceptanceAssertions.RequireAuthorStartupState(state, [], true, "install");
+        Assert.Throws<InvalidOperationException>(() => MeowChan.Desktop.ApphostAcceptanceAssertions.RequireAuthorStartupState(state, ["unrelated warning"], true, "install"));
     }
 
     private sealed class Fixture : IDisposable
@@ -68,7 +68,7 @@ public sealed class ApphostSourceActivationStartupTests
         private readonly string profile = Path.Combine(Path.GetTempPath(), "meowchan-author-startup-tests-" + Guid.NewGuid().ToString("N"));
         internal PluginProfileStore Store { get; }
         internal PluginCandidateObservation[] Prebuilt { get; } = [Candidate("meowchan.source.vichan", "prebuilt"), Candidate("meowchan.example.image-dimensions", "prebuilt"), Candidate("other.plugin", "prebuilt"), Candidate("meowchan.source.sevenchan", "prebuilt")];
-        internal Fixture() => Store = new(profile, MainWindow.ApphostFixturePluginEnabled);
+        internal Fixture() => Store = new(profile, MeowChan.Desktop.ApphostAcceptanceAssertions.ApphostFixturePluginEnabled);
         internal async Task<(PluginProfileSnapshot, string[])> SelectedAsync()
         {
             var state = await Store.ApplyStartupAsync(Prebuilt, 0);

@@ -1,4 +1,5 @@
 #if DEBUG
+using static MeowChan.Desktop.ApphostAcceptanceAssertions;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -236,31 +237,6 @@ public partial class MainWindow
                 scope = "Same owned profile, delivered .cs bytes, explicit candidate selection, actual startup activation and production workers; terminal fixture HTTP, no live-source claim."
             }, AuthorJson));
         }
-    }
-    internal static void RequireAuthorStartupState(PluginProfileSnapshot installed, IReadOnlyList<string> warnings, bool isPaused, string phase)
-    {
-        RequireWorkflow(isPaused, "Source activation startup is not paused.");
-        RequireWorkflow(phase is "install" or "acquire" or "offline", "Unknown author startup phase.");
-        const string selectedAdvisory = "Multiple candidates exist; the selected candidate is retained.";
-        string[] authorIds = { ChanSourceFamilies.Vichan, AuthorFilterId };
-        List<string> expectedWarnings = new();
-        foreach (var plugin in installed.Plugins)
-        {
-            RequireWorkflow(plugin.Enabled == ApphostFixturePluginEnabled(plugin.PluginId) && plugin.Active != null, "Source activation inventory is unavailable: " + plugin.PluginId);
-            if (phase != "install" && authorIds.Contains(plugin.PluginId, StringComparer.Ordinal))
-            {
-                RequireWorkflow(plugin.Problem == selectedAdvisory && plugin.SelectedCandidateId == plugin.Active!.CandidateId
-                    && plugin.Pending == null && plugin.Candidates.Count == 2
-                    && plugin.Candidates.All(candidate => candidate.IsPresent && candidate.Problem == null),
-                    "Author selection advisory/state differs: " + plugin.PluginId);
-                expectedWarnings.Add(plugin.Active!.Description.Name + ": " + selectedAdvisory);
-            }
-            else RequireWorkflow(plugin.Problem == null, "Unexpected author startup problem: " + plugin.PluginId + ": " + plugin.Problem);
-        }
-        RequireWorkflow(phase == "install" || expectedWarnings.Count == 2
-            && authorIds.All(id => installed.Plugins.Count(plugin => plugin.PluginId == id) == 1), "Both explicitly selected author candidates must be present.");
-        RequireWorkflow(warnings.OrderBy(value => value, StringComparer.Ordinal).SequenceEqual(expectedWarnings.OrderBy(value => value, StringComparer.Ordinal)),
-            "Author startup warning inventory differs: " + string.Join(" | ", warnings));
     }
     private static string AuthorHash(string path) => Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))).ToLowerInvariant();
 }
