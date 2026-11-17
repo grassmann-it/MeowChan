@@ -52,7 +52,13 @@ internal static class ArchivePageChecks
         // production guard correctly defers opens while busy, so wait for the page contract
         // instead of racing it and reporting a misleading gallery timeout.
         await Program.WaitUntilAsync(() => !page.IsBusy, () => "Archive media command reconciliation did not finish before preview.");
-        Click(inline.PreviewButton);
+        // A single click now presents the medium in the reader sidebar; gallery opening is
+        // deliberately the double-click action. Invoke the row callback used by the
+        // attachment view's double-click handler so this contract does not test the old
+        // single-click behavior.
+        Require(inline.DataContext is ArchiveAttachmentRow { OpenPreview: { } },
+            "The inline attachment did not expose its gallery double-click action.");
+        ((ArchiveAttachmentRow)inline.DataContext!).OpenPreview!();
         ContentControl gallery = window.FindControl<ContentControl>("GalleryHost")!;
         // Native macOS ARM runners can spend longer than the normal 15-second UI poll decoding
         // the first gallery image even though the archive thumbnail is already available. Keep the

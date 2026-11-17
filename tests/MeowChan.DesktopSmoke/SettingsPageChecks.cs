@@ -194,8 +194,10 @@ internal static class SettingsPageChecks
                 Click(editor.FindControl<Button>("SaveSettingsButton")!);
                 await Program.WaitUntilAsync(() => !editor.IsBusy && editor.HasError);
                 await RequireErrorVisibleAsync(editor, "RecheckTimerInput");
-                Require(timer.Text == raw && native.Text == raw && File.ReadAllText(file) == before && saves == 0,
-                    $"Work-view {mode} accepted/reset an invalid draft or caused a settings save.");
+                string after = File.ReadAllText(file);
+                Require(timer.Text == raw && native.Text == raw && after == before && saves == 0,
+                    $"Work-view {mode} accepted/reset an invalid draft or caused a settings save: " +
+                    $"timer='{timer.Text}', native='{native.Text}', raw='{raw}', fileUnchanged={after == before}, saves={saves}, hasError={editor.HasError}.");
                 Config persisted = Config.LoadConfig();
                 Require(persisted.RecheckTimer == initialTimer && persisted.DownloadPath != draftPath,
                     "A footer view commit persisted unrelated draft fields.");
