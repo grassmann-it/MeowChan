@@ -129,7 +129,7 @@ public sealed class EffectiveShortcutBindings
     /// saved binding can date from any earlier revision (including frozen "add another shortcut" lists).</summary>
     private static readonly IReadOnlyDictionary<string, int> DefaultChangedInRevision = new Dictionary<string, int>(StringComparer.Ordinal)
     {
-        ["video.volume-up"] = 1, ["video.volume-down"] = 1,
+        ["video.volume-up"] = 22, ["video.volume-down"] = 22,
         // (favorites.add and favorites.remove: revision 1, now listed with revision 20 below.)
         // (navigation.media, rules and sources: revision 2, now listed with revision 15 below.)
         ["navigation.statistics"] = 2, ["input.focus-media-search"] = 2, ["input.focus-settings-search"] = 2, ["input.focus-diagnostics-search"] = 2,

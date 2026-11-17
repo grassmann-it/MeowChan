@@ -124,6 +124,8 @@ public sealed class DefaultShortcutInvariantTests
     [InlineData("gallery.slideshow-toggle", "D", "Shift+D", "gallery")]
     [InlineData("tags.queue.done-next", "Enter", "Primary+Enter", "gallery-tagging")]
     [InlineData("reader.expand", "Primary+Enter", "Primary+Alt+Enter", "reader")]
+    [InlineData("video.volume-up", "Up", "Shift+Up", "gallery")]
+    [InlineData("video.volume-down", "Down", "Shift+Down", "gallery")]
     public void Ledger17MovedGesturesResolveAndTheirOldGesturesDoNot(string id, string oldKey, string newKey, string context)
     {
         foreach (ShortcutPlatform platform in Enum.GetValues<ShortcutPlatform>())
@@ -159,6 +161,14 @@ public sealed class DefaultShortcutInvariantTests
         // UX-LEDGER-16 owns open/activate behavior. Pin only their existing Enter defaults here.
         foreach (string id in new[] { "tagging.continue-here", "thread.read", "media.open", "reader.media.activate" })
             Assert.Equal("Enter", CommandCatalog.Get(id).Shortcut);
+    }
+
+    [Theory, MemberData(nameof(Platforms))]
+    public void Ledger17UnmodifiedArrowsRemainReaderPostNavigation(ShortcutPlatform platform)
+    {
+        var bindings = EffectiveShortcutBindings.Build(platform: platform);
+        Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.Up }, "reader.previous-post", "reader"));
+        Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.Down }, "reader.next-post", "reader"));
     }
 
     /// <summary>The nine video commands the gallery shares with the reader and the Media page's panel (revision 18).</summary>

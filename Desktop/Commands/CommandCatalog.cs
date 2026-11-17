@@ -372,8 +372,8 @@ public static class CommandCatalog
         new("post.copy-text", "command.post.copy-text", "Copy post text", "Post-Text kopieren", "copy", null, CommandScope.Reader, new[] { "reader-post-menu" }),
         new("post.copy-number", "command.post.copy-number", "Copy post number", "Post-Nummer kopieren", "copy", null, CommandScope.Reader, new[] { "reader-post-menu" }),
         new("video.play-pause", "command.video.play-pause", "Play / pause", "Wiedergabe / Pause", "play", "Space", CommandScope.Gallery | CommandScope.Reader | CommandScope.Media, new[] { "gallery-video-surface", "gallery-video-controls", "reader-video-keys", "media-video-keys" }),
-        new("video.volume-up", "command.video.volume-up", "Increase video volume", "Videolautstärke erhöhen", "volume-2", "Up", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
-        new("video.volume-down", "command.video.volume-down", "Decrease video volume", "Videolautstärke verringern", "volume-2", "Down", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
+        new("video.volume-up", "command.video.volume-up", "Increase video volume", "Videolautstärke erhöhen", "volume-2", "Shift+Up", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
+        new("video.volume-down", "command.video.volume-down", "Decrease video volume", "Videolautstärke verringern", "volume-2", "Shift+Down", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
         // Mute is Shift+M (revision 20, Tom's decision of 15.11.2026): M adds a favourite everywhere. (Revision 13 had moved it from Shift+M to M.)
         new("video.mute", "command.video.mute", "Mute / unmute", "Ton aus / an", "volume-2", "Shift+M", CommandScope.Gallery | CommandScope.Reader | CommandScope.Media, new[] { "gallery-video-controls", "reader-video-keys", "media-video-keys" }),
         // L repeats the shown video (the filmstrip toggle moved to Shift+L for it; both are gallery commands, so they may not share a key).
