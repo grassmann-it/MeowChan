@@ -179,6 +179,10 @@ internal static class ReaderNavigationOverlayChecks
             page.ReaderNavigationIdleDelayMs = int.MaxValue;
             Require(page.ReaderNavigationIdleDelayMs == ReaderNavigationLayout.IdleHideDelayMsMaximum, "The idle delay was not clamped to its maximum.");
             page.ReaderNavigationIdleDelayMs = 600;
+            // Re-arm after changing the delay. The fixture may have shown the bar during startup,
+            // so an already-running timer would otherwise retain the old interval.
+            page.ReaderNavigationMode = Config.ReaderNavigationModeOff;
+            page.ReaderNavigationMode = Config.ReaderNavigationModeAuto;
             Point far = new(60, 60);
             Point onBar = Bounds(bar, window) is Rect box ? new Point(box.Center.X, box.Center.Y) : default;
             Point barInSurface = bar.Bounds.Center;
