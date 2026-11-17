@@ -178,6 +178,15 @@ public partial class ArchivePage
         }
     }
 
+    // EndLifetime closes request admission first. A cancelled filesystem call may still own the gate.
+    private async Task DisposeArchiveMediaCountsAsync()
+    {
+        CancelArchiveMediaCounts();
+        try { await ArchiveMediaCountTask; }
+        catch { /* The scan reports its own errors. Cleanup must still run. */ }
+        finally { _archiveMediaCountGate.Dispose(); }
+    }
+
     private void CancelArchiveMediaCounts()
     {
         ++_archiveMediaCountRevision;
