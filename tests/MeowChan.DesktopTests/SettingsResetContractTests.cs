@@ -7,6 +7,9 @@ namespace MeowChan.DesktopTests;
 [Collection("Localization")]
 public sealed class SettingsResetContractTests
 {
+    // What each reset puts back is not asserted here by matching source lines (that kept a hand-written list of fields in step with the code and
+    // missed whole groups, ST-02). SettingsResetCoverageTests runs every input of the editor through every reset instead.
+
     private static readonly (string Name, string Scope)[] SectionResets =
     [
         ("ResetInterfaceButton", "settings.interface"),
@@ -88,18 +91,6 @@ public sealed class SettingsResetContractTests
         Assert.DoesNotContain("FirstRunSetup", reset, StringComparison.Ordinal);
         Assert.Contains("ResetNumber(BandwidthInput, BandwidthLimiterMB.Value);", reset, StringComparison.Ordinal);
         Assert.Contains("BandwidthLimiterMiB => Values.BandwidthLimiter / (1024m * 1024m)", defaults, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void WorkerBudgetResetIncludesTheProfileRegistryLimitDraft()
-    {
-        string reset = File.ReadAllText(Root("Desktop/Views/Settings/SettingsEditor.Reset.cs"));
-
-        // ProfileRegistryLimit is rendered in the worker-budgets page. A section reset
-        // must reset both the bound draft and the NumericUpDown's raw editing surface;
-        // omitting either leaves a user-visible value unchanged or saves the old one.
-        Assert.Contains("ProfileRegistryLimit = defaults.ProfileRegistryLimit;", reset, StringComparison.Ordinal);
-        Assert.Contains("ResetNumber(ProfileRegistryLimitInput, defaults.ProfileRegistryLimit);", reset, StringComparison.Ordinal);
     }
 
     [Fact]

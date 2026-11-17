@@ -124,7 +124,12 @@ public partial class SettingsEditor
         RefreshTaggingChoices(ids.All(id => id.Length > 0) ? ids : TaggingSettings.CardSlotIds(_config ?? new Config()).ToArray());
     }
 
-    private void LoadTaggingDraft(Config config)
+    /// <summary>
+    /// The tagging group of <paramref name="config"/> (start, discard, after a save: <paramref name="captureBaseline"/>) or of the defaults (the section
+    /// reset: false). K in the gallery saves "start in the card mode" too, so that switch is written only when the box differs from the value it was
+    /// loaded with; a reset keeps that value, or the default would count as unchanged.
+    /// </summary>
+    private void LoadTaggingDraft(Config config, bool captureBaseline = true)
     {
         TagStampSize = config.TagStampSize;
         ResetNumber(TagStampSizeInput, TagStampSize.Value);
@@ -134,7 +139,8 @@ public partial class SettingsEditor
         ResetNumber(TagQueueUndoDepthInput, TagQueueUndoDepth.Value);
         TaggingCardCount = config.TaggingCardCount;
         ResetNumber(TaggingCardCountInput, TaggingCardCount.Value);
-        TaggingCardsDefault = _initialTaggingCardsDefault = config.TaggingCardsDefault;
+        TaggingCardsDefault = config.TaggingCardsDefault;
+        if (captureBaseline) _initialTaggingCardsDefault = config.TaggingCardsDefault;
         RefreshTaggingChoices(TaggingSettings.CardSlotIds(config));
     }
 

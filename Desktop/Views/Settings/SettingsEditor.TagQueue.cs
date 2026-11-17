@@ -98,7 +98,13 @@ public partial class SettingsEditor
     public string MediaPanelMinimumPageWidthHint => Texts.T("settings.limits.mediaPanelMinimumPageWidth.hint") + " " + Texts.T("settings.reader.range", Config.MediaPanelMinimumPageWidthMinimum, Config.MediaPanelMinimumPageWidthMaximum);
     public string MediaPanelMinimumPageWidthHelp => FieldHelp(nameof(MediaPanelMinimumPageWidthInput), MediaPanelMinimumPageWidthHint);
 
-    private void LoadTagQueueDraft(Config config)
+    /// <summary>
+    /// The queue limits and the media-page widths of <paramref name="config"/> (start, discard, after a save: <paramref name="captureBaseline"/>) or of
+    /// the defaults (the section reset: false). The two widths live in the saved media layout and are written back only when the box differs from the
+    /// value it was loaded with (M1), so a reset is an edit of the draft: it must not move that baseline, or the default would count as unchanged and
+    /// never be saved. The tagging group has its own loader (<see cref="LoadTaggingDraft"/>), because it is shown in another section.
+    /// </summary>
+    private void LoadTagQueueDraft(Config config, bool captureBaseline = true)
     {
         TagQueueLimit = config.TagQueueLimit;
         ResetNumber(TagQueueLimitInput, TagQueueLimit.Value);
@@ -114,13 +120,18 @@ public partial class SettingsEditor
         ResetNumber(TagQueueConfirmAboveInput, TagQueueConfirmAbove.Value);
         MediaTagListTop = config.MediaTagListTop;
         ResetNumber(MediaTagListTopInput, MediaTagListTop.Value);
-        MediaTagListWidth = _initialMediaTagListWidth = MediaPageLayout.Parse(config.MediaLayout, config.MediaBooruMode).TagListWidth;
+        MediaPageLayout layout = MediaPageLayout.Parse(config.MediaLayout, config.MediaBooruMode);
+        MediaTagListWidth = layout.TagListWidth;
         ResetNumber(MediaTagListWidthInput, MediaTagListWidth.Value);
-        MediaPanelWidth = _initialMediaPanelWidth = MediaPageLayout.Parse(config.MediaLayout, config.MediaBooruMode).PanelWidth;
+        MediaPanelWidth = layout.PanelWidth;
         ResetNumber(MediaPanelWidthInput, MediaPanelWidth.Value);
+        if (captureBaseline)
+        {
+            _initialMediaTagListWidth = layout.TagListWidth;
+            _initialMediaPanelWidth = layout.PanelWidth;
+        }
         MediaPanelMinimumPageWidth = config.MediaPanelMinimumPageWidth;
         ResetNumber(MediaPanelMinimumPageWidthInput, MediaPanelMinimumPageWidth.Value);
-        LoadTaggingDraft(config);
     }
 
     private void ApplyTagQueueDraft(Config candidate)
