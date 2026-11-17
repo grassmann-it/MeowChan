@@ -48,8 +48,6 @@ public sealed partial class MediaPage
         panel.Margin = panelRight ? new Thickness(0, top, edge, 8) : new Thickness(edge, top, 0, 8);
         Thickness room = panelRight ? new Thickness(0, 0, reserve, 0) : new Thickness(reserve, 0, 0, 0);
         _panelHeaderLine = lift ? PanelHeaderLine : null;
-        // The search above starts at the same x as the selection row, so it keeps the same room on the left (MediaPage.ToolbarAlignment.cs).
-        _headerRoomLeft = lift && !panelRight ? reserve : 0;
         _selectionRow.Margin = ReferenceEquals(_panelHeaderLine, _selectionRow) ? room : default;
         if (_statusRow != null) _statusRow.Margin = ReferenceEquals(_panelHeaderLine, _statusRow) ? room : default;
     }

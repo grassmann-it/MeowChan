@@ -105,7 +105,7 @@ public sealed partial class MediaPage
         _queueKeys = unreadable ? null : snapshot == null ? new HashSet<TagQueueKey>() : TagQueueKeys.Set(snapshot);
         _queueOpen = snapshot?.Open ?? 0;
         RefreshQueueBadges();
-        if (HasField(MediaFilterField.Queue) && _snapshot != null) Present();
+        if (HasField(MediaFilterField.Queue) && _snapshot != null) Present(keepView: true);
         else UpdateStatusText();
     }
 

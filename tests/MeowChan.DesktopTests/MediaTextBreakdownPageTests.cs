@@ -55,7 +55,7 @@ public sealed class MediaTextBreakdownPageTests
         internal void Set(string field, object? value) => typeof(MediaPage).GetField(field, InstanceNonPublic)!.SetValue(Page, value);
         internal object? Get(string field) => typeof(MediaPage).GetField(field, InstanceNonPublic)!.GetValue(Page);
 
-        internal void Present() => typeof(MediaPage).GetMethod("Present", InstanceNonPublic)!.Invoke(Page, null);
+        internal void Present() => typeof(MediaPage).GetMethod("Present", InstanceNonPublic)!.Invoke(Page, [false]); // a query presentation (keepView: false)
         internal void FilterEdited() => typeof(MediaPage).GetMethod("FilterEdited", InstanceNonPublic)!.Invoke(Page, null);
 
         internal void Type(string text)

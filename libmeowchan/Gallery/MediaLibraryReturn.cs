@@ -62,4 +62,26 @@ internal static class MediaLibraryReturn
         if (anchor < 0 && target >= 0) { anchor = target; offset = 0; }
         return new(target, MediaLibrarySelection.Restore(point.Selected, tiles), anchor, offset);
     }
+
+    /// <summary>
+    /// Where a tile the page kept in view stands after the rows were rebuilt (the index, own state; MediaPage.ViewKeep.cs): the new position of
+    /// <paramref name="before"/>[<paramref name="pivot"/>] by identity, else the new position of its nearest neighbour in the old order (after it
+    /// first, then before it, out to <paramref name="reach"/> tiles each way) that is still shown, else -1 (the view stays where it is).
+    /// </summary>
+    internal static int LocateKept(IReadOnlyList<MediaLibraryTile> before, int pivot, IReadOnlyList<MediaLibraryTile> now, int reach = 512)
+    {
+        ArgumentNullException.ThrowIfNull(before);
+        ArgumentNullException.ThrowIfNull(now);
+        if (pivot < 0 || pivot >= before.Count || now.Count == 0) return -1;
+        MediaLibraryTileKey key = MediaLibraryTileKey.Of(before[pivot]);
+        // Usually nothing moved: the same position holds the same tile, and no map of the new rows is needed.
+        if (pivot < now.Count && MediaLibraryTileKey.Of(now[pivot]) == key) return pivot;
+        Dictionary<MediaLibraryTileKey, int> positions = new(now.Count);
+        for (int index = 0; index < now.Count; index++) positions.TryAdd(MediaLibraryTileKey.Of(now[index]), index);
+        if (positions.TryGetValue(key, out int found)) return found;
+        for (int distance = 1; distance <= reach; distance++)
+            foreach (int neighbour in new[] { pivot + distance, pivot - distance })
+                if (neighbour >= 0 && neighbour < before.Count && positions.TryGetValue(MediaLibraryTileKey.Of(before[neighbour]), out int kept)) return kept;
+        return -1;
+    }
 }
