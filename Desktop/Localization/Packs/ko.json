@@ -4061,6 +4061,7 @@
     "tags.quick.close": "닫기",
     "tags.quick.closeTip": "닫기 · Esc",
     "tags.quick.fieldHint": "{0}~{1}로 번호가 붙은 제안을 켜고 끕니다. 필드가 비어 있으면 아래쪽 화살표는 제안으로, 백스페이스는 지정된 태그로 이동합니다.",
+    "tags.quick.fieldNavigation": "필드가 비어 있으면 아래쪽 화살표는 제안으로, 백스페이스는 지정된 태그로 이동합니다.",
     "tags.quick.fieldHintNavigation": "Page Down과 Page Up은 다음 또는 이전 미디어 파일을 표시하고, {0}은(는) 입력한 태그를 추가한 뒤 다음으로 이동합니다.",
     "tags.quick.fieldHintNavigationNoKey": "Page Down과 Page Up은 다음 또는 이전 미디어 파일을 표시합니다.",
     "tags.quick.suggestions": "제안",

@@ -4102,6 +4102,7 @@
     "tags.quick.close": "Chiudi",
     "tags.quick.closeTip": "Chiudi · Esc",
     "tags.quick.fieldHint": "Da {0} a {1} attivano o disattivano i suggerimenti numerati. Con il campo vuoto, Freccia giù porta ai suggerimenti e Backspace ai tag assegnati.",
+    "tags.quick.fieldNavigation": "Con il campo vuoto, Freccia giù porta ai suggerimenti e Backspace ai tag assegnati.",
     "tags.quick.fieldHintNavigation": "Pagina giù e Pagina su mostrano il file multimediale successivo o precedente; {0} aggiunge il tag digitato e prosegue.",
     "tags.quick.fieldHintNavigationNoKey": "Pagina giù e Pagina su mostrano il file multimediale successivo o precedente.",
     "tags.quick.suggestions": "Suggerimenti",

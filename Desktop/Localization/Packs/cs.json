@@ -4154,6 +4154,7 @@
     "tags.quick.close": "Zavřít",
     "tags.quick.closeTip": "Zavřít · Esc",
     "tags.quick.fieldHint": "{0} až {1} přepínají očíslované návrhy. Při prázdném poli vede šipka dolů k návrhům a Backspace k přiřazeným štítkům.",
+    "tags.quick.fieldNavigation": "Při prázdném poli vede šipka dolů k návrhům a Backspace k přiřazeným štítkům.",
     "tags.quick.fieldHintNavigation": "Page Down a Page Up zobrazí další nebo předchozí mediální soubor, {0} přidá napsaný štítek a pokračuje.",
     "tags.quick.fieldHintNavigationNoKey": "Page Down a Page Up zobrazí další nebo předchozí mediální soubor.",
     "tags.quick.suggestions": "Návrhy",

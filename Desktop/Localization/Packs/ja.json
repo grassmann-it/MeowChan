@@ -4061,6 +4061,7 @@
     "tags.quick.close": "閉じる",
     "tags.quick.closeTip": "閉じる · Esc",
     "tags.quick.fieldHint": "{0}～{1}で番号付きの候補を切り替えます。欄が空のとき、下矢印で候補へ、Backspaceで付与済みタグへ移動します。",
+    "tags.quick.fieldNavigation": "欄が空のとき、下矢印で候補へ、Backspaceで付与済みタグへ移動します。",
     "tags.quick.fieldHintNavigation": "Page DownとPage Upで次または前のメディアファイルを表示し、{0}で入力したタグを追加して次へ進みます。",
     "tags.quick.fieldHintNavigationNoKey": "Page DownとPage Upで次または前のメディアファイルを表示します。",
     "tags.quick.suggestions": "候補",

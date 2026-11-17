@@ -135,19 +135,19 @@ internal static class QuickTagKeys
     }
 
     /// <summary>The effective shortcut text of suggestion <paramref name="index"/> (0-based); null beyond the numbered ones or when unbound.</summary>
-    internal static string? SuggestionGesture(int index, ShortcutPlatform platform) =>
+    internal static string? SuggestionGesture(int index, ShortcutPlatform platform, string? context = null) =>
         index is < 0 or >= QuickTagOptions.NumberedSuggestions ? null
-        : BoundGesture(QuickTagCommands.Suggestion(index + 1), platform);
+        : BoundGesture(QuickTagCommands.Suggestion(index + 1), platform, context);
 
     /// <summary>
     /// The shortcut text of a command as it is bound now (the person may have changed or removed it, or a default may have yielded to another
     /// command), several gestures joined by " / "; null when the command has no key. The help texts name this, never the catalog default.
     /// </summary>
-    internal static string? BoundGesture(string commandId, ShortcutPlatform platform)
+    internal static string? BoundGesture(string commandId, ShortcutPlatform platform, string? context = null)
     {
         var bindings = ShortcutService.Current.Platform == platform ? ShortcutService.Current
             : EffectiveShortcutBindings.Build(ShortcutService.CurrentSection, platform);
-        return CommandCatalog.ShortcutTooltipDisplay(commandId, platform == ShortcutPlatform.MacOS, bindings: bindings);
+        return CommandCatalog.ShortcutTooltipDisplay(commandId, platform == ShortcutPlatform.MacOS, context, bindings);
     }
 
     internal static string? UndoGesture(ShortcutPlatform platform) => BoundGesture(QuickTagCommands.Undo, platform);
@@ -553,6 +553,14 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         set { if (_navigation == value) return; _navigation = value; if (!_disposed) Localize(); }
     }
     private bool _navigation;
+    internal string ShortcutContext { get; set; } = "gallery";
+
+    private string LocalCommandHelp(params string[] commands) => ShortcutHelp.Commands(ShortcutContext,
+        _platform == ShortcutPlatform.MacOS, ShortcutService.Current.Platform == _platform ? ShortcutService.Current
+            : EffectiveShortcutBindings.Build(ShortcutService.CurrentSection, _platform), commands);
+
+    private string NavigationHelp() => NavigationEnabled ? LocalCommandHelp(QuickTagCommands.Next, QuickTagCommands.Previous,
+        QuickTagCommands.CommitNext, QuickTagCommands.MarkNext, QuickTagCommands.MarkPrevious, QuickTagCommands.ThreadSection) : string.Empty;
 
     /// <summary>An extra section under the assigned chips (the gallery panel's thread tags); null hides it.</summary>
     internal Control? ExtraContent
@@ -788,8 +796,24 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         _shown = count == _candidates.Count ? _candidates : _candidates.Take(count).ToArray();
         Letters = count == _candidateLetters.Length ? _candidateLetters : _candidateLetters.Take(count).ToArray();
         for (int index = 0; index < count; index++)
-            AutomationProperties.SetName(_stripItems[index].Chip.Button, AccessibleName(_shown[index], index, count));
+        {
+            Button button = _stripItems[index].Chip.Button;
+            AutomationProperties.SetName(button, AccessibleName(_shown[index], index, count));
+            RefreshSuggestionHelp(button, _shown[index], index);
+        }
         ShowLetters(_strip.IsKeyboardFocusWithin);
+    }
+
+    private void RefreshSuggestionHelp(Button button, QuickTagSuggestion suggestion, int index)
+    {
+        string? gesture = QuickTagKeys.SuggestionGesture(index, _platform, ShortcutContext);
+        string reason = QuickTagReasons.Text(suggestion.Reason, suggestion.Detail);
+        string help = gesture == null ? Texts.T("tags.quick.suggestion.tip", suggestion.Name.Display, reason)
+            : Texts.T("tags.quick.suggestion.tipShortcut", suggestion.Name.Display, reason, gesture);
+        ToolTip.SetTip(button, help);
+        AutomationProperties.SetHelpText(button, help);
+        if (gesture == null) button.ClearValue(AutomationProperties.AcceleratorKeyProperty);
+        else AutomationProperties.SetAcceleratorKey(button, gesture);
     }
 
     private StripItem EnsureItem(int index)
@@ -934,15 +958,18 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
 
         AutomationProperties.SetName(this, Texts.T("tags.quick.name", label.Length == 0 ? Texts.T("tags.quick.heading") : label));
         AutomationProperties.SetName(_flow, AutomationProperties.GetName(this));
-        AutomationProperties.SetHelpText(this, Texts.T("tags.quick.help", _shown.Count, _assignedChips.Count));
+        AutomationProperties.SetHelpText(this, ShortcutHelp.Append(Texts.T("tags.quick.help", _shown.Count, _assignedChips.Count), NavigationHelp()));
     }
 
     private void Localize()
     {
         TagSuggestionInput.Localize(_input);
-        string first = QuickTagKeys.SuggestionGesture(0, _platform)!, last = QuickTagKeys.SuggestionGesture(QuickTagOptions.NumberedSuggestions - 1, _platform)!;
-        string hint = Texts.T("tags.suggest.hint") + " " + Texts.T("tags.quick.fieldHint", first, last);
-        if (NavigationEnabled) hint += " " + QuickTagKeys.TextWithKey("tags.quick.fieldHintNavigation", QuickTagKeys.CommitNextGesture(_platform));
+        foreach (var item in _stripItems) RefreshSuggestionHelp(item.Chip.Button, item.Chip.Suggestion, item.Chip.Index);
+        // Do not construct a range from the first/last chip: overrides can be sparse,
+        // have aliases, or remove any of the nine bindings independently.
+        string hint = ShortcutHelp.Append(Texts.T("tags.suggest.hint") + " " + Texts.T("tags.quick.fieldNavigation"),
+            LocalCommandHelp(Enumerable.Range(1, QuickTagCommands.SuggestionCount).Select(QuickTagCommands.Suggestion).ToArray()));
+        hint = ShortcutHelp.Append(hint, NavigationHelp());
         AutomationProperties.SetHelpText(_input, hint);
         ToolTip.SetTip(_input, hint);
         AutomationProperties.SetName(_close, Texts.T("tags.quick.close"));

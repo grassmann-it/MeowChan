@@ -4081,6 +4081,7 @@
     "tags.quick.close": "关闭",
     "tags.quick.closeTip": "关闭 · Esc",
     "tags.quick.fieldHint": "{0} 到 {1} 切换带编号的建议。字段为空时，向下键进入建议，退格键进入已添加的标签。",
+    "tags.quick.fieldNavigation": "字段为空时，向下键进入建议，退格键进入已添加的标签。",
     "tags.quick.fieldHintNavigation": "Page Down 和 Page Up 显示下一个或上一个媒体文件；{0} 添加输入的标签并继续。",
     "tags.quick.fieldHintNavigationNoKey": "Page Down 和 Page Up 显示下一个或上一个媒体文件。",
     "tags.quick.suggestions": "建议",

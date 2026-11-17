@@ -4099,6 +4099,7 @@
     "tags.quick.close": "Cerrar",
     "tags.quick.closeTip": "Cerrar · Esc",
     "tags.quick.fieldHint": "{0} a {1} activan o desactivan las sugerencias numeradas. Con el campo vacío, Flecha abajo lleva a las sugerencias y Retroceso a las etiquetas asignadas.",
+    "tags.quick.fieldNavigation": "Con el campo vacío, Flecha abajo lleva a las sugerencias y Retroceso a las etiquetas asignadas.",
     "tags.quick.fieldHintNavigation": "Av Pág y Re Pág muestran el archivo multimedia siguiente o anterior; {0} añade la etiqueta escrita y continúa.",
     "tags.quick.fieldHintNavigationNoKey": "Av Pág y Re Pág muestran el archivo multimedia siguiente o anterior.",
     "tags.quick.suggestions": "Sugerencias",

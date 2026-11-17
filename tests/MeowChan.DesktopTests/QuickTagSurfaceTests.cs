@@ -55,6 +55,28 @@ public sealed class QuickTagSurfaceTests : IDisposable
     }
 
     [Fact]
+    public void NavigationAndSuggestionHelpFollowTheEffectiveBindings()
+    {
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        PrivateTagStore store = new(temp.Path, lease);
+        using QuickTagSession session = new(QuickTagTarget.For(Single(store, Entry("discovery", 'a'))));
+        using QuickTagSurface surface = new(session) { NavigationEnabled = true };
+        string help = AutomationProperties.GetHelpText(surface.Input);
+        foreach (string command in new[] { QuickTagCommands.Next, QuickTagCommands.Previous, QuickTagCommands.CommitNext,
+            QuickTagCommands.MarkNext, QuickTagCommands.MarkPrevious, QuickTagCommands.ThreadSection })
+        {
+            var gestures = ShortcutService.Current.For(command);
+            Assert.NotEmpty(gestures);
+            foreach (var gesture in gestures)
+                Assert.Contains(gesture.Display(ShortcutService.Current.Platform), help);
+        }
+        surface.NavigationEnabled = false;
+        string localOnly = AutomationProperties.GetHelpText(surface.Input);
+        Assert.DoesNotContain(CommandCatalog.Label(QuickTagCommands.Next), localOnly);
+    }
+
+    [Fact]
     public void GalleryCounterMovesBesidePostTagsAndKeepsLiveTextVisibilityAndAccessibleName()
     {
         using TempDirectory temp = new();

@@ -4099,6 +4099,7 @@
     "tags.quick.close": "Fermer",
     "tags.quick.closeTip": "Fermer · Échap",
     "tags.quick.fieldHint": "{0} à {1} activent ou désactivent les suggestions numérotées. Avec un champ vide, Flèche bas mène aux suggestions et Retour arrière aux étiquettes attribuées.",
+    "tags.quick.fieldNavigation": "Avec un champ vide, Flèche bas mène aux suggestions et Retour arrière aux étiquettes attribuées.",
     "tags.quick.fieldHintNavigation": "Page suivante et Page précédente affichent le fichier multimédia suivant ou précédent ; {0} ajoute l’étiquette saisie et continue.",
     "tags.quick.fieldHintNavigationNoKey": "Page suivante et Page précédente affichent le fichier multimédia suivant ou précédent.",
     "tags.quick.suggestions": "Suggestions",

@@ -4135,6 +4135,7 @@
     "tags.quick.close": "Закрыть",
     "tags.quick.closeTip": "Закрыть · Esc",
     "tags.quick.fieldHint": "{0}–{1} включают и выключают пронумерованные предложения. При пустом поле стрелка вниз ведёт к предложениям, а Backspace — к назначенным тегам.",
+    "tags.quick.fieldNavigation": "При пустом поле стрелка вниз ведёт к предложениям, а Backspace — к назначенным тегам.",
     "tags.quick.fieldHintNavigation": "Page Down и Page Up показывают следующий или предыдущий медиафайл; {0} добавляет введённый тег и переходит дальше.",
     "tags.quick.fieldHintNavigationNoKey": "Page Down и Page Up показывают следующий или предыдущий медиафайл.",
     "tags.quick.suggestions": "Предложения",

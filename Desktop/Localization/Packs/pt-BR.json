@@ -4102,6 +4102,7 @@
     "tags.quick.close": "Fechar",
     "tags.quick.closeTip": "Fechar · Esc",
     "tags.quick.fieldHint": "{0} a {1} ativam ou desativam as sugestões numeradas. Com o campo vazio, Seta para baixo vai para as sugestões e Backspace para as tags atribuídas.",
+    "tags.quick.fieldNavigation": "Com o campo vazio, Seta para baixo vai para as sugestões e Backspace para as tags atribuídas.",
     "tags.quick.fieldHintNavigation": "Page Down e Page Up mostram o arquivo de mídia seguinte ou anterior; {0} adiciona a tag digitada e avança.",
     "tags.quick.fieldHintNavigationNoKey": "Page Down e Page Up mostram o arquivo de mídia seguinte ou anterior.",
     "tags.quick.suggestions": "Sugestões",
