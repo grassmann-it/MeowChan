@@ -100,7 +100,7 @@ public sealed partial class MediaPage
         };
         // The sidebar's border faces the grid (set once; the side comes with the layout).
         panel[!Border.BorderBrushProperty] = new Avalonia.Markup.Xaml.MarkupExtensions.DynamicResourceExtension("Workspace.CardEdge");
-        // Flush with the grid card (MediaPage.PanelAlignment.cs): no inset above or below the card; the header line has the page header's line height.
+        // Only the identifying title/actions line above, transport below; media receives the remaining host height (1.9e).
         panel.Padding = new Thickness(16, 0, 16, 0);
         panel.HeaderHeight = PanelHeaderLineHeight;
         panel.Localize();

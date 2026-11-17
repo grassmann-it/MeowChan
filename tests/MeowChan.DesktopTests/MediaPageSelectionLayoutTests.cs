@@ -67,6 +67,19 @@ public sealed class MediaPageSelectionLayoutTests
             Layout();
             Assert.Equal(reserved, count.DesiredSize.Width);
             Assert.Equal(32, row.Bounds.Height);
+            // Exercise digit boundaries on the actual status control with the four-digit
+            // reservation used for larger libraries, without manufacturing thousands of tiles.
+            count.ReserveText = Texts.T("media.selection.count", MediaPage.CounterReserveSample(1000));
+            count.Text = Texts.T("media.selection.count", 1);
+            Layout();
+            double fourDigitWidth = count.DesiredSize.Width;
+            foreach (int selected in new[] { 9, 10, 99, 100, 999, 1000 })
+            {
+                count.Text = Texts.T("media.selection.count", selected);
+                Layout();
+                Assert.Equal(fourDigitWidth, count.DesiredSize.Width);
+                Assert.Equal(32, row.Bounds.Height);
+            }
             fixture.Grid.Selection.Clear();
             Layout();
             Assert.Equal(before, fixture.Grid.TranslatePoint(default, page)!.Value.Y);

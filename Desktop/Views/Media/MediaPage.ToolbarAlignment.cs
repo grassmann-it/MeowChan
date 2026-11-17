@@ -3,17 +3,9 @@ using Avalonia.Controls;
 
 namespace MeowChan;
 
-// Tom (16.11.2026): the header's first row lines up with the grid below it, structurally and without a fixed width.
-//  - The order (shuffle, the criterion with its "Sort" prefix, direction) ends at the grid card's right edge: the column of the view tools above
-//    the media panel is widened to the room that the tag list and the panel keep on the right (the same room the header's last line keeps for
-//    the panel header), so the order stands left of the panel's divider. Without a panel, or when the tools are wider than the panel, the order
-//    simply sits next to the view tools as before.
-//  - UX review 17.11.2026 (Tom's screencast: "things must not jump around"): the search no longer ends where the selection actions line ends.
-//    That line changes with the counter and with the "index is being built" reason, and the search, the filter toggle and the free room jumped
-//    with it when the index was ready. The search now has a fixed cap (MediaToolbarLayout.SearchMaxWidth) and the free room before the order
-//    keeps the group gap; the row depends on its own width and stage only.
-// The extra room of the tools column is a minimum of an existing grid column; when the row is too narrow it shrinks to the slack that is left,
-// and the width stages (MediaToolbarLayout) stay the ones that move tools under More. The arithmetic is MediaToolbarLayout (pure, unit tested).
+// The header and grid now share a real column beside the full-height sidebar (UX-LEDGER-27).
+// No synthetic sidebar-width reservation is needed. Search and order still depend only
+// on their row width/stage, never on the changing selection counter or building reason.
 public sealed partial class MediaPage
 {
     private StackPanel? _toolbarQuery, _toolbarOrder, _toolbarEnd;
