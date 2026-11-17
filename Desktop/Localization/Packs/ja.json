@@ -3439,7 +3439,7 @@
     "drop.files.detail": "メディアライブラリにコピーされます。元のファイルはそのまま残ります。",
     "drop.empty.title": "追加するものがありません",
     "drop.empty.detail": "スレッドまたは板のリンクをテキストとしてドロップしてください。",
-    "reader.postNumber": "No. {0}",
+    "reader.postNumber": "投稿番号 {0}",
     "reader.copyPostNumber": ">>{0} をコピーしてこの投稿を引用",
     "reader.postNumberCopied": ">>{0} をクリップボードにコピーしました。",
     "reader.copyFailed": "クリップボードを利用できないため、何もコピーされませんでした。",
