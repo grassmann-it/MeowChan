@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -11,7 +10,6 @@ using Avalonia.Data;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
-using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop.Commands;
@@ -19,7 +17,6 @@ using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 using MeowChan.Storage;
-using SkiaSharp;
 
 namespace MeowChan.Desktop.Booru;
 
@@ -51,7 +48,8 @@ internal sealed class BooruResultViewerWindow : Window
     internal Task Cleanup { get; private set; } = Task.CompletedTask;
     private BooruResultRowView? Row => _search.View.Rows.FirstOrDefault(row => row.Post.PostId == CurrentPostId);
 
-    internal BooruResultViewerWindow(BooruSearchModel search, string postId, HashSet<string> selected, Action selectionChanged)
+    internal BooruResultViewerWindow(BooruSearchModel search, string postId, HashSet<string> selected, Action selectionChanged,
+        BooruPreviewDecoder? decoder = null)
     {
         _search = search;
         _ids = search.View.Rows.Select(row => row.Post.PostId).ToArray();
@@ -62,7 +60,15 @@ internal sealed class BooruResultViewerWindow : Window
         Name = "BooruResultViewer";
         DialogWindow.Configure(this, DialogSize.XL, modal: false);
         _viewer.Configure(false, false, false, true, 0);
-        _viewer.DecodeImageAsync = DecodePreviewAsync;
+        decoder ??= new BooruPreviewDecoder();
+        _viewer.DecodeImageAsync = (entry, request, token) =>
+        {
+            token.ThrowIfCancellationRequested();
+            // Capture this entry's immutable preview on the dispatcher, never query mutable rows
+            // from a worker. Gallery owns cancellation, UI adoption and stale-bitmap disposal.
+            byte[] bytes = _search.View.Rows.First(row => row.Post.PostId == entry.Asset.AssetId).PreviewBytes!;
+            return decoder.DecodeAsync(bytes, request, token);
+        };
         // This host supplies its own Booru chrome, rather than changing shared gallery behavior.
         // A higher-priority presentation value keeps the gallery's own layout refresh from exposing
         // local-file actions on an unsaved provider preview. No controls are detached or reparented.
@@ -199,18 +205,5 @@ internal sealed class BooruResultViewerWindow : Window
         MediaAssetSnapshot snapshot = new("booru-preview", MediaManifestStatus.Missing, null, null, new[] { asset });
         GalleryEntry entry = new(new(new ResourceId("danbooru", "preview", id), "booru-preview", id), snapshot, asset, null, null, false, true);
         _ = _viewer.ShowAsync(entry, CancellationToken.None);
-    }
-
-    private Task<(Bitmap Bitmap, GalleryImageInfo Info)> DecodePreviewAsync(GalleryEntry entry, GalleryDecodeRequest request, CancellationToken token)
-    {
-        token.ThrowIfCancellationRequested();
-        byte[] bytes = _search.View.Rows.First(row => row.Post.PostId == entry.Asset.AssetId).PreviewBytes!;
-        using MemoryStream stream = new(bytes, writable: false);
-        using SKCodec? codec = SKCodec.Create(new SKManagedStream(stream, disposeManagedStream: false));
-        if (codec == null || codec.Info.Width <= 0 || codec.Info.Height <= 0 || (long)codec.Info.Width * codec.Info.Height > 40_000_000)
-            throw new InvalidDataException("Invalid Booru preview.");
-        stream.Position = 0;
-        Bitmap bitmap = ImageOrientation.DecodeToWidth(stream, Math.Min(ImageOrientation.DisplaySize(codec).Width, 2048));
-        return Task.FromResult((bitmap, new GalleryImageInfo(bitmap.PixelSize.Width, bitmap.PixelSize.Height, "Preview", false)));
     }
 }

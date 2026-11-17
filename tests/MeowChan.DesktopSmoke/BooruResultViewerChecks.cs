@@ -15,6 +15,7 @@ internal static class BooruResultViewerChecks
 {
     internal static async Task RunAsync(Window owner)
     {
+        await BooruPreviewDecodeChecks.RunAsync(owner);
         BooruUiHarness h = new();
         h.Search.OnSearch = (query, page, _) => Task.FromResult(BooruCallResult<BooruResultPage>.Ok(
             BooruUiFixtures.Page(query, page, true, BooruUiFixtures.Post("701"), BooruUiFixtures.Post("702"),
