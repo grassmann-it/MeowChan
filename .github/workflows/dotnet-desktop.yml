@@ -17,6 +17,7 @@ on:
         options:
           - validate
           - offline-retest
+          - smoke-retest
           - prerelease-candidate
           - stable-candidate
           - macos-diagnose
@@ -24,6 +25,11 @@ on:
           - package-media
           - linux-distribution
           - homebrew-macos
+      smoke:
+        description: Exact registry id for smoke-retest (Linux x64 only; required in that mode)
+        type: string
+        required: false
+        default: ''
       platform:
         description: Native validation platform (all keeps the full validation and packaging checks)
         type: choice
@@ -69,7 +75,7 @@ env:
   MEOWCHAN_DISABLE_UPDATE_CHECK: '1'
 
 concurrency:
-  group: desktop-${{ github.workflow }}-${{ github.ref }}-${{ inputs.mode || 'validate' }}-${{ inputs.mode == 'validate' && inputs.platform || 'all' }}-${{ inputs.mode == 'validate' && inputs.scenario || 'all' }}-${{ inputs.mode == 'offline-retest' && inputs.offline_lane || 'none' }}
+  group: desktop-${{ github.workflow }}-${{ github.ref }}-${{ inputs.mode || 'validate' }}-${{ inputs.mode == 'validate' && inputs.platform || 'all' }}-${{ inputs.mode == 'validate' && inputs.scenario || 'all' }}-${{ inputs.mode == 'offline-retest' && inputs.offline_lane || 'none' }}-${{ inputs.mode == 'smoke-retest' && inputs.smoke || 'none' }}
   cancel-in-progress: true
 
 jobs:
@@ -257,6 +263,7 @@ jobs:
           status=0
           python -m unittest discover -s tests -p test_desktop_smoke_runner.py -v || status=$?
           python -m unittest discover -s tests -p test_gui_ci_scenes.py -v || status=$?
+          python -m unittest discover -s tests/gui-ci-orchestration -v || status=$?
           exit "$status"
       - name: Restore graphical harness with reviewed dependencies
         id: smoke_restore
@@ -1740,6 +1747,42 @@ jobs:
           path: artifacts/release-candidate-gate.json
           if-no-files-found: warn
           retention-days: 7
+
+  # Dispatch through the registered desktop workflow even when the registry
+  # workflow does not exist on the repository's default branch yet.
+  smoke-retest:
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'smoke-retest'
+    uses: ./.github/workflows/desktop-smoke-registry.yml
+    with:
+      only: ${{ inputs.smoke }}
+      single: true
+
+  # Workflow-wide status, including ordinary full sweeps and focused retests.
+  # Mode/platform-excluded jobs may skip; coverage and candidate gates above
+  # remain strict and their failure/cancellation can never be hidden here.
+  full-sweep-aggregate:
+    name: Desktop full-sweep aggregate
+    if: always()
+    needs: [validate, macos-offline-gate, desktop-offline-gate, library-package, package, macos-package, package-media, linux-distribution, macos-source-candidate, current-source-inventory, ap04-upgrade, release-candidate-gate, macos-diagnose, homebrew-macos, smoke-retest]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: Report all job outcomes and reject any failure
+        if: always()
+        env:
+          SWEEP_NEEDS: ${{ toJSON(needs) }}
+        run: |
+          python3 scripts/aggregate-release-gates.py needs --json-env SWEEP_NEEDS \
+            --required validate,macos-offline-gate,desktop-offline-gate,library-package,package,macos-package,package-media,linux-distribution,macos-source-candidate,current-source-inventory,ap04-upgrade,release-candidate-gate,macos-diagnose,homebrew-macos,smoke-retest \
+            --allow-skipped --report artifacts/full-sweep-aggregate.json
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: full-sweep-aggregate
+          path: artifacts/full-sweep-aggregate.json
+          if-no-files-found: error
+          retention-days: 14
 
   # Diagnostic evidence only: this mode does not run or satisfy release validation.
   macos-diagnose:

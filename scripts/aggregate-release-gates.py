@@ -63,18 +63,20 @@ def step_gate(steps: dict[str, Any], required: list[str]) -> dict[str, Any]:
     }
 
 
-def needs_gate(needs: dict[str, Any], required: list[str]) -> dict[str, Any]:
+def needs_gate(needs: dict[str, Any], required: list[str], *, allow_skipped: bool = False) -> dict[str, Any]:
     failures: dict[str, str] = {}
     for name in required:
         job = needs.get(name)
         result = job.get("result") if isinstance(job, dict) else None
-        if result != SUCCESS:
+        if result != SUCCESS and not (allow_skipped and result == "skipped"):
             failures[name] = str(result or "missing")
     return {
         "passed": not failures,
         "failures": failures,
         "required": required,
         "observed": sorted(needs),
+        "jobResults": {name: job.get("result") if isinstance(job, dict) else "malformed"
+                       for name, job in needs.items()},
     }
 
 
@@ -121,6 +123,12 @@ def write_report(report: dict[str, Any], path: str | None) -> None:
         destination = Path(path)
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_text(encoded, encoding="utf-8")
+    summary = os.environ.get("GITHUB_STEP_SUMMARY")
+    if summary:
+        with open(summary, "a", encoding="utf-8") as stream:
+            verdict = "GREEN" if report.get("passed") else "RED"
+            stream.write(f"## CI aggregate: {verdict}\n\n")
+            stream.write("```json\n" + encoded + "```\n\n")
 
 
 def parser() -> argparse.ArgumentParser:
@@ -133,6 +141,10 @@ def parser() -> argparse.ArgumentParser:
         sub.add_argument("--json-file")
         sub.add_argument("--required", default="")
         sub.add_argument("--report")
+        if command == "needs":
+            sub.add_argument("--allow-skipped", action="store_true",
+                             help="Workflow-wide rollup only: accept jobs excluded by mode/platform. "
+                                  "Required coverage/candidate gates must not use this option.")
 
     run = subparsers.add_parser("run")
     run.add_argument("--json-file", required=True)
@@ -150,7 +162,7 @@ def main(argv: list[str] | None = None) -> int:
             report = step_gate(payload, split_names(args.required))
         elif args.command == "needs":
             payload = read_json(None, args.json_env, args.json_file)
-            report = needs_gate(payload, split_names(args.required))
+            report = needs_gate(payload, split_names(args.required), allow_skipped=args.allow_skipped)
         else:
             payload = read_json(None, None, args.json_file)
             report = run_gate(payload, args.expected_sha, args.required_job)
