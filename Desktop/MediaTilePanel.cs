@@ -27,6 +27,7 @@ public sealed class MediaTilePanel : VirtualizingUniformGrid
     private (int Index, double Offset)? _resizeAnchor;
     private int _restoreGeneration;
     private bool _resizeRestorePosted;
+    private int? _heldIndex;
     private ItemsControl? _inputOwner;
 
     public MediaTilePanel()
@@ -217,6 +218,11 @@ public sealed class MediaTilePanel : VirtualizingUniformGrid
 
     protected override Control? ScrollIntoView(int index)
     {
+        if (_heldIndex == index)
+        {
+            _heldIndex = null;
+            return index >= 0 && index < Items.Count ? ContainerFromIndex(index) : null;
+        }
         if (_inLayout || _scrolling || index < 0 || index >= Items.Count || !IsEffectivelyVisible) return null;
         CancelResizeRestore();
         _scrolling = true;
@@ -234,6 +240,20 @@ public sealed class MediaTilePanel : VirtualizingUniformGrid
             return ContainerFromIndex(index);
         }
         finally { _scrolling = false; }
+    }
+
+    /// <summary>
+    /// Lets the owning list's own scroll to its selection anchor at <paramref name="anchor"/> pass without effect, once, until the dispatcher is idle
+    /// again. A page that swaps the rows and carries the selection over (SelectingItemsControl queues a scroll to the anchor whenever the anchor's
+    /// position changed) and puts the view back itself (<see cref="RestoreAnchor"/>) calls it after the swap; any other scroll, and a later
+    /// click or key, scrolls as usual.
+    /// </summary>
+    public void HoldScrollIntoView(int anchor)
+    {
+        if (anchor < 0) return;
+        bool posted = _heldIndex != null;
+        _heldIndex = anchor;
+        if (!posted) Dispatcher.UIThread.Post(() => _heldIndex = null, DispatcherPriority.Background);
     }
 
     public (int Index, double Offset)? CaptureAnchor()

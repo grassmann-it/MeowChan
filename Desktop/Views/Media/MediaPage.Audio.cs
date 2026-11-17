@@ -121,7 +121,7 @@ public sealed partial class MediaPage
         _audio = map;
         _audioProgress = progress is { } value && value.Done < value.Total ? value : null;
         // The grid only depends on the results while a sound filter is active.
-        if (changed && SoundFilterActive && _snapshot != null) Present(); else UpdateAudioNote();
+        if (changed && SoundFilterActive && _snapshot != null) Present(keepView: true); else UpdateAudioNote();
         UpdateExportAll(); // The end of the scan enables "export all" again.
     }
 

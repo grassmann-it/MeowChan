@@ -229,7 +229,7 @@ public sealed partial class MediaPage
         _userData = next;
         RenderTagOptions();
         RenderFilterChips();
-        if (_snapshot != null) Present();
+        if (_snapshot != null) Present(keepView: true); // PF-05: a favorite, rating or tag changed, not the query: the view stays
     }
 
     private void WireFlag(CheckBox box, MediaFilterField field) => box.IsCheckedChanged += (_, _) =>
