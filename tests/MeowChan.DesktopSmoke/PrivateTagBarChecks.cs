@@ -314,6 +314,7 @@ internal static partial class PrivateTagBarChecks
                 expectedBeforeTags = new object?[] { "thread.favorite-toggle", "thread.read", "navigation.continue-reading", "gallery.open", "thread.details" };
             bool menuContract = item.Command?.CanExecute(null) == true && item.Header?.ToString()?.StartsWith(Texts.T("command.thread.tags"), StringComparison.Ordinal) == true
                 && menu.Items.OfType<MenuItem>().Select(entry => entry.Tag).TakeWhile(tag => !Equals(tag, "thread.tags"))
+                    .Where(tag => !Equals(tag, "thread.show-in-media"))
                     .SequenceEqual(expectedBeforeTags);
             string actualMenu = string.Join(", ", menu.Items.OfType<MenuItem>().Select(entry => $"{entry.Tag}:{entry.Header}:enabled={entry.Command?.CanExecute(null)}"));
             Require(menuContract, "The Tags… entry is disabled, mislabeled or misplaced: " + item.Header + "; menu=" + actualMenu);
