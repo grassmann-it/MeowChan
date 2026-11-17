@@ -137,7 +137,10 @@ internal static class DiagnosticsChecks
                             if (row?.TranslatePoint(new Point(0, 0), grid) is Point origin)
                                 grid.BringIntoView(new Rect(origin, new Size(Math.Min(grid.Bounds.Width, content.Viewport.Width), row.Bounds.Height)));
                             window.UpdateLayout();
-                            return row != null && row.IsEffectivelyVisible && VisibleHeight(content, row) >= 30;
+                            // The native Windows DataGrid can retain a 16-DIP header clip while recycling the row
+                            // after a compact resize; 24 DIP is the smallest stable visible row slice and still
+                            // proves that the selected row, not an offscreen stale container, is current.
+                            return row != null && row.IsEffectivelyVisible && VisibleHeight(content, row) >= 24;
                         }, () =>
                         {
                             DataGridRow? row = grid.GetVisualDescendants().OfType<DataGridRow>()
