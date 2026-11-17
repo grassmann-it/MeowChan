@@ -58,6 +58,11 @@ rather than only one screen.
   Enter/Space, and context-menu first-action behavior for threads, posts, rows, tiles, thumbnails,
   sidebars, and dialogs. Single-click selects, double-click opens only where intended, and
   right-click preserves the target selection; differences must be intentional and localized.
+  Current gallery contract: double-clicking an archive/media item opens the gallery; double-clicking
+  the already-open gallery surface toggles Fit/1:1 (including video), while F11/the explicit
+  fullscreen command changes window fullscreen. Do not silently conflate zoom and window fullscreen;
+  if dogfooding prefers double-click-to-fullscreen, evaluate it as an explicit design change with a
+  replacement gesture for Fit/1:1.
 - **Tag autocomplete acceptance (breaking):** pressing Enter on a single matching suggestion must
   accept the complete value (not commit only the typed prefix); with multiple entries, completion
   must replace only the current word and preserve earlier tags. Existing tags with spaces require
