@@ -7,6 +7,8 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
+using Avalonia.Layout;
+using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
@@ -16,16 +18,20 @@ namespace MeowChan.DesktopTests;
 [Collection("Localization")]
 public sealed class ReaderMediaSidebarLayoutTests
 {
-    private static void OnDispatcher(Action test) => BooruComponentDispatcher.Run(() =>
+    private static void OnDispatcher(Action test)
     {
-        using IDisposable scope = AvaloniaLocator.EnterScope();
-        AvaloniaLocator.CurrentMutable.Bind<ICursorFactory>().ToConstant(new DeadAffordanceGuard.RecordingCursorFactory());
-        TokenApplication.Bind();
-        Texts.Initialize();
-        Texts.SetLanguage("en");
-        try { test(); }
-        finally { Texts.SetLanguage("en"); }
-    });
+        using IDisposable platform = AvaloniaTestPlatform.EnterSkia();
+        BooruComponentDispatcher.Run(() =>
+        {
+            using IDisposable scope = AvaloniaLocator.EnterScope();
+            AvaloniaLocator.CurrentMutable.Bind<ICursorFactory>().ToConstant(new DeadAffordanceGuard.RecordingCursorFactory());
+            TokenApplication.Bind();
+            Texts.Initialize();
+            Texts.SetLanguage("en");
+            try { test(); }
+            finally { Texts.SetLanguage("en"); }
+        });
+    }
 
     private static ArchivePage Page() => new(_ => Task.FromResult<ArchiveReader>(null!), (_, _) => Task.CompletedTask, _ => { });
 
@@ -101,6 +107,9 @@ public sealed class ReaderMediaSidebarLayoutTests
         using WriteableBitmap picture = new(new PixelSize(pixelWidth, pixelHeight), new Vector(96, 96), PixelFormat.Bgra8888, AlphaFormat.Premul);
         void Layout()
         {
+            // This standalone control has no layout root to schedule invalidated ancestors.
+            foreach (Layoutable child in view.GetVisualDescendants().OfType<Layoutable>().Reverse()) child.InvalidateMeasure();
+            view.InvalidateMeasure();
             view.Measure(new Size(width, height));
             view.Arrange(new Rect(0, 0, width, height));
             Assert.Equal(ReaderMediaSidebar.HeaderLineHeight, view.HeaderRow.Bounds.Height);
