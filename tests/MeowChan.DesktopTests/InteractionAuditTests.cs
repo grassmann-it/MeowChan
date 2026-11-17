@@ -362,7 +362,7 @@ public sealed class InteractionAuditTests
         string gallery = Read("Desktop/Views/Archive/ArchivePage.Gallery.cs");
         Assert.DoesNotContain("        await LoadThreadAsync(row.Summary.Id);", gallery);
         Assert.Equal(2, Count(gallery, "await OpenActions.RunAsync(() => OpenAssetGalleryAsync(row, e.Source as Control), \"archive.media.open\");"));
-        Assert.Contains("OpenActions.RunAsync(() => LoadThreadAsync(id), \"archive.list.read\")", Read("Desktop/Views/Archive/ArchivePage.Selection.cs"));
+        Assert.Contains("OpenActions.RunAsync(() => OpenReaderOnThreadAsync(id, () => OpenReaderRequested?.Invoke(list)), \"archive.list.read\")", Read("Desktop/Views/Archive/ArchivePage.Selection.cs"));
         string commands = Read("Desktop/Views/Archive/ArchivePage.Commands.cs");
         Assert.DoesNotContain("Add(\"thread.read\", async", commands);
         Assert.DoesNotContain("Add(\"gallery.open\", async", commands);

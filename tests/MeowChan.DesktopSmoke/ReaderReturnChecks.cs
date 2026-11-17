@@ -167,6 +167,27 @@ internal static class ReaderReturnChecks
         if (Environment.GetEnvironmentVariable("MEOWCHAN_EXPECT_FOCUS_RACE") == "1")
             Require(immediate && !final, "Expected pre-fix anchor/focus race was not reproduced dynamically.");
         else Require(final, "Delayed reader anchor restore replaced the intended origin focus.");
+
+        await CheckListOriginFocusAsync(window, page, open);
+    }
+
+    // O2-01: an origin that is the thread list itself (Enter) or a row of it (double-click) takes no focus back by itself; the selected row does.
+    private static async Task CheckListOriginFocusAsync(MainWindow window, ArchivePage page, MethodInfo open)
+    {
+        Control list = page.ThreadListFocusTarget;
+        if (list is not (ListBox { SelectedItem: not null } or DataGrid { SelectedItem: not null }))
+        {
+            Console.WriteLine("SMOKE reader return O2-01: skipped, the archive list shows no selected row.");
+            return;
+        }
+        open.Invoke(window, [list]);
+        await Flush(window);
+        Click(page.FindControl<Button>("ArchiveCloseReader")!);
+        await Flush(window);
+        await Flush(window);
+        object? focused = window.FocusManager?.GetFocusedElement();
+        Console.WriteLine($"SMOKE reader return O2-01: focus after closing a reader opened from the list: {focused?.GetType().Name ?? "null"}.");
+        Require(list.IsKeyboardFocusWithin, "Closing a large reader opened from the thread list lost keyboard focus (O2-01).");
     }
 
     private static double Top(ListBox list, string id) => list.GetVisualDescendants().OfType<ListBoxItem>()
