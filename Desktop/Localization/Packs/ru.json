@@ -491,6 +491,7 @@
     "command.input.focus-diagnostics-search": "Поиск в диагностике",
     "command.scope.input.focus-diagnostics-search": "Диагностика · фильтр сообщений",
     "downloads.searchClose": "Закрыть",
+    "downloads.searchCloseTip": "Закрыть панель поиска. Esc сначала очищает текст, затем закрывает панель.",
     "downloads.searchEmpty": "Нет загрузок, соответствующих фильтру. Очистите поиск, чтобы показать все загрузки.",
     "downloads.copySessionUrls": "Копировать URL сеанса ({0})",
     "downloads.copySessionUrlsHint": "Копирует все URL тредов и досок в этом сеансе, включая скрытые фильтром записи.",

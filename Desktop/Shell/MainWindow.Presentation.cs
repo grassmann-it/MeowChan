@@ -326,7 +326,8 @@ public partial class MainWindow
         RefreshSpeedLabel();
         ShowStoreLimitWarning();
         LocalizeHeaderTagline();
-        MeowChan.Desktop.Controls.HeaderBar.MakeClose(DownloadSearchClose, Texts.T("downloads.searchClose"));
+        LocalizeDownloadSearchClose();
+        LocalizeAdmissionDismiss();
         ToolTip.SetTip(InspectorCloseButton, Texts.T("action.hideDetails") + " · Esc");
         AutomationProperties.SetName(InspectorCloseButton, Texts.T("action.hideDetails"));
         AutomationProperties.SetName(WorkspaceMenuItem, CommandCatalog.Label("navigation.app-menu")); // A24: the application menu, not "Settings"
@@ -589,6 +590,7 @@ public partial class MainWindow
                 ? Math.Max(0, body.Bounds.Height - 2 * body.RowSpacing - tableMinimum)
                 : double.PositiveInfinity;
             AdmissionRepairPanel.Padding = compactIntake ? new Thickness(8, 4) : new Thickness(12);
+            SizeAdmissionDismiss(compactIntake);
             Expander admissionResults = AdmissionResultsExpander;
             // The 32 dip help button would double the header of the compact one-row report; the popover returns with the normal layout.
             AdmissionResultsHelpButton.IsVisible = !compactIntake;

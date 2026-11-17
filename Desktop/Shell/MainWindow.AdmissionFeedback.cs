@@ -14,7 +14,8 @@ public partial class MainWindow
     {
         Control panel = WorkspaceControl<Control>("AdmissionRepairPanel");
         AdmissionFeedback? first = _admissionResults.FirstOrDefault(item => item.Status is not (AdmissionStatus.Added or AdmissionStatus.AlreadyPresent));
-        panel.IsVisible = first != null;
+        // DL-04: the banner can be dismissed; the sources text still goes to the report, which has its own place for it.
+        panel.IsVisible = first != null && !_admissionRepairDismissed;
         if (first == null) return null;
         string cause = first.Error ?? Texts.T(first.Status == AdmissionStatus.Invalid ? "admission.repairInvalid" : "admission.repairUnsupported");
         ProviderDescriptor[] providers = _session.GetProviderDescriptors().ToArray();

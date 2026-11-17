@@ -92,7 +92,7 @@ public partial class MainWindow
                 try
                 {
                     result = await _session.ApplyBoardAdmissionAsync(target.Url, policy, selection.Reactivations?.GetValueOrDefault(target.Url));
-                    _admissionResults.Add(new AdmissionFeedback(url, result.Status, null));
+                    _admissionResults.Add(new AdmissionFeedback(url, result.Status, null, WatchId: result.WatchId));
                 }
                 catch (Exception exception)
                 {

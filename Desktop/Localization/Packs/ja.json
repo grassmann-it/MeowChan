@@ -489,6 +489,7 @@
     "command.input.focus-diagnostics-search": "診断を検索",
     "command.scope.input.focus-diagnostics-search": "診断 · メッセージフィルター",
     "downloads.searchClose": "閉じる",
+    "downloads.searchCloseTip": "検索バーを閉じます。Esc はまずテキストを消去し、次に検索バーを閉じます。",
     "downloads.searchEmpty": "このフィルターに一致するダウンロードはありません。すべてのダウンロードを表示するには検索をクリアしてください。",
     "downloads.copySessionUrls": "セッションのURLをコピー（{0}）",
     "downloads.copySessionUrlsHint": "フィルターで隠れている項目も含め、このセッションのすべてのスレッドと板のURLをコピーします。",

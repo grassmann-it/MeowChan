@@ -145,6 +145,7 @@ internal static class BuiltInCatalog
         ("downloads.searchActive", "{0} results · {1}", "{0} Treffer · {1}"),
         ("downloads.searchClear", "Clear", "Leeren"),
         ("downloads.searchClose", "Close", "Schließen"),
+        ("downloads.searchCloseTip", "Close the search bar. Esc clears the text first, then closes the bar.", "Suchleiste schließen. Esc leert zuerst den Text und schließt dann die Leiste."),
         ("downloads.searchEmpty", "No downloads match this filter. Clear the search to show all downloads.", "Keine Downloads passen zum Filter. Suche leeren, um alle Downloads anzuzeigen."),
         ("downloads.copySessionUrls", "Copy session URLs ({0})", "Sitzungs-URLs kopieren ({0})"),
         ("downloads.copySessionUrlsHint", "Copies all thread and board URLs in this session, including entries hidden by the filter.", "Kopiert alle Thread- und Board-URLs dieser Sitzung, einschließlich ausgefilterter Einträge."),

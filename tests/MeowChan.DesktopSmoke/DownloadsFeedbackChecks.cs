@@ -2,6 +2,7 @@ using System.Reflection;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Notifications;
+using Avalonia.Input;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
@@ -34,6 +35,8 @@ internal static class DownloadsFeedbackChecks
             await CheckUpdateToastAsync(window);
             CheckTrayPauseEntry(window);
             await CheckDuplicateLinkAsync(window);
+            await CheckAdmissionDismissAsync(window);
+            await CheckUndoToastWithoutInformationPopupsAsync(window);
             await CheckArchiveBridgeHintAsync(window);
             await CheckAdmissionProblemToolsAsync(window);
         }
@@ -125,9 +128,13 @@ internal static class DownloadsFeedbackChecks
         results.Add(Activator.CreateInstance(feedbackType, entry.Snapshot.Url, MeowChan.AdmissionStatus.AlreadyPresent, null, false, (long?)entry.WatchId));
         try
         {
+            window.FindControl<Expander>("AdmissionResultsExpander")!.IsExpanded = false;
             refresh.Invoke(window, null);
-            Button link = window.FindControl<StackPanel>("AdmissionResultRows")!.Children.OfType<Button>()
-                .Single(button => button.Name == "AdmissionShowInListButton");
+            // DL-02: the link sits below the result line, outside the (collapsed) report.
+            StackPanel strip = window.AdmissionLinkStripForTests ?? throw new InvalidOperationException("The show-in-list strip was not built.");
+            Button link = strip.Children.OfType<Button>().Single(button => button.Name == "AdmissionShowInListButton");
+            Require(strip.IsVisible && !link.GetVisualAncestors().Contains(window.FindControl<Expander>("AdmissionResultsExpander")!),
+                "The show-in-list link is hidden inside the collapsed report.");
             Require(AutomationProperties.GetName(link) == Texts.T("admission.showInList") + ": " + entry.Snapshot.Url,
                 "The show-in-list link has no accessible name with its address.");
             SmokeActionClick.Execute(link);
@@ -142,6 +149,84 @@ internal static class DownloadsFeedbackChecks
             results.Clear();
             refresh.Invoke(window, null);
         }
+    }
+
+    /// <summary>
+    /// DL-04: the rejection banner and the results can be dismissed with their close button and with Esc while focus is inside;
+    /// a language refresh does not bring a dismissed banner back. Fake admission results only.
+    /// </summary>
+    private static async Task CheckAdmissionDismissAsync(MainWindow window)
+    {
+        Type feedbackType = typeof(MainWindow).GetNestedType("AdmissionFeedback", BindingFlags.NonPublic)!;
+        System.Collections.IList results = (System.Collections.IList)typeof(MainWindow).GetField("_admissionResults", Instance)!.GetValue(window)!;
+        MethodInfo refresh = typeof(MainWindow).GetMethod("RefreshAdmissionResults", Instance)!;
+        Control banner = window.FindControl<Control>("AdmissionRepairPanel")!;
+        Border panel = window.FindControl<Border>("AdmissionResultsPanel")!;
+        Button repairClose = window.FindControl<Button>("AdmissionRepairDismiss")!;
+        Button resultsClose = window.FindControl<Button>("AdmissionResultsDismiss")!;
+        void Fill()
+        {
+            results.Clear();
+            results.Add(Activator.CreateInstance(feedbackType, "https://boards.4chan.org/g/thread/1", MeowChan.AdmissionStatus.Added, null, false, (long?)null));
+            results.Add(Activator.CreateInstance(feedbackType, "not a url", MeowChan.AdmissionStatus.Invalid, null, false, (long?)null));
+            refresh.Invoke(window, null);
+        }
+        void Escape(Control source) => source.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
+        try
+        {
+            Fill();
+            Require(banner.IsVisible && panel.IsVisible, "The rejection banner or the results did not show.");
+            Require(AutomationProperties.GetName(repairClose) == Texts.T("feedback.dismiss") && AutomationProperties.GetName(resultsClose) == Texts.T("feedback.dismiss")
+                && ToolTip.GetTip(repairClose) is string && ToolTip.GetTip(resultsClose) is string, "The dismiss buttons have no name or tooltip.");
+            SmokeActionClick.Execute(repairClose);
+            Require(!banner.IsVisible && panel.IsVisible, "Dismissing the banner did not hide it alone.");
+            refresh.Invoke(window, null);
+            Require(!banner.IsVisible, "A refresh brought the dismissed banner back.");
+            SmokeActionClick.Execute(resultsClose);
+            Require(!panel.IsVisible && results.Count == 0 && !banner.IsVisible, "Dismissing the results left them on screen.");
+            // Esc while focus is inside either surface.
+            Fill();
+            Escape(banner);
+            Require(!banner.IsVisible && panel.IsVisible, "Esc in the banner did not dismiss it.");
+            Escape(window.FindControl<TextBox>("AdmissionReport") ?? window.FindControl<StackPanel>("AdmissionResultRows")!.Children.OfType<TextBox>().Single());
+            Require(!panel.IsVisible && results.Count == 0, "Esc in the results did not dismiss them.");
+            await Task.CompletedTask;
+        }
+        finally
+        {
+            results.Clear();
+            refresh.Invoke(window, null);
+        }
+    }
+
+    /// <summary>
+    /// DL-03: the undo of a watch removal is an action, so it is offered although information notifications are off.
+    /// Fake action only: nothing is removed.
+    /// </summary>
+    private static async Task CheckUndoToastWithoutInformationPopupsAsync(MainWindow window)
+    {
+        Config config = window.SessionHost.Config;
+        bool information = config.ShowInformationNotifications;
+        int runs = 0;
+        MethodInfo show = typeof(MainWindow).GetMethod("ShowEssentialActionNotification", Instance)!;
+        try
+        {
+            config.ShowInformationNotifications = false;
+            show.Invoke(window, new object?[] { Texts.T("notification.session"), Texts.T("watch.removed", 3), NotificationType.Information,
+                new[] { new FeedbackToastAction(Texts.T("watch.undo"), () => { runs++; return Task.CompletedTask; }) }, null, "smoke.watch-removed-silent" });
+            FeedbackToastContent? toast = null;
+            await Program.WaitUntilAsync(() =>
+            {
+                window.UpdateLayout();
+                toast = Cards(window).Select(card => card.Content).OfType<FeedbackToastContent>()
+                    .FirstOrDefault(content => content.ActionButton != null && content.Message == Texts.T("watch.removed", 3));
+                return toast?.ActionButton is { IsEffectivelyVisible: true };
+            });
+            SmokeActionClick.Execute(toast!.ActionButton!);
+            await Program.WaitUntilAsync(() => !Cards(window).Any(card => ReferenceEquals(card.Content, toast)));
+            Require(runs == 1, "The undo of a removal ran " + runs + " times with information notifications off.");
+        }
+        finally { config.ShowInformationNotifications = information; }
     }
 
     /// <summary>
