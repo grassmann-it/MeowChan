@@ -187,8 +187,13 @@ internal static class ContextMenuLayoutChecks
         List<string> problems = [];
         MenuItem[] rows = AppMenuRows(owner);
         if (rows.Length == 0) problems.Add("no rows");
+        // The submenu popup holds the menu's frame inside a margin for its shadow (8 dip each side in Semi), so the popup is 16 dip wider than
+        // the menu people see. The shared rule caps the frame, as Examine measures a context menu by its own bounds, not by its popup.
         double popupWidth = rows.Length == 0 || TopLevel.GetTopLevel(rows[0]) is not { } popup ? 0 : popup.ClientSize.Width;
-        if (popupWidth - Tolerance > 416) problems.Add($"the app menu {popupWidth:0.#} is wider than 416");
+        double menuWidth = rows.Length == 0 ? 0 : rows[0].GetVisualAncestors().OfType<Border>().LastOrDefault()?.Bounds.Width ?? 0;
+        if (menuWidth + Tolerance < 224) problems.Add($"the app menu {menuWidth:0.#} is narrower than 224");
+        if (menuWidth - Tolerance > 416) problems.Add($"the app menu {menuWidth:0.#} is wider than 416");
+        if (popupWidth + Tolerance < menuWidth) problems.Add($"the app menu popup {popupWidth:0.#} is narrower than the menu {menuWidth:0.#}");
         int trimmedRows = 0;
         foreach (MenuItem row in rows)
         {
@@ -202,7 +207,7 @@ internal static class ContextMenuLayoutChecks
         // ST-07: the "View" entry wears the eye icon of the work view command, like the other entries of its group.
         MenuItem view = owner.Items.OfType<MenuItem>().FirstOrDefault(row => row.Name == "WorkViewMenuItem") ?? throw new InvalidOperationException(scene + ": the app menu has no View entry.");
         if (view.Icon == null) problems.Add("the View entry has no icon");
-        Console.WriteLine($"SMOKE context menu layout {(problems.Count == 0 ? "PASS" : "FAIL")} {scene}: popup {popupWidth:0.#}, rows {rows.Length}, trimmed {trimmedRows}");
+        Console.WriteLine($"SMOKE context menu layout {(problems.Count == 0 ? "PASS" : "FAIL")} {scene}: menu {menuWidth:0.#}, popup {popupWidth:0.#}, rows {rows.Length}, trimmed {trimmedRows}");
         foreach (string problem in problems) failures.Add(scene + ": " + problem);
     }
 

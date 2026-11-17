@@ -33,7 +33,9 @@ internal static class ThemeColorsChecks
         try
         {
             Texts.SetLanguage("en");
-            application.RequestedThemeVariant = ThemeVariant.Light;
+            // Light through the theme preference, the way a person chooses it: Apply saves through the window's settings path, which puts the
+            // saved theme back on the window, so a variant set only on the application would turn Dark under the check at Apply.
+            await WorkViewCaptures.SetThemeAsync(window, "Light");
             Click(window.FindControl<Button>("SettingsNavigationButton")!);
             await Program.WaitUntilAsync(() => editor.IsEffectivelyVisible && editor.Bounds.Width > 0);
             await SettingsSectionChecks.OpenAsync(editor, "settings.interface");
@@ -106,10 +108,14 @@ internal static class ThemeColorsChecks
             await applying;
             await Program.WaitUntilAsync(() => editor.ThemeColorsWindow == null || !editor.ThemeColorsWindow.IsVisible, () => "the dialog did not close after Apply");
             Require(!host.Config.ThemeOverrides.IsEmpty && host.Config.ThemeOverrides.Equals(Config.LoadConfig().ThemeOverrides), "The colours were not saved to the profile.");
-            Require(SmokeThemeResources.Color(window, "Workspace.Accent") == green, "The live Light accent did not follow Apply.");
+            Require(SmokeThemeResources.Color(window, "Workspace.Accent") == green,
+                $"The live Light accent did not follow Apply: live {SmokeThemeResources.Color(window, "Workspace.Accent")}, expected {green}, window {window.ActualThemeVariant}.");
             Require(host.Config.RecheckTimer == original.RecheckTimer, "Apply changed a setting that is not a colour.");
 
-            // Reopen on the saved state and take the four captures with the override applied.
+            // Reopen on the saved state and take the four captures with the override applied. The closed dialog is released once its
+            // ShowDialog returns, and the button is usable again once the settings are no longer busy: a click comes after both, as a person's would.
+            await Program.WaitUntilAsync(() => editor.ThemeColorsWindow == null && open.IsEffectivelyEnabled,
+                () => $"the button cannot reopen the dialog: dialog {(editor.ThemeColorsWindow == null ? "released" : "still held")}, button enabled {open.IsEffectivelyEnabled}");
             Click(open);
             await Program.WaitUntilAsync(() => editor.ThemeColorsWindow is { IsVisible: true });
             dialog = editor.ThemeColorsWindow!;
@@ -165,6 +171,7 @@ internal static class ThemeColorsChecks
                 }
                 Config restored = host.Config.Clone();
                 restored.ThemeOverrides = original.ThemeOverrides;
+                restored.Theme = original.Theme;
                 await host.ApplySettingsAsync(restored);
                 ThemeRuntime.ApplyOverrides(original.ThemeOverrides);
             }

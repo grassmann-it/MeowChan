@@ -89,16 +89,35 @@ internal static class ReaderPointerChecks
         SmokeActionClick.Execute(page.FindControl<Button>("ReaderFindClose")!);
         await FlushAsync();
 
-        ListBox threads = page.FindControl<ListBox>("ArchiveThreads")!;
-        if (threads.IsEffectivelyVisible)
+        if (!large)
         {
+            // The embedded reader shares the page with the results list: there the key stays with the archive search.
+            ListBox threads = page.FindControl<ListBox>("ArchiveThreads")!;
+            Require(threads.IsEffectivelyVisible, $"The results list is not shown beside the {where}.");
             Press(threads, Key.F, primary);
             await FlushAsync();
             Require(!bar.IsVisible && page.FindControl<Control>("ArchiveSearchText")!.IsKeyboardFocusWithin,
                 $"The find key in the results list did not keep focusing the archive search in the {where}.");
             body.Focus();
         }
-        Console.WriteLine($"SMOKE reader pointer and find key ({where}): press selects the post, right-click opens the post menu with Copy for a selection, Primary+F finds inside the reader and the list keeps the archive search.");
+        else
+        {
+            // The large reader covers the whole archive page (ReaderHost spans the workspace rows), so the results list and the archive search
+            // are not reachable there; the shell never focuses the archive search while it is open. Its sidebar is part of the reader (RD-02):
+            // the key there finds in the thread too.
+            Require(page.IsMediaSidebarShown && page.MediaSidebar is { IsEffectivelyVisible: true },
+                $"The media sidebar is not shown in the {where}, so the find key from it cannot be checked.");
+            Control sidebar = page.MediaSidebar!;
+            Control sidebarFocus = sidebar.GetSelfAndVisualDescendants().OfType<Control>().FirstOrDefault(control => control.Focusable && control.IsEffectivelyVisible && control is not TextBox) ?? sidebar;
+            find = Press(sidebarFocus, Key.F, primary);
+            await FlushAsync();
+            Require(find.Handled && bar.IsVisible && query.IsKeyboardFocusWithin, $"The find key from the media sidebar did not open the thread find in the {where}.");
+            SmokeActionClick.Execute(page.FindControl<Button>("ReaderFindClose")!);
+            await FlushAsync();
+            Require(!bar.IsVisible, $"The thread find did not close after the sidebar check in the {where}.");
+            body.Focus();
+        }
+        Console.WriteLine($"SMOKE reader pointer and find key ({where}): press selects the post, right-click opens the post menu with Copy for a selection, Primary+F finds inside the reader{(large ? " and its media sidebar" : " and the list keeps the archive search")}.");
     }
 
     // The menu order as ids ("-" for a separator), opened by a context request raised on the control.
