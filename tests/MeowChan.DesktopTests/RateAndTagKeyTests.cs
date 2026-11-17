@@ -79,6 +79,24 @@ public sealed class RateAndTagPopoverCloseTests : IDisposable
         Assert.Contains("initialFocus: QuickTagInitialFocus.TagInput", source);
     }
 
+    [Theory]
+    [InlineData(Avalonia.Input.Key.D0)]
+    [InlineData(Avalonia.Input.Key.D1)]
+    [InlineData(Avalonia.Input.Key.D2)]
+    [InlineData(Avalonia.Input.Key.D3)]
+    [InlineData(Avalonia.Input.Key.D4)]
+    [InlineData(Avalonia.Input.Key.D5)]
+    public void ShiftDigitsWithoutAPlatformSymbolRemainNativeTextWhenTheRatingRouteDeclinesThem(Key digit)
+    {
+        TextBox field = new();
+        KeyEventArgs key = Key(digit, KeyModifiers.Shift, field); // Linux may omit KeySymbol for this chord.
+        Assert.Null(TextEntryKeys.TextOf(key)); // Never guess the layout-dependent punctuation.
+        Assert.True(TextEntryKeys.TypesText(key));
+        Assert.Equal(QuickTagPopover.UnhandledKeyAction.Pass, QuickTagPopover.UnhandledKey(key, hasField: true));
+        Assert.Null(QuickTagPopover.GuardedRootKey(key, _ => true, new Border(), hasField: true));
+        Assert.False(TextEntryKeys.TypesText(Key(digit, KeyModifiers.Control, field)));
+    }
+
     [Fact]
     public void TaggingRIncludesTheDecisionRowWithoutGivingItInitialFocus()
     {

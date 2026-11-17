@@ -103,7 +103,7 @@ internal static class QuickTagNativeTypingChecks
             foreach (string medium in new[] { "video", "picture" })
                 foreach (string entry in new[] { "R", "Ctrl+Shift+T", "menu" })
                     cases.Add(await ArchiveCaseAsync(window, page, input, trace, "archive", entry, medium));
-            cases.Add(await PopoverKeysAsync(window, page, input));
+            cases.Add(await PopoverKeysAsync(window, page, input, trace));
 
             // B: the large reader (opened the Downloads way), its sidebar playing the video.
             Navigate(window, "Downloads", activate: true);
@@ -205,7 +205,7 @@ internal static class QuickTagNativeTypingChecks
     }
 
     // The keys of the popover itself, with OS input: Shift+3 and Shift+0 on the stars (R), Alt+1 and Ctrl+Z on an empty field, Backspace and Ctrl+A.
-    private static async Task<Case> PopoverKeysAsync(MainWindow window, ArchivePage page, MediaNativeInput input)
+    private static async Task<Case> PopoverKeysAsync(MainWindow window, ArchivePage page, MediaNativeInput input, KeyTrace trace)
     {
         const string surfaceName = "archive", entry = "keys", medium = "picture";
         ListBoxItem? card = await SelectPostAsync(window, page, input, PicturePost, video: false);
@@ -233,8 +233,11 @@ internal static class QuickTagNativeTypingChecks
         await TypeAsync(input, "r");
         await Settle(window);
         if (surface.Input.Text != "r") problems.Add("a new R after the held one did not type 'r': '" + surface.Input.Text + "'");
+        trace.Begin();
         await input.ChordAsync('3', MediaNativeInput.ShiftLeft);
         await Settle(window);
+        Console.WriteLine("SMOKE quick-tag-native-typing shifted-text: " + trace.FirstHandled() + " inputs=" + trace.TextInputs + " focus=" + Describe(TopLevel.GetTopLevel(popover.Frame)?.FocusManager?.GetFocusedElement()));
+        trace.End();
         if (surface.Input.Text != "r#" || row.View.Rating != null) problems.Add("Shift+3 while typing did not remain text: '" + surface.Input.Text + "'");
         surface.Input.Text = "";
         surface.Input.Dismiss();
@@ -283,8 +286,11 @@ internal static class QuickTagNativeTypingChecks
         await input.KeyAsync(MediaNativeInput.Enter);
         await WaitQuietly(() => surface.Session.UndoSteps.Count == steps + 1);
         if (surface.Session.UndoSteps.Count != steps + 1) problems.Add("typing 'innocent' and Enter assigned nothing (field '" + surface.Input.Text + "')");
+        trace.Begin();
         await input.ChordAsync('z', MediaNativeInput.ControlLeft);
         await WaitQuietly(() => surface.Session.UndoSteps.Count == steps);
+        Console.WriteLine("SMOKE quick-tag-native-typing undo: " + trace.FirstHandled() + " text=" + surface.Input.Text + " steps=" + surface.Session.UndoSteps.Count + " focus=" + Describe(TopLevel.GetTopLevel(popover.Frame)?.FocusManager?.GetFocusedElement()));
+        trace.End();
         if (surface.Session.UndoSteps.Count != steps) problems.Add("Ctrl+Z on the empty field did not undo the tag");
         await WaitQuietly(() => surface.Shown.Count > 0);
         if (surface.Shown.Count == 0) problems.Add("no suggestion shown for Alt+1");
