@@ -27,7 +27,7 @@ namespace MeowChan;
 /// "Start tagging" hands over to the gallery (<see cref="StartTagging"/>, the seam of the tagging mode). The queue work itself is
 /// <see cref="TaggingQueueController"/>; this class only shows it. Tab order: queue actions, stamp, list controls, selection, list.
 /// </summary>
-public sealed partial class TaggingPage : UserControl
+public sealed partial class TaggingPage : UserControl, IDisposable
 {
     private readonly DesktopSessionHost _host;
     private readonly TaggingQueueController _queueWork;
@@ -499,7 +499,10 @@ public sealed partial class TaggingPage : UserControl
     }
 
     /// <summary>The window closes: the page stops following the host and the language.</summary>
-    internal void End()
+    internal void End() => Dispose();
+
+    /// <summary>Releases the key-context lease, menus and cancellation lifetime owned by this page.</summary>
+    public void Dispose()
     {
         if (_queueWork.Ended) return;
         _queueWork.End();
@@ -512,6 +515,7 @@ public sealed partial class TaggingPage : UserControl
         _groupMenuHost?.Dispose();
         _groupManageHost?.Dispose();
         _lifetime.Cancel();
+        _lifetime.Dispose();
         Texts.Changed -= OnLanguageChanged;
         _host.StateChanged -= OnHostChanged;
     }
