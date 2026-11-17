@@ -187,6 +187,19 @@ public sealed class ThemeConfiguratorTests : IDisposable
         Assert.True(view.Errors > 0);
     }
 
+    [Fact]
+    public void WithACustomAccentTheRefusalNamesTheTextNotTheAccentUnderIt()
+    {
+        // The theme-colors smoke: a typed accent first, then text as light as the panel. Pairs with accent backgrounds fail too, but the
+        // sentence says "too weak for text", so it names the role whose colour is the failing text.
+        ThemeConfiguratorModel model = Model();
+        Assert.True(model.SetRole(ThemeTokenTheme.Light, ThemeUserColors.Accent, ThemeCustomization.ParseHex("#074E85")));
+        model.SetRole(ThemeTokenTheme.Light, ThemeUserColors.Text, model.Preview(ThemeTokenTheme.Light).Palette.Colors["Workspace.Panel"]);
+        ThemeApplyBlock? block = model.Block;
+        Assert.NotNull(block);
+        Assert.Equal((ThemeTokenTheme.Light, ThemeUserColors.Text), (block.Theme, block.RoleId));
+    }
+
     // ---- reset, save, commit ------------------------------------------------------------------------------------------
 
     [Fact]
