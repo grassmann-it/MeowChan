@@ -203,6 +203,8 @@ public static class Texts
     /// Formats a counted text in the grammatical number of <paramref name="count"/>. The base key holds the
     /// general plural form; <c>key.one</c> (and, where the language has them, <c>key.few</c>, <c>key.many</c>,
     /// <c>key.two</c>, <c>key.zero</c>) hold the other forms. A missing form falls back to the base key.
+    /// Each grammatically counted noun needs its own plural decision. For independent counters,
+    /// format closed count phrases separately and join them with a non-counted template.
     /// Without <paramref name="arguments"/>, <paramref name="count"/> is {0}; texts with several values pass them all.
     /// </summary>
     public static string Count(string key, long count, params object?[] arguments)

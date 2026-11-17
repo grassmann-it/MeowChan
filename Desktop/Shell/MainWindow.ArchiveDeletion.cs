@@ -81,7 +81,7 @@ public partial class MainWindow
             TextBlock summary = new()
             {
                 TextWrapping = TextWrapping.Wrap,
-                Text = Texts.Count("archive.delete.summary", plan.Catalog.Threads.Count, plan.Catalog.Threads.Count, plan.Files.OwnedFileCount, plan.Files.OwnedBytes)
+                Text = CountPhrases.ArchiveDeletionSummary(plan.Catalog.Threads.Count, plan.Files.OwnedFileCount, plan.Files.OwnedBytes)
             };
             List<string> details = plan.Catalog.Threads.Select(thread =>
                 thread.Summary.Id.Source + " /" + thread.Summary.Id.Board + "/ " + thread.Summary.Id.Thread + " · " + thread.Summary.Title).ToList();

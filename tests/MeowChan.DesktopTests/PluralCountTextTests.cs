@@ -40,7 +40,9 @@ public sealed class PluralCountTextTests : IDisposable
         "readerGroups.matchesNarrow", "reader.newPostsCount", "rules.changedScopes", "selection.failed", "sources.count",
         "tags.manage.orphansUnchecked", "tags.dialog.usesName", "tags.dialog.row.all", "tags.dialog.removedMany",
         "tags.suggest.count", "work.missingAndErrors", "work.interventionCount", "booru.ui.status.results",
-        "booru.ui.post.favorites", "queue.ask"
+        "booru.ui.post.favorites", "queue.ask",
+        "media.count.media", "media.count.threads", "archive.delete.threads", "archive.delete.files",
+        "archive.delete.bytes", "import.done.tags", "export.collectionSelection"
     };
 
     // Catalog texts of the shape "{n} noun" with no singular form. Every one is either count-neutral for the number in the
@@ -56,7 +58,6 @@ public sealed class PluralCountTextTests : IDisposable
         ["booru.ui.page.limit"] = "both numbers are fixed Danbooru browse constants, never 1",
         ["booru.ui.result.showInMediaFor"] = "the number is a post id (\"#{0}\") and \"Media\" is the name of a page",
         ["booru.ui.tags.searchFull"] = "the Danbooru tag-search limit is a fixed provider constant above 1",
-        ["export.collectionSelection"] = "a collection export always has at least two members",
         ["feedback.repeated"] = "shown only when the same notice repeated (Count > 1)",
         ["limit.favoriteEntries"] = "reached through Texts.Count (StoreLimitText); a store limit has a minimum far above 1",
         ["limit.hiddenPosts"] = "reached through Texts.Count (StoreLimitText); a store limit has a minimum far above 1",

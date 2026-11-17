@@ -2669,8 +2669,8 @@
     "media.filter.missingChip": "包含缺失的文件",
     "media.refresh": "刷新",
     "media.indexing": "正在读取归档…{0} / {1} 个串",
-    "media.count": "{1} 个串中的 {0} 个媒体",
-    "media.countMissing": "{1} 个串中的 {0} 个媒体，缺失 {2} 个",
+    "media.count": "{0} · {1}",
+    "media.countMissing": "{0} · {1} · 缺失: {2}",
     "media.incomplete": "部分串无法完整读取；其媒体可能不会显示在这里。",
     "media.failed": "无法读取归档。请使用“刷新”重试。",
     "media.empty": "还没有已保存的媒体。",
@@ -2965,7 +2965,7 @@
     "gallery.video.error.linuxRuntime": "Linux 需要 LibVLC 3.0.20 或更高版本，并带有 WebM/Matroska、VP8/VP9、Vorbis/Opus 以及视频/音频输出插件。请安装发行版的 VLC 运行时软件包。",
     "gallery.video.cleanupFailed": "视频清理失败；资源仍被保留，新的播放已被阻止。",
     "media.rating.error.cleanupAfterDelete": "归档已删除，但评分未被清理。重新导入相同的媒体标识可能会恢复其评分。",
-    "archive.delete.summary": "永久删除 {0} 个串和 {1} 个本地文件（{2:N0} 字节）？",
+    "archive.delete.summary": "永久删除{0}和{1}（{2}）？",
     "archive.delete.ratings": "将移除 {0} 个媒体评分。",
     "archive.delete.effects": "已归档的帖子、本地原图和收藏将被移除。关注的版块不会再次添加这些串。导出内容和无关文件仍然可用。",
     "archive.delete.retained": "保留：",
@@ -5087,6 +5087,11 @@
     "archive.matchGroup.other": "其他帖子中 · {0}",
     "archive.foundIn.opening": "首帖",
     "archive.foundIn.other": "其他帖子",
-    "archive.columns.foundIn": "匹配位置"
+    "archive.columns.foundIn": "匹配位置",
+    "media.count.media": "媒体: {0}",
+    "media.count.threads": "串: {0}",
+    "archive.delete.threads": "串: {0}",
+    "archive.delete.files": "本地文件: {0}",
+    "archive.delete.bytes": "{0:N0} B"
   }
 }
