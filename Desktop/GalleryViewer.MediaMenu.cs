@@ -33,6 +33,8 @@ internal sealed partial class GalleryViewer
     private void OnMediaContextRequested(object? sender, ContextRequestedEventArgs e)
     {
         if (e.Handled || _entry == null || MediaMenuPresenter.IsNativeTextSource(e.Source)) return;
+        // Capture the gallery surface, not an unrelated toolbar control, as the menu's return focus.
+        FocusGallerySurface();
         ShowMediaMenu();
         e.Handled = true;
     }
