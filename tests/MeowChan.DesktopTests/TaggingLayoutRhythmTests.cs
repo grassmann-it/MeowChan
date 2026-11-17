@@ -207,6 +207,35 @@ public sealed class TaggingLayoutRhythmTests
         Assert.DoesNotContain("section-title", heading.Classes);
     });
     [Fact]
+    public void StampBodySeparatesCurrentTagsFromAddingAndAlignsTheHintUnderItsInput() => WithPage(page =>
+    {
+        RenderSnapshot(page, TagQueueSnapshot.Empty);
+        WrapPanel body = Find<WrapPanel>(page, "TaggingStampBody");
+        Grid add = Find<Grid>(page, "TaggingStampAddTags");
+        Assert.Equal(Token(body, "Workspace.Space.16"), body.ItemSpacing);
+        Assert.Equal(Token(body, "Workspace.Space.16"), body.LineSpacing);
+        Assert.Equal(new[] { "TaggingStampChips", "TaggingStampAddTags" }, body.Children.Select(c => c.Name));
+        Assert.Equal(Token(add, "Workspace.Space.8"), add.ColumnSpacing);
+        Assert.Equal(Token(add, "Workspace.Space.8"), add.RowSpacing);
+        Assert.Equal(Token(page.StampChips, "Workspace.Space.8"), page.StampChips.ItemSpacing);
+        Assert.Equal(Token(page.StampChips, "Workspace.Space.8"), page.StampChips.LineSpacing);
+        Assert.Same(add, page.StampInput.Parent);
+        Assert.Same(add, page.StampEmptyText.Parent);
+        Assert.Equal(Grid.GetColumn(page.StampInput), Grid.GetColumn(page.StampEmptyText));
+        Assert.Equal(Grid.GetRow(page.StampInput) + 1, Grid.GetRow(page.StampEmptyText));
+        Assert.Equal(page.StampInput.Width, add.ColumnDefinitions[0].Width.Value);
+        Assert.True(page.StampEmptyText.IsVisible);
+        Assert.False(page.StampChips.IsVisible);
+        RenderSnapshot(page, new TagQueueSnapshot(1, 0, new[] { "review", "later" }, Array.Empty<TagQueueItem>(), TagQueueLoadState.Ready));
+        Assert.False(page.StampEmptyText.IsVisible);
+        Assert.True(page.StampChips.IsVisible);
+        Assert.Equal(2, page.StampChips.Children.Count);
+        page.RestoreStampBlock(TaggingStampBlockState.Closed);
+        Assert.False(page.StampOpen);
+        page.RestoreStampBlock(TaggingStampBlockState.Open);
+        Assert.True(page.StampOpen);
+    });
+    [Fact]
     public void EnabledStartYieldsToTheEmptyRecommendationAndReclaimsPrimaryWithRows() => WithPage(page =>
     {
         DesktopSessionHost host = (DesktopSessionHost)typeof(TaggingPage).GetField("_host", Private)!.GetValue(page)!;

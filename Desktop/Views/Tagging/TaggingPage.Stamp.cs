@@ -27,15 +27,19 @@ public sealed partial class TaggingPage
     private readonly WrapPanel _stampPanel = new() { Name = "TaggingStamp", [!WrapPanel.ItemSpacingProperty] = new DynamicResourceExtension("Workspace.Space.12"),
         [!WrapPanel.LineSpacingProperty] = new DynamicResourceExtension("Workspace.Space.12") };
     // The block's head: a quiet disclosure (turning arrow, title with the number of stamp tags) and, right after it, the help of the
-    // block; the body holds the chips, the field, the add button and the hint in one wrapping row.
+    // block; the body separates the current stamp from the add-tags field and its explanatory hint.
     private readonly ToggleButton _stampToggle = new() { Name = "TaggingStampToggle", Classes = { "disclosure" }, HorizontalAlignment = HorizontalAlignment.Left,
         VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBlock _stampHeading = new() { Name = "TaggingStampHeading", [!TextBlock.FontSizeProperty] = new DynamicResourceExtension("Workspace.Text.Body"),
         FontWeight = FontWeight.SemiBold, VerticalAlignment = VerticalAlignment.Center };
     private readonly ContentControl _stampArrow = new() { VerticalAlignment = VerticalAlignment.Center, Focusable = false, RenderTransformOrigin = new RelativePoint(0.5, 0.5, RelativeUnit.Relative) };
     private readonly HelpButton _stampHelp = new() { Name = "TaggingStampHelp", HelpKey = "help.taggingStamp" };
-    private readonly WrapPanel _stampBody = new() { Name = "TaggingStampBody", ItemSpacing = 8, LineSpacing = 8, VerticalAlignment = VerticalAlignment.Center };
-    private readonly WrapPanel _stampChips = new() { Name = "TaggingStampChips", ItemSpacing = 8, LineSpacing = 8, VerticalAlignment = VerticalAlignment.Center };
+    private readonly WrapPanel _stampBody = new() { Name = "TaggingStampBody",
+        [!WrapPanel.ItemSpacingProperty] = new DynamicResourceExtension("Workspace.Space.16"),
+        [!WrapPanel.LineSpacingProperty] = new DynamicResourceExtension("Workspace.Space.16"), VerticalAlignment = VerticalAlignment.Center };
+    private readonly WrapPanel _stampChips = new() { Name = "TaggingStampChips",
+        [!WrapPanel.ItemSpacingProperty] = new DynamicResourceExtension("Workspace.Space.8"),
+        [!WrapPanel.LineSpacingProperty] = new DynamicResourceExtension("Workspace.Space.8"), VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBlock _stampEmpty = new() { Name = "TaggingStampEmpty", Classes = { "workspace-help" }, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center,
         MaxWidth = HelpPopover.MaxContentWidth }; // Workspace.Size.ReadingWidth: the one reading column
     private readonly TextBox _stampInput = new() { Name = "TaggingStampInput", Width = 240, VerticalAlignment = VerticalAlignment.Center };
@@ -80,9 +84,16 @@ public sealed partial class TaggingPage
         Grid.SetColumn(_stampHelp, 1);
         head.Children.Add(_stampHelp);
         _stampBody.Children.Add(_stampChips);
-        _stampBody.Children.Add(_stampInput);
-        _stampBody.Children.Add(_stampAdd);
-        _stampBody.Children.Add(_stampEmpty);
+        Grid addTags = new() { Name = "TaggingStampAddTags", ColumnDefinitions = new ColumnDefinitions("240,Auto"),
+            RowDefinitions = new RowDefinitions("Auto,Auto"),
+            [!Grid.ColumnSpacingProperty] = new DynamicResourceExtension("Workspace.Space.8"),
+            [!Grid.RowSpacingProperty] = new DynamicResourceExtension("Workspace.Space.8") };
+        addTags.Children.Add(_stampInput);
+        Grid.SetColumn(_stampAdd, 1);
+        addTags.Children.Add(_stampAdd);
+        Grid.SetRow(_stampEmpty, 1);
+        addTags.Children.Add(_stampEmpty);
+        _stampBody.Children.Add(addTags);
         _stampPanel.Children.Add(head);
         _stampPanel.Children.Add(_stampBody);
         return _stampPanel;
