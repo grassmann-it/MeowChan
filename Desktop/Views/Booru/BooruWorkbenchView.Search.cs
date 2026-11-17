@@ -74,8 +74,8 @@ internal sealed partial class BooruWorkbenchView
         _pageTarget.ValueChanged += (_, _) => OnModelChanged();
         _jumpPage.Click += async (_, _) =>
         {
-            if (_pageTarget.Value is { } page && page == decimal.Truncate(page))
-                await _model.Search.GoToPageAsync((int)page);
+            if (PageJumpTarget() is { } page)
+                await _model.Search.GoToPageAsync(page);
         };
 
         StackPanel watcherRow = new() { Spacing = 4 };
@@ -100,6 +100,10 @@ internal sealed partial class BooruWorkbenchView
         tab.Children.Add(_pageLimit);
         return tab;
     }
+
+    private int? PageJumpTarget() => _pageTarget.Value is { } page
+        && page >= 1 && page <= BooruSearchModel.MaximumPage && page == decimal.Truncate(page)
+            ? (int)page : null;
 
     private void RenderSearch(BooruSearchView view, bool force)
     {
@@ -202,7 +206,8 @@ internal sealed partial class BooruWorkbenchView
         _pageInfo.Text = Texts.T("booru.ui.page.info", view.Page, BooruSearchModel.MaximumPage, BooruSearchModel.PageSize);
         _jumpPage.Content = Texts.T("booru.ui.page.jump");
         AutomationProperties.SetName(_pageTarget, Texts.T("booru.ui.page.jump"));
-        _pageTarget.IsEnabled = _jumpPage.IsEnabled = !view.IsBusy && !paused;
+        _pageTarget.IsEnabled = !view.IsBusy && !paused;
+        _jumpPage.IsEnabled = PageJumpTarget() is { } target && model.CanGoToPage(target);
         _resultCount.IsVisible = view.ResultCountLowerBound is not null;
         _resultCount.Text = view.ResultCountLowerBound is { } count ? Texts.T("booru.ui.page.atLeast", count) : string.Empty;
         _pageLimit.IsVisible = view.PageLimitReached;

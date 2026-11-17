@@ -39,9 +39,11 @@ internal sealed record BooruSearchView(
     /// <summary>Bounded paging: never beyond page 5, never after the provider reported the end.</summary>
     internal bool HasNextPage => Status == BooruSearchStatus.Results && ExecutedQuery is not null && !IsPostResult
         && !IsEnd && Page < BooruSearchModel.MaximumPage;
-    /// <summary>Also offered after an offline, failed or cancelled page, so page N&gt;1 is never a dead end.</summary>
+    /// <summary>Recovery pages also allow going back; the model still enforces any active provider pause.</summary>
     internal bool HasPreviousPage => Status is BooruSearchStatus.Results or BooruSearchStatus.Empty
         or BooruSearchStatus.Offline or BooruSearchStatus.Failed or BooruSearchStatus.Idle
+        or BooruSearchStatus.Denied or BooruSearchStatus.NotFound or BooruSearchStatus.Unavailable
+        or BooruSearchStatus.RateLimited or BooruSearchStatus.Cooldown
         && ExecutedQuery is not null && !IsPostResult && Page > 1;
     /// <summary>Explicit repeat of the shown search or lookup after an offline, failed or cancelled request; never for the initial Idle.</summary>
     internal bool CanRetry => Status is BooruSearchStatus.Offline or BooruSearchStatus.Failed or BooruSearchStatus.Idle
@@ -202,18 +204,24 @@ internal sealed class BooruSearchModel : IDisposable
         else await RunSearchAsync(parsed.Canonical!, 1).ConfigureAwait(false);
     }
 
+    /// <summary>Shared command eligibility for previous, next and an explicit page jump.</summary>
+    internal bool CanGoToPage(int page)
+    {
+        lock (_gate) return CanGoToPageCore(page);
+    }
+
+    private bool CanGoToPageCore(int page) => !_disposed && !_view.IsBusy && PauseEnd(_view) is null
+        && page >= 1 && page <= MaximumPage && page != _view.Page
+        && (page < _view.Page ? _view.HasPreviousPage : _view.HasNextPage);
+
     /// <summary>Previous/next page of the search that is displayed (not of unsent edits in the field).</summary>
     internal Task GoToPageAsync(int page)
     {
         string query;
         lock (_gate)
         {
-            if (_disposed || _view.ExecutedQuery is not { } executed || _view.IsPostResult || _view.IsBusy
-                || page < 1 || page > MaximumPage || page == _view.Page
-                || PauseEnd(_view) is not null
-                || (page > _view.Page && (_view.IsEnd || _view.Status != BooruSearchStatus.Results)))
-                return Task.CompletedTask;
-            query = executed;
+            if (!CanGoToPageCore(page)) return Task.CompletedTask;
+            query = _view.ExecutedQuery!;
         }
         return RunSearchAsync(query, page);
     }
