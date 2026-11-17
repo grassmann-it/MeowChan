@@ -65,6 +65,12 @@ internal sealed class SessionFeedbackStore
 
     // Deliberately leave _dismissed intact: clearing diagnostics must not replay a dismissed event.
     public void Clear() { _entries.Clear(); Changed?.Invoke(); }
+    /// <summary>
+    /// Whether a notification becomes a popup. An <paramref name="essential"/> one carries the only way back of an action (the Undo of
+    /// "Remove from watch list"): the popup settings are about information, so they do not hide it.
+    /// </summary>
+    public static bool ShowsPopup(Config config, FeedbackCategory category, bool essential) => essential || AllowsPopup(config, category);
+
     public static bool AllowsPopup(Config config, FeedbackCategory category) => category switch
     {
         FeedbackCategory.Warning => config.ShowWarningNotifications,

@@ -26,7 +26,7 @@ public partial class MainWindow
     private bool _feedbackDismissWired;
     private ICommand? _feedbackDismissGesture;
     private sealed record PendingFeedback(string Title, string Message, NotificationType Type,
-        FeedbackCategory Category, SessionFeedback? Entry, IReadOnlyList<FeedbackToastAction>? Actions = null);
+        FeedbackCategory Category, SessionFeedback? Entry, IReadOnlyList<FeedbackToastAction>? Actions = null, bool Essential = false);
     private readonly Queue<PendingFeedback> _startupNotifications = new();
 
     // CallerMemberName is a safe fallback for future callers: even an unclassified error is retained.
@@ -40,6 +40,12 @@ public partial class MainWindow
     private void ShowActionNotification(string title, string message, NotificationType type, FeedbackToastAction[] actions,
         string? context = null, [CallerMemberName] string operation = "ui") =>
         ShowNotificationCore(title, message, type, context, operation, actions: actions);
+
+    // DL-03: a toast whose action is the only way back (the Undo of "Remove from watch list") is not information the user may switch off:
+    // it is shown whatever the popup settings say. Everything else about it is an ordinary action toast.
+    private void ShowEssentialActionNotification(string title, string message, NotificationType type, FeedbackToastAction[] actions,
+        string? context = null, [CallerMemberName] string operation = "ui") =>
+        ShowNotificationCore(title, message, type, context, operation, actions: actions, essential: true);
 
     // WV12: deliberately not queued at startup and not subject to ToastDuration.Action's ten-second floor.
     // The caller owns an occurrence lease; every kind of close (expiry, eviction, CloseAll, explicit dismissal) revokes it.
@@ -67,11 +73,11 @@ public partial class MainWindow
     // Separate helper preserves the five-parameter reflection entry point. Future structured
     // owners may supply a fault key, but disappearance/text changes never imply recovery.
     private void ShowNotificationCore(string title, string message, NotificationType type,
-        string? context, string operation, string? faultKey = null, IReadOnlyList<FeedbackToastAction>? actions = null)
+        string? context, string operation, string? faultKey = null, IReadOnlyList<FeedbackToastAction>? actions = null, bool essential = false)
     {
         if (!Dispatcher.UIThread.CheckAccess())
         {
-            Dispatcher.UIThread.Post(() => ShowNotificationCore(title, message, type, context, operation, faultKey, actions));
+            Dispatcher.UIThread.Post(() => ShowNotificationCore(title, message, type, context, operation, faultKey, actions, essential));
             return;
         }
         if (_allowClose) return;
@@ -97,7 +103,7 @@ public partial class MainWindow
             WireFeedbackDismissGesture(dismiss);
             dismiss.Command = new DelegateCommand(() => DismissShellFeedback(entry));
             TextBlock text = ShellActionError;
-            AutomationProperties.SetLiveSetting(text, SessionFeedbackStore.AllowsPopup(_config, category)
+            AutomationProperties.SetLiveSetting(text, SessionFeedbackStore.ShowsPopup(_config, category, essential)
                 ? AutomationLiveSetting.Off : AutomationLiveSetting.Assertive);
             // The icon shows the severity; the screen reader hears it as the first word of the live text (the visible text stays the message).
             AutomationProperties.SetName(text, MeowChan.Desktop.Controls.WorkspaceBanner.AnnouncedText(type, message));
@@ -105,7 +111,7 @@ public partial class MainWindow
             ShellActionErrorBanner.Type = type;
             ShellActionErrorBanner.IsVisible = true;
         }
-        PendingFeedback feedback = new(title, message, type, category, entry, actions);
+        PendingFeedback feedback = new(title, message, type, category, entry, actions, essential);
         if (!_hasOpened) _startupNotifications.Enqueue(feedback);
         else RenderNotification(feedback);
     }
@@ -228,7 +234,7 @@ public partial class MainWindow
             && feedback.Entry?.Operation != "session.shutdown") return;
         // Pending startup items retain their captured identity even after diagnostics are cleared.
         if (feedback.Entry != null && _feedback.IsDismissed(feedback.Entry)) return;
-        if (_allowClose || !SessionFeedbackStore.AllowsPopup(_config, feedback.Category)) return;
+        if (_allowClose || !SessionFeedbackStore.ShowsPopup(_config, feedback.Category, feedback.Essential)) return;
         FeedbackToastContent content = new(feedback.Title, feedback.Message, feedback.Entry, toast =>
         {
             if (_allowClose) return;

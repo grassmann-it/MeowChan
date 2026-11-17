@@ -385,7 +385,9 @@ public partial class MainWindow
         if (removed.Count > 0 && !_isClosing) ShowWatchRemovedToast(new WatchRemovalUndo(removed, ReadmitRemovedWatchesAsync));
     }
 
-    private void ShowWatchRemovedToast(WatchRemovalUndo undo) => ShowActionNotification(
+    // The undo is an action, not information (DL-03): it is offered whatever the popup settings say. Several watches removed at once
+    // (selection, Ctrl+A, Delete) share one undo for all of them. The app has no key for it, so the toast button is the way.
+    private void ShowWatchRemovedToast(WatchRemovalUndo undo) => ShowEssentialActionNotification(
         Texts.T("notification.session"), Texts.T("watch.removed", undo.Count), NotificationType.Information,
         new[] { new FeedbackToastAction(Texts.T("watch.undo"), () => UndoWatchRemovalAsync(undo), "rotate-ccw") }, operation: "watch.removed");
 
@@ -412,13 +414,14 @@ public partial class MainWindow
     {
         if (!_restoreCompleted || _isClosing || _importing || WorkspaceCommandBusy) return null;
         _importing = true;
+        _admissionIsUndo = true;
         try
         {
             UpdateInteractionState();
             await SubmitInputAsync(text);
             return _admissionResults.Count(item => item.Status is AdmissionStatus.Added or AdmissionStatus.AlreadyPresent);
         }
-        finally { _importing = false; UpdateInteractionState(); }
+        finally { _admissionIsUndo = false; _importing = false; UpdateInteractionState(); }
     }
 
     private async Task<bool> RemoveVisibleDownloadWatchAsync(long id, bool boards)

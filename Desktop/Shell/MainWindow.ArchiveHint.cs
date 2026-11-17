@@ -48,8 +48,11 @@ public partial class MainWindow
         RefreshArchiveBridgeHint();
     }
 
+    // The Undo of a watch removal re-adds addresses the user had already: it is no first download, so it never offers the hint.
+    private bool _admissionIsUndo;
+
     /// <summary>Called when an Add starts: remembers whether the profile had any download before it.</summary>
-    private void NoteAdmissionStart() => _admissionStartedEmpty = UrlList.Count == 0 && BoardsList.Count == 0;
+    private void NoteAdmissionStart() => _admissionStartedEmpty = !_admissionIsUndo && UrlList.Count == 0 && BoardsList.Count == 0;
 
     /// <summary>Called with the finished Add results: the first successful Add of a profile shows the line.</summary>
     private void OfferArchiveBridgeHint(int added)
