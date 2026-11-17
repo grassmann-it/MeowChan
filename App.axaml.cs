@@ -37,18 +37,30 @@ public partial class App : Application
     {
         if (GetType() == typeof(App))
         {
-            AvaloniaXamlLoader.Load(this);
-            return;
+            try
+            {
+                AvaloniaXamlLoader.Load(this);
+                return;
+            }
+            catch (Avalonia.Markup.Xaml.XamlLoadException) when (!HasCompiledApplicationXaml())
+            {
+                // A source-built smoke harness can be invoked from an output graph where the
+                // referenced application's compiled-loader metadata was not copied. Fall back to
+                // the embedded resource instead of starting with an unstyled application.
+            }
         }
 
-        App template = new();
-        AvaloniaXamlLoader.Load(template);
+        App template = (App)AvaloniaXamlLoader.Load(
+            new Uri("avares://MeowChan/App.axaml"), new Uri("avares://MeowChan/"));
         RequestedThemeVariant = template.RequestedThemeVariant;
         foreach (IStyle style in template.Styles)
             Styles.Add(style);
         foreach (var resource in template.Resources)
             Resources[resource.Key] = resource.Value;
     }
+
+    private static bool HasCompiledApplicationXaml() => typeof(App).Assembly.GetManifestResourceNames()
+        .Any(name => name.Contains("AvaloniaResourceXamlInfo", StringComparison.Ordinal));
 
     private void OnLanguageChanged(object? sender, EventArgs args)
     {
