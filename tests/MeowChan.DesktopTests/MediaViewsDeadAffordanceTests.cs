@@ -310,7 +310,7 @@ public sealed class MediaViewsDeadAffordanceTests : IDisposable
         Assert.Contains("EditTags = EditTagsOfTile, OpenTagging = () => OpenTaggingPage?.Invoke(), CanOpenTagging = () => OpenTaggingPage != null", page);
         string affordances = Source("Desktop/Views/Media/MediaPage.TileAffordances.cs");
         // The same "Tag…" as the menu entry and the shortcut: the popover on the tile, or the reason as text for a medium that cannot be tagged.
-        Assert.Contains("await OpenRateAndTagAsync(row.Entry, row, anchor, Current, focusRating: false);", affordances);
+        Assert.Contains("await OpenRateAndTagAsync(row.Entry, row, anchor, Current, initialFocus: QuickTagInitialFocus.TagInput);", affordances);
     }
 
     [Fact]

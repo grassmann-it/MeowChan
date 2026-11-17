@@ -231,7 +231,7 @@ public partial class ArchivePage
     /// Tags the selected files in the quick tag popover on the button that asked (tri-state chips over every occurrence, one write per
     /// change). "Advanced…" opens the dialog that lists the occurrences (<see cref="TagMediaSelectionDialogAsync"/>).
     /// </summary>
-    private async Task TagMediaSelectionAsync(ArchivedThreadView thread, ArchiveAssetRow[] rows, GalleryEntry[] entries, Control origin, bool focusRating = false)
+    private async Task TagMediaSelectionAsync(ArchivedThreadView thread, ArchiveAssetRow[] rows, GalleryEntry[] entries, Control origin, QuickTagInitialFocus initialFocus = QuickTagInitialFocus.TagInput)
     {
         if (_mediaSelectionBusy || MediaTagServices is not { } services) return;
         IReadOnlyList<MediaLibraryTile> tiles = ArchiveMediaSelection.Tiles(thread.Summary, rows, entries);
@@ -270,7 +270,7 @@ public partial class ArchivePage
                 Name = "ArchiveSelectionTagPopover",
                 TooltipKeyContext = "reader",
                 FocusFallback = FocusAfterRateAndTag,
-                Decision = DecisionFor?.Invoke(decided, focusRating)
+                Decision = DecisionFor?.Invoke(decided, initialFocus)
             });
             shown = popover;
             _mediaSelectionTagPopover = popover;

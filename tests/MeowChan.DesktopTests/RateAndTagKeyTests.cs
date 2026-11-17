@@ -57,15 +57,55 @@ public sealed class RateAndTagPopoverCloseTests : IDisposable
         public void Dispose() { _lease.Dispose(); _temp.Dispose(); }
     }
 
-    private static QuickTagPopoverDecision Decision(bool focusRating = true) => new()
+    private static QuickTagPopoverDecision Decision(QuickTagInitialFocus initialFocus = QuickTagInitialFocus.TagInput) => new()
     {
         View = () => new GalleryDecisionView(1, GalleryDecisionCoverage.None, null, false, true),
         SetRating = _ => Task.CompletedTask,
-        FocusRating = focusRating
+        InitialFocus = initialFocus
     };
 
     private static KeyEventArgs Key(Key key, KeyModifiers modifiers = KeyModifiers.None, object? source = null) =>
         new() { RoutedEvent = InputElement.KeyDownEvent, Key = key, KeyModifiers = modifiers, Source = source };
+
+    [Theory]
+    [InlineData("Desktop/Views/Media/MediaPage.cs")]
+    [InlineData("Desktop/Views/Media/MediaPage.PanelKeys.cs")]
+    [InlineData("Desktop/Views/Archive/ArchivePage.MediaCommands.cs")]
+    [InlineData("Desktop/Views/Archive/ArchivePage.Ratings.cs")]
+    public void GeneralRateAndTagEntryDoesNotRequestStarFocus(string path)
+    {
+        string source = Source(path);
+        Assert.DoesNotContain("initialFocus: QuickTagInitialFocus.Rating", source);
+        Assert.Contains("initialFocus: QuickTagInitialFocus.TagInput", source);
+    }
+
+    [Theory]
+    [InlineData(Avalonia.Input.Key.D0)]
+    [InlineData(Avalonia.Input.Key.D1)]
+    [InlineData(Avalonia.Input.Key.D2)]
+    [InlineData(Avalonia.Input.Key.D3)]
+    [InlineData(Avalonia.Input.Key.D4)]
+    [InlineData(Avalonia.Input.Key.D5)]
+    public void ShiftDigitsWithoutAPlatformSymbolRemainNativeTextWhenTheRatingRouteDeclinesThem(Key digit)
+    {
+        TextBox field = new();
+        KeyEventArgs key = Key(digit, KeyModifiers.Shift, field); // Linux may omit KeySymbol for this chord.
+        Assert.Null(TextEntryKeys.TextOf(key)); // Never guess the layout-dependent punctuation.
+        Assert.True(TextEntryKeys.TypesText(key));
+        Assert.Equal(QuickTagPopover.UnhandledKeyAction.Pass, QuickTagPopover.UnhandledKey(key, hasField: true));
+        Assert.Null(QuickTagPopover.GuardedRootKey(key, _ => true, new Border(), hasField: true));
+        Assert.False(TextEntryKeys.TypesText(Key(digit, KeyModifiers.Control, field)));
+    }
+
+    [Fact]
+    public void TaggingRIncludesTheDecisionRowWithoutGivingItInitialFocus()
+    {
+        string source = Source("Desktop/Views/Tagging/TaggingPage.Tagging.cs");
+        Assert.Contains("TagSelectionAsync(anchor, includeRating: true)", source);
+        Assert.Contains("Decision = includeRating ? DecisionForEntries?.Invoke", source);
+        Assert.Contains("ToArray(), QuickTagInitialFocus.TagInput) : null", source);
+        Assert.Contains("new RateAndTagRequest(TagsBlocked: blocked, FocusFallback: FocusGallery)", Source("Desktop/Shell/MainWindow.QuickTags.cs"));
+    }
 
     // ---- Esc: at most two presses, from any element ---------------------------------------------------------------------------
 
@@ -126,7 +166,7 @@ public sealed class RateAndTagPopoverCloseTests : IDisposable
     public void APageKeyInsideThePopoverNeverTravelsOnToThePageBehindIt(Key key)
     {
         QuickTagPopover popover = QuickTagPopover.CreateBlocked(new Border(), "provider.jpg", "reason",
-            new QuickTagPopoverOptions { RestoreFocus = false, Decision = Decision(focusRating: false) });
+            new QuickTagPopoverOptions { RestoreFocus = false, Decision = Decision(initialFocus: QuickTagInitialFocus.TagInput) });
         try
         {
             // Handled at the frame: every handler further up (the anchor's page, the posts list, the tile grid) skips it.
@@ -499,7 +539,7 @@ public sealed class RateAndTagMediaPageKeyTests
         Assert.True(fixture.LastHandled);
         Opened open = Assert.Single(opened);
         Assert.Same(fixture.Entries[2], open.Entry);
-        Assert.True(open.Request.FocusRating);
+        Assert.Equal(QuickTagInitialFocus.TagInput, open.Request.InitialFocus);
         Assert.NotNull(open.Request.FocusFallback); // the grid takes the keyboard when the tile is gone after the close
         Assert.Equal(new[] { 2 }, fixture.Grid.Selection.SelectedIndexes.ToArray());
     });
@@ -514,6 +554,25 @@ public sealed class RateAndTagMediaPageKeyTests
         fixture.Press(fixture.Container(1), Avalonia.Input.Key.R);
 
         Assert.Same(fixture.Entries[1], Assert.Single(opened).Entry);
+    });
+
+    [Theory]
+    [InlineData("media.rating.edit")]
+    [InlineData("media.tags.edit")]
+    public void PanelEntryFocusesTheTagInputAndKeepsItsOwnTargetDespiteGridSelection(string command) => MediaTileEnterTests.Run(fixture =>
+    {
+        List<Opened> opened = RecordPopovers(fixture);
+        fixture.Grid.Selection.SelectRange(0, 1);
+        MediaLibraryTileRow panelRow = Assert.IsType<MediaLibraryTileRow>(fixture.Container(2).DataContext);
+        Control anchor = new Border();
+        Task result = (Task)typeof(MediaPage).GetMethod("RunMediaCommandOnPanelAsync", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(fixture.Page, [command, panelRow, anchor])!;
+        Assert.True(result.IsCompletedSuccessfully);
+        Opened open = Assert.Single(opened);
+        Assert.Same(fixture.Entries[2], open.Entry);
+        Assert.Same(anchor, open.Anchor);
+        Assert.Equal(QuickTagInitialFocus.TagInput, open.Request.InitialFocus);
+        Assert.Equal(new[] { 0, 1 }, fixture.Grid.Selection.SelectedIndexes.ToArray());
     });
 
     [Fact]
@@ -636,7 +695,7 @@ public sealed class RateAndTagSurfaceTests : IDisposable
         Assert.Contains("SelectedPostRateAndTagMedium()", key);     // the focus on a toolbar or paging button: the selected post's medium
         Assert.Contains("Message(RateAndTagRefusal());", key);      // no medium: the reason, never silence
         Assert.Contains("SelectPostOfFocusedText();", key);         // a text selection in a post that is not the selected one
-        Assert.Contains("new RateAndTagRequest(focusRating, subject.TagsBlocked, FocusAfterRateAndTag)", media);
+        Assert.Contains("new RateAndTagRequest(initialFocus, subject.TagsBlocked, FocusAfterRateAndTag)", media);
         // After the close without its origin, the keyboard goes to the selected post card (or the posts list), where ↑/↓ and R work.
         Assert.Contains("posts.SelectedItem is { } item && posts.ContainerFromItem(item) is Control card && card.Focus()", media);
     }
@@ -790,6 +849,6 @@ public sealed class RateAndTagSurfaceTests : IDisposable
         int loop = commands.IndexOf("foreach (string id in TaggingCommands.All)", StringComparison.Ordinal);
         Assert.True(r >= 0 && loop > r, "R must be taken before the list's commands and its type-ahead.");
         Assert.Contains("DecisionForEntries = DecisionForMediaEntries", Source("Desktop/Shell/MainWindow.TaggingPage.cs"));
-        Assert.Contains("TagSelectionAsync(anchor, focusRating: true)", Source("Desktop/Views/Tagging/TaggingPage.Tagging.cs"));
+        Assert.Contains("TagSelectionAsync(anchor, includeRating: true)", Source("Desktop/Views/Tagging/TaggingPage.Tagging.cs"));
     }
 }

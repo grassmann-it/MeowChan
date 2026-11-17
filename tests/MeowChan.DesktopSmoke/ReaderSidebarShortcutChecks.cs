@@ -44,7 +44,7 @@ internal static class ReaderSidebarShortcutChecks
         {
             opens++;
             targetPost = entry.EntryKey.PostId;
-            Require(entry.Key.Thread == Fixture && request.FocusRating, "Wrong rating target/request.");
+            Require(entry.Key.Thread == Fixture && request.InitialFocus == QuickTagInitialFocus.TagInput, "Wrong rating target/request.");
             await originalPopover(entry, origin, context, current, request);
         };
         ContentControl host = window.FindControl<ContentControl>("ReaderHost")!;

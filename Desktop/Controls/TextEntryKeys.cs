@@ -33,7 +33,10 @@ internal static class TextEntryKeys
     }
 
     /// <summary>True for a key that becomes text or feeds a composition when it stays unhandled (a printable key, an IME or dead key).</summary>
-    internal static bool TypesText(KeyEventArgs e) => e.Key is Key.ImeProcessed or Key.DeadCharProcessed || TextOf(e) != null;
+    internal static bool TypesText(KeyEventArgs e) => e.Key is Key.ImeProcessed or Key.DeadCharProcessed || TextOf(e) != null
+        // X11 can omit KeySymbol for shifted number-row keys even though the unhandled key produces text.
+        // Do not invent a layout-dependent character for redirection; just leave native text generation alone in an editor.
+        || (e.Key is >= Key.D0 and <= Key.D9 && e.KeyModifiers is KeyModifiers.None or KeyModifiers.Shift);
 
     /// <summary>True when <paramref name="source"/> is an editable, enabled text box or inside one (the box of an autocomplete field).</summary>
     internal static bool IsTextEditor(object? source) => source is Visual visual
