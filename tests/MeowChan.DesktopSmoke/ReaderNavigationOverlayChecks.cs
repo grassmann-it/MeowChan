@@ -243,6 +243,16 @@ internal static class ReaderNavigationOverlayChecks
             {
                 await Dispatcher.UIThread.InvokeAsync(() =>
                 {
+                    // Reproduce the historical enabled-edge attempt before revealing the host.
+                    // Enabled alone is not sufficient when an ancestor is collapsed.
+                    Button hiddenEdge = page.FindControl<Button>("ReaderNextPost")!;
+                    if (!hiddenEdge.IsEffectivelyEnabled)
+                        hiddenEdge = page.FindControl<Button>("ReaderPreviousPost")!;
+                    Require(hiddenEdge.IsEffectivelyEnabled && hiddenEdge.Focusable,
+                        "Reader navigation fixture has no enabled focusable edge action.");
+                    Console.WriteLine($"SMOKE reader navigation hidden focus probe: target={hiddenEdge.Name} "
+                        + $"visible={hiddenEdge.IsEffectivelyVisible} enabled={hiddenEdge.IsEffectivelyEnabled} "
+                        + $"focusable={hiddenEdge.Focusable} assigned={hiddenEdge.Focus()}; " + FocusState());
                     page.ShowReaderNavigation();
                     Require(focusSurface.IsEffectivelyVisible && focusSurface.IsEffectivelyEnabled && focusSurface.Focusable,
                         "Reader navigation focus precondition failed: " + FocusState());
