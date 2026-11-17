@@ -328,7 +328,10 @@ internal static class BooruBusyFallbackChecks
         public IBoard GetBoard(Uri uri) => _board;
         public IThread GetThread(Uri uri) => HostedThread;
         public HttpClient GetHttpClient() => _client;
-        public void Dispose() => _client.Dispose();
+        public void Dispose()
+        {
+            _client.Dispose();
+        }
     }
 
     private sealed class PauseFixtureBoard(PauseFixtureSource source) : BaseBoard
