@@ -761,8 +761,17 @@ public partial class ArchivePage
         && (_readerNavigationMode == Config.ReaderNavigationModeAlways || _readerNavigationActive || _readerNavigationPointerOver
         || ReaderNavigation.IsKeyboardFocusWithin || PointerNearReaderNavigation());
 
-    private bool PointerNearReaderNavigation() => _readerSurfacePointer is Point pointer
-        && ReaderNavigation.Bounds.Inflate(ReaderNavigationLayout.NearMargin).Contains(pointer);
+    private bool PointerNearReaderNavigation()
+    {
+        if (_readerSurfacePointer is not Point pointer) return false;
+        // Bounds are local to the navigation's parent. Convert the capsule origin to
+        // ReaderContentSurface coordinates before comparing it with surface pointer input.
+        Point? origin = ReaderNavigation.TranslatePoint(default, ReaderContentSurface);
+        return origin is Point topLeft
+            && new Rect(topLeft, ReaderNavigation.Bounds.Size)
+                .Inflate(ReaderNavigationLayout.NearMargin)
+                .Contains(pointer);
+    }
 
     private void OnReaderSurfacePointerMoved(object? sender, PointerEventArgs e) => NotifyReaderPointerMoved(e.GetPosition(ReaderContentSurface));
 
