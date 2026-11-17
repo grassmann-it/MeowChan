@@ -477,7 +477,9 @@ public sealed class MediaPageLayoutTests : IDisposable
         Assert.DoesNotContain("BuildItems", layout + page + view + Read("Desktop/Views/Media/MediaLayoutMenu.cs"));
         Assert.DoesNotContain("Compose(", Read("Desktop/Views/Media/MediaLayoutMenu.cs"));
         // The right click on empty grid space (no tile under the pointer) opens the page's blank menu, which carries the layout entries below its two actions.
-        Assert.Contains("OpenSharedMediaMenu(row, ResolveMenuOrigin(e.Source, row));", page);
+        // The base branch now resolves the origin before focusing it and opening the menu.
+        Assert.Contains("Control origin = ResolveMenuOrigin(e.Source, row);", page);
+        Assert.Contains("OpenSharedMediaMenu(row, origin);", page);
         Assert.Contains("blankItems.AddRange(LayoutMenuItems());", page);
         // Under More (Barebones or a narrow page) the button is a submenu with the same entries.
         Assert.Contains("if (ReferenceEquals(control, _layoutButton)) { flyout.Items.Add(LayoutSubmenu()); continue; }", view);

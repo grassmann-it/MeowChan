@@ -213,12 +213,13 @@ public sealed partial class MediaPage : UserControl
         _emptyState.Children.Add(_empty); _emptyState.Children.Add(_emptyHelp); _emptyState.Children.Add(_emptyActions);
         body.Children.Add(_grid); body.Children.Add(_emptyState);
         InstallFocus(body); // M4: the rows the focus mode hides are grouped, its row takes their place (MediaPage.Focus.cs)
-        Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*") };
-        layout.Children.Add(header);
         Border surface = new() { Name = "MediaGridSurface", Child = body, Margin = new Thickness(12, 0, 12, 8), Classes = { "workspace-section-flush" } };
         Control bodyRow = WrapWithTagSidebar(surface); // MP4: the tag list of the Booru mode left of the grid (MediaPage.BooruMode.cs)
-        layout.Children.Add(bodyRow); Avalonia.Controls.Grid.SetRow(bodyRow, 1);
-        Content = layout;
+        // The header belongs to the grid/filter column, not above the media sidebar.
+        // Both sidebar and divider span the page host independently of that column's chrome.
+        _contentHeader = header;
+        _contentGrid!.Children.Add(header);
+        Content = bodyRow;
         InstallLayout(); // MP5: finds the rows the layout shows or hides
 
         _sort.SelectionChanged += (_, _) => OnSortChanged();

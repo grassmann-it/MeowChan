@@ -80,19 +80,21 @@ internal static partial class MediaPageChecks
             await ClickTileAsync(page, window, 0);
             Require(page.Grid.SelectedIndex == 0 && opened.Count == 0, "A single click must select the tile and not open the gallery: " + page.Grid.SelectedIndex + "/" + opened.Count);
             Bitmap? first = await ShowsAsync(0, "click", picture: true);
-            // Tom (15.11.2026): the panel's card is flush with the grid card (same top and bottom edge, no space under it), and its header line
-            // stands on the selection row's line above the grid, centred on it.
-            await PanelUntilAsync(() => page.IsPanelHeaderLifted, () => "the panel's header did not move up to the selection row's line");
+            // UX-LEDGER-27 / 1.9e supersedes alignment to the neighbouring grid card:
+            // the panel/divider fill their host, with title/actions inside the panel's top line.
+            Control panelHost = (Control)panel.Parent!;
+            await PanelUntilAsync(() => Math.Abs(panel.Bounds.Height - panelHost.Bounds.Height) <= 1,
+                () => "the media sidebar does not fill its host: " + panel.Bounds.Height + "/" + panelHost.Bounds.Height);
             await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
             double TopOf(Control control) => control.TranslatePoint(default, page)!.Value.Y;
-            double cardTop = TopOf(panel.Card), cardBottom = cardTop + panel.Card.Bounds.Height;
-            double gridTop = TopOf(surface), gridBottom = gridTop + surface.Bounds.Height;
-            Require(Math.Abs(cardTop - gridTop) <= 1 && Math.Abs(cardBottom - gridBottom) <= 1,
-                "The panel's card must be flush with the grid card: card " + cardTop + ".." + cardBottom + ", grid " + gridTop + ".." + gridBottom);
-            Control selectionRow = C<Control>(page, "MediaSelectionRow");
-            double rowCentre = TopOf(selectionRow) + selectionRow.Bounds.Height / 2, headerCentre = TopOf(panel.HeaderRow) + panel.HeaderRow.Bounds.Height / 2;
-            Require(Math.Abs(rowCentre - headerCentre) <= 1.5,
-                "The panel's header line must be centred on the selection row: row centre " + rowCentre + ", header centre " + headerCentre);
+            double panelTop = TopOf(panel), hostTop = TopOf(panelHost);
+            Require(Math.Abs(panelTop - hostTop) <= 1 && Math.Abs(panel.Bounds.Bottom - panelHost.Bounds.Height) <= 1,
+                "The media sidebar divider must reach both host edges.");
+            Require(!page.IsPanelHeaderLifted && Math.Abs(TopOf(panel.HeaderRow) - panelTop) <= 1
+                    && Math.Abs(panel.HeaderRow.Bounds.Height - ReaderMediaSidebar.HeaderLineHeight) <= 1,
+                "The title/actions line must stay at the top inside the full-height sidebar.");
+            Require(Math.Abs(TopOf(panel.Card) + panel.Card.Bounds.Height - (hostTop + panelHost.Bounds.Height)) <= 1,
+                "The media card must consume the host height below the title line.");
 
             // 2. Another selection (the grid's own selection, as an arrow key makes it): the content changes with it.
             page.Grid.SelectedIndex = 1;
@@ -110,7 +112,7 @@ internal static partial class MediaPageChecks
             await PanelUntilAsync(() => opened.Count == 1, () => "'Open in gallery' did not open the gallery");
             Require(opened[0].Window[opened[0].Start] == rows[0].Entry, "'Open in gallery' must start at the panel's medium: " + opened[0].Window[opened[0].Start].Name);
             Program.CaptureWindow(window, "smoke-media-panel.png");
-            Console.WriteLine("SMOKE media panel [en]: on by default right of the grid with its handle; card flush with the grid card, header on the selection row's line; empty without a selection; follows a click (which only selects) and the grid's selection; header names the selected medium (post number, file name), picture named after it and changed with the tile; no overlay arrows or counter; Open in gallery starts at the panel's medium.");
+            Console.WriteLine("SMOKE media panel [en]: on by default right of the grid with its handle; sidebar/divider fill the host independently of the grid, title/actions at the top inside the sidebar; empty without a selection; follows a click (which only selects) and the grid's selection; header names the selected medium (post number, file name), picture named after it and changed with the tile; no overlay arrows or counter; Open in gallery starts at the panel's medium.");
         }
         finally { page.EndLifetime(); window.Close(); }
     }

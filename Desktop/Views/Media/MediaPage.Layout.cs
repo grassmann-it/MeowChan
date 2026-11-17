@@ -46,7 +46,7 @@ public sealed partial class MediaPage
     private MediaTileAppearance _tileAppearance = MediaTileMetrics.Standard;
     private Grid? _bodyRow, _contentGrid;
     private Border? _bodySurface;
-    private Control? _chipRow, _statusRow;
+    private Control? _chipRow, _statusRow, _contentHeader;
     private bool _layoutInstalled, _statusAttention;
     private double _appliedTagListWidth, _appliedPanelWidth, _panelEdge = SidebarMargin;
     private bool _panelHasItems = true;
@@ -145,12 +145,14 @@ public sealed partial class MediaPage
     // The Layout menu's panel row says why a chosen panel is not on screen: the page is narrower than the setting.
     private string? PanelHint() => _panelCollapsed ? Texts.T("media.layout.panel.collapsed", MediaPanelColumns.MinimumBodyWidth(_layout, PanelMinimumPageWidth)) : null;
 
-    // The body row: the tag list column, its drag handle and the content column. The content column is a grid of its own: the media panel, its drag
-    // handle and the grid surface (the panel sits on the left or the right of the grid, the tag list beside both on its own side).
+    // The page host: tag list, handle and content column. The content column owns header and grid rows;
+    // the media sidebar and its handle span both rows, on either side of the grid/filter column.
     // Sides, widths and margins come from the plan (LayoutBody).
     private Grid CreateBodyRow(Control tagList, Border surface)
     {
-        Grid content = _contentGrid = new() { Name = "MediaContentRow", ColumnDefinitions = new ColumnDefinitions("*,0,0") };
+        Grid content = _contentGrid = new() { Name = "MediaContentRow", RowDefinitions = new RowDefinitions("Auto,*"), ColumnDefinitions = new ColumnDefinitions("*,0,0") };
+        Avalonia.Controls.Grid.SetRow(surface, 1);
+        Avalonia.Controls.Grid.SetRowSpan(_panelHandle, 2);
         content.Children.Add(surface); content.Children.Add(_panelHandle);
         Grid row = new() { Name = "MediaBodyRow", ColumnDefinitions = new ColumnDefinitions("0,0,*") };
         row.Children.Add(tagList); row.Children.Add(_tagHandle); row.Children.Add(content);
@@ -288,6 +290,7 @@ public sealed partial class MediaPage
         _appliedPanelWidth = panelShown ? panelColumns.PanelWidth : plan.PanelWidth;
         ColumnDefinitions inner = content.ColumnDefinitions;
         Avalonia.Controls.Grid.SetColumn(surface, surfaceColumn);
+        if (_contentHeader is { } header) Avalonia.Controls.Grid.SetColumn(header, surfaceColumn);
         Avalonia.Controls.Grid.SetColumn(_panelHandle, 1);
         inner[panelColumn].MinWidth = panelShown ? Math.Min(MeowChan.Config.MediaPanelWidthMinimum, panelColumns.PanelWidth) + edge : 0;
         inner[panelColumn].MaxWidth = panelShown ? MediaPanelColumns.MaximumPanelWidth(_layout, bodyWidth) + edge : double.PositiveInfinity;
@@ -305,15 +308,16 @@ public sealed partial class MediaPage
         bool leftBlock = shown && !right || panelShown && !panelRight, rightBlock = shown && right || panelShown && panelRight;
         surface.Margin = new Thickness(leftBlock ? 8 : 12, 0, rightBlock ? 8 : 12, 8);
         _panelCollapsed = panelColumns.CollapsedByWidth;
-        // The toolbar's first row follows this room (MediaPage.ToolbarAlignment.cs): the order ends at the grid card's right edge.
-        _gridRightReserve = MediaToolbarLayout.GridRightReserve(
-            (shown && right ? columns[listColumn].Width.Value + HandleWidth : 0) + (panelShown && panelRight ? inner[panelColumn].Width.Value + HandleWidth : 0),
-            surface.Margin.Right, SidebarMargin);
+        // Header and grid now occupy the same real column; do not reserve the sidebar twice.
+        if (_contentHeader is { } alignedHeader)
+            alignedHeader.Margin = new Thickness(surface.Margin.Left, alignedHeader.Margin.Top, surface.Margin.Right, alignedHeader.Margin.Bottom);
+        _gridRightReserve = MediaToolbarLayout.GridRightReserve(0, SidebarMargin, SidebarMargin);
         bool focusLost = !panelShown && _panelShown && _panel?.IsKeyboardFocusWithin == true;
         if (panelShown) { ReaderMediaSidebar created = EnsurePanel(); if (!content.Children.Contains(created)) content.Children.Add(created); }
         if (_panel is { } panel)
         {
             Avalonia.Controls.Grid.SetColumn(panel, panelColumn);
+            Avalonia.Controls.Grid.SetRowSpan(panel, 2);
             panel.BorderThickness = new Thickness(panelRight ? 1 : 0, 0, panelRight ? 0 : 1, 0);
             panel.IsVisible = panelShown;
         }
@@ -322,14 +326,7 @@ public sealed partial class MediaPage
             _panelShown = panelShown;
             OnPanelShownChanged(panelShown);
         }
-        if (_panel is { } aligned)
-        {
-            // The room the header's last line keeps for the lifted panel header: the panel's column and handle, plus the tag list's when it is on
-            // the same side, less the page margin the header already has, plus the grid's gap (MediaPage.PanelAlignment.cs).
-            double reserve = inner[panelColumn].Width.Value + HandleWidth + 8 - SidebarMargin
-                + (shown && right == panelRight ? columns[listColumn].Width.Value + HandleWidth : 0);
-            AlignPanel(aligned, panelRight, edge, reserve);
-        }
+        if (_panel is { } aligned) AlignPanel(aligned, panelRight, edge);
         ApplyToolbarAlignment();
         if (focusLost) FocusGrid();
     }
