@@ -95,12 +95,20 @@ internal static class GridChecks
     {
         Point position = await WaitForRowTargetAsync(window, grid, item);
         RightPress(window, position, KeyModifiers.None);
-        if (!ReferenceEquals(grid.SelectedItem, item))
-            throw new InvalidOperationException("Opening the copy menu selected a different row in " + grid.Name
-                + "; selected=" + Describe(grid.SelectedItem) + "; expected=" + Describe(item) + "; point=" + position);
         ContextMenu menu = grid.ContextMenu ?? throw new InvalidOperationException("The copy context menu is missing.");
-        menu.Open(grid);
-        await Program.WaitUntilAsync(() => menu.IsOpen);
+        // The product opens the menu from a dispatcher callback after Avalonia's
+        // DataGrid has applied the right-click selection. Opening it here as well
+        // races that callback and can build a multi-selection menu from the
+        // previous selection (or an empty menu) on native platforms. Wait for
+        // both the authoritative selection and the callback-built action.
+        string expectedAction = item is ThreadRow ? "thread.read" : "selection.copy-links";
+        await Program.WaitUntilAsync(
+            () => ReferenceEquals(grid.SelectedItem, item) && grid.SelectedItems.Contains(item),
+            () => "selected=" + Describe(grid.SelectedItem) + "; selected-count=" + grid.SelectedItems.Count);
+        await Program.WaitUntilAsync(
+            () => menu.IsOpen && menu.Items.OfType<MenuItem>().Any(entry => entry.Tag as string == expectedAction),
+            () => "open=" + menu.IsOpen + "; expected=" + expectedAction + "; items="
+                + string.Join(",", menu.Items.OfType<MenuItem>().Select(entry => entry.Tag as string ?? "<untagged>")));
     }
 
     private static async Task<Point> WaitForRowTargetAsync(MainWindow window, DataGrid grid, object item)
