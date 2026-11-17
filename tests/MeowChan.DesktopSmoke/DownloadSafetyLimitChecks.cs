@@ -70,6 +70,7 @@ internal static class DownloadSafetyLimitChecks
                 "Footer does not explain effective media transfers separately from watched threads.");
             Program.CaptureWindow(shell, "smoke-download-safety-limit.png");
             await CloseAsync(shell);
+            shell.Dispose();
             await host.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(15));
             shell = null; host = null;
             host = new DesktopSessionHost(profile, Array.Empty<IImageBoard>());

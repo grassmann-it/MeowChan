@@ -134,6 +134,7 @@ internal static class FirstRunSettingsChecks
                 await CheckEditorAsync(shell, expected);
             }
             await CloseAsync(shell);
+            shell.Dispose();
             await host.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(15));
             Require(!shell.IsVisible && host.IsProfileReleased, "Shell/host did not release the private profile.");
             shell = null;
@@ -162,6 +163,7 @@ internal static class FirstRunSettingsChecks
                         modal.Close();
                     }
                     await CloseAsync(shell);
+                    shell.Dispose();
                 }
                 if (host != null) await host.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(15));
             }, exception => Console.Error.WriteLine("SMOKE cleanup failed in FirstRunSettingsChecks: " + exception));

@@ -113,6 +113,7 @@ internal static class DownloadSearchStartupTruthChecks
             {
                 barrier.Release.TrySetResult(); readable.Release.TrySetResult();
                 await CloseAsync(child);
+                child.Dispose();
             }
             Console.WriteLine("CX03 cache " + cache + " PASS: awaiting both lists, retained query/focus, authoritative zero only at Ready.");
         }
@@ -318,6 +319,7 @@ internal static class DownloadSearchStartupTruthChecks
         {
             barrier.Release.TrySetResult(); barrier.CancellationDrain.TrySetResult();
             await CloseAsync(child);
+            child.Dispose();
         }
         Console.WriteLine("CX03 terminal " + (fail ? "failure" : "stop") + " PASS: no empty-success claim; real close/profile release.");
     }
