@@ -94,34 +94,44 @@ public sealed class PluginCardOrderTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void DisabledAndUnusedPluginsShowFourZeroStatsWithTheSameIdsAsEveryCard(bool disabled)
+    [InlineData(false, true, true)] // Disabled, with a retained active release.
+    [InlineData(false, false, true)] // Disabled, without an active release.
+    [InlineData(true, false, true)] // Unavailable.
+    [InlineData(true, false, false)] // Not loaded / unused candidate.
+    public void DisabledAndUnusedPluginsShowFourZeroStatsWithTheSameIdsAsEveryCard(bool enabled, bool active, bool loaded)
     {
-        PluginEntryPresentation view = PluginEntryPresentation.Create(
-            disabled ? Entry(enabled: false, description: Description()) : Entry(active: false, description: null));
+        PluginCatalogEntry entry = Entry(enabled: enabled, active: active, description: Description(source: true, filter: true));
+        PluginEntryPresentation view = PluginEntryPresentation.Create(loaded ? entry : entry with { Activation = null });
+        Assert.Single(view.Sources);
+        Assert.Single(view.Filters);
 
-        IReadOnlyList<MeowChan.Desktop.Controls.StatFooterItem> items = PluginCardStats.Items(view, files: 0, busyNow: false);
+        // Even non-zero metadata, candidate files and a stale busy observation must not become live usage.
+        IReadOnlyList<MeowChan.Desktop.Controls.StatFooterItem> items = PluginCardStats.Items(view, files: 3, busyNow: true);
 
         Assert.Equal(["sources", "filters", "running", "files"], items.Select(item => item.Id));
         Assert.All(items, item => Assert.Equal(0, item.Value));
         Assert.All(items, item => Assert.False(string.IsNullOrEmpty(item.Label)));
         Assert.Equal(4, items.Select(item => item.Priority).Distinct().Count());
         // Unknown presentation (nothing observed yet) is also all zeros, never a missing row.
-        Assert.All(PluginCardStats.Items(null, 0, false), item => Assert.Equal(0, item.Value));
+        Assert.All(PluginCardStats.Items(null, 3, true), item => Assert.Equal(0, item.Value));
     }
 
     [Fact]
-    public void ActiveCardCountsDescribedSourcesFilesAndActivityUsingTheSameFooterShape()
+    public void ActiveCardCountsEffectiveSourcesFiltersFilesAndActivityUsingTheSameFooterShape()
     {
-        PluginEntryPresentation view = PluginEntryPresentation.Create(Entry(active: true, description: Description(source: true)));
+        // The candidate may describe a different build than the release currently in use.
+        PluginEntryPresentation view = PluginEntryPresentation.Create(Entry(active: true,
+            description: Description(), activeDescription: Description(source: true, filter: true)));
+        Assert.Empty(view.Sources);
+        Assert.Empty(view.Filters);
 
         IReadOnlyList<MeowChan.Desktop.Controls.StatFooterItem> idle = PluginCardStats.Items(view, files: 2, busyNow: false);
         IReadOnlyList<MeowChan.Desktop.Controls.StatFooterItem> busy = PluginCardStats.Items(view, files: 2, busyNow: true);
 
         Assert.Equal(["sources", "filters", "running", "files"], idle.Select(item => item.Id));
-        Assert.Equal([1L, 0L, 0L, 2L], idle.Select(item => item.Value));
-        Assert.Equal([1L, 0L, 1L, 2L], busy.Select(item => item.Value));
+        Assert.Equal([1L, 1L, 0L, 2L], idle.Select(item => item.Value));
+        Assert.Equal([1L, 1L, 1L, 2L], busy.Select(item => item.Value));
+        Assert.Equal(0, PluginCardStats.Items(view, files: -1, busyNow: false).Single(item => item.Id == "files").Value);
         Assert.Equal(idle.Select(item => item.Icon), busy.Select(item => item.Icon));
     }
 
@@ -146,11 +156,12 @@ public sealed class PluginCardOrderTests
             filter ? [new FilterDescription("fixture-filter", "Fixture filter", "Checks.", FilterDataAccess.OriginalImage, new("1", []), ["image/jpeg"])] : [],
             new("1", []), []);
 
-    private static PluginCatalogEntry Entry(bool enabled = true, bool active = true, PluginDescription? description = null)
+    private static PluginCatalogEntry Entry(bool enabled = true, bool active = true, PluginDescription? description = null,
+        PluginDescription? activeDescription = null)
     {
         PluginArtifact artifact = new("compile", "exec", "/fixture/plugin.dll", "assembly-hash", "sdk-hash", "compiler-hash", []);
         PluginReleaseSnapshot? release = active
-            ? new(CandidateId, artifact, description ?? Description(), new("cfg", new("1", []), new Dictionary<string, SettingsSnapshot>()))
+            ? new(CandidateId, artifact, activeDescription ?? description ?? Description(), new("cfg", new("1", []), new Dictionary<string, SettingsSnapshot>()))
             : null;
         PluginCandidateSnapshot candidate = new(CandidateId, PluginId, artifact, description, true, null, "/fixture/plugin.cs");
         PluginActivationSnapshot state = new(PluginId, enabled, 1, CandidateId, release, null, null, null, [candidate], null);

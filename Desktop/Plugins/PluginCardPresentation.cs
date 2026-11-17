@@ -68,11 +68,17 @@ internal sealed class PluginActivityTracker
 /// </summary>
 internal static class PluginCardStats
 {
-    internal static IReadOnlyList<StatFooterItem> Items(PluginEntryPresentation? presentation, int files, bool busyNow) =>
-    [
-        new("sources", "globe", Texts.T("plugins.stat.sources"), presentation?.Sources.Count ?? 0, 0),
-        new("filters", "filter", Texts.T("plugins.stat.filters"), presentation?.Filters.Count ?? 0, 1),
-        new("running", "activity", Texts.T("plugins.stat.running"), busyNow ? 1 : 0, 2),
-        new("files", "list", Texts.T("plugins.stat.files"), Math.Max(0, files), 3)
-    ];
+    internal static IReadOnlyList<StatFooterItem> Items(PluginEntryPresentation? presentation, int files, bool busyNow)
+    {
+        // Catalog metadata also describes disabled/unused candidates and pending builds. Only the enabled,
+        // active release contributes effective usage; keep the same footer even when nothing is in use.
+        var active = presentation?.Availability == PluginAvailability.Active ? presentation.Active : null;
+        return
+        [
+            new("sources", "globe", Texts.T("plugins.stat.sources"), active?.Description.Sources.Count ?? 0, 0),
+            new("filters", "filter", Texts.T("plugins.stat.filters"), active?.Description.Filters.Count ?? 0, 1),
+            new("running", "activity", Texts.T("plugins.stat.running"), active != null && busyNow ? 1 : 0, 2),
+            new("files", "list", Texts.T("plugins.stat.files"), active != null ? Math.Max(0, files) : 0, 3)
+        ];
+    }
 }
