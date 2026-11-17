@@ -25,11 +25,17 @@ public partial class ArchivePage
     {
         if (e.Handled || ShortcutService.IsCapturing || _ended || _busy || !_available || _obscuredByGallery
             || IsReaderDialogOpen || OpenGallery == null || e.Source is not Control source
-            || !CommandRouter.IsRoutingContextActive(ArchivePosts, source)
-            || !CommandBindings.Matches(e, "gallery.open")) return false;
+            || !CommandRouter.IsRoutingContextActive(ArchivePosts, source)) return false;
         ArchiveAttachmentView? view = source.GetSelfAndVisualAncestors().OfType<ArchiveAttachmentView>().FirstOrDefault();
         if (view?.DataContext is not ArchiveAttachmentRow row || row.OpenPreview == null
             || !source.GetVisualAncestors().Contains(ArchivePosts)) return false;
+        // Generic command matching deliberately reserves Enter on every Button.
+        // Only the medium's preview opts into explicit Shift+Enter, not a tag
+        // editor, transport button, or unmodified native activation.
+        bool previewGalleryKey = e.Key == Key.Enter && e.KeyModifiers == KeyModifiers.Shift
+            && source.GetSelfAndVisualAncestors().Contains(view.PreviewButton)
+            && ShortcutService.Current.Matches(e, "gallery.open");
+        if (!previewGalleryKey && !CommandBindings.Matches(e, "gallery.open")) return false;
         e.Handled = true;
         row.OpenPreview(); // The same exact association and guarded manifest wait as native activation.
         return true;

@@ -121,9 +121,22 @@ internal static class ReaderGalleryShortcutParityChecks
                     await Setup(large);
                     int opens = 0;
                     page.OpenGallery = (_, _, _) => { opens++; return Task.CompletedTask; };
-                    Button source = page.FindControl<Button>("ReaderFindOpen")!; Focus(window, source);
-                    Press(source, Key.Enter);
-                    Require(opens == 0 && source.IsFocused, "Enter was stolen by a reader command");
+                    // ReaderFindOpen is intentionally not keyboard-focusable. Use
+                    // the actual medium button: native Enter must click it, not
+                    // run the explicit gallery command (the sidebar is shown).
+                    var post = (ArchivePostRow)page.FindControl<ListBox>("ArchivePosts")!.SelectedItem!;
+                    var view = Post().GetVisualDescendants().OfType<ArchiveAttachmentView>().Single(v => ReferenceEquals(v.DataContext, post.Attachments[0]));
+                    Button source = view.PreviewButton; Focus(window, source);
+                    int clicks = 0;
+                    void Clicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => clicks++;
+                    source.Click += Clicked;
+                    try
+                    {
+                        Press(source, Key.Enter);
+                        Require(clicks == 1, "Enter did not perform exactly one native medium-button click");
+                        Require(opens == 0 && source.IsFocused, "Enter was stolen by a reader command");
+                    }
+                    finally { source.Click -= Clicked; }
                 });
                 await Scene(mode + "-tag-input-focus", async () =>
                 {

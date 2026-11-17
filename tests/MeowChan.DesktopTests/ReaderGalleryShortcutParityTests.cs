@@ -39,6 +39,11 @@ public sealed class ReaderGalleryShortcutParityTests
         Assert.DoesNotContain("!_largeReader", route);
         Assert.Contains("TryRouteReaderVideoKey(e)", Source("ArchivePage.Reader.cs")[..Source("ArchivePage.Reader.cs").IndexOf("private async void OnReaderKeyDown", StringComparison.Ordinal)]);
         Assert.Contains("bool needsGallery = true, bool largeReaderOnly = true", Source("ArchivePage.Reader.cs"));
+        string reader = Source("ArchivePage.Reader.cs");
+        string observer = reader[reader.IndexOf("private void ObserveReaderMediaKeys", StringComparison.Ordinal)..];
+        observer = observer[..observer.IndexOf("private void StopObservingReaderMediaKeys", StringComparison.Ordinal)];
+        Assert.DoesNotContain("!_largeReader", observer);
+        Assert.Contains("owner.AddHandler(KeyUpEvent, OnReaderMediaKeyUp", observer);
     }
 
     [Fact]
@@ -47,6 +52,27 @@ public sealed class ReaderGalleryShortcutParityTests
         string source = Source("ArchivePage.Reader.cs");
         Assert.Contains("TryOpenFocusedReaderMedium(e)", source);
         Assert.Contains("StartReaderMediumGalleryOpen(source, post, row)", Source("ArchivePage.MediaActivation.cs"));
+    }
+
+    [Fact]
+    public void EmbeddedReaderContextEntersBeforePageTunnelHandlers()
+    {
+        string source = Source("ArchivePage.axaml.cs");
+        int constructor = source.IndexOf("public ArchivePage()", StringComparison.Ordinal);
+        int handlers = source.IndexOf("AttachMouseKeyboardQuickWins();", constructor, StringComparison.Ordinal);
+        int context = source.IndexOf("KeyContextHost.Install(this", constructor, StringComparison.Ordinal);
+        Assert.True(handlers > constructor && context > handlers,
+            "The focus-decided context host must be installed last so its tunnel runs first.");
+    }
+
+    [Fact]
+    public void ExplicitGalleryActivationOptsInOnlyTheFocusedPreviewButton()
+    {
+        string source = Source("ArchivePage.MediaActivation.cs");
+        Assert.Contains("e.Key == Key.Enter && e.KeyModifiers == KeyModifiers.Shift", source);
+        Assert.Contains("source.GetSelfAndVisualAncestors().Contains(view.PreviewButton)", source);
+        Assert.Contains("ShortcutService.Current.Matches(e, \"gallery.open\")", source);
+        Assert.Contains("!previewGalleryKey && !CommandBindings.Matches(e, \"gallery.open\")", source);
     }
 
     [Theory, MemberData(nameof(Platforms))]

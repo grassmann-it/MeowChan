@@ -1008,7 +1008,7 @@ public partial class ArchivePage
     private void ObserveReaderMediaKeys(Control pane)
     {
         StopObservingReaderMediaKeys();
-        if (!_largeReader || TopLevel.GetTopLevel(pane) is not Window owner) return;
+        if (TopLevel.GetTopLevel(pane) is not Window owner) return;
         _readerMediaKeyOwner = owner;
         // KeyUp may belong to the gallery that just covered the reader. Observe
         // release on this window, not globally, so a held key opens at most once.
