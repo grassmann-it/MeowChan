@@ -311,6 +311,7 @@ internal static class BooruCompositionChecks
         finally
         {
             if (shell != null) await CloseAsync(shell);
+            shell?.Dispose(); shell = null;
             if (host != null) await host.DisposeAsync().AsTask().WaitAsync(Wait);
             stub.ReleaseOriginals();
             Application.Current!.RequestedThemeVariant = originalTheme;

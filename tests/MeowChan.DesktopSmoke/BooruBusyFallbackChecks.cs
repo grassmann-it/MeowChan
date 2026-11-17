@@ -133,6 +133,7 @@ internal static class BooruBusyFallbackChecks
             // before closing, otherwise fixture cleanup would hide the original failure in a timeout.
             source?.Thread.ReleasePause();
             if (shell != null && shell.IsVisible) await CloseAsync(shell);
+            shell?.Dispose(); shell = null;
             if (host != null && !host.IsProfileReleased) await host.DisposeAsync().AsTask().WaitAsync(Wait);
             binding?.Dispose();
             stub?.Dispose();
@@ -221,6 +222,7 @@ internal static class BooruBusyFallbackChecks
             // before closing, otherwise fixture cleanup would hide the original failure in a timeout.
             source?.Thread.ReleasePause();
             if (shell != null && shell.IsVisible) await CloseAsync(shell);
+            shell?.Dispose(); shell = null;
             if (host != null && !host.IsProfileReleased) await host.DisposeAsync().AsTask().WaitAsync(Wait);
             binding?.Dispose();
             stub?.Dispose();
