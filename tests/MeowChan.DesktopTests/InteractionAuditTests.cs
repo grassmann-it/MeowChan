@@ -251,6 +251,19 @@ public sealed class InteractionAuditTests
     }
 
     [Fact]
+    public void GalleryDoubleClickZoomAndWindowFullscreenRemainSeparate()
+    {
+        string transform = Read("Desktop/GalleryViewer.ViewTransform.cs");
+        string viewer = Read("Desktop/GalleryViewer.cs");
+        // The image gesture is the established Fit/1:1 toggle; native window fullscreen
+        // remains an explicit command/F11 so a double click cannot unexpectedly hide chrome.
+        Assert.Contains("if (_manualZoom) Fit(); else ActualPixels();", transform);
+        Assert.Contains("_viewport.DoubleTapped += OnViewDoubleTapped;", viewer);
+        Assert.Contains("GalleryFullscreen", viewer);
+        Assert.Contains("FullscreenRequested", viewer);
+    }
+
+    [Fact]
     public void CardsRunTheirFirstButtonOnADoubleClick()
     {
         string rules = Read("Desktop/Views/Rules/RulesPage.Overview.cs");
