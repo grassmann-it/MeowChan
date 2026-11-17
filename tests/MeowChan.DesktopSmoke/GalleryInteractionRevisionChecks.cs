@@ -513,13 +513,18 @@ internal static partial class GalleryPlaybackFeatureChecks
     {
         var first = await player.InspectPlaybackAsync().WaitAsync(Deadline);
         Require(first.State == "Playing", action + " changed native playback away from Playing.");
-        for (int i = 0; i < 5; i++)
+        // Native AVFoundation can publish the Playing state before its clock resumes
+        // after a seek or popup reparent. Give that legitimate rebuffer a bounded
+        // window, while still failing promptly if an interaction actually paused it.
+        for (int i = 0; i < 15; i++)
         {
             await Task.Delay(100);
             var state = await player.InspectPlaybackAsync().WaitAsync(Deadline);
             Require(state.State == "Playing", action + " caused a delayed native pause/stop.");
-            if (i == 4) Require(state.Time >= first.Time + 200, action + " left a Playing label but a frozen native clock.");
+            if (state.Time >= first.Time + 200) return;
         }
+        var frozen = await player.InspectPlaybackAsync().WaitAsync(Deadline);
+        Require(frozen.Time >= first.Time + 200, action + " left a Playing label but a frozen native clock.");
     }
 
     private static async Task ObservePausedAsync(GalleryVideoPlayer player, string action)
