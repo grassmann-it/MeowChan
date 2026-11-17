@@ -20,6 +20,11 @@ rather than only one screen.
   available width consistently; verify at half, normal, and full-screen sizes.
 - **Reader/sidebar command routing:** rating, favorite, tag, and navigation shortcuts must reach
   the reader when a media sidebar or thumbnail has focus, without stealing text-entry keys.
+- **Reader/sidebar rating-entry regression:** with an Archive/Media sidebar item focused, `R` must
+  still open the Tagging/Rating surface; test the same routing from Downloads and the reader.
+- **Tagging editor keyboard regression (breaking):** the tag input must accept typed text after
+  opening the surface, and quick-tag number/letter shortcuts must work without preventing normal
+  typing, caret movement, or IME/text-box input.
 - **Entry-point state:** opening a thread or reader from Archive/Downloads should select and show
   the first post/media immediately; an explicit enlarge action should enlarge that selected item.
 - **Media loading:** changing posts with the sidebar open must retain the previous image until the
