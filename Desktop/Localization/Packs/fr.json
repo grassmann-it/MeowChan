@@ -5189,6 +5189,7 @@
     "archive.delete.bytes": "{0:N0} B",
     "archive.delete.threads.one": "Fils: {0}",
     "archive.delete.files.one": "Fichiers locaux: {0}",
-    "archive.delete.bytes.one": "{0:N0} B"
+    "archive.delete.bytes.one": "{0:N0} B",
+    "import.done.tags.one": "Étiquette ajoutée : {0}."
   }
 }

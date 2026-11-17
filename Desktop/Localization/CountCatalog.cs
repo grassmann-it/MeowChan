@@ -42,6 +42,7 @@ internal static class CountCatalog
         ("import.start.one", "Import {0} file", "{0} Datei importieren"),
         ("import.done.one", "Imported {0} file into “{1}”.", "{0} Datei in „{1}“ importiert."),
         ("import.done.linked.one", "{0} was already there and is only linked.", "{0} war schon vorhanden und ist nur verknüpft."),
+        ("import.done.tags.one", "Tag added: {0}.", "Tag vergeben: {0}."),
         ("import.done.failed.one", "{0} could not be copied (changed or unreadable).", "{0} konnte nicht kopiert werden (geändert oder nicht lesbar)."),
         ("tags.dialog.addedMany.one", "Added “{0}” to {1} occurrence.", "„{0}“ an {1} Fundstelle hinzugefügt."),
         ("wizard.boardSummary.one", "{0} thread in the catalog · {1} to watch · {2} excluded", "{0} Thread im Katalog · {1} zum Beobachten · {2} ausgeschlossen"),

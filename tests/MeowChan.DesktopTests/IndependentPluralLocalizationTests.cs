@@ -51,4 +51,15 @@ public sealed class IndependentPluralLocalizationTests : IDisposable
         Texts.SetLanguage(language);
         Assert.Equal(expected, CountPhrases.ArchiveDeletionSummary(1, 1, bytes));
     }
+
+    [Theory]
+    [InlineData("de", 1, "Tag vergeben: 1.")]
+    [InlineData("de", 2, "Tags vergeben: 2.")]
+    [InlineData("en", 1, "Tag added: 1.")]
+    [InlineData("en", 2, "Tags added: 2.")]
+    public void ImportTagNounFollowsTheTagCount(string language, int tags, string expected)
+    {
+        Texts.SetLanguage(language);
+        Assert.Equal(expected, Texts.Count("import.done.tags", tags));
+    }
 }
