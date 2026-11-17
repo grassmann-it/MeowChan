@@ -20,24 +20,45 @@ public partial class MainWindow
     private void OpenLargeReader(Control? origin, IReadOnlyList<ResourceId>? frozenThreads)
     {
         if (_largeReaderOpen || _isClosing || _archivePage?.IsReaderDialogOpen == true) return;
-        // The outer close path chooses the original control's focus after
-        // reattaching. Delayed anchor work restores geometry without taking it.
-        _readerRestoreOrigin = ArchivePage.CaptureGalleryOrigin(restoreReaderFocus: false);
-        _readerOriginPage = _selectedPage;
-        _readerOriginFocus = origin;
-        ArchivePage.SetReaderCloseTarget(_selectedPage switch
+        try
         {
-            WorkspacePage.Downloads => "command.reader.close.toDownloads",
-            WorkspacePage.Archive => "command.reader.close.toArchive",
-            _ => null
-        });
-        ContentControl host = ReaderHost;
-        host.Content = ArchivePage.DetachReader();
-        host.IsVisible = true;
-        _largeReaderOpen = true;
-        RefreshReadingResumePresentation();
-        if (frozenThreads != null) ArchivePage.SetReaderScope(frozenThreads);
-        else _ = ArchivePage.FreezeReaderScopeAsync();
+            // Geometry restoration must not take focus from the original host.
+            _readerRestoreOrigin = ArchivePage.CaptureGalleryOrigin(restoreReaderFocus: false);
+            _readerOriginPage = _selectedPage;
+            _readerOriginFocus = origin;
+            ArchivePage.SetReaderCloseTarget(_selectedPage switch
+            {
+                WorkspacePage.Downloads => "command.reader.close.toDownloads",
+                WorkspacePage.Archive => "command.reader.close.toArchive",
+                _ => null
+            });
+            ArchivePage.HostLargeReader(ReaderHost,
+                present: () =>
+                {
+                    _largeReaderOpen = true;
+                    RefreshReadingResumePresentation();
+                },
+                scope: () =>
+                {
+                    if (frozenThreads != null) ArchivePage.SetReaderScope(frozenThreads);
+                    else OpenActions.Start(ArchivePage.FreezeReaderScopeAsync, "reader.open.scope");
+                });
+        }
+        catch (Exception error)
+        {
+            _largeReaderOpen = false;
+            Exception failure = ArchivePage.RollBackReaderHosting(error,
+                () => ArchivePage.SetReaderCloseTarget(null),
+                RefreshReadingResumePresentation);
+            _readerRestoreOrigin = null;
+            _readerOriginFocus = null;
+            if (ArchivePage.IsFatalReaderHostingFailure(failure)
+                || !UnhandledErrors.TryRecover(failure, "reader.open.hosting"))
+            {
+                if (ReferenceEquals(failure, error)) throw;
+                throw failure;
+            }
+        }
     }
 
     // O2-01: the origin of an Enter or a double-click (the list, a tapped row) takes no focus after the reader closed; the list's selected row does.

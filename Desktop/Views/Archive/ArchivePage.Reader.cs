@@ -345,14 +345,20 @@ public partial class ArchivePage
     private void WireReaderSurface(Control pane)
     {
         pane.AddHandler(KeyDownEvent, OnReaderKeyDown, RoutingStrategies.Tunnel, handledEventsToo: true);
+        ReaderHostingStep("wire.01");
         pane.AddHandler(ContextRequestedEvent, OnArchiveMediaContextRequested, RoutingStrategies.Tunnel);
+        ReaderHostingStep("wire.02");
         pane.AddHandler(KeyDownEvent, OnArchiveMediaContextKey, RoutingStrategies.Tunnel);
+        ReaderHostingStep("wire.03");
         pane.AddHandler(ArchiveMediaTileView.RateAndTagRequestedEvent, OnTileRateAndTagRequested);
+        ReaderHostingStep("wire.04");
         // Keys inside the pane run in the "reader" context: the page's own host only sees them while the pane is inside the page, and the large reader's
         // pane is not. Installed after the handlers above on purpose: Avalonia runs the Tunnel handlers of one element in reverse registration order,
         // so the context is entered before OnReaderKeyDown and the media context key run (KeyContextHostTests pins both facts).
         _readerKeyContext?.Dispose();
+        ReaderHostingStep("wire.05");
         _readerKeyContext = MeowChan.Desktop.Controls.KeyContextHost.Install(pane, _ => "reader");
+        ReaderHostingStep("wire.06");
     }
 
     private IDisposable? _readerKeyContext;
@@ -369,29 +375,60 @@ public partial class ArchivePage
 
     internal Control DetachReader()
     {
-        _ = ReleaseInlineVideos(); // R10: a player never moves between hosts
-        InvalidateFilenameSearch();
-        ++_readerFocusRequest;
-        Grid pane = ArchiveReaderPane;
-        ArchiveSplit.Children.Remove(pane);
-        Border export = ArchiveExportDialog;
-        ArchiveRoot.Children.Remove(export);
-        pane.Children.Add(export);
-        _largeReader = true;
-        // A disposable override preserves the original value source (including
-        // styles, bindings and an unset local value) when the pane is reattached.
-        _readerTabScope?.Dispose();
-        _readerTabScope = pane.SetValue(KeyboardNavigation.TabNavigationProperty, KeyboardNavigationMode.Cycle, BindingPriority.Animation);
-        pane.SetValue(ReaderPostLayout.LargeReaderProperty, true);
-        WireReaderSurface(pane);
-        pane.Margin = new Thickness(16);
-        ArchiveCloseReader.IsVisible = true;
-        ArchiveReadPosts.IsVisible = false;
-        UpdateReaderNavigation();
-        UpdateLayoutMode();
-        if (_thread != null) RenderThread();
-        // R8: the large reader's content is the pane in a frame that can hold the media sidebar beside it.
-        return WrapLargeReader(pane);
+        Action rollback = CaptureReaderHostingRollback();
+        try
+        {
+            _ = ReleaseInlineVideos(); // R10: a player never moves between hosts
+            ReaderHostingStep("detach.01");
+            InvalidateFilenameSearch();
+            ReaderHostingStep("detach.02");
+            ++_readerFocusRequest;
+            ReaderHostingStep("detach.03");
+            Grid pane = ArchiveReaderPane;
+            ReaderHostingStep("detach.04");
+            ArchiveSplit.Children.Remove(pane);
+            ReaderHostingStep("detach.05");
+            Border export = ArchiveExportDialog;
+            ReaderHostingStep("detach.06");
+            ArchiveRoot.Children.Remove(export);
+            ReaderHostingStep("detach.07");
+            pane.Children.Add(export);
+            ReaderHostingStep("detach.08");
+            _largeReader = true;
+            ReaderHostingStep("detach.09");
+            // A disposable override preserves the original value source (including
+            // styles, bindings and an unset local value) when the pane is reattached.
+            _readerTabScope?.Dispose();
+            ReaderHostingStep("detach.10");
+            _readerTabScope = pane.SetValue(KeyboardNavigation.TabNavigationProperty, KeyboardNavigationMode.Cycle, BindingPriority.Animation);
+            ReaderHostingStep("detach.11");
+            pane.SetValue(ReaderPostLayout.LargeReaderProperty, true);
+            ReaderHostingStep("detach.12");
+            WireReaderSurface(pane);
+            ReaderHostingStep("detach.13");
+            pane.Margin = new Thickness(16);
+            ReaderHostingStep("detach.14");
+            ArchiveCloseReader.IsVisible = true;
+            ReaderHostingStep("detach.15");
+            ArchiveReadPosts.IsVisible = false;
+            ReaderHostingStep("detach.16");
+            UpdateReaderNavigation();
+            ReaderHostingStep("detach.17");
+            UpdateLayoutMode();
+            ReaderHostingStep("detach.18");
+            if (_thread != null) RenderThread();
+            ReaderHostingStep("detach.19");
+            // R8: the large reader's content is the pane in a frame that can hold the media sidebar beside it.
+            Control content = WrapLargeReader(pane);
+            ReaderHostingStep("detach.wrapped");
+            return content;
+        }
+        catch (Exception error)
+        {
+            Exception failure = RollBackReaderHosting(error, rollback);
+            if (ReferenceEquals(failure, error)) throw;
+            throw failure;
+        }
     }
 
     internal void AttachReader(Control content)

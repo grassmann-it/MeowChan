@@ -103,14 +103,21 @@ public partial class ArchivePage
     private Control WrapLargeReader(Grid pane)
     {
         Grid frame = _largeReaderFrame ??= CreateLargeReaderFrame();
+        if (_largeReader) ReaderHostingStep("wrap.01");
         // From the archive view's pane (hidden first); the pane's columns give the posts card its whole width back.
         MoveMediaSidebarTo(frame);
+        if (_largeReader) ReaderHostingStep("wrap.02");
         _paneSplitColumn = Grid.GetColumn(pane); // the embedded reader's column in ArchiveSplit, restored on the way back
+        if (_largeReader) ReaderHostingStep("wrap.03");
         frame.Children.Add(pane);
+        if (_largeReader) ReaderHostingStep("wrap.04");
         _mediaSidebarAppliedWidth = double.NaN;
+        if (_largeReader) ReaderHostingStep("wrap.05");
         LayoutMediaSidebar(force: true);
+        if (_largeReader) ReaderHostingStep("wrap.06");
         // The move kept the picture for this host; a large reader that does not show the sidebar gives it back.
         if (!_mediaSidebarShown) ReleaseKeptMediaSidebarPicture();
+        if (_largeReader) ReaderHostingStep("wrap.07");
         return frame;
     }
 
@@ -146,8 +153,11 @@ public partial class ArchivePage
     private ReaderMediaSidebar EnsureMediaSidebar()
     {
         if (_mediaSidebar is { } existing) return existing;
-        ReaderMediaSidebar sidebar = _mediaSidebar = new ReaderMediaSidebar { IsVisible = false };
-        GridSplitter splitter = _mediaSidebarSplitter = new GridSplitter
+        // Publish only a fully configured sidebar: a failed reader move must
+        // not leave an incomplete cached sidebar poisoning the next attempt.
+        ReaderMediaSidebar sidebar = new ReaderMediaSidebar { IsVisible = false };
+        if (_largeReader) ReaderHostingStep("sidebar.created");
+        GridSplitter splitter = new GridSplitter
         {
             Name = "ReaderMediaSidebarSplitter", Width = ReaderMediaSidebarRules.SplitterWidth,
             ResizeDirection = GridResizeDirection.Columns, IsVisible = false
@@ -209,6 +219,9 @@ public partial class ArchivePage
         // Give the reader's rating router an owner on this sibling as well; the
         // large-reader frame is not the pane's visual subtree.
         if (_ratingCommands != null) RegisterRatingCommands(sidebar);
+        if (_largeReader) ReaderHostingStep("sidebar.configured");
+        _mediaSidebarSplitter = splitter;
+        _mediaSidebar = sidebar;
         return sidebar;
     }
 
@@ -250,34 +263,52 @@ public partial class ArchivePage
     private void MoveMediaSidebarTo(Grid host)
     {
         ReaderMediaSidebar sidebar = EnsureMediaSidebar();
+        if (_largeReader) ReaderHostingStep("sidebar.01");
         GridSplitter splitter = _mediaSidebarSplitter!;
+        if (_largeReader) ReaderHostingStep("sidebar.02");
         if (ReferenceEquals(_mediaSidebarHost, host)) return;
         _movingMediaSidebar = true;
+        if (_largeReader) ReaderHostingStep("sidebar.03");
         try
         {
             // Hidden for the move, the picture stays: the new host shows the same medium without flashing it away (WrapLargeReader gives it back
             // when that host does not show the sidebar).
             if (_mediaSidebarShown) SetMediaSidebarShown(false, keepPicture: true);
+            if (_largeReader) ReaderHostingStep("sidebar.04");
             Grid pane = ArchiveReaderPane;
+            if (_largeReader) ReaderHostingStep("sidebar.05");
             if (_mediaSidebarHost is { } previous)
             {
                 previous.Children.Remove(splitter);
+                if (_largeReader) ReaderHostingStep("sidebar.06");
                 previous.Children.Remove(sidebar);
+                if (_largeReader) ReaderHostingStep("sidebar.07");
                 if (ReferenceEquals(previous, pane)) CollapseArchiveViewColumns();
+                if (_largeReader) ReaderHostingStep("sidebar.08");
             }
             bool archiveView = ReferenceEquals(host, pane);
+            if (_largeReader) ReaderHostingStep("sidebar.09");
             sidebar.IsVisible = splitter.IsVisible = false;
+            if (_largeReader) ReaderHostingStep("sidebar.10");
             Grid.SetRow(sidebar, archiveView ? 1 : 0);
+            if (_largeReader) ReaderHostingStep("sidebar.11");
             Grid.SetRow(splitter, archiveView ? 1 : 0);
+            if (_largeReader) ReaderHostingStep("sidebar.12");
             // Tom (16.11.2026): the sidebar's media frame has the posts box's top and bottom. The archive view therefore has no section card around
             // the sidebar any more (its frame has its own edge); the header line is lifted into the strip above the box (MediaPage's panel does the same).
             ApplyMediaSidebarInsets(sidebar, archiveView);
+            if (_largeReader) ReaderHostingStep("sidebar.13");
             if (archiveView) sidebar.BorderThickness = new Thickness(0);
             else sidebar[!Border.BorderBrushProperty] = new Avalonia.Markup.Xaml.MarkupExtensions.DynamicResourceExtension("Workspace.CardEdge");
+            if (_largeReader) ReaderHostingStep("sidebar.15");
             host.Children.Add(sidebar);
+            if (_largeReader) ReaderHostingStep("sidebar.16");
             host.Children.Add(splitter);
+            if (_largeReader) ReaderHostingStep("sidebar.17");
             _mediaSidebarHost = host;
+            if (_largeReader) ReaderHostingStep("sidebar.18");
             _mediaSidebarAppliedWidth = double.NaN;
+            if (_largeReader) ReaderHostingStep("sidebar.19");
         }
         finally { _movingMediaSidebar = false; }
     }
