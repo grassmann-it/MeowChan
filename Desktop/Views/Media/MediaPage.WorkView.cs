@@ -28,12 +28,12 @@ public sealed partial class MediaPage
     private readonly Button _more = new()
     {
         Name = "MediaMore",
-        VerticalAlignment = VerticalAlignment.Center, IsVisible = false, Flyout = new MenuFlyout { Placement = PlacementMode.BottomEdgeAlignedRight }
+        VerticalAlignment = VerticalAlignment.Center, IsVisible = false, Flyout = new OverflowMenuFlyout { Placement = PlacementMode.BottomEdgeAlignedRight }
     };
     private readonly Button _selMore = new()
     {
         Name = "MediaSelectionMore",
-        VerticalAlignment = VerticalAlignment.Center, IsVisible = false, Flyout = new MenuFlyout { Placement = PlacementMode.BottomEdgeAlignedRight }
+        VerticalAlignment = VerticalAlignment.Center, IsVisible = false, Flyout = new OverflowMenuFlyout { Placement = PlacementMode.BottomEdgeAlignedRight }
     };
     // The fields of the filter surface that a view may hold back, opened by this toggle until the view changes (R13: nothing is saved).
     private readonly ToggleButton _moreFilters = new() { Name = "MediaMoreFilters", IsVisible = false };
