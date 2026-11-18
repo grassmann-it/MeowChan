@@ -141,6 +141,14 @@ class StableReleaseFixtures(unittest.TestCase):
         self.assertEqual(13, len(lines))
         self.assertEqual({f'{sha(self.output / name)}  {name}' for name in expected}, set(lines))
 
+    def test_release_version_is_selectable_and_validated(self):
+        with self.assertRaisesRegex(ValueError, 'Invalid release version'):
+            ASSEMBLY.assemble(self.root, SOURCE, self.base, self.output, version='1.1')
+        # Candidates built for 0.9.0 must not be staged as another version.
+        with self.assertRaises(ValueError):
+            ASSEMBLY.assemble(self.root, SOURCE, self.base, self.output, version='1.1.0')
+        self.assertFalse(self.output.exists())
+
     def test_rejects_wrong_source_without_output(self):
         with self.assertRaisesRegex(ValueError, 'Source commit mismatch'):
             ASSEMBLY.assemble(self.root, 'b' * 40, self.base, self.output)
