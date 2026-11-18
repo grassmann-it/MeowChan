@@ -285,6 +285,32 @@ class LinuxSourceTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 sources.dsc_files(dsc, "vlc", "3.0.21-1ubuntu1")
 
+    def test_stalled_source_fetch_is_bounded_and_retried_from_an_empty_folder(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            folder = Path(temporary)
+            attempts = []
+            def flaky(*command, cwd=None, timeout=None):
+                attempts.append(timeout)
+                self.assertIn("Acquire::http::Timeout=60", command)
+                self.assertEqual([], list(cwd.iterdir()), "A retry must start without the partial download.")
+                if len(attempts) == 1:
+                    (cwd / "partial.orig.tar.xz").write_bytes(b"partial")
+                    raise subprocess.TimeoutExpired(command, timeout)
+                return "fetched\n"
+            command = ["apt-get", "source", "--download-only", "--only-source", "--yes", *sources.APT_NETWORK_BOUNDS, "vlc=3.0.21-1"]
+            with mock.patch.object(sources.common, "run", side_effect=flaky):
+                self.assertEqual("fetched\n", sources.fetch_bounded(command, folder))
+            self.assertEqual([sources.FETCH_TIMEOUT_SECONDS] * 2, attempts)
+
+    def test_source_fetch_gives_up_after_the_bounded_attempts(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            def stalled(*command, cwd=None, timeout=None):
+                raise subprocess.TimeoutExpired(command, timeout)
+            with mock.patch.object(sources.common, "run", side_effect=stalled) as run:
+                with self.assertRaises(subprocess.TimeoutExpired):
+                    sources.fetch_bounded(["apt-get", "source", "vlc=1"], Path(temporary))
+            self.assertEqual(sources.FETCH_ATTEMPTS, run.call_count)
+
     def test_source_assignments_are_unique_and_confined_to_supported_rids(self):
         self.assertEqual(sources.assignments(["linux-x64=a=b.json"]), {"linux-x64": Path("a=b.json")})
         for values in (["linux-x64=a", "linux-x64=b"], ["osx-x64=a"], ["linux-x64="]):
@@ -308,7 +334,7 @@ class LinuxSourceTests(unittest.TestCase):
                 pack.write_json(manifest, {"schema": "meowchan.linux-runtime.v1", "runtime": rid, "files": {}, "packages": [{"source": "vlc", "source_version": "3.0.21-1"}]})
                 manifests[rid] = manifest
             calls = []
-            def source_download(*command, cwd=None):
+            def source_download(*command, cwd=None, timeout=None):
                 calls.append(command)
                 if "--print-uris" in command:
                     return "'https://fixture.invalid/source.tar.xz' source.tar.xz 100 SHA256:" + "a" * 64 + "\n"

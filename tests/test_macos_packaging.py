@@ -521,5 +521,38 @@ int main(int argc, char **argv) {
         self.assertTrue(self.archive.is_file())
 
 
+class MacosDmgCreateRetryTests(unittest.TestCase):
+    def setUp(self):
+        spec = importlib.util.spec_from_file_location('meowchan_macos_dmg_retry', SCRIPT.with_name('package-macos-dmg.py'))
+        self.dmg = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.dmg)
+
+    def test_transient_hdiutil_create_failure_retries_from_a_clean_target(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            staged = Path(temporary) / 'candidate.dmg'
+            results = iter([SimpleNamespace(returncode=1, stdout='', stderr='hdiutil: create failed - Resource busy'),
+                            SimpleNamespace(returncode=0, stdout='', stderr='')])
+            def run(command, **_):
+                self.assertFalse(staged.exists(), 'A retry must not reuse a partial image.')
+                result = next(results)
+                if result.returncode:
+                    staged.write_bytes(b'partial')
+                return result
+            waits = []
+            with mock.patch.object(self.dmg.subprocess, 'run', side_effect=run) as called:
+                self.dmg.create_image(Path(temporary) / 'volume', staged, sleep=waits.append)
+            self.assertEqual(2, called.call_count)
+            self.assertEqual([15], waits)
+            self.assertIn('UDZO', called.call_args.args[0])
+
+    def test_persistent_hdiutil_create_failure_still_fails_after_bounded_attempts(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            failed = SimpleNamespace(returncode=1, stdout='', stderr='hdiutil: create failed')
+            with mock.patch.object(self.dmg.subprocess, 'run', return_value=failed) as called:
+                with self.assertRaises(subprocess.CalledProcessError):
+                    self.dmg.create_image(Path(temporary) / 'volume', Path(temporary) / 'candidate.dmg', sleep=lambda _: None)
+            self.assertEqual(self.dmg.CREATE_ATTEMPTS, called.call_count)
+
+
 if __name__ == "__main__":
     unittest.main()
