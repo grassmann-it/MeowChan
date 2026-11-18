@@ -51,6 +51,7 @@ public partial class MainWindow : IAsyncDisposable
         _readingHistoryFlyout?.Dispose();
         _booruPage?.Dispose();
         _taggingPage?.Dispose();
+        _manualImportDialog?.Dispose();
         _booruAddLifetime.Cancel();
         try { await Task.WhenAll(_booruAdmissionWork.ToArray()); }
         finally { _booruAddLifetime.Dispose(); }

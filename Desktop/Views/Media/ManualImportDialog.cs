@@ -33,7 +33,7 @@ internal sealed record ManualImportRow(ManualImportCandidate Item)
 /// what is only linked, optional tags go to the new files, and the summary offers to show the batch on the Media page.
 /// Copies only; never moves or deletes a source file. Esc stops a running step first and closes the dialog otherwise.
 /// </summary>
-internal sealed class ManualImportDialog : Window
+internal sealed class ManualImportDialog : Window, IDisposable
 {
     private readonly ManualImportSession _session;
     private readonly Func<PrivateTagStoreSnapshot?> _tagSnapshot;
@@ -400,6 +400,7 @@ internal sealed class ManualImportDialog : Window
     }
 
     internal void CloseForLifetime() { if (!_closed) Close(); }
+    public void Dispose() => OnClosed(this, EventArgs.Empty);
 
     private void OnClosed(object? sender, EventArgs e)
     {
@@ -408,7 +409,7 @@ internal sealed class ManualImportDialog : Window
         // A running check stops; a running copy stops after the current file (finished files stay).
         _session.Cancel();
         _session.Updated -= OnSessionUpdated; Texts.Changed -= OnLanguageChanged;
-        _tagInput.EndSuggestions(); _sources.End();
+        _tagInput.Dispose(); _sources.End();
         _addFiles.Click -= OnAddFiles; _addFolder.Click -= OnAddFolder;
         _import.Click -= OnImport; _cancel.Click -= OnCancel; _close.Click -= OnClose; _showBatch.Click -= OnShowBatch; _tagAdd.Click -= OnTagAdd;
         _tagInput.RemoveHandler(KeyDownEvent, OnTagKey); RemoveHandler(KeyDownEvent, OnKey);

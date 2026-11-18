@@ -206,6 +206,6 @@ public sealed partial class TaggingPage
     private void EndTagging()
     {
         _tagPopover?.Close(QuickTagPopoverCloseReason.Stale);
-        _tagDialog?.CloseForLifetime();
+        _tagDialog?.Dispose();
     }
 }

@@ -21,7 +21,7 @@ namespace MeowChan;
 /// typed name; Danbooru source tags appear only as the field's own suggestion group. A toggle writes at once and repaints
 /// only its row; the last change can be undone once. The target never changes while open.
 /// </summary>
-internal sealed class MediaTagDialog : Window
+internal sealed class MediaTagDialog : Window, IDisposable
 {
     private readonly MediaTagSession _session;
     private readonly string _mediaLabel;
@@ -159,6 +159,7 @@ internal sealed class MediaTagDialog : Window
     }
 
     internal void CloseForLifetime() { if (!_closed) Close(); }
+    public void Dispose() => OnClosed(this, EventArgs.Empty);
 
     private void Localize()
     {
@@ -189,7 +190,7 @@ internal sealed class MediaTagDialog : Window
         if (_closed) return;
         _closed = true;
         _session.Updated -= OnSessionUpdated; Texts.Changed -= OnLanguageChanged;
-        _input.EndSuggestions(); _sources.End(); _surface.Dispose();
+        _input.Dispose(); _sources.End(); _surface.Dispose();
         _add.Click -= OnAdd; _close.Click -= OnClose; _surface.Undo.Click -= OnUndo;
         _surface.List.Toggled -= OnToggled;
         _input.RemoveHandler(KeyDownEvent, OnInputKey); RemoveHandler(KeyDownEvent, OnKey);
