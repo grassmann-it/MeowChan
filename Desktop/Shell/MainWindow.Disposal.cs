@@ -53,6 +53,8 @@ public partial class MainWindow : IAsyncDisposable
         _taggingPage?.Dispose();
         _manualImportDialog?.Dispose();
         _manualImportDialog = null;
+        foreach (IDisposable registration in _profileCommandRegistrations) registration.Dispose();
+        _profileCommandRegistrations.Clear();
         _booruAddLifetime.Cancel();
         try { await Task.WhenAll(_booruAdmissionWork.ToArray()); }
         finally { _booruAddLifetime.Dispose(); }

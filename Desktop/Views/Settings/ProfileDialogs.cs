@@ -20,7 +20,7 @@ namespace MeowChan.Desktop;
 
 /// <summary>"New profile…": name, profile folder and its own download folder. The title stands only in the title bar; the
 /// footer holds Cancel and "Create and open". Closes with the started result, or null when nothing was started.</summary>
-internal sealed class NewProfileDialog : Window
+internal sealed class NewProfileDialog : Window, IDisposable
 {
     private readonly ProfileSwitchService _service;
     private readonly string? _language;
@@ -49,6 +49,7 @@ internal sealed class NewProfileDialog : Window
     private readonly ProfileFolderKindProbe _kindProbe;
     private string? _errorKey;
     private bool _folderEdited, _downloadsEdited, _syncing, _busy, _closed, _folderIsProfile;
+    private bool _disposed;
 
     internal ProfileActionResult? Result { get; private set; }
     internal TextBox NameBox => _name;
@@ -123,7 +124,7 @@ internal sealed class NewProfileDialog : Window
         AddHandler(KeyDownEvent, OnKey, RoutingStrategies.Tunnel);
         DialogEscape.Attach(this, isBusy: () => _busy);
         Closing += (_, e) => e.Cancel = _busy;
-        Closed += (_, _) => { _closed = true; _kindProbe.Cancel(); Texts.Changed -= OnLanguageChanged; };
+        Closed += (_, _) => { _closed = true; Dispose(); Texts.Changed -= OnLanguageChanged; };
         Opened += (_, _) => _name.Focus();
         Texts.Changed += OnLanguageChanged;
         ApplyTexts();
@@ -204,6 +205,13 @@ internal sealed class NewProfileDialog : Window
 
     private void ShowError(string key) { _errorKey = key; _error.Text = Texts.T(key); }
 
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        _kindProbe.Dispose();
+    }
+
     private async Task ChooseAsync(TextBox target, string titleKey)
     {
         if (_busy) return;
@@ -267,7 +275,7 @@ internal sealed record ProfileSwitchOutcome(ProfileActionResult? Result, bool Cl
 /// current profile first. Opening starts a new window; this one closes only when the person ticked the option.
 /// Nothing here waits for the file system on the UI thread: the rows appear at once with "Checking…", and each folder's answer
 /// (missing, open in another window, or "status unknown" when it does not answer) fills its row in as it arrives.</summary>
-internal sealed class SwitchProfileDialog : Window
+internal sealed class SwitchProfileDialog : Window, IDisposable
 {
     /// <summary>One row: what the list says, what the folder answered so far (null: still being checked) and its controls.</summary>
     private sealed class RowState
@@ -298,6 +306,7 @@ internal sealed class SwitchProfileDialog : Window
     private int _loadVersion;
     private string? _errorKey;
     private bool _busy, _closed, _focusPending;
+    private bool _disposed;
     internal StackPanel Rows => _rows;
     internal CheckBox CloseAfterBox => _closeAfter;
     internal TextBlock ErrorText => _error;
@@ -325,7 +334,7 @@ internal sealed class SwitchProfileDialog : Window
         _close.Click += (_, _) => { if (!_busy) Close(); };
         DialogEscape.Attach(this, isBusy: () => _busy);
         Closing += (_, e) => e.Cancel = _busy;
-        Closed += (_, _) => { _closed = true; _loadCancel?.Cancel(); Texts.Changed -= OnLanguageChanged; };
+        Closed += (_, _) => { _closed = true; Dispose(); Texts.Changed -= OnLanguageChanged; };
         Opened += (_, _) => { _focusPending = true; _close.Focus(); if (LoadTask.IsCompleted) FocusFirstOpenWhenPending(); };
         Texts.Changed += OnLanguageChanged;
         ApplyTexts();
@@ -352,8 +361,18 @@ internal sealed class SwitchProfileDialog : Window
     {
         if (_closed) return Task.CompletedTask;
         _loadCancel?.Cancel();
-        CancellationTokenSource cancel = _loadCancel = new CancellationTokenSource();
-        return LoadAsync(++_loadVersion, cancel.Token);
+        _loadCancel?.Dispose();
+        _loadCancel = new CancellationTokenSource();
+        return LoadAsync(++_loadVersion, _loadCancel.Token);
+    }
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        _loadCancel?.Cancel();
+        _loadCancel?.Dispose();
+        _loadCancel = null;
     }
 
     private async Task LoadAsync(int version, CancellationToken token)
@@ -385,7 +404,7 @@ internal sealed class SwitchProfileDialog : Window
             await ProfileRowProbe.RunAsync(folders, ProfileRowProbe.Probe, ProfileRowProbe.Parallelism, ProfileRowProbe.Timeout,
                 (index, status) => Dispatcher.UIThread.Post(() => ApplyStatus(version, index + 1, status)), token);
             // The last answers were posted before this continuation: let them land before the load counts as done.
-            await Dispatcher.UIThread.InvokeAsync(static () => { }, DispatcherPriority.Background);
+            await Dispatcher.UIThread.InvokeAsync(static () => { }, DispatcherPriority.Background, token);
         }
         catch (OperationCanceledException) { return; }
         catch (Exception error) when (error is not OutOfMemoryException)

@@ -99,7 +99,7 @@ public sealed class ProfileDialogResponsivenessTests : IDisposable
     {
         List<(string, ProfileFolderKind)> results = new();
         List<string> classified = new();
-        ProfileFolderKindProbe probe = Probe(folder => { lock (classified) classified.Add(folder); return ProfileFolderKind.Existing; }, TimeSpan.FromMilliseconds(150), results);
+        using ProfileFolderKindProbe probe = Probe(folder => { lock (classified) classified.Add(folder); return ProfileFolderKind.Existing; }, TimeSpan.FromMilliseconds(150), results);
         Stopwatch stopwatch = Stopwatch.StartNew();
         for (int edit = 0; edit < 20; edit++) probe.Request("/folder/" + edit);
         Assert.True(stopwatch.Elapsed < TimeSpan.FromMilliseconds(100), "requesting must not wait for the pause or the file system");
@@ -116,7 +116,7 @@ public sealed class ProfileDialogResponsivenessTests : IDisposable
         using ManualResetEventSlim entered = new(), release = new();
         int callerThread = Environment.CurrentManagedThreadId;
         int classifyThread = -1;
-        ProfileFolderKindProbe probe = Probe(folder =>
+        using ProfileFolderKindProbe probe = Probe(folder =>
         {
             if (folder != "/slow") return ProfileFolderKind.New;
             classifyThread = Environment.CurrentManagedThreadId;
@@ -141,7 +141,7 @@ public sealed class ProfileDialogResponsivenessTests : IDisposable
     {
         List<(string, ProfileFolderKind)> results = new();
         int calls = 0;
-        ProfileFolderKindProbe cancelled = Probe(_ => { Interlocked.Increment(ref calls); return ProfileFolderKind.New; }, TimeSpan.FromMilliseconds(150), results);
+        using ProfileFolderKindProbe cancelled = Probe(_ => { Interlocked.Increment(ref calls); return ProfileFolderKind.New; }, TimeSpan.FromMilliseconds(150), results);
         cancelled.Request("/a");
         cancelled.Cancel();
         await Task.Delay(400);
@@ -150,7 +150,7 @@ public sealed class ProfileDialogResponsivenessTests : IDisposable
 
         CollectingSink sink = new();
         using Serilog.Core.Logger logger = new Serilog.LoggerConfiguration().WriteTo.Sink(sink).CreateLogger();
-        ProfileFolderKindProbe failing = new(_ => throw new InvalidOperationException("secret /private/path"), TimeSpan.Zero, action => action(),
+        using ProfileFolderKindProbe failing = new(_ => throw new InvalidOperationException("secret /private/path"), TimeSpan.Zero, action => action(),
             (folder, kind) => { lock (results) results.Add((folder, kind)); }, logger);
         failing.Request("/b");
         await Until(() => { lock (sink.Events) return sink.Events.Count > 0; });

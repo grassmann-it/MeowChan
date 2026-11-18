@@ -13,7 +13,7 @@ namespace MeowChan.Desktop;
 /// cancels the one before, waits for a short pause in typing, then classifies on the thread pool and hands the result back through
 /// <c>post</c>. A result that was overtaken by a newer request is dropped. Pure of any control, so the timing is testable.
 /// </summary>
-internal sealed class ProfileFolderKindProbe
+internal sealed class ProfileFolderKindProbe : IDisposable
 {
     /// <summary>Fixed pause in typing before a folder is looked at (a UI timing, not a size or count limit).</summary>
     internal static readonly TimeSpan DefaultDelay = TimeSpan.FromMilliseconds(250);
@@ -24,6 +24,7 @@ internal sealed class ProfileFolderKindProbe
     private readonly Action<string, ProfileFolderKind> _completed;
     private readonly ILogger _logger;
     private CancellationTokenSource? _current;
+    private int _disposed;
 
     /// <param name="classify">The file system check, run on a thread-pool thread.</param>
     /// <param name="delay">The pause in typing; <see cref="DefaultDelay"/> in the dialog.</param>
@@ -41,17 +42,24 @@ internal sealed class ProfileFolderKindProbe
     /// <summary>Starts a classification of <paramref name="folder"/> and supersedes every earlier one. Returns at once.</summary>
     internal void Request(string folder)
     {
+        if (Volatile.Read(ref _disposed) != 0) return;
         CancellationTokenSource source = new();
-        // A source without timers or linked tokens needs no Dispose; disposing would race with the waiting task's token.
+        // The worker owns and disposes the source after the classification finishes; cancellation only signals it here.
         Interlocked.Exchange(ref _current, source)?.Cancel();
         CancellationToken token = source.Token;
-        _ = Task.Run(() => RunAsync(folder, token));
+        _ = Task.Run(() => RunAsync(folder, source, token));
     }
 
     /// <summary>Drops the pending classification (the folder is no longer one to look at, or the dialog closed).</summary>
     internal void Cancel() => Interlocked.Exchange(ref _current, null)?.Cancel();
 
-    private async Task RunAsync(string folder, CancellationToken token)
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        Interlocked.Exchange(ref _current, null)?.Cancel();
+    }
+
+    private async Task RunAsync(string folder, CancellationTokenSource source, CancellationToken token)
     {
         try
         {
@@ -69,6 +77,11 @@ internal sealed class ProfileFolderKindProbe
         {
             // The label under the field is a convenience: a failure keeps the previous one and is only logged.
             _logger.Warning(error, "The profile folder could not be classified.");
+        }
+        finally
+        {
+            Interlocked.CompareExchange(ref _current, null, source);
+            source.Dispose();
         }
     }
 }
@@ -124,10 +137,11 @@ internal static class ProfileRowProbe
         for (int index = 0; index < tasks.Length; index++)
         {
             int at = index;
-            tasks[at] = Task.Run(() => OneAsync(folders[at], at, probe, timeout, report, gate, token));
+            tasks[at] = Task.Run(() => OneAsync(folders[at], at, probe, timeout, report, gate, token), token);
         }
         try { await Task.WhenAll(tasks).ConfigureAwait(false); }
         catch (OperationCanceledException) { /* Superseded or closed. */ }
+        finally { gate.Dispose(); }
     }
 
     private static async Task OneAsync(string folder, int index, Func<string, ProfileRowStatus> probe, TimeSpan timeout,

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Automation;
@@ -20,6 +21,7 @@ public partial class MainWindow
 {
     private MenuItem? _profileMenu;
     private Window? _profileDialog;
+    private readonly List<IDisposable> _profileCommandRegistrations = new();
 
     /// <summary>Starts the other window. Smokes replace it with a recording fake; nothing else does.</summary>
     internal IProfileLauncher ProfileLauncher { get; set; } = new ProcessProfileLauncher();
@@ -55,9 +57,12 @@ public partial class MainWindow
                 item.IsEnabled = item.Command?.CanExecute(null) ?? true;
             }
         };
-        _shortcutRouter?.Register(new CommandRegistration("profile.new", this, () => true, () => CanUseProfiles, () => OpenActions.Start(OpenNewProfileDialogAsync, "profile.new")));
-        _shortcutRouter?.Register(new CommandRegistration("profile.switch", this, () => true, () => CanUseProfiles, () => OpenActions.Start(OpenSwitchProfileDialogAsync, "profile.switch")));
-        _shortcutRouter?.Register(new CommandRegistration("profile.open-folder", this, () => true, () => !_isClosing, OpenProfileFolder));
+        if (_shortcutRouter != null)
+        {
+            _profileCommandRegistrations.Add(_shortcutRouter.Register(new CommandRegistration("profile.new", this, () => true, () => CanUseProfiles, () => OpenActions.Start(OpenNewProfileDialogAsync, "profile.new"))));
+            _profileCommandRegistrations.Add(_shortcutRouter.Register(new CommandRegistration("profile.switch", this, () => true, () => CanUseProfiles, () => OpenActions.Start(OpenSwitchProfileDialogAsync, "profile.switch"))));
+            _profileCommandRegistrations.Add(_shortcutRouter.Register(new CommandRegistration("profile.open-folder", this, () => true, () => !_isClosing, OpenProfileFolder)));
+        }
         Texts.Changed += OnProfileMenuLanguageChanged;
         Closed += (_, _) => Texts.Changed -= OnProfileMenuLanguageChanged;
         RefreshProfileMenu();
@@ -96,6 +101,7 @@ public partial class MainWindow
         ProfileActionResult? result;
         try { result = await dialog.ShowDialog<ProfileActionResult?>(this); }
         finally { if (ReferenceEquals(_profileDialog, dialog)) _profileDialog = null; }
+        dialog.Dispose();
         if (result != null) ReportProfileStarted(result);
     }
 
@@ -107,6 +113,7 @@ public partial class MainWindow
         ProfileSwitchOutcome? outcome;
         try { outcome = await dialog.ShowDialog<ProfileSwitchOutcome?>(this); }
         finally { if (ReferenceEquals(_profileDialog, dialog)) _profileDialog = null; }
+        dialog.Dispose();
         if (outcome == null || _isClosing) return;
         if (outcome.NewProfileRequested) { await OpenNewProfileDialogAsync(); return; }
         if (outcome.Result is not { } result) return;
