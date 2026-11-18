@@ -303,6 +303,7 @@ public sealed class GalleryOverlayActivityTests
     public void IndicatorTemplateIsOnlyATranslucentChevronEvenWhenHoveredOrPressed(bool post)
     {
         var indicator = GalleryViewer.CreateEdgeIndicator(post);
+        GalleryEdgeHandleFocusTests.SupplyTokens(indicator); // the app's Workspace.Media.* tokens; no application in this test host
         indicator.ApplyTemplate();
         Assert.Equal(new Thickness(0), indicator.BorderThickness);
         Assert.Null(indicator.FocusAdorner);

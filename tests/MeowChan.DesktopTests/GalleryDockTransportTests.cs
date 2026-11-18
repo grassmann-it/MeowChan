@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using System.Xml.Linq;
 using Avalonia;
 using MeowChan.Desktop;
 using MeowChan.Desktop.WorkViews;
@@ -102,7 +103,7 @@ public sealed class GalleryDockTransportTests
         Assert.True(host > 0 && tools > host);
         Assert.Contains("Spacing = 4", chrome[(chrome.IndexOf("private Control WithDockTransport", StringComparison.Ordinal))..]);
         Assert.Contains("_chrome.Child = WithDockTransport(WithTaggingStrip(toolbar));", viewer);
-        Assert.Contains("Margin = new Thickness(8, 0, 8, 0), Padding = new Thickness(8, 6), HorizontalAlignment = HorizontalAlignment.Stretch };", viewer);
+        Assert.Contains("Margin = new Thickness(8, 0, 8, 0), [!Border.PaddingProperty] = new DynamicResourceExtension(\"Workspace.Inset.MediaTools\"), HorizontalAlignment = HorizontalAlignment.Stretch };", viewer);
         // The overlay footer keeps its host; the docked placement moves the bar into the dock; the fallback sends it back under the picture.
         Assert.Contains("_video?.SetExternalTransportHost(_overlayTransportHost);", overlay);
         Assert.Contains("if (DockHostsTransport) _video?.SetExternalTransportHost(_dockTransportHost);", overlay);
@@ -140,7 +141,12 @@ public sealed class GalleryDockTransportTests
     public void TheDockRowsAreFortyFortyFourAndTwentyDipWithAThirtyTwoPlayButton()
     {
         string viewer = Source("Desktop/GalleryViewer.cs"), player = Source("Desktop/GalleryVideoPlayer.cs");
-        Assert.Contains("Padding = new Thickness(8, 6), HorizontalAlignment = HorizontalAlignment.Stretch };", viewer);
+        Assert.Contains("[!Border.PaddingProperty] = new DynamicResourceExtension(\"Workspace.Inset.MediaTools\"), HorizontalAlignment = HorizontalAlignment.Stretch };", viewer);
+        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        XElement inset = Assert.Single(XDocument.Parse(Source("Desktop/WorkspaceStyles.axaml")).Descendants(), element => (string?)element.Attribute(x + "Key") == "Workspace.Inset.MediaTools");
+        Thickness padding = Thickness.Parse(inset.Value.Trim());
+        Assert.Equal(new Thickness(8, 6), padding);
+        Assert.Equal(44d, 32 + padding.Top + padding.Bottom);
         Assert.Contains("Padding = new Thickness(8, 2), HorizontalAlignment = HorizontalAlignment.Stretch }; // GL5b", viewer);
         Assert.Contains("Name = \"GalleryVideoPlayPause\", Classes = { \"media-control\", \"media-play\" }, Width = 32, Height = 32, CornerRadius = new CornerRadius(16)", player);
         Assert.Contains("StackPanel dock = new() { Spacing = 4 };", Source("Desktop/GalleryViewer.Chrome.cs")); // the 4 dip between the rows

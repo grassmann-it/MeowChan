@@ -5,7 +5,6 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
-using Avalonia.Media.Immutable;
 using Avalonia.VisualTree;
 
 namespace MeowChan.Desktop;
@@ -93,15 +92,11 @@ internal static class GalleryEdgeHandleVisual
     internal const double DiscRadius = 22;
 
     /// <summary>The faint hint chevron at rest (39 % grey); not a focus indicator.</summary>
-    internal static readonly Color RestGlyph = Color.FromArgb(100, 150, 150, 150);
+    internal const string RestGlyph = "Workspace.Media.EdgeHint";
     /// <summary>The disc behind the focused handle: the favourite badge's dark scrim at 90 % opacity.</summary>
-    internal static readonly Color FocusDisc = Color.FromArgb(0xE6, 0x18, 0x1A, 0x1F);
+    internal const string FocusDisc = "Workspace.Media.FocusDisc";
     /// <summary>The ring at the rim of the disc and the chevron while focused.</summary>
-    internal static readonly Color FocusRing = Colors.White;
-
-    private static readonly IBrush RestBrush = new ImmutableSolidColorBrush(RestGlyph);
-    private static readonly IBrush DiscBrush = new ImmutableSolidColorBrush(FocusDisc);
-    private static readonly IBrush RingBrush = new ImmutableSolidColorBrush(FocusRing);
+    internal const string FocusRing = "Workspace.Media.FocusRing";
 
     /// <summary>
     /// The template content of a handle: a transparent square (the native hit surface) that holds the focus face, a circle that is empty at rest and
@@ -111,29 +106,40 @@ internal static class GalleryEdgeHandleVisual
     {
         ArgumentNullException.ThrowIfNull(button);
         ArgumentNullException.ThrowIfNull(chevron);
-        chevron.Stroke = RestBrush;
         var face = new Border
         {
             CornerRadius = new CornerRadius(DiscRadius), BorderThickness = new Thickness(0), IsHitTestVisible = false, Child = chevron
         };
         // Keep the complete transparent handle in the native hit-test map (a bare Path owns only its stroked pixels).
         var root = new Border { Background = Brushes.Transparent, Child = face };
+        // The tones are the Workspace.Media.* tokens, looked up from the button (its own resources, its ancestors, the application) and set as
+        // plain values: hover and press also change the classes, so the look changes only when the focus state does, and it is looked up again
+        // when the handle enters the tree or the theme changes.
+        bool? applied = null;
+        IBrush? Token(string key) => button.TryFindResource(key, button.ActualThemeVariant, out object? value) ? value as IBrush : null;
         void Apply()
         {
             bool focused = button.Classes.Contains(FocusVisiblePseudoClass);
-            face.Background = focused ? DiscBrush : null;
-            face.BorderBrush = focused ? RingBrush : null;
+            if (applied == focused) return;
+            applied = focused;
+            face.Background = focused ? Token(FocusDisc) : null;
+            face.BorderBrush = focused ? Token(FocusRing) : null;
             face.BorderThickness = focused ? new Thickness(RingThickness) : new Thickness(0);
-            chevron.Stroke = focused ? RingBrush : RestBrush;
+            chevron.Stroke = Token(focused ? FocusRing : RestGlyph);
         }
+        void Refresh() { applied = null; Apply(); }
         void OnClasses(object? sender, NotifyCollectionChangedEventArgs e) => Apply();
+        void OnTheme(object? sender, EventArgs e) => Refresh();
         // Listen only while the handle is in the tree, so a rebuilt template never leaves a listener on the button.
         void Listen(bool on)
         {
             button.Classes.CollectionChanged -= OnClasses;
-            if (on) button.Classes.CollectionChanged += OnClasses;
+            button.ActualThemeVariantChanged -= OnTheme;
+            if (!on) return;
+            button.Classes.CollectionChanged += OnClasses;
+            button.ActualThemeVariantChanged += OnTheme;
         }
-        root.AttachedToVisualTree += (_, _) => { Listen(true); Apply(); };
+        root.AttachedToVisualTree += (_, _) => { Listen(true); Refresh(); };
         root.DetachedFromVisualTree += (_, _) => Listen(false);
         Listen(true);
         Apply();

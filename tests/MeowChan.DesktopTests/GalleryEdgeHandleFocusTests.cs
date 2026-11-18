@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+using System.Xml.Linq;
 using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.VisualTree;
@@ -18,9 +20,26 @@ public sealed class GalleryEdgeHandleFocusTests
 
     private static Color SolidColor(IBrush? brush) => Assert.IsAssignableFrom<ISolidColorBrush>(brush).Color;
 
+    private static Color TokenColor(string key, [CallerFilePath] string source = "")
+    {
+        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        string path = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(source)!, "../../Desktop/WorkspaceStyles.axaml"));
+        XElement token = Assert.Single(XDocument.Load(path).Descendants(), element => (string?)element.Attribute(x + "Key") == key);
+        Assert.Equal("SolidColorBrush", token.Name.LocalName);
+        return Color.Parse(token.Value.Trim());
+    }
+
+    /// <summary>Gives a handle built without an application the three Workspace.Media.* tokens exactly as WorkspaceStyles.axaml defines them.</summary>
+    internal static void SupplyTokens(Button handle)
+    {
+        foreach (string key in new[] { GalleryEdgeHandleVisual.RestGlyph, GalleryEdgeHandleVisual.FocusDisc, GalleryEdgeHandleVisual.FocusRing })
+            handle.Resources[key] = new SolidColorBrush(TokenColor(key));
+    }
+
     private static (Button Handle, Border Face, AvaloniaPath Chevron) Build(bool post)
     {
         Button handle = GalleryViewer.CreateEdgeIndicator(post);
+        SupplyTokens(handle);
         handle.ApplyTemplate();
         Border face = Assert.Single(handle.GetVisualDescendants().OfType<Border>(), border => border.Child is AvaloniaPath);
         return (handle, face, Assert.Single(handle.GetVisualDescendants().OfType<AvaloniaPath>()));
@@ -34,7 +53,7 @@ public sealed class GalleryEdgeHandleFocusTests
         var (handle, face, chevron) = Build(post);
         Assert.Null(face.Background);
         Assert.Null(face.BorderBrush);
-        Assert.Equal(GalleryEdgeHandleVisual.RestGlyph, SolidColor(chevron.Stroke));
+        Assert.Equal(TokenColor(GalleryEdgeHandleVisual.RestGlyph), SolidColor(chevron.Stroke));
         Assert.False(face.IsHitTestVisible);
         // The 44 dip transparent hit surface and the localized name are unchanged.
         Assert.Equal(44, handle.Width);
@@ -46,14 +65,14 @@ public sealed class GalleryEdgeHandleFocusTests
     {
         var (handle, face, chevron) = Build(post);
         SetFocusVisible(handle, true);
-        Assert.Equal(GalleryEdgeHandleVisual.FocusDisc, SolidColor(face.Background));
-        Assert.Equal(GalleryEdgeHandleVisual.FocusRing, SolidColor(face.BorderBrush));
-        Assert.Equal(GalleryEdgeHandleVisual.FocusRing, SolidColor(chevron.Stroke));
+        Assert.Equal(TokenColor(GalleryEdgeHandleVisual.FocusDisc), SolidColor(face.Background));
+        Assert.Equal(TokenColor(GalleryEdgeHandleVisual.FocusRing), SolidColor(face.BorderBrush));
+        Assert.Equal(TokenColor(GalleryEdgeHandleVisual.FocusRing), SolidColor(chevron.Stroke));
         Assert.Equal(new Avalonia.Thickness(GalleryEdgeHandleVisual.RingThickness), face.BorderThickness);
         SetFocusVisible(handle, false);
         Assert.Null(face.Background);
         Assert.Null(face.BorderBrush);
-        Assert.Equal(GalleryEdgeHandleVisual.RestGlyph, SolidColor(chevron.Stroke));
+        Assert.Equal(TokenColor(GalleryEdgeHandleVisual.RestGlyph), SolidColor(chevron.Stroke));
     }
 
     // Both tones of the indicator are measured against the picture behind the handle: the disc (90 % dark over the picture) and the white ring.
@@ -62,7 +81,7 @@ public sealed class GalleryEdgeHandleFocusTests
     [Fact]
     public void TheFocusIndicatorReadsOnEveryGreyPictureAtLeastThreeToOne()
     {
-        string disc = Hex(GalleryEdgeHandleVisual.FocusDisc), ring = Rgb(GalleryEdgeHandleVisual.FocusRing);
+        string disc = Hex(TokenColor(GalleryEdgeHandleVisual.FocusDisc)), ring = Rgb(TokenColor(GalleryEdgeHandleVisual.FocusRing));
         double worst = double.MaxValue;
         for (int level = 0; level <= 255; level += 5)
         {
@@ -85,7 +104,7 @@ public sealed class GalleryEdgeHandleFocusTests
         // 39 % grey over black, mid grey and white is under 2:1 everywhere: it never counts as the focus indicator.
         foreach (string picture in new[] { "#000000", "#777777", "#FFFFFF" })
         {
-            string shown = ContrastRules.CompositeOver(Hex(GalleryEdgeHandleVisual.RestGlyph), picture);
+            string shown = ContrastRules.CompositeOver(Hex(TokenColor(GalleryEdgeHandleVisual.RestGlyph)), picture);
             Assert.True(ContrastRules.Contrast(shown, picture) < 2.0, picture);
         }
     }

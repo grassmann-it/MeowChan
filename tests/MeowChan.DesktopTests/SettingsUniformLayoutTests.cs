@@ -49,8 +49,14 @@ public sealed class SettingsUniformLayoutTests
         Assert.Equal("Auto,*", (string?)column.Attribute("RowDefinitions"));
         Assert.Null(actions.Attribute("Grid.Row"));
         Assert.Equal("1", (string?)scroll.Attribute("Grid.Row"));
-        Assert.Equal("10,0,10,12", (string?)actions.Attribute("Margin"));
+        Assert.Equal("{x:Static local:SettingsHeaderLayout.SearchActionsMargin}", (string?)actions.Attribute("Margin"));
         Assert.Equal(10d, SettingsHeaderLayout.ContentInset);
+        Assert.Equal(new Avalonia.Thickness(SettingsHeaderLayout.ContentInset, 0, SettingsHeaderLayout.ContentInset, 12), SettingsHeaderLayout.SearchActionsMargin);
+        Assert.Equal("{x:Static local:SettingsHeaderLayout.ResetStatusMargin}", (string?)Named("SettingsResetStatus").Attribute("Margin"));
+        Assert.Equal(new Avalonia.Thickness(0, 0, SettingsHeaderLayout.ContentInset, 0), SettingsHeaderLayout.ResetStatusMargin);
+        // The content's own inset (its width is the column less both insets) is the same constant as the header's margin.
+        Assert.Contains("double width = Math.Max(0, sharedWidth - 20 - (categories ? 192 : 0));", Source("SettingsEditor.axaml.cs"));
+        Assert.Equal(20d, 2 * SettingsHeaderLayout.ContentInset);
         Assert.Equal("*,Auto", (string?)actions.Attribute("ColumnDefinitions"));
         Assert.Null(search.Attribute("MaxWidth"));
         Assert.Null(search.Attribute("Width"));

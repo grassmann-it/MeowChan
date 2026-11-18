@@ -342,7 +342,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         _next.Click += async (_, _) => await _model.Search.GoToPageAsync(_model.Search.View.Page + 1);
         _createWatcher.Click += async (_, _) => await _model.CreateWatcherAsync();
 
-        Border actionDivider = new() { Width = 1, Margin = new Thickness(4, 5),
+        Border actionDivider = new() { Width = 1, Margin = new Thickness(4),
             [!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.Border") };
         StackPanel searchActions = new() { Name = "BooruSearchActions", Orientation = Orientation.Horizontal, Spacing = 8,
             VerticalAlignment = VerticalAlignment.Center, Children = { _submit, actionDivider, _createWatcher, _cancel } };

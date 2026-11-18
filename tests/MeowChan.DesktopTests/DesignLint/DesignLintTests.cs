@@ -60,7 +60,7 @@ public sealed class DesignLintTests
         Assert.Contains(Lint.Violations, v => v.File.EndsWith(".axaml", StringComparison.Ordinal));
         Assert.Contains(Lint.Violations, v => v.File.EndsWith(".cs", StringComparison.Ordinal));
         Assert.DoesNotContain(Lint.Violations, v => v.File == DesignLintScanner.StylesFile);
-        Assert.Equal(new double[] { 11, 12, 13, 14, 16, 20 }, DesignLintScanner.ReadTypeScale(Path.Combine(RepositoryRoot(), DesignLintScanner.StylesFile)));
+        Assert.Equal(new double[] { 10, 11, 12, 13, 14, 16, 20 }, DesignLintScanner.ReadTypeScale(Path.Combine(RepositoryRoot(), DesignLintScanner.StylesFile)));
     }
 
     [Fact]
@@ -102,12 +102,12 @@ public sealed class DesignLintTests
     }
 
     [Fact]
-    public void HeaderIoSpacingStaysFourAndTwo()
+    public void HeaderIoSpacingStaysFourAndZero()
     {
         string content = File.ReadAllText(Path.Combine(RepositoryRoot(), "Desktop/Shell/MainWindow.Transfer.cs"));
-        Assert.Equal(new[] { "ColumnSpacing=4", "RowSpacing=2" }, HeaderIoSpacingAssignments(content));
-        Assert.NotEqual(new[] { "ColumnSpacing=4", "RowSpacing=2" }, HeaderIoSpacingAssignments(content.Replace("RowSpacing = 2;", "RowSpacing = 8;", StringComparison.Ordinal)));
-        Assert.NotEqual(new[] { "ColumnSpacing=4", "RowSpacing=2" }, HeaderIoSpacingAssignments(content.Replace("ColumnSpacing = 4;", "ColumnSpacing = 8;", StringComparison.Ordinal)));
+        Assert.Equal(new[] { "ColumnSpacing=4", "RowSpacing=0" }, HeaderIoSpacingAssignments(content));
+        Assert.NotEqual(new[] { "ColumnSpacing=4", "RowSpacing=0" }, HeaderIoSpacingAssignments(content.Replace("RowSpacing = 0;", "RowSpacing = 8;", StringComparison.Ordinal)));
+        Assert.NotEqual(new[] { "ColumnSpacing=4", "RowSpacing=0" }, HeaderIoSpacingAssignments(content.Replace("ColumnSpacing = 4;", "ColumnSpacing = 8;", StringComparison.Ordinal)));
         Assert.DoesNotContain(DesignLintScanner.LayoutContracts, c => c.File == TransferFile);
         string body = HeaderIoBody(content)!;
         Assert.DoesNotContain(DesignLintScanner.ScanFileWith(TransferFile, body, null, Array.Empty<DesignLayoutContract>()),

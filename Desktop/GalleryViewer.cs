@@ -102,7 +102,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
     private readonly TextBlock _helpTitle = new();
     private readonly Button _helpClose;
     private readonly Border _chrome = new() { Name = "GalleryOverlayControls", Classes = { "workspace-media-tools" },
-        Margin = new Thickness(8, 0, 8, 0), Padding = new Thickness(8, 6), HorizontalAlignment = HorizontalAlignment.Stretch };
+        Margin = new Thickness(8, 0, 8, 0), [!Border.PaddingProperty] = new DynamicResourceExtension("Workspace.Inset.MediaTools"), HorizontalAlignment = HorizontalAlignment.Stretch };
     // GL1+GL2: the docked dock below the picture, without a gap to it: [filmstrip (when at the bottom)] [_chrome: video bar row
     // (GalleryDockTransportHost, GL2), tools] [info line]. The floating footer (_overlayFooter) has the same order: [filmstrip]
     // [GalleryOverlayTransportHost] [_chrome] [info]. The Windows transparency fallback keeps the video bar under the picture.
