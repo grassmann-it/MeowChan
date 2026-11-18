@@ -363,6 +363,16 @@ internal readonly record struct MediaPanelColumns(bool PanelShown, bool Collapse
         return new MediaPanelColumns(wanted, collapsed, tagList, wanted ? panel : 0);
     }
 
+    internal static bool TagListShown(MediaPageLayout layout, double bodyWidth, MediaPanelColumns columns)
+    {
+        MediaPageLayout self = layout.Normalized();
+        if (!self.TagList) return false;
+        if (!double.IsFinite(bodyWidth) || bodyWidth <= 0) return true;
+        double occupied = MediaPageLayoutPlan.BodyChrome + MeowChan.Config.MediaTagListWidthMinimum
+            + (columns.PanelShown ? PanelChrome + columns.PanelWidth : 0);
+        return bodyWidth + 0.5 >= MinimumCombinedContentWidth + occupied;
+    }
+
     /// <summary>
     /// The body width from which the panel fits at all: the page-width setting, or more where the smallest panel, the smallest tag list (when shown) and the
     /// grid's minimum need more. The Layout menu names it when the choice stays hidden, so the sentence is true both for a narrow page and for no room beside the tag list.

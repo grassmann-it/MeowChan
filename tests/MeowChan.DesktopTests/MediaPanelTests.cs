@@ -84,6 +84,21 @@ public sealed class MediaPanelTests
     }
 
     [Fact]
+    public void TheTagListTemporarilyYieldsWhenItWouldPushTheToolbarBelowItsMinimum()
+    {
+        MediaPageLayout layout = WithTagList() with { Panel = false };
+        double narrowest = CombinedContentMinimum + MediaPageLayoutPlan.BodyChrome + MeowChan.Config.MediaTagListWidthMinimum;
+        MediaPanelColumns below = MediaPanelColumns.Of(layout, narrowest - 1, 600);
+        MediaPanelColumns exact = MediaPanelColumns.Of(layout, narrowest, 600);
+
+        Assert.False(MediaPanelColumns.TagListShown(layout, narrowest - 1, below));
+        Assert.True(MediaPanelColumns.TagListShown(layout, narrowest, exact));
+        Assert.True(MediaPanelColumns.TagListShown(layout, double.NaN, exact));
+        Assert.False(MediaPanelColumns.TagListShown(layout with { TagList = false }, narrowest, exact));
+        Assert.True(layout.TagList);
+    }
+
+    [Fact]
     public void WithoutRoomForTheToolbarAndBothSidebarsThePanelHidesAndTheTagListGetsItsWidthBack()
     {
         double narrowest = CombinedContentMinimum + Chrome + MeowChan.Config.MediaTagListWidthMinimum + MeowChan.Config.MediaPanelWidthMinimum;

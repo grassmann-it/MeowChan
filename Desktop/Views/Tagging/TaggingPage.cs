@@ -42,11 +42,11 @@ public sealed partial class TaggingPage : UserControl, IDisposable
     private readonly TextBlock _errorSource = new() { Name = "TaggingErrorSource", Classes = { "muted" }, TextWrapping = TextWrapping.Wrap };
     private readonly Button _retryLoad = new() { Name = "TaggingRetryLoad", Classes = { "subtle" } };
     // Counters, mini bar and percentage are supporting feedback in the queue-action row.
-    private readonly StackPanel _progress = new() { Name = "TaggingProgress", Spacing = 4 };
-    private readonly TextBlock _progressText = new() { Name = "TaggingProgressText", Classes = { "tnum" }, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
-    internal const double MiniBarWidth = 120;
+    private readonly StackPanel _progress = new() { Name = "TaggingProgress", Spacing = 2 };
+    private readonly TextBlock _progressText = (new TextBlock { Name = "TaggingProgressText", Classes = { "tnum" }, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center }).MetaText();
+    internal const double MiniBarWidth = 96;
     private readonly ProgressBar _bar = new() { Name = "TaggingProgressBar", Minimum = 0, Maximum = 100, Width = MiniBarWidth, Height = 6, MinHeight = 0, MaxHeight = 6 };
-    private readonly TextBlock _percent = new() { Name = "TaggingPercent", Classes = { "muted", "tnum" }, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _percent = (new TextBlock { Name = "TaggingPercent", Classes = { "muted", "tnum" }, VerticalAlignment = VerticalAlignment.Center }).MetaText();
     private readonly Button _start = new() { Name = "TaggingStart", Classes = { "primary" } };
     // Passive supporting context for Start: never a second spatially separated continue action.
     private readonly TextBlock _lastShown = new() { Name = "TaggingLastShown", Classes = { "muted", "tnum" }, MaxWidth = 280,
@@ -154,13 +154,13 @@ public sealed partial class TaggingPage : UserControl, IDisposable
         }
         _listControls.Margin = new Thickness(0, 0, 0, 8);
         _bar.VerticalAlignment = VerticalAlignment.Center;
-        WrapPanel meter = new() { Name = "TaggingProgressMeter", ItemSpacing = 12, LineSpacing = 4, Children = { _bar, _percent } };
+        WrapPanel meter = new() { Name = "TaggingProgressMeter", ItemSpacing = 8, LineSpacing = 2, Children = { _bar, _percent } };
         _progress.Children.Add(_progressText);
         _progress.Children.Add(meter);
         _startContext.Children.Add(_start);
         _startContext.Children.Add(_lastShown);
         _queueActionRow.Children.Add(_actions);
-        StackPanel feedback = new() { Name = "TaggingFeedback", Spacing = 4, Children = { _progress, _status } };
+        StackPanel feedback = new() { Name = "TaggingFeedback", Spacing = 2, Children = { _progress, _status } };
         _queueActionRow.Children.Add(feedback);
         _queueActionRow.TrailingChild = feedback;
 
