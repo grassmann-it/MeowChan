@@ -75,16 +75,14 @@ internal static class WorkViewCaptures
         string modeBefore = window.SessionHost.Config.WorkspaceMode, themeBefore = window.SessionHost.Config.Theme;
         string languageBefore = window.SessionHost.Config.Language;
         List<Cell> cells = new();
-        SyntheticShellRows? rows = null;
-        WorkViewBooruChecks? booru = null;
         Exception? failure = null;
         try
         {
-            rows = await SyntheticShellRows.CreateAsync(window, DownloadEntries());
+            await using SyntheticShellRows rowsOwner = await SyntheticShellRows.CreateAsync(window, DownloadEntries());
+            await using WorkViewBooruChecks booruOwner = new(window);
             if (pages.Contains("booru"))
             {
-                booru = new WorkViewBooruChecks(window);
-                await booru.InitializeAsync();
+                await booruOwner.InitializeAsync();
             }
             CheckRegistrations(window);
             await TaggingRegistrationsAsync(window);
@@ -109,7 +107,7 @@ internal static class WorkViewCaptures
                                 await ResizeAsync(window, w, h);
                                 await EnterAsync(window, page); // a resize may relayout the archive into its narrow reader layout
                                 await SettleAsync(window, page);
-                                if (page == "booru") await booru!.MaterializeAsync();
+                                if (page == "booru") await booruOwner.MaterializeAsync();
                                 RequireState(window, page, view, theme, language);
                                 CheckPageRegistrations(window, page);
                                 CheckPresence(window, page, view);
@@ -117,7 +115,7 @@ internal static class WorkViewCaptures
                                 CheckSectionsAndMore(window, page, view);
                                 if (page == "settings") WorkViewSettingsChecks.CheckGroups(window, view);
                                 if (page == "gallery") await WorkViewGalleryChecks.CheckAsync(window, WorkViewSetting.Parse(view), view);
-                                if (page == "booru") await booru!.CheckAsync(view);
+                                if (page == "booru") await booruOwner.CheckAsync(view);
                                 if (page == "dialogs") CheckExportOptions(window, view);
                                 string file = $"smoke-wv-{page}-{view.ToLowerInvariant()}-{theme.ToLowerInvariant()}-{language}-{w:0}x{h:0}.png";
                                 Program.CaptureWindow(window, file, output);
@@ -131,7 +129,7 @@ internal static class WorkViewCaptures
                                 if (page == "booru")
                                 {
                                     string watcherFile = file.Replace("smoke-wv-booru-", "smoke-wv-booru-watchers-");
-                                    await booru!.CaptureWatchersAsync(watcherFile, output);
+                                    await booruOwner.CaptureWatchersAsync(watcherFile, output);
                                     cells.Add(new("booru-watchers", view, theme, language, sizeName, watcherFile,
                                         $"{window.ClientSize.Width:0}x{window.ClientSize.Height:0}"));
                                 }
@@ -161,8 +159,6 @@ internal static class WorkViewCaptures
             await RestoreAsync(() => SetThemeAsync(window, themeBefore));
             await RestoreAsync(() => FooterNavigationChecks.PersistLanguageAsync(window, languageBefore));
             await RestoreAsync(() => PresentationChecks.SwitchModeAsync(window, modeBefore));
-            if (rows != null) await RestoreAsync(() => rows.DisposeAsync().AsTask());
-            if (booru != null) await RestoreAsync(() => booru.DisposeAsync().AsTask());
             if (cleanup.Count > 0)
             {
                 if (failure != null) cleanup.Insert(0, failure);
@@ -791,7 +787,7 @@ internal static class WorkViewCaptures
                 new("2", url + "thread/2", "Coastal light", "Another opening post")
             }));
         }
-        BoardAdmissionWindow modal = new([board], _ => policy, Preview, showWizard: true, workView);
+        using BoardAdmissionWindow modal = new([board], _ => policy, Preview, showWizard: true, workView);
         Task<BoardAdmissionSelection?> result = modal.ShowDialog<BoardAdmissionSelection?>(window);
         try
         {
