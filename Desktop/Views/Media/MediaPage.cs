@@ -1198,8 +1198,9 @@ public sealed partial class MediaPage : UserControl
     private MediaLibraryTileRow? TargetForMenu(MediaLibraryTileRow? row)
     {
         if (row == null || row.Index < 0 || row.Index >= _tiles.Count || _grid.Selection.IsSelected(row.Index)) return row;
-        _grid.Selection.Clear();
-        _grid.Selection.Select(row.Index);
+        // Replace the target in one selection-model operation. Clearing first publishes an empty selection,
+        // which lets the preview/grid rebuild between the right-click target resolution and menu composition.
+        _grid.SelectedItem = row;
         return row;
     }
 
@@ -1208,10 +1209,12 @@ public sealed partial class MediaPage : UserControl
         if (_lifetime.IsCancellationRequested || !IsEffectivelyVisible) return;
         long revision = _mediaMenuRevision;
         long serial = ++_mediaMenuSerial;
+        HashSet<int> selection = _grid.Selection.SelectedIndexes.ToHashSet();
         object? rows = _grid.ItemsSource;
         object? originData = origin.DataContext;
         bool Current() => !_lifetime.IsCancellationRequested && _building == null && IsEffectivelyVisible
             && revision == _mediaMenuRevision && serial == _mediaMenuSerial
+            && selection.SetEquals(_grid.Selection.SelectedIndexes)
             && ReferenceEquals(rows, _grid.ItemsSource)
             && origin.IsAttachedToVisualTree() && origin.IsEffectivelyVisible
             && ReferenceEquals(originData, origin.DataContext);
