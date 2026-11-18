@@ -250,8 +250,10 @@ public sealed class InteractionAuditTests
             Assert.True(panel.Frame.Focusable); // the page handler ran; preview owns keyboard input
             Assert.Empty(fixture.Opened);
             Assert.False(panel.SingleClickActs);
-            Assert.False(panel.FrameClickable);
-            Assert.Null(panel.Frame.Cursor);
+            // MD-03 (71628e831, UX-LEDGER-11): the Media preview advertises its double-click gallery target with the hand
+            // (UseGalleryCursor), which is not permission for a single click to open; the reader hosts keep their own cursor.
+            Assert.True(panel.FrameClickable);
+            Assert.Same(PointerCursors.Hand, panel.Frame.Cursor);
 
             MediaPanelClickTestSupport.DoubleClick(panel);
             var opened = Assert.Single(fixture.Opened);
