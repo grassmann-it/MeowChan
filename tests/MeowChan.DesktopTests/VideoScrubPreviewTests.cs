@@ -545,6 +545,43 @@ public sealed class VideoScrubPreviewTests
     }
 
     [Fact]
+    public async Task AnUncooperativeDecoderCanAccessItsStreamAndTokenAfterGraceUntilCompletion()
+    {
+        using TempDirectory temp = new();
+        var (manifest, asset) = await ManifestAsync(temp.Path, "clip.webm", new byte[] { 1, 2, 3, 4 });
+        TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        FakeDecoder decoder = new()
+        {
+            Hold = release,
+            IgnoreCancellation = true,
+            LateAccess = new(TaskCreationOptions.RunContinuationsAsynchronously)
+        };
+        using SemaphoreSlim gate = new(1, 1);
+        VideoScrubPreviewCache cache = Cache(temp.Path, decoder, gate);
+        VideoScrubPreviewSession session = cache.OpenSession(manifest, asset)!;
+        Task<VideoScrubFrame?> request = session.GetSlotAsync(2, Duration, CancellationToken.None);
+        try
+        {
+            await decoder.Started.Task.WaitAsync(Patience);
+            await session.DisposeAsync().AsTask().WaitAsync(Patience);
+            Assert.False(decoder.AllStreamsDisposed);
+            Assert.Equal(0, gate.CurrentCount);
+
+            release.TrySetResult();
+            Assert.Null(await decoder.LateAccess!.Task.WaitAsync(Patience));
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => request.WaitAsync(Patience));
+            await Eventually(() => gate.CurrentCount == 1);
+            Assert.True(decoder.AllStreamsDisposed);
+        }
+        finally
+        {
+            release.TrySetResult();
+            await session.DisposeAsync();
+            await Eventually(() => gate.CurrentCount == 1);
+        }
+    }
+
+    [Fact]
     public async Task ALoweredBudgetEvictsTheOldestThumbnailsAndNeverTouchesOriginals()
     {
         using TempDirectory temp = new();
@@ -730,6 +767,7 @@ public sealed class VideoScrubPreviewTests
         internal TaskCompletionSource DecodeTokenCanceled { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         internal TaskCompletionSource? Hold { get; init; }
         internal bool IgnoreCancellation { get; init; }
+        internal TaskCompletionSource<Exception?>? LateAccess { get; init; }
         internal TaskCompletionSource? CleanupStarted { get; init; }
         internal TaskCompletionSource? CleanupHold { get; init; }
         // Releases the verified handle before holding, so a test can rewrite the original on platforms that enforce sharing.
@@ -754,6 +792,20 @@ public sealed class VideoScrubPreviewTests
                         if (ReleaseBeforeHold) await verifiedVideo.DisposeAsync();
                         if (IgnoreCancellation) await Hold.Task;
                         else await Hold.Task.WaitAsync(token);
+                    }
+                    if (LateAccess != null)
+                    {
+                        try
+                        {
+                            Assert.True(verifiedVideo.CanRead);
+                            using CancellationTokenRegistration registration = token.Register(static () => { });
+                            LateAccess.TrySetResult(null);
+                        }
+                        catch (Exception exception)
+                        {
+                            LateAccess.TrySetResult(exception);
+                            throw;
+                        }
                     }
                     if (Fail) throw new InvalidDataException("synthetic decode failure");
                     int slot = (int)(start.Ticks / (Duration.Ticks / VideoScrubSlots.Count));
