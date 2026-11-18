@@ -5,53 +5,106 @@ using Ursa.Controls;
 
 namespace MeowChan.DesktopTests;
 
-// Package 2B contract: the selection bar is a measured toolbar between the list controls and the results surface.
-// These tests keep the responsive/keyboard invariants local without touching DesktopSmoke.
+// UX-LEDGER-28 package 2A contract: the selection bar keeps the core loop on the surface and
+// moves secondary actions into its measured More affordance as the available width shrinks.
 public sealed class TaggingResponsiveSelectionBarTests
 {
     [Fact]
-    public void SelectionBarKeepsCountAndClearOutsideTheMeasuredActionToolbar()
+    public void SelectionBarPutsActionsFirstAndKeepsCountAndClearInTheTrailingGroup()
     {
         string source = Read("Desktop/Views/Tagging/TaggingPage.Selection.cs");
 
         Assert.Contains("new() { Name = \"TaggingSelectionActions\", HorizontalAlignment = HorizontalAlignment.Stretch }", source);
-        Assert.Contains("Grid bar = new() { ColumnDefinitions = new ColumnDefinitions(\"Auto,*,Auto\")", source);
-        Assert.Contains("Grid.SetColumn(_selectionActions, 1);", source);
-        Assert.Contains("Grid.SetColumn(_selClear, 2);", source);
+        Assert.Contains("Grid bar = new() { ColumnDefinitions = new ColumnDefinitions(\"*,Auto\")", source);
+        Assert.Contains("Grid.SetColumn(_selectionActions, 0);", source);
+        Assert.Contains("StackPanel trailing = new()", source);
+        Assert.Contains("trailing.Children.Add(_selectionText);", source);
+        Assert.Contains("trailing.Children.Add(_selClear);", source);
+        Assert.Contains("Grid.SetColumn(trailing, 1);", source);
         Assert.Contains("_selectionActions.RefreshOverflowLabel();", source);
-        Assert.Contains("_selectionText", source);
     }
 
     [Fact]
-    public void CoreSelectionActionsRemainRequiredWhileReducedActionsUseMoreAtNarrowWidths()
+    public void CoreSelectionActionsAreRequiredAndSecondaryActionsKeepTheirWorkViewOverflow()
     {
+        string[] required =
+        [
+            "tagging.selection-bar",
+            "tagging.selection.status",
+            "tagging.selection.tag",
+            "tagging.selection.done",
+            "tagging.selection.skipped",
+            "tagging.selection.continue",
+            "tagging.selection.clear",
+        ];
+
         foreach (WorkView view in Enum.GetValues<WorkView>())
         {
-            Assert.Equal(Presence.Required, WorkViewPolicy.Resolve("tagging.selection.tag", view));
-            Assert.Equal(Presence.Required, WorkViewPolicy.Resolve("tagging.selection.remove", view));
-            Assert.Equal(Presence.Required, WorkViewPolicy.Resolve("tagging.selection.clear", view));
+            foreach (string id in required)
+                Assert.Equal(Presence.Required, WorkViewPolicy.Resolve(id, view));
+
+            // Remove is a direct destructive action, but may yield at a genuinely narrow width.
+            Assert.Equal(Presence.Direct, WorkViewPolicy.Resolve("tagging.selection.group", view));
+            Assert.Equal(Presence.Direct, WorkViewPolicy.Resolve("tagging.selection.remove", view));
         }
 
         Assert.Equal(Presence.Overflow, WorkViewPolicy.Resolve("tagging.selection.stamp", WorkView.Barebones));
+        Assert.Equal(Presence.Direct, WorkViewPolicy.Resolve("tagging.selection.stamp", WorkView.Simple));
+        Assert.Equal(Presence.Direct, WorkViewPolicy.Resolve("tagging.selection.stamp", WorkView.Advanced));
+        Assert.Equal(Presence.Overflow, WorkViewPolicy.Resolve("tagging.selection.state", WorkView.Barebones));
         Assert.Equal(Presence.Overflow, WorkViewPolicy.Resolve("tagging.selection.state", WorkView.Simple));
         Assert.Equal(Presence.Direct, WorkViewPolicy.Resolve("tagging.selection.state", WorkView.Advanced));
 
-        // Representative Barebones geometry: Tag and Remove are the required anchors; Stamp, State and Group must yield to More.
-        (bool[] overflow, double width) = ActionOverflowLayout.ResolveSpaced(
-            widths: [96, 120, 112, 140, 100],
-            groups: [0, 0, 0, 0, 0],
-            segments: [false, false, false, false, false],
-            modes: [OverflowMode.Never, OverflowMode.AsNeeded, OverflowMode.Always, OverflowMode.AsNeeded, OverflowMode.Never],
-            visible: [true, true, true, true, true],
-            available: 260,
-            moreWidth: 40);
-
-        Assert.Equal(new[] { false, true, true, true, false }, overflow);
-        Assert.True(width + 40 <= 260, $"selection bar uses {width} dip plus More but only has 260 dip");
+        string source = Read("Desktop/Views/Tagging/TaggingPage.Selection.cs");
+        foreach (string field in new[] { "_selTag", "_selStamp", "_selDone", "_selSkipped", "_selState", "_selContinue", "_selGroup", "_selRemove" })
+            Assert.Contains(field, source);
+        Assert.Contains("_selectionActions.PrioritizedOverflow = true", source);
+        Assert.Contains("_selRemove.Classes.Add(\"danger\")", source);
     }
 
     [Fact]
-    public void ListKeyboardEscapeClearsBeforeCommandRoutingAndOverflowKeyboardHasAClosedMorePath()
+    public void NarrowSelectionBarKeepsRequiredActionsAndMovesOnlySecondaryActionsUnderMore()
+    {
+        string[] ids =
+        [
+            "tagging.selection.tag",
+            "tagging.selection.stamp",
+            "tagging.selection.done",
+            "tagging.selection.skipped",
+            "tagging.selection.state",
+            "tagging.selection.continue",
+            "tagging.selection.group",
+            "tagging.selection.remove",
+        ];
+        WorkView view = WorkView.Barebones;
+        OverflowMode[] modes = ids.Select(id => WorkViewPresenter.ToolBarMode(WorkViewPolicy.Resolve(id, view))).ToArray();
+        int[] priorities = ids.Select(id => WorkViewPolicy.Get(id).OverflowOrder).ToArray();
+
+        Assert.Equal(OverflowMode.Never, modes[0]);
+        Assert.Equal(OverflowMode.Never, modes[2]);
+        Assert.Equal(OverflowMode.Never, modes[3]);
+        Assert.Equal(OverflowMode.Never, modes[5]);
+        Assert.Equal(OverflowMode.Always, modes[1]);
+        Assert.Equal(OverflowMode.Always, modes[4]);
+
+        (bool[] overflow, double width) = ActionOverflowLayout.ResolveSpaced(
+            widths: [80, 120, 82, 88, 110, 96, 100, 100],
+            groups: [0, 0, 1, 1, 1, 1, 2, 2],
+            segments: [false, false, false, false, false, false, false, false],
+            modes,
+            visible: [true, true, true, true, true, true, true, true],
+            available: 500,
+            moreWidth: 40,
+            priorities);
+
+        Assert.Equal(new[] { false, true, false, false, true, false, true, true }, overflow);
+        Assert.True(width + 40 <= 500, $"selection bar uses {width} dip plus More but only has 500 dip");
+        foreach (int index in new[] { 0, 2, 3, 5 })
+            Assert.False(overflow[index], $"required selection action {ids[index]} moved under More");
+    }
+
+    [Fact]
+    public void ListEscapePrecedesCommandRoutingAndOverflowKeyboardCanReturnToMore()
     {
         string commands = Read("Desktop/Views/Tagging/TaggingPage.Commands.cs");
         int escape = commands.IndexOf("e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None && SelectedCount > 0", StringComparison.Ordinal);
