@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Layout;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 
@@ -41,8 +42,10 @@ internal sealed partial class BooruWorkbenchView : IAsyncDisposable
 
     private Control CreateResultViewerActions(string postId)
     {
-        StackPanel actions = new() { Spacing = 4 };
-        Button open = new() { Name = "BooruView:" + postId, Content = CommandCatalog.Label("gallery.open") };
+        WrapPanel actions = new() { Name = "BooruViewerActions:" + postId, Classes = { "workspace-toolbar" } };
+        Button open = new() { Name = "BooruView:" + postId, Content = CommandCatalog.Label("gallery.open"), HorizontalAlignment = HorizontalAlignment.Left };
+        open.Classes.Add("ghost");
+        CommandBindings.ShowIconBeforeText(open, CommandCatalog.Get("gallery.open").Icon);
         AutomationProperties.SetName(open, CommandCatalog.Label("gallery.open") + ": " + Texts.T("booru.ui.post.title", postId));
         open.Click += (_, _) => OpenResultViewer(postId);
         CheckBox select = new() { Name = "BooruSelect:" + postId, Content = Texts.T("media.tile.selected"), IsChecked = _selectedResults.Contains(postId) };
