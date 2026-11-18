@@ -414,8 +414,9 @@ public sealed class QuickTagSurfaceTests : IDisposable
             ShortcutBindingsSection saved = JsonSerializer.Deserialize<ShortcutBindingsSection>(json)!;
             ShortcutService.ValidateForCommit(saved);
             ShortcutService.Publish(saved);
-            ShortcutTableRow row = ShortcutTableModel.Build(saved, ShortcutService.Current).Rows.Single(r => r.CommandId == QuickTagCommands.Next);
-            Assert.Equal("F9", Assert.Single(row.Gestures).Key);
+            ShortcutTableModel table = ShortcutTableModel.Build(saved, ShortcutService.Current);
+            ShortcutTableRow row = table.Rows.Single(r => r.CommandId == QuickTagCommands.Next);
+            Assert.Equal(ShortcutGesture.Parse("Alt+F9").Display(table.Platform), Assert.Single(row.GestureTexts));
             Assert.False(Press(Key.PageDown).Handled);
             Assert.Empty(moved);
             Assert.True(Press(Key.F9, KeyModifiers.Alt).Handled);
