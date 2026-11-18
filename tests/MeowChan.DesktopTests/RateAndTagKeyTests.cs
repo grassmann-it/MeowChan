@@ -113,7 +113,8 @@ public sealed class RateAndTagPopoverCloseTests : IDisposable
     public void EscWithTextInTheFieldEmptiesItAndTheNextEscClosesThePopover()
     {
         using Fixture fixture = new();
-        QuickTagPopover popover = QuickTagPopover.Create(new Border(), fixture.Session(), "x",
+        using QuickTagSession session = fixture.Session();
+        QuickTagPopover popover = QuickTagPopover.Create(new Border(), session, "x",
             new QuickTagPopoverOptions { RestoreFocus = false, Decision = Decision() });
         QuickTagSurface surface = popover.Surface!;
         surface.Input.Text = "cat";
@@ -146,7 +147,8 @@ public sealed class RateAndTagPopoverCloseTests : IDisposable
     public async Task AnEscNothingInsideTookStillClosesThePopoverAtItsFrame()
     {
         using Fixture fixture = new();
-        QuickTagPopover popover = QuickTagPopover.Create(new Border(), fixture.Session(), "x",
+        using QuickTagSession session = fixture.Session();
+        QuickTagPopover popover = QuickTagPopover.Create(new Border(), session, "x",
             new QuickTagPopoverOptions { RestoreFocus = false, Decision = Decision() });
         KeyEventArgs escape = Key(Avalonia.Input.Key.Escape);
         popover.Frame.RaiseEvent(escape);
@@ -197,7 +199,8 @@ public sealed class RateAndTagPopoverCloseTests : IDisposable
     public void TextTypedIntoTheFieldLeavesTheFrameUnhandledSoThePlatformMakesItText(Key key, string? symbol, KeyModifiers modifiers)
     {
         using Fixture fixture = new();
-        QuickTagPopover popover = QuickTagPopover.Create(new Border(), fixture.Session(), "x",
+        using QuickTagSession session = fixture.Session();
+        QuickTagPopover popover = QuickTagPopover.Create(new Border(), session, "x",
             new QuickTagPopoverOptions { RestoreFocus = false, Decision = Decision() });
         try
         {
@@ -279,7 +282,8 @@ public sealed class RateAndTagPopoverCloseTests : IDisposable
         Border root = new() { Child = field };
         KeyEventArgs Down() => Typed(Avalonia.Input.Key.R, "r");
         KeyEventArgs Up() => new() { RoutedEvent = InputElement.KeyUpEvent, Key = Avalonia.Input.Key.R, KeyModifiers = KeyModifiers.None };
-        QuickTagPopover popover = QuickTagPopover.Create(new Border(), fixture.Session(), "x",
+        using QuickTagSession session = fixture.Session();
+        QuickTagPopover popover = QuickTagPopover.Create(new Border(), session, "x",
             new QuickTagPopoverOptions { RestoreFocus = false, Decision = Decision() });
         try
         {
