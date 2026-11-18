@@ -343,6 +343,7 @@ public sealed class WorkViewActionStateGuardTests
 
     private sealed class TargetFixture : IDisposable
     {
+        private const string FixtureId = "media.selection.export";
         internal readonly Button Button = new() { Content = "Action" };
         internal readonly StackPanel Surface = new();
         internal int Clicks;
@@ -350,7 +351,11 @@ public sealed class WorkViewActionStateGuardTests
         internal TargetFixture()
         {
             Surface.Children.Add(Button);
-            WorkViewElement.SetId(Button, "plugins.header.add");
+            // A row under More in Barebones and Simple, direct in Advanced, without a catalog command (plugins.header.add had this shape until
+            // 4dd056e2c made adding a plugin direct in every view).
+            Assert.Equal([Presence.Overflow, Presence.Overflow, Presence.Direct], WorkViewSetting.All.Select(view => WorkViewPolicy.Resolve(FixtureId, view, false)));
+            Assert.Null(WorkViewPolicy.Get(FixtureId).CommandId);
+            WorkViewElement.SetId(Button, FixtureId);
             WorkViewGate.Apply(Button, WorkView.Barebones);
             Button.Click += (_, _) => Clicks++;
         }
