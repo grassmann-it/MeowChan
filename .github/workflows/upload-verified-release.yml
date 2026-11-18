@@ -1,11 +1,14 @@
-name: Upload verified 0.9.0 release assets
+name: Upload verified release assets
 on:
   workflow_dispatch:
     inputs:
+      version:
+        description: Release version (for example 1.1.0); empty uses the product Version from Directory.Build.props at the source commit
+        required: false
+        default: ''
       source_run:
         description: Successful retained Windows and macOS package-media run ID
         required: true
-        default: '39696624077'
       source_commit:
         description: Exact final Linux and release source commit
         required: true
@@ -15,16 +18,18 @@ on:
       retained_source_commit:
         description: Exact accepted Windows and macOS source commit
         required: true
-        default: b0888df84c3f3facf9dff6b1aaa6167eb1cf190e
       release_id:
-        description: Existing draft release ID
+        description: Existing draft release ID for the tag v<version>
         required: true
-        default: '420167100'
+      source_base_tag:
+        description: Release tag that holds the immutable corresponding-source base archive
+        required: false
+        default: v0.9.0-preview.3
 permissions:
   contents: write
   actions: read
 concurrency:
-  group: upload-verified-v0.9.0
+  group: upload-verified-${{ inputs.version || inputs.source_commit }}
   cancel-in-progress: false
 jobs:
   upload:
@@ -37,10 +42,23 @@ jobs:
       LINUX_RUN: ${{ inputs.linux_run }}
       RETAINED_SOURCE: ${{ inputs.retained_source_commit }}
       RELEASE_ID: ${{ inputs.release_id }}
+      INPUT_VERSION: ${{ inputs.version }}
+      SOURCE_BASE_TAG: ${{ inputs.source_base_tag }}
     steps:
       - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.source_commit }}
+      - name: Resolve the release version
+        run: |
+          # An explicit input wins; otherwise the product version at the exact
+          # source commit decides, so the workflow no longer pins one release.
+          version="$INPUT_VERSION"
+          if [[ -z "$version" ]]; then
+            version="$(python3 -c "import re,sys; m=re.search(r'<Version>([^<]+)</Version>', open('Directory.Build.props', encoding='utf-8').read()); print(m.group(1).strip() if m else '')")"
+          fi
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]] || { echo "Invalid release version: '$version'"; exit 1; }
+          echo "RELEASE_VERSION=$version" >> "$GITHUB_ENV"
+          echo "Uploading release v$version"
       - name: Check the immutable successful source run
         run: |
           [[ "$SOURCE_RUN" =~ ^[0-9]+$ ]]
@@ -48,6 +66,7 @@ jobs:
           [[ "$LINUX_RUN" =~ ^[0-9]+$ ]]
           [[ "$RELEASE_ID" =~ ^[0-9]+$ ]]
           [[ "$RETAINED_SOURCE" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$SOURCE_BASE_TAG" =~ ^v[0-9A-Za-z._-]+$ ]]
           # Overall success is not enough: a manually selected run must also
           # contain the explicit candidate gate (and the Linux distribution
           # gate for the separate Linux run). Missing job evidence rejects the
@@ -76,7 +95,7 @@ jobs:
           ]:
               for name in names:
                   commands.append(['gh', 'run', 'download', run, '--repo', repo, '--name', name, '--dir', 'candidates/' + name])
-          commands.append(['gh', 'release', 'download', 'v0.9.0-preview.3', '--repo', repo, '--pattern', 'MeowChan-0.9.0-video-sources.tar.gz', '--dir', 'source-base'])
+          commands.append(['gh', 'release', 'download', os.environ['SOURCE_BASE_TAG'], '--repo', repo, '--pattern', 'MeowChan-0.9.0-video-sources.tar.gz', '--dir', 'source-base'])
           # Independent immutable inputs use separate directories; await every transfer
           # before the assembler verifies the complete set and any release upload starts.
           with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
@@ -85,7 +104,7 @@ jobs:
                   future.result()
           PY
       - name: Verify source, native package evidence, paired sources and exact asset inventory
-        run: python3 scripts/assemble-stable-release.py --artifacts-root candidates --source-commit "$SOURCE_COMMIT" --windows-source-commit "$RETAINED_SOURCE" --macos-source-commit "$RETAINED_SOURCE" --source-base source-base/MeowChan-0.9.0-video-sources.tar.gz --output staged
+        run: python3 scripts/assemble-stable-release.py --artifacts-root candidates --source-commit "$SOURCE_COMMIT" --windows-source-commit "$RETAINED_SOURCE" --macos-source-commit "$RETAINED_SOURCE" --source-base source-base/MeowChan-0.9.0-video-sources.tar.gz --output staged --version "$RELEASE_VERSION"
       - name: Upload verified assets to the existing draft without publishing
         run: |
           python3 - <<'PY'
@@ -93,16 +112,19 @@ jobs:
           from pathlib import Path
           repo = os.environ['GITHUB_REPOSITORY']
           release = json.loads(subprocess.check_output(['gh', 'api', f'repos/{repo}/releases/' + os.environ['RELEASE_ID']]))
-          assert release['tag_name'] == 'v0.9.0'
+          version = os.environ['RELEASE_VERSION']
+          assert release['tag_name'] == 'v' + version
           assert release['draft'] is True and release['prerelease'] is False
           assert release['target_commitish'] == os.environ['SOURCE_COMMIT']
           order = ['win-x64.zip', 'osx-arm64.dmg', 'osx-x64.dmg', 'linux-x64.AppImage', 'linux-arm64.AppImage', 'linux-x64-bundled-vlc.tar.gz', 'linux-x64-system-vlc.tar.gz', 'linux-arm64-bundled-vlc.tar.gz', 'linux-arm64-system-vlc.tar.gz', 'video-sources.tar.gz', 'macos-video-source-overlay.tar.gz', 'linux-x64-video-sources.tar.gz', 'linux-arm64-video-sources.tar.gz']
-          names = ['MeowChan-0.9.0-' + name for name in order] + ['SHA256SUMS']
+          # The pinned corresponding-source base keeps its own (0.9.0) name.
+          base = 'MeowChan-0.9.0-video-sources.tar.gz'
+          names = [base if name == 'video-sources.tar.gz' else f'MeowChan-{version}-' + name for name in order] + ['SHA256SUMS']
           assert set(names) == {p.name for p in Path('staged').iterdir()}
           record = {'schema': 'meowchan.verified-release-upload.v1',
                     'releaseId': release['id'], 'sourceCommit': os.environ['SOURCE_COMMIT'],
                     'retainedSourceCommit': os.environ['RETAINED_SOURCE'],
-                    'sourceRun': os.environ['SOURCE_RUN'], 'linuxRun': os.environ['LINUX_RUN'],
+                    'version': version, 'sourceRun': os.environ['SOURCE_RUN'], 'linuxRun': os.environ['LINUX_RUN'],
                     'assets': []}
           existing = {a['name']: a for a in release['assets']}
           assert set(existing).issubset(names)
@@ -117,7 +139,7 @@ jobs:
               if old and old['state'] == 'uploaded' and old['size'] == row['bytes'] and old.get('digest') == row['digest']:
                   print('Already verified:', name, flush=True)
                   return
-              subprocess.run(['gh', 'release', 'upload', 'v0.9.0', str(Path('staged') / name), '--repo', repo, '--clobber'], check=True)
+              subprocess.run(['gh', 'release', 'upload', 'v' + version, str(Path('staged') / name), '--repo', repo, '--clobber'], check=True)
               print('Uploaded:', name, flush=True)
           # Upload the primary binaries first (GitHub displays assets alphabetically by
           # filename regardless of upload order); remaining distinct assets can
