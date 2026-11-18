@@ -54,10 +54,11 @@ public partial class PluginsPage
         {
             if (!byKey.TryAdd(entry.Key, entry)) continue;
             PluginEntryPresentation presentation = PluginEntryPresentation.Create(entry, productionWorkers, sdkMismatch: _services?.HasSdkMismatch);
-            bool running = _activity.Observe(entry.Key, PluginActivityTracker.IsBusy(presentation), now);
+            string activityKey = PluginActivityTracker.ActivityKey(entry.PluginId, entry.Key);
+            bool running = _activity.Observe(activityKey, PluginActivityTracker.IsBusy(presentation), now);
             ranks.Add(new PluginCardRank(entry.Key, presentation.Name, presentation.Availability, running));
         }
-        _activity.Retain(byKey.Keys);
+        _activity.Retain(representatives.Select(entry => PluginActivityTracker.ActivityKey(entry.PluginId, entry.Key)));
         return PluginCardOrder.Order(ranks).Select(rank => byKey[rank.Key]).ToArray();
     }
 

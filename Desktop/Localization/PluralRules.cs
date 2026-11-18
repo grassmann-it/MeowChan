@@ -18,7 +18,9 @@ internal static class PluralRules
 
     internal static string Category(string language, long count)
     {
-        long n = Math.Abs(count);
+        // Avoid Math.Abs(long.MinValue), which overflows even though plural rules only need
+        // the decimal magnitude. Negative counts are accepted by the test/runtime contract.
+        ulong n = count < 0 ? (ulong)(-(count + 1)) + 1UL : (ulong)count;
         int dash = language.IndexOf('-');
         string code = (dash < 0 ? language : language[..dash]).ToLowerInvariant();
         switch (code)
