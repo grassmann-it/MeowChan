@@ -95,12 +95,12 @@ public sealed partial class MediaPage
         if (_panel is { } existing) return existing;
         ReaderMediaSidebar panel = _panel = new ReaderMediaSidebar
         {
-            Name = "MediaPanel", IsVisible = false, TitleKey = "media.panel.title", EmptyKey = "media.panel.empty",
+            Name = "MediaPanel", IsVisible = false, UseGalleryCursor = true, TitleKey = "media.panel.title", EmptyKey = "media.panel.empty",
             CloseKey = "media.panel.close", ToggleCommandId = "media.panel.toggle"
         };
         // The sidebar's border faces the grid (set once; the side comes with the layout).
         panel[!Border.BorderBrushProperty] = new Avalonia.Markup.Xaml.MarkupExtensions.DynamicResourceExtension("Workspace.CardEdge");
-        // Only the identifying title/actions line above, transport below; media receives the remaining host height (1.9e).
+        // Flush with the grid card (MediaPage.PanelAlignment.cs): no inset above or below the card; the header line has the page header's line height.
         panel.Padding = new Thickness(16, 0, 16, 0);
         panel.HeaderHeight = PanelHeaderLineHeight;
         panel.Localize();
@@ -117,7 +117,7 @@ public sealed partial class MediaPage
         // In the panel the slot's activator covers the poster also while idle: the focusable "Play video here" (Enter plays).
         ReaderInlineVideoSlot slot = _panelVideo = new ReaderInlineVideoSlot(panel.FrameArea, activatorWhenIdle: true)
         {
-            ShortcutContext = "media", OwnerClaims = MediaPanelKeys.PageClaims, PointerPlayFocus = FocusGridAfterPointerPlay
+            OwnerClaims = MediaPanelKeys.PageClaims, PointerPlayFocus = FocusGridAfterPointerPlay
         };
         _panelVideoController.NavigationKeys = TryNavigateGridFromPanel;
         panel.VideoRow.Children.Add(slot.Below);
@@ -299,7 +299,7 @@ public sealed partial class MediaPage
         CancellationTokenSource? loading = _panelLoading;
         _panelLoading = null;
         try { loading?.Cancel(); } catch (ObjectDisposedException) { }
-        // LoadPanelAsync owns disposal after its decode has actually completed.
+        loading?.Dispose();
     }
 
     private bool IsCurrentPanelRequest(int request) => !_lifetime.IsCancellationRequested && _panelShown && _panel is { } panel && panel.Load.IsCurrent(request);
@@ -350,11 +350,7 @@ public sealed partial class MediaPage
         }
         CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         _panelLoading = loading;
-        PanelTask = CancellationWork.RunAsync(loading,
-            token => LoadPanelAsync(panel, row, mediumKey, ticket, target, token), () =>
-            {
-                if (ReferenceEquals(_panelLoading, loading)) _panelLoading = null;
-            });
+        PanelTask = LoadPanelAsync(panel, row, mediumKey, ticket, target, loading.Token);
     }
 
     private string PanelDetail() => _panelDimensions.Length == 0 ? _panelSizeText
@@ -452,7 +448,6 @@ public sealed partial class MediaPage
             entry.Presence == MediaLibraryPresence.Present && entry.Directory != null && entry.AssetId != null, entry.Kind == SavedMediaKind.Video);
         slot.Offer(offered ? _panelVideoController : null, offered ? PanelVideoKey(entry!) : null,
             offered ? token => ResolvePanelEntryAsync(entry!, token) : null, row?.Name ?? string.Empty, offered ? StartOpenPanelMedia : null);
-        // MD-03: the hand over the picture only where a single click acts (OnPanelPictureActivated); a double click opens the gallery anyway.
         if (_panel is { } panel) panel.SingleClickActs = slot.IsOffered;
         SchedulePanelVideoAutoplay(offered ? PanelVideoKey(entry!) : null);
     }

@@ -84,6 +84,19 @@ public sealed class PluginCardOrderTests
     }
 
     [Fact]
+    public void ActivityHoldFollowsThePluginWhenItsRepresentativeFileChanges()
+    {
+        PluginActivityTracker tracker = new();
+        DateTimeOffset start = new(2026, 11, 17, 12, 0, 0, TimeSpan.Zero);
+
+        Assert.True(tracker.Observe(PluginActivityTracker.ActivityKey("plugin-id", "candidate-a"), true, start));
+        // Selecting another candidate changes the card key, but not the plugin identity or its held activity.
+        Assert.True(tracker.Observe(PluginActivityTracker.ActivityKey("plugin-id", "candidate-b"), false, start.AddSeconds(1)));
+        Assert.True(tracker.Observe(PluginActivityTracker.ActivityKey(null, "standalone"), true, start));
+        Assert.Equal("standalone", PluginActivityTracker.ActivityKey(null, "standalone"));
+    }
+
+    [Fact]
     public void OnlyRequestStatesCountAsBusy()
     {
         Assert.True(PluginActivityTracker.IsBusyState("running"));
