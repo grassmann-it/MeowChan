@@ -132,7 +132,9 @@ public partial class ArchivePage
             if (fallback) index = ReadingJump.Resolve(PostIdsOf(view), position.PostId).Index;
             string postId = view.GetPosts(index, 1).First().PostId;
             // The saved anchor is the reading mark: the posts after it have not been read since.
-            if (!fallback) _unreadMark = (position.ThreadId, LastReadOf(view, position));
+            // A replacement post is not an anchor; clear any old mark from the same thread rather than
+            // presenting an unrelated unread line after this explicit Continue reading jump.
+            _unreadMark = ResumeUnreadMark(view, position, fallback);
             _history.Clear(); // F2: continue reading is a jump; "Back to last read" never flips to the thread shown before it
             ShowCapturedView(view, index / PageSize * PageSize, postId);
             await RevealPostAsync(postId); // The saved place is shown even where the reader view hides it.

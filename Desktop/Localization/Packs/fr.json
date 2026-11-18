@@ -4559,7 +4559,7 @@
     "tagging.status.undone.done": "Annulé : « {0} » est de nouveau terminé.",
     "tagging.status.undone.skipped": "Annulé : « {0} » est de nouveau ignoré.",
     "tagging.status.undoGone": "Rien n’a été annulé : cette entrée n’est plus dans la file d’étiquetage.",
-    "tagging.status.group": "Groupe « {0} ». ",
+    "tagging.status.group": "Groupe « {0} ».",
     "tagging.status.missing": "« {0} » n’est plus dans la file d’étiquetage ; rien n’a été modifié.",
     "tagging.status.failed": "La décision n’a pas été enregistrée : {0}",
     "tagging.help.heading": "Mode étiquetage",

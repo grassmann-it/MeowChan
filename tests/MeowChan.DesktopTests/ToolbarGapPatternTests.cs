@@ -187,4 +187,16 @@ public sealed class ToolbarGapPatternTests
         string bar = File.ReadAllText(Root("Desktop/ActionToolBar.cs"));
         Assert.Contains("e.Property == IsVisibleProperty && sender is Control", bar);
     }
+
+    [Fact]
+    public void SharedAlignmentStylesCenterToolbarCheckboxesAndGridCellsAndKeepTextFromScrollingSideways()
+    {
+        string styles = File.ReadAllText(Root("Desktop/WorkspaceStyles.axaml"));
+        Assert.Contains(
+            "WrapPanel[Orientation=Horizontal] > CheckBox, StackPanel[Orientation=Horizontal] > CheckBox",
+            styles);
+        Assert.Contains("<Setter Property=\"VerticalAlignment\" Value=\"Center\" />", styles);
+        Assert.Contains("<Style Selector=\"DataGridCell\"><Setter Property=\"Padding\" Value=\"12,0\" /><Setter Property=\"ClipToBounds\" Value=\"True\" /><Setter Property=\"VerticalContentAlignment\" Value=\"Center\" />", styles);
+        Assert.Contains("<Setter Property=\"ScrollViewer.HorizontalScrollBarVisibility\" Value=\"Disabled\" />", styles);
+    }
 }

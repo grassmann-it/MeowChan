@@ -58,6 +58,18 @@ public sealed class LanguagePackAuditRegressionTests : IDisposable
 
     [Theory]
     [MemberData(nameof(BundledLanguagePackCompletenessTests.BundledCodes), MemberType = typeof(BundledLanguagePackCompletenessTests))]
+    public void InlineTaggingGroupStatusDoesNotCarryTrailingWhitespace(string code)
+    {
+        Texts.SetLanguage(code);
+        string text = Texts.T("tagging.status.group", "demo");
+
+        // TaggingModeText.Start appends this complete sentence after one separator.
+        // A trailing space here leaks into the status line (the French preview used to do that).
+        Assert.Equal(text.TrimEnd(), text);
+    }
+
+    [Theory]
+    [MemberData(nameof(BundledLanguagePackCompletenessTests.BundledCodes), MemberType = typeof(BundledLanguagePackCompletenessTests))]
     public void NoEditSentinelsRemainEmptyInEveryLanguageWithoutInvalidPackEntries(string code)
     {
         using Stream stream = typeof(Texts).Assembly.GetManifestResourceStream(Texts.BundledPackResourcePrefix + code + ".json")!;

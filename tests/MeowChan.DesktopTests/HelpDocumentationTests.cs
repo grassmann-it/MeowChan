@@ -911,6 +911,26 @@ public sealed class HelpDocumentationTests
     }
 
     [Fact]
+    public void ContinueReadingHelpMatchesRoutingHistoryFallbackAndReaderStatusSemantics()
+    {
+        string help = Plain(Read(Help));
+        Assert.Contains("it remains visible while the reader or gallery is open", help, StringComparison.Ordinal);
+        Assert.Contains("Inside the reader or gallery, left-click opens the history list", help, StringComparison.Ordinal);
+        Assert.Contains($"default {Config.ReadingHistoryLimitDefault}, {Config.ReadingHistoryLimitMinimum}–{Config.ReadingHistoryLimitMaximum}", help, StringComparison.Ordinal);
+        Assert.Contains($"default {Config.ReadingHistoryMenuEntriesDefault}, {Config.ReadingHistoryMenuEntriesMinimum}–{Config.ReadingHistoryMenuEntriesMaximum}", help, StringComparison.Ordinal);
+        Assert.Contains("the next captured post is used when one exists, otherwise the last captured post", help, StringComparison.Ordinal);
+        Assert.Contains("A missing saved post does not create a new unread boundary", help, StringComparison.Ordinal);
+        Assert.Contains("The reader status line shows when automatic display is active", help, StringComparison.Ordinal);
+
+        string resume = Read("Desktop/Views/Archive/ArchivePage.Resume.cs");
+        Assert.Contains("_unreadMark = ResumeUnreadMark(view, position, fallback);", resume, StringComparison.Ordinal);
+        Assert.Contains("fallback ? Texts.T(\"resume.fallback\")", resume, StringComparison.Ordinal);
+        string live = Read("Desktop/Views/Archive/ArchivePage.Live.cs");
+        Assert.Contains("liveState.Text = Texts.T(\"reader.live.stateOn\")", live, StringComparison.Ordinal);
+        Assert.Contains("WorkViewGate.Apply(liveState, ArchiveWorkView, _followReader)", live, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void UnlimitedGalleryGuidanceKeepsTheCapWithoutApplyingIt()
     {
         string gallery = Plain(Section(Read(Help), "Gallery Fit enlargement"));
