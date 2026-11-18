@@ -767,7 +767,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         Border card = new() { Name = "BooruResult:" + post.PostId };
         card.Classes.Add("workspace-card");
 
-        Grid grid = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"), ColumnSpacing = 12 };
+        Grid grid = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*"), ColumnSpacing = 12 };
         grid.Children.Add(WithPreviewCorners(CreatePreview(row), post));
 
         StackPanel info = new() { Spacing = 4 };
@@ -789,10 +789,41 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
             && (_isPostSavedInMedia == null || _isPostSavedInMedia(post.PostId)))
             info.Children.Add(CreateShowInMediaAction(ShowInMediaPrefix + post.PostId,
                 Texts.T("booru.ui.result.showInMediaFor", post.PostId), post.PostId));
-        // Secondary links after the content; the primary action (load original) keeps its place on the right.
+
+        bool cancel = row.CanCancel;
+        bool retry = !cancel && row.CanRetry;
+        string actionText = cancel ? Texts.T("booru.ui.cancel")
+            : retry ? Texts.T("booru.ui.status.retry") : Texts.T("booru.ui.load");
+        string actionName = cancel
+            ? $"{Texts.T("booru.ui.cancel")}: {Texts.T("booru.ui.post.title", post.PostId)}"
+            : retry ? $"{Texts.T("booru.ui.status.retry")}: {Texts.T("booru.ui.post.title", post.PostId)}"
+            : Texts.T("booru.ui.loadFor", post.PostId);
+        string actionPrefix = cancel ? CancelLoadPrefix : retry ? RetryLoadPrefix : LoadPrefix;
+        Button load = new() { Name = actionPrefix + post.PostId, Content = actionText, HorizontalAlignment = HorizontalAlignment.Left };
+        load.Classes.Add("primary");
+        CommandBindings.ShowIconBeforeText(load, "download-cloud");
+        RegisterWorkViewAction(load, cancel ? "booru.result.cancel" : retry ? "booru.result.retry" : "booru.result.load",
+            _resultWorkViewActions);
+        load.IsEnabled = cancel || retry || row.CanLoad;
+        AutomationProperties.SetName(load, actionName);
+        string? why = post.OriginalAccess != BooruOriginalAccess.Available ? BooruText.Original(post.OriginalAccess, withdrawn)
+            : BooruText.Load(row);
+        ToolTip.SetTip(load, why ?? actionName);
+        ToolTip.SetShowOnDisabled(load, true);
+        if (why is not null) AutomationProperties.SetHelpText(load, why);
+        if (cancel) load.Click += async (_, _) => await _model.Search.CancelOriginalAsync(post.PostId);
+        else if (retry) load.Click += async (_, _) => await _model.Search.RetryOriginalAsync(post.PostId);
+        else load.Click += async (_, _) => await _model.Search.LoadOriginalAsync(post.PostId);
+
+        WrapPanel actions = new() { Name = "BooruResultActions:" + post.PostId, Classes = { "workspace-toolbar" } };
+        actions.Children.Add(load);
         if (BooruPostLinks.TryCanonical(post, out string canonical))
-            info.Children.Add(CreateLinkActions(OpenPostPrefix + post.PostId, CopyLinkPrefix + post.PostId, canonical,
-                Texts.T("booru.ui.post.openFor", post.PostId), Texts.T("booru.ui.post.copyFor", post.PostId), _resultWorkViewActions));
+        {
+            WrapPanel links = (WrapPanel)CreateLinkActions(OpenPostPrefix + post.PostId, CopyLinkPrefix + post.PostId, canonical,
+                Texts.T("booru.ui.post.openFor", post.PostId), Texts.T("booru.ui.post.copyFor", post.PostId), _resultWorkViewActions);
+            foreach (Control link in links.Children) actions.Children.Add(link);
+        }
+        info.Children.Add(actions);
 
         if (BooruText.Load(row) is { } loadText)
         {
@@ -810,32 +841,6 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         Grid.SetColumn(info, 1);
         grid.Children.Add(info);
 
-        bool cancel = row.CanCancel;
-        bool retry = !cancel && row.CanRetry;
-        string actionText = cancel ? Texts.T("booru.ui.cancel")
-            : retry ? Texts.T("booru.ui.status.retry") : Texts.T("booru.ui.load");
-        string actionName = cancel
-            ? $"{Texts.T("booru.ui.cancel")}: {Texts.T("booru.ui.post.title", post.PostId)}"
-            : retry ? $"{Texts.T("booru.ui.status.retry")}: {Texts.T("booru.ui.post.title", post.PostId)}"
-            : Texts.T("booru.ui.loadFor", post.PostId);
-        string actionPrefix = cancel ? CancelLoadPrefix : retry ? RetryLoadPrefix : LoadPrefix;
-        Button load = new() { Name = actionPrefix + post.PostId, Content = actionText, VerticalAlignment = VerticalAlignment.Top };
-        load.Classes.Add("primary");
-        CommandBindings.ShowIconBeforeText(load, "download-cloud");
-        RegisterWorkViewAction(load, cancel ? "booru.result.cancel" : retry ? "booru.result.retry" : "booru.result.load",
-            _resultWorkViewActions);
-        load.IsEnabled = cancel || retry || row.CanLoad;
-        AutomationProperties.SetName(load, actionName);
-        string? why = post.OriginalAccess != BooruOriginalAccess.Available ? BooruText.Original(post.OriginalAccess, withdrawn)
-            : BooruText.Load(row);
-        ToolTip.SetTip(load, why ?? actionName);
-        ToolTip.SetShowOnDisabled(load, true);
-        if (why is not null) AutomationProperties.SetHelpText(load, why);
-        if (cancel) load.Click += async (_, _) => await _model.Search.CancelOriginalAsync(post.PostId);
-        else if (retry) load.Click += async (_, _) => await _model.Search.RetryOriginalAsync(post.PostId);
-        else load.Click += async (_, _) => await _model.Search.LoadOriginalAsync(post.PostId);
-        Grid.SetColumn(load, 2);
-        grid.Children.Add(load);
         card.Child = grid;
         // The hit's one context menu (BooruWorkbenchView.CardMenus.cs) opens on a right click, the Menu key, Shift+F10 and menu.context-open; after an
         // entry rebuilt the cards the focus returns to the same hit. Keyboard and double click of the hit (interaction audit V11): BooruWorkbenchView.Hits.cs.

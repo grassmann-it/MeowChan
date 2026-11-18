@@ -70,6 +70,29 @@ public sealed class SurfaceStyleTests
     }
 
     [Fact]
+    public void BooruResultActionsStayCompactAndShareOneResponsiveActionRow()
+    {
+        string view = File.ReadAllText(Root("Desktop/Views/Booru/BooruWorkbenchView.cs"));
+        string viewer = File.ReadAllText(Root("Desktop/Views/Booru/BooruWorkbenchView.Viewer.cs"));
+        Assert.Contains("ColumnDefinitions = new ColumnDefinitions(\"Auto,*\")", view);
+        Assert.Contains("""Name = "BooruResultActions:" + post.PostId""", view);
+        Assert.Contains("foreach (Control link in links.Children) actions.Children.Add(link);", view);
+        Assert.DoesNotContain("Grid.SetColumn(load, 2)", view);
+        Assert.Contains("""Name = "BooruViewerActions:" + postId""", viewer);
+        Assert.Contains("open.Classes.Add(\"ghost\")", viewer);
+        Assert.Contains("Classes = { \"workspace-toolbar\" }", viewer);
+    }
+
+    [Fact]
+    public void BooruDownloadActionUsesDownloadLanguageWithoutChangingItsStableKeys()
+    {
+        string catalog = File.ReadAllText(Root("Desktop/Booru/BooruUiCatalog.cs"));
+        Assert.Contains("(\"booru.ui.load\", \"Download original\", \"Original herunterladen\")", catalog);
+        Assert.Contains("(\"booru.ui.loadFor\", \"Download original of post {0}\", \"Original von Post {0} herunterladen\")", catalog);
+        Assert.DoesNotContain("booru.ui.download", catalog);
+    }
+
+    [Fact]
     public void ReaderTokensAreRetiredInFavourOfTheCardTokens()
     {
         string xaml = File.ReadAllText(Root("Desktop/WorkspaceStyles.axaml")) + File.ReadAllText(Root("Desktop/Views/Archive/ArchivePage.axaml"));
